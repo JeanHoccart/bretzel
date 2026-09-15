@@ -25,7 +25,7 @@ PATH = "/languages"
 
 @page(PATH, layout=shell, title="Les langues")
 def languages_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Parler la langue de qui visite", level=1,
                        size="3xl")

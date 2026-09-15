@@ -22,7 +22,7 @@ _CYCLE = [
 
 @page("/how", layout=shell, title="Comment Bretzel fonctionne")
 def how_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Comment Bretzel fonctionne", level=1, size="3xl")
             ui.text(

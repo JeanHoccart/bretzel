@@ -12,7 +12,7 @@ from examples.docs.features.shell import shell
 
 @page("/describe", layout=shell, title="Décrire l'UI")
 def describe_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Décrire l'UI", level=1, size="3xl")
             ui.text(

@@ -26,7 +26,7 @@ PATH = "/auth"
 
 @page(PATH, layout=shell, title="Authentification")
 def auth_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("L'authentification", level=1, size="3xl")
             ui.text(

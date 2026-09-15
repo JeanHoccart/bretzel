@@ -12,7 +12,8 @@ placement de chaque feature — pour l'instant on reste en références de code.
 
 from __future__ import annotations
 
-from bretzel import layout, ui
+from bretzel import Screen, layout, ui
+from bretzel.state import ClientState, field
 from bretzel.theme import ColorScheme
 
 #: Les trois modes, dans l'ordre où on les lit. MÊME tuple que
@@ -28,6 +29,12 @@ THEME_ITEMS: tuple[tuple[str, str, str], ...] = (
     ("dark", "Thème sombre", "moon"),
     ("system", "Thème système", "monitor"),
 )
+
+
+class DocsNavigation(ClientState):
+    """Recherche locale dans le sommaire, sans requête serveur."""
+
+    query: str = field(default="")
 
 # (section, [(label, href, icon, blurb)]) — le blurb ne sert QU'au stub
 # d'un chapitre pas encore écrit ; il ne décide plus de rien (cf.
@@ -62,12 +69,12 @@ THEME_ITEMS: tuple[tuple[str, str, str], ...] = (
 NAV = [
     ("DÉMARRER", [
         ("Introduction", "/", "compass", ""),
+        ("Démarrer en 5 minutes", "/quickstart", "rocket", ""),
         ("Comprendre Bretzel", "/how", "book-open", ""),
         ("Décrire l'UI", "/describe", "layout-template", ""),
         # Le jumeau du précédent : l'un dit ce qui existe, l'autre juge ce
         # qu'on en a fait. Ils se lisent l'un après l'autre.
         ("Juger le code", "/check", "shield-check", ""),
-        ("Installer et démarrer", "/config", "rocket", ""),
     ]),
     ("LE CYCLE", [
         ("État · serveur", "/state-server", "database", ""),
@@ -105,6 +112,7 @@ NAV = [
         ("Pièges", "/traps", "triangle-alert", ""),
     ]),
     ("CHERCHER", [
+        ("Configuration", "/config", "settings", ""),
         ("Ce que Bretzel sait faire", "/capabilities", "sparkles", ""),
         ("Catalogue ui.*", "/components", "shapes", ""),
         ("Runtime client", "/runtime", "cpu", ""),
@@ -117,14 +125,34 @@ NAV = [
 @layout
 def shell() -> None:
     with ui.viewport():
-        with ui.sidebar(collapsible="rail"):
+        mobile = Screen().is_mobile
+        navigation = DocsNavigation()
+        sidebar = ui.sidebar(
+            collapsible="overlay" if mobile else "rail",
+            open=not mobile,
+            width="lg",
+        )
+        with sidebar:
             ui.sidebar_title(
                 "Bretzel Docs",
                 icon=ui.icon("book-open", color="primary", size="lg"),
             )
+            ui.input(
+                value=navigation.query,
+                placeholder="Rechercher une page…",
+                icon_left="search",
+                clearable=True,
+                size="sm",
+                classes="my-2 group-data-[open=false]/sidebar:hidden",
+            )
             for section, items in NAV:
                 with ui.sidebar_section(label=section):
-                    for label, path, icon, _blurb in items:
+                    for label, path, icon, _blurb in ui.filter_each(
+                        items,
+                        query=navigation.query,
+                        text=lambda item: f"{section} {item[0]}",
+                        key=lambda item: item[1],
+                    ):
                         ui.sidebar_item(label, icon=icon, href=path)
             with ui.sidebar_footer(
                 name="Bretzel",
@@ -146,6 +174,20 @@ def shell() -> None:
                     label="GitHub", icon_left="github",
                     href="https://github.com/JeanHoccart/bretzel",
                 )
-        with ui.pane(gap="none", padding="lg",
-                     classes="max-md:pt-[5.5rem]"):
+        with ui.pane(
+            gap="none",
+            padding="lg",
+            classes="min-w-0 max-md:px-4 max-md:pt-20 2xl:px-12",
+        ):
+            if mobile:
+                with ui.hstack(
+                    align="center", gap="sm",
+                    classes=(
+                        "fixed inset-x-0 top-0 z-30 h-16 px-4 "
+                        "bg-background/95 backdrop-blur "
+                        "border-b border-text/10"
+                    ),
+                ):
+                    ui.sidebar_trigger(sidebar, icon="menu", size="sm")
+                    ui.text("Bretzel Docs", weight="bold")
             ui.outlet()

@@ -22,7 +22,7 @@ PATH = "/scrolling"
 
 @page(PATH, layout=shell, title="Le défilement")
 def scrolling_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Le défilement", level=1, size="3xl")
             ui.text(

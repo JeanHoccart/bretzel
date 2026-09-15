@@ -27,7 +27,7 @@ PARTS = [("Direct", 42), ("Recherche", 31), ("Parrainage", 27)]
 
 @page(PATH, layout=shell, title="Graphiques")
 def charts_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Graphiques", level=1, size="3xl")
             ui.text(

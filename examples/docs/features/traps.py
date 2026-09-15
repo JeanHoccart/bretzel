@@ -76,7 +76,7 @@ _TRAPS: list[tuple[str, str, str]] = [
 
 @page(PATH, layout=shell, title="Pièges")
 def traps_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Pièges", level=1, size="3xl")
             ui.text(

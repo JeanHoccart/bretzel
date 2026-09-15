@@ -42,7 +42,7 @@ def rule_rows() -> list[dict[str, str]]:
 
 @page(PATH, layout=shell, title="Juger le code")
 def check_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Juger le code", level=1, size="3xl")
             ui.text(

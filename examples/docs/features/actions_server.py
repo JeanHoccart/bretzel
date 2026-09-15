@@ -12,7 +12,7 @@ from examples.docs.features.shell import shell
 
 @page("/actions-server", layout=shell, title="Actions serveur")
 def actions_server_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Actions serveur", level=1, size="3xl")
             ui.text(

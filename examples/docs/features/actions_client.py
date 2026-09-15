@@ -15,7 +15,7 @@ from examples.docs.features.shell import shell
 
 @page("/actions-client", layout=shell, title="Actions client")
 def actions_client_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Actions client", level=1, size="3xl")
             with ui.hstack(align="baseline", gap="sm", wrap=True):

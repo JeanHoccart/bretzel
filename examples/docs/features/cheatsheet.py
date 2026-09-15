@@ -25,7 +25,7 @@ def section(title: str, code: str) -> None:
 
 @page(PATH, layout=shell, title="Cheat-sheet")
 def cheatsheet_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Cheat-sheet", level=1, size="3xl")
             ui.text(

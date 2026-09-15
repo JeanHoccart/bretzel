@@ -20,7 +20,7 @@ PATH = "/cadence"
 
 @page(PATH, layout=shell, title="La cadence")
 def cadence_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Faire vivre une page sans que personne ne clique",
                        level=1, size="3xl")

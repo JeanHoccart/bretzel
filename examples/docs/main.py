@@ -44,12 +44,23 @@ paires seulement partagent quatre symboles, et ce sont ``Bretzel``,
 n'était pas de la redite, c'était l'absence de règle.
 """
 
+import os
+
 from bretzel import Bretzel
+
+mode = os.environ.get("BRETZEL_DOCS_MODE", "dev")
+secret_key = os.environ.get("BRETZEL_DOCS_SECRET_KEY")
+if secret_key is None:
+    if mode == "prod":
+        raise RuntimeError(
+            "BRETZEL_DOCS_SECRET_KEY is required when BRETZEL_DOCS_MODE=prod"
+        )
+    secret_key = "dev-docs-secret-change-me"
 
 app = Bretzel(
     title="Bretzel · Docs",
-    secret_key="dev-docs-secret-change-me",
-    mode="dev",
+    secret_key=secret_key,
+    mode=mode,
 )
 
 from examples.docs.features import (      # noqa: E402 — marks ramassées par include
@@ -72,6 +83,7 @@ from examples.docs.features import (      # noqa: E402 — marks ramassées par 
     how,
     languages,
     lists,
+    quickstart,
     reactivity_client,
     reactivity_server,
     browser,
@@ -91,7 +103,7 @@ from examples.docs.features import (      # noqa: E402 — marks ramassées par 
 # ⚠️ `stubs` DOIT rester après les vrais chapitres : il lit leurs
 # marques `@page` pour savoir lesquels sont livrés.
 app.include(
-    home, how, describe, check,
+    home, quickstart, how, describe, check,
     state_server, state_client,
     actions_server, actions_client,
     reactivity_server, reactivity_client,

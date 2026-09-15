@@ -7,7 +7,7 @@ from examples.docs.features.shell import shell
 
 @page("/", layout=shell, title="Introduction")
 def home_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="xl"):
             with ui.hstack(align="center", gap="sm", wrap=True):
                 ui.badge("Documentation", color="primary", variant="soft")
@@ -27,7 +27,7 @@ def home_page() -> None:
                     )
                     with ui.hstack(gap="sm", wrap=True):
                         ui.button(
-                            "Démarrer en 5 minutes", href="/config",
+                            "Démarrer en 5 minutes", href="/quickstart",
                             icon_right="arrow-right", size="lg",
                         )
                         ui.button(
@@ -43,10 +43,10 @@ def home_page() -> None:
             with ui.card(color="surface"):
                 with ui.vstack(gap="sm"):
                     with ui.hstack(align="center", justify="between", gap="md", wrap=True):
-                        ui.text("Installation", weight="bold")
+                        ui.text("Essayer l’early alpha", weight="bold")
                         ui.badge("Python 3.12–3.13", color="muted", variant="outline")
                     ui.code(
-                        "pip install bretzel\n"
+                        'pip install "bretzel @ git+https://github.com/JeanHoccart/bretzel.git"\n'
                         "bretzel new mon-app\n"
                         "cd mon-app && bretzel dev",
                         lang="bash",
@@ -90,4 +90,10 @@ def home_page() -> None:
                         "laissez Bretzel maintenir le navigateur à jour.",
                         size="lg",
                     )
-                    ui.link("Lire comment Bretzel fonctionne →", href="/how")
+                    ui.button(
+                        "Lire comment Bretzel fonctionne",
+                        href="/how",
+                        icon_right="arrow-right",
+                        color="background",
+                        size="sm",
+                    )

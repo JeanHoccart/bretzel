@@ -30,7 +30,7 @@ PATH = "/runtime"
 
 @page(PATH, layout=shell, title="Le runtime client")
 def runtime_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Le runtime client", level=1, size="3xl")
             ui.text(

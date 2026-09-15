@@ -21,7 +21,7 @@ PATH = "/forms"
 
 @page(PATH, layout=shell, title="Formulaires")
 def forms_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Les formulaires", level=1, size="3xl")
             ui.text(

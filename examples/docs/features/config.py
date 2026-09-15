@@ -15,7 +15,7 @@ PATH = "/config"
 
 @page(PATH, layout=shell, title="Config & run")
 def config_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Config & run", level=1, size="3xl")
             ui.text(

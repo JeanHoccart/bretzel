@@ -115,7 +115,7 @@ def app_map_page() -> None:
     for n in graph.nodes:
         by_kind.setdefault(n.kind, []).append(n)
 
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Carte de l'app", level=1, size="3xl")
             ui.text(

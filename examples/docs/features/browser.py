@@ -44,7 +44,7 @@ def piege(titre: str, texte: str) -> None:
 
 @page(PATH, layout=shell, title="Le navigateur")
 def browser_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Le navigateur", level=1, size="3xl")
             ui.text(

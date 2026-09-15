@@ -114,7 +114,7 @@ def marqueurs_table() -> None:
 
 @page(PATH, layout=shell, title="Structure d'app")
 def structure_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Structure d'app", level=1, size="3xl")
             ui.text(

@@ -105,7 +105,7 @@ def carte(cap: Capability) -> None:
 def capabilities_page() -> None:
     filtre = Filtre()
 
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Ce que Bretzel sait faire", level=1, size="3xl")
             ui.text(
@@ -118,26 +118,17 @@ def capabilities_page() -> None:
             )
 
             ui.alert(
-                f"Cette page LISTE, elle n'enseigne pas. Chaque capacité "
-                f"renvoie vers le chapitre qui l'explique — et "
-                f"{sum(1 for c in CAPABILITIES if not c.chapter)} sur "
-                f"{len(CAPABILITIES)} n'en ont pas encore, ce qui est "
-                f"écrit sur la carte plutôt que caché. C'est la règle du "
-                f"dépôt depuis le 2026-09-03 : un index renvoie, un "
-                f"chapitre explique, et on n'explique qu'à un seul "
-                f"endroit.",
+                "Cette page donne une vue d’ensemble. Chaque capacité "
+                "renvoie vers le chapitre qui l’explique, avec son point "
+                "d’entrée dans l’API et ses limites actuelles.",
                 color="success", title="Un index liste, un chapitre enseigne",
             )
 
             ui.alert(
-                "Pourquoi une liste écrite à la main dans un dépôt qui "
-                "s'introspecte partout : une capacité TRAVERSE les "
-                "dossiers. Servir un fichier touche cinq paquets, et "
-                "aucune de leurs docstrings ne dit « Bretzel sait servir "
-                "un fichier ». Ce qui la garde honnête, c'est que chaque "
-                "symbole nommé ici est résolu par une gate, et que "
-                "chaque extrait doit employer ce qu'il annonce.",
-                color="info", title="La seule page écrite à la main",
+                "Utilisez le filtre pour chercher un besoin (« csv », "
+                "« temps réel », « thème ») même si vous ne connaissez pas "
+                "encore le nom du composant correspondant.",
+                color="info", title="Cherchez par besoin",
             )
 
             ui.input(
@@ -160,9 +151,7 @@ def capabilities_page() -> None:
                     text=matiere,
                     key=lambda c: c.name,
                     empty=lambda: ui.text(
-                        "Aucune capacité ne correspond. La liste n'est "
-                        "pas complète — les manquantes sont dans "
-                        "`.claude/work/todo.md`.",
+                        "Aucune capacité ne correspond à cette recherche.",
                         color="muted", size="sm",
                     ),
                 ):

@@ -14,7 +14,7 @@ from examples.docs.features.shell import shell
 
 @page("/reactivity-server", layout=shell, title="Réactivité serveur")
 def reactivity_server_page() -> None:
-    with ui.container(width="lg"), ui.vstack(gap="lg"):
+    with ui.container(width="xl"), ui.vstack(gap="lg"):
         ui.heading("Réactivité serveur", level=1, size="3xl")
         with ui.hstack(align="baseline", gap="sm", wrap=True):
             ui.text(

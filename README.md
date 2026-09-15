@@ -19,12 +19,15 @@ pipeline to operate in production.
 Requires Python 3.12 or 3.13.
 
 ```bash
-python -m pip install bretzel
+python -m pip install "bretzel @ git+https://github.com/JeanHoccart/bretzel.git"
 bretzel new hello
 cd hello
 python -m pip install -e .
 bretzel dev
 ```
+
+Until the first PyPI release, the package is installed directly from GitHub.
+After publication, the first command becomes `python -m pip install bretzel`.
 
 Open <http://127.0.0.1:8000>, then edit `app/features/home.py`.
 
@@ -80,6 +83,12 @@ mutation to other open windows without polling or subscription code.
 Start with `examples/pomodoro` for a small application, `examples/kanban` for
 realtime collaboration, `examples/playground` for the component catalogue and
 `examples/docs` for the live reference.
+
+From a repository checkout, launch that documentation with:
+
+```bash
+python -m examples.docs.main
+```
 
 ## Repository
 

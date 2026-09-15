@@ -63,7 +63,7 @@ def components_page() -> None:
     for comp in components:
         by_family.setdefault(comp.family, []).append(comp)
 
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Catalogue ui.*", level=1, size="3xl")
             ui.text(

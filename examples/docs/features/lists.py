@@ -25,7 +25,7 @@ PATH = "/lists"
 
 @page(PATH, layout=shell, title="Listes et tableaux")
 def lists_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Listes et tableaux", level=1, size="3xl")
             ui.text(

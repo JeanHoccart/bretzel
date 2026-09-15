@@ -110,7 +110,7 @@ def counter_demo() -> None:
 
 @page(PATH, layout=shell, title="État serveur")
 def state_server_page() -> None:
-    with ui.container(width="lg"):
+    with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("État serveur", level=1, size="3xl")
             ui.text(
