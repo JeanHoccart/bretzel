@@ -1,100 +1,87 @@
-"""LES ACTIONS — Actions serveur.
-
-Le côté serveur des actions : brancher un handler sur un événement, ce
-qu'on a le droit d'y passer, passer des arguments, lire le formulaire.
-Faits vérifiés dans ``server/handlers.py`` + ``server/routing/actions.py``.
-"""
+"""Actions — server actions."""
 
 from bretzel import page, ui
 
 from examples.docs.features.shell import shell
 
 
-@page("/actions-server", layout=shell, title="Actions serveur")
+@page("/actions-server", layout=shell, title="Server actions")
 def actions_server_page() -> None:
     with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
-            ui.heading("Actions serveur", level=1, size="3xl")
+            ui.heading("Server actions", level=1, size="3xl")
             ui.text(
-                "Le côté serveur des actions : quand une interaction change "
-                "la vérité, `on_<event>=` reçoit une fonction Python — un "
-                "handler. Un aller-retour, la vérité mute côté serveur.",
+                "When an interaction changes the source of truth, pass a Python "
+                "function—a handler—to `on_<event>=`. The round trip changes "
+                "state on the server.",
                 color="muted", size="lg",
             )
 
-            # ── Brancher ─────────────────────────────────────────────
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("Brancher un handler", level=2)
+                    ui.heading("Attach a handler", level=2)
                     ui.text(
-                        "Chaque composant interactif expose des événements "
-                        "(`click`, `change`, `input`, `focus`, `blur`, "
-                        "`submit`, …). On relie une fonction avec "
-                        "`on_<event>=`.",
+                        "Every interactive component exposes events (`click`, "
+                        "`change`, `input`, `focus`, `blur`, `submit`, …). Attach "
+                        "a function with `on_<event>=`.",
                         color="muted", size="sm",
                     )
                     ui.code(
                         "def save() -> None:\n"
                         "    ...\n"
                         "\n"
-                        'ui.button("Enregistrer", on_click=save)\n',
+                        'ui.button("Save", on_click=save)\n',
                         lang="python",
                     )
 
-            # ── Ce qu'on peut passer ─────────────────────────────────
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("Ce qu'on peut passer à on_<event>=", level=2)
+                    ui.heading("What `on_<event>=` accepts", level=2)
                     ui.text(
-                        "Le handler est retrouvé par son chemin d'import "
-                        "(`module::fonction`), sans table stockée par page. "
-                        "Il doit donc être adressable.",
+                        "Bretzel resolves a handler by its import path "
+                        "(`module::function`), not from a per-page table. It must "
+                        "therefore be addressable.",
                         color="muted", size="sm",
                     )
                     ui.table(
                         columns=[
-                            ui.column("forme", label="Forme"),
-                            ui.column("ok", label="Accepté ?"),
+                            ui.column("form", label="Form"),
+                            ui.column("ok", label="Accepted?"),
                         ],
                         rows=[
-                            {"forme": "Fonction au niveau module "
-                                      "(on_click=save)", "ok": "Oui"},
-                            {"forme": "@staticmethod / @classmethod",
-                             "ok": "Oui"},
-                            {"forme": "functools.partial(handler, arg)",
-                             "ok": "Oui — pour passer un argument"},
-                            {"forme": "Lambda (on_click=lambda: …)",
-                             "ok": "Non — erreur au render"},
-                            {"forme": "Closure (fonction définie dans une "
-                                      "fonction)", "ok": "Non — erreur au render"},
-                            {"forme": "Méthode d'instance",
-                             "ok": "Non — non adressable"},
+                            {"form": "Module-level function (on_click=save)", "ok": "Yes"},
+                            {"form": "@staticmethod / @classmethod", "ok": "Yes"},
+                            {"form": "functools.partial(handler, arg)",
+                             "ok": "Yes — to pass an argument"},
+                            {"form": "Lambda (on_click=lambda: …)",
+                             "ok": "No — render error"},
+                            {"form": "Closure (function defined inside another function)",
+                             "ok": "No — render error"},
+                            {"form": "Instance method", "ok": "No — not addressable"},
                         ],
                         size="sm",
                     )
                     ui.text(
-                        "Une lambda ou une closure n'a pas de chemin d'import "
-                        "stable, d'où le refus au moment du rendu.",
+                        "A lambda or closure has no stable import path, which is why "
+                        "Bretzel rejects it while rendering.",
                         color="muted", size="sm",
                     )
                     with ui.hstack(align="baseline", gap="sm", wrap=True):
                         ui.text(
-                            "Ceci est le chemin serveur (une fonction). "
-                            "`on_<event>=` accepte aussi une chaîne, évaluée "
-                            "côté client sans handler — cf.",
+                            "This is the server path (a function). `on_<event>=` "
+                            "also accepts a string, evaluated on the client without "
+                            "a handler—see",
                             color="muted", size="sm",
                         )
-                        ui.link("Actions client", href="/actions-client")
+                        ui.link("Client actions", href="/actions-client")
                         ui.text(".", color="muted", size="sm")
 
-            # ── Passer un argument ───────────────────────────────────
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("Passer un argument — functools.partial", level=2)
+                    ui.heading("Pass an argument — functools.partial", level=2)
                     ui.text(
-                        "Pour donner un argument au handler (typiquement l'id "
-                        "d'une ligne), on utilise `partial`. Les arguments "
-                        "voyagent avec la requête.",
+                        "To give an argument to a handler (typically a row id), use "
+                        "`partial`. The arguments travel with the request.",
                         color="muted", size="sm",
                     )
                     ui.code(
@@ -103,58 +90,55 @@ def actions_server_page() -> None:
                         "def delete_item(item_id: str) -> None:\n"
                         "    ...\n"
                         "\n"
-                        "# une ligne par item, chacune avec son id :\n"
+                        "# one row per item, each with its id:\n"
                         'ui.icon_button("trash-2",\n'
                         "               on_click=partial(delete_item, item_id))\n",
                         lang="python",
                     )
                     ui.text(
-                        "Les arguments doivent être JSON-sérialisables : "
-                        "str, int, float, bool, None, list, dict.",
+                        "Arguments must be JSON-serializable: str, int, float, bool, "
+                        "None, list, or dict.",
                         color="muted", size="sm",
                     )
 
-            # ── Lire les données du formulaire ───────────────────────
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("Lire les données du formulaire", level=2)
+                    ui.heading("Read form data", level=2)
                     ui.text(
-                        "Trois façons, selon le besoin :",
+                        "Choose one of three approaches:",
                         color="muted", size="sm",
                     )
                     ui.code(
                         "from bretzel.state import get\n"
                         "\n"
-                        "# 1. un paramètre nommé comme un champ → forwardé\n"
+                        "# 1. a parameter named after a field → forwarded\n"
                         "def submit(title: str) -> None:\n"
                         "    ...\n"
                         "\n"
-                        "# 2. un paramètre typé State → hydraté depuis le form\n"
+                        "# 2. a State-typed parameter → hydrated from the form\n"
                         "def save(form: Draft) -> None:\n"
-                        "    # form.title, form.price … déjà remplis + validés\n"
+                        "    # form.title and form.price are already filled and validated\n"
                         "    ...\n"
                         "\n"
-                        "# 3. get() → un champ brut, ponctuel\n"
+                        "# 3. get() → one raw field, on demand\n"
                         "def other() -> None:\n"
                         '    note = get("note")\n',
                         lang="python",
                     )
                     ui.text(
-                        "Pas de `name=` à écrire à la main : "
-                        "`ui.input(value=draft.title)` dérive le champ `title` "
-                        "automatiquement (cf. le chapitre Composants).",
+                        "You do not write `name=` yourself: `ui.input(value=draft.title)` "
+                        "derives the `title` field automatically (see Components).",
                         color="muted", size="sm",
                     )
 
-            # ── @idempotent ──────────────────────────────────────────
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("Éviter les doubles envois — @idempotent",
+                    ui.heading("Prevent duplicate submissions — @idempotent",
                                level=2)
                     ui.text(
-                        "Sur une action sensible (paiement, création), "
-                        "`@idempotent` fait qu'un double-envoi du même rendu "
-                        "ne s'exécute qu'une fois ; le second reçoit un 204.",
+                        "For a sensitive action (a payment or creation), `@idempotent` "
+                        "ensures that a duplicate submission from the same render runs "
+                        "only once; the second gets a 204.",
                         color="muted", size="sm",
                     )
                     ui.code(
@@ -166,15 +150,14 @@ def actions_server_page() -> None:
                         lang="python",
                     )
 
-            # ── Frontière ────────────────────────────────────────────
             with ui.card(color="surface"):
                 with ui.vstack(gap="xs"):
-                    ui.heading("Et ensuite", level=3)
+                    ui.heading("Next", level=3)
                     with ui.hstack(align="baseline", gap="sm", wrap=True):
-                        ui.text("Ce qui se re-rend après le handler :",
+                        ui.text("What renders again after a handler:",
                                 color="muted", size="sm")
-                        ui.link("Réactivité serveur →", href="/reactivity-server")
+                        ui.link("Server reactivity →", href="/reactivity-server")
                     with ui.hstack(align="baseline", gap="sm", wrap=True):
-                        ui.text("Agir sans aller-retour :",
+                        ui.text("Act without a round trip:",
                                 color="muted", size="sm")
-                        ui.link("Actions client →", href="/actions-client")
+                        ui.link("Client actions →", href="/actions-client")
