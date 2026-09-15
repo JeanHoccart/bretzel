@@ -52,5 +52,4 @@ for an explanation.
 - Keep clear space equal to the central opening around the mark.
 - Do not rotate, outline or place the full-colour mark on a busy background.
 - Use the monochrome asset at small sizes or where colour is unavailable.
-- Keep the salt details for display sizes; omit them below 32 px.
 - The 64×64 mark is the source for favicons and avatars.

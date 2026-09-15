@@ -1,7 +1,7 @@
 # Bretzel
 
 <p align="center">
-  <img src="assets/brand/bretzel-mark.svg" width="112" alt="Bretzel">
+  <img src="assets/brand/bretzel-mark.png" width="160" alt="Bretzel">
 </p>
 
 > Server-Driven UI for Python — typed state, zero npm, batteries included.
