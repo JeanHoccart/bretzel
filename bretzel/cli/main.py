@@ -40,7 +40,7 @@ def _new(args: argparse.Namespace) -> int:
 
     destination = Path(args.directory or args.name)
     create_project(destination, display_name=args.name)
-    print(f"Application créée dans {destination.resolve()}")
+    print(f"Application created in {destination.resolve()}")
     print(f"  cd {destination}")
     print("  python -m pip install -e .")
     print("  bretzel dev")
@@ -236,111 +236,108 @@ def _force_utf8_output() -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bretzel",
-        description="Bretzel — le framework se décrit et juge le code écrit contre lui.",
+        description="Bretzel — inspect and check Python web applications.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    new = sub.add_parser("new", help="crée une petite application prête à lancer")
-    new.add_argument("name", help="nom affiché de l'application")
+    new = sub.add_parser("new", help="create a small application ready to run")
+    new.add_argument("name", help="display name of the application")
     new.add_argument(
         "--directory", "-d", default=None,
-        help="dossier à créer (défaut : le nom de l'application)",
+        help="directory to create (defaults to the application name)",
     )
     new.set_defaults(func=_new)
 
-    dev = sub.add_parser("dev", help="lance une application avec rechargement")
+    dev = sub.add_parser("dev", help="run an application with live reload")
     dev.add_argument(
         "target", nargs="?", default="app.main:app",
-        help="cible ASGI (défaut : app.main:app)",
+        help="ASGI target (defaults to app.main:app)",
     )
     dev.add_argument("--host", default="127.0.0.1")
     dev.add_argument("--port", type=int, default=8000)
     dev.add_argument(
         "--no-reload", action="store_true",
-        help="lance un seul processus, sans surveiller les fichiers",
+        help="run one process without watching files",
     )
     dev.set_defaults(func=_dev)
 
     desc = sub.add_parser(
         "describe",
-        help="la surface publique, ou la fiche d'un symbole",
+        help="inspect the public surface or one symbol",
         description=(
-            "Sans argument : l'index d'une ligne par symbole, destiné à "
-            "rester chargé. Avec un nom : la fiche complète."
+            "Without an argument, print one compact line per symbol. "
+            "With a name, print its full entry."
         ),
     )
     desc.add_argument(
         "symbol",
         nargs="?",
-        help="un composant (`button`), un symbole (`page`, `PageState`, "
-        "`ROUTE_ACTION`) ou un module (`bretzel.state`)",
+        help="a component (`button`), symbol (`page`, `PageState`, "
+        "`ROUTE_ACTION`) or module (`bretzel.state`)",
     )
-    desc.add_argument("--json", action="store_true", help="sortie machine")
+    desc.add_argument("--json", action="store_true", help="machine-readable output")
     desc.add_argument(
         "--theme",
         action="store_true",
-        help="la table de thème du composant : la FORME de chaque palier, "
-        "le palier par défaut en entier, et les autres nommés",
+        help="component theme sheet, including its default and named levels",
     )
     desc.set_defaults(func=_describe)
 
     chk = sub.add_parser(
         "check",
-        help="passe les règles sur du code applicatif",
+        help="run Bretzel rules against application code",
         description=(
-            "Statique par défaut : AST seul, rien de l'application n'est "
-            "exécuté. `--deep` importe l'app pour interroger sa carte — donc "
-            "il exécute son code, d'où le drapeau séparé."
+            "Static by default: parses the AST without running your app. "
+            "`--deep` imports the app to inspect its map, so it executes code."
         ),
     )
-    chk.add_argument("paths", nargs="*", help="fichiers ou dossiers (défaut : .)")
+    chk.add_argument("paths", nargs="*", help="files or directories (defaults to .)")
     chk.add_argument(
         "--rule",
         action="append",
         default=[],
         metavar="NOM",
-        help="ne lancer que cette règle (répétable) ; `--rule ?` les liste",
+        help="run only this rule (repeatable); `--rule ?` lists them",
     )
     chk.add_argument(
         "--deep",
         action="store_true",
-        help="lint de carte sur une app MONTÉE (`module:attribut`) — exécute son code",
+        help="inspect an imported app map (`module:attribute`) — executes its code",
     )
     chk.set_defaults(func=_check)
 
     prb = sub.add_parser(
         "probe",
-        help="pilote une app en marche dans un vrai navigateur",
+        help="drive a running application in a real browser",
         description=(
-            "Sert l'app sur un port libre, ouvre une ou plusieurs fenêtres, "
-            "balaie (débordement, tabulation, erreurs JS, requêtes en échec, "
-            "une seconde taille, les deux thèmes) et rend un bloc unique. "
-            "Code de sortie non nul si une ligne est rouge. "
-            "Demande l'extra : pip install bretzel[probe]"
+            "Serve the app on a free port, open one or more windows, and "
+            "check overflow, keyboard navigation, JavaScript errors, failed "
+            "requests, another viewport, and both themes. Requires "
+            "`pip install bretzel[probe]`."
         ),
     )
-    prb.add_argument("target", help="l'app à piloter (`module:attribut`)")
+    prb.add_argument("target", help="application target (`module:attribute`)")
     prb.add_argument(
         "--route",
         action="append",
         default=[],
         metavar="CHEMIN",
-        help="route à visiter (répétable ; défaut : /)",
+        help="route to visit (repeatable; defaults to /)",
     )
     prb.add_argument(
         "--windows", type=int, default=1,
-        help="nombre de fenêtres — des CONTEXTES, donc des sessions distinctes",
+        help="number of browser contexts, therefore separate sessions",
     )
     prb.add_argument(
         "--size", default=(1280, 700), type=_parse_size,
-        help="taille de la fenêtre (défaut : 1280x700, la plus petite plausible)",
+        help="window size (defaults to 1280x700)",
     )
-    prb.add_argument("--headed", action="store_true", help="navigateur visible")
-    prb.add_argument("--out", default=None, metavar="DOSSIER", help="où poser les captures")
+    prb.add_argument("--headed", action="store_true", help="show the browser")
+    prb.add_argument("--out", default=None, metavar="DIRECTORY", help="screenshot output directory")
     prb.add_argument(
         "--subprocess",
         action="store_true",
-        help="servir l'app dans un autre processus — on y perd la lecture d'état",
+        help="serve the app in another process; state inspection is unavailable",
     )
     prb.set_defaults(func=_probe)
     return parser

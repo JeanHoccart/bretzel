@@ -1,4 +1,4 @@
-"""Accueil public de la documentation Bretzel."""
+"""Public entry point for Bretzel documentation."""
 
 from bretzel import page, ui
 
@@ -16,22 +16,22 @@ def home_page() -> None:
             with ui.hstack(align="center", justify="between", gap="xl", wrap=True):
                 with ui.vstack(gap="md", classes="max-w-3xl"):
                     ui.heading(
-                        "Construisez des applications web réactives en Python.",
+                        "Build reactive web applications in Python.",
                         level=1, size="4xl",
                     )
                     ui.text(
-                        "Bretzel réunit composants, état typé et logique serveur "
-                        "dans un seul modèle. Le navigateur reste synchronisé, "
-                        "sans projet JavaScript ni chaîne npm à maintenir.",
+                        "Bretzel brings components, typed state and server logic "
+                        "together in one model. The browser stays synchronized, "
+                        "without a separate JavaScript application or npm pipeline.",
                         color="muted", size="lg",
                     )
                     with ui.hstack(gap="sm", wrap=True):
                         ui.button(
-                            "Démarrer en 5 minutes", href="/quickstart",
+                            "Start in 5 minutes", href="/quickstart",
                             icon_right="arrow-right", size="lg",
                         )
                         ui.button(
-                            "Comprendre le modèle", href="/how",
+                            "Understand the model", href="/how",
                             variant="outline", size="lg",
                         )
                 ui.image(
@@ -43,7 +43,7 @@ def home_page() -> None:
             with ui.card(color="surface"):
                 with ui.vstack(gap="sm"):
                     with ui.hstack(align="center", justify="between", gap="md", wrap=True):
-                        ui.text("Essayer l’early alpha", weight="bold")
+                        ui.text("Try the early alpha", weight="bold")
                         ui.badge("Python 3.12–3.13", color="muted", variant="outline")
                     ui.code(
                         'pip install "bretzel @ git+https://github.com/JeanHoccart/bretzel.git"\n'
@@ -52,46 +52,46 @@ def home_page() -> None:
                         lang="bash",
                     )
 
-            ui.heading("Le modèle mental", level=2, size="2xl")
+            ui.heading("The mental model", level=2, size="2xl")
             with ui.grid(cols=3, gap="md", classes="max-lg:grid-cols-1"):
                 with ui.card():
                     with ui.vstack(gap="sm"):
                         ui.icon("database", color="primary", size="xl")
-                        ui.heading("Un état typé", level=3)
+                        ui.heading("Typed state", level=3)
                         ui.text(
-                            "Le serveur détient la vérité dans des objets Python "
-                            "explicites et testables.",
+                            "The server owns the source of truth in explicit, "
+                            "testable Python objects.",
                             color="muted",
                         )
                 with ui.card():
                     with ui.vstack(gap="sm"):
                         ui.icon("mouse-pointer-click", color="secondary", size="xl")
-                        ui.heading("Des actions Python", level=3)
+                        ui.heading("Python actions", level=3)
                         ui.text(
-                            "Les interactions appellent des handlers sans écrire "
-                            "une seconde application côté client.",
+                            "Interactions call Python handlers without writing "
+                            "a second application on the client.",
                             color="muted",
                         )
                 with ui.card():
                     with ui.vstack(gap="sm"):
                         ui.icon("zap", color="warning", size="xl")
-                        ui.heading("Une UI réactive", level=3)
+                        ui.heading("A reactive UI", level=3)
                         ui.text(
-                            "Quand l’état change, Bretzel met à jour seulement "
-                            "les fragments qui en dépendent.",
+                            "When state changes, Bretzel updates only the fragments "
+                            "that depend on it.",
                             color="muted",
                         )
 
             with ui.card(color="primary"):
                 with ui.vstack(gap="sm"):
-                    ui.heading("La seule idée à retenir", level=2)
+                    ui.heading("The one idea to remember", level=2)
                     ui.text(
-                        "UI = f(state). Décrivez l’interface, modifiez l’état, "
-                        "laissez Bretzel maintenir le navigateur à jour.",
+                        "UI = f(state). Describe the interface, change state, "
+                        "and let Bretzel keep the browser up to date.",
                         size="lg",
                     )
                     ui.button(
-                        "Lire comment Bretzel fonctionne",
+                        "See how Bretzel works",
                         href="/how",
                         icon_right="arrow-right",
                         color="background",
