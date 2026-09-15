@@ -1,0 +1,52 @@
+# Les couples `Classe.prop` qu'un dict de paliers FAIT CASSER, au lieu
+# d'etre refuses proprement.
+#
+# ===================================================================
+#  VIDE depuis le 2026-09-04. Ce n'est pas une table qu'on a nettoyee,
+#  c'est une dette qu'on a payee : les 91 entrees sont sorties d'un
+#  seul coup, par UNE cause commune.
+# ===================================================================
+#
+# CE QU'ELLE ENREGISTRAIT. Un dict `{"base": ..., "md": ...}` passe a
+# un prop non gradue traversait toute la construction, atteignait un
+# lookup de table de theme, et mourait trois frames plus bas sur
+#
+#     TypeError: cannot use 'dict' as a dict key (unhashable type: 'dict')
+#
+# — qui ne nomme ni le composant, ni le prop, ni le fait qu'un dict de
+# paliers n'a pas sa place la. Le garde qui produit le bon message,
+# `reject_responsive`, existait depuis toujours mais n'etait cable que
+# sur `flex` et `carousel` : deux composants sur une centaine, une
+# ligne a la main par prop. D'ou la table — 91 noms, figes, en
+# attendant qu'on sache les reparer autrement qu'un par un.
+#
+# CE QUI LES A TOUS SORTIS. Le refus est passe dans le SOCLE
+# (`responsive.reject_stray_breakpoints`, appele par
+# `Component.__init__`), et il lit une declaration de classe,
+# `RESPONSIVE_PROPS`. Quatre composants la portent — flex, grid,
+# carousel, resizable — et tous les autres heritent du defaut vide,
+# donc du refus. Rien a cabler, rien a oublier sur un composant neuf.
+#
+# TROIS CORRECTIONS DE LA SONDE, faites le meme jour, parce qu'elle
+# comptait neuf noms qui n'avaient rien a faire ici :
+#
+#   - elle construisait le composant NU, donc `Datatable` / `Image` /
+#     `ToggleButton` levaient sur un argument requis manquant et se
+#     lisaient comme « casse sous un dict ». Elle passe par
+#     `rendered_node_of`, la construction PARTAGEE ;
+#   - un refus NOMME n'est pas un defaut. `Calendar(mode={...})` repond
+#     « not in ('picker', 'range', 'week', 'month') » : c'est la bonne
+#     reponse, pas une abstention ;
+#   - un prop SCELLE (`SEALED_PROPS`) ne se passe pas du tout, dict ou
+#     scalaire. Le sonder ne mesure pas le sujet de cette gate.
+#
+# CE QUI RESTE. La qualite du refus d'un prop scelle : `Radio` et
+# `ToggleButton` rendent un « got multiple values » de Python la ou
+# les piles scellees rendent une phrase. Item a part dans
+# `.claude/work/todo.md` — c'est le meme genre de defaut, pas la meme
+# cause.
+#
+# SI TU DOIS RAJOUTER UNE LIGNE ICI : demande-toi d'abord pourquoi le
+# socle ne l'attrape pas. Une entree neuve dans un fichier vide depuis
+# ce jour-la est le signe que le refus universel a un trou, pas qu'un
+# composant a une dispense.

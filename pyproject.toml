@@ -1,0 +1,255 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bretzel"
+version = "0.1.0a1"
+description = "Server-Driven UI for Python — typed state, zero npm, batteries included."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Jean Hoccart", email = "jean.hoccart@gmail.com" }]
+keywords = ["ui", "framework", "fastapi", "htmx", "server-driven", "sdui"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Framework :: FastAPI",
+    "License :: OSI Approved :: MIT License",
+]
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "watchfiles>=0.24",           # dev watcher (bretzel/server/_dev.py)
+    "pydantic>=2.9",
+    "redis[hiredis]>=5.2",
+    "starlette>=0.41",
+    "itsdangerous>=2.2",          # session signing
+    "python-multipart>=0.0.20",   # form parsing
+    "pygments>=2.17",             # syntax highlighting for ui.code
+    "mistune>=3.0",               # markdown parsing for ui.markdown
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "pytest-xdist>=3.6",        # -n auto sur les suites navigateur — cf. tests/audit/README.md
+    "import-linter>=2.0",        # architecture contracts — see .importlinter
+    "httpx>=0.28",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "fakeredis>=2.26",
+    "pre-commit>=4.0",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+]
+# Compilateur Tailwind — nécessaire pour ``css="build"`` (le défaut en
+# prod). Sans lui, l'app retombe sur le compilateur navigateur en le
+# disant. Déclaré en extra plutôt que téléchargé au démarrage : 112 Mo
+# récupérés en effet de bord d'un lifespan, ce n'est pas acceptable.
+css = [
+    "tailwindcss>=4.1",
+]
+# ``bretzel probe`` — le framework pilote sa propre app dans un vrai
+# navigateur. Extra et jamais dépendance d'exécution : Playwright
+# télécharge un Chromium, et « zéro npm » porte sur la PROD. Le paquet
+# était déjà utilisé par ``tests/audit`` sans être déclaré nulle part ;
+# cette ligne est donc aussi la réparation de cet oubli.
+probe = [
+    "playwright>=1.49",
+]
+
+[project.urls]
+Homepage = "https://github.com/JeanHoccart/bretzel"
+Documentation = "https://github.com/JeanHoccart/bretzel#readme"
+Repository = "https://github.com/JeanHoccart/bretzel"
+Changelog = "https://github.com/JeanHoccart/bretzel/blob/main/CHANGELOG.md"
+
+# Point d'entrée unique : création et serveur de dev, introspection, lint et
+# probe navigateur. Le scaffold reste volontairement minimal (main + feature).
+[project.scripts]
+bretzel = "bretzel.cli.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bretzel"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"bretzel/runtime/runtime.js" = "bretzel/runtime/runtime.js"
+# Le bundle réduit, servi en PROD (le lisible reste celui du mode dev).
+# Sans cette ligne la roue n'embarque que le lisible, et toute app
+# installée sert 90 Ko gzippés au lieu de 26 — sans rien casser, donc
+# sans que personne le voie. Cf. ``bretzel/server/routing/static.py``.
+"bretzel/runtime/runtime.min.js" = "bretzel/runtime/runtime.min.js"
+
+# ─── Linter / formatter ──────────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# ``archive`` : le V1 est READ-ONLY par charte (CLAUDE.md) — on ne corrigera
+# jamais ses 3 355 constats, et les garder dans le balayage rendait un
+# ``ruff check .`` nu illisible (3 795 constats dont 88 % intouchables),
+# donc jamais lancé. Le code actif en porte 62 (bretzel/) + 378 (tests/).
+extend-exclude = [".venv", "__pycache__", "playground", "examples", "archive"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",   # pycodestyle, pyflakes
+    "I",             # isort
+    "N",             # pep8-naming
+    "UP",            # pyupgrade
+    "B",             # flake8-bugbear
+    "SIM",           # flake8-simplify
+    "RUF",           # ruff-specific
+    "TID",           # tidy-imports
+]
+ignore = [
+    "E501",    # line too long — formatter handles
+    "RUF022",  # `__all__` not sorted — we group exports semantically with comments
+]
+
+# ``×`` n'est PAS une coquille pour ``x`` dans ce dépôt : c'est du
+# vocabulaire. Il nomme le GLYPHE du bouton clear/dismiss (« the clear ``×``
+# button », « les trois carriers réels : champ, ×, trigger ») et sert de
+# « fois » dans les mesures (« sinon rendu 2× »). Présent dans une trentaine
+# de modules.
+#
+# ⚠️ Déclaré après avoir fait l'erreur (2026-07-29) : un `ruff --fix` de
+# confort a remplacé 5 de ces × par des `x`, ce qui transformait « le bouton
+# × » en « le bouton x » — la doc ne désignait plus le même objet. Déclarer
+# le caractère ici vaut mieux que 5 `noqa` dispersés, et évite qu'un
+# prochain passage refasse la même « correction ».
+#
+# Quatre autres ont rejoint la liste le 2026-09-07, en posant la base
+# cliquetée : ils valaient 17 des 129 constats de `bretzel/`, soit 13 %
+# d'une dette qui n'en est pas une. Les dix-sept ont été relus un par un,
+# ZÉRO coquille parmi eux :
+#
+#   « – » (EN DASH)     borne d'intervalle — ``h1–h6``, ``5 000–7 000``,
+#                       ``2,8–4,7 %``. C'est la ponctuation française,
+#                       pas un trait d'union mal tapé.
+#   « − » (MINUS SIGN)  le moins MATHÉMATIQUE — ``track − thumb = 4px``.
+#   « › » (SINGLE ›)    vocabulaire, exactement comme ``×`` : c'est le
+#                       séparateur de `ui.breadcrumb`, cité à côté de
+#                       ``"/"`` et ``">"`` dans sa propre docstring.
+#   « ∪ » (UNION)       l'union ensembliste, dans un commentaire qui dit
+#                       ce que la surface impérative réunit.
+#
+# ⚠️ Le prix est le même que pour ``×`` et il est assumé : une VRAIE
+# coquille sur l'un de ces quatre glyphes ne sera plus signalée nulle
+# part. Le geler dans la base cliquetée aurait coûté plus cher — 17
+# entrées de dette qui ne demandent aucune réparation apprennent au
+# lecteur suivant que la base est un tiroir.
+allowed-confusables = ["×", "–", "−", "›", "∪"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test fixtures and getter-trigger patterns are deliberate in tests.
+"tests/**/*.py" = [
+    "B018",    # bare expressions trigger property getters / dependency tracking
+    "RUF012",  # ``__validators__ = {...}`` etc. on fixture classes is fine
+]
+# The e2e suite guards its Playwright imports behind ``pytest.importorskip``,
+# which forces the real ``from playwright...`` import below that call — an
+# intentional, suite-wide pattern (test_counter / test_dropdown / test_todo).
+"tests/e2e/*.py" = ["E402"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ─── Type checker ────────────────────────────────────────────────────────────
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_unimported = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+check_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "playground.*", "examples.*"]
+disallow_untyped_defs = false
+
+# ─── Tests ───────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# NB : no ``asyncio_mode`` / ``pytest-asyncio`` — there are zero ``async def
+# test_*`` functions ; every async-touching test drives its own loop via
+# ``asyncio.new_event_loop().run_until_complete()`` (see below). The plugin's
+# auto-collection would be dead weight (and emit an "unknown config option"
+# warning when it isn't installed).
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    # Default invocation = fast unit + integration. The e2e suite holds
+    # an event loop alive on the main thread (Playwright's sync bridge)
+    # for its whole session, which collides with the
+    # ``asyncio.new_event_loop().run_until_complete()`` pattern unit
+    # tests use. Run them in a separate invocation :
+    #
+    #   pytest                       # fast feedback (this file), ~3 min
+    #   pytest -m e2e                # full-stack with browser (tests/e2e/), ~2 min
+    #   pytest -m browser            # runtime_js WITHOUT the audit, ~10 min
+    #   pytest -m audit              # the per-component visual audit, ~52 min
+    #   pytest -m probes             # les probes Playwright manuels, ~8 min
+    #   pytest tests/e2e/            # same as -m e2e, by path
+    #
+    # Les QUATRE marqueurs lourds sont exclus ici : ils bootent Chromium
+    # par test, ce qui fait pendre le run rapide pour la même raison de
+    # boucle d'événements que ``e2e``. Un ``pytest`` nu est sûr — unit +
+    # integration + consistency + la gate d'audit sans navigateur.
+    #
+    # ⚠️ ``probes`` est né le 2026-08-19, et pour une raison mesurée :
+    # ``tests/probes/`` n'était collecté par PERSONNE (ses fichiers
+    # s'appellent ``probe_*.py``). Les lancer tous pour la première fois a
+    # rendu **17 rouges sur 52** — dont trois probes VERTS À TORT, qui
+    # affirmaient sans avoir chargé le runtime. Le plancher de découverte,
+    # lui, reste dans le run rapide : un glob cassé se voit en 1 s au lieu
+    # d'attendre que quelqu'un lance les sept minutes.
+    #
+    # ⚠️ ``audit`` a été SORTI de ``browser`` le 2026-08-16, après mesure :
+    # ``tests/runtime_js/test_component_audit.py`` porte 74 des 220 cas de
+    # l'ancien ``-m browser`` et coûte ~42 s pièce (button 57 s,
+    # icon_button 50 s, badge 37 s, alert 25 s) — 52 min sur les ~62 du
+    # total. Un marqueur qui demande une heure ne se lance jamais, et une
+    # suite qu'on ne lance pas pourrit : c'est comme ça que 31 benchs sur
+    # 40 sont morts en silence. Les deux intentions — « je vérifie le
+    # runtime » et « je valide un composant avant de shipper » — ont
+    # maintenant chacune la leur.
+    "-m", "not e2e and not browser and not audit and not probes",
+]
+markers = [
+    "unit: pure tests, zero I/O",
+    "integration: requires FastAPI/Redis",
+    "slow: takes >1s",
+    "e2e: end-to-end with real uvicorn + headless Chromium (tests/e2e/)",
+    "browser: in-process uvicorn + Chromium via the audit harness (tests/runtime_js/, hors audit)",
+    "audit: audit visuel par composant — uvicorn + Chromium + driver, ~42 s pièce (tests/runtime_js/test_component_audit.py)",
+    "probes: les probes Playwright écrits à la main (tests/probes/), un sous-process par probe, ~7 min",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["bretzel"]
+omit = ["bretzel/cli/templates/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 80

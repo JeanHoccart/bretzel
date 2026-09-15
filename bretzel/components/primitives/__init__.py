@@ -1,0 +1,1 @@
+"""Non-interactive elementary blocks."""

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 310 72" role="img" aria-labelledby="title desc">
+  <title id="title">Bretzel</title>
+  <desc id="desc">The Bretzel knot followed by the Bretzel wordmark.</desc>
+  <g transform="translate(4 4) scale(.92)">
+    <path d="M32 22.27 6.23 32.27 13.96 38.92 32 31.92Z" fill="#682747"/>
+    <path d="M6.23 32.27 1.2 54.69 11.8 48.57 13.96 38.92Z" fill="#783052"/>
+    <path d="m1.2 54.69 21.93 6.86-1.89-10.02-9.44-2.96Z" fill="#D18BA8"/>
+    <path d="m23.13 61.55 21.55-17.32-8.36-4.83-15.08 12.13Z" fill="#E5B4C7"/>
+    <path d="m44.68 44.23 4.23-27.32-9.63 3.37-2.96 19.12Z" fill="#C77999"/>
+    <path d="M48.91 16.91 32 1.35v12.23l7.28 6.7Z" fill="#A63F6B"/>
+    <path d="M32 1.35 15.09 16.91l9.63 3.37 7.28-6.7Z" fill="#682747"/>
+    <path d="m15.09 16.91 4.23 27.32 8.36-4.83-2.96-19.12Z" fill="#8D355D"/>
+    <path d="m19.32 44.23 21.55 17.32 1.89-10.02L27.68 39.4Z" fill="#B95882"/>
+    <path d="m40.87 61.55 21.93-6.86-10.6-6.12-9.44 2.96Z" fill="#F2A65A"/>
+    <path d="m62.8 54.69-5.03-22.42-7.73 6.65 2.16 9.65Z" fill="#D77D61"/>
+    <path d="M57.77 32.27 32 22.27v9.65l18.04 7Z" fill="#A63F6B"/>
+  </g>
+  <text x="80" y="50" fill="#201820" font-family="Inter, system-ui, sans-serif" font-size="45" font-weight="650" letter-spacing="-1.8">bretzel</text>
+</svg>

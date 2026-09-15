@@ -1,0 +1,11 @@
+name,industry,country,city,size,arr,owner
+Boulangerie Vollmer,Agroalimentaire,France,Strasbourg,TPE,180000,Aïcha Benali
+Fret Rhénan,Logistique,France,Mulhouse,PME,1450000,Aïcha Benali
+Institut Belleville,Éducation,France,Lyon,PME,860000,Aïcha Benali
+Clinique des Trois Rivières,Santé,France,Colmar,ETI,7800000,Aïcha Benali
+Nordwind Energie,Énergie,Belgique,Gand,PME,2300000,Aïcha Benali
+Éditions du Quai,Média,France,Nantes,TPE,95000,Aïcha Benali
+Helvetia Précision,Industrie,Suisse,Lausanne,ETI,12400000,Aïcha Benali
+Grands Travaux Laurentiens,Bâtiment,Canada,Montréal,Grand compte,54000000,Aïcha Benali
+Comptoir des Flandres,Distribution,Belgique,Bruges,PME,3100000,Aïcha Benali
+Banque du Léman,Finance,Suisse,Genève,Grand compte,88000000,Aïcha Benali

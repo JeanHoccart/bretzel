@@ -1,0 +1,12 @@
+# Gates sans preuve de morsure — la dette est REMBOURSEE (2026-08-19).
+#
+# Elle valait 113 entrees le matin. Le fichier reste, VIDE et strict, pour
+# qu'on puisse y ecrire une exception motivee — pas pour qu'on y range ce
+# qu'on n'a pas fait : `test_the_debt_only_shrinks` interdit qu'il
+# regrossisse.
+#
+# Ce que le remboursement a demande, et ce qu'il a appris : les 113
+# n'etaient pas 113 mutations a ecrire. Trois familles — un detecteur a
+# muter (une soixantaine), une preuve deja ecrite sous un autre nom
+# (pointee par `MUTATION_PROOF`), et aucun detecteur du tout (declare par
+# `MUTATION_NOT_APPLICABLE`, refuse si le fichier porte un `re.compile`).

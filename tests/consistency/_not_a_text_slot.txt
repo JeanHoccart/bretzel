@@ -1,0 +1,182 @@
+# Les parametres typables `str` qu'une SENTINELLE de chaine ne traverse
+# pas — etat FIGE au 2026-08-19, 35 sur 430 candidats.
+#
+# Ce ne sont pas des defauts : un parametre qu'une string ne peut pas
+# traverser (une enumeration, un `int` annote `Any`, un couple
+# d'arguments requis) n'est pas un slot textuel. Il sort de la
+# population par DEFINITION.
+#
+# Mais « par definition » etait une AFFIRMATION du commentaire, jamais
+# verifiee : un composant qui cesse de se construire tombait dans la
+# meme branche et passait pour un refus de principe. La table nomme les
+# 35, donc le 36e se voit.
+#
+# 2026-08-25 : +4 pour `marks`, qui attend une date ou un dictionnaire
+# de dates. Une sentinelle de chaine y leve avec le message ecrit pour
+# ca (« n'est pas une date ») — c'est le refus VOULU, pas un composant
+# qui a cesse de se construire.
+#
+# 2026-08-25 : +5 pour `grow`, une table FERMEE de quatre bases. Une
+# sentinelle de chaine y leve avec le message ecrit pour ca (« n'est pas
+# une base connue »), et c'est tout l'interet de la prop : une valeur
+# hors table rendrait la chaine vide, donc un kwarg mort.
+#
+# 2026-08-25 : +1 pour `min_col`, une table FERMEE de quatre largeurs de
+# colonne. Une sentinelle de chaine y leve avec le message ecrit pour ca
+# (« n'est pas une largeur connue »), et c'est tout l'interet : une
+# valeur hors table rendrait la chaine vide, donc la grille retomberait
+# sur une seule colonne sans rien dire.
+
+
+Calendar.marks
+Calendar.mode
+Calendar.month_names
+Calendar.weekday_names
+Datatable.row_key
+DatePicker.marks
+DatePicker.month_names
+DatePicker.weekday_names
+DateRangePicker.marks
+DateRangePicker.month_names
+DateRangePicker.weekday_names
+FileUpload.list
+FileUpload.variant
+Flex.grow
+Grid.min_col
+HStack.grow
+Iframe.ratio
+Iframe.sandbox
+Iframe.src
+Image.fit
+Image.ratio
+Image.src
+Input.type
+Link.color
+Link.href
+Link.label
+Link.variant
+MetaTag.content
+MetaTag.http_equiv
+MetaTag.name
+MetaTag.property
+MonthPicker.max
+MonthPicker.min
+MonthPicker.month_names
+Pane.grow
+Resizable.orientation
+Sidebar.collapsible
+SidebarTrigger.sidebar
+ToggleGroup.options
+VStack.grow
+Viewport.grow
+WeekPicker.marks
+WeekPicker.max
+WeekPicker.min
+WeekPicker.month_names
+WeekPicker.weekday_names
+
+# 2026-08-29 : +17 pour les QUATRE SOEURS de `grow` — `direction`,
+# `align`, `justify`, `gap` — sur Flex / HStack / VStack / Pane /
+# Viewport. Elles faisaient `table.get(value, "")`, donc une valeur
+# inconnue rendait une classe VIDE : un kwarg mort, le mode d'echec
+# dominant du depot. Elles refusent desormais comme `grow`, avec le
+# meme message qui ENUMERE les valeurs acceptees.
+#
+# Balayage prealable : 2 366 passages litteraux, 2 valeurs hors table
+# (deux `gap="2xs"` dans examples/playground/features/dnd.py, un palier
+# qui n'a jamais existe). Le changement de comportement ne casse rien
+# d'autre.
+Flex.direction
+Flex.align
+Flex.justify
+Flex.gap
+HStack.align
+HStack.justify
+HStack.gap
+VStack.align
+VStack.justify
+VStack.gap
+Pane.align
+Pane.justify
+Pane.gap
+Viewport.direction
+Viewport.align
+Viewport.justify
+Viewport.gap
+
+# 2026-09-05 : +1 pour `direction`, une table FERMEE de deux valeurs
+# ("right" / "down"). Une sentinelle de chaine y leve avec le message
+# ecrit pour ca, et c'est voulu : une valeur hors table changerait
+# silencieusement l'axe des couches, donc un diagramme place a
+# l'envers sans un mot.
+Diagram.direction
+
+# 2026-09-06 : +51 pour `size` et `variant`. Ce sont des tables FERMEES
+# depuis ce jour-la — `refuse_a_value_off_the_table` leve sur une valeur
+# hors table, au lieu de rendre la chaine vide et de perdre la taille
+# sans un mot. Une sentinelle de chaine y leve donc avec le message
+# ecrit pour ca : c'est le refus VOULU, exactement comme `grow`,
+# `min_col` et `marks` plus haut.
+
+# 2026-09-07 : +4, tous par le meme fix. Les quatre derniers `size=` /
+# `variant=` qui ne refusaient PAS une valeur hors table le font
+# desormais (57 couples sur 57), donc la sentinelle ne les traverse
+# plus — c'est le refus qui l'arrete, pas une construction cassee.
+# `radio.size` valide la taille EFFECTIVE au rendu (elle peut venir du
+# groupe) ; les deux `variant` de graphique declarent leur ensemble sur
+# la prop, faute de table de theme a lire.
+Accordion.size
+Avatar.size
+Badge.size
+Badge.variant
+Banner.size
+BarChart.size
+Breadcrumb.size
+Button.size
+Button.variant
+Calendar.size
+Carousel.size
+Checkbox.size
+ColorPicker.size
+Combobox.size
+Datatable.size
+DatePicker.size
+DateRangePicker.size
+Diagram.size
+EmptyState.size
+FileUpload.size
+Heading.size
+Icon.size
+IconButton.size
+IconButton.variant
+Input.size
+LineChart.size
+MonthPicker.size
+Navbar.variant
+NumberInput.size
+Pagination.size
+PieChart.size
+Progress.size
+Resizable.size
+ScatterChart.size
+Select.size
+SidebarTrigger.size
+SignaturePad.size
+Skeleton.variant
+Slider.size
+Sparkline.size
+Spinner.size
+Stepper.size
+Switch.size
+Table.size
+Tabs.size
+Text.size
+Textarea.size
+TimePicker.size
+ToggleGroup.size
+Tree.size
+WeekPicker.size
+BarChart.variant
+PieChart.variant
+Radio.size
+RadioGroup.size

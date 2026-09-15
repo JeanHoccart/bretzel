@@ -1,0 +1,102 @@
+# Architecture contracts — enforced by import-linter (`lint-imports`).
+#
+# Ces contrats remplacent l'ancienne « anti-règle 1 » (aspirationnelle,
+# non-outillée). Ils protègent le VRAI invariant : la base stable ne dépend
+# jamais des couches applicatives, et le socle bas forme un DAG strict. Le
+# couplage bidirectionnel render <-> components/server (imports différés,
+# acyclique au chargement) est assumé et volontairement HORS de ces contrats.
+#
+# Lancer :  lint-imports   (console script fourni par import-linter)
+
+[importlinter]
+root_package = bretzel
+
+[importlinter:contract:base-dag]
+name = Le socle bas forme un DAG strict (core < state < runtime)
+type = layers
+layers =
+    bretzel.runtime
+    bretzel.state
+    bretzel.core
+
+[importlinter:contract:base-independent-of-app]
+name = Le socle (core/state/runtime/theme) n'importe jamais les couches applicatives
+type = forbidden
+source_modules =
+    bretzel.core
+    bretzel.state
+    bretzel.runtime
+    bretzel.theme
+forbidden_modules =
+    bretzel.render
+    bretzel.components
+    bretzel.server
+    bretzel.cli
+    bretzel.introspect
+    bretzel.lint
+    bretzel.probe
+
+# ─── Outillage (couche 7) ────────────────────────────────────────────────────
+#
+# ``introspect`` décrit le framework, ``lint`` juge le code écrit contre lui.
+# Les deux vivent AU-DESSUS de tout le reste et rien n'a le droit de leur
+# retomber dessus.
+
+[importlinter:contract:tooling-layers]
+name = L'outillage forme un DAG (cli > lint > introspect)
+type = layers
+# ATTENTION : ``probe`` n'est PAS dans cette liste, et c'est mesuré, pas oublié.
+# La syntaxe frère ``bretzel.lint : bretzel.probe`` a été essayée le
+# 2026-09-10 : le contrat reste KEPT dans LES DEUX sens de l'import,
+# donc elle n'achète rien ici. L'indépendance des deux est garantie
+# par les deux contrats ``forbidden`` ci-dessous, chacun vérifié par
+# mutation — ``probe`` → ``lint`` casse `lint-stays-extractable`,
+# ``lint`` → ``probe`` casse `probe-is-tooling`.
+layers =
+    bretzel.cli
+    bretzel.lint
+    bretzel.introspect
+
+[importlinter:contract:lint-stays-extractable]
+name = Rien hors du CLI n'importe bretzel.lint — c'est ce qui le rend arrachable
+type = forbidden
+# ``describe`` (introspect) ne peut PAS être privatisé : il reflète le code
+# INSTALLÉ, donc un paquet séparé le ferait mentir par décalage de version.
+# ``lint`` est l'autre moitié — des RÈGLES, pas un reflet — et c'est elle que
+# l'utilisateur veut pouvoir sortir du dépôt public. Ce contrat est ce qui
+# transforme cette intention en garantie mécanique : si un module du
+# framework se met à en dépendre, l'extraction cesse d'être possible et
+# personne ne s'en apercevrait avant de l'essayer.
+source_modules =
+    bretzel.core
+    bretzel.state
+    bretzel.runtime
+    bretzel.theme
+    bretzel.render
+    bretzel.components
+    bretzel.server
+    bretzel.introspect
+    bretzel.probe
+forbidden_modules =
+    bretzel.lint
+
+[importlinter:contract:probe-is-tooling]
+name = Rien hors du CLI n'importe bretzel.probe — il pilote, il ne sert à personne
+type = forbidden
+# ``probe`` est la troisième pièce de la couche 7 : ``introspect`` décrit,
+# ``lint`` juge, ``probe`` pilote une app en marche. Comme les deux autres il
+# vit AU-DESSUS de tout, et rien du framework n'a le droit de lui retomber
+# dessus — un composant qui importerait le harnais de vérification ferait
+# entrer Playwright dans le chemin d'exécution, alors que c'est un extra.
+source_modules =
+    bretzel.core
+    bretzel.state
+    bretzel.runtime
+    bretzel.theme
+    bretzel.render
+    bretzel.components
+    bretzel.server
+    bretzel.introspect
+    bretzel.lint
+forbidden_modules =
+    bretzel.probe

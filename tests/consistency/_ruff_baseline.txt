@@ -1,0 +1,155 @@
+# Base cliquetée : ce que `ruff check bretzel/` remonte, gelé au 2026-09-07.
+#
+# Une ligne de données = `nombre <TAB> règle <TAB> chemin`. Le fichier est
+# LU par `test_ruff_baseline_on_the_package.py`, qui exige l'égalité
+# STRICTE avec la mesure du jour — dans les DEUX sens :
+#
+#   * une occurrence NEUVE rougit ......... la dette ne grossit pas ;
+#   * une occurrence RÉPARÉE rougit aussi .. retire sa ligne d'ici, sinon
+#     la base autorise plus que la réalité et finit par ne plus rien
+#     mesurer. C'est le défaut exact qu'elle corrige.
+#
+# Mesuré avec **ruff 0.15.21**. Le `pyproject.toml` contraint `ruff>=0.8` :
+# une montée de version peut donc ajouter ou retirer des constats sans que
+# personne ait touché au code. Si ce fichier rougit après un `pip install
+# -U`, vérifie la version AVANT de chercher dans le diff — le message
+# d'échec la rappelle.
+#
+# ⚠️ Ce n'est PAS une liste de choses à faire dans l'ordre. Chaque bloc dit
+# ce que sa règle refuse et ce que la réparation coûte ; plusieurs blocs ne
+# valent pas d'être payés, et c'est écrit là où c'est le cas.
+#
+# Total gelé : 35 constats, 13 règles, 21 fichiers.
+#
+# L'historique du décompte, parce qu'il dit ce qu'une base sert à faire :
+#
+#   153  ce que ruff remontait quand personne ne le lançait ;
+#   129  après les 24 `F811` (douze clauses liant deux fois `theme_context`) ;
+#   112  après avoir sorti 17 faux positifs typographiques — `RUF002` et
+#        `RUF003` sur les glyphes du dépôt, relus un par un, zéro coquille.
+#        Passés par `allowed-confusables` dans `pyproject.toml` plutôt que
+#        gelés ici : dix-sept entrées qui ne demandent aucune réparation
+#        auraient appris au lecteur suivant que cette base est un tiroir ;
+#   100  après le premier bloc payé (2026-09-07) — `RUF100` (7 `noqa`
+#        morts), `W291` (4) et `RUF023` (1) ;
+#    75  après `I001` (25 clauses réordonnées, même jour) ;
+#    52  après `RUF059` (23 variables dépaquetées jamais lues, même
+#        jour) — le `_` de tête, la convention que 9 des 20 sites de
+#        `theme_context` portaient déjà ;
+#    44  après `F841` (8 affectations mortes + 1 en cascade, même
+#        jour). Supprimées, pas préfixées : mesuré d'abord que les huit
+#        teintes arrivent quand même au DOM (le pont `bz-c-<couleur>`
+#        sur la racine), donc aucune prop n'était perdue ;
+#    37  après `SIM105` (7 `try/except/pass` → `contextlib.suppress`,
+#        même jour). Mesuré avant : `suppress` coûte ~1 µs de plus par
+#        appel (6,2× sur le chemin sans exception), et aucun des sept
+#        sites n'est chaud — arrêt, build, ou file pleine ;
+#    35  après les DEUX seules entrées qui se lisaient comme des vrais
+#        défauts, même jour. `F821` : `_walk` était morte (elle ne
+#        s'appelait qu'elle-même, absente d'`__all__`) et référençait
+#        un `SHAPE_TOKEN_RE` parti avec la phase 3 — supprimée, pas
+#        réparée. `B905` : c'est RUFF qui avait tort, la troncature de
+#        `zip` à la plus courte EST le sens d'un préfixe commun ;
+#        `strict=False` l'écrit, `strict=True` aurait cassé la
+#        fonction.
+#
+# ⚠️ `RUF100` n'a PAS été payé par `ruff --fix`, et c'est général : son
+# correctif supprime la ligne de commentaire ENTIÈRE. Sur `packages.py`, il
+# emportait « — un tiers casse, pas nous », la seule trace de pourquoi cet
+# `except Exception` est large — le dégât du 2026-07-29 à l'identique (cinq
+# `×` de vocabulaire remplacés par des `x`). Les sept directives ont donc été
+# retirées à la main, prose gardée. Sur ce dépôt, `ruff --fix` se relit.
+
+
+# --- RUF005 : 5 constats ------------------------------------------------
+# `a + [b]` là où `[*a, b]` se lit mieux. Cosmétique, sans effet mesurable
+# sur les cinq sites.
+3	RUF005	bretzel/components/navigation/pagination/pagination.py
+1	RUF005	bretzel/server/feature.py
+1	RUF005	bretzel/theme/bridges.py
+
+
+# --- B007 : 4 constats --------------------------------------------------
+# Quatre variables de boucle non lues dans `bar_chart`, toutes des index de
+# série gardés pour la symétrie avec la boucle voisine. À préfixer d'un `_`
+# ou à retirer — vérifier d'abord que la boucle jumelle les utilise.
+4	B007	bretzel/components/charts/bar_chart/bar_chart.py
+
+
+# --- F401 : 4 constats --------------------------------------------------
+# Un import non lu dans un `__init__.py`, c'est la forme normale d'un
+# RÉ-EXPORT — ruff demande juste qu'il soit déclaré comme tel (`as`, ou
+# `__all__`). Les quatre sites sont de la surface publique, donc **ne pas
+# supprimer l'import** : c'est la déclaration qui manque, pas l'usage.
+1	F401	bretzel/render/__init__.py
+2	F401	bretzel/render/partials.py
+1	F401	bretzel/theme/slots.py
+
+
+# --- RUF046 : 4 constats ------------------------------------------------
+# `int(...)` sur une valeur déjà entière, quatre fois dans `progress`. Le
+# cast est inutile — mais attention au réflexe : dans ce dépôt, un cast sur
+# une valeur d'ÉTAT efface sa provenance (règle `etat-perdu-par-un-cast` de
+# `bretzel check`). Ici c'est de l'arithmétique interne, pas une prop.
+4	RUF046	bretzel/components/feedback/progress/progress.py
+
+
+# --- SIM108 : 4 constats ------------------------------------------------
+# `if/else` là où un ternaire suffirait. Trois des quatre sites portent un
+# commentaire par branche, que le ternaire rendrait illisible. Probablement
+# à ne PAS payer.
+2	SIM108	bretzel/components/inputs/select/select.py
+1	SIM108	bretzel/components/inputs/toggle_group/toggle_group.py
+1	SIM108	bretzel/components/meta/iteration/filter_each.py
+
+
+# --- N806 : 3 constats --------------------------------------------------
+# `WHITE`, `BLACK`… en majuscules dans une fonction de `feature.py` : ce
+# sont des constantes de couleur locales, nommées comme des constantes
+# parce qu'elles en sont. Les passer en minuscules rendrait le code moins
+# clair — bloc à ne probablement pas payer.
+3	N806	bretzel/server/feature.py
+
+
+# --- SIM102 : 3 constats ------------------------------------------------
+# Deux `if` imbriqués fusionnables. Les trois sites gardent la structure
+# parce que chaque niveau porte son propre commentaire.
+1	SIM102	bretzel/components/base/component.py
+1	SIM102	bretzel/server/app.py
+1	SIM102	bretzel/server/routing/pages.py
+
+
+# --- RUF007 : 2 constats ------------------------------------------------
+# `zip(x, x[1:])` là où `itertools.pairwise` existe. Deux sites dans le
+# calcul de tracé du diagramme.
+2	RUF007	bretzel/components/data/diagram/layout.py
+
+
+# --- UP047 : 2 constats -------------------------------------------------
+# Fonction générique en `TypeVar` plutôt qu'en syntaxe PEP 695. Purement
+# stylistique ; la cible est `py312`, donc la migration est possible.
+1	UP047	bretzel/lint/corpus.py
+1	UP047	bretzel/server/idempotency.py
+
+
+# --- N818 : 1 constat ---------------------------------------------------
+# `ThemeKeyCollision` sans suffixe `Error`. Renommer une exception publique
+# demande l'accord de l'utilisateur (l'API publique ne se touche pas sans
+# autorisation) — donc gelé par décision, pas différé par paresse.
+1	N818	bretzel/introspect/packages.py
+
+
+# --- SIM103 : 1 constat -------------------------------------------------
+# `if cond: return True` puis `return False`. Un site, cosmétique.
+1	SIM103	bretzel/components/base/reactive_prop.py
+
+
+# --- UP033 : 1 constat --------------------------------------------------
+# `@functools.lru_cache(maxsize=None)` → `@functools.cache`. Un site,
+# autofixable.
+1	UP033	bretzel/server/handlers.py
+
+
+# --- UP041 : 1 constat --------------------------------------------------
+# Alias historique d'erreur → `TimeoutError`. Un site, autofixable.
+1	UP041	bretzel/server/sse.py

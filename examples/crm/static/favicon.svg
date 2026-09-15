@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="CRM">
+  <title>CRM</title>
+  <!-- L'entonnoir : trois paliers qui rétrécissent, comme un pipeline
+       commercial. Rien à voir avec le nœud du framework, et c'est le
+       point de la démonstration : cette app pose son ``favicon=``.
+       Teinte du thème de l'app (`primary` = #0f766e), pas celle de
+       Bretzel — une marque d'app ne suit pas celle de son socle. -->
+  <style>
+    :root { color: #0f766e; }
+    @media (prefers-color-scheme: dark) { :root { color: #5eead4; } }
+  </style>
+  <g fill="currentColor">
+    <rect x="8" y="13" width="48" height="11" rx="5.5"/>
+    <rect x="16" y="28" width="32" height="11" rx="5.5"/>
+    <rect x="24" y="43" width="16" height="11" rx="5.5"/>
+  </g>
+</svg>

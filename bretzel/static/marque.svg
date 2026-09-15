@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Bretzel">
+  <title>Bretzel</title>
+  <style>
+    :root { color: #7a2e4e; }
+    @media (prefers-color-scheme: dark) { :root { color: #d98bad; } }
+  </style>
+  <path d="M32.00 22.27 L6.23 32.27 L13.96 38.92 L32.00 31.92 Z" fill="currentColor" opacity="0.993"/>
+  <path d="M6.23 32.27 L1.20 54.69 L11.80 48.57 L13.96 38.92 Z" fill="currentColor" opacity="0.930"/>
+  <path d="M1.20 54.69 L23.13 61.55 L21.24 51.53 L11.80 48.57 Z" fill="currentColor" opacity="0.593"/>
+  <path d="M23.13 61.55 L44.68 44.23 L36.32 39.40 L21.24 51.53 Z" fill="currentColor" opacity="0.502"/>
+  <path d="M44.68 44.23 L48.91 16.91 L39.28 20.28 L36.32 39.40 Z" fill="currentColor" opacity="0.582"/>
+  <path d="M48.91 16.91 L32.00 1.35 L32.00 13.58 L39.28 20.28 Z" fill="currentColor" opacity="0.810"/>
+  <path d="M32.00 1.35 L15.09 16.91 L24.72 20.28 L32.00 13.58 Z" fill="currentColor" opacity="0.996"/>
+  <path d="M15.09 16.91 L19.32 44.23 L27.68 39.40 L24.72 20.28 Z" fill="currentColor" opacity="0.854"/>
+  <path d="M19.32 44.23 L40.87 61.55 L42.76 51.53 L27.68 39.40 Z" fill="currentColor" opacity="0.674"/>
+  <path d="M40.87 61.55 L62.80 54.69 L52.20 48.57 L42.76 51.53 Z" fill="currentColor" opacity="0.511"/>
+  <path d="M62.80 54.69 L57.77 32.27 L50.04 38.92 L52.20 48.57 Z" fill="currentColor" opacity="0.661"/>
+  <path d="M57.77 32.27 L32.00 22.27 L32.00 31.92 L50.04 38.92 Z" fill="currentColor" opacity="0.894"/>
+</svg>

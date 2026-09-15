@@ -1,0 +1,168 @@
+"""Layer 2 — the transport boundary (V3).
+
+Nothing else in the framework defines wire-format strings, nothing else
+implements client-side reactivity, nothing else parses incoming
+:class:`ClientState` payloads. If the wire format moves an inch, this
+module is where it moves.
+
+Public surface :
+
+- **Wire-format constants** (``BZ_*``, ``HEADER_*``, ``ROUTE_*``,
+  envelope tag names, ``PROTOCOL_VERSION``) — the only place these
+  strings are defined (:mod:`bretzel.runtime.protocol`).
+- **Envelope helpers** (:func:`serialize_envelope`,
+  :func:`serialize_patch`, :func:`parse_client_payload`) — used by the
+  render and server layers to bridge :class:`ClientState` instances
+  across the network.
+- **Version helpers** (:func:`check_protocol_compat`,
+  :func:`parse_major`).
+- :func:`outlet_id_for` — naming convention helper, hosted here to
+  keep the import DAG clean.
+
+The shipped JS bundle (``runtime.js``) lives next to this package.
+Edit ``_src/*.js`` and run ``python -m bretzel.runtime._build`` to
+regenerate. CI runs the same script in ``--check`` mode to refuse
+stale diffs.
+
+**Couche INTERNE — aucune surface utilisateur.**
+
+Le vocabulaire du protocole client<->serveur : noms d'attributs,
+d'en-tetes, de routes, et les constructeurs d'enveloppe. Aucun de ces
+noms n'apparait dans le code d'une app. ``__all__`` y est le contrat
+inter-couche.
+"""
+
+from __future__ import annotations
+
+from bretzel.runtime.envelope import (
+    Envelope,
+    Patch,
+    build_envelope,
+    build_patch,
+    default_endpoints,
+    parse_client_payload,
+    serialize_envelope,
+    serialize_patch,
+)
+from bretzel.runtime.protocol import (
+    BZ_ATTR_PREFIX,
+    BZ_CLASS_PREFIX,
+    BZ_DATA_PREFIX,
+    BZ_EFFECT_PREFIX,
+    BZ_FOR_PREFIX,
+    BZ_ID_ATTR,
+    BZ_IF_PREFIX,
+    BZ_INIT_PREFIX,
+    BZ_MODEL_PREFIX,
+    BZ_ON_PREFIX,
+    BZ_REF_PREFIX,
+    BZ_SHOW_PREFIX,
+    BZ_STATE_ATTR,
+    BZ_TELEPORT_PREFIX,
+    BZ_TEXT_PREFIX,
+    DATA_BZ_SIG,
+    DATA_BZ_TS,
+    DATA_SUBSCRIBE_STATE,
+    DATA_SUBSCRIBE_URL,
+    ENVELOPE_TAG_NAME,
+    HEADER_BZ_SIG,
+    HEADER_BZ_TS,
+    HEADER_CSRF,
+    HEADER_PAGE_ID,
+    HEADER_PROTOCOL,
+    PATCH_TAG_NAME,
+    PROTOCOL_VERSION,
+    PUBLIC_ASSET_ROUTES,
+    ROUTE_ACTION,
+    ROUTE_ICONS,
+    ROUTE_PREFIX,
+    ROUTE_REFETCH,
+    ROUTE_RUNTIME_JS,
+    ROUTE_SSE,
+    ROUTE_STYLE_CSS,
+    ROUTE_THEME_CSS,
+    ROUTE_VENDOR,
+    SERVERSYNC_KEY,
+    SINK_ELEMENT_ID,
+    SSE_EVENT_STATE_DIRTY,
+    WIRE_ID_SEP,
+    is_public_asset_path,
+    outlet_id_for,
+)
+from bretzel.runtime.verbs import (
+    copy,
+    fullscreen,
+    print_page,
+    share,
+    vibrate,
+)
+from bretzel.runtime.version import (
+    check_compat,
+    check_protocol_compat,
+    parse_major,
+)
+
+__all__ = [
+    "copy",
+    "fullscreen",
+    "print_page",
+    "share",
+    "vibrate",
+    # Protocol constants
+    "PROTOCOL_VERSION",
+    "BZ_ID_ATTR",
+    "BZ_STATE_ATTR",
+    "BZ_ON_PREFIX",
+    "BZ_MODEL_PREFIX",
+    "BZ_ATTR_PREFIX",
+    "BZ_CLASS_PREFIX",
+    "BZ_TEXT_PREFIX",
+    "BZ_SHOW_PREFIX",
+    "BZ_IF_PREFIX",
+    "BZ_FOR_PREFIX",
+    "BZ_DATA_PREFIX",
+    "BZ_INIT_PREFIX",
+    "BZ_EFFECT_PREFIX",
+    "BZ_REF_PREFIX",
+    "BZ_TELEPORT_PREFIX",
+    "DATA_BZ_SIG",
+    "DATA_BZ_TS",
+    "HEADER_PROTOCOL",
+    "HEADER_BZ_SIG",
+    "HEADER_BZ_TS",
+    "HEADER_PAGE_ID",
+    "HEADER_CSRF",
+    "PUBLIC_ASSET_ROUTES",
+    "is_public_asset_path",
+    "ROUTE_PREFIX",
+    "ROUTE_RUNTIME_JS",
+    "ROUTE_THEME_CSS",
+    "ROUTE_STYLE_CSS",
+    "ROUTE_ICONS",
+    "ROUTE_VENDOR",
+    "ROUTE_ACTION",
+    "ROUTE_SSE",
+    "ROUTE_REFETCH",
+    "SSE_EVENT_STATE_DIRTY",
+    "DATA_SUBSCRIBE_STATE",
+    "DATA_SUBSCRIBE_URL",
+    "SERVERSYNC_KEY",
+    "WIRE_ID_SEP",
+    "ENVELOPE_TAG_NAME",
+    "PATCH_TAG_NAME",
+    "SINK_ELEMENT_ID",
+    "outlet_id_for",
+    # Version helpers
+    "check_compat",
+    "check_protocol_compat",
+    "parse_major",
+    # Envelope helpers
+    "Envelope",
+    "Patch",
+    "default_endpoints",
+    "build_envelope",
+    "build_patch",
+    "serialize_envelope",
+    "serialize_patch",
+    "parse_client_payload",
+]

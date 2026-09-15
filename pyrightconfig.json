@@ -1,0 +1,14 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "include": ["bretzel", "tests"],
+  "exclude": [
+    "**/__pycache__",
+    "**/.venv",
+    "**/.pytest_cache",
+    "playground",
+    "examples"
+  ],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "standard"
+}

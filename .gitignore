@@ -1,0 +1,99 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.import_linter_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+build/
+dist/
+.release-wheel/
+.tox/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Bretzel build artifacts
+# Cache local Bretzel (CSS compilé, binaires et données temporaires)
+**/.bretzel/
+
+# Playground / examples — Redis dumps, local data
+playground/.local/
+examples/**/.local/
+
+# Claude Code — per-session ephemera (never commit)
+.claude/worktrees/
+.claude/launch.json
+**/.claude/launch.json
+!.claude/launch.json
+
+# Local brand render checks
+assets/brand/*-preview.png
+
+# Logs
+*.log
+.bretzel/
+
+# tests/probes — manual Playwright probes + bench fixtures. The *.py
+# scripts ARE versioned (some are canonical repros cited by traps.md) ;
+# only their generated artifacts (screenshots + serialized probe pages)
+# stay local.
+tests/probes/*.png
+tests/probes/_probe_*.html
+
+# ⚠️ Un probe lancé depuis la RACINE écrit sa capture à la racine, pas
+# dans `tests/probes/` — la ligne au-dessus ne la couvre donc pas, et
+# `tree_panel.png` s'est retrouvé commité le 2026-09-03 par un `git add
+# -A`. Racine SEULE (`/*.png`) : `_ecran/` et `bretzel/static/` portent
+# des images versionnées à dessein et ne doivent pas être touchées.
+/*.png
+
+# VSCode "Counter" extension output (local code stats)
+.VSCodeCounter/
+
+# MAD demo — SQLite seeded at startup, not source
+examples/mad/**/*.db
+
+# CRM demo — SQLite semé au démarrage, pas de la source
+examples/crm/**/*.db
+examples/crm/**/*.db-wal
+examples/crm/**/*.db-shm
+# L'atelier se REBÂTIT depuis les transcripts de session — la base
+# est un index, pas une source. La commiter figerait une photo de
+# l'historique d'une machine, et 7,7 Mo avec.
+examples/atelier/**/*.db
+examples/atelier/**/*.db-wal
+examples/atelier/**/*.db-shm
+examples/ecole/**/*.db
+examples/ecole/**/*.db-wal
+examples/ecole/**/*.db-shm
+examples/ecole/**/*.db-journal
+
+# Captures des probes Playwright — des artefacts de mesure, jamais du
+# code. Aucune n' est suivie dans ce dépôt.
+tests/probes/_shots/
