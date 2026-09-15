@@ -6,9 +6,9 @@
 
 > Server-Driven UI for Python — typed state, zero npm, batteries included.
 
-Bretzel lets Python own the application state and the interface that follows
-it. The browser receives targeted HTML updates through a small runtime built on
-HTMX and idiomorph: no React application, no duplicated client store and no npm
+Bretzel is a full-stack Python web framework for building reactive
+applications. Python owns the routes, typed state, actions and interface; the
+browser stays synchronized without a separate JavaScript application or an npm
 pipeline to operate in production.
 
 > **Alpha:** the first public candidate is `0.1.0a1`. APIs may change between
@@ -66,6 +66,22 @@ def home() -> None:
 `deps=` names the typed state read by a fragment. When that state changes,
 Bretzel renders and ships only that fragment. `broadcast=` can send the same
 mutation to other open windows without polling or subscription code.
+
+## Architecture
+
+Bretzel is the framework application developers program against—not a React
+generator or a JavaScript build tool. Its implementation deliberately relies
+on proven lower-level components:
+
+- FastAPI and Starlette provide the ASGI and HTTP foundation;
+- HTMX transports navigation, actions and targeted HTML updates;
+- Idiomorph reconciles returned fragments with the current DOM;
+- Bretzel's integrated runtime handles client state, directives, reconnection
+  and the framework protocol.
+
+These components are implementation infrastructure. A Bretzel application is
+written, structured and deployed as a Python application; it does not require
+a separate frontend repository or an npm toolchain.
 
 ## What is included
 

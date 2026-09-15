@@ -8,7 +8,10 @@ without turning the identity into a technical diagram.
 
 ## Positioning
 
-**Category:** Server-Driven UI framework for Python.
+**Category:** Full-stack web framework for Python.
+
+**Approach:** Server-driven UI: Python owns the application and sends targeted
+HTML updates to the browser.
 
 **Promise:** Build reactive web applications without maintaining two
 application models.
@@ -17,6 +20,10 @@ application models.
 
 **Descriptor:** Server-Driven UI for Python — typed state, zero npm, batteries
 included.
+
+FastAPI, Starlette, HTMX and Idiomorph may be named when explaining the
+architecture. They are implementation foundations, not the product category
+and not the lead message.
 
 ## Colours
 
