@@ -25,7 +25,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install
-        run: python -m pip install -e ".[dev]"
+        # The default suite deselects browser tests, but pytest still imports
+        # their modules during collection; the Playwright Python API is needed.
+        run: python -m pip install -e ".[dev,probe]"
       - name: Test
         run: python -m pytest
 
