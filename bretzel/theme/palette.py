@@ -224,7 +224,7 @@ DEFAULT_PALETTE: Final[dict[str, str]] = {
     "ruby":    "#e54666",
     "crimson": "#e93d82",
     "pink":    "#d6409f",
-    "plum":    "#ab4aba",
+    "plum":    "#682747",
     "purple":  "#8e4ec6",
     "violet":  "#6e56cf",
     "iris":    "#5b5bd6",
@@ -239,7 +239,7 @@ DEFAULT_PALETTE: Final[dict[str, str]] = {
     "yellow":  "#f5d90a",
     "amber":   "#ffc53d",
     "orange":  "#f76b15",
-    "gold":    "#978365",
+    "gold":    "#e99536",
     "bronze":  "#a18072",
     "brown":   "#ad7f58",
     "black":   "#000000",
@@ -281,8 +281,8 @@ DEFAULT_SEMANTIC_LIGHT: Final[dict[str, str]] = {
     # ``test_palette_distinctness`` — ΔE 21 de l'accent, donc deux
     # couleurs sémantiques qui se ressemblent et une matrice de variantes
     # ambiguë.
-    "primary":    "#3a52b0",
-    "secondary":  "#9c3f72",
+    "primary":    "#682747",
+    "secondary":  "#3a52b0",
     "success":    "#2f9e64",
     "error":      "#e5484d",
     "warning":    "#f0a91b",

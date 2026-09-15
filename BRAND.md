@@ -2,9 +2,9 @@
 
 ## Idea
 
-The mark is the **Bretzel knot**: three paths forming one continuous system.
-They stand for typed state, server rendering and the browser loop. The shape is
-technical before it is culinary; the warm accent keeps it human.
+The mark is a literal **pretzel knot** reduced to one warm, recognisable shape.
+Its three openings echo typed state, server rendering and the browser loop,
+without turning the identity into a technical diagram.
 
 ## Positioning
 
@@ -24,7 +24,7 @@ included.
 |---|---:|---|
 | Bretzel Plum | `#682747` | Primary mark, links and key actions |
 | Raspberry | `#A63F6B` | Active and expressive accent |
-| Warm Dough | `#F2A65A` | Human highlight, never body text |
+| Warm Dough | `#E99536` | Mark and human highlight, never body text |
 | Cream | `#FFF8F0` | Warm light background |
 | Ink | `#201820` | Primary text and dark surfaces |
 | Mist | `#EEE7EC` | Borders and quiet surfaces |
@@ -52,4 +52,5 @@ for an explanation.
 - Keep clear space equal to the central opening around the mark.
 - Do not rotate, outline or place the full-colour mark on a busy background.
 - Use the monochrome asset at small sizes or where colour is unavailable.
+- Keep the salt details for display sizes; omit them below 32 px.
 - The 64×64 mark is the source for favicons and avatars.

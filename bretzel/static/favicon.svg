@@ -1,8 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Bretzel">
   <title>Bretzel</title>
-  <style>
-    :root { color: #7a2e4e; }
-    @media (prefers-color-scheme: dark) { :root { color: #d98bad; } }
-  </style>
-  <path d="M32.00 27.14 L10.31 35.56 L6.75 51.44 L22.28 56.30 L40.42 41.72 L43.97 18.72 L32.00 7.70 L20.03 18.72 L23.58 41.72 L41.72 56.30 L57.25 51.44 L53.69 35.56 Z" fill="none" stroke="currentColor" stroke-width="9.5" stroke-linejoin="miter"/>
+  <style>:root{color:#e99536}@media(prefers-color-scheme:dark){:root{color:#f3ad5d}}</style>
+  <path d="M32 10C25 6 16 6 10 11C3 17 3 28 8 36C10 40 14 44 19 47L15 53C12 58 18 62 21 57L25 51C29 53 35 53 39 51L43 57C46 62 52 58 49 53L45 47C50 44 54 40 56 36C61 28 61 17 54 11C48 6 39 6 32 10ZM14 17C10 20 11 27 14 32C16 35 19 37 22 39C26 37 29 34 30 30C27 24 23 18 19 16C17 15 15 16 14 17ZM50 17C54 20 53 27 50 32C48 35 45 37 42 39C38 37 35 34 34 30C37 24 41 18 45 16C47 15 49 16 50 17ZM27 45C30 46 34 46 37 45L32 39Z" fill="currentColor" fill-rule="evenodd"/>
 </svg>
