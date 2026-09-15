@@ -108,7 +108,7 @@ def node_card(node) -> None:
                         ui.badge(r, color="secondary", variant="soft")
 
 
-@page(PATH, layout=shell, title="Carte de l'app")
+@page(PATH, layout=shell, title="Application map")
 def app_map_page() -> None:
     graph = describe_app(_DEMO)
     by_kind: dict[str, list] = {}
@@ -117,13 +117,12 @@ def app_map_page() -> None:
 
     with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
-            ui.heading("Carte de l'app", level=1, size="3xl")
+            ui.heading("Application map", level=1, size="3xl")
             ui.text(
-                "`describe_app()` lit les contrats `Feature()` d'une app → son "
-                "graphe, en direct. Cette page l'exécute sur une app de démo. "
-                "La même chose tourne sur la tienne via "
-                "`describe_app(app.features)` — elle ne peut pas se "
-                "désynchroniser, c'est le code qui tourne, lu.",
+                "`describe_app()` reads an application's `Feature()` contracts and "
+                "builds its graph live. This page runs it against a demo application. "
+                "Use `describe_app(app.features)` for your own app: the map comes "
+                "from running code, so it cannot drift from it.",
                 color="muted", size="lg",
             )
             with ui.hstack(gap="sm", wrap=True):
@@ -131,18 +130,16 @@ def app_map_page() -> None:
                          variant="soft")
                 ui.badge(f"{len(graph.routes)} routes", color="info",
                          variant="soft")
-                ui.badge(f"{len(graph.edges)} dépendances", color="muted",
+                ui.badge(f"{len(graph.edges)} dependencies", color="muted",
                          variant="soft")
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("Le même graphe, DESSINÉ", level=2)
+                    ui.heading("The same graph, visualized", level=2)
                     ui.text(
-                        "`ui.diagram` place un graphe orienté en couches, "
-                        "rendu côté serveur — aucune bibliothèque de dessin, "
-                        "aucun canvas. Les mêmes nœuds et les mêmes arêtes "
-                        "que les tableaux ci-dessous : c'est `describe_app()` "
-                        "qui les fournit, pas une saisie.",
+                        "`ui.diagram` lays out a directed graph in layers and renders it "
+                        "on the server—no drawing library or canvas. It uses the same nodes "
+                        "and edges as the tables below, supplied by `describe_app()`.",
                         color="muted", size="sm",
                     )
                     ui.diagram(
@@ -161,21 +158,17 @@ def app_map_page() -> None:
                         size="sm",
                     )
                     ui.text(
-                        "Cliquer un nœud l'ÉCLAIRE avec ce qui le touche, "
-                        "sans une requête — la mise en avant est client. "
-                        "`value=` rend le nœud désigné à double sens, donc "
-                        "un handler serveur peut le lire ou le poser ; "
-                        "`on_item_click=` déclenche une action ; `focus=` et "
-                        "`depth=` réduisent l'affichage au voisinage d'un "
-                        "nœud, ce qui est le seul remède quand le graphe "
-                        "grossit. Une arête pointillée est un `reads` : on "
-                        "lit sans dépendre.",
+                        "Clicking a node highlights its neighbors without a request—the "
+                        "highlight is client-side. `value=` binds the selected node both ways; "
+                        "`on_item_click=` triggers an action; `focus=` and `depth=` narrow the "
+                        "view around a node as the graph grows. A dashed edge is `reads`: it "
+                        "reads without depending on it.",
                         color="muted", size="sm",
                     )
 
             with ui.card(color="surface"):
                 with ui.vstack(gap="lg"):
-                    ui.heading("Les features, par kind", level=2)
+                    ui.heading("Features by kind", level=2)
                     for kind in _KIND_ORDER:
                         nodes = by_kind.get(kind)
                         if not nodes:
@@ -193,7 +186,7 @@ def app_map_page() -> None:
             if graph.routes:
                 with ui.card():
                     with ui.vstack(gap="sm"):
-                        ui.heading("Routes montées", level=2)
+                        ui.heading("Mounted routes", level=2)
                         ui.table(
                             columns=[
                                 ui.column("path", label="Path"),
@@ -205,11 +198,10 @@ def app_map_page() -> None:
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("La carte, lisible par une machine", level=2)
+                    ui.heading("A machine-readable map", level=2)
                     ui.text(
-                        "`describe_app(app.features).to_dict()` — ce qu'une IA "
-                        "lit pour comprendre la forme de l'app, au lieu de "
-                        "grepper.",
+                        "`describe_app(app.features).to_dict()` is what an AI can read to "
+                        "understand an application's shape, instead of grepping source files.",
                         color="muted", size="sm",
                     )
                     ui.code(
