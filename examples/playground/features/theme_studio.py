@@ -47,8 +47,8 @@ PATH = "/theme-studio"
 #: Les onze slots sémantiques : (nom, rôle, défaut clair, défaut sombre).
 #: L'ordre est celui de la lecture — l'accent d'abord, les fonds ensuite.
 SLOTS: list[tuple[str, str, str, str]] = [
-    ("primary",    "l'accent de marque",           "#3a52b0", "#3a52b0"),
-    ("secondary",  "l'accent secondaire",          "#9c3f72", "#9c3f72"),
+    ("primary",    "l'accent de marque",           "#682747", "#682747"),
+    ("secondary",  "l'accent secondaire",          "#3a52b0", "#3a52b0"),
     ("success",    "ce qui a réussi",              "#2f9e64", "#2f9e64"),
     ("warning",    "ce qui demande attention",     "#f0a91b", "#f0a91b"),
     ("error",      "ce qui a échoué",              "#e5484d", "#e5484d"),
