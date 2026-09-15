@@ -61,13 +61,13 @@ THEME_ITEMS: tuple[tuple[str, str, str], ...] = (
 #               ``examples/docs/main.py``).
 NAV = [
     ("DÉMARRER", [
-        ("Le pitch", "/", "compass", ""),
-        ("Comment Bretzel fonctionne", "/how", "book-open", ""),
+        ("Introduction", "/", "compass", ""),
+        ("Comprendre Bretzel", "/how", "book-open", ""),
         ("Décrire l'UI", "/describe", "layout-template", ""),
         # Le jumeau du précédent : l'un dit ce qui existe, l'autre juge ce
         # qu'on en a fait. Ils se lisent l'un après l'autre.
         ("Juger le code", "/check", "shield-check", ""),
-        ("Lancer une app", "/config", "settings", ""),
+        ("Installer et démarrer", "/config", "rocket", ""),
     ]),
     ("LE CYCLE", [
         ("État · serveur", "/state-server", "database", ""),
@@ -119,7 +119,7 @@ def shell() -> None:
     with ui.viewport():
         with ui.sidebar(collapsible="rail"):
             ui.sidebar_title(
-                "Bretzel · Docs",
+                "Bretzel Docs",
                 icon=ui.icon("book-open", color="primary", size="lg"),
             )
             for section, items in NAV:
@@ -127,8 +127,8 @@ def shell() -> None:
                     for label, path, icon, _blurb in items:
                         ui.sidebar_item(label, icon=icon, href=path)
             with ui.sidebar_footer(
-                name="Jean Hoccart",
-                subtitle="jean.hoccart@gmail.com",
+                name="Bretzel",
+                subtitle="v0.1.0a1 · Early alpha",
             ):
                 for value, label, icon in THEME_ITEMS:
                     ui.sidebar_footer_item(
@@ -143,8 +143,8 @@ def shell() -> None:
                 # Le port est en dur parce que la cible est un AUTRE
                 # serveur : rien côté doc ne peut le connaître.
                 ui.sidebar_footer_item(
-                    label="Playground", icon_left="flask-conical",
-                    href="http://localhost:8001/",
+                    label="GitHub", icon_left="github",
+                    href="https://github.com/JeanHoccart/bretzel",
                 )
         with ui.pane(gap="none", padding="lg",
                      classes="max-md:pt-[5.5rem]"):
