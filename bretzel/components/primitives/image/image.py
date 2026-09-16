@@ -35,7 +35,7 @@ from bretzel.core.tree import Element
 
 
 class Image(Component):
-    """Une image, avec sa place réservée par ``ratio=``."""
+    """Render an image and optionally reserve its layout with ``ratio=``."""
 
     THEME: ClassVar[dict[str, Any]] = IMAGE_THEME
     THEME_KEY: ClassVar[str] = "image"

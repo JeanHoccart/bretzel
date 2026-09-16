@@ -186,32 +186,7 @@ def _num_list(values: Sequence[float]) -> str:
 
 
 class ResizablePanel(Component):
-    """Un panneau du groupe — conteneur, ouvert par ``with``.
-
-    Il ne rend AUCUNE classe à lui : sa boîte (base nulle, plancher flex
-    désactivé, débordement coupé) est composée par le groupe, seul à
-    savoir sur quel axe il vit. Le composant existe pour marquer qu'un
-    enfant est un panneau, et pour porter ses trois **contraintes** —
-    ``min_size``, ``max_size``, ``collapsible``.
-
-    Les trois sont en **points de pourcentage**, la même échelle que
-    ``sizes`` sur le groupe. ``max_size`` a été ajouté le 2026-08-23 :
-    ``min_size`` vivait seul, ce qui était une asymétrie et non une
-    décision — un panneau de navigation qu'on veut borner à 40 % n'avait
-    aucun moyen de le dire.
-
-    ⚠️ **``collapsible`` PASSE OUTRE ``min_size``, et c'est le but.** Un
-    panneau replié tombe à 0, donc sous son minimum. Le minimum dit « ne
-    me réduis pas par accident en tirant » ; le repli est un geste
-    explicite (double-clic sur la poignée, ou ``Entrée`` quand elle a le
-    focus) qui dit « range-le ». Sans cette sortie, `min_size=20` rendrait
-    le repli impossible et il faudrait un second vocabulaire pour dire la
-    même chose. C'est le comportement de VS Code et de shadcn.
-
-    Le repli se **souvient** de la taille d'avant : re-double-cliquer la
-    restaure. Si le souvenir a été perdu (un morph a changé le nombre de
-    panneaux), le panneau revient à son ``min_size``, ou à part égale.
-    """
+    """Render one panel inside a resizable group."""
 
     THEME: ClassVar[dict[str, Any]] = RESIZABLE_PANEL_THEME
     THEME_KEY: ClassVar[str] = "resizable_panel"
@@ -285,7 +260,7 @@ class ResizablePanel(Component):
 
 
 class Resizable(Component):
-    """Groupe de panneaux redimensionnables par des poignées dérivées."""
+    """Render a group of panels separated by resize handles."""
 
     THEME: ClassVar[dict[str, Any]] = RESIZABLE_THEME
     THEME_KEY: ClassVar[str] = "resizable"

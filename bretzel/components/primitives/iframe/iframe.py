@@ -62,7 +62,7 @@ SANDBOX_BASELINE: Final[str] = (
 
 
 class Iframe(Component):
-    """Un document embarqué, avec un titre et un sandbox par défaut."""
+    """Embed a titled document with a secure sandbox by default."""
 
     THEME: ClassVar[dict[str, Any]] = IFRAME_THEME
     THEME_KEY: ClassVar[str] = "iframe"

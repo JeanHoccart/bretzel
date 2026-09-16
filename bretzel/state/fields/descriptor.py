@@ -421,49 +421,7 @@ def field(
     url: str | None = None,
     merge: str | None = None,
 ) -> Any:
-    """Déclarer un champ. **Tout** champ passe par ici ::
-
-        class Preferences(UserState):
-            densite: str = field(default="md")
-            canaux: list = field(default_factory=list)
-            requis: str = field()                       # sans défaut
-            tri: str = field(default="date", url="tri")
-            vues: int = field(default=0, merge="add")
-
-    Une seule forme, et c'est le point : ``densite: str = "md"`` est
-    REFUSÉ par la métaclasse, avec la phrase qui dit quoi écrire. Tant
-    qu'il y avait deux orthographes pour la même chose, un lecteur devait
-    savoir laquelle porte quoi — et une option comme ``merge`` n'avait
-    nulle part où se poser sur la forme courte.
-
-    L'annotation, elle, RESTE : c'est la seule position où Python lit une
-    *expression* de type, donc la seule qui sache dire ``int | None``
-    (mesuré — en argument, une union n'est pas une classe et le typage
-    tombe en ``Any``). C'est aussi elle qui donne le type de coercition
-    des valeurs de formulaire.
-
-    Les paramètres :
-
-    - ``default`` — la valeur de départ, immuable ;
-    - ``default_factory`` — pour une valeur MUTABLE, construite par
-      instance (``list``, ``dict``, ``set``) ; l'un ou l'autre, jamais
-      les deux ;
-    - ``url`` — le nom du champ dans l'adresse (``?tri=…``). Il ne fait
-      que NOMMER : c'est ``class X(State, addressable=True)`` qui allume
-      l'adressage, parce que ce qui est dans une URL est **public** —
-      historique, logs, ``Referer`` — et ne doit jamais s'obtenir par
-      accident. Cf. :mod:`bretzel.state.url` ;
-    - ``merge`` — comment deux écritures concurrentes se combinent.
-      ``None`` (défaut) remplace : le dernier qui écrit gagne, ce qui est
-      juste pour un CHOIX (une page, un tri, un identifiant). ``"add"``
-      additionne : le commit envoie l'écart et le magasin l'applique,
-      donc deux clics simultanés comptent tous les deux. Réservé aux
-      champs numériques partant de zéro — la métaclasse refuse le reste.
-
-    Le type de retour est ``Any`` pour que les vérificateurs lisent
-    l'annotation de l'attribut (``items: list[Item] = field(...)`` se
-    vérifie bien comme ``list[Item]``).
-    """
+    """Declare a typed state field."""
     if isinstance(default, list | dict | set):
         # La garde a DÉMÉNAGÉ ici le 2026-09-05, avec l'obligation de
         # passer par ``field()`` : elle vivait dans la métaclasse, sur le

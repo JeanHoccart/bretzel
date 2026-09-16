@@ -161,35 +161,7 @@ class Breadcrumb(Component):
 
 
 class BreadcrumbItem(Component):
-    """Un segment du fil : un libellé, une icône optionnelle, un lien.
-
-    ::
-
-        ui.breadcrumb_item("Docs", icon="book", href="/docs")
-
-    Même surface que ses dix pairs — ``ui.tab``, ``ui.sidebar_item``,
-    ``ui.navbar_item``, ``ui.step``… — et pour la même raison : c'est
-    ``label`` + ``icon`` dans 95 % des cas, et les deux sont des slots,
-    donc ils acceptent un Component quand ce n'est pas le cas ::
-
-        ui.breadcrumb_item(ui.badge(label="Tracker"))
-        ui.breadcrumb_item(rich, icon=ui.avatar(src=…), href="/x")
-
-    C'est ce qui rend le container inutile : pour un corps vraiment
-    arbitraire, on bâtit le composant AVANT et on le passe en ``label``
-    (``adopt_slot`` le détache, il ne rend pas deux fois).
-
-    ⚠️ Une première version (2026-08-18) était un CONTENEUR — on y
-    entrait en ``with`` pour poser icône et texte à la main. Elle
-    n'exposait donc pas ``icon=``, seule des onze items du catalogue à
-    ne pas l'avoir, et offrait une deuxième façon de poser un contenu que
-    ``label`` accepte déjà (principe 4). Corrigé le jour même.
-
-    Le segment ne sait PAS s'il est le dernier, et c'est voulu : seul
-    :meth:`Breadcrumb.render` connaît la longueur du fil. L'auteur n'a
-    donc jamais d'``is_last`` à calculer — le ``aria-current="page"``
-    arrive tout seul sur le dernier.
-    """
+    """Render one breadcrumb segment with an optional icon and link."""
 
     THEME_KEY: ClassVar[str] = "breadcrumb"
     DEFAULT_TAG: ClassVar[str] = "a"

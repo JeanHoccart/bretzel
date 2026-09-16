@@ -103,15 +103,7 @@ def _is_async_callable(fn: Any) -> bool:
 async def call_without_blocking(
     fn: Callable[..., Any], /, *args: Any, **kwargs: Any
 ) -> Any:
-    """Appeler ``fn`` et rendre son résultat, boucle jamais bloquée.
-
-    - ``async def`` → attendue sur la boucle, aucun saut de thread ;
-    - tout le reste → délesté sur le threadpool partagé de Starlette.
-
-    Une fonction synchrone qui RETOURNE un awaitable (elle relaie une
-    coroutine construite ailleurs) est encore attendue ici : l'objet
-    coroutine n'appartient à aucun thread, seul son ``await`` compte.
-    """
+    """Call ``fn`` without blocking the event loop."""
     if _is_async_callable(fn):
         return await fn(*args, **kwargs)
     result = await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))

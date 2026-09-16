@@ -247,8 +247,8 @@ def describe(name: str) -> str:
             noeud = describe_package(name)
             if noeud.children:
                 rendu += (
-                    f"\n  ({len(walk(noeud))} paquets là-dessous — "
-                    f"``describe {name}.<dossier>`` pour le rangement)\n"
+                    f"\n  ({len(walk(noeud))} packages below — "
+                    f"use ``describe {name}.<folder>`` to inspect the tree)\n"
                 )
         return rendu
     if isinstance(found, SymbolDetail):
@@ -275,7 +275,7 @@ def _homonym_note(ui_name: str) -> str:
     if not owners:
         return ""
     paths = ", ".join(f"{module}.{ui_name}" for module in owners)
-    return f"\n\nHomonyme   {paths}   (`describe {owners[0]}.{ui_name}`)"
+    return f"\n\nNamesake   {paths}   (`describe {owners[0]}.{ui_name}`)"
 
 
 def _unknown_message(name: str) -> str:
@@ -288,16 +288,16 @@ def _unknown_message(name: str) -> str:
     forced_ui = name.startswith("ui.")
     symbol = name.removeprefix("ui.")
     known_ui = ui_symbol_names()
-    scopes = "les composants `ui.*`" if forced_ui else "les composants `ui.*` ni les modules"
+    scopes = "the `ui.*` components" if forced_ui else "the `ui.*` components or modules"
     pool = set(known_ui) if forced_ui else set(known_ui) | set(symbol_names())
     near = sorted(n for n in pool if (symbol in n or n in symbol) and n != symbol)[:6]
-    hint = f" Proches : {', '.join(near)}." if near else ""
+    hint = f" Similar names: {', '.join(near)}." if near else ""
     return (
-        f"`{name}` n'est ni dans {scopes} "
-        f"({len(known_ui)} composants, {len(symbol_names())} symboles de module)."
+        f"`{name}` was not found among {scopes} "
+        f"({len(known_ui)} components, {len(symbol_names())} module symbols)."
         f"{_where_it_lives(symbol)}"
-        f"{hint} `index()` les liste tous, et `describe capabilities` "
-        f"dit ce que le framework sait FAIRE."
+        f"{hint} `index()` lists them all, and `describe capabilities` "
+        f"shows what the framework can do."
     )
 
 
@@ -325,8 +325,8 @@ def _where_it_lives(symbol: str) -> str:
     value = getattr(importlib.import_module(owner), symbol, None)
     catalogue = ui_name_of_class().get(value) if isinstance(value, type) else None
     if catalogue is not None:
-        return f" C'est la classe de `ui.{catalogue}` : `describe {catalogue}`."
+        return f" It is the class behind `ui.{catalogue}`: `describe {catalogue}`."
     return (
-        f" Il s'importe pourtant : `from {owner} import {symbol}` — "
-        f"{owner} n'a pas de table de classement, donc pas de fiche."
+        f" It can still be imported with `from {owner} import {symbol}`, but "
+        f"{owner} has no category table and therefore no detail page."
     )

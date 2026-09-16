@@ -81,23 +81,7 @@ async def render_partial(
     ctx: RenderContext,
     extra_handles: Iterable[RefreshableHandle] = (),
 ) -> RenderResult:
-    """Render one or more refreshable sections + the client-state delta.
-
-    Single-section call : pass ``handle`` only — the response body is
-    that section's HTML wrapped via :func:`fuse_or_wrap` with
-    ``bz-id=handle.id``.
-
-    Multi-section call (typical post-action) : pass ``handle`` for the
-    primary one and ``extra_handles`` for the others. Every section
-    after the first is emitted as an HTMX out-of-band fragment
-    (``hx-swap-oob="morph:innerHTML"``) so a single response updates
-    every dependent zone atomically.
-
-    The state delta script is appended last — the runtime applies it
-    on ``htmx:afterSwap`` — donc APRÈS le morph, pas avant (le bridge,
-    ``05_bridge.js`` ; ``02_morph_hook.js`` n'existe plus), so DOM
-    bindings re-evaluate against the new client-state.
-    """
+    """Render refreshable regions and the client-state delta."""
     ctx.is_partial = True
 
     # Every refreshable rides as an OOB fragment. The dispatcher

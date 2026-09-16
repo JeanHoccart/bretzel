@@ -37,16 +37,7 @@ __all__ = [
 
 
 def abort(status_code: int, detail: str = "") -> NoReturn:
-    """Raise an :class:`HTTPException` from inside a handler.
-
-    Exposé au top-level (``from bretzel import abort``) pour que les
-    apps n'aient pas à importer Starlette. Le handler d'exception du
-    serveur mappe le statut vers la page ``@error_page(status)``
-    correspondante, ou vers le repli statique s'il n'y en a pas.
-
-    Always raises — return type is :data:`typing.NoReturn` so static
-    checkers know the call is terminal.
-    """
+    """Raise an HTTP error from inside a request handler."""
     raise HTTPException(status_code=status_code, detail=detail)
 
 

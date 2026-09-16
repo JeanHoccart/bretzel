@@ -1,44 +1,4 @@
-"""Les portes de connexion — deux protocoles, aucun service nommé.
-
-Ce module ne connaît ni Google, ni GitHub, ni Microsoft, et c'est
-délibéré : **la découverte OIDC rend un préréglage strictement pire que
-son absence.** Un ``oauth.Google(...)`` figerait trois URL que
-``/.well-known/openid-configuration`` va chercher correctement pour
-toujours ; le jour où le fournisseur en bouge une, le préréglage ment et
-la découverte non. Le catalogue est donc de la **donnée** — un issuer
-dans le code de l'app — jamais de l'API ici.
-
-Deux classes, parce qu'il n'existe que deux formes :
-
-- :class:`OIDC` — le fournisseur publie un ``issuer``. Une URL suffit,
-  tout le reste est découvert, et l'identité arrive dans l'``id_token``.
-  Couvre Google, Microsoft Entra, Auth0, Okta, Keycloak, Authentik,
-  Zitadel, GitLab, LinkedIn, Salesforce, Twitch…
-- :class:`OAuth2` — pas de découverte dans le protocole, donc les trois
-  URL sont données. L'identité arrive d'un appel ``userinfo``. Couvre
-  GitHub, Discord, Slack, Facebook, Notion, Atlassian, Spotify…
-
-**Aucune dépendance neuve**, et c'est ce qui a décidé de la forme :
-
-- pas de vérification de signature JWT, donc pas de ``cryptography``.
-  Dans le flux ``authorization_code`` avec ``client_secret``,
-  l'``id_token`` arrive **directement du token endpoint, par TLS** —
-  OpenID Connect Core § 3.1.3.7 autorise explicitement à ne pas
-  revérifier sa signature dans ce cas. On décode le payload, puis on
-  vérifie ``iss``, ``aud``, ``exp`` et le ``nonce`` ;
-- pas de client HTTP, donc pas d'``httpx`` en production. Un échange de
-  code, c'est **un** POST par connexion : ``urllib.request`` de la
-  bibliothèque standard, poussé dans un thread par ``anyio`` (qui arrive
-  avec starlette) pour ne pas bloquer la boucle. Le coût d'un saut de
-  thread une fois par connexion ne se mesure pas.
-
-⚠️ Un fournisseur reste hors de portée : **Apple**, dont le
-``client_secret`` est lui-même un JWT signé en ES256. Il demanderait
-``cryptography``. Une app qui en a besoin peut fabriquer le secret
-elle-même et le passer à :class:`OIDC` — la porte ne fait aucune
-différence.
-
-"""
+"""OAuth and OpenID Connect authentication providers."""
 
 from __future__ import annotations
 
@@ -86,15 +46,7 @@ class OAuthError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class OAuthProfile:
-    """Ce qu'une porte sait de la personne, une fois le code échangé.
-
-    ``subject`` est son identifiant **chez le fournisseur** — stable,
-    opaque, et ce n'est PAS ton ``user_id`` : c'est la clé de jointure
-    avec ta table. ``raw`` porte le profil entier, parce que ce qui est
-    propre à un service (l'``avatar_url`` de GitHub, le ``hd`` de
-    Google) n'a pas à remonter dans une forme normalisée pour être
-    accessible.
-    """
+    """Represent the normalized user profile returned by an OAuth provider."""
 
     subject: str
     email: str = ""
@@ -137,7 +89,7 @@ def _http_json(
             # Large exprès : corps vide, tronqué, encodage exotique — la
             # cause exacte n'a aucune valeur ici, il n'y a qu'une suite
             # possible, refuser proprement.
-            raise OAuthError(f"{url} a répondu {exc.code} sans corps lisible.") from None
+            raise OAuthError(f"{url} returned {exc.code} without a readable response body") from None
     except urllib.error.URLError as exc:
         # Fournisseur injoignable, DNS, TLS. Un refus propre plutôt qu'une
         # trace : le visiteur n'y peut rien.
@@ -368,7 +320,7 @@ class _Door:
     def _key(self, request: Any) -> bytes:
         key = getattr(getattr(app_of(request), "config", None), "_auth_key", None)
         if not key:
-            raise OAuthError("clé dérivée introuvable — l'app n'est pas montée.")
+            raise OAuthError("derived key unavailable — the application is not mounted")
         return key
 
     def _secure(self, request: Any) -> bool:
@@ -402,13 +354,13 @@ class _Door:
     def _unseal(self, request: Any) -> tuple[str, str, str]:
         raw = request.cookies.get(self._cookie_name, "")
         if not raw or "." not in raw:
-            raise OAuthError("cookie de transaction absent — lien direct, ou expiré.")
+            raise OAuthError("transaction cookie missing — the link is direct or has expired")
         payload, signature = raw.rsplit(".", 1)
         if not _crypto_verify(self._key(request), payload, signature):
-            raise OAuthError("cookie de transaction non signé par nous.")
+            raise OAuthError("transaction cookie was not signed by this application")
         parts = payload.split(":")
         if len(parts) != 3:
-            raise OAuthError("cookie de transaction malformé.")
+            raise OAuthError("malformed transaction cookie")
         return parts[0], parts[1], parts[2]
 
     def _redirect_uri(self, request: Any) -> str:
@@ -430,16 +382,7 @@ class _Door:
 
 
 class OIDC(_Door):
-    """Un fournisseur OpenID Connect, décrit par son seul ``issuer`` ::
-
-        oauth.OIDC(name="google", issuer="https://accounts.google.com",
-                   client_id=..., client_secret=...)
-
-    Les trois endpoints sortent de
-    ``{issuer}/.well-known/openid-configuration``, lu une fois puis gardé
-    pour la vie du process. C'est ce qui remplace un préréglage par
-    service : le fournisseur reste maître de ses URL.
-    """
+    """Configure an OpenID Connect provider from its issuer metadata."""
 
     def __init__(
         self,
@@ -481,7 +424,7 @@ class OIDC(_Door):
     async def _profile(self, tokens: dict[str, Any], nonce: str) -> OAuthProfile:
         raw_id = tokens.get("id_token", "")
         if not raw_id or raw_id.count(".") != 2:
-            raise OAuthError("réponse OIDC sans id_token exploitable.")
+            raise OAuthError("OIDC response does not contain a usable id_token")
         claims = _b64url_json(raw_id.split(".")[1])
 
         # Ce qu'on vérifie, et pourquoi pas la signature : le jeton arrive
@@ -489,13 +432,13 @@ class OIDC(_Door):
         # — OIDC Core § 3.1.3.7 le dit suffisant. Restent les quatre
         # contrôles que le transport ne donne pas.
         if str(claims.get("iss", "")).rstrip("/") != self.issuer:
-            raise OAuthError("id_token émis par un autre issuer.")
+            raise OAuthError("id_token was issued by a different issuer")
         aud = claims.get("aud", "")
         auds = aud if isinstance(aud, list) else [aud]
         if self.client_id not in auds:
-            raise OAuthError("id_token destiné à un autre client.")
+            raise OAuthError("id_token was issued for a different client")
         if int(claims.get("exp", 0)) <= int(time.time()):
-            raise OAuthError("id_token expiré.")
+            raise OAuthError("id_token has expired")
         # ⚠️ Le ``and claims.get("nonce")`` qui se trouvait ici rendait le
         # contrôle FACULTATIF : un jeton SANS nonce passait, alors qu'on
         # en avait envoyé un. C'est exactement la porte au rejeu que le
@@ -508,7 +451,7 @@ class OIDC(_Door):
 
         subject = str(claims.get("sub", ""))
         if not subject:
-            raise OAuthError("id_token sans sub.")
+            raise OAuthError("id_token does not contain a sub claim")
         return OAuthProfile(
             subject=subject,
             email=str(claims.get("email", "")),
@@ -524,20 +467,7 @@ class OIDC(_Door):
 
 
 class OAuth2(_Door):
-    """Un fournisseur OAuth2 sans OIDC — les trois URL sont données ::
-
-        oauth.OAuth2(name="github",
-                     authorize="https://github.com/login/oauth/authorize",
-                     token="https://github.com/login/oauth/access_token",
-                     userinfo="https://api.github.com/user",
-                     subject="id", scope="read:user user:email",
-                     client_id=..., client_secret=...)
-
-    ``subject`` nomme le champ du profil qui sert d'identifiant stable —
-    ``id`` chez GitHub, ``sub`` ailleurs. Il n'y a pas de valeur par
-    défaut universelle, et deviner ici produirait un identifiant qui
-    change sous les pieds de l'app : le champ est déclaré.
-    """
+    """Configure an OAuth 2 provider from explicit endpoint URLs."""
 
     def __init__(
         self,
@@ -572,7 +502,7 @@ class OAuth2(_Door):
     async def _profile(self, tokens: dict[str, Any], nonce: str) -> OAuthProfile:
         access = str(tokens.get("access_token", ""))
         if not access:
-            raise OAuthError("réponse sans access_token.")
+            raise OAuthError("response does not contain an access_token")
         raw = await _fetch(
             self._urls["userinfo"],
             headers={"Authorization": f"Bearer {access}", "User-Agent": "bretzel"},

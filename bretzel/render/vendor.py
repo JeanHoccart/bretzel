@@ -103,44 +103,18 @@ def vendor_dir() -> Path:
 
 
 def cached_name(asset: VendoredAsset) -> str:
-    """Le nom du fichier en cache — il PORTE l'empreinte attendue.
-
-    ``htmx.min.js`` devient ``htmx.min.e209dda5.js``.
-
-    **Le nom est la clé, et c'est le seul moyen de ne pas mentir.** Un
-    cache sur disque survit au processus : rien ne l'invalidera jamais
-    tout seul. Tant que le fichier s'appelait ``htmx.min.js``, il
-    suffisait de monter la version dans :mod:`bretzel.render.shell` pour
-    que chaque checkout existant continue de servir l'ANCIENNE, sans
-    bruit — l'ancien ``download()`` rendait la main sur un simple
-    ``is_file()``, et ``vendored_is_available`` ne regardait pas non plus.
-
-    Mesuré le 2026-08-27 : ``htmx.min.js`` remplacé par 38 octets de
-    n'importe quoi, ``vendored_is_available`` répondait ``True``,
-    ``url_for`` servait le fichier, et ``download()`` refusait de le
-    remplacer.
-
-    Avec l'empreinte dans le nom, exister C'EST être bon : une version
-    montée ne trouve simplement plus son fichier et l'app retombe sur le
-    CDN — visiblement, jusqu'au prochain téléchargement. C'est la même
-    règle que ``.bretzel/css/<empreinte>.css`` et que le binaire
-    Tailwind, dont le nom porte la version.
-    """
+    """Return the cache filename containing the expected content fingerprint."""
     tige, _, extension = asset.filename.rpartition(".")
     return f"{tige}.{asset.sha256[:8]}.{extension}"
 
 
 def vendored_local_path(asset: VendoredAsset) -> Path:
-    """Où ``asset`` se trouve dans le cache du projet — présent ou non."""
+    """Return the local cache path for ``asset`` whether or not it exists."""
     return vendor_dir() / cached_name(asset)
 
 
 def vendored_is_available(asset: VendoredAsset) -> bool:
-    """Le fichier est-il là ? Un simple ``stat``, pas de relecture.
-
-    Suffisant parce que le nom porte l'empreinte : un fichier présent
-    sous ce nom-là a été vérifié à l'écriture (cf. :func:`download`).
-    """
+    """Return whether a vendored asset exists locally."""
     return vendored_local_path(asset).is_file()
 
 
@@ -173,7 +147,7 @@ def download(asset: VendoredAsset, *, force: bool = False) -> Path:
         return target
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    print(f"[bretzel] Téléchargement de {asset.filename} depuis {asset.url}")
+    print(f"[bretzel] Downloading {asset.filename} from {asset.url}")
     # ``User-Agent`` explicite : ``code.iconify.design`` répond **403** à
     # l'en-tête par défaut d'``urllib`` (mesuré le 2026-08-27). unpkg s'en
     # moque ; le poser pour les trois évite d'avoir deux chemins.
@@ -234,44 +208,12 @@ def browser_css_asset() -> VendoredAsset:
 
 
 def downloadable_assets() -> tuple[VendoredAsset, ...]:
-    """Tout ce qui peut être rapatrié — les trois communs plus le CSS.
-
-    C'est ce que ``python -m bretzel.render.vendor`` télécharge et ce que
-    la route statique sait servir. :func:`vendored_assets`, elle, ne
-    répond qu'à « que charge CHAQUE page ».
-    """
+    """Return every third-party asset that can be downloaded locally."""
     return (*vendored_assets(), browser_css_asset())
 
 
 def ensure_vendored() -> bool:
-    """Rapatrier ce qui manque. Idempotent, et **jamais fatal**.
-
-    Appelée au premier appel ASGI d'une app en mode dev
-    (``Bretzel.__call__``), donc une fois par processus : les fichiers
-    déjà là ne sont pas retéléchargés, et une app qui a tourné une fois
-    ne parle plus à personne.
-
-    Pourquoi automatiquement, et pourquoi en dev seulement
-    ------------------------------------------------------
-    Le rapatriement était une COMMANDE à lancer à la main
-    (``python -m bretzel.render.vendor``), donc le repli CDN était la
-    règle pour tout le monde — y compris pour qui ne savait pas que la
-    commande existe. Une page de dev demandait alors quatre scripts à
-    deux CDN, plus ses glyphes à trois hôtes Iconify.
-
-    En dev on est sur une machine de développement : le réseau est là, le
-    téléchargement se paie une fois, et la page y gagne à chaque
-    rechargement de la boucle de travail. En **prod** on ne décide rien
-    d'office — un serveur qui sort du réseau au démarrage est une
-    surprise, et la commande reste le chemin explicite.
-
-    ⚠️ **Un échec n'arrête rien.** Sans réseau, derrière un proxy, ou si
-    une empreinte ne correspond pas, on le DIT et on continue : le repli
-    CDN est exactement le comportement d'avant. Une app ne doit pas
-    cesser de démarrer parce qu'un cache de confort manque.
-
-    Rend ``True`` si les quatre sont locaux à la sortie.
-    """
+    """Download missing third-party assets without making startup fatal."""
     manquants = [a for a in downloadable_assets() if not vendored_is_available(a)]
     for asset in manquants:
         try:
@@ -285,18 +227,7 @@ def ensure_vendored() -> bool:
 
 
 def vendored_assets() -> tuple[VendoredAsset, ...]:
-    """Les trois scripts que CHAQUE page charge, dans leur ordre.
-
-    Les URL viennent de :mod:`bretzel.render.shell`, seule source de
-    vérité pour les versions — l'import est **différé** parce que
-    ``shell`` importe ce module en retour pour choisir ses ``<script>``.
-    Un import au chargement ferait un cycle.
-
-    Les empreintes ont été relevées le 2026-08-27 sur les octets servis
-    par les deux origines. Elles se mettent à jour **avec** un
-    changement de version, jamais parce qu'un téléchargement a échoué à
-    les vérifier.
-    """
+    """Return the third-party scripts loaded by every page, in order."""
     from bretzel.render.shell import (  # casse un cycle : shell → vendor
         DEFAULT_HTMX_URL,
         DEFAULT_ICONIFY_URL,
@@ -371,21 +302,7 @@ def _icon_cache_file(chemin: str) -> Path:
 
 
 def icon_payload(chemin: str, *, allow_download: bool = True) -> bytes | None:
-    """Le corps d'une réponse de l'API Iconify — du cache, ou d'amont.
-
-    ``chemin`` est la partie qui suit l'hôte, query comprise
-    (``/lucide.json?icons=check``). Rendu tel quel : on ne modélise pas
-    le protocole d'Iconify, on le RELAIE. Modéliser aurait demandé de
-    suivre chacun de ses points d'accès (les collections, la date de
-    dernière modification, la recherche) et de repayer la dette à chaque
-    évolution amont.
-
-    Une fois en cache, plus rien ne sort de la machine. ``None`` si le
-    cache est vide et qu'aucun hôte ne répond — l'appelant rend alors un
-    404 et le composant retombera sur ses propres hôtes, ce qui est le
-    comportement d'avant : **ne jamais faire moins bien que ne rien
-    faire**.
-    """
+    """Return an Iconify API response body from cache or upstream."""
     fichier = _icon_cache_file(chemin)
     if fichier.is_file():
         return fichier.read_bytes()

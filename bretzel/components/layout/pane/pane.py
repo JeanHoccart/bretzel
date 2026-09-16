@@ -47,7 +47,7 @@ from bretzel.components.layout.stack import VStack
 
 
 class Pane(VStack):
-    """Région qui défile : une colonne qui prend la place restante."""
+    """Render a scrolling column that occupies the remaining space."""
 
     THEME: ClassVar[dict[str, Any]] = PANE_THEME
     THEME_KEY: ClassVar[str] = "pane"

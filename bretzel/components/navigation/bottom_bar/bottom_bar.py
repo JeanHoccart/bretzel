@@ -109,7 +109,7 @@ from bretzel.core.tree import Element
 
 
 class BottomBar(Component):
-    """``<nav>`` collé en bas. Possède ``current_path`` pour l'onglet actif."""
+    """Render a bottom navigation bar that tracks the current path."""
 
     THEME: ClassVar[dict[str, Any]] = BOTTOM_BAR_THEME
     THEME_KEY: ClassVar[str] = "bottom_bar"
@@ -195,17 +195,7 @@ class BottomBar(Component):
 
 
 class BottomBarItem(Component):
-    """Un onglet — icône au-dessus, label dessous, badge en coin.
-
-    Même comportement que :class:`NavbarItem` et :class:`SidebarItem`, au mot
-    près : partial-nav HTMX auto-injecté quand ``href`` est passé dans un
-    ``@layout``, actif dérivé de ``current_path``, garde sur les URLs
-    externes, badge réactif. Tout ça vient de ``navigation/_wiring``.
-
-    Ce qui change est **visuel** : une colonne à largeur égale au lieu d'une
-    pilule horizontale, et l'actif se signale par la couleur du texte et de
-    l'icône plutôt que par un fond plein.
-    """
+    """Render a bottom-bar item with an icon, label, and optional badge."""
 
     THEME: ClassVar[dict[str, Any]] = BOTTOM_BAR_ITEM_THEME
     THEME_KEY: ClassVar[str] = "bottom_bar_item"

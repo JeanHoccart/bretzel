@@ -1,33 +1,4 @@
-"""Layer 6 — the HTTP boundary.
-
-Public surface :
-
-- :class:`Bretzel` — the user-facing app class. Construct it, decorate
-  your pages, hand the instance to uvicorn / gunicorn.
-- :class:`BretzelConfig` — exposed for advanced introspection.
-- :class:`BretzelError`, :class:`AuthRequiredError`, :func:`abort` —
-  les types d'erreur et le court-circuit de handler.
-- :func:`push_url` — renommer l'adresse affichée SANS naviguer :
-  c'est ce qui donne une adresse à une vue (tri, filtre, onglet),
-  donc un bouton retour qui marche et un lien qu'on peut partager.
-  Le socle l'appelle seul quand un champ ``URL = {…}`` a bougé.
-- :func:`redirect` — envoyer le navigateur ailleurs depuis un handler.
-  Sa primitive niveau-requête, :func:`redirect_response`, est ce qu'un
-  middleware utilisateur appelle : lui n'a pas de contexte de rendu. Cf.
-  :mod:`bretzel.server.navigation`.
-- :func:`background`, :func:`idempotent` — les deux décorateurs de
-  handler.
-- ``auth.source`` / ``auth.door`` — les deux moitiés de l'identité.
-  Des décorateurs **libres**, comme :func:`page` : une feature ne doit
-  pas importer l'instance d'app pour déclarer d'où vient une identité
-  (``app-structure.md`` § 9). Ils vivent dans le namespace ``auth`` et
-  non ici : ce sont des DÉCLARATIONS, et les mettre au même rang que les
-  verbes impératifs faisait lire ``login_with`` comme une variante de
-  ``auth.login``.
-- The ``auth`` namespace re-exposed as a module attribute for the
-  documented ``from bretzel import auth`` convenience, et ``oauth`` pour
-  les deux portes (:class:`OIDC`, :class:`OAuth2`).
-"""
+"""HTTP, authentication, routing, and application lifecycle services."""
 
 from __future__ import annotations
 

@@ -1,17 +1,4 @@
-"""Layer 3 — server-driven HTML rendering pipeline.
-
-**Couche INTERNE — aucune surface utilisateur.**
-
-Les cinq décorateurs qu'un auteur d'app écrit (``page``, ``layout``,
-``error_page``, ``refreshable``, ``refresh``) sont DÉFINIS ici mais se tapent
-depuis ``bretzel``. Le reste — contexte de requête, pipeline, fusion
-sans div-soup, shell HTML5, clés d'itération — est de la plomberie que
-``server`` et ``components`` consomment. ``__all__`` y est donc le
-contrat inter-couche, pas une API publique, et la gate
-``test_public_surface_is_classified`` ne balaie pas ce module.
-
-Le temps réel s'écrit ``@refreshable(deps=[…], broadcast=[State])``.
-"""
+"""Server-driven HTML rendering pipeline."""
 
 from __future__ import annotations
 

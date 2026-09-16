@@ -57,17 +57,17 @@ def describe_kwarg_routing() -> tuple[Bucket, ...]:
     declared = tuple(f"{p}*" for p in _RAW_HTML_PREFIXES) + tuple(sorted(_RAW_HTML_NAMES))
 
     return (
-        Bucket(0, "réservés (popés avant split_kwargs)", RESERVED_KWARGS, "cas par cas"),
-        Bucket(1, "directive Alpine — morte depuis V3", dead, "ComponentUsageError"),
+        Bucket(0, "reserved (removed before split_kwargs)", RESERVED_KWARGS, "handled individually"),
+        Bucket(1, "Alpine directive — unsupported since V3", dead, "ComponentUsageError"),
         Bucket(2, "passthrough verbatim", star, "passthrough"),
         Bucket(
             3,
-            "prop réactive déclarée sur la classe",
+            "reactive property declared on the class",
             ("<__reactive_props__>",),
             "_reactive_values",
         ),
-        Bucket(4, "slot nommé", ("<NAMED_SLOTS>",), "_slot_components"),
-        Bucket(5, "handler d'event", ("on_<EVENTS>",), "_event_attrs"),
-        Bucket(6, "échappatoire HTML DÉCLARÉE", declared, "_raw_attrs (nom normalisé)"),
-        Bucket(7, "tout le reste", ("*",), "ComponentUsageError"),
+        Bucket(4, "named slot", ("<NAMED_SLOTS>",), "_slot_components"),
+        Bucket(5, "event handler", ("on_<EVENTS>",), "_event_attrs"),
+        Bucket(6, "DECLARED raw HTML escape hatch", declared, "_raw_attrs (normalized name)"),
+        Bucket(7, "everything else", ("*",), "ComponentUsageError"),
     )

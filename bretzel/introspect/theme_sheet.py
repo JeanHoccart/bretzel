@@ -116,34 +116,34 @@ def theme_sheet(ui_name: str) -> str:
 
     cls = getattr(ui_module, ui_name, None)
     if not isinstance(cls, type):
-        raise KeyError(f"`ui.{ui_name}` n'existe pas.")
+        raise KeyError(f"`ui.{ui_name}` does not exist")
     theme = getattr(cls, "THEME", None)
     theme_key = getattr(cls, "THEME_KEY", "") or ""
     if not isinstance(theme, dict) or not theme_key:
-        raise KeyError(f"`ui.{ui_name}` ne porte pas de thème.")
+        raise KeyError(f"`ui.{ui_name}` has no theme")
 
     out = [
-        f"Thème de ui.{ui_name} — Theme(components={{{theme_key!r}: {{…}}}})",
+        f"Theme for ui.{ui_name} — Theme(components={{{theme_key!r}: {{…}}}})",
         "",
     ]
     for group, table in theme.items():
         if not isinstance(table, dict):
-            out += [f"  {group}", f"    (valeur unique) {table}", ""]
+            out += [f"  {group}", f"    (single value) {table}", ""]
             continue
 
         keys = [str(k) for k in table]
         forms = {_shape_of(v) for v in table.values()}
-        forme = forms.pop() if len(forms) == 1 else "mixte"
-        out.append(f"  {group}  —  {len(keys)} clés, forme « {forme} »")
+        forme = forms.pop() if len(forms) == 1 else "mixed"
+        out.append(f"  {group}  —  {len(keys)} keys, shape '{forme}'")
 
         shown = _default_key(cls, group, table)
         if shown is not None:
             param = GROUP_TO_PARAM[group]
-            out.append(f"    {shown}  (le défaut de {param}=) :")
+            out.append(f"    {shown}  (default for {param}=):")
             out += _value_lines(table[shown])
             autres = [k for k in keys if k != shown]
             if autres:
-                out.append(f"    les autres : {', '.join(autres)}")
+                out.append(f"    other values: {', '.join(autres)}")
         elif len(keys) <= _MAX_NAMED:
             out.append(f"    {', '.join(keys)}")
         else:
@@ -151,10 +151,10 @@ def theme_sheet(ui_name: str) -> str:
         out.append("")
 
     out += [
-        "⚠️ La FORME décide si ta surcharge est LUE.",
-        "   Un dict là où le thème livre une chaîne fait perdre tous les",
-        "   jetons du palier — le composant rend nu, en 200, sans erreur.",
-        "   Une chaîne là où il livre un dict lève au rendu.",
-        "   Une clé NEUVE, elle, est la façon supportée d'étendre le thème.",
+        "⚠️ The SHAPE determines whether your override is applied.",
+        "   A dict where the built-in theme provides a string drops every",
+        "   token in that tier; the component renders unstyled without an error.",
+        "   A string where the built-in theme provides a dict raises at render time.",
+        "   A NEW key is the supported way to extend the theme.",
     ]
     return "\n".join(out)

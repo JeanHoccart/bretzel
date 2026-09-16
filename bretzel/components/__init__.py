@@ -1,30 +1,4 @@
-"""Layer 5 — the user-facing ``ui`` namespace.
-
-Apps consume components via ::
-
-    from bretzel import ui
-
-    with ui.vstack(gap="lg"):
-        ui.text("Hello", size="xl", weight="bold")
-        ui.button("Save", on_click=save_handler)
-
-Le critère d'appartenance
--------------------------
-**``ui.*`` s'appelle depuis un corps de RENDU** (``@page``, ``@layout``,
-``@refreshable``) ; **``bretzel.*`` s'appelle depuis un HANDLER**. C'est
-une frontière mécanique, pas un jugement : elle se vérifie, et
-``tests/consistency/test_handler_helpers_have_one_home.py`` la vérifie.
-
-Dit en langage humain : ``ui.*`` est tout ce dont l'effet est visible à
-l'écran. Ça inclut des entrées qui ne retournent pas de nœud —
-``ui.notification`` produit un toast (le runtime auto-monte le DOM), les
-``ui.*_each`` produisent des clés d'itération, ``ui.column`` décrit une
-colonne de table. Le critère n'est donc PAS « retourne un ``Node`` », et
-c'est volontaire.
-
-Un court-circuit HTTP comme :func:`bretzel.server.errors.abort` appartient
-donc à la surface de handler, pas au namespace de rendu.
-"""
+"""User-facing components exposed through the ``ui`` namespace."""
 
 from __future__ import annotations
 

@@ -1,4 +1,10 @@
-"""State — server-side state."""
+"""L'ÉTAT — État serveur.
+
+Le côté serveur de l'état : la vérité. Quatre scopes selon la portée
+et la durée de vie, la déclaration (field / validator / computed), et
+« muter → re-render » montré en direct. Le miroir en bas lit les classes
+de cette page dans le code.
+"""
 
 from __future__ import annotations
 
@@ -22,14 +28,16 @@ from examples.docs.lib.blocks import source_block, state_mirror
 PATH = "/state-server"
 
 
+# ── États de démonstration (le miroir les lit en direct) ────────────────
+
 class SrvCounter(SessionState):
-    """A server counter changed by a handler."""
+    """Compteur serveur — survit à la session, muté par un handler."""
 
     n: int = field(default=0)
 
 
 class Cart(SessionState):
-    """A compact example combining fields, a factory, validation, and computed state."""
+    """Exemple riche — field / factory / validator / computed réunis."""
 
     items: list[dict] = field(default_factory=list)
     coupon: str = field(default='')
@@ -46,34 +54,34 @@ class Cart(SessionState):
 
 
 class Etat(enum.Enum):
-    """An application enum stored by its value."""
+    """Une énumération d'app — le magasin la range par sa VALEUR."""
 
-    DRAFT = "draft"
-    SENT = "sent"
+    BROUILLON = "brouillon"
+    ENVOYEE = "envoyee"
 
 
 class Facture(SessionState):
-    """Domain types are stored as-is, rather than as strings to parse again."""
+    """Des types MÉTIER rangés tels quels — pas des chaînes à re-parser."""
 
     emise: datetime.date = field(default_factory=datetime.date.today)
     montant: decimal.Decimal = field(default_factory=lambda: decimal.Decimal("0"))
     reference: uuid.UUID = field(default_factory=uuid.uuid4)
-    etat: Etat = field(default=Etat.DRAFT)
+    etat: Etat = field(default=Etat.BROUILLON)
 
 
 class Visites(AppState):
-    """A process-wide total, hence `merge="add"`."""
+    """Un total PARTAGÉ par tout le process — d'où `merge="add"`."""
 
     vues: int = field(default=0, merge="add")
 
 
 class Ventes(PageState, addressable=True):
-    """State in the URL: two published fields and one private field."""
+    """L'état dans l'ADRESSE — deux champs publiés, un qui ne l'est pas."""
 
     region: str = field(default="all", url="region")
     mini: int = field(default=0, url="mini")
-    #: Without ``url=``, this field cannot be published, even with
-    #: ``addressable=True``.
+    #: Pas de ``url=`` : ce champ ne peut donc pas être publié, même avec
+    #: ``addressable=True``. C'est la garantie, pas une consigne.
     notes: str = field(default="")
 
 
@@ -94,63 +102,65 @@ def counter_demo() -> None:
                    classes="font-mono w-12 text-center")
         ui.button("+1", on_click=bump)
     ui.text(
-        "Click → the handler changes `SrvCounter().n` → the `deps=[SrvCounter]` "
-        "region renders again. One server round trip.",
+        "Clic → le handler mute `SrvCounter().n` → la zone `deps=[SrvCounter]` "
+        "se re-render. Un aller-retour serveur.",
         color="muted", size="sm",
     )
 
 
-@page(PATH, layout=shell, title="Server state")
+@page(PATH, layout=shell, title="État serveur")
 def state_server_page() -> None:
     with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
-            ui.heading("Server state", level=1, size="3xl")
+            ui.heading("État serveur", level=1, size="3xl")
             ui.text(
-                "Server state is the source of truth: it lives in Python, is stored "
-                "on the server, and can be shared and protected. Inherit a pre-scoped "
-                "base class for the lifetime you need.",
+                "L'état serveur est la source de vérité : il vit en Python, "
+                "il est stocké côté serveur, il peut être partagé et protégé. "
+                "On hérite d'une des bases pré-scopées selon la portée voulue.",
                 color="muted", size="lg",
             )
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("The four scopes", level=2)
+                    ui.heading("Les quatre scopes", level=2)
                     ui.text(
-                        "You do not pass `scope=`: inherit the base class. The lifetime "
-                        "changes; the API stays the same.",
+                        "On ne passe pas `scope=` : on hérite de la base. "
+                        "La durée de vie change, l'API est identique.",
                         color="muted", size="sm",
                     )
                     ui.table(
                         columns=[
                             ui.column("scope", label="Base"),
-                            ui.column("lives", label="Scope"),
-                            ui.column("lifetime", label="Lifetime"),
+                            ui.column("vit", label="Portée"),
+                            ui.column("survie", label="Durée de vie"),
                         ],
                         rows=[
-                            {"scope": "PageState", "lives": "one displayed page",
-                             "lifetime": "survives actions (POST); resets on refresh/navigation"},
-                            {"scope": "SessionState", "lives": "session cookie",
-                             "lifetime": "until the session expires"},
-                            {"scope": "UserState", "lives": "authenticated account",
-                             "lifetime": "AuthRequiredError without authentication"},
-                            {"scope": "AppState", "lives": "entire process",
-                             "lifetime": "shared by every request"},
+                            {"scope": "PageState", "vit": "1 page affichée",
+                             "survie": "survit aux actions (POST), reset au F5 / nav"},
+                            {"scope": "SessionState", "vit": "cookie de session",
+                             "survie": "jusqu'à expiration de la session"},
+                            {"scope": "UserState", "vit": "compte authentifié",
+                             "survie": "AuthRequiredError sans auth"},
+                            {"scope": "AppState", "vit": "process entier",
+                             "survie": "partagé par toutes les requêtes"},
                         ],
                         size="sm",
                     )
                     ui.text(
-                        "Simple rule: start with `PageState`; move to Session, User, or "
-                        "App only when sharing requires it.",
+                        "Règle simple : commence par `PageState` ; monte vers "
+                        "Session / User / App seulement quand le partage "
+                        "l'exige.",
                         color="muted", size="sm",
                     )
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("Change → re-render", level=2)
+                    ui.heading("Muter → re-render", level=2)
                     ui.text(
-                        "A handler changes state; every `@refreshable(deps=[…])` region "
-                        "that reads it renders again automatically. See Server reactivity "
-                        "to control what renders and to work in real time.",
+                        "Un handler mute l'état ; toute zone `@refreshable"
+                        "(deps=[…])` qui lit cet état est re-rendue "
+                        "automatiquement. Le détail (contrôler ce qui se "
+                        "re-rend, temps réel) est dans « Réactivité serveur ».",
                         color="muted", size="sm",
                     )
                     ui.divider()
@@ -158,98 +168,114 @@ def state_server_page() -> None:
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("Declare state", level=2)
+                    ui.heading("Déclarer un état", level=2)
                     ui.text(
-                        "Use immutable defaults directly and mutable defaults with "
-                        "`field(default_factory=…)`. `@validator` normalizes on write; "
-                        "`@computed` derives values automatically.",
+                        "Défaut immutable → directement. Défaut mutable → "
+                        "`field(default_factory=…)`. `@validator` normalise "
+                        "à l'écriture, `@computed` dérive automatiquement.",
                         color="muted", size="sm",
                     )
                     source_block(Cart)
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("Domain types in the store", level=2)
+                    ui.heading("Les types métier au magasin", level=2)
                     ui.text(
-                        "A field is not limited to what JSON can encode. `date`, "
-                        "`datetime`, `Decimal`, `UUID`, and application enums cross the "
-                        "store and come back with the right type. Containers follow: "
+                        "Un champ n'est pas limité à ce que JSON sait "
+                        "écrire. `date`, `datetime`, `Decimal`, `UUID` et "
+                        "toute énumération d'app traversent le magasin et "
+                        "reviennent du BON type — tu ne relis jamais une "
+                        "chaîne à re-parser. Les conteneurs suivent : "
                         "`list[date]`, `dict[str, Decimal]`.",
                         color="muted", size="sm",
                     )
                     source_block(Facture)
                     ui.text(
-                        "For your own type, call `register_type(MyType, encode=…, "
-                        "decode=…)` once at startup. It uses the same path as built-in "
-                        "types—there is no framework-only special case.",
+                        "Pour un type à toi, `register_type(MonType, "
+                        "encode=…, decode=…)` une fois au démarrage. C'est "
+                        "la même route que les types livrés : il n'y a pas "
+                        "de cas particulier réservé au framework.",
                         color="muted", size="sm",
                     )
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("What concurrency can break", level=2)
+                    ui.heading("Ce que la concurrence casse", level=2)
                     ui.text(
-                        "Two requests that write the same field do not see each other. "
-                        "A commit writes only touched fields, so changes to different fields "
-                        "coexist. But two changes to the same total can silently overwrite one "
-                        "another: the counter rises more slowly than the clicks.",
+                        "Deux requêtes qui écrivent le MÊME champ ne se "
+                        "voient pas. Le commit n'écrit que les champs "
+                        "touchés, donc deux gestes sur des champs "
+                        "différents cohabitent sans rien faire — mais deux "
+                        "gestes sur le même total se perdent l'un l'autre, "
+                        "en silence : le compteur avance moins vite que les "
+                        "clics, et seul un second utilisateur le révèle.",
                         color="muted", size="sm",
                     )
                     source_block(Visites)
                     ui.text(
-                        "`merge=\"add\"` declares an additive field: the store combines "
-                        "both increments instead of keeping one. No wait and no lock. "
-                        "`bretzel check` detects a forgotten declaration because the failure "
-                        "does not raise an error.",
+                        "`merge=\"add\"` déclare le champ ADDITIF : le "
+                        "magasin combine les deux incréments au lieu d'en "
+                        "garder un. Sans attente, sans verrou. "
+                        "`bretzel check` a une règle pour l'oubli "
+                        "(`compteur-partage-non-declare`), parce que la "
+                        "faute ne lève pas et ne s'affiche pas.",
                         color="muted", size="sm",
                     )
                     ui.divider()
                     ui.text(
-                        "When an action computes from what it read—filtering a list or "
-                        "removing an item—no merge can repair it. Serialize access instead:",
+                        "Quand le geste CALCULE à partir de ce qu'il a lu — "
+                        "filtrer une liste, en retirer un élément — aucune "
+                        "fusion ne peut le réparer. Là, on sérialise :",
                         color="muted", size="sm",
                     )
                     ui.code(
-                        "def remove(target: str) -> None:\n"
+                        "def supprimer(cible: str) -> None:\n"
                         "    with Kanban.lock() as store:\n"
-                        "        store.tasks = [task for task in store.tasks\n"
-                        "                       if task[\"id\"] != target]\n",
+                        "        store.taches = [t for t in store.taches\n"
+                        "                        if t[\"id\"] != cible]\n",
                         lang="python",
                     )
                     ui.text(
-                        "The block is a small transaction: take the lock and reread state "
-                        "on entry, write fields, then release it on exit. Two requests for "
-                        "the same key wait for each other—that cost is paid only there. Use "
-                        "`async with` inside an `async def`.",
+                        "Le bloc est une petite transaction : verrou pris "
+                        "PUIS état relu à l'entrée, champs écrits PUIS "
+                        "verrou relâché à la sortie. Deux requêtes sur la "
+                        "même clé s'attendent — c'est le prix, et il n'est "
+                        "payé que là. `async with` dans un `async def`.",
                         color="muted", size="sm",
                     )
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("State in the URL", level=2)
+                    ui.heading("L'état dans l'URL", level=2)
                     ui.text(
-                        "A `PageState` is keyed by a fresh render UUID on each navigation, "
-                        "so a sort or filter does not survive navigation or Back. Declare the "
-                        "fields the URL represents to make a view shareable by link and let "
-                        "browser navigation restore it.",
+                        "Un `PageState` est indexé par un uuid de rendu NEUF "
+                        "à chaque navigation : c'est pourquoi un tri ou un "
+                        "filtre ne survit ni au changement de page ni au "
+                        "bouton retour. Déclarer les champs dont l'URL fait "
+                        "foi rend la vue partageable par lien, et les flèches "
+                        "du navigateur refont l'aller-retour.",
                         color="muted", size="sm",
                     )
                     source_block(Ventes)
                     ui.text(
-                        "`field(url=…)` names a field and `addressable=True` enables it. "
-                        "They are separate because a published field is public: browser "
-                        "history, access logs, and the `Referer` header can contain it. A "
-                        "field without `url=` cannot leak by accident. To survive navigation "
-                        "without publication, use `scope=\"session\"`.",
+                        "`field(url=…)` NOMME, `addressable=True` ALLUME — et "
+                        "les deux sont séparés parce qu'un champ publié est "
+                        "PUBLIC : historique du navigateur, logs d'accès, "
+                        "en-tête `Referer`. Un champ que rien n'a nommé ne "
+                        "peut pas partir par accident ; c'est ainsi que "
+                        "`DatatableState.filters` reste hors de l'adresse par "
+                        "construction. Pour survivre à une navigation SANS "
+                        "être publié, c'est la portée qu'il faut : "
+                        "`scope=\"session\"`.",
                         color="muted", size="sm",
                     )
 
             with ui.card(color="surface"):
                 with ui.vstack(gap="md"):
-                    ui.heading("State summary", level=2)
+                    ui.heading("Récapitulatif des états", level=2)
                     ui.text(
-                        "Scopes, fields (type, default, validators), and computed values "
-                        "for the state classes on this page, read from the code at render time.",
+                        "Scope, champs (type, défaut, validators) et computed "
+                        "des états de cette page — lus au render dans le code.",
                         color="muted", size="sm",
                     )
                     for cls in (SrvCounter, Cart, Facture, Visites, Ventes):

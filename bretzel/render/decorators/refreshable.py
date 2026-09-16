@@ -123,14 +123,7 @@ def _reject_parameters(fn: Callable[..., Any], zone: str) -> None:
 
 
 def state_qualname(state_class: type) -> str:
-    """Return the stable wire identifier for ``state_class``.
-
-    Format : ``<module>::<qualname>`` — the same scheme action handlers
-    and zones use, unique across modules. Vit ici, et nulle part
-    ailleurs : l'ancien ``subscribe.py`` a été **supprimé** en Phase 6
-    (plus aucun back-compat, plus de ré-export). Cette docstring
-    annonçait le contraire jusqu'au 2026-08-01.
-    """
+    """Return the stable wire identifier for a state class."""
     return f"{state_class.__module__}{WIRE_ID_SEP}{state_class.__qualname__}"
 
 
@@ -527,20 +520,7 @@ class RefreshableHandle:
 
 
 def zone_ids_watching(state_cls: type) -> frozenset[str]:
-    """Refresh ids des zones que ``state_cls`` fait re-rendre, par L'UN
-    OU L'AUTRE chemin.
-
-    Vue en lecture seule sur les deux index, pour les composants qui
-    vérifient à la construction que *quelqu'un* les re-rendra quand ils
-    muteront leur état. Sans elle, un contrôle dont la zone a oublié le
-    dep POSTe son action, mute l'état, et la page ne change pas — le mode
-    d'échec est le silence, le plus cher.
-
-    ``deps`` ET ``broadcast`` : la question posée est « serai-je
-    re-rendu ? », et un canal SSE répond oui — plus lentement (un
-    aller-retour de plus), pas moins sûrement. Ne regarder que ``deps``
-    accuserait de silence une zone qui parle.
-    """
+    """Return refreshable region ids that watch ``state_cls``."""
     return frozenset(
         zone.id
         for zone in (
@@ -651,50 +631,7 @@ def refreshable(
     broadcast: Sequence[type] = (),
     name: str | None = None,
 ) -> Any:
-    """Wrap ``fn`` as a refreshable section.
-
-    Two forms :
-
-    - ``@refreshable`` (bare) — an imperatively-refreshed zone.
-    - ``@refreshable(deps=[State], name="...")`` — a
-      **declarative** zone : it re-renders when any state in ``deps``
-      changes (OR-semantics), ``broadcast`` écoute les AUTRES clients
-      par SSE, et ``name=`` gives a stable address for
-      :func:`refresh`.
-
-    ``deps`` et ``broadcast`` sont **deux listes orthogonales**, et la
-    question qu'elles posent n'est pas la même : *qui change cet état ?*
-
-    ==============  ====================================================
-    qui le change   où on l'écrit
-    ==============  ====================================================
-    **moi**         ``deps`` — re-rendu DANS la réponse de l'action. Un
-                    aller-retour, un swap.
-    **les autres**  ``broadcast`` — signal SSE puis refetch. Deux
-                    allers-retours, mais l'onglet inactif suit.
-    **les deux**    les deux listes. Pas une redondance : « instantané
-                    pour moi, poussé aux autres ».
-    ==============  ====================================================
-
-    ::
-
-        @refreshable(deps=[Cart])                        # purement local
-        @refreshable(broadcast=[FileAttente])            # je ne le change jamais
-        @refreshable(deps=[Deals], broadcast=[Deals])    # les deux
-        @refreshable(deps=[Deals, MesPrefs], broadcast=[Deals])
-
-    Une zone est réexécutée sans arguments, hors de son appelant initial.
-    Lire les paramètres nécessaires dans un état ; les paramètres nommés
-    sont refusés à la décoration. Le corps peut être synchrone ou asynchrone.
-    ``broadcast`` attend une liste de classes d'état, jamais un booléen.
-
-    Free decorator — needs no app instance. The handle resolves back
-    through ``sys.modules`` at request time (the realtime route's
-    :func:`resolve_handler` lookup, same scheme as action handlers), so
-    *registration is implicit* : binding the decorated result to a
-    module attribute IS the registration. Nothing to thread the app
-    through, no import of ``main.app`` from a feature module.
-    """
+    """Wrap ``fn`` as a refreshable page region."""
 
     def _wrap(f: Callable[..., Any]) -> RefreshableHandle:
         return RefreshableHandle(

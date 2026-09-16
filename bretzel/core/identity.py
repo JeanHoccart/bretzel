@@ -36,15 +36,7 @@ def hash_segment(s: str) -> str:
 
 
 class IdGenerator:
-    """Per-scope generator of stable child IDs.
-
-    Les ids sont **toujours** hiérarchiques et lisibles
-    (``root_button_0``). Identité préservée : une même position logique
-    rend toujours le même id.
-
-    Le schéma d'identifiants est identique dans tous les environnements afin
-    que le rendu de développement et celui de production aient la même identité.
-    """
+    """Generate stable child identifiers within one render scope."""
 
     __slots__ = ("_counters",)
 

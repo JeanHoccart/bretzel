@@ -498,40 +498,7 @@ def default_shell(
     manifest_url: str | None = None,
     theme_color: str | None = None,
 ) -> str:
-    """Assemble the full HTML5 document.
-
-    Parameters :
-
-    - ``body_html`` : the already-serialised inner HTML for the page
-      content (without the ``bz-page-<uuid>`` wrapper — we add it).
-    - ``envelope_json`` : the ``<bz-envelope>`` JSON
-      payload, already serialised by :mod:`bretzel.runtime.envelope`.
-    - ``page_uuid`` : per-request UUID for the SPA wrapper (cf. CR-3).
-    - ``title`` / ``description`` / ``lang`` / ``charset`` : standard
-      metadata for the document head.
-    - ``head_extras`` : pre-built :class:`Node` objects (e.g. emitted
-      by ``ui.title()`` / ``ui.meta_tag()`` inside a page) to insert in the
-      head.
-    - ``css_urls`` / ``js_urls`` : override the framework defaults
-      (``theme.css`` / ``style.css`` ; HTMX/idiomorph CDNs +
-      runtime.js).
-    - ``meta_tags`` : extra ``<meta>`` declarations as plain dicts.
-    - ``favicon`` : ``None`` → la marque du framework ; une chaîne →
-      cette URL ; ``False`` → aucune icône, mais un ``<link>`` vide
-      quand même, sans quoi le navigateur irait chercher
-      ``/favicon.ico`` de lui-même (cf. :func:`_icon_links`).
-    - ``cache_bust`` : appended as ``?h=<value>`` to framework asset
-      URLs ; lets the server invalidate caches on theme rebuild.
-
-    Returns a ready-to-send HTML5 document as a string.
-
-    Tailwind plumbing :
-    - ``browser_css=True`` → embed ``@tailwindcss/browser@4`` + the
-      raw ``theme.css`` as a ``<style type="text/tailwindcss">`` block.
-      Browser compiles in-place ; no build artifact needed.
-    - ``browser_css=False`` → link the compiled ``style.css``, which is
-      render-blocking : le CSS est là au premier paint.
-    """
+    """Assemble the complete HTML5 document."""
     if css_urls is not None:
         css_list = list(css_urls)
     elif browser_css:
@@ -764,22 +731,7 @@ class ShellSources:
 def shell_sources(
     *, browser_css: bool, mobile_breakpoint: int = 768
 ) -> ShellSources:
-    """Ce que la coque va RÉELLEMENT émettre, pour qui doit l'autoriser.
-
-    Existe pour que :mod:`bretzel.server.security` n'ait pas à redeviner
-    la composition de la page. Deux choses en dépendent et doivent rester
-    d'accord :
-
-    - le repli CDN, qui est la règle tant que ``python -m
-      bretzel.render.vendor`` n'a pas tourné (cf.
-      :mod:`bretzel.render.vendor`) — une politique qui supposerait les
-      assets locaux mentirait une fois sur deux ;
-    - le compilateur Tailwind navigateur, chargé depuis un CDN quand le
-      pipeline CSS est ``browser``.
-
-    Le jour où une quatrième dépendance arrive, elle entre dans
-    ``_default_js`` et la politique la suit sans qu'on y pense.
-    """
+    """Return the sources the HTML shell will actually emit."""
     from bretzel.render import vendor  # casse un cycle : vendor lit d'ici
 
     scripts = list(_default_js(None))

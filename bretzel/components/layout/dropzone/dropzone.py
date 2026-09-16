@@ -70,12 +70,7 @@ from bretzel.core.tree import Element
 
 
 class Dropzone(Component):
-    """A region items can be dragged into, out of, and reordered within.
-
-    ``on_move`` reçoit un paramètre typé :class:`Move`, importé depuis
-    ``bretzel.components`` : ``def deposer(m: Move) -> None``. Ses clés
-    et index décrivent le déplacement ; le handler retrouve l'objet métier.
-    """
+    """Render a drop target whose ``on_move`` handler receives a typed ``Move``."""
 
     THEME: ClassVar[dict[str, Any]] = DROPZONE_THEME
     THEME_KEY: ClassVar[str] = "dropzone"

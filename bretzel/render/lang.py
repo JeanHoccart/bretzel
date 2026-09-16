@@ -78,26 +78,7 @@ def negotiate_language(
     *,
     default: str,
 ) -> str:
-    """La langue à servir d'après ``Accept-Language``, ou ``default``.
-
-    Chaque étiquette annoncée est essayée d'abord ENTIÈRE (``fr-CA``
-    contre ``fr-CA``), puis sur son sous-marqueur primaire (``fr-CA``
-    contre ``fr``), avant de passer à la suivante. Sans ce dégroupage, un
-    navigateur canadien — ou n'importe quel ``en-US``, qui est le réglage
-    d'usine de Chrome aux États-Unis — ne correspondrait jamais.
-
-    ``q`` ordonne les préférences ; à ``q`` égal, l'ordre d'écriture
-    tranche, parce que c'est ce que le navigateur veut dire. Un ``q=0``
-    est un REFUS explicite et sort l'étiquette, contrairement à une
-    absence. ``*`` rend le défaut : « n'importe laquelle » n'est pas un
-    choix.
-
-    Une seule langue disponible sort immédiatement : il n'y a rien à
-    choisir, donc rien à analyser. C'est le chemin d'une app monolingue,
-    et c'est **ici** qu'il vit plutôt que chez trois appelants — ceux-ci
-    testaient un ``languages`` vide, ce qui faisait deux représentations
-    du même état.
-    """
+    """Choose a language from ``Accept-Language`` or use ``default``."""
     if len(available) <= 1 or not header:
         return default
 
@@ -134,32 +115,7 @@ def negotiate_language(
 
 
 class LanguageTables:
-    """Les tables de mots du framework, une par langue déclarée.
-
-    **Pourquoi un objet plutôt qu'un dict sur la config.** La première
-    version rangeait ``{code: table}`` dans ``BretzelConfig.texts`` et le
-    middleware faisait ``cfg.texts[resolved]``. Ça marchait — parce qu'un
-    invariant non écrit tenait, réparti sur trois fichiers : la config
-    exigeait ``lang ∈ languages``, elle construisait ses clés depuis les
-    deux, et le middleware n'honorait un cookie que s'il était dans
-    ``languages``. Le jour où l'un des trois glisse, la conséquence n'est
-    pas un repli mais un ``KeyError`` **sur chaque requête** — une 500
-    complète pour une erreur de configuration.
-
-    Une table qu'on INTERROGE ne peut pas rater : :meth:`for_language`
-    retombe sur la langue par défaut. L'invariant cesse d'avoir besoin
-    d'être vrai, donc il cesse d'avoir besoin d'être gardé.
-
-    ``texts=`` accepte DEUX formes, distinguées par le type des valeurs :
-
-    - **plate** (``{"alert.dismiss": "Fermer"}``) — la surcharge de la
-      langue par défaut, la forme d'avant l'axe de langue ;
-    - **par langue** (``{"fr": {"alert.dismiss": "Fermer"}}``).
-
-    Les mélanger **lève** : un dict qui contient à la fois une phrase et
-    une table n'a pas de lecture juste, et deviner rangerait la moitié
-    des clés dans une langue nommée « alert.dismiss ».
-    """
+    """Store the framework text table for each declared language."""
 
     __slots__ = ("_default", "_tables")
 
@@ -210,14 +166,11 @@ class LanguageTables:
             self._tables[code] = resolve_texts(overrides[code])
 
     def for_language(self, code: str) -> Mapping[str, str]:
-        """La table de ``code``, ou celle de la langue par défaut.
-
-        Le repli est la raison d'être de cette classe : voir l'en-tête.
-        """
+        """Return the table for ``code`` or for the default language."""
         return self._tables.get(code) or self._tables[self._default]
 
     def languages(self) -> tuple[str, ...]:
-        """Les codes couverts, défaut en tête."""
+        """Return supported language codes with the default first."""
         return tuple(self._tables)
 
     def __repr__(self) -> str:
@@ -231,70 +184,14 @@ def resolve_language(
     available: Sequence[str],
     default: str,
 ) -> str:
-    """La langue de cette requête. **C'est la politique**, en un endroit.
-
-    Les trois maillons sont documentés en tête de module, ainsi que la
-    raison pour laquelle le cookie passe devant l'en-tête.
-
-    Un cookie qui nomme une langue RETIRÉE de ``available`` est ignoré,
-    pas honoré : sinon un visiteur resterait coincé dans une langue que
-    l'app ne sait plus rendre.
-
-    Fonction plutôt que classe — contrairement à :class:`~bretzel.render
-    .screen.Screen`, qui se construit dans un contexte de rendu déjà là.
-    Celle-ci tourne AVANT que le contexte existe, puisque c'est elle qui
-    décide de la table de mots qu'il portera.
-    """
+    """Resolve the language for the current request."""
     if cookie and cookie in available:
         return cookie
     return negotiate_language(header, available, default=default)
 
 
 class Language:
-    """La langue de cette requête — la LIRE, et la CHOISIR.
-
-    Lecture, dans la même forme que ses trois sœurs d'ambiance
-    (:class:`~bretzel.render.screen.Screen`,
-    :class:`~bretzel.theme.ColorScheme`,
-    :class:`~bretzel.state.LiveConnection`) — un objet, un champ ::
-
-        Language().code            # "en", "fr-CA"…
-
-    C'est la couture par laquelle une app traduit **ses propres**
-    chaînes, que le framework ne connaît pas et ne connaîtra pas ::
-
-        STRINGS = {"en": {"save": "Save"}, "fr": {"save": "Enregistrer"}}
-
-        def t(key, **fmt):
-            return STRINGS.get(Language().code, STRINGS["en"])[key].format(**fmt)
-
-    Six lignes plutôt qu'un système de catalogues, et c'est délibéré :
-    l'extraction, les fichiers ``.po`` et les règles de pluriel par
-    langue sont un chantier à part (v2.1).
-
-    Écriture par :meth:`set`, qui MIME
-    :meth:`~bretzel.theme.ColorScheme.set` — deux préférences de lecteur,
-    un même objet nommé, un même verbe.
-
-    ⚠️ **La ressemblance s'arrête à l'invocation, et c'est un fait, pas
-    un oubli.** ``ColorScheme.set("dark")`` rend de la source JS parce
-    que la couleur vit dans le navigateur ; ``Language.set`` AGIT, parce
-    que c'est le serveur qui écrit le texte. On l'écrit donc avec
-    ``partial``, comme les 29 autres handlers à argument lié du dépôt ::
-
-        ui.button("Français", on_click=partial(Language.set, "fr"))
-        ui.button("Sombre",   on_click=ColorScheme.set("dark"))
-
-    Faire rendre un handler par ``Language.set("fr")`` aurait donné deux
-    lignes identiques — mais alors ``Language.set(u.langue)`` appelé
-    DEPUIS un handler (appliquer la langue enregistrée après connexion)
-    n'aurait rien fait, sans un mot. Un no-op silencieux coûte plus cher
-    qu'un ``partial`` visible.
-
-    Hors contexte de rendu, :attr:`code` rend l'anglais : un composant
-    construit dans une suite unitaire reste utilisable.
-
-    """
+    """Read or select the language for the current request."""
 
     __slots__ = ("code",)
 
@@ -321,29 +218,7 @@ class Language:
 
     @classmethod
     def set(cls, code: str) -> None:
-        """Choisir la langue, et recharger la page dans cette langue.
-
-        Le sélecteur de langue d'une app, en entier ::
-
-            ui.button("Français", on_click=partial(Language.set, "fr"))
-
-        **Pourquoi ça existe alors que la langue est automatique** :
-        ``Accept-Language`` décrit la configuration du système
-        d'exploitation, pas un choix de lecture. Sans un moyen de dire le
-        contraire, une personne dont le système est anglais mais qui lit
-        en français serait prisonnière de la négociation. Le cookie posé
-        ici gagne sur l'en-tête à la requête suivante (cf.
-        :func:`resolve_language`).
-
-        Le rechargement — et non un re-rendu — est expliqué sur
-        :func:`~bretzel.server.navigation.reload` : la langue change la
-        page ENTIÈRE, alors qu'une réponse d'action ne rapporte que les
-        zones qu'elle a rafraîchies.
-
-        Lève si ``code`` n'est pas une langue déclarée. Le cookie serait
-        sinon posé puis ignoré à la requête suivante : un bouton sans
-        effet visible, et rien dans les journaux.
-        """
+        """Select the language and reload the page in that language."""
         # ``navigation`` est AU-DESSUS de ``render`` dans le DAG, d'où
         # l'import différé — même forme que ``render/context.py``, qui
         # remonte vers ``server.handlers`` pour signer une action.

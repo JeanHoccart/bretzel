@@ -132,7 +132,7 @@ def _build_bz_data(
 
 
 class Stepper(Component):
-    """Liste ordonnée d'étapes + panneaux de contenu appariés."""
+    """Render an ordered sequence of steps with matching content panels."""
 
     THEME: ClassVar[dict[str, Any]] = STEPPER_THEME
     THEME_KEY: ClassVar[str] = "stepper"
@@ -378,13 +378,7 @@ class Stepper(Component):
 
 
 class Step(Component):
-    """Une étape dans un :class:`Stepper`.
-
-    Porte des métadonnées : ``Stepper.render()`` walk ses enfants et
-    construit le ``<li>`` réel. Hors d'un ``with ui.stepper(...)``, le
-    rendu par défaut est un ``<span>`` inerte — un ``ui.step(...)`` égaré
-    au scope page ne fait pas exploser le renderer.
-    """
+    """Describe one step in a stepper."""
 
     THEME_KEY: ClassVar[str] = "step"
     IS_CONTAINER: ClassVar[bool] = False
@@ -584,13 +578,7 @@ class Step(Component):
 
 
 class StepPanel(Component):
-    """Contenu affiché quand son rang égale l'index courant.
-
-    Aucun paramètre : le rang vient de l'ORDRE de déclaration parmi les
-    panneaux. Un ``index=`` explicite aurait été une seconde manière de
-    dire la même chose (charter, principe 4) et l'occasion d'un décalage
-    silencieux entre la valeur écrite et la position réelle.
-    """
+    """Render content when its step is active."""
 
     THEME_KEY: ClassVar[str] = "step_panel"
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()

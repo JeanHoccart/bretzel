@@ -41,7 +41,7 @@ from bretzel.state.scopes.client import ClientBinding
 
 
 class Html(Component):
-    """Injecte du HTML verbatim. Server-only, et jamais échappé."""
+    """Inject trusted HTML verbatim without escaping it."""
 
     THEME: ClassVar[dict[str, Any]] = HTML_THEME
     THEME_KEY: ClassVar[str] = "html"

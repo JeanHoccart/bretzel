@@ -1,27 +1,4 @@
-"""Minimal auth API — 4 verbes qui agissent, 2 noms qui déclarent.
-
-Bretzel doesn't model users beyond their string ID. Apps own their
-profile / role / password machinery ; the framework just remembers
-"the current request belongs to user X" via a signed cookie and
-exposes :func:`user_id` to read it back.
-
-**Ce qui AGIT**, tout de suite, depuis un handler :
-
-- :func:`login(user_id)` — open a session for that identity. Sets the
-  ``Bretzel_auth`` cookie and rotates ``Bretzel_session`` (anti-fixation).
-- :func:`logout()` — clear the auth cookie + rotate session.
-- :func:`user_id() -> str | None` — read the active user. Passer une
-  ``Request`` pour la MÊME lecture depuis un middleware, où le contexte
-  de rendu n'existe pas encore.
-- :func:`is_authenticated() -> bool` — convenience boolean.
-
-**Ce qui DÉCLARE**, au chargement, et n'a d'effet qu'après
-``app.include(...)`` — cf. :mod:`bretzel.server.decorators.identity` :
-
-- ``@auth.source`` — une source d'identité, relue à chaque requête.
-- ``@auth.door(porte)`` — une porte de connexion, empruntée une fois.
-
-"""
+"""Authentication helpers for Bretzel applications."""
 
 from __future__ import annotations
 
@@ -270,21 +247,7 @@ def logout() -> None:
 
 
 def user_id(request: Any = None) -> str | None:
-    """L'identifiant connecté, ou ``None`` si personne ne l'est.
-
-    **Une question, un nom, deux points de vue.** Sans argument, la
-    lecture passe par le contexte de rendu — c'est ce qu'on écrit dans
-    une page, un handler, une zone. Avec une ``Request``, elle relit la
-    chaîne d'identité elle-même : c'est ce qu'on écrit dans un
-    middleware, où le contexte n'est pas encore posé.
-
-    Passer la requête n'est donc pas une optimisation, c'est une
-    **déclaration de position** — et c'est pour ça que l'argument est
-    explicite plutôt que deviné : un repli silencieux du contexte vers
-    la requête rendrait `None` là où le contexte manque, ce qui, sur une
-    garde, se lit « anonyme » au lieu de « je suis au mauvais endroit ».
-
-    """
+    """Return the authenticated user id, or ``None`` for an anonymous request."""
     if request is not None:
         return resolve_identity(request)
     return current_context().user_id

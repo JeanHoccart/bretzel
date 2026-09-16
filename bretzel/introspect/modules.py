@@ -50,7 +50,7 @@ _DECORATORS = frozenset(
     }
 )
 
-_ERROR = "rattraper une erreur"
+_ERROR = "handle an error"
 
 _TOPLEVEL: dict[str, str] = {
     "Bretzel": "monter l'application",
@@ -61,37 +61,37 @@ _TOPLEVEL: dict[str, str] = {
     # système (nom, icône, fenêtre propre), pas au navigateur.
     "PWA": "monter l'application",
     "PWAIcon": "monter l'application",
-    "page": "déclarer un routable",
-    "layout": "déclarer un routable",
-    "error_page": "déclarer un routable",
-    "refreshable": "déclarer un routable",
+    "page": "declare a route",
+    "layout": "declare a route",
+    "error_page": "declare a route",
+    "refreshable": "declare a route",
     # Un ``@download`` EST un routable — le seul qui ne rende pas une
     # page mais un fichier. Sa réponse ne peut pas passer par le
     # pipeline d'action (le bridge l'avalerait en ``<bz-patch>``).
-    "download": "déclarer un routable",
+    "download": "declare a route",
     # Un point d'accès chacun, cf. test_handler_helpers_have_one_home.py
-    "abort": "agir depuis un handler",
-    "redirect": "agir depuis un handler",
-    "push_url": "agir depuis un handler",
-    "background": "agir depuis un handler",
-    "idempotent": "agir depuis un handler",
-    "refresh": "agir depuis un handler",
+    "abort": "act from a handler",
+    "redirect": "act from a handler",
+    "push_url": "act from a handler",
+    "background": "act from a handler",
+    "idempotent": "act from a handler",
+    "refresh": "act from a handler",
     # Elle fait REDEMANDER la page au navigateur — une action sur la
     # réponse, pas un re-rendu de zone comme ``refresh`` juste au-dessus.
-    "reload": "agir depuis un handler",
+    "reload": "act from a handler",
     # Les VERBES clients (2026-09-01). Un besoin à part, et le nommer
     # est ce que la gate exige : ils n'agissent ni sur la réponse ni sur
     # l'arbre, ils déclenchent une action du NAVIGATEUR. Leur place sur
     # ``bretzel`` plutôt que sur ``ui`` est un arbitrage utilisateur du
     # même jour — ce qui FAIT quelque chose est ici, ce qui EST quelque
     # chose est sur ``ui``.
-    "copy": "agir dans le navigateur",
-    "print_page": "agir dans le navigateur",
-    "fullscreen": "agir dans le navigateur",
-    "share": "agir dans le navigateur",
-    "vibrate": "agir dans le navigateur",
+    "copy": "act in the browser",
+    "print_page": "act in the browser",
+    "fullscreen": "act in the browser",
+    "share": "act in the browser",
+    "vibrate": "act in the browser",
     "ui": "rendre",
-    "state": "déclarer un état",
+    "state": "declare state",
     # La langue résolue de CETTE requête — lue depuis un corps de rendu,
     # comme ``Screen()`` juste en dessous.
     "Language": "rendre",
@@ -109,32 +109,32 @@ _TOPLEVEL: dict[str, str] = {
     # L'identité ENTIÈRE tient dans ces deux modules depuis le
     # 2026-08-29 : les verbes impératifs et les deux déclarations
     # (``@auth.source`` / ``@auth.door``), qui étaient au top-level.
-    "auth": "savoir qui est là",
-    "oauth": "savoir qui est là",
+    "auth": "identify the current user",
+    "oauth": "identify the current user",
     "BretzelError": _ERROR,
     "AuthRequiredError": _ERROR,
     "FeatureError": _ERROR,
-    "__version__": "métadonnée du paquet",
+    "__version__": "package metadata",
 }
 
 _STATE: dict[str, str] = {
     # Les quatre portées serveur — l'héritage EST la hiérarchie de durée.
-    "ServerState": "déclarer un état serveur",
-    "PageState": "déclarer un état serveur",
-    "SessionState": "déclarer un état serveur",
-    "UserState": "déclarer un état serveur",
-    "AppState": "déclarer un état serveur",
+    "ServerState": "declare server state",
+    "PageState": "declare server state",
+    "SessionState": "declare server state",
+    "UserState": "declare server state",
+    "AppState": "declare server state",
     # Le cinquième scope, côté navigateur.
-    "ClientState": "déclarer un état client",
-    "LiveConnection": "déclarer un état client",
-    "field": "déclarer un champ",
-    "register_type": "déclarer un champ",
-    "computed": "déclarer un champ",
-    "validator": "déclarer un champ",
-    "form_value": "lire un état ailleurs",
+    "ClientState": "declare client state",
+    "LiveConnection": "declare client state",
+    "field": "declare a field",
+    "register_type": "declare a field",
+    "computed": "declare a field",
+    "validator": "declare a field",
+    "form_value": "read state elsewhere",
     # L'algèbre : ce qu'on compose pour un `bz-show` / un `visible=`.
-    "ClientBinding": "composer côté client",
-    "ClientExpression": "composer côté client",
+    "ClientBinding": "compose on the client",
+    "ClientExpression": "compose on the client",
     "FormError": _ERROR,
     "ReactivityError": _ERROR,
     "ScopeConfigError": _ERROR,
@@ -154,8 +154,8 @@ _SERVER: dict[str, str] = {
     "PWAIcon": "monter l'application",
     # La carte d'app : contrat déclaré ↔ réalité dérivée. Pas un devtool —
     # elle alimente le composant carte au runtime.
-    "describe_app": "introspecter la carte d'app",
-    "AppGraph": "introspecter la carte d'app",
+    "describe_app": "inspect the app map",
+    "AppGraph": "inspect the app map",
     "abort": "agir depuis un handler",
     "redirect": "agir depuis un handler",
     "push_url": "agir depuis un handler",
@@ -182,10 +182,10 @@ _RENDER: dict[str, str] = {
     "default_shell": "rendre",
     "shell_sources": "rendre",
     "serialize_html": "rendre",
-    "refresh": "rafraîchir une zone",
-    "drain_refresh_queue": "rafraîchir une zone",
-    "RefreshableHandle": "rafraîchir une zone",
-    "zone_ids_watching": "rafraîchir une zone",
+    "refresh": "refresh a region",
+    "drain_refresh_queue": "refresh a region",
+    "RefreshableHandle": "refresh a region",
+    "zone_ids_watching": "refresh a region",
     "text": "dire un mot du framework",
     "plural": "dire un mot du framework",
     "template": "dire un mot du framework",
@@ -194,24 +194,24 @@ _RENDER: dict[str, str] = {
     # La LANGUE, pas les mots : ``Language().code`` est ce par quoi une
     # app traduit SES chaînes, que le framework ne connaît pas ;
     # ``Language.set`` est le sélecteur.
-    "Language": "choisir la langue",
-    "negotiate_language": "choisir la langue",
-    "resolve_language": "choisir la langue",
-    "LanguageTables": "choisir la langue",
+    "Language": "choose the language",
+    "negotiate_language": "choose the language",
+    "resolve_language": "choose the language",
+    "LanguageTables": "choose the language",
     "TextsError": _ERROR,
-    "RenderContext": "lire le contexte de rendu",
-    "current_context": "lire le contexte de rendu",
-    "maybe_current_context": "lire le contexte de rendu",
-    "use_context": "lire le contexte de rendu",
-    "current_iteration_key": "lire le contexte de rendu",
-    "PageMeta": "métadonnée d'un routable",
-    "LayoutMeta": "métadonnée d'un routable",
-    "ErrorMeta": "métadonnée d'un routable",
-    "RenderResult": "métadonnée d'un routable",
-    "BretzelApp": "métadonnée d'un routable",
-    "state_qualname": "métadonnée d'un routable",
-    "fuse_or_wrap": "composer des attributs",
-    "FusionConflict": "composer des attributs",
+    "RenderContext": "read the render context",
+    "current_context": "read the render context",
+    "maybe_current_context": "read the render context",
+    "use_context": "read the render context",
+    "current_iteration_key": "read the render context",
+    "PageMeta": "route metadata",
+    "LayoutMeta": "route metadata",
+    "ErrorMeta": "route metadata",
+    "RenderResult": "route metadata",
+    "BretzelApp": "route metadata",
+    "state_qualname": "route metadata",
+    "fuse_or_wrap": "compose attributes",
+    "FusionConflict": "compose attributes",
     "DEFAULT_HTMX_URL": "constante",
     # Les trois scripts tiers rapatriés en local. Publics parce que la
     # couche serveur les sert (elle passe par l'API de `render`, pas par

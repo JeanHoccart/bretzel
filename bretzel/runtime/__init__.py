@@ -1,36 +1,4 @@
-"""Layer 2 — the transport boundary (V3).
-
-Nothing else in the framework defines wire-format strings, nothing else
-implements client-side reactivity, nothing else parses incoming
-:class:`ClientState` payloads. If the wire format moves an inch, this
-module is where it moves.
-
-Public surface :
-
-- **Wire-format constants** (``BZ_*``, ``HEADER_*``, ``ROUTE_*``,
-  envelope tag names, ``PROTOCOL_VERSION``) — the only place these
-  strings are defined (:mod:`bretzel.runtime.protocol`).
-- **Envelope helpers** (:func:`serialize_envelope`,
-  :func:`serialize_patch`, :func:`parse_client_payload`) — used by the
-  render and server layers to bridge :class:`ClientState` instances
-  across the network.
-- **Version helpers** (:func:`check_protocol_compat`,
-  :func:`parse_major`).
-- :func:`outlet_id_for` — naming convention helper, hosted here to
-  keep the import DAG clean.
-
-The shipped JS bundle (``runtime.js``) lives next to this package.
-Edit ``_src/*.js`` and run ``python -m bretzel.runtime._build`` to
-regenerate. CI runs the same script in ``--check`` mode to refuse
-stale diffs.
-
-**Couche INTERNE — aucune surface utilisateur.**
-
-Le vocabulaire du protocole client<->serveur : noms d'attributs,
-d'en-tetes, de routes, et les constructeurs d'enveloppe. Aucun de ces
-noms n'apparait dans le code d'une app. ``__all__`` y est le contrat
-inter-couche.
-"""
+"""Browser transport protocol and client runtime integration."""
 
 from __future__ import annotations
 

@@ -113,61 +113,17 @@ def _as_client_source(value: Any) -> str:
 
 
 def copy(value: Any) -> str:
-    """Copier ``value`` dans le presse-papiers, au clic.
-
-    ::
-
-        ui.button("Copier", on_click=bretzel.copy(state.api_key))
-        ui.button("Copier", on_click=bretzel.copy("bretzel"))
-
-    ⚠️ **Aucun retour visuel** — c'est le contrat, pas un oubli. Rien
-    n'indique à l'utilisateur que le clic a pris ; l'app câble ce qu'elle
-    veut avec ce qui existe.
-
-    ⚠️ Le repli hors contexte sécurisé est dans ``22_verbs.js``, et il
-    n'est pas décoratif : sur ``http://`` + une IP de réseau local — la
-    façon dont un outil interne se sert — ``navigator.clipboard`` vaut
-    ``undefined``.
-    """
+    """Copy ``value`` to the clipboard when the action runs."""
     return f"$bz.verbs.copy({_as_client_source(value)})"
 
 
 def print_page() -> str:
-    """Ouvrir la boîte d'impression du navigateur, au clic.
-
-    ::
-
-        ui.button("Imprimer", on_click=bretzel.print_page())
-
-    ⚠️ **``print_page`` et pas ``print``.** La thèse l'avait dessiné
-    ``bretzel.print()``, ce qui se lit mieux — mais définir un
-    ``print`` au niveau module masque la fonction intégrée à l'intérieur
-    du paquet, et le masque une seconde fois chez qui écrirait
-    ``from bretzel import print``. Le nom dit en plus CE QUI est
-    imprimé : ``window.print()`` imprime le document, pas un élément.
-    """
+    """Open the browser print dialog when the action runs."""
     return "window.print()"
 
 
 def fullscreen(target: Any = None) -> str:
-    """Passer en plein écran, au clic.
-
-    ::
-
-        ui.button("Plein écran", on_click=bretzel.fullscreen())          # la page
-        ui.button("Plein écran", on_click=bretzel.fullscreen(dashboard)) # un composant
-
-    ``target`` est un composant — n'importe quel objet portant un ``id``,
-    ce qui est la même convention que l'API impérative
-    (``document.getElementById(self.id)`` dans ``Component``). Sans
-    ``target``, c'est le document entier.
-
-    ⚠️ **Le plein écran exige un geste de l'utilisateur** : appelé hors
-    d'un gestionnaire d'événement, le navigateur refuse. Un verbe étant
-    toujours branché sur un ``on_*=``, la condition est tenue par
-    construction — mais elle explique pourquoi ceci ne peut pas exister
-    en version « serveur ».
-    """
+    """Enter fullscreen mode when the action runs."""
     if target is None:
         node = "document.documentElement"
     else:
@@ -192,31 +148,7 @@ def fullscreen(target: Any = None) -> str:
 def share(
     url: Any = None, *, title: Any = None, text: Any = None
 ) -> str:
-    """Ouvrir la feuille de partage native — ou copier l'URL, à défaut.
-
-    ::
-
-        ui.button("Partager", on_click=bretzel.share())
-        ui.button("Partager", on_click=bretzel.share(title="Rapport Q3"))
-
-    **Sans ``url``, c'est la page COURANTE qui part**, et ce défaut n'est
-    pas de la commodité : depuis que l'état s'écrit dans l'adresse
-    (``addressable=True`` + ``field(url=…)``, livrés fin août), l'URL
-    courante PORTE la vue — les filtres, l'onglet, la page. Partager la
-    page, c'est donc partager ce qu'on regarde, ce qui est très
-    exactement la demande d'un outil interne.
-
-    ⚠️ **Le repli n'est pas un accident, c'est le contrat.**
-    ``navigator.share`` est ``undefined`` sur le Chromium de bureau
-    (mesuré le 2026-09-02), donc l'absence est le cas NORMAL là où l'on
-    développe. Un bouton « Partager » inerte pour la majorité serait
-    exactement ce que ce dépôt refuse ailleurs — cf. le refus de
-    ``tracks=`` sur ``ui.audio``, qui aurait promis des sous-titres et
-    livré un attribut. Le repli **copie l'URL**.
-
-    ⚠️ En revanche un partage ANNULÉ par l'utilisateur ne retombe pas
-    sur la copie : fermer la feuille copierait alors dans son dos.
-    """
+    """Open the native share sheet, or copy the URL when sharing is unavailable."""
     charge: dict[str, Any] = {}
     for cle, valeur in (("url", url), ("title", title), ("text", text)):
         if valeur is not None:
@@ -226,20 +158,5 @@ def share(
 
 
 def vibrate(pattern: int | Sequence[int] = 50) -> str:
-    """Faire vibrer l'appareil, au clic.
-
-    ::
-
-        ui.button("Scanner", on_click=vibrate())          # 50 ms
-        ui.button("Erreur",  on_click=vibrate([50, 30, 50]))
-
-    Un entier vibre une fois ; une liste alterne vibration et pause, en
-    millisecondes.
-
-    ⚠️ **Aucune absence à gérer**, contrairement à :func:`share` :
-    ``navigator.vibrate`` existe partout (mesuré : ``function`` sur le
-    Chromium de bureau) et ne fait simplement RIEN sans matériel. C'est
-    ce qui rend ce verbe gratuit — et ce qui rendait faux l'argument
-    « axe mobile » qui l'a d'abord fait reporter.
-    """
+    """Vibrate the device when the action runs."""
     return f"$bz.verbs.vibrate({json.dumps(list(pattern) if not isinstance(pattern, int) else pattern)})"

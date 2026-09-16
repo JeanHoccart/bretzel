@@ -152,11 +152,11 @@ def _probes(cls: type) -> tuple[object, object]:
     """
     try:
         return (
-            cls(class_name="Etat", instance_key="default", field_name="x", value=0),
-            cls(class_name="Etat", instance_key="default", field_name="y", value=0),
+            cls(class_name="State", instance_key="default", field_name="x", value=0),
+            cls(class_name="State", instance_key="default", field_name="y", value=0),
         )
     except TypeError:
-        return cls("$bz.state.Etat.default.x"), cls("$bz.state.Etat.default.y")
+        return cls("$bz.state.State.default.x"), cls("$bz.state.State.default.y")
 
 
 def _probe_js(probe: object, other: object, name: str) -> tuple[str | None, bool]:

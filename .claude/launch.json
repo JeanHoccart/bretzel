@@ -1,13 +1,81 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "playground", "runtimeExecutable": "py", "runtimeArgs": ["-m", "examples.playground.main"], "port": 8001 },
-    { "name": "chat", "runtimeExecutable": "py", "runtimeArgs": ["-m", "examples.chat.main"], "port": 8003 },
-    { "name": "docs", "runtimeExecutable": "py", "runtimeArgs": ["-m", "examples.docs.main"], "port": 8006 },
-    { "name": "kanban", "runtimeExecutable": "py", "runtimeArgs": ["-m", "examples.kanban.main"], "port": 8009 },
-    { "name": "pomodoro", "runtimeExecutable": "py", "runtimeArgs": ["-m", "examples.pomodoro.main"], "port": 8011 },
-    { "name": "crm", "runtimeExecutable": "py", "runtimeArgs": ["-m", "examples.crm.main"], "port": 8016 },
-    { "name": "messagerie", "runtimeExecutable": "py", "runtimeArgs": ["-m", "uvicorn", "examples.messagerie.main:app", "--reload", "--port", "8005"], "port": 8005 },
-    { "name": "ecole", "runtimeExecutable": "py", "runtimeArgs": ["-m", "examples.ecole.main"], "port": 8019 }
+    {
+      "name": "playground",
+      "runtimeExecutable": "py",
+      "runtimeArgs": [
+        "-m",
+        "examples.playground.main"
+      ],
+      "port": 8001
+    },
+    {
+      "name": "chat",
+      "runtimeExecutable": "py",
+      "runtimeArgs": [
+        "-m",
+        "examples.chat.main"
+      ],
+      "port": 8003
+    },
+    {
+      "name": "docs",
+      "runtimeExecutable": "py",
+      "runtimeArgs": [
+        "-m",
+        "examples.docs.main"
+      ],
+      "port": 8006
+    },
+    {
+      "name": "kanban",
+      "runtimeExecutable": "py",
+      "runtimeArgs": [
+        "-m",
+        "examples.kanban.main"
+      ],
+      "port": 8009
+    },
+    {
+      "name": "pomodoro",
+      "runtimeExecutable": "py",
+      "runtimeArgs": [
+        "-m",
+        "examples.pomodoro.main"
+      ],
+      "port": 8011
+    },
+    {
+      "name": "crm",
+      "runtimeExecutable": "py",
+      "runtimeArgs": [
+        "-m",
+        "examples.crm.main"
+      ],
+      "port": 8016
+    },
+    {
+      "name": "messagerie",
+      "runtimeExecutable": "py",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "examples.messagerie.main:app",
+        "--reload",
+        "--port",
+        "8005"
+      ],
+      "port": 8005
+    },
+    {
+      "name": "ecole",
+      "runtimeExecutable": "py",
+      "runtimeArgs": [
+        "-m",
+        "examples.ecole.main"
+      ],
+      "port": 8019
+    }
   ]
 }

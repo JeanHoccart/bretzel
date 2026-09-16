@@ -111,7 +111,7 @@ def hex_or_empty(value: Any, *, owner: str = "ColorPicker") -> str:
 
 
 class ColorPicker(Component):
-    """Champ de couleur avec panneau de pastilles."""
+    """Render a color field with a swatch selection panel."""
 
     THEME: ClassVar[dict[str, Any]] = COLOR_PICKER_THEME
     THEME_KEY: ClassVar[str] = "color_picker"

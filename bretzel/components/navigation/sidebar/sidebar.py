@@ -116,17 +116,7 @@ def _iconify_ref(name: str) -> str:
 
 
 class Sidebar(Component):
-    """``<aside>`` rail. Porte ``current_path`` + ``data-open`` +
-    ``data-collapse`` sur sa root.
-
-    (Deux corrections successives au même endroit. ``data-collapsed``
-    était annoncé ici jusqu'au 2026-08-01 : il n'existait nulle part.
-    Puis ``data-variant``, jusqu'au 2026-08-26 : il a été renommé
-    ``data-collapse`` le 2026-08-15, quand ``variant=`` et
-    ``collapsible=`` ont fusionné en un seul axe. Cette ligne a coûté :
-    ``probe_sidebar_footer`` forçait le repli via ``[data-variant]``,
-    ne matchait plus rien, et accusait le composant de ne pas replier.)
-    """
+    """Render a collapsible application sidebar."""
 
     THEME: ClassVar[dict[str, Any]] = SIDEBAR_THEME
     THEME_KEY: ClassVar[str] = "sidebar"
@@ -663,46 +653,7 @@ class Sidebar(Component):
 
 
 class SidebarTrigger(Component):
-    """Le bouton qui ouvre/ferme la barre — pose OU L'APP VEUT.
-
-    Pourquoi il existe
-    -------------------
-    En ``collapsible="overlay"`` ou ``"offcanvas"``, la barre quitte
-    l'ecran — et elle emporte avec elle toutes les affordances qu'elle
-    rend : le chevron de son :class:`SidebarTitle` comme son arete de
-    repli vivent DANS l'``<aside>``. Le moyen de la faire revenir ne
-    peut donc etre que dehors. Mesure du 2026-08-24 sur un banc neuf en
-    375x667, sans declencheur : ``<aside>`` a **x = -256**, **zero
-    element cliquable a l'ecran**, page a 200. C'est ce qui avait rendu
-    six des onze routes d'``examples/crm`` injoignables sur telephone.
-
-    Le composant ne decide PAS de sa place — c'est tout l'objet du
-    retrait du chevron flottant auto (2026-08-21) : « c'etait le
-    composant qui decidait de la place d'une affordance de l'app ». Il
-    se pose dans la barre du haut de la coque, dans un
-    ``if Screen().is_mobile:``, ou n'importe ou ailleurs. Meme partage
-    que ``SidebarTrigger`` chez shadcn et ``Burger`` chez Mantine.
-
-    Usage ::
-
-        with ui.viewport():
-            with ui.sidebar(collapsible="overlay", open=False):
-                ui.sidebar_item("Accueil", icon="home", href="/")
-            with ui.pane():
-                with ui.hstack(align="center"):
-                    ui.sidebar_trigger()          # <- ici
-                    ui.text("Mon app")
-                ui.outlet()
-
-    Une seule barre dans la page : il la trouve tout seul. Plusieurs :
-    passe-la — ``ui.sidebar_trigger(sb)`` — parce qu'un mauvais choix
-    ferait un bouton qui a l'air de marcher et ouvre la mauvaise chose.
-
-    L'echappatoire tier 2 reste entiere : ``ui.icon_button("menu",
-    on_click=sb.toggle())`` marche toujours, et suffit a satisfaire la
-    garde d'atteignabilite. Ce que ce composant ajoute, c'est le
-    ``aria-controls`` correct et le fait de ne pas avoir a le savoir.
-    """
+    """Render a button that opens or closes a sidebar."""
 
     THEME: ClassVar[dict[str, Any]] = SIDEBAR_THEME
     THEME_KEY: ClassVar[str] = "sidebar"
@@ -893,32 +844,7 @@ class SidebarSection(Component):
 
 
 class SidebarTitle(Component):
-    """Sidebar header : ``[logo] [title] [collapse toggle]``.
-
-    Collapse-aware : on desktop collapse the title fades and the logo
-    centers in the 64px rail (with the chevron stacked under). The
-    collapse chevron lives HERE (dispatches a bubbling ``bz-toggle``
-    the enclosing Sidebar's root catches), so the sidebar's auto
-    floating chevron is suppressed when a title is present.
-
-    ⚠️ **Le logo a un défaut : ``home``.** Le rail replié n'a que lui à
-    montrer, donc un titre sans ``icon=`` y laissait un trou — et, pire,
-    un lien VIDE de 40 × 40 qui prenait le premier focus. Le glyphe par
-    défaut décrit ce que le lien fait : il mène à ``href=``, dont le
-    défaut est ``/``.
-
-    Pour n'avoir **aucune** marque : ``icon=""``. Pas ``icon=None``, qui
-    est indistinguable d'un argument absent — le socle drope les kwargs
-    réactifs à ``None`` pour garder le défaut. Dans ce cas le rail
-    commence directement à ses items, et la ré-ouverture reste l'arête.
-
-    Usage ::
-
-        with ui.sidebar():
-            ui.sidebar_title("My App", icon="zap")
-            with ui.sidebar_section(label="MENU"):
-                ui.sidebar_item("Home", icon="home", href="/")
-    """
+    """Render the sidebar title and optional home link."""
 
     THEME: ClassVar[dict[str, Any]] = SIDEBAR_THEME
     THEME_KEY: ClassVar[str] = "sidebar"
@@ -1316,33 +1242,7 @@ def _footer_initials(name: Any) -> str:
 
 
 class SidebarFooter(Component):
-    """Account footer pinned to the bottom of the sidebar.
-
-    Renders a trigger row — ``[avatar] [name + subtitle] [chevron]`` —
-    that opens a popover menu (its children) on click. The menu floats
-    ABOVE the trigger and, via ``$bz.helpers.floating`` (which switches
-    it to ``position: fixed``), escapes the sidebar's ``overflow``. In
-    the collapsed rail only the avatar shows, centered.
-
-    Composition — put :class:`SidebarFooterItem` rows inside the ``with``
-    block (same API as ``ui.dropdown_item`` ; both share ``MenuItem`` and
-    auto-close the popover on pick). The trigger stays SELECTED while the
-    popover is open ::
-
-        with ui.sidebar_footer(
-            name="Jean Hoccart",
-            subtitle="jean@acme.com",
-            avatar="JH",            # initials ; or ui.avatar(src=…)
-        ):
-            ui.sidebar_footer_item(label="Settings", icon_left="settings",
-                                   href="/me")
-            ui.sidebar_footer_item(label="Log out", icon_left="log-out",
-                                   color="error", on_click=auth.logout())
-
-    Reuses only the runtime helpers (``$bz.helpers.*``) — no import of
-    the ``overlay/`` group (anti-règle 5). The menu's open flag is a
-    local ``bz-data`` scope (``acct_open``).
-    """
+    """Render the footer region of a sidebar."""
 
     THEME: ClassVar[dict[str, Any]] = SIDEBAR_FOOTER_THEME
     THEME_KEY: ClassVar[str] = "sidebar_footer"

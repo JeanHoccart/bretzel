@@ -76,59 +76,7 @@ _ATTR_CACHE_SIZE: Final[int] = 8192
 
 @lru_cache(maxsize=_ATTR_CACHE_SIZE)
 def escape_attr(value: str) -> str:
-    """Escape a string for use in a **double-quoted** HTML attribute.
-
-    It is NOT :func:`escape_html` plus extras — the two tables diverged
-    on 2026-08-28. This one folds tab / newline / CR, which a bare
-    attribute would read as the end of the value, and it leaves ``'``
-    alone.
-
-    **Precondition — the caller MUST wrap the result in DOUBLE quotes.**
-    Not either style, not any more : ``'`` is no longer escaped, so a
-    value placed between single quotes CAN close its attribute early.
-    Every call site does wrap that way (:func:`serialize_attrs` builds
-    ``name="…"`` ; the f-strings in ``render/shell.py`` quote inline).
-    The quoting is what makes the value safe : per the HTML tokenizer a
-    quoted value runs to the next matching quote, and ``"`` is escaped
-    here, so nothing inside can end the value early or introduce an
-    attribute. Enforced by
-    ``tests/consistency/test_escape_attr_result_is_quoted.py``, whose
-    source guard now REFUSES a single-quoted call site.
-
-    **Three characters have been dropped from this function, twice, for
-    the same reason.** ``=`` → ``&#x3D;`` and backtick → ``&#x60;`` went
-    on 2026-07-27 ; ``'`` → ``&#x27;`` went on 2026-08-28. All three
-    were defence-in-depth against a caller emitting a BARE attribute —
-    a case the precondition already excludes — and all three are
-    pervasive in what Bretzel actually emits, at 6 bytes instead of 1.
-    Measured on the playground : ``=`` appeared 5 000–7 000 times per
-    page (Tailwind ``data-[open=false]:…``, JS ``===``, query strings)
-    for 25–35 kB, 6–7 % of every response ; ``'`` 7 900 times on
-    /datatable and 14 500 on /combobox (every ``bz-*`` ternary and every
-    ``bz-class`` list is made of them) for 2,8–4,7 % raw and up to 8 %
-    after gzip.
-
-    If you ever add a call site that emits a bare attribute — or one
-    that quotes with ``'`` — escape it THERE. Do not re-broaden this
-    function and re-inflate every page.
-
-    **Mémoïsé, et :func:`escape_html` ne l'est pas** — l'asymétrie est
-    mesurée, pas esthétique. Une valeur d'attribut est presque toujours
-    ÉCRITE PAR LE FRAMEWORK : chaîne de classes Tailwind, expression
-    ``bz-*``, rôle ARIA. Les données de l'utilisateur, elles, atterrissent
-    dans le corps du document, donc dans :func:`escape_html`. Mesuré le
-    2026-08-27 sur une page rendue : ``escape_attr`` fait 99 % de succès
-    de cache, ``escape_html`` 266 succès pour 2 471 échecs — le mémoïser
-    coûterait sans rien rendre.
-
-    Le mémo est le seul état de ce module, et il n'est pas observable :
-    la fonction est pure, ses deux tables sont des ``Final``. Le pari
-    n'est pas gratuit pour autant — sur un flux SANS aucune réutilisation
-    il coûte **+27 %** (mesuré). C'est ce que garde
-    ``tests/consistency/test_escape_attr_cache_still_pays.py`` : si un
-    jour des données utilisateur passent en masse par des attributs, le
-    taux de succès s'effondre et la gate rougit pour qu'on re-décide.
-    """
+    """Escape a value for a double-quoted HTML attribute."""
     out = value
     for char, entity in _ATTR_ESCAPES:
         out = out.replace(char, entity)
@@ -221,27 +169,7 @@ _EMPTY_IS_A_BUG: Final[frozenset[str]] = frozenset(
 
 
 def serialize_attrs(attrs: Mapping[str, Any]) -> str:
-    """Serialize a mapping of HTML attributes into a leading-space string.
-
-    Behaviour :
-
-    - Empty mapping → empty string (no leading space).
-    - ``None`` values are skipped.
-    - ``True`` emits a bare attribute (``disabled``).
-    - ``False`` is skipped.
-    - An **empty string on a resource-loading attribute** (:data:`_EMPTY_IS_A_BUG`)
-      is skipped — cf. la note de cette constante. Les autres attributs
-      gardent leur chaîne vide, qui y est significative : ``alt=""`` fait
-      ignorer une image décorative, ``sandbox=""`` est le bac à sable
-      maximal, ``value=""`` est un champ vidé.
-    - :class:`RawAttrValue` instances are emitted verbatim (the framework
-      escape hatch for already-composed JS expressions).
-    - Any other value is converted via ``str(...)`` and run through
-      :func:`escape_attr` ; the result is double-quoted.
-
-    Order is preserved from the input mapping (``dict`` is insertion-ordered
-    in CPython 3.7+, which we rely on).
-    """
+    """Serialize HTML attributes into a leading-space string."""
     parts: list[str] = []
     for name, value in attrs.items():
         if value is None or value is False:

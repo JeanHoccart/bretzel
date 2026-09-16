@@ -311,7 +311,7 @@ def render_package(node: PackageNode) -> str:
         lignes.append("")
 
     if node.children:
-        lignes.append(f"  Sous-paquets ({len(node.children)})")
+        lignes.append(f"  Subpackages ({len(node.children)})")
         for enfant in node.children:
             court = enfant.name.split(".")[-1]
             resume = f"  — {enfant.summary}" if enfant.summary else ""
@@ -328,5 +328,5 @@ def render_package(node: PackageNode) -> str:
 
     total = len(walk(node))
     if total > 1:
-        lignes.append(f"  {total} paquets en tout sous ce nœud.")
+        lignes.append(f"  {total} packages in total under this node.")
     return "\n".join(lignes)

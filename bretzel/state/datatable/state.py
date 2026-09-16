@@ -183,25 +183,7 @@ class DatatableState(ServerState, scope="page"):
         self.page = 1
 
     def toggle_all_filter(self, key: str, domain: list[str]) -> None:
-        """« Tout sélectionner » — bascule entre TOUT et RIEN sur ``key``.
-
-        Le geste du tableur. ⚠️ Plus aucun call-site : le panneau est un
-        ``ui.combobox(bulk_actions=True)`` et ses deux commandes sont
-        client-side, donc elles n'appellent rien ici — elles écrivent la
-        sélection, que ``set_filter`` reçoit à la fermeture. Deux
-        commandes séparées plutôt qu'une bascule, d'ailleurs : depuis un
-        état partiel, on ne devine pas laquelle des deux intentions une
-        bascule unique choisira. Gardée pour la même raison que
-        :meth:`toggle_filter`.
-
-        L'asymétrie des deux branches est voulue. « Tout coché » ne se
-        stocke PAS comme la liste complète mais comme l'absence de clé :
-        une colonne dont le domaine grandit ensuite (une ligne ajoutée
-        avec une valeur inédite) filtrerait sinon cette valeur nouvelle
-        sans que personne ne l'ait demandé. « Rien de coché » est en
-        revanche une liste vide bien réelle — c'est un état que
-        l'utilisateur a choisi, pas un défaut.
-        """
+        """Toggle all values for the filter identified by ``key``."""
         current = list(self.filters.get(key, domain))
         updated = dict(self.filters)
         if set(current) == set(domain):

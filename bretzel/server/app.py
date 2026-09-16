@@ -707,19 +707,18 @@ class Bretzel:
             registered = [*self._pages, *self._error_handlers.values()]
             self._undeclared = undeclared_provides(self._features, registered)
             for label, route in self._undeclared:
-                print(f"[bretzel] WARN : {label!r} ({route or 'sans route'}) "
-                      "est monté mais déclaré par aucune Feature — invisible "
-                      "de la carte, non validé.")
+                print(f"[bretzel] WARNING: {label!r} ({route or 'no route'}) "
+                      "is mounted but not declared by any Feature — it is "
+                      "missing from the app map and cannot be validated.")
             if self.config.debug:   # mode="dev" — le drift AST reste hors prod
                 for d in dependency_drift(self._features):
                     if d.missing:
-                        print(f"[bretzel] WARN : la feature {d.feature!r} "
-                              f"importe {list(d.missing)} sans le déclarer "
-                              "(uses/reads).")
+                        print(f"[bretzel] WARNING: feature {d.feature!r} "
+                              f"imports {list(d.missing)} without declaring "
+                              "them in uses/reads.")
                     if d.stale:
-                        print(f"[bretzel] WARN : la feature {d.feature!r} "
-                              f"déclare {list(d.stale)} mais ne l'importe "
-                              "jamais.")
+                        print(f"[bretzel] WARNING: feature {d.feature!r} "
+                              f"declares {list(d.stale)} but never imports them.")
         await bretzel_startup(self)
         try:
             yield

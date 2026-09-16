@@ -76,44 +76,7 @@ def register_type(
     decode: Callable[..., Any],
     subclasses: bool = False,
 ) -> None:
-    """Déclarer comment ``cls`` s'écrit en JSON et se relit.
-
-    ``encode`` reçoit une valeur et rend quelque chose que ``json``
-    accepte (au plus simple : une ``str``). ``decode`` fait le retour ::
-
-        from decimal import Decimal
-        from bretzel.state import register_type
-
-        register_type(Money, encode=str, decode=Money.parse)
-
-    Une fois déclaré, le type s'utilise nu dans l'annotation et
-    ``field()`` ne reçoit rien de plus ::
-
-        class Panier(SessionState):
-            total: Money = field(default_factory=Money.zero)
-
-    Les six types du quotidien — ``date``, ``datetime``, ``time``,
-    ``Decimal``, ``UUID`` et toute sous-classe d'``Enum`` — sont déjà
-    connus : une app n'appelle cette fonction que pour SES classes.
-
-    ``subclasses=True`` étend le codec aux HÉRITIERS du type inscrit, et
-    ``decode`` reçoit alors ``(brut, classe_concrète)`` ::
-
-        register_type(Ref, encode=str,
-                      decode=lambda brut, cible: cible(brut),
-                      subclasses=True)   # couvre RefClient, RefFournisseur…
-
-    C'est par cette porte qu'``Enum`` s'inscrit lui-même, en bas de ce
-    module.
-
-    ⚠️ **Un aller-retour doit rendre l'égal.** ``decode(encode(v)) == v``
-    est ce que le framework suppose partout : la photo prise à la lecture
-    est comparée à la valeur courante pour décider quels champs écrire
-    (cf. :meth:`~bretzel.state.registry.StateRegistry.write_one`). Un
-    codec qui perd de l'information ferait donc réécrire un champ à
-    chaque requête, sans que rien ne le signale — c'est pour cette raison
-    que ``Decimal`` s'encode en ``str`` et non en ``float``.
-    """
+    """Register how ``cls`` is encoded to and decoded from JSON."""
     if not isinstance(cls, type):
         raise TypeError(
             f"register_type attend une CLASSE, reçu {cls!r}. La table est "

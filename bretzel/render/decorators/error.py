@@ -31,31 +31,7 @@ def error_page(
     description: str | None = None,
     shell: Callable[..., Any] | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """Mark a function as the custom page for an HTTP status code.
-
-    Free decorator — imported from ``bretzel``, needs no app instance.
-    It only MARKS the function (``_bz_error_page`` + ``_bz_page``) ; the
-    app picks it up at :meth:`Bretzel.include` time. Usage ::
-
-        from bretzel import error_page
-
-        @error_page(404, layout=app_layout, title="Not found")
-        def not_found():
-            ui.heading("Page not found", level=1)
-
-        @error_page(500)  # no layout — safer if the layout itself broke
-        def server_error():
-            ui.alert("Something went wrong", color="error")
-
-    The function runs through the same pipeline as a regular page,
-    so it has access to components, theme, runtime — every Bretzel
-    affordance. For 500 specifically, leaving ``layout=None`` is the
-    safe default : if the user-state that crashed also feeds the
-    layout, rendering it again would re-raise inside the error page.
-
-    Son nom suit ``@page`` et ``@layout`` : les trois décorateurs déclarent
-    un rendu qui répond à une requête.
-    """
+    """Mark a function as the custom page for an HTTP status code."""
     if not isinstance(status_code, int) or not 100 <= status_code <= 599:
         raise ValueError(
             f"@error_page expects an HTTP status integer in [100, 599], "

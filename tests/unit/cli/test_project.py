@@ -40,7 +40,7 @@ def test_new_refuses_to_touch_an_existing_directory(tmp_path: Path) -> None:
     destination = tmp_path / "already-here"
     destination.mkdir()
 
-    with pytest.raises(ValueError, match="existe déjà"):
+    with pytest.raises(ValueError, match="already exists"):
         create_project(destination, display_name="Existing")
 
 

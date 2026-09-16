@@ -1410,31 +1410,7 @@ class Component(metaclass=_ComponentMeta):
         return self._raw_attrs.keys() | self._passthrough_attrs.keys()
 
     def slot_class(self, slot: str, *extra: str) -> str:
-        """La classe composée d'un slot NON-root, plus des bouts optionnels.
-
-        Cinq composants (Stepper, Carousel, TimePicker, MonthPicker,
-        WeekPicker) ouvraient leur ``render()`` sur deux closures
-        identiques — un ``slot()`` qui appelle ``compose_class(name,
-        apply_variant_size_modifiers=False)`` et un ``_join`` / ``sized``
-        qui recolle une entrée de table de tailles. Trois copies chacune,
-        soit le seuil que le dépôt s'est fixé (« deux fois une
-        coïncidence, trois fois un pattern », cf. ``_picker_field.py``).
-
-        ``apply_variant_size_modifiers=False`` n'est pas un détail
-        d'appel, c'est le contrat d'un slot non-root : les tables
-        ``variants`` / ``sizes`` s'appliquent à la root, les recoller ici
-        collerait les classes de la root sur un descendant.
-
-        Passer par le composeur — et non lire ``theme["slots"][nom]`` à la
-        main — est ce qui fait atterrir un ``slots={"<nom>": …}``
-        utilisateur. Un lookup direct droppe cet override EN SILENCE : le
-        défaut mesuré sur ToggleGroup, et la raison pour laquelle ces
-        closures portaient toutes le même commentaire.
-
-        ``extra`` accueille ce qui n'est pas dans le thème du slot (une
-        entrée de la table de tailles, une classe d'axe) ; les vides sont
-        écartés, donc l'appelant n'a pas à tester.
-        """
+        """Compose classes for a non-root slot and optional extra fragments."""
         return " ".join(
             part
             for part in (

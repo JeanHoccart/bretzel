@@ -92,7 +92,7 @@ def normalise_to_ym_js(value_expr: str) -> str:
 
 
 class MonthPicker(Component):
-    """Champ de mois avec grille d'année en popover."""
+    """Render a month field with a year-grid popover."""
 
     THEME: ClassVar[dict[str, Any]] = MONTH_PICKER_THEME
     THEME_KEY: ClassVar[str] = "month_picker"

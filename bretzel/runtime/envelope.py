@@ -129,21 +129,7 @@ def build_envelope(
     page_id: str = "",
     address: str = "",
 ) -> Envelope:
-    """Build the in-memory envelope dict (deterministic, JSON-friendly).
-
-    Each ``client_state`` entry carries the instance's full field map
-    (defaults materialised — the runtime evaluator can't read Python
-    defaults) plus its persistence / transport config :
-
-    - ``persist`` — combien de temps la valeur survit côté navigateur ;
-    - ``send_to_server`` — si l'instance remonte dans le form-data des
-      POST d'action (``False`` = descendante seule).
-
-    Les deux sont des attributs de classe **déclarés** sur
-    :class:`~bretzel.state.scopes.client.ClientState` (``persist=`` /
-    ``send_to_server=``), lus ici en direct. Le contrat est gardé par
-    ``test_client_state_transport_config.py``.
-    """
+    """Build a deterministic, JSON-friendly runtime envelope."""
     client_state: dict[str, Any] = {}
     for state in client_states:
         client_state[instance_key(state)] = {

@@ -59,7 +59,7 @@ from bretzel.core.tree import Element
 
 
 class Video(Component):
-    """Une vidéo, avec sa place réservée et les pièges natifs absorbés."""
+    """Render a native video player with reserved layout space."""
 
     THEME: ClassVar[dict[str, Any]] = VIDEO_THEME
     THEME_KEY: ClassVar[str] = "video"

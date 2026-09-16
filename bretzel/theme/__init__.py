@@ -1,15 +1,4 @@
-"""Layer 4 — visual identity : palette + Tailwind v4 generation.
-
-**Façade utilisateur.** Ce qu'on écrit tient en six noms — cf. ``__all__``
-plus bas, dont chaque entrée porte sa raison d'être. Le reste de la
-couche (générateur CSS, résolution de slots, palettes par défaut) est
-listé dans ``_INTERNAL`` : importable par son chemin, jamais depuis ici.
-
-The :class:`Theme` constructor takes every section as an *optional*
-keyword. By default each section inherits from the bundled default ;
-passing ``base=None`` switches to a strict "no inheritance" mode where
-the user must supply every required slot themselves.
-"""
+"""Visual identity, palettes, and Tailwind CSS generation."""
 
 from __future__ import annotations
 
@@ -129,47 +118,7 @@ _UNSET: Any = object()
 
 
 class Theme:
-    """User-facing theme builder.
-
-    Construct with the slots you want to override ; everything else
-    inherits from the framework default ::
-
-        # Defaults — no overrides at all.
-        theme = Theme()
-
-        # Tweak only the brand color.
-        theme = Theme(semantic={"primary": "#27754a"})
-
-        # L'identité typographique + la porte CSS de l'app.
-        theme = Theme(
-            fonts={"sans": "Inter, ui-sans-serif, system-ui, sans-serif"},
-            css=Path("app/identity.css"),   # @font-face, keyframes, @supports
-        )
-
-        # Reprendre l'échelle d'un DOCUMENT — le défaut livré est celle
-        # d'un outil, plus serrée. ``size=`` choisit toujours un palier ;
-        # ces deux-là décident de quelle échelle.
-        theme = Theme(spacing="0.25rem", text={"base": "16px"})
-
-        # Build from scratch — caller takes responsibility for every slot.
-        theme = Theme(base=None, semantic={...all 11...})
-
-    ``fonts`` et ``css`` sont les deux moitiés d'une même question : *quoi*
-    charger et *comment* le charger. ``fonts`` déclare la famille (elle
-    atterrit dans ``@theme`` en ``--font-<slot>``, donc le preflight de
-    Tailwind repeint le document entier) ; ``css`` porte le ``@font-face``
-    qui la rend disponible. Bretzel ne télécharge aucune fonte et n'écrit
-    aucun ``<link>`` vers un CDN tiers : la fonte se sert depuis
-    ``Bretzel(static_dir=…)``, comme le reste des assets — c'est la seule
-    forme qui ne fasse pas dépendre le rendu d'un tiers, ni ne fuite
-    l'adresse IP du visiteur.
-
-    Implementation note : the resolved state is computed once in
-    ``__init__`` and stashed on private fields. ``Theme`` is intended
-    to be effectively immutable after construction (a soft contract,
-    not enforced via ``frozen=True`` because we keep ``__dict__`` for
-    duck-typed extensibility in tests).
-    """
+    """Build a user-facing Bretzel theme."""
 
     __slots__ = (
         "_components",
@@ -290,14 +239,7 @@ class Theme:
         return self._components.get(name, {})
 
     def get_component_overrides(self) -> Mapping[str, Any]:
-        """Toutes les surcharges de composant, telles qu'écrites.
-
-        Rendu **après merge avec la base** — donc ce que l'app a écrit plus
-        ce dont elle hérite, c'est-à-dire exactement ce qui sera consulté
-        au rendu. C'est cette vue que ``server.lifecycle`` valide au
-        démarrage ; la valider avant le merge laisserait passer une clé
-        morte héritée d'un thème parent.
-        """
+        """Return component overrides exactly as declared."""
         return self._components
 
     def merged_component_theme(

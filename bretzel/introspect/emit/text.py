@@ -32,6 +32,47 @@ _INDENT = " " * 4
 #: Au-delà, une ligne de doc cesse de tenir sur une ligne d'index.
 _DOC_CLIP = 62
 
+_ENGLISH_LABELS = {
+    "classe": "class",
+    "décorateur": "decorator",
+    "fonction": "function",
+    "valeur": "value",
+    "agir depuis un handler": "act from a handler",
+    "agir dans le navigateur": "act in the browser",
+    "choisir la langue": "choose the language",
+    "composer côté client": "compose on the client",
+    "composer des attributs": "compose attributes",
+    "déclarer au compilateur CSS": "declare to the CSS compiler",
+    "déclarer un champ": "declare a field",
+    "déclarer un état": "declare state",
+    "déclarer un état client": "declare client state",
+    "déclarer un état serveur": "declare server state",
+    "déclarer un routable": "declare a route",
+    "déclarer un thème": "declare a theme",
+    "décrire un diagramme": "describe a diagram",
+    "décrire un graphique": "describe a chart",
+    "décrire un tableau": "describe a table",
+    "décrire une piste de média": "describe a media track",
+    "en-tête HTTP": "HTTP header",
+    "échapper": "escape",
+    "identité d'un nœud": "node identity",
+    "introspecter la carte d'app": "inspect the app map",
+    "lire le contexte de rendu": "read the render context",
+    "lire un état ailleurs": "read state elsewhere",
+    "métadonnée d'un routable": "route metadata",
+    "métadonnée du paquet": "package metadata",
+    "rafraîchir une zone": "refresh a region",
+    "rattraper une erreur": "handle an error",
+    "réagir à un glisser-déposer": "handle drag and drop",
+    "recevoir la demande du lecteur": "receive a reader query",
+    "savoir qui est là": "identify the current user",
+    "servir les scripts tiers en local": "serve third-party scripts locally",
+    "suivre les dépendances": "track dependencies",
+    "temps réel (SSE)": "real time (SSE)",
+    "transporter un événement": "transport an event",
+    "vocabulaire des directives bz-*": "bz-* directive vocabulary",
+}
+
 
 def _names(params: tuple[ParamInfo, ...]) -> str:
     return " ".join(p.name for p in params)
@@ -47,16 +88,16 @@ def render_index() -> str:
     width = max((len(i.ui_name) for i in catalogue), default=0) + 3
 
     out: list[str] = [
-        f"# Surface ui.* — {len(components)} composants, {len(helpers)} helpers",
+        f"# ui.* API — {len(components)} components, {len(helpers)} helpers",
         "",
-        "Lu vivant depuis le code : cet index ne peut pas mentir sur ce qui existe.",
-        "Lu à la demande depuis le code avec `bretzel describe`.",
+        "Read directly from the live code, so this index cannot drift from the API.",
+        "Generated on demand with `bretzel describe`.",
         "",
-        "Tout composant accepte EN PLUS ces kwargs universels, jamais répétés",
-        f"ci-dessous : {', '.join(RESERVED_KWARGS)}.",
+        "Every component ALSO accepts these universal keyword arguments, omitted",
+        f"below for brevity: {', '.join(RESERVED_KWARGS)}.",
         "",
-        "Un event `click` s'écrit `on_click=`. Un slot se passe par son nom.",
-        "Detail complet d'une entree : `describe <nom>`.",
+        "A `click` event is written as `on_click=`. Pass a slot by its name.",
+        "Full details for one entry: `describe <name>`.",
         "",
     ]
 
@@ -70,12 +111,12 @@ def render_index() -> str:
         if info.named_slots:
             contracts.append("slots: " + " ".join(info.named_slots))
         if info.imperative:
-            contracts.append("impératif: " + " ".join(info.imperative))
+            contracts.append("imperative: " + " ".join(info.imperative))
         if contracts:
             out.append(f"{' ' * width}{' · '.join(contracts)}")
 
     if helpers:
-        out.extend(["", "## Helpers (pas des composants)", ""])
+        out.extend(["", "## Helpers (not components)", ""])
         for helper in helpers:
             head = f"ui.{helper.ui_name}".ljust(width)
             out.append(f"{head}{helper.kind:<18} {_names(helper.params)}")
@@ -103,7 +144,7 @@ def _prologue(title: str, doc: str | None, params: tuple[ParamInfo, ...]) -> lis
     if doc:
         out.extend([doc, ""])
     if params:
-        out.append("Paramètres")
+        out.append("Parameters")
         out.extend(_param_lines(params))
         out.append("")
     return out
@@ -123,24 +164,24 @@ def _render_helper(info: HelperInfo) -> str:
 
 
 def _render_component(info: ComponentInfo) -> str:
-    shape = "conteneur" if info.is_container else "feuille"
+    shape = "container" if info.is_container else "leaf"
     title = f"ui.{info.ui_name} → {info.class_name}   ({info.family}, <{info.tag}>, {shape})"
     out = _prologue(title, info.doc, info.params)
 
-    audited = "" if info.bindable_audited else "   ⚠ non audité (BINDABLE_PROPS absent)"
+    audited = "" if info.bindable_audited else "   ⚠ not audited (BINDABLE_PROPS missing)"
     out.append(
         _row("Bindable", info.bindable, audited)
         if info.bindable
-        else "Bindable    — (aucune prop ne se lie côté client)"
+        else "Bindable    — (no property supports client-side binding)"
     )
     out.append(_row("Events", info.handler_kwargs))
     out.append(_row("Slots", info.named_slots))
-    out.append(_row("Impératif", info.imperative))
+    out.append(_row("Imperative", info.imperative))
     if info.autoname_from:
-        out.append(_row("Autoname", (f"depuis {info.autoname_from}",)))
+        out.append(_row("Autoname", (f"from {info.autoname_from}",)))
     out.extend(_theme_lines(info))
 
-    out.extend(["", f"Kwargs universels acceptés : {', '.join(RESERVED_KWARGS)}"])
+    out.extend(["", f"Accepted universal keyword arguments: {', '.join(RESERVED_KWARGS)}"])
     return "\n".join(out)
 
 
@@ -153,20 +194,22 @@ def render_symbol(detail: SymbolDetail) -> str:
     du symbole permet de dire : une constante n'a qu'une valeur, une
     classe a des méthodes, ``ClientBinding`` a son algèbre.
     """
-    title = f"{detail.name} → {detail.module}   ({detail.kind}, {detail.category})"
+    kind = _ENGLISH_LABELS.get(detail.kind, detail.kind)
+    category = _ENGLISH_LABELS.get(detail.category, detail.category)
+    title = f"{detail.name} → {detail.module}   ({kind}, {category})"
     out = _prologue(title, detail.doc, detail.signature.params if detail.signature else ())
 
     if detail.value_repr is not None:
-        out.append(_row("Valeur", (detail.value_repr,)))
+        out.append(_row("Value", (detail.value_repr,)))
     if detail.state is not None:
-        out.append(_row("Portée", (detail.state.scope,)))
+        out.append(_row("Scope", (detail.state.scope,)))
         out.extend(_state_url_lines(detail.state))
         out.extend(_state_field_lines(detail.state))
     if len(detail.exported_by) > 1:
         others = tuple(m for m in detail.exported_by if m != detail.module)
-        out.append(_row("Aussi dans", others, "   (le même objet, ré-exporté)"))
+        out.append(_row("Also in", others, "   (the same object, re-exported)"))
     if detail.also_known_as:
-        out.append(_row("Homonyme", detail.also_known_as, "   (une AUTRE chose)"))
+        out.append(_row("Namesake", detail.also_known_as, "   (a DIFFERENT object)"))
 
     out.extend(_method_lines(detail.methods))
     out.extend(_algebra_lines(detail.algebra))
@@ -194,19 +237,19 @@ def _state_url_lines(state: StateInfo) -> list[str]:
       lecture ratée.
     """
     if state.url_error:
-        return [_row("Adressable", (f"⚠ déclaration refusée — {state.url_error}",))]
+        return [_row("Addressable", (f"⚠ invalid declaration — {state.url_error}",))]
     if state.url_params:
         return [_row(
-            "Adressable",
+            "Addressable",
             tuple(f"{champ}→{param}" for champ, param in state.url_params),
-            "   (un champ absent de cette ligne ne part JAMAIS dans l'URL)",
+            "   (a field omitted from this line is NEVER written to the URL)",
         )]
     if state.url_named:
         nommes = ", ".join(f"{champ}→{param}" for champ, param in state.url_named)
         return [_row(
-            "Adressable",
-            ("— éteint",),
-            f"   (`addressable=True` publierait {nommes})",
+            "Addressable",
+            ("— disabled",),
+            f"   (`addressable=True` would publish {nommes})",
         )]
     return []
 
@@ -219,7 +262,7 @@ def _state_field_lines(state: StateInfo) -> list[str]:
     « Champs — » qui se lirait comme une lecture ratée."""
     if not state.fields:
         return []
-    out = ["Champs"]
+    out = ["Fields"]
     out.extend(
         _param_lines(
             tuple(
@@ -246,7 +289,7 @@ def _method_lines(methods: tuple[MethodInfo, ...]) -> list[str]:
     d'index ne pouvait porter."""
     if not methods:
         return []
-    out = ["", "Méthodes"]
+    out = ["", "Methods"]
     width = max(len(m.name) for m in methods) + 2
     for method in methods:
         call = f"{method.name}({_names(method.params)})"
@@ -264,7 +307,7 @@ def _algebra_lines(ops: tuple[AlgebraOp, ...]) -> list[str]:
     est ce que le composant émettra."""
     if not ops:
         return []
-    out = ["", "Algèbre Python → JS (le JS est capturé à l'exécution)"]
+    out = ["", "Python → JS algebra (JavaScript captured at runtime)"]
     current = ""
     width = max(len(op.python) for op in ops) + 3
     for op in ops:
@@ -289,12 +332,12 @@ def _theme_lines(info: ComponentInfo) -> list[str]:
     """
     if not info.theme:
         return []
-    head = "Thème"
+    head = "Theme"
     if info.theme_key and info.theme_key != info.ui_name:
-        head = f"Thème (clé : {info.theme_key})"
+        head = f"Theme (key: {info.theme_key})"
     out = ["", f"{head} — Theme(components={{{info.theme_key!r}: {{…}}}})"]
     for group, keys in info.theme:
-        out.append(f"  {group:<14}" + (", ".join(keys) if keys else "— (valeur unique)"))
+        out.append(f"  {group:<14}" + (", ".join(keys) if keys else "— (single value)"))
     # Les clés de ``sizes`` ne sont PAS les valeurs de ``size=`` : sur 33
     # des 44 tables du catalogue elles nomment des SLOTS (``date_picker``
     # affiche ``input_field, clear_button…``), et lire la ligne brute fait
@@ -303,7 +346,7 @@ def _theme_lines(info: ComponentInfo) -> list[str]:
     # La ligne résolue coupe court, et elle porte aussi les échelles
     # étendues (``heading`` jusqu'à ``8xl``, ``avatar`` jusqu'à ``2xl``).
     if info.size_values and tuple(info.size_values) != tuple(dict(info.theme).get("sizes", ())):
-        out.append(f"  {'size= vaut':<14}" + ", ".join(info.size_values))
+        out.append(f"  {'size= values':<14}" + ", ".join(info.size_values))
     return out
 
 
@@ -318,7 +361,7 @@ def _param_lines(params: tuple[ParamInfo, ...]) -> list[str]:
     return [
         f"{_INDENT}{p.name:<{name_w}}{p.type_label:<{type_w}}"
         f"{f'= {p.default_label}' if p.default_label else ''}"
-        f"{'   (prop réactive)' if p.source == SOURCE_REACTIVE_PROP else ''}"
+        f"{'   (reactive property)' if p.source == SOURCE_REACTIVE_PROP else ''}"
         for p in params
     ]
 
@@ -332,7 +375,7 @@ def render_module(section: ModuleSection) -> str:
     """
     out: list[str] = [f"## {section.name}", ""]
     if not section.covered:
-        out.extend(["(section non couverte — aucun classement écrit)", ""])
+        out.extend(["(section not covered — no category mapping defined)", ""])
         return "\n".join(out)
 
     current = ""
@@ -340,11 +383,12 @@ def render_module(section: ModuleSection) -> str:
     for symbol in section.symbols:
         if symbol.category != current:
             current = symbol.category
-            out.append(f"  {current}")
+            out.append(f"  {_ENGLISH_LABELS.get(current, current)}")
         doc = (symbol.summary or "").strip()
         if len(doc) > _DOC_CLIP:
             doc = doc[: _DOC_CLIP - 1].rstrip() + "…"
-        out.append(f"    {symbol.name:<{width}}{symbol.kind:<11} {doc}")
+        kind = _ENGLISH_LABELS.get(symbol.kind, symbol.kind)
+        out.append(f"    {symbol.name:<{width}}{kind:<11} {doc}")
     out.append("")
     return "\n".join(out)
 
@@ -353,7 +397,7 @@ def render_modules() -> str:
     """Toutes les sections de modules, dans l'ordre de lecture."""
     from bretzel.introspect.modules import describe_modules
 
-    out = ["", "# Surface des modules", ""]
+    out = ["", "# Module API", ""]
     out.extend(render_module(section) for section in describe_modules())
     return "\n".join(out).rstrip()
 
@@ -373,10 +417,10 @@ def render_kwarg_routing() -> str:
     width = max(len(b.name) for b in buckets) + 2
     out = [
         "",
-        "# Routage des kwargs — les seaux de `split_kwargs`",
+        "# Keyword argument routing — `split_kwargs` buckets",
         "",
-        "GÉNÉRÉ depuis les constantes du socle : cette table ne peut pas",
-        "mentir sur ce que le framework accepte ou refuse.",
+        "GENERATED from framework constants, so this table cannot drift from",
+        "what the framework accepts or rejects.",
         "",
     ]
     for bucket in buckets:
@@ -407,16 +451,16 @@ def render_bindable_matrix() -> str:
     bindables = [i for i in infos if i.bindable]
     out = [
         "",
-        f"# Surface bindable — {len(bindables)} composants sur {len(infos)}",
+        f"# Bindable API — {len(bindables)} of {len(infos)} components",
         "",
-        "GÉNÉRÉ. `⇄` = le client ÉCRIT la valeur (`TWO_WAY_PROPS`), `→` = lecture",
-        "seule. Un composant absent d'ici n'a AUCUNE prop bindable : tout binding",
-        "y lève `ComponentUsageError`, ce n'est pas un oubli.",
+        "GENERATED. `⇄` means the client WRITES the value (`TWO_WAY_PROPS`); `→`",
+        "is read-only. A component omitted here has NO bindable properties; any",
+        "binding raises `ComponentUsageError` by design.",
         "",
     ]
     width = max((len(i.ui_name) for i in bindables), default=0) + 3
     for info in sorted(bindables, key=lambda i: (i.family, i.ui_name)):
         props = " ".join(f"{p}{'⇄' if p in info.two_way else '→'}" for p in info.bindable)
-        audited = "" if info.bindable_audited else "   ⚠ non audité"
+        audited = "" if info.bindable_audited else "   ⚠ not audited"
         out.append(f"ui.{info.ui_name:<{width}}{info.family:<12} {props}{audited}")
     return "\n".join(out)

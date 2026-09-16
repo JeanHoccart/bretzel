@@ -64,15 +64,7 @@ class ScopeConfigError(RuntimeError):
 
 
 class StateHydrationError(BretzelError):
-    """Levée quand un ``ServerState`` ne PEUT pas être hydraté sur place.
-
-    Le cas unique : un backend sans ``load_sync`` (Redis) atteint depuis
-    le thread de la boucle, donc depuis du code d'app ``async def``. On
-    ne peut pas y attendre — bloquer la boucle gèlerait le worker
-    entier —, et rendre les défauts serait pire : le commit de fin de
-    requête ÉCRASERAIT la valeur stockée par un objet vide. L'erreur
-    nomme le geste qui marche (``await MonEtat.load()``).
-    """
+    """Raised when server state cannot be hydrated safely."""
 
 
 # ───────────────────────────────────────────────────────────────────────────

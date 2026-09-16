@@ -213,25 +213,7 @@ PUBLIC_ASSET_ROUTES: Final[frozenset[str]] = frozenset({
 
 
 def is_public_asset_path(path: str) -> bool:
-    """``path`` est-il l'un des assets publics du framework ?
-
-    **C'est la fonction qu'une garde d'auth doit appeler**, jamais
-    ``path in PUBLIC_ASSET_ROUTES`` : cet ensemble contient des motifs
-    de route, pas des URL. ``/_bretzel/vendor/{filename}`` n'est égal à
-    aucun chemin réel, donc l'égalité refuse les trois scripts tiers —
-    et le navigateur reçoit la page de connexion à la place d'un
-    ``<script>``, ce qui se lit ``Unexpected token '<'`` dans la
-    console. Mesuré sur ``examples/crm`` le 2026-08-27, en passant la
-    route ``vendor`` publique.
-
-    Un motif ne couvre qu'**un seul segment** : ``/_bretzel/vendor/x.js``
-    passe, ``/_bretzel/vendor/a/b`` non. Une garde ne doit pas ouvrir un
-    sous-arbre sans le dire.
-
-    Gardé par
-    ``tests/consistency/test_framework_routes_are_classified.py``, qui exige que chaque route publique RÉELLEMENT montée soit reconnue
-    ici, et qu'aucune route fermée ne le soit.
-    """
+    """Return whether ``path`` names a public framework asset."""
     for route in PUBLIC_ASSET_ROUTES:
         if "{" not in route:
             if path == route:

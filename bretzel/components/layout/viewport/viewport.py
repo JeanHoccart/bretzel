@@ -50,7 +50,7 @@ from bretzel.components.layout.viewport.theme import VIEWPORT_THEME
 
 
 class Viewport(Flex):
-    """Cadre plein écran, hors flux. Ses régions défilent, pas lui."""
+    """Render a full-screen frame whose regions scroll independently."""
 
     THEME: ClassVar[dict[str, Any]] = VIEWPORT_THEME
     THEME_KEY: ClassVar[str] = "viewport"

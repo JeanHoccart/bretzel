@@ -24,47 +24,7 @@ def each(
     items: Iterable[Any],
     key: str | Callable[[Any], Any] | None = None,
 ) -> Iterator[Any]:
-    """Iterate over ``items`` while pushing a stable per-item key.
-
-    Use this **instead of** a bare ``for`` loop whenever the body produces
-    components with client-side state.
-
-    Parameters
-    ----------
-    items
-        Anything iterable. Lists, generators, querysets, ranges — all work.
-    key
-        How to extract a stable key per item. Either a callable
-        ``(item) -> Any``, or the name of an attribute / dict key. When
-        omitted, the cascade in :func:`_extract_key` figures it out.
-
-    Yields
-    ------
-    The original items, one by one. The iteration key is *not* yielded —
-    it lives on the context-var stack for the duration of each
-    ``yield`` / resumption.
-
-    Examples
-    --------
-    Common case, ORM models with ``id`` :
-
-        for user in ui.each(users):
-            with ui.card():
-                ui.heading(user.name)
-                ui.popover(trigger=ui.text(user.name))   # l'état open survit aux réordonnancements
-
-    Custom key extraction :
-
-        for tag in ui.each(tags, key=lambda t: t.slug):
-            ui.badge(tag.label)
-
-    Nested loops compose — each inner item gets ``outer_key_inner_key`` :
-
-        for cat in ui.each(categories):
-            ui.heading(cat.name)
-            for product in ui.each(cat.products):
-                ui.product_card(product)
-    """
+    """Iterate over items while preserving stable per-item identity."""
     # ``debug=True`` only when a render context is active and asked for it.
     # Lazy import avoids a circular import at module load time.
     from bretzel.render.context import maybe_current_context

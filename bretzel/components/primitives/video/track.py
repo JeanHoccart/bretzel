@@ -52,24 +52,7 @@ TRACK_KINDS: tuple[str, ...] = (
 
 @dataclass(frozen=True, slots=True)
 class Track:
-    """Une piste temporelle d'un média — sous-titres, description, chapitres.
-
-    - ``src`` est l'URL du fichier WebVTT.
-    - ``srclang`` est le code langue BCP 47 de la piste (``"fr"``,
-      ``"en-GB"``). Obligatoire : sans lui le navigateur ne peut pas
-      choisir la piste selon la langue du lecteur, et le HTML l'exige
-      pour ``kind="subtitles"``.
-    - ``label`` est le nom affiché dans le menu des sous-titres.
-      Obligatoire : sans lui le menu propose une entrée sans nom, ce qui
-      rend le choix impossible dès qu'il y a deux pistes.
-    - ``kind`` vaut ``"captions"`` par défaut — la transcription du
-      dialogue ET des sons signifiants, donc le choix utile au plus grand
-      nombre. ``"subtitles"`` ne transcrit que la parole (traduction),
-      ``"descriptions"`` décrit l'image pour qui ne la voit pas,
-      ``"chapters"`` découpe la timeline.
-    - ``default`` désigne la piste activée si le navigateur n'a pas
-      d'autre préférence. Au plus une par ``kind``.
-    """
+    """Describe a timed media track such as captions, descriptions, or chapters."""
 
     src: str
     srclang: str
@@ -105,7 +88,7 @@ def track(
     kind: str = "captions",
     default: bool = False,
 ) -> Track:
-    """Construit un :class:`Track`. Sucre pour ``ui.track(...)``."""
+    """Build a timed media track for ``ui.audio`` or ``ui.video``."""
     return Track(
         src=src, srclang=srclang, label=label, kind=kind, default=default,
     )

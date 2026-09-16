@@ -53,7 +53,7 @@ from bretzel.core.tree import Element
 
 
 class Audio(Component):
-    """Un lecteur audio natif. Contrôles visibles par défaut."""
+    """Render a native audio player with visible controls by default."""
 
     THEME: ClassVar[dict[str, Any]] = AUDIO_THEME
     THEME_KEY: ClassVar[str] = "audio"

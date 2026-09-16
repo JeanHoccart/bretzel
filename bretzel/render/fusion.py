@@ -59,30 +59,7 @@ def fuse_or_wrap(
     extra_attrs: dict[str, Any] | None = None,
     wrapper_tag: str = "div",
 ) -> Element:
-    """Apply the no-div-soup rule and return a single :class:`Element`.
-
-    Parameters :
-
-    - ``nodes`` : the children produced by the inner render. Iterated
-      once ; consumed.
-    - ``bz_id`` : value of the framework's :data:`BZ_ID_ATTR` (also
-      mirrored on ``id``, since the runtime treats the two as
-      equivalent — cf. spec review SG-3).
-    - ``extra_attrs`` : additional attributes to splice in (placed
-      after the framework attrs so a user-supplied class/aria/etc. wins
-      cosmetically).
-    - ``wrapper_tag`` : the tag to use when a wrapping element is
-      necessary (default ``div``).
-
-    Wrap-vs-splice rule :
-    - Single :class:`Element` root WITHOUT a ``bz-id`` → splice (no
-      div-soup).
-    - Single :class:`Element` root WITH a ``bz-id`` → wrap. The inner
-      id is a per-component identity (morph relies on it) and is
-      distinct from the section id we're stamping here.
-    - Anything else (multi-root, non-Element single root) → wrap — et
-      l'enveloppe est transparente à la disposition du parent.
-    """
+    """Apply the no-div-soup rule and return one HTML element."""
     flat = _flatten_fragments(nodes)
     framework_attrs = _framework_attrs(bz_id, extra_attrs)
 

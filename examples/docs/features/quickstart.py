@@ -1,4 +1,4 @@
-"""The complete first path: from zero to a changed Bretzel page."""
+"""Le premier trajet complet : de zéro à une page Bretzel modifiée."""
 
 from bretzel import page, ui
 
@@ -7,7 +7,7 @@ from examples.docs.features.shell import shell
 PATH = "/quickstart"
 
 
-@page(PATH, layout=shell, title="Start in 5 minutes")
+@page(PATH, layout=shell, title="Démarrer en 5 minutes")
 def quickstart_page() -> None:
     with ui.container(width="xl"):
         with ui.vstack(gap="xl"):
@@ -15,21 +15,21 @@ def quickstart_page() -> None:
                 with ui.hstack(align="center", gap="sm", wrap=True):
                     ui.badge("Quickstart", color="primary", variant="soft")
                     ui.badge("5 minutes", color="muted", variant="outline")
-                ui.heading("Your first Bretzel application", level=1, size="4xl")
+                ui.heading("Votre première application Bretzel", level=1, size="4xl")
                 ui.text(
-                    "Create the project, start the server, then change a page. "
-                    "You will walk through the essential loop: describe the "
-                    "interface in Python and watch the browser follow.",
+                    "Créez le projet, lancez le serveur puis modifiez une page. "
+                    "À la fin, vous aurez parcouru la boucle essentielle : "
+                    "décrire l’interface en Python et voir le navigateur suivre.",
                     color="muted", size="lg",
                 )
 
             with ui.card(color="warning"):
                 with ui.vstack(gap="sm"):
-                    ui.heading("Before the first PyPI release", level=2, size="lg")
+                    ui.heading("Avant la première version PyPI", level=2, size="lg")
                     ui.text(
-                        "Bretzel is still in early alpha. To try it today, install "
-                        "from GitHub. After the first release, this command becomes "
-                        "simply `pip install bretzel`.",
+                        "Bretzel est encore en early alpha. Pour l’essayer aujourd’hui, "
+                        "installez le dépôt GitHub. Après la première publication, cette "
+                        "commande deviendra simplement `pip install bretzel`.",
                         size="sm",
                     )
                     ui.code(
@@ -42,7 +42,7 @@ def quickstart_page() -> None:
                 with ui.card():
                     with ui.vstack(gap="md"):
                         ui.badge("1", color="primary")
-                        ui.heading("Create the project", level=2)
+                        ui.heading("Créer le projet", level=2)
                         ui.code(
                             "bretzel new hello-bretzel\n"
                             "cd hello-bretzel\n"
@@ -50,68 +50,69 @@ def quickstart_page() -> None:
                             lang="bash",
                         )
                         ui.text(
-                            "`bretzel new` creates a minimal application in a new "
-                            "directory. It refuses to overwrite an existing directory.",
+                            "`bretzel new` crée une application minimale dans un "
+                            "nouveau dossier. Il refuse d’écraser un dossier existant.",
                             color="muted", size="sm",
                         )
 
                 with ui.card():
                     with ui.vstack(gap="md"):
                         ui.badge("2", color="primary")
-                        ui.heading("Activate the environment", level=2)
+                        ui.heading("Activer l’environnement", level=2)
                         ui.text("Windows PowerShell", weight="semibold", size="sm")
                         ui.code(".\\.venv\\Scripts\\Activate.ps1", lang="powershell")
-                        ui.text("macOS or Linux", weight="semibold", size="sm")
+                        ui.text("macOS ou Linux", weight="semibold", size="sm")
                         ui.code("source .venv/bin/activate", lang="bash")
 
                 with ui.card():
                     with ui.vstack(gap="md"):
                         ui.badge("3", color="primary")
-                        ui.heading("Install and run", level=2)
+                        ui.heading("Installer et lancer", level=2)
                         ui.code(
                             "python -m pip install -e .\n"
                             "bretzel dev",
                             lang="bash",
                         )
                         ui.text(
-                            "Open `http://127.0.0.1:8000`. `bretzel dev` watches "
-                            "your files and restarts the application after every change.",
+                            "Ouvrez `http://127.0.0.1:8000`. `bretzel dev` "
+                            "surveille les fichiers et relance l’application à chaque "
+                            "modification.",
                             color="muted", size="sm",
                         )
 
                 with ui.card():
                     with ui.vstack(gap="md"):
                         ui.badge("4", color="primary")
-                        ui.heading("Change the page", level=2)
+                        ui.heading("Modifier la page", level=2)
                         ui.text(
-                            "Open `app/features/home.py`, change the heading, and save. "
-                            "The browser reloads the application.",
+                            "Ouvrez `app/features/home.py`, changez le titre et "
+                            "enregistrez. Le navigateur recharge l’application.",
                             color="muted", size="sm",
                         )
                         ui.code(
-                            'ui.heading("My first Bretzel", level=1, size="4xl")',
+                            'ui.heading("Mon premier Bretzel", level=1, size="4xl")',
                             lang="python",
                         )
 
             with ui.card(color="primary"):
                 with ui.vstack(gap="md"):
-                    ui.heading("What the generator created", level=2)
+                    ui.heading("Ce que le générateur a créé", level=2)
                     ui.code(
                         "hello-bretzel/\n"
                         "├── app/\n"
-                        "│   ├── main.py              # configures the application\n"
+                        "│   ├── main.py              # configure l’application\n"
                         "│   └── features/\n"
-                        "│       └── home.py          # your first page\n"
+                        "│       └── home.py          # votre première page\n"
                         "├── pyproject.toml\n"
                         "└── README.md",
                         lang="text",
                     )
                     with ui.hstack(gap="sm", wrap=True):
                         ui.button(
-                            "Understand the model", href="/how",
+                            "Comprendre le modèle", href="/how",
                             icon_right="arrow-right",
                         )
                         ui.button(
-                            "Read the configuration", href="/config",
+                            "Lire la configuration", href="/config",
                             variant="outline",
                         )

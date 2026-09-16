@@ -187,7 +187,7 @@ def _build_bz_data(
 
 
 class Carousel(Component):
-    """Piste aimantée dont chaque enfant direct est une slide."""
+    """Render a snapping track whose direct children are slides."""
 
     THEME: ClassVar[dict[str, Any]] = CAROUSEL_THEME
     THEME_KEY: ClassVar[str] = "carousel"

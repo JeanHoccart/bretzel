@@ -39,7 +39,7 @@ MARK_DOOR = "_bz_auth_door"
 
 
 def source(fn: Callable[[Any], str | None]) -> Callable[[Any], str | None]:
-    """Déclare une source d'identité, essayée après le cookie signé.
+    """Declare an identity source checked after the signed cookie.
 
     ::
 
@@ -70,13 +70,13 @@ def source(fn: Callable[[Any], str | None]) -> Callable[[Any], str | None]:
             "cache."
         )
     if not callable(fn):
-        raise TypeError(f"@auth.source attend un callable ; reçu {type(fn).__name__}.")
+        raise TypeError(f"@auth.source expects a callable; got {type(fn).__name__}")
     setattr(fn, MARK_SOURCE, True)
     return fn
 
 
 def door(porte: Any) -> Callable[[Callable[..., str | None]], Callable[..., str | None]]:
-    """Déclare une porte de connexion, et ce qu'on fait de son profil.
+    """Declare a login provider and how its profile is handled.
 
     ::
 

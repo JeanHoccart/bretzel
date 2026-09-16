@@ -76,7 +76,7 @@ class _ThreadServer:
                 return
             time.sleep(step)
             step = min(step * 1.5, 0.05)
-        raise RuntimeError("le serveur n'a pas démarré en 5 s.")
+        raise RuntimeError("the server did not start within 5 seconds")
 
     def stop(self) -> None:
         self._server.should_exit = True
@@ -118,7 +118,7 @@ class _SubprocessServer:
                 return  # il répond, même en 4xx : il est debout.
             except OSError:
                 time.sleep(0.05)
-        raise RuntimeError(f"le serveur {self._target!r} n'a pas répondu en 30 s.")
+        raise RuntimeError(f"server {self._target!r} did not respond within 30 seconds")
 
     def stop(self) -> None:
         if self._proc is None:
@@ -138,7 +138,7 @@ def serve(app: Any, *, mode: str) -> Iterator[tuple[str, Any]]:
     backend d'état, donc c'est lui qui rend ``state()`` possible.
     """
     if mode not in ("thread", "subprocess"):
-        raise ValueError(f"mode de service inconnu : {mode!r}.")
+        raise ValueError(f"unknown serving mode: {mode!r}")
 
     port = free_port()
     if mode == "subprocess":

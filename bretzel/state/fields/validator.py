@@ -35,31 +35,7 @@ from typing import Any, overload
 
 
 class FormError(ValueError):
-    """Raised by whole-instance validators (``@validator`` no arg) to
-    flag a cross-field invariant break — passwords not matching, end
-    date before start date, etc.
-
-    Inheriting from :class:`ValueError` keeps the framework's
-    per-field rollback semantics (the descriptor catches it like any
-    other validator failure and rolls the last mutation back). The
-    distinct class is a *routing hint* for the form-submit handler :
-    catch :class:`FormError` first to route the message to a
-    form-level key — ``"_"`` dans ``state.errors``, pas ``"_form"`` — and
-    surface it via ``ui.alert(color="error")`` at the top of the
-    form, separate from per-field FormField inline errors.
-
-    Usage ::
-
-        class SignupForm(PageState):
-            password: str = field(default="")
-            confirm:  str = field(default="")
-
-            @validator
-            def passwords_match(self) -> None:
-                if (self.password and self.confirm
-                        and self.password != self.confirm):
-                    raise FormError("Passwords don't match")
-    """
+    """Report a validation error for an entire state instance."""
 
 
 class Validator:

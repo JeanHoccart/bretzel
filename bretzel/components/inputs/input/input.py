@@ -56,14 +56,7 @@ _NATIVE_PICKER_TYPES: dict[str, str] = {
 
 
 class Input(Component):
-    """Text input. ``value`` accepts a ClientBinding for live two-way
-    bind ; ``prefix`` / ``suffix`` / ``icon_left`` / ``icon_right``
-    decorate the field without changing the underlying ``<input>``.
-    ``on_input`` suit chaque édition ; ``on_change`` suit la validation
-    du changement par le navigateur (habituellement à la sortie du champ).
-    Pour une recherche pendant la frappe, utiliser ``on_input`` avec
-    ``debounce``.
-    """
+    """Render a text input with distinct input and change events."""
 
     THEME: ClassVar[dict[str, Any]] = INPUT_THEME
     THEME_KEY: ClassVar[str] = "input"

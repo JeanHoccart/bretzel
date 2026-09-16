@@ -26,8 +26,6 @@ from bretzel.state.scopes.client import ClientState
 
 
 class LiveConnection(ClientState, persist="memory"):
-    """L'état de la liaison temps réel du framework (singleton par la clé
-    ``default``). Posé par le runtime, lu par l'app — un miroir bindable
-    de « l'EventSource du navigateur est-il ouvert en ce moment ». """
+    """Expose the state of the framework's real-time connection."""
 
     connected: bool = field(default=False)

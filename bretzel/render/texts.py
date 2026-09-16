@@ -196,18 +196,11 @@ DEFAULT_TEXTS: Mapping[str, str] = {
 
 
 class TextsError(ValueError):
-    """Une clé de ``texts=`` qui ne correspond à rien."""
+    """Raised when a ``texts=`` key does not match a known framework phrase."""
 
 
 def resolve_texts(overrides: Mapping[str, str] | None) -> Mapping[str, str]:
-    """Fusionner les surcharges de l'app sur les valeurs anglaises.
-
-    Une clé inconnue **lève**. C'est délibéré et c'est le seul moment où
-    on peut le dire : une faute de frappe dans un dict de traduction ne
-    produit aucune erreur, aucun avertissement, et se manifeste
-    uniquement par une phrase restée en anglais au milieu d'une page —
-    que l'auteur, qui a écrit la traduction, ne relira jamais.
-    """
+    """Merge application text overrides into the built-in English values."""
     if not overrides:
         return DEFAULT_TEXTS
     unknown = sorted(set(overrides) - set(DEFAULT_TEXTS))
@@ -244,23 +237,7 @@ def _holes(template: str) -> set[str]:
 
 
 def text(key: str, /, **fmt: Any) -> str:
-    """La phrase du framework pour ``key``, dans la langue de l'app.
-
-    Lit la table résolue sur le contexte de rendu courant, et retombe sur
-    l'anglais quand il n'y en a pas — un composant construit hors rendu
-    (le cas de toute la suite unitaire) reste utilisable.
-
-    ``**fmt`` remplit les trous : ``text("file_upload.max_size",
-    size="8 MB")``. Un trou manquant **lève** plutôt que de rendre une
-    accolade à l'écran — d'où le formatage inconditionnel : une première
-    version ne formatait que si ``fmt`` était fourni, donc
-    ``text("carousel.go_to_slide")`` sans son ``n=`` rendait
-    « Go to slide {n} » en silence, exactement ce que la phrase
-    ci-dessus promet d'empêcher.
-
-    Corollaire : une accolade LITTÉRALE dans une surcharge se double
-    (``"{{"``), comme partout ailleurs avec ``str.format``.
-    """
+    """Return a framework phrase for ``key`` in the application's language."""
     from bretzel.render.context import maybe_current_context
 
     ctx = maybe_current_context()
@@ -282,18 +259,7 @@ def text(key: str, /, **fmt: Any) -> str:
 
 
 def template(key: str, /) -> str:
-    """La phrase BRUTE, ses trous non remplis.
-
-    Pour le seul cas où le serveur ne peut pas formater : quand c'est le
-    CLIENT qui remplira. La grille de ``ui.calendar`` est bâtie en
-    JavaScript, or la table des mots n'existe qu'en Python — le gabarit
-    part donc en attribut et le runtime y substitue le jour et le compte.
-
-    Distinct de :func:`text` exprès : ``text`` formate toujours et LÈVE
-    sur un trou manquant, ce qui est la bonne règle partout ailleurs.
-    Rendre un gabarit par le même appel supprimerait cette garantie pour
-    tout le monde afin de servir un cas sur soixante-dix-neuf.
-    """
+    """Return the raw framework text template before interpolation."""
     from bretzel.render.context import maybe_current_context
 
     ctx = maybe_current_context()
@@ -307,11 +273,5 @@ def template(key: str, /) -> str:
 
 
 def plural(key: str, n: int, /, **fmt: Any) -> str:
-    """La variante ``…_one`` ou ``…_other`` de ``key``, selon ``n``.
-
-    Deux formes seulement — anglais et français en ont deux, et prétendre
-    couvrir le russe demanderait une vraie bibliothèque de pluriels, donc
-    une dépendance, donc de l'i18n. ``n`` est passé au formatage sous le
-    nom ``n``, on ne l'écrit donc pas deux fois.
-    """
+    """Return the ``…_one`` or ``…_other`` variant of ``key`` for ``n``."""
     return text(f"{key}_one" if n == 1 else f"{key}_other", n=n, **fmt)

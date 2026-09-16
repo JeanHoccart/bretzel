@@ -92,12 +92,7 @@ _RETRY_DELAY = 0.02
 
 
 class LockTimeoutError(BretzelError):
-    """Levée quand le verrou n'a pas pu être pris dans le temps imparti.
-
-    C'est une 500, et c'est voulu : rendre la main sans le verrou ferait
-    exécuter la section critique sans protection, ce que l'appelant
-    croyait justement avoir évité.
-    """
+    """Raised when a state lock cannot be acquired before its deadline."""
 
 
 class StateLock:

@@ -81,7 +81,7 @@ def _week_to_iso(value: Any) -> str:
 
 
 class WeekPicker(Component):
-    """Champ de semaine avec grille de jours à sélection par ligne."""
+    """Render a week field with row-based day selection."""
 
     THEME: ClassVar[dict[str, Any]] = WEEK_PICKER_THEME
     THEME_KEY: ClassVar[str] = "week_picker"

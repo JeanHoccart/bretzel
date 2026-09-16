@@ -19,7 +19,7 @@ def create_project(destination: Path, *, display_name: str) -> list[Path]:
     """
     destination = destination.resolve()
     if destination.exists():
-        raise ValueError(f"le dossier existe déjà : {destination}")
+        raise ValueError(f"directory already exists: {destination}")
 
     package_name = _package_name(destination.name)
     secret_key = secrets.token_urlsafe(32)
@@ -63,17 +63,21 @@ def create_project(destination: Path, *, display_name: str) -> list[Path]:
             from bretzel import page, ui
 
 
-            @page("/", title="Accueil")
+            def celebrate() -> None:
+                ui.notification("It works!", variant="success")
+
+
+            @page("/", title="Home")
             def home() -> None:
                 with ui.container(width="md", classes="py-16"):
                     with ui.vstack(gap="md"):
-                        ui.heading("Bienvenue dans Bretzel", level=1, size="4xl")
+                        ui.heading("Welcome to Bretzel", level=1, size="4xl")
                         ui.text(
-                            "Modifie app/features/home.py : le navigateur suivra.",
+                            "Edit app/features/home.py and the browser will follow.",
                             color="muted",
                             size="lg",
                         )
-                        ui.button("Ça marche", on_click=lambda: ui.notification("Oui !"))
+                        ui.button("Try it", on_click=celebrate)
             """
         ),
         "app/main.py": dedent(
@@ -125,14 +129,14 @@ def run_project(
     os.environ.setdefault("BRETZEL_MODE", "dev")
     module_name, separator, attribute = target.partition(":")
     if not separator or not module_name or not attribute:
-        raise ValueError("cible invalide — attendu `module:attribut`")
+        raise ValueError("invalid target — expected `module:attribute`")
 
     module = importlib.import_module(module_name)
     app: Any = getattr(module, attribute, None)
     from bretzel import Bretzel
 
     if not isinstance(app, Bretzel):
-        raise ValueError(f"{target} ne désigne pas une instance Bretzel")
+        raise ValueError(f"{target} does not refer to a Bretzel instance")
 
     if not reload:
         app.run(host=host, port=port)

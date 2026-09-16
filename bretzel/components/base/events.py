@@ -342,36 +342,7 @@ def pending(
     *,
     after: int = 200,
 ) -> ClientExpression:
-    """« Une action est en vol » — la source à binder sur ``loading=``.
-
-    Rend une :class:`ClientExpression`, donc ça se passe partout où une
-    valeur réactive est acceptée, sans mécanique dédiée ::
-
-        ui.button("Enregistrer", on_click=save, loading=ui.pending())
-        ui.button("Supprimer", on_click=delete, disabled=ui.pending(after=0))
-        ui.skeleton(visible=ui.pending(save))
-
-    Deux adressages :
-
-    - **sans argument** — l'élément qui porte la prop est le
-      déclencheur. Le runtime remonte à son ``hx-post`` par ``closest``,
-      donc un spinner ENFANT du bouton lit bien l'état du bouton.
-    - **``pending(handler)``** — la même action, observée depuis
-      ailleurs dans la page. L'id est celui que ``hx-post`` porte déjà
-      (:func:`encode_handler_id`) : rien de neuf n'est émis, et deux
-      boutons câblés sur le même handler partagent le témoin.
-
-    ``after`` est un délai en millisecondes, même unité que ``debounce=``
-    / ``throttle=``. **200 ms par défaut, et c'est le cœur du sujet** :
-    un témoin qui apparaît sous ce seuil produit un flash, et l'interface
-    est perçue comme plus lente que si rien ne s'affichait. ``after=0``
-    force l'affichage immédiat — le bon choix pour ``disabled=``, qui ne
-    clignote pas et doit bloquer dès le premier clic.
-
-    Ne couvre QUE l'action en vol. Un chargement long à progression
-    connue est de l'état ordinaire (``ui.progress`` + une zone
-    ``@refreshable(broadcast=…)``), pas un témoin.
-    """
+    """Return a client expression indicating whether an action is in flight."""
     target = "$el" if handler is None else json.dumps(encode_handler_id(handler))
     # ``ssr_value=False`` : aucune requête ne peut être en vol quand le
     # serveur rend. Sans lui, un ``visible=ui.pending(...)`` s'affiche à

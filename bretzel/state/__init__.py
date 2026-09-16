@@ -1,38 +1,4 @@
-"""Typed state for Bretzel apps — **façade utilisateur**.
-
-Choisir entre les deux natures, c'est choisir une GARANTIE
---------------------------------------------------------
-Les noms disent le lieu ; ce qui décide, c'est ce que chacun promet.
-
-- :class:`ServerState` — **le navigateur ne voit jamais ces données.**
-  Elles vivent dans le backend (mémoire ou Redis), l'utilisateur ne peut
-  ni les lire ni les forger. C'est le défaut pour tout ce qui est vrai :
-  un prix, un rôle, un panier, un solde. Coût : chaque lecture après
-  mutation passe par une requête.
-- :class:`ClientState` — **les données vivent dans le navigateur.** Zéro
-  aller-retour, donc zéro latence : un panneau qui s'ouvre, un filtre de
-  liste, un onglet actif, un brouillon de formulaire. Elles sont
-  lisibles ET modifiables par l'utilisateur — donc rien de sensible, et
-  rien dont la valeur doit être crue sans revérification serveur.
-
-La règle courte : **si mentir dessus rapporte quelque chose à
-l'utilisateur, c'est du serveur.** Sinon, c'est du client, et c'est
-gratuit.
-
-Ce que ``ClientState`` permet et qu'on sous-exploite
------------------------------------------------------
-Un :class:`ClientBinding` (ce que rend la lecture d'un champ de
-``ClientState`` pendant un rendu) porte une **algèbre complète évaluée
-dans le navigateur** — comparaisons, arithmétique, ``.between()``,
-``.length()``, ``.contains()``, ``.then_else()``, ``.to_fixed()``,
-``.join()``, plus les écritures ``.toggle()`` / ``.increment()`` /
-``.set()`` / ``.push()`` / ``.clear()``. Tout ce qui s'exprime là-dedans
-ne coûte **aucune** requête. Cf. le chapitre « Réactivité client » de la
-doc vivante, qui l'introspecte au lieu de la recopier.
-
-Trois modes de persistance : ``persist="memory"`` (jetable, défaut),
-``"session"`` (survit au reload), ``"local"`` (survit à tout).
-"""
+"""Typed state for Bretzel applications."""
 
 from __future__ import annotations
 
@@ -133,26 +99,7 @@ def form_value(
     *,
     cast: Callable[[Any], Any] | None = None,
 ) -> Any:
-    """Read a raw value from the current request's form data.
-
-    Use this for transient values that don't deserve their own typed
-    State — CAPTCHA tokens, confirm-password fields, one-off CGV
-    checkboxes. For anything with structure, prefer a typed
-    :class:`ServerState` / :class:`ClientState`.
-
-    Behaviour :
-
-    - Returns ``default`` if no registry is active or the key is absent.
-    - When ``cast`` is provided, it is applied to the raw string value.
-    - ``cast=bool`` is special-cased to honour HTML form semantics
-      (``"on"`` / ``"true"`` / ``"1"`` / ``"yes"`` → ``True``, anything
-      else → ``False``). Plain ``bool(string)`` would treat any non-empty
-      string as ``True``, which is wrong for un-checked checkboxes that
-      *do* arrive as the empty string.
-
-    Le nom explicite la source brute de la valeur et évite de la confondre
-    avec la lecture d'un état typé.
-    """
+    """Read a raw value from the current request form data."""
     registry = current_registry()
     if registry is None:
         return default

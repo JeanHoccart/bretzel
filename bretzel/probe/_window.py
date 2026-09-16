@@ -22,7 +22,7 @@ APPEAR_MS = 5000
 
 @dataclass(frozen=True, slots=True)
 class Box:
-    """La géométrie d'un élément, en pixels CSS."""
+    """Describe an element's geometry in CSS pixels."""
 
     x: float
     y: float
@@ -52,28 +52,15 @@ class Seen:
 
 
 class ElementNotFoundError(LookupError):
-    """Le sélecteur ne désigne rien — dit avec la fenêtre et le sélecteur."""
+    """Raised when a selector matches no element in a probe window."""
 
 
 class DropMissedError(AssertionError):
-    """Le glisser n'a pas atterri où il visait — c'est le GESTE qui a raté.
-
-    Lever est le contraire d'un caprice : sans ça, un dépôt qui manque sa
-    cible se lit trois lignes plus bas comme un rouge sur l'APP, et le
-    diagnostic part dans la mauvaise direction. Mesuré : c'est
-    exactement ce qui est arrivé sur ``examples/messagerie``, où le
-    message atterrissait dans « Envoyés » pendant que le probe visait
-    « Archives ».
-    """
+    """Raised when a drag operation does not land on its intended target."""
 
 
 class Window:
-    """Le tier 1 : ce dont 80 % des probes ont besoin.
-
-    Le tier 2 est :attr:`page`, l'objet Playwright brut. Il est public et
-    documenté : l'échappatoire existe pour que les 20 % restants n'aient
-    pas à sortir du harnais.
-    """
+    """Control one browser window during a probe."""
 
     def __init__(self, page: Any, base_url: str, out: Path, name: str) -> None:
         self.page = page
@@ -148,11 +135,7 @@ class Window:
         self._one(sel).click()
 
     def type(self, sel: str, text: str) -> None:
-        """Frappe au clavier, touche par touche.
-
-        Pas un `fill` : un brouillon qui se perd (`livrer-une-app.md`
-        § B5/B6) ne se reproduit qu'avec de vrais événements de saisie.
-        """
+        """Type text one key at a time."""
         el = self._one(sel)
         el.click()
         el.press_sequentially(text, delay=15)
@@ -164,33 +147,7 @@ class Window:
         self._one(sel).hover()
 
     def drag(self, src: str, dst: str) -> None:
-        """De VRAIS gestes de souris, pas ``drag_to``.
-
-        Le glisser de Bretzel est bâti sur des événements pointeur.
-        Le raccourci de Playwright n'en produit pas la séquence, donc il
-        rend vert un composant qui ne bougerait pas sous un doigt.
-        Les pas intermédiaires ne sont pas décoratifs : un seul saut ne
-        déclenche ni `dragover` ni les seuils de démarrage.
-
-        **On re-vise la cible AVANT de lâcher**, parce que le moteur
-        REPARENTE l'élément dans la zone survolée pendant le geste : cette
-        zone grandit et pousse les suivantes vers le bas, donc la
-        coordonnée calculée au départ ne désigne plus la même zone à
-        l'arrivée. Le mode d'échec est documenté et a été mesuré sur
-        ``examples/messagerie`` — le message atterrissait dans
-        « Envoyés » pendant que le probe visait « Archives », et le rouge
-        accusait l'app.
-
-        ⚠️ **Mais ce re-visé n'est prouvé par aucun probe du dépôt.** La
-        mesure ci-dessus appartient à l'ANCIEN geste, écrit à la main en
-        trois sauts ; sous le glissement en douze pas d'ici, la mutation
-        du 2026-09-11 — second visé retiré — laisse
-        ``probe_messagerie`` VERT à 1280×700. Ce qui rend le geste digne
-        de foi, c'est :meth:`_assert_landed`, pas ce segment. Il est
-        gardé parce qu'il évite l'erreur au lieu de la signaler, et parce
-        qu'il coûte ~190 ms mesurés ; pas parce qu'une mesure le
-        réclame.
-        """
+        """Perform a drag with real mouse gestures."""
         mouse = self.page.mouse
         ax, ay = self.box(src).center
         mouse.move(ax, ay)
@@ -305,15 +262,11 @@ class Window:
         self.page.set_viewport_size({"width": size[0], "height": size[1]})
 
     def mark(self) -> int:
-        """Combien de requêtes cette fenêtre a vues jusqu'ici.
-
-        Avec :meth:`since`, c'est ce qui laisse ``Probe.requests()``
-        découper une tranche sans lire l'intérieur de la fenêtre.
-        """
+        """Return the number of requests observed by this window so far."""
         return len(self._seen)
 
     def since(self, mark: int) -> tuple[Seen, ...]:
-        """Les requêtes vues depuis ``mark``."""
+        """Return requests observed since ``mark``."""
         return tuple(self._seen[mark:])
 
     def _one(self, sel: str) -> Any:

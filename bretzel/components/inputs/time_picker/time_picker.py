@@ -139,7 +139,7 @@ def _in_bounds(candidate: str, low: str, high: str) -> bool:
 
 
 class TimePicker(Component):
-    """Champ d'heure avec panneau heures / minutes."""
+    """Render a time field with hour and minute panels."""
 
     THEME: ClassVar[dict[str, Any]] = TIME_PICKER_THEME
     THEME_KEY: ClassVar[str] = "time_picker"

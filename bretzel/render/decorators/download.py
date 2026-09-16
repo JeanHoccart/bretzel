@@ -104,12 +104,7 @@ def download(
     filename: str | None = None,
     media_type: str | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """Marque ``fn`` comme le producteur du fichier servi en ``GET path``.
-
-    Décorateur libre, comme ``@page`` : il ne fait que MARQUER
-    (``_bz_download``), et l'app ramasse la marque à ``include()``.
-    L'ordre des imports n'a donc aucun effet (anti-règle 4 de la charte).
-    """
+    """Mark a function as the producer for a file served at ``GET path``."""
     if not path.startswith("/"):
         raise ValueError(
             f"@download({path!r}) : un chemin de route commence par '/'. "

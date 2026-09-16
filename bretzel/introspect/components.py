@@ -52,7 +52,7 @@ __all__ = ("RESERVED_KWARGS",)
 # vit dans ``bretzel.server.errors``). Dans le module dont la docstring
 # cite le skill supprimé pour « deux noms inexistants, six omis ». La
 # famille d'itération se DÉRIVE désormais de son ``__all__``.
-_ITERATION_KIND = "itération"
+_ITERATION_KIND = "iteration"
 
 _DECLARED_HELPER_KINDS: dict[str, str] = {
     "notification": "fire-and-forget",

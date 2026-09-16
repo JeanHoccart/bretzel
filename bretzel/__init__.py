@@ -1,30 +1,4 @@
-"""Bretzel — Server-Driven UI for Python.
-
-Top-level user-facing namespace. Apps typically import only what they
-need from here ::
-
-    from bretzel import Bretzel, ui, auth
-    from bretzel.state import SessionState, field
-
-Les deux moitiés de la surface
-------------------------------
-- **``ui.*``** — ce qui s'appelle depuis un corps de RENDU (``@page``,
-  ``@layout``, ``@refreshable``). Cf. :mod:`bretzel.components`.
-- **``bretzel.*``** — ce qui s'appelle depuis un HANDLER : ``abort``,
-  ``redirect``, ``background``, ``idempotent``, plus les décorateurs qui
-  déclarent des routables (``page`` / ``layout`` / ``error_page`` /
-  ``refreshable`` / ``refresh``).
-- **``auth.*``** — l'identité entière, verbes et déclarations :
-  ``@auth.source``, ``@auth.door`` et ``auth.login``.
-
-Un helper de handler a **exactement un** point d'accès, garanti par
-``tests/consistency/test_handler_helpers_have_one_home.py``.
-
-- **``state.*``** — les états typés et leurs champs. Ré-exporté comme
-  module, dans la même forme que ``ui``, ``auth`` et ``oauth`` : c'est
-  un domaine, pas une poignée de noms génériques au même rang que
-  ``page``.
-"""
+"""Bretzel — Server-Driven UI for Python."""
 
 from __future__ import annotations
 

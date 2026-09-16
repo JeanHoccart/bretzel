@@ -316,26 +316,7 @@ class ServerState(State):
 
     @classmethod
     async def load(cls, *, key: str = "default") -> Self:
-        """Hydrater cet état en ATTENDANT le backend — la porte des ``async``.
-
-        ``MonEtat()`` suffit partout où le framework a délesté le code
-        d'app sur un thread, c'est-à-dire dans tout corps écrit ``def``.
-        Un corps ``async def``, lui, tourne sur la boucle : y attendre un
-        backend qui lit par le réseau (Redis) la gèlerait pour tous les
-        autres utilisateurs, donc ``MonEtat()`` y refuse de deviner et
-        lève :class:`~bretzel.state.StateHydrationError`. ::
-
-            async def importer() -> None:
-                panier = await Panier.load()
-                panier.n += 1
-
-        L'instance est mise en cache par le registre comme n'importe
-        quelle autre : un ``Panier()`` PLUS LOIN dans le même corps rend
-        le même objet, déjà hydraté — l'``await`` ne se paie qu'une fois.
-
-        Hors requête (script, test) il n'y a pas de registre : on rend
-        alors des valeurs par défaut, exactement comme ``MonEtat()``.
-        """
+        """Hydrate this state asynchronously from its configured backend."""
         # Import différé : ``registry`` importe ce module au chargement,
         # l'inverse au niveau module ferait un cycle.
         from bretzel.state.registry import current_registry
@@ -353,27 +334,7 @@ class ServerState(State):
         ttl: int | None = None,
         timeout: float | None = None,
     ) -> Any:
-        """Sérialiser une lecture-modification-écriture sur cet état ::
-
-            def supprimer(cible: str) -> None:
-                with Kanban.lock() as store:
-                    store.taches = [t for t in store.taches
-                                    if t["id"] != cible]
-
-        Le bloc est une petite transaction : à l'entrée le verrou est
-        pris PUIS l'état relu, à la sortie les champs modifiés sont
-        écrits PUIS le verrou relâché. Deux requêtes sur la même clé
-        s'attendent — c'est le prix demandé, et il n'est payé que là.
-
-        À réserver aux gestes qui CALCULENT à partir de ce qu'ils ont lu
-        (filtrer une liste, en retirer un élément). Pour deux requêtes
-        qui touchent des champs différents, le commit suffit déjà ; pour
-        un total, ``field(merge="add")`` fait mieux et sans attente.
-
-        ``async with`` dans un corps ``async def``. Cf.
-        :mod:`bretzel.state.locking` pour ce qu'un verrou à durée ne peut
-        pas garantir.
-        """
+        """Serialize a read-modify-write operation on this state."""
         from bretzel.state.registry import current_registry
 
         registry = current_registry()

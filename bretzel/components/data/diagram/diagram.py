@@ -119,20 +119,7 @@ _EDGE_STYLES = {"solid": "edge", "dashed": "edge_flipped"}
 
 @dataclass(frozen=True, slots=True)
 class GraphNode:
-    """Un nœud du graphe.
-
-    - ``key`` est son identité — c'est ce que citent les arêtes, ce que
-      reçoit ``on_item_click``, et ce sur quoi ``focus`` se centre.
-      ``key`` et non ``id`` : ``id`` est un kwarg universel du framework,
-      et la collision serait un piège silencieux.
-    - ``label`` est le texte affiché ; à défaut, la clé.
-    - ``icon`` / ``color`` / ``badge`` nourrissent le rendu par défaut, et
-      restent lisibles depuis un ``render=`` maison.
-    - ``group`` est une étiquette libre, rendue en ``data-bz-group`` :
-      de quoi cibler une famille de nœuds en CSS sans que le composant
-      impose une sémantique.
-    - ``width`` déroge à la largeur du palier pour ce nœud seul.
-    """
+    """Describe one node in a graph."""
 
     key: str
     label: str = ""
@@ -145,11 +132,7 @@ class GraphNode:
 
 @dataclass(frozen=True, slots=True)
 class GraphEdge:
-    """Une arête orientée, de ``source`` vers ``target``.
-
-    ``source`` / ``target`` plutôt que ``from`` / ``to`` : ``from`` est un
-    mot-clé Python, donc impossible en nom d'argument.
-    """
+    """Describe a directed edge from ``source`` to ``target``."""
 
     source: str
     target: str
@@ -168,7 +151,7 @@ def node(
     group: str | None = None,
     width: float | None = None,
 ) -> GraphNode:
-    """Décrire un nœud — sucre pour ``ui.node(...)``."""
+    """Describe a graph node for ``ui.diagram``."""
     return GraphNode(
         key=key, label=label, icon=icon, color=color,
         badge=badge, group=group, width=width,
@@ -183,7 +166,7 @@ def edge(
     style: str = "solid",
     color: str | None = None,
 ) -> GraphEdge:
-    """Décrire une arête — sucre pour ``ui.edge(...)``."""
+    """Describe a graph edge for ``ui.diagram``."""
     return GraphEdge(
         source=source, target=target, label=label, style=style, color=color
     )
@@ -208,7 +191,7 @@ def _as_node(item: Any) -> GraphNode:
 
 
 class Diagram(Component):
-    """Un graphe orienté placé en couches, rendu côté serveur."""
+    """Render a server-laid-out directed graph in layers."""
 
     THEME: ClassVar[dict[str, Any]] = DIAGRAM_THEME
     THEME_KEY: ClassVar[str] = "diagram"

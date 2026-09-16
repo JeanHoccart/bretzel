@@ -82,7 +82,7 @@ def describe_symbol(name: str) -> SymbolDetail:
     exported = _table().get(bare, ())
     rows = tuple(row for row in exported if row[0] == forced) if forced else exported
     if not rows:
-        raise KeyError(f"`{name}` n'est exporté par aucun module du framework.")
+        raise KeyError(f"`{name}` is not exported by any framework module")
 
     home, indexed = rows[0]
     value = getattr(importlib.import_module(home), bare)

@@ -422,35 +422,7 @@ class ClientBinding:
 
 
 class ClientExpression(ClientBinding):
-    """A built-up expression on top of one or more :class:`ClientBinding`.
-
-    Inherits all operator overloads so chaining works ergonomically
-    (``(state.x > 0) & (state.y < 10)``). Carries no field metadata —
-    just the JS-source text the ``bz-*`` runtime will evaluate.
-
-    ``ssr_value`` — ce que l'expression VAUT au rendu serveur, quand
-    c'est connu
-    ------------------------------------------------------------------
-    Une expression client se calcule dans le navigateur, donc le serveur
-    n'a en général aucune valeur à en donner : le slot ``value`` reste
-    NON ASSIGNÉ, et les lecteurs défensifs (``getattr(b, "value", …)``)
-    prennent leur défaut. C'est ce qui fait qu'un ``visible=<expression>``
-    n'a pas de garde anti-FOUC — il n'existe aucune valeur correcte à
-    pré-calculer.
-
-    Sauf que parfois il en existe une, et la taire coûte un
-    clignotement à chaque chargement. ``ui.pending()`` est le cas net :
-    **aucune requête ne peut être en vol au moment où le serveur rend**,
-    donc la réponse est ``False``, sûrement. L'annoncer laisse
-    ``apply_universal_modifiers`` pré-poser ``display:none``.
-
-    ⚠️ **Ne se propage PAS dans l'algèbre d'opérateurs** (``>``, ``+``,
-    ``&``…), et ce n'est pas un oubli : Python et JS divergent sur
-    ``null``, la coercition de chaîne et ``+``, donc calculer la valeur
-    serveur d'une expression COMPOSÉE reviendrait à réimplémenter la
-    sémantique JS en Python. Déclaration explicite à la construction,
-    ou rien.
-    """
+    """Build a browser-side expression from one or more client bindings."""
 
     __slots__ = ("_expr",)
 
@@ -520,78 +492,7 @@ class ClientExpression(ClientBinding):
 
 
 class ClientState(State):
-    """Typed state mirrored into the browser by the runtime.
-
-    Class declaration ::
-
-        class FilterState(ClientState, persist="local"):
-            sort_by: str = field(default="date")
-            is_active: bool = field(default=False)
-
-    Field reads return :class:`ClientBinding` during a render scope (so
-    components emit the right reactive attributes) and raw Python values
-    otherwise (so handlers can read what the client just sent).
-
-    **``send_to_server=False`` — la descente sans la remontée.** Par
-    défaut, le bridge recopie TOUT le store de signaux dans le form-data
-    de chaque POST d'action (``injectParameters``, ``05_bridge.js``) : il
-    n'a aucun critère pour distinguer un champ que le serveur vient
-    d'écrire d'un champ que l'utilisateur a tapé. Sur un état
-    descendant-seul — une réponse en cours de streaming, un pourcentage
-    d'avancement, un statut que seul le serveur produit — cet aller-retour
-    est pur gaspillage, et il grossit avec la valeur. Le déclarer
-    ``send_to_server=False`` supprime la remontée entière ::
-
-        class Stream(ClientState, send_to_server=False):
-            answer: str = field(default="")      # le serveur écrit, le client affiche
-
-    **Un champ que le CLIENT écrit ne peut pas voyager sur un état
-    ``send_to_server=False`` — et c'est REFUSÉ, pas documenté.** Le cas
-    est celui de toute prop two-way (``writes=True`` / ``names_field=True``
-    — ``ui.input(value=…)``, ``ui.slider(value=…)``…) : sa valeur n'existe
-    que dans le navigateur, donc ne pas la renvoyer la perd, en silence.
-    ``Component.__init__`` §*Two-way props* lève une
-    ``ComponentUsageError`` à la construction ; c'est la boucle qui
-    refusait déjà une ``ClientExpression`` pour une raison de même famille
-    (cible non assignable). Elle a pu le faire parce que le binding porte
-    désormais le drapeau de sa classe (``ClientBinding.sends_to_server``)
-    et non plus seulement son nom. Quand les deux directions cohabitent,
-    scinder en deux états plutôt que d'arbitrer : ce sont deux flux, pas
-    un compromis ::
-
-        class StreamOut(ClientState, send_to_server=False):   # serveur → client
-            answer: str = field(default="")
-
-        class StreamIn(ClientState):                          # client → serveur
-            prompt: str = field(default="")
-
-    Le réglage **survit à une navigation partielle**, et ça n'a pas
-    toujours été vrai : la config ne voyageait que dans l'``<bz-envelope>``,
-    absent d'une réponse ``hx-boost``, donc un ``ClientState`` découvert en
-    nav partielle recevait ses CHAMPS sans sa CONFIG et remontait malgré le
-    réglage. Comme presque toute navigation est boostée dès qu'il y a une
-    sidebar, le réglage ne tenait en pratique que sur F5. Réparé le
-    2026-08-15 : le ``<bz-patch>`` de seed porte désormais la config
-    (``build_patch(include_unchanged=True)``), et le bridge l'adopte par le
-    même chemin que le boot (``$bz._adoptConfig``). Le même trou frappait
-    ``persist=`` depuis bien plus longtemps — un état ``persist="local"``
-    découvert en nav partielle n'avait aucun adaptateur, donc sa valeur
-    sauvegardée n'était **jamais relue**. Les deux sont mesurés dans
-    ``tests/runtime_js/test_send_to_server_is_honoured.py``.
-
-    **Il n'y a PAS de mode « delta ».** Le fil a porté une clé ``sync``
-    jusqu'au 2026-08-14, avec sa moitié cliente écrite (un mémo
-    ``lastSent`` par instance, n'envoyant que les champs modifiés) et
-    aucune moitié serveur — parce qu'elle est contradictoire avec le
-    design : un ``ClientState`` n'est **jamais** persisté côté serveur
-    (:meth:`StateRegistry.commit` l'exclut explicitement), donc chaque
-    requête reconstruit une instance neuve sur les défauts de classe puis
-    pose par-dessus ce qui est arrivé. Un champ omis parce qu'« inchangé »
-    ne retomberait pas sur sa valeur précédente : il retomberait sur son
-    **défaut Python**, silencieusement, et seulement à partir du deuxième
-    POST. Le mode a été retiré du fil et du bridge plutôt que gardé en
-    dormance. Gate : ``test_client_state_transport_config.py``.
-    """
+    """Typed state mirrored into the browser by the runtime."""
 
     __persist__: ClassVar[ClientPersist] = "memory"
     __send_to_server__: ClassVar[bool] = True

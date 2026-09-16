@@ -87,28 +87,7 @@ def _component_classes() -> set[type]:
 
 
 def dynamic_responsive_classes() -> tuple[str, ...]:
-    """Les classes qu'un prop gradué peut ressortir préfixées d'un breakpoint.
-
-    Retourne les tokens NUS (``"gap-6"``, ``"flex-row"``, ``"hidden"``) ;
-    c'est :func:`~bretzel.theme.tailwind.generate_safelist_comment` qui
-    les croise avec ``BREAKPOINTS``. Le partage du travail suit celui des
-    couleurs : ``components`` déclare, ``theme`` clôture — le socle n'a
-    pas le droit d'importer les composants (contrat import-linter
-    *base-independent-of-app*).
-
-    La source est ``RESPONSIVE_THEME_KEYS``, une déclaration et non de
-    l'introspection : le préfixage se décide dans ``render()``, que la
-    safelist ne peut pas exécuter. Une table déclarée mais absente du
-    ``THEME`` est ignorée en silence — la gate
-    ``test_responsive_classes_are_safelisted`` refuse ce cas, ici ce
-    n'est pas le bon endroit pour lever (on tourne au démarrage du
-    serveur).
-
-    Les classes assemblées à partir d'un SCALAIRE (``grid-cols-N``,
-    ``basis-1/N``) ne passent pas par là : leur domaine n'est pas
-    énumérable depuis un thème, il est clôturé à la main dans
-    ``_LAYOUT_CLASSES``.
-    """
+    """Return responsive classes that a graduated property may emit."""
     tokens: set[str] = set()
     for cls in _component_classes():
         keys = cls.__dict__.get("RESPONSIVE_THEME_KEYS") or ()

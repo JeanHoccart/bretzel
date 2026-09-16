@@ -72,19 +72,7 @@ _TOUTES_TAILLES = "any"
 
 @dataclass(frozen=True, slots=True)
 class PWAIcon:
-    """Une icône du manifeste — l'étage 2, quand l'étage 1 ne suffit pas.
-
-    ``sizes`` accepte un ENTIER pour le cas carré, qui est le cas :
-    ``PWAIcon("/i-192.png", 192)`` vaut ``"192x192"``. La chaîne reste
-    acceptée pour ce que la spec permet et qu'un entier ne dit pas —
-    une image qui vaut à plusieurs tailles (``"48x48 96x96"``), ou
-    ``"any"``.
-
-    ``purpose="maskable"`` dit au système qu'il peut ROGNER l'icône dans
-    sa propre forme (le cercle d'Android). Sans elle, l'icône est posée
-    telle quelle dans un carré blanc — ce qui se voit. ⚠️ Ne la déclare
-    que si le dessin a de la marge : sinon le système coupe dedans.
-    """
+    """Describe one icon in the web application manifest."""
 
     src: str
     sizes: str | int
@@ -111,14 +99,7 @@ class PWAIcon:
 
 @dataclass(frozen=True, slots=True)
 class PWA:
-    """La déclaration d'installabilité d'une app.
-
-    Seul ``name`` est obligatoire — tout le reste a un défaut qui tient
-    debout. ``icons`` est vide par défaut et c'est ACCEPTÉ : une app sans
-    icône reste descriptible, elle n'est simplement pas proposée à
-    l'installation. Le refuser empêcherait de déclarer une PWA avant
-    d'avoir dessiné ses icônes, ce qui est l'ordre normal des choses.
-    """
+    """Declare the metadata that makes an application installable."""
 
     name: str
     short_name: str | None = None
@@ -172,14 +153,7 @@ class PWA:
             )
 
     def as_manifest(self) -> dict[str, Any]:
-        """Le dictionnaire du manifeste, prêt à sérialiser.
-
-        Les clés absentes sont OMISES plutôt que mises à ``null`` : la
-        spec dit qu'une clé inconnue ou nulle est ignorée, mais les
-        outils de diagnostic des navigateurs les signalent comme des
-        erreurs — et un rapport plein de faux avertissements ne se lit
-        plus.
-        """
+        """Return the web application manifest as a serializable dictionary."""
         out: dict[str, Any] = {
             "name": self.name,
             "short_name": self.short_name or self.name,

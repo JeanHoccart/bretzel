@@ -1,18 +1,4 @@
-"""Layer 0 — pure primitives, zero I/O.
-
-Public API stable across the whole framework. Anything not re-exported
-here is internal and may change without notice.
-
-**Couche INTERNE — aucune surface utilisateur.**
-
-Rien ici ne se tape dans le code d'une app : ce sont les noeuds
-d'arbre, l'echappement et le tracker de dependances. ``__all__`` y est
-donc le contrat INTER-COUCHE, pas une API publique, et la gate
-``test_public_surface_is_classified`` ne balaie pas ce module.
-Les deux exceptions se tapent ailleurs : ``BretzelError`` et
-``AuthRequiredError`` sont canoniques ici mais publiques sur
-``bretzel``.
-"""
+"""Pure framework primitives with no I/O."""
 
 from bretzel.core.errors import BretzelError
 from bretzel.core.escape import (

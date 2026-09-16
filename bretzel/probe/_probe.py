@@ -25,35 +25,15 @@ __all__ = ["Probe", "Net", "ProbeFailedError", "ScopeNotReadableError", "probe"]
 
 
 class ProbeFailedError(AssertionError):
-    """Au moins un constat est rouge.
-
-    Levée à la sortie du ``with``, et non ``sys.exit`` : c'est ce qui
-    fait qu'un lancement direct ET la collecte par ``pytest -m probes``
-    rendent tous les deux un code non nul.
-    """
+    """Raised when at least one browser probe check fails."""
 
 
 class ScopeNotReadableError(LookupError):
-    """``state()`` ne peut pas lire cette portée — avec le pourquoi.
-
-    Le refus EST la réponse juste. Rendre ``None`` ferait passer « je ne
-    sais pas lire » pour « le serveur ne croit rien », et c'est
-    exactement la confusion que ce harnais existe pour lever.
-    """
+    """Raised when a probe cannot inspect the requested state scope."""
 
 
 class Net:
-    """Ce qu'un geste a coûté au réseau.
-
-    Le réseau ne se voit ni dans le DOM ni dans les pixels, et il a déjà
-    coûté deux fois : un ``ui.image`` à ``src=""`` retéléchargeait la
-    page entière, et une écriture d'``AppState`` sur le kanban coûtait
-    cinq requêtes au lieu d'une.
-
-    L'objet est rendu à l'ENTRÉE du bloc et rempli à sa sortie : le
-    compte d'un geste n'existe pas tant que le geste n'est pas fini. Le
-    lire trop tôt lève, plutôt que de rendre zéro.
-    """
+    """Record the network cost of a browser interaction."""
 
     def __init__(self) -> None:
         self._done = False
@@ -152,32 +132,18 @@ class Probe:
 
     # ── attendre ──────────────────────────────────────────────────────
     def settle(self, *, timeout: float = 5.0) -> None:
-        """Attendre l'ÉTAT sur toutes les fenêtres."""
+        """Wait for every probe window to reach a stable state."""
         for window in self.windows:
             window.settle(timeout=timeout)
 
     def hold(self, seconds: float) -> None:
-        """Attendre EXPRÈS. Le seul sommeil légitime du harnais.
-
-        ``settle()`` rend la main dès que ça s'est calmé, donc il ne
-        peut pas voir un effacement qui arrive après. Un brouillon
-        écrasé par une diffusion (``livrer-une-app.md`` § B5) met une
-        seconde ou deux : la mesure qui mord ATTEND, puis revérifie.
-        """
+        """Wait deliberately for the requested duration."""
         time.sleep(seconds)
 
     # ── mesurer le réseau ─────────────────────────────────────────────
     @contextlib.contextmanager
     def requests(self) -> Iterator[Net]:
-        """Ce que le geste du bloc a coûté — une fois RETOMBÉ.
-
-        ⚠️ Le bloc attend avant de compter, et ce n'est pas une
-        précaution : ``mouse.up()`` rend la main tout de suite, la
-        requête part APRÈS. Mesuré le 2026-09-10 en construisant ce
-        module — un dépôt sur le kanban se comptait **0 requête** alors
-        qu'il en postait une. Une jauge qui rend zéro sur un geste qui
-        atteint le serveur est pire que pas de jauge.
-        """
+        """Return the network requests made by the current probe gesture."""
         marks = [(w, w.mark()) for w in self.windows]
         net = Net()
         try:
@@ -188,16 +154,7 @@ class Probe:
 
     # ── lire ce que le SERVEUR croit ──────────────────────────────────
     def state[S](self, klass: type[S], *, of: Window | None = None) -> S:
-        """L'état partagé, tel que le backend le porte à cet instant.
-
-        C'est ce que ni ``TestClient`` ni Playwright ne donnent : sans
-        lui, « le handler n'a rien écrit » et « l'écran ne s'est pas
-        re-rendu » produisent la même image.
-
-        Portée ``app`` seulement pour l'instant. Une portée de session
-        demande de déchiffrer le cookie signé de la fenêtre ; le refus
-        le dit plutôt que de deviner.
-        """
+        """Return the shared backend state at the current instant."""
         from bretzel.state import AppState, StateRegistry
 
         if self._app is None:
@@ -260,17 +217,7 @@ def probe(
     out: Path | str | None = None,
     serve: str = "thread",
 ) -> Iterator[Probe]:
-    """Sert ``app``, ouvre ``windows`` fenêtres, balaie à la sortie.
-
-    ``size`` vaut **(1280, 700)** par défaut, et ce défaut EST une
-    déclaration : ``livrer-une-app.md`` § C1 dit « la plus PETITE fenêtre
-    plausible, jamais la plus grande ». Un défaut confortable rend la
-    faute invisible.
-
-    ``serve="subprocess"`` sert l'app dans un autre processus — utile
-    quand elle doit démarrer avec son propre environnement. On y perd
-    :meth:`Probe.state`, et le refus le dit.
-    """
+    """Serve an application, open browser windows, and run checks on exit."""
     out_dir = (
         Path(out)
         if out
