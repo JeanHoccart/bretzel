@@ -1,4 +1,4 @@
-"""Browser transport protocol and client runtime integration."""
+"""INTERNAL layer — browser transport and client runtime integration."""
 
 from __future__ import annotations
 

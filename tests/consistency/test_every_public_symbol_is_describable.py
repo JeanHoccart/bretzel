@@ -292,7 +292,7 @@ def test_the_error_message_names_both_pools() -> None:
     with pytest.raises(KeyError) as exc:
         describe("zzz_inexistant")
     message = str(exc.value)
-    assert "composants" in message and "modules" in message
+    assert "components" in message and "modules" in message
 
 
 def test_a_homonym_resolves_to_the_component_and_says_so() -> None:
@@ -333,6 +333,6 @@ def test_a_signature_reaches_the_fiche() -> None:
     ``@page`` est le premier appel de toute app Bretzel ; sa signature
     est exactement ce qu'aucune ligne d'index tronquée ne portait."""
     fiche = describe("page")
-    assert "Paramètres" in fiche
+    assert "Parameters" in fiche
     for param in ("path", "layout", "title", "methods"):
         assert param in fiche, f"`{param}` absent de la fiche de `@page`"

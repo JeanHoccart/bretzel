@@ -1,4 +1,4 @@
-"""Pure framework primitives with no I/O."""
+"""INTERNAL layer — pure framework primitives with no user-facing API."""
 
 from bretzel.core.errors import BretzelError
 from bretzel.core.escape import (

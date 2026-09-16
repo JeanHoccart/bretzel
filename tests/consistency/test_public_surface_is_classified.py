@@ -151,7 +151,7 @@ def test_internal_layer_says_so(mod_name: str) -> None:
     interne — et la gate resterait verte en ne la regardant pas.
     """
     doc = importlib.import_module(mod_name).__doc__ or ""
-    assert "Couche INTERNE" in doc, (
+    assert "INTERNAL layer" in doc, (
         f"{mod_name} est exclu du balayage mais sa docstring ne le déclare "
         f"pas. Écris « **Couche INTERNE — aucune surface utilisateur.** » "
         f"et dis ce que ``__all__`` y signifie, ou déplace le module dans "

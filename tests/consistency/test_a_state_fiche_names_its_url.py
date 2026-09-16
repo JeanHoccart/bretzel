@@ -162,14 +162,14 @@ def test_the_fiche_catches_a_named_field_and_spares_an_unnamed_one() -> None:
     ligne = "\n".join(_state_url_lines(describe_state(Nomme)))
     assert "tri→tri" in ligne
     assert "secret" not in ligne
-    assert "éteint" in ligne, "nommé sans ``addressable=True`` = éteint"
+    assert "disabled" in ligne, "named without ``addressable=True`` = disabled"
 
     class Publie(PageState, addressable=True):
         tri: str = field(default="", url="tri")
         secret: str = field(default="")
 
     publiee = "\n".join(_state_url_lines(describe_state(Publie)))
-    assert "tri→tri" in publiee and "éteint" not in publiee
+    assert "tri→tri" in publiee and "disabled" not in publiee
     assert "secret" not in publiee
 
     class Muet(PageState):

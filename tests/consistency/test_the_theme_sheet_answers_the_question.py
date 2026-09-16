@@ -42,11 +42,11 @@ MUTATION_PROOF = "test_two_incompatible_shapes_do_not_read_alike"
 
 def test_the_shape_is_stated() -> None:
     """① La forme, pour les deux familles."""
-    assert "forme « str »" in theme_sheet("button"), (
+    assert "shape 'str'" in theme_sheet("button"), (
         "la fiche de `button` ne dit pas que ses paliers sont des CHAÎNES "
         "— c'est la moitié de ce qui décide si une surcharge est lue."
     )
-    assert "forme « dict »" in theme_sheet("select"), (
+    assert "shape 'dict'" in theme_sheet("select"), (
         "la fiche de `select` ne dit pas que ses paliers sont des DICTS."
     )
 
@@ -54,7 +54,7 @@ def test_the_shape_is_stated() -> None:
 def test_the_current_value_is_shown() -> None:
     """② La valeur du palier par défaut, en entier."""
     sheet = theme_sheet("button")
-    assert "le défaut de size=" in sheet, (
+    assert "default for size=" in sheet, (
         "la fiche ne désigne plus le palier que le composant prend sans "
         f"qu'on lui demande :\n{sheet}"
     )
@@ -85,7 +85,7 @@ def test_two_incompatible_shapes_do_not_read_alike() -> None:
     dictionnaire = theme_sheet("select")
 
     assert chaine != dictionnaire
-    assert "forme « str »" in chaine and "forme « str »" not in (
+    assert "shape 'str'" in chaine and "shape 'str'" not in (
         dictionnaire.split("sizes")[-1]
     ), (
         "les deux fiches décrivent leurs paliers de `sizes` de la même "

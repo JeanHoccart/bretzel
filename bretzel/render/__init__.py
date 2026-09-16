@@ -1,4 +1,4 @@
-"""Server-driven HTML rendering pipeline."""
+"""INTERNAL layer — server-driven HTML rendering implementation."""
 
 from __future__ import annotations
 

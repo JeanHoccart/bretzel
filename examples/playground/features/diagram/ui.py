@@ -16,7 +16,6 @@ qu'on AURAIT dû écrire, pas contre celui qu'on vient d'écrire.
 """
 
 from bretzel import refreshable, ui
-from bretzel.components.base import Component
 from bretzel.render import serialize_html
 from bretzel.state import ClientExpression
 
@@ -42,7 +41,7 @@ from examples.playground.features.diagram.state import (
 from examples.playground.features.inspection import emitted_html_block
 
 
-def card_node(spec) -> Component:
+def card_node(spec):
     """Un ``render=`` maison : le contenu d'un nœud appartient à l'auteur.
 
     ⚠️ Ce qu'une PROP sait faire passe par la prop. La première version
