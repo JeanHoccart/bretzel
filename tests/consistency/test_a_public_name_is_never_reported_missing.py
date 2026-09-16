@@ -72,7 +72,7 @@ def names_reported_as_missing() -> list[str]:
             resolve(name)
         except KeyError as absent:
             message = str(absent)
-            if owner not in message and "C'est la classe de" not in message:
+            if owner not in message and "It is the class behind" not in message:
                 orphelins.append(name)
     return orphelins
 
