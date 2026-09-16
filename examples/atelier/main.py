@@ -41,6 +41,11 @@ from bretzel import Bretzel
 from examples.atelier.core import db, epoque, ingest, perimetre, phases
 from examples.atelier.core.db import init_db, is_seeded
 from examples.atelier.core.theme import THEME
+
+# Some feature declarations query their filter choices while they are imported.
+# Ensure a fresh checkout has the empty schema before importing those modules.
+init_db()
+
 from examples.atelier.features import (
     outils,
     outils_data,
