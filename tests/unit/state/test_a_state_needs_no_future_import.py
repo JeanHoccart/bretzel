@@ -27,9 +27,17 @@ situation d'un utilisateur qui écrit son premier fichier.
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
+import pytest
+
 from bretzel.state import base as state_base
+
+pytestmark = pytest.mark.skipif(
+    sys.version_info < (3, 14),
+    reason="PEP 649 class annotations are a Python 3.14+ behavior",
+)
 
 SOURCE = """
 from bretzel.state import AppState, SessionState, field
