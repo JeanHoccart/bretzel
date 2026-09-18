@@ -36,7 +36,7 @@ uses GitHub's short-lived OIDC identity.
 > state, partial updates, realtime broadcast and no application JavaScript or
 > npm pipeline to maintain.
 >
-> The first alpha includes 80+ UI components, a small in-house browser
+> The first alpha includes more than 100 UI components, a small in-house browser
 > runtime, FastAPI integration, authentication primitives, SSE, drag-and-drop,
 > server-rendered charts and framework-aware inspection tools.
 >

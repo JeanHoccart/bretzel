@@ -29,7 +29,7 @@ First public alpha.
   the browser applies partial updates.
 - Typed state in four server scopes (`PageState`, `SessionState`,
   `UserState`, `AppState`) and one client scope (`ClientState`).
-- 80+ UI components: inputs, actions, feedback, navigation, overlays,
+- 100+ UI components: inputs, actions, feedback, navigation, overlays,
   layout, data tables and server-rendered charts.
 - A small in-house browser runtime — no application JavaScript and no npm
   pipeline in production.
