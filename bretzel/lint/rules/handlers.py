@@ -1,25 +1,23 @@
-"""Règle : un handler ne peut pas être un lambda.
+"""Rule: a handler cannot be a lambda.
 
-Le framework adresse un handler par son ``module::qualname`` et le
-re-résout via ``sys.modules`` à l'arrivée de l'action — c'est ce qui
-permet au client de ne transporter qu'un identifiant signé plutôt qu'une
-référence. Un lambda n'a pas de nom adressable, donc
-``encode_handler_id`` **lève** (``HandlerError: Lambda handlers are
-forbidden``). Vérifié le 2026-08-16 : lambda et closure refusés,
-fonction top-level acceptée.
+The framework addresses a handler by its ``module::qualname`` and
+re-resolves it through ``sys.modules`` when the action arrives — that is
+what lets the client carry only a signed identifier rather than a
+reference. A lambda has no addressable name, so ``encode_handler_id``
+**raises** (``HandlerError: Lambda handlers are forbidden``). Verified on
+2026-08-16: lambda and closure refused, top-level function accepted.
 
-C'est donc un échec **certain**, pas une heuristique — et il se voit
-statiquement, avant même de lancer l'app. La forme est naturelle à écrire
-(``on_click=lambda: state.count + 1``) et c'est précisément pour ça
-qu'elle vaut une règle : rien dans la syntaxe ne suggère qu'elle est
-interdite.
+So it is a **certain** failure, not a heuristic — and it shows
+statically, before the app is even started. The form is natural to write
+(``on_click=lambda: state.count + 1``) and that is precisely why it
+deserves a rule: nothing in the syntax suggests it is forbidden.
 
-⚠️ **Les closures ne sont PAS couvertes ici**, alors qu'elles sont
-refusées de la même façon (``Closure handler 'make.<locals>.inner'``). Les
-détecter demande de résoudre un nom jusqu'à sa définition et de savoir si
-elle est imbriquée — une analyse de portée que ce module ne fait pas.
-L'omission est déclarée plutôt que silencieuse : le lambda est le cas
-fréquent, la closure reste rattrapée à l'exécution avec un message clair.
+⚠️ **Closures are NOT covered here**, although they are refused the same
+way (``Closure handler 'make.<locals>.inner'``). Detecting them requires
+resolving a name down to its definition and knowing whether it is nested
+— a scope analysis this module does not do. The omission is declared
+rather than silent: the lambda is the frequent case, the closure is still
+caught at runtime with a clear message.
 """
 
 from __future__ import annotations
@@ -29,7 +27,7 @@ import ast
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-RULE = "handler-lambda"
+RULE = "lambda-handler"
 
 
 def check(module: Module) -> list[Finding]:
@@ -48,14 +46,14 @@ def check(module: Module) -> list[Finding]:
                     path=module.path,
                     line=keyword.value.lineno,
                     message=(
-                        f"`{keyword.arg}=lambda …` : le framework adresse un "
-                        f"handler par son `module::qualname` et le re-résout "
-                        f"via `sys.modules`. Un lambda n'a pas de nom "
-                        f"adressable — ça lève au rendu."
+                        f"`{keyword.arg}=lambda …`: the framework addresses "
+                        f"a handler by its `module::qualname` and re-resolves "
+                        f"it through `sys.modules`. A lambda has no "
+                        f"addressable name — this raises at render time."
                     ),
                     hint=(
-                        "Écris une fonction au top-level du module et passe-la "
-                        "par son nom. Pour figer un argument, "
+                        "Write a top-level function in the module and pass "
+                        "it by name. To freeze an argument, "
                         "`functools.partial(handler, item_id)`."
                     ),
                 )

@@ -1,28 +1,27 @@
-"""features/geo — facade : le géocodeur, derrière une API stable.
+"""features/geo — facade: the geocoder, behind a stable API.
 
-Feature ``kind="facade"`` : elle cache un système externe derrière une
-surface qui ne bouge pas. Stubbée ici — une vraie app taperait une HTTP
-et gérerait son quota, son cache et ses pannes. Ce que la feature
-DÉCLARE, c'est que ses appelants ne connaissent que :func:`geocode` :
-le jour où le fournisseur change, un seul fichier bouge.
+A ``kind="facade"`` feature: it hides an external system behind a surface
+that does not move. Stubbed here — a real app would make an HTTP call and
+handle its quota, its cache and its outages. What the feature DECLARES is
+that its callers know only :func:`geocode`: the day the provider changes,
+one file moves.
 
-Les comptes portent une ville et un pays (`accounts.city`,
-`accounts.country`), donc le besoin est réel dans cette app : c'est ce
-qui permet de grouper un portefeuille par zone.
+The accounts carry a city and a country (`accounts.city`,
+`accounts.country`), so the need is real in this app: it is what allows
+grouping a portfolio by area.
 
-Reprise du géocodeur de l'app `mad` le 2026-09-10, quand elle a été
-retirée. Le geste n'est pas un déménagement de
-politesse : `facade` et `job` n'étaient exercés QUE là, et rien ne
-gatait cette couverture — c'est
-``tests/consistency/test_every_feature_kind_is_exercised.py`` qui la
-tient depuis.
+Taken over from the `mad` app's geocoder on 2026-09-10, when it was
+removed. The gesture is not a courtesy relocation: `facade` and `job`
+were exercised ONLY there, and nothing gated that coverage — it is
+``tests/consistency/test_every_feature_kind_is_exercised.py`` that has
+held it since.
 """
 
 from __future__ import annotations
 
 from bretzel import Feature
 
-#: Stub : ville → (latitude, longitude). Les villes du jeu de test.
+#: Stub: city → (latitude, longitude). The test set's cities.
 _COORDS: dict[str, tuple[float, float]] = {
     "Paris": (48.86, 2.35),
     "Lyon": (45.76, 4.84),
@@ -36,20 +35,20 @@ _COORDS: dict[str, tuple[float, float]] = {
 
 
 def geocode(ville: str) -> tuple[float, float]:
-    """Coordonnées d'une ville — ``(0.0, 0.0)`` si le géocodeur ne sait pas.
+    """A city's coordinates — ``(0.0, 0.0)`` if the geocoder does not know.
 
-    Rendre un couple neutre plutôt que de lever est le choix d'une
-    façade : l'appelant trace une carte, il n'a pas à traiter l'échec
-    d'un service tiers pour une ligne de portefeuille.
+    Returning a neutral pair rather than raising is a facade's choice:
+    the caller is drawing a map, it does not have to handle a third-party
+    service's failure for one portfolio row.
     """
     return _COORDS.get(ville, (0.0, 0.0))
 
 
 def distance_km(ville_a: str, ville_b: str) -> float:
-    """Distance à vol d'oiseau, en kilomètres.
+    """As-the-crow-flies distance, in kilometres.
 
-    Approximation équirectangulaire : suffisante pour ordonner des
-    visites à l'échelle d'un pays, et sans dépendance.
+    An equirectangular approximation: enough to order visits at the scale
+    of a country, and with no dependency.
     """
     import math
 

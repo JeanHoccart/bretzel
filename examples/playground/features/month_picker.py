@@ -84,7 +84,7 @@ def clear_log() -> None:
 
 
 def server_changed(state: MonthPickerPlayground) -> None:
-    # Typed param -> le dispatcher hydrate la valeur du controle change.
+    # A typed param -> the dispatcher hydrates the changed control's value.
     pass
 
 
@@ -230,11 +230,11 @@ def server_panel() -> None:
 def events_panel() -> None:
     state = MonthPickerEvents()
     ui.text(
-        "Les trois events, sur TROIS instances : un element ne porte "
-        "qu'UN hx-post, donc deux handlers serveur sur le meme picker "
-        "levent au construct. change part de l'input cache ; focus et "
-        "blur sont relocalises sur le champ editable, la racine etant un "
-        "<div> non focusable dont ces deux events ne bullent pas.",
+        'All three events, on THREE instances: an element carries only '
+            'ONE hx-post, so two server handlers on the same picker raise at '
+            'construct time. change leaves from the hidden input; focus and '
+            'blur are relocated onto the editable field, the root being a '
+            'non-focusable <div> those two events do not bubble from.',
         color="muted", size="sm",
     )
     picked = MonthPickerServerEvents()
@@ -269,7 +269,9 @@ def events_panel() -> None:
 def page() -> None:
     with ui.container(), ui.vstack():
         ui.heading("Month picker", level=1)
-        ui.text("Champ de MOIS : la valeur est une chaine 2026-08, zero-paddee donc triable comme lisible. Le panneau est un ui.calendar(mode=month) - une grille d annee, pas des jours.", color="muted")
+        ui.text('A MONTH field: the value is a 2026-08 string, zero-padded hence '
+            'sortable as it reads. The panel is a ui.calendar(mode=month) - a'
+            ' year grid, not days.', color="muted")
 
         with ui.card(), ui.vstack():
             ui.heading("Reference", level=2)
@@ -283,7 +285,8 @@ def page() -> None:
                 ui.month_picker(SEED, clearable=False)
 
             ui.heading("min / max", level=3)
-            ui.text("min / max sont tronques au mois : un min au 15 mars n interdit PAS mars, une partie du mois restant permise.", color="muted", size="xs")
+            ui.text('min / max are truncated to the month: a min on 15 March does'
+                ' NOT forbid March, part of the month staying allowed.', color="muted", size="xs")
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 ui.month_picker(SEED, min="2026-03", max="2026-12")
                 ui.month_picker(SEED, max="2026-12")
@@ -305,11 +308,10 @@ def page() -> None:
 
             ui.heading("i18n + options", level=3)
             ui.text(
-                "``month_names`` traduit la grille ; "
-                "``close_on_pick=False`` garde le panneau ouvert "
-                "pour comparer plusieurs mois ; ``name=`` est "
-                "l'echappatoire quand la valeur est litterale et "
-                "doit quand meme etre postee.",
+                '``month_names`` translates the grid; '
+                    '``close_on_pick=False`` keeps the panel open to compare '
+                    'several months; ``name=`` is the escape hatch when the '
+                    'value is literal and must still be posted.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
@@ -335,7 +337,9 @@ def page() -> None:
 
         with ui.card(), ui.vstack():
             ui.heading("Edge cases", level=2)
-            ui.text("Tapez 2026-08, 08/2026 ou 2026/08 puis sortez du champ : tout devient 2026-08. Ce qui n en est pas se vide.", color="muted", size="sm")
+            ui.text('Type 2026-08, 08/2026 or 2026/08 then leave the field: '
+                'everything becomes 2026-08. Anything that is not a month '
+                'clears.', color="muted", size="sm")
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
                 with ui.vstack(gap="xs"):
                     ui.text("saisie libre", color="muted", size="xs")
@@ -353,19 +357,22 @@ def page() -> None:
                     ui.month_picker(SEED)
                 with ui.form_field(label="Fin"):
                     ui.month_picker(SEED)
-            ui.heading("Dans un ui.dialog", level=3)
+            ui.heading('Inside a ui.dialog', level=3)
             with ui.dialog(title="Planifier", width="md") as dlg, \
                         ui.vstack():
                 with ui.form_field(label="Quand ?"):
                     ui.month_picker(SEED)
-                ui.text("Le panneau est ancre en position fixe, "
-                        "donc il echappe a l'overflow du dialog.",
+                ui.text('The panel is anchored in fixed position, so it escapes '
+                    "the dialog's overflow.",
                         color="muted", size="xs")
-            ui.button("Ouvrir le dialog", on_click=dlg.open())
+            ui.button('Open the dialog', on_click=dlg.open())
 
         with ui.card(), ui.vstack():
             ui.heading("A11y", level=2)
-            ui.text("Le champ reste un vrai input texte : tout se fait au clavier sans ouvrir le panneau. Les 12 cellules sont de vrais boutons, donc atteignables au Tab et reellement disabled hors bornes. Escape et le clic dehors referment.", color="muted", size="sm")
+            ui.text('The field stays a real text input: everything can be done '
+                'from the keyboard without opening the panel. The 12 cells '
+                'are real buttons, hence reachable with Tab and genuinely '
+                'disabled out of bounds. Escape and a click outside close it.', color="muted", size="sm")
             with ui.flex(classes="max-w-xs"):
                 ui.month_picker(SEED, aria_label="Mois de facturation")
 
@@ -379,9 +386,8 @@ def page() -> None:
 
         with ui.card(), ui.vstack():
             ui.heading("Client playground", level=2)
-            ui.text("Mirror de BINDABLE_PROPS = ('value', "
-                    "'disabled'). Tout adresse la meme cellule de "
-                    "store, sans aller-retour.",
+            ui.text("Mirror of BINDABLE_PROPS = ('value', 'disabled'). Everything"
+                ' addresses the same store cell, with no round trip.',
                     color="muted", size="sm")
             client = MonthPickerClient()
             with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
@@ -392,23 +398,23 @@ def page() -> None:
                               label="Verrouiller")
             ui.divider()
             with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
-                with control("le meme, pilote par le switch"):
+                with control('the same one, driven by the switch'):
                     ui.month_picker(value=client.picked,
                                disabled=client.locked)
                 with control("miroir"):
                     ui.text(
                         ClientExpression(
-                            "'valeur : ' + "
+                            "'value: ' + "
                             "($bz.state.MonthPickerClient.default.picked "
-                            "|| '(vide)')"
+                            "|| '(empty)')"
                         ),
                         color="muted", size="sm",
                         classes="font-mono",
                     )
             ui.divider()
             emitted_html_block(
-                "Emitted HTML - la valeur liee est lue par le "
-                "champ, l'input cache et le calendrier interne.",
+                'Emitted HTML - the bound value is read by the field, the'
+                    ' hidden input and the internal calendar.',
                 serialize_html(ui.month_picker(value=client.picked,
                                           disabled=client.locked)),
             )
@@ -419,25 +425,26 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("External controls — the 3 modes", level=2)
                     ui.text(
-                        "Les sept méthodes arrivées le 2026-09-03. Un picker "
-                        "est DEUX natures à la fois : un panneau ancré (comme "
-                        "`dialog`) et un champ qui porte une valeur (comme "
-                        "`input`). Sa surface est donc l'union des deux "
-                        "vocabulaires déjà fixés par ses voisins — rien "
-                        "d'inventé.",
+                        'The seven methods that arrived on 2026-09-03. A '
+                            'picker is TWO natures at once: an anchored panel'
+                            ' (like `dialog`) and a field carrying a value '
+                            '(like `input`). Its surface is therefore the '
+                            'union of the two vocabularies its neighbours '
+                            'already fixed — nothing invented.',
                         color="muted", size="sm",
                     )
 
-                    # ── Mode 1 — Impératif seul ─────────────────────
+                    # ── Mode 1 — Imperative only ────────────────────
                     ui.heading("Mode 1 — Imperative only (default for "
                                "one-off writes)", level=3)
                     ui.text(
-                        "Aucun ClientState. `.open()` / `.close()` / "
-                        "`.toggle()` dispatchent `bz-open` / `bz-close` / "
-                        "`bz-toggle`, que la racine rattrape ; `.set()` "
-                        "dispatche `bz-set`. `.focus()` vise le champ "
-                        "VISIBLE — pas le porteur caché, qui est le premier "
-                        "`<input>` du composant et ne prend pas le focus.",
+                        'No ClientState. `.open()` / `.close()` / '
+                            '`.toggle()` dispatch `bz-open` / `bz-close` / '
+                            '`bz-toggle`, which the root catches; `.set()` '
+                            'dispatches `bz-set`. `.focus()` targets the '
+                            'VISIBLE field — not the hidden carrier, which is'
+                            " the component's first `<input>` and never takes"
+                            ' focus.',
                         color="muted", size="sm",
                     )
                     m1 = ui.month_picker()
@@ -457,12 +464,12 @@ def page() -> None:
 
                     ui.divider()
 
-                    # ── Mode 2 — ClientBinding seule ────────────────
+                    # ── Mode 2 — ClientBinding only ─────────────────
                     ui.heading("Mode 2 — ClientBinding only (when another "
                                "component must read or react)", level=3)
                     ui.text(
-                        "`value=binding` : la valeur vit dans le store, "
-                        "donc un voisin la lit sans aller-retour.",
+                        '`value=binding`: the value lives in the store, '
+                            'so a neighbour reads it with no round trip.',
                         color="muted", size="sm",
                     )
                     lie = MonthPickerClient(key="ext_binding")
@@ -478,14 +485,14 @@ def page() -> None:
 
                     ui.divider()
 
-                    # ── Mode 3 — Les deux ───────────────────────────
+                    # ── Mode 3 — Both ───────────────────────────────
                     ui.heading("Mode 3 — Both (write-through)", level=3)
                     ui.text(
-                        "Binding fournie ET méthodes appelées. `.set()` "
-                        "détecte la binding et écrit DEDANS — le dispatch "
-                        "DOM n'est pas utilisé, la source de vérité reste "
-                        "unique. `.open()` reste un dispatch : le panneau "
-                        "n'est pas une valeur.",
+                        'A binding supplied AND the methods called. '
+                            '`.set()` detects the binding and writes INTO it '
+                            '— the DOM dispatch is not used, the source of '
+                            'truth stays single. `.open()` stays a dispatch: '
+                            'the panel is not a value.',
                         color="muted", size="sm",
                     )
                     deux = MonthPickerClient(key="ext_both")
@@ -499,14 +506,13 @@ def page() -> None:
                         ui.text(
                             ClientExpression(
                                 "'Store : ' + ($bz.state.MonthPickerClient"
-                                ".ext_both.picked || '(vide)')"
+                                ".ext_both.picked || '(empty)')"
                             ),
                             color="muted", size="sm", classes="font-mono",
                         )
 
             ui.heading("Client events", level=2)
-            ui.text("change cable a une expression client. Zero "
-                    "reseau.", color="muted", size="sm")
+            ui.text('change wired to a client expression. Zero network.', color="muted", size="sm")
             cevents = MonthPickerClientEvents()
             _new = ClientExpression("$event.target.value")
             with ui.flex(classes="max-w-xs"):
@@ -528,8 +534,8 @@ def page() -> None:
             )
             ui.divider()
             emitted_html_block(
-                "Emitted HTML - le handler bz-on:change vit sur "
-                "l'input cache, seul porteur avec name et value.",
+                'Emitted HTML - the bz-on:change handler lives on the '
+                    'hidden input, the only carrier with a name and a value.',
                 serialize_html(
                     ui.month_picker(SEED, on_change=cevents.log.push(_new))
                 ),

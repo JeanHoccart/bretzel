@@ -35,12 +35,12 @@
     if (typeof customElements === 'undefined') return;
     if (customElements.get('bz-calendar')) return;
 
-    // Dérivés de ``<html lang>`` par 22_locale.js, pas écrits ici : une
-    // table en dur rendait « August / MON TUE WED » à toute app, quelle
-    // que soit sa langue, et la seule prise était de repasser
-    // ``month_names=`` À CHAQUE MONTAGE (trois fois sur un seul écran du
-    // CRM). Les listes explicites du composant gagnent toujours — elles
-    // arrivent par attribut et ces défauts ne servent qu'à leur absence.
+    // Derived from ``<html lang>`` by 22_locale.js, not written here: a
+    // hard-coded table rendered "August / MON TUE WED" to every app,
+    // whatever its language, and the only handle was to pass
+    // ``month_names=`` AT EVERY MOUNT (three times on a single CRM
+    // screen). The component's explicit lists always win — they arrive
+    // as attributes and these defaults only serve their absence.
     function DEFAULT_WEEKDAYS() { return window.$bz.locale.weekdayNames(); }
     function DEFAULT_WEEKDAYS_LONG() {
         return window.$bz.locale.weekdayLongNames();
@@ -53,22 +53,22 @@
             String(d.getDate()).padStart(2, '0');
     }
 
-    /* Le jour ISO décalé de ``n`` jours. Passe par un ``Date`` plutôt que
-     * par de l'arithmétique sur la chaîne : lui seul connaît les fins de
-     * mois et les années bissextiles. */
+    /* The ISO day shifted by ``n`` days. Goes through a ``Date`` rather
+     * than through string arithmetic: only it knows about month ends and
+     * leap years. */
     function addDays(isoStr, n) {
         var p = isoStr.split('-');
         return iso(new Date(+p[0], +p[1] - 1, +p[2] + n));
     }
 
-    /* Le premier jour de la semaine qui CONTIENT ``isoStr``, selon
-     * ``weekstart`` (0 = dimanche, 1 = lundi…).
+    /* The first day of the week that CONTAINS ``isoStr``, according to
+     * ``weekstart`` (0 = Sunday, 1 = Monday…).
      *
-     * C'est la seule règle du mode ``week`` : cliquer n'importe quel jour
-     * choisit sa semaine, et la valeur rendue est ce premier jour. Le
-     * modulo est doublé (``% 7 + 7) % 7``) parce que JS rend un reste
-     * NÉGATIF pour un dividende négatif — sans lui, toute semaine dont le
-     * jour cliqué tombe avant ``weekstart`` remonterait d'une semaine.
+     * It is the ``week`` mode's only rule: clicking any day picks its
+     * week, and the returned value is that first day. The modulo is
+     * doubled (``% 7 + 7) % 7``) because JS returns a NEGATIVE remainder
+     * for a negative dividend — without it, any week whose clicked day
+     * falls before ``weekstart`` would go back one week.
      */
     function weekStartOf(isoStr, weekstart) {
         var p = isoStr.split('-');
@@ -113,27 +113,29 @@
             this._displayedYear = null;
             this._displayedMonth = null;
             this._hoverDate = null;
-            // Le début d'une plage EN COURS de sélection, mode ``range``
-            // seulement. Il vit ici et PAS dans l'attribut ``value`` —
-            // c'est tout le point.
+            // The start of a range BEING selected, ``range`` mode only.
+            // It lives here and NOT in the ``value`` attribute — that is
+            // the whole point.
             //
-            // Le premier clic d'une plage n'émet aucun ``change`` (il n'y
-            // a pas encore de valeur à annoncer), donc le scope du picker
-            // ne peut pas représenter cet état : il n'a que ``vstart`` /
-            // ``vend``, tous deux vides. Or le ``bz-effect`` miroir du
-            // wrapper traite ce scope comme la source de vérité et pousse
-            // ``''`` dans l'attribut dès qu'il re-tourne — ce qui arrive à
-            // CHAQUE swap HTMX, le bridge rescannant la cible. Tant que le
-            // début en attente vivait dans l'attribut, ce miroir l'effaçait
-            // et le second clic rouvrait une plage au lieu de la fermer :
-            // le champ restait vide et l'utilisateur cliquait sans fin.
+            // A range's first click emits no ``change`` (there is no
+            // value to announce yet), so the picker's scope cannot
+            // represent that state: it has only ``vstart`` / ``vend``,
+            // both empty. Yet the wrapper's mirror ``bz-effect`` treats
+            // that scope as the source of truth and pushes ``''`` into
+            // the attribute as soon as it runs again — which happens at
+            // EVERY HTMX swap, the bridge rescanning the target. As long
+            // as the pending start lived in the attribute, that mirror
+            // erased it and the second click reopened a range instead of
+            // closing it: the field stayed empty and the user clicked
+            // endlessly.
             //
-            // Ici le miroir n'a plus rien à écraser — il réécrit ``''``
-            // par-dessus ``''``, donc aucun ``attributeChangedCallback``,
-            // donc l'attente survit. L'attribut ne porte plus que du
-            // COMMITÉ ; c'est la surface de synchro avec l'extérieur, pas
-            // un tampon d'état transitoire. ``_hoverDate`` avait déjà
-            // exactement ce statut, d'où le voisinage.
+            // Here the mirror has nothing left to overwrite — it
+            // rewrites ``''`` over ``''``, so no
+            // ``attributeChangedCallback``, so the pending state
+            // survives. The attribute now carries only what is
+            // COMMITTED; it is the sync surface with the outside, not a
+            // buffer of transient state. ``_hoverDate`` already had
+            // exactly that status, hence the neighbourhood.
             this._pendingStart = null;
             this._initialized = false;
             this._renderScheduled = false;
@@ -172,13 +174,13 @@
             if (!this._initialized) return;     // initial attr setting
             if (oldVal === newVal) return;
 
-            // Une écriture de ``value`` qui PASSE est autoritaire : elle
-            // vient soit de notre propre commit, soit de l'extérieur (le
-            // miroir du wrapper, un ``.set()``). Dans les deux cas la
-            // sélection en cours est caduque. Le miroir qui repousse la
-            // même valeur ne passe PAS par ici (garde ``oldVal ===
-            // newVal`` ci-dessus), donc une attente ne meurt jamais d'un
-            // simple rescan — c'est exactement l'invariant recherché.
+            // A write of ``value`` that GETS THROUGH is authoritative:
+            // it comes either from our own commit, or from outside (the
+            // wrapper's mirror, a ``.set()``). In both cases the
+            // selection in progress is void. The mirror pushing the same
+            // value back does NOT come through here (the ``oldVal ===
+            // newVal`` guard above), so a pending state never dies of a
+            // mere rescan — which is exactly the invariant sought.
             if (name === 'value') this._pendingStart = null;
 
             // Sync the displayed month if the external observer (e.g.
@@ -221,10 +223,11 @@
             } else {
                 serialized = String(value);
             }
-            // Explicite, et pas seulement via ``attributeChangedCallback``:
-            // un ``.clear()`` sur un calendrier dont l'attribut vaut déjà
-            // ``''`` ne déclenche aucun callback, et laisserait sinon une
-            // sélection en attente survivre à un effacement demandé.
+            // Explicit, and not only through
+            // ``attributeChangedCallback``: a ``.clear()`` on a calendar
+            // whose attribute is already ``''`` triggers no callback, and
+            // would otherwise let a pending selection survive a
+            // requested clear.
             this._pendingStart = null;
             this.setAttribute('value', serialized);
             this._syncHiddenAndFireChange(serialized, value);
@@ -234,43 +237,43 @@
             this.set(null);
         }
 
-        /* Repeindre APRÈS un morph qui a effacé le corps rendu ici.
+        /* Repaint AFTER a morph that erased the body rendered here.
          *
-         * Le trou, mesuré le 2026-08-21 : le SSR émet un conteneur de
-         * grille VIDE que ``connectedCallback`` remplit. Quand idiomorph
-         * morphe le calendrier EN PLACE — le refresh d'une zone
-         * ``@refreshable`` qui le contient — les enfants reviennent à la
-         * version serveur, donc vides. ``connectedCallback`` ne re-tourne
-         * pas (le nœud a SURVÉCU), ``attributeChangedCallback`` non plus
-         * (aucun attribut n'a changé) : personne ne re-remplit, et le
-         * calendrier reste amputé DÉFINITIVEMENT.
+         * The hole, measured on 2026-08-21: the SSR emits an EMPTY grid
+         * container that ``connectedCallback`` fills. When idiomorph
+         * morphs the calendar IN PLACE — the refresh of a
+         * ``@refreshable`` zone containing it — the children go back to
+         * the server version, so empty. ``connectedCallback`` does not
+         * run again (the node SURVIVED), nor does
+         * ``attributeChangedCallback`` (no attribute changed): nobody
+         * refills, and the calendar stays amputated FOR GOOD.
          *
-         * L'en-tête du fichier dit que la configuration vit dans des
-         * attributs « que idiomorph peut morpher librement ». C'est vrai
-         * des ATTRIBUTS ; ça ne l'est pas des ENFANTS, et c'est la
-         * contrepartie que le choix « custom element » n'avait pas tenue.
+         * The file's header says the configuration lives in attributes
+         * "that idiomorph can morph freely". That is true of the
+         * ATTRIBUTES; it is not true of the CHILDREN, and that is the
+         * counterpart the "custom element" choice had not honoured.
          *
-         * Appelé par le ``bz-effect`` que le Python pose sur la racine,
-         * et c'est bien ``bz-effect`` et PAS ``bz-init`` : ce dernier est
-         * one-shot par NŒUD (``el._bzInitDone``, qui survit
-         * explicitement au rebind), or idiomorph morphe EN PLACE — le
-         * nœud survit, donc un ``bz-init`` ne re-tournerait jamais. Un
-         * ``bz-effect`` est disposé puis refait par ``bindEl`` à chaque
-         * rescan, et le bridge rescanne sa cible à chaque swap. Même
-         * choix et même raison que ``_observe()`` du SignaturePad, qui
-         * écrit noir sur blanc « à chaque rescan plutôt qu'au bz-init ».
+         * Called by the ``bz-effect`` the Python sets on the root, and it
+         * is indeed ``bz-effect`` and NOT ``bz-init``: the latter is
+         * one-shot per NODE (``el._bzInitDone``, which explicitly
+         * survives a rebind), yet idiomorph morphs IN PLACE — the node
+         * survives, so a ``bz-init`` would never run again. A
+         * ``bz-effect`` is disposed then redone by ``bindEl`` at every
+         * rescan, and the bridge rescans its target at every swap. Same
+         * choice and same reason as SignaturePad's ``_observe()``, which
+         * writes in black and white "at every rescan rather than at the
+         * bz-init".
          *
-         * Aucun vocabulaire neuf, donc : pas de ``hx-preserve``, pas de
-         * hook de morph maison. Le jour où un DEUXIÈME custom element
-         * existera, ce sera le moment d'en faire une politique du
-         * runtime — pas avant.
+         * No new vocabulary, then: no ``hx-preserve``, no home-made morph
+         * hook. The day a SECOND custom element exists, that will be the
+         * moment to make it a runtime policy — not before.
          *
-         * La garde est une mesure du DOM, et c'est ici légitime : elle ne
-         * DÉRIVE rien (aucun affichage n'en dépend), elle constate un
-         * fait ponctuel — mes enfants ont-ils été effacés — au seul
-         * moment où la question se pose. Sans elle, chaque swap sans
-         * rapport repeindrait la grille et tuerait l'aperçu de plage en
-         * cours de survol.
+         * The guard is a DOM measurement, and it is legitimate here: it
+         * DERIVES nothing (no display depends on it), it observes a
+         * one-off fact — have my children been erased — at the only
+         * moment the question arises. Without it, every unrelated swap
+         * would repaint the grid and kill the range preview being
+         * hovered.
          */
         rehydrate() {
             if (!this._initialized) return;   // connectedCallback rendra
@@ -285,15 +288,15 @@
         // know where to navigate.
         _selectedDate() {
             var mode = this.getAttribute('mode') || 'picker';
-            // ``week`` rend une DATE scalaire comme ``picker`` (le premier
-            // jour de la semaine), pas une paire — donc même lecture.
+            // ``week`` returns a scalar DATE like ``picker`` (the
+            // week's first day), not a pair — so the same reading.
             if (mode === 'picker' || mode === 'week') {
                 var v = this.getAttribute('value');
                 return (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
             }
-            // Une plage en cours de sélection A un début, même s'il n'est
-            // pas encore dans l'attribut : ``.focus()`` doit naviguer vers
-            // LUI, pas vers l'ancienne plage commitée.
+            // A range being selected HAS a start, even if it is not in
+            // the attribute yet: ``.focus()`` must navigate to IT, not to
+            // the old committed range.
             if (this._pendingStart) return this._pendingStart;
             var arr = parseJSON(this.getAttribute('value') || '', []);
             return (Array.isArray(arr) && arr[0]
@@ -452,23 +455,23 @@
                 disabledSet: new Set(
                     parseJSON(this.getAttribute('disabled-dates'), [])
                 ),
-                // ``marks`` : {iso: compte}. Le gabarit du nom
-                // accessible arrive RESOLU du serveur — la table des
-                // mots du framework est en Python, et cette grille est
-                // batie ici.
+                // ``marks``: {iso: count}. The accessible name's
+                // template arrives RESOLVED from the server — the
+                // framework's word table is in Python, and this grid is
+                // built here.
                 marks: parseJSON(this.getAttribute('marks'), {}),
                 markLabel: this.getAttribute('data-bz-mark-label')
                     || '{day}, {n} events',
                 weekdayNames: parseJSON(
                     this.getAttribute('weekday-names'), DEFAULT_WEEKDAYS()
                 ),
-                // Les noms ENTIERS, pour le ``title=`` des en-tetes.
+                // The FULL names, for the headers' ``title=``.
                 //
-                // Vide des que l'app fournit ses propres abreviations :
-                // deviner « mer. » -> « mercredi » marcherait en francais
-                // et nulle part ailleurs, et un title FAUX est pire que
-                // pas de title. Une app qui veut les siens declare sa
-                // langue et laisse la locale faire.
+                // Empty as soon as the app supplies its own
+                // abbreviations: guessing "mer." → "mercredi" would work
+                // in French and nowhere else, and a WRONG title is worse
+                // than no title. An app that wants its own declares its
+                // language and lets the locale do the work.
                 weekdayLongNames: this.getAttribute('weekday-names')
                     ? []
                     : DEFAULT_WEEKDAYS_LONG(),
@@ -489,21 +492,21 @@
             };
         }
 
-        /* La grille d'ANNÉE du mode ``month`` — 12 cellules au lieu du
-         * couple ligne-de-jours + grille-de-jours.
+        /* The YEAR grid of ``month`` mode — 12 cells instead of the
+         * weekday-row + day-grid pair.
          *
-         * C'est le SECOND type de grille du composant, et le seul point
-         * où il ne rend pas des jours. Tout le reste (header Python,
-         * input caché, dispatch du change, listeners impératifs) est
-         * partagé — d'où le retour anticipé dans ``_render`` plutôt
-         * qu'une classe séparée.
+         * It is the component's SECOND kind of grid, and the only place
+         * where it does not render days. Everything else (Python header,
+         * hidden input, change dispatch, imperative listeners) is shared
+         * — hence the early return in ``_render`` rather than a separate
+         * class.
          *
-         * Les bornes se comparent en ``"YYYY-MM"``, jamais en dates :
-         * le format est zéro-paddé, donc il se trie lexicographiquement
-         * comme chronologiquement. ``min`` / ``max`` arrivent en
-         * ``YYYY-MM-DD`` — on les tronque, ce qui rend un mois PARTIEL-
-         * lement autorisé cliquable, et c'est voulu : un ``min`` au
-         * 15 mars n'interdit pas « mars ».
+         * The bounds compare in ``"YYYY-MM"``, never as dates: the format
+         * is zero-padded, so it sorts lexicographically as it sorts
+         * chronologically. ``min`` / ``max`` arrive as ``YYYY-MM-DD`` —
+         * we truncate them, which makes a PARTIALLY allowed month
+         * clickable, and it is intended: a ``min`` on 15 March does not
+         * forbid "March".
          */
         _renderMonthGrid(cfg) {
             var theme = cfg.theme || {};
@@ -546,8 +549,9 @@
             var rotatedWeekdays = cfg.weekdayNames
                 .slice(cfg.weekstart)
                 .concat(cfg.weekdayNames.slice(0, cfg.weekstart));
-            // Tournee du MEME nombre de crans, sinon le title d'une
-            // colonne nommerait le jour d'a cote — pire que rien.
+            // Rotated by the SAME number of steps, otherwise a
+            // column's title would name the day next to it — worse than
+            // nothing.
             var longs = cfg.weekdayLongNames || [];
             var rotatedLong = longs.length === 7
                 ? longs.slice(cfg.weekstart).concat(longs.slice(0, cfg.weekstart))
@@ -556,12 +560,12 @@
             // Range bounds for highlighting
             var rangeStart = '', rangeEnd = '';
             if (cfg.mode === 'range') {
-                // Le garde de mode est load-bearing et reste UNE seule
-                // condition : un attribut ``mode`` qui bascule pendant
-                // qu'une attente est vivante ne la nettoie pas.
+                // The mode guard is load-bearing and stays a SINGLE
+                // condition: a ``mode`` attribute that flips while a
+                // pending state is alive does not clean it.
                 if (this._pendingStart) {
-                    // Sélection en cours : le début en attente prime sur
-                    // la valeur commitée, encore l'ANCIENNE plage.
+                    // A selection in progress: the pending start beats
+                    // the committed value, still the OLD range.
                     rangeStart = this._pendingStart;
                 } else if (cfg.value) {
                     var arr = parseJSON(cfg.value, []);
@@ -571,11 +575,11 @@
                     }
                 }
             } else if (cfg.mode === 'week' && cfg.value) {
-                // Une semaine EST une plage fermée de 7 jours. La rendre
-                // comme telle réutilise TOUT le rendu de bande du mode
-                // range — extrémités plates côté intérieur, milieu
-                // teinté — au lieu d'inventer un second vocabulaire
-                // visuel pour la même idée.
+                // A week IS a closed range of 7 days. Rendering it as
+                // such reuses ALL of the range mode's band rendering —
+                // flat ends on the inner side, tinted middle — instead
+                // of inventing a second visual vocabulary for the same
+                // idea.
                 rangeStart = weekStartOf(cfg.value, cfg.weekstart);
                 rangeEnd = addDays(rangeStart, 6);
             }
@@ -588,9 +592,9 @@
             }
             function rangeBounds() {
                 if (cfg.mode === 'week') {
-                    // Pas de survol progressif ici : une semaine est
-                    // choisie d'un seul clic, donc ses bornes sont
-                    // toujours connues et complètes.
+                    // No progressive hover here: a week is chosen in a
+                    // single click, so its bounds are always known and
+                    // complete.
                     return rangeStart
                         ? { lo: rangeStart, hi: rangeEnd }
                         : { lo: null, hi: null };
@@ -643,11 +647,11 @@
                     var day = d.getDate();
                     var inMonth = d.getMonth() === this._displayedMonth;
                     var isDis = isCellDisabled(s);
-                    // Une marque ne vit QUE dans le mois affiche : la
-                    // grille deborde de six jours de part et d'autre, et
-                    // pastiller un 31 juillet visible depuis aout ferait
-                    // lire une charge qui n'est pas celle du mois qu'on
-                    // regarde.
+                    // A mark only lives in the DISPLAYED month: the
+                    // grid overflows by six days on either side, and
+                    // dotting a 31 July visible from August would make
+                    // one read a load that is not that of the month
+                    // being looked at.
                     var mark = inMonth ? (cfg.marks[s] | 0) : 0;
                     var markHTML = mark > 0
                         ? '<span class="' + escapeAttr(theme.day_mark || '') +
@@ -689,10 +693,10 @@
 
             var weekdaysHTML = '';
             for (var i = 0; i < rotatedWeekdays.length; i++) {
-                // ``title`` seulement s'il APPORTE quelque chose : le
-                // reflux sans Intl rend les memes abreviations des deux
-                // cotes, et un title identique au texte visible est du
-                // bruit pour un lecteur d'ecran.
+                // ``title`` only if it BRINGS something: the fallback
+                // with no Intl renders the same abbreviations on both
+                // sides, and a title identical to the visible text is
+                // noise for a screen reader.
                 var entier = rotatedLong[i];
                 var titre = (entier && entier !== rotatedWeekdays[i])
                     ? ' title="' + escapeAttr(entier) + '"'
@@ -718,15 +722,16 @@
             this._replaceBody(html);
         }
 
-        /* Remplacer le CORPS du calendrier en préservant les deux enfants
-         * qui ne viennent pas d'ici : l'input caché (porteur de form
-         * data) et le header rendu par Python (``data-bz-cal-header``,
-         * qui contient les IconButton et les dropdowns du thème).
+        /* Replace the calendar's BODY while preserving the two children
+         * that do not come from here: the hidden input (the form-data
+         * carrier) and the header rendered by Python
+         * (``data-bz-cal-header``, which contains the theme's IconButton
+         * and dropdowns).
          *
-         * Extrait de ``_render`` quand le mode ``month`` est arrivé : il
-         * rend une grille TOTALEMENT différente mais doit préserver
-         * exactement les mêmes deux enfants. Recopier la boucle aurait
-         * garanti qu'un des deux modes oublie l'un d'eux un jour.
+         * Extracted from ``_render`` when ``month`` mode arrived: it
+         * renders a TOTALLY different grid but must preserve exactly the
+         * same two children. Copying the loop would have guaranteed that
+         * one of the two modes forgets one of them one day.
          */
         _replaceBody(html) {
             var hidden = this.querySelector('input[type="hidden"]');
@@ -748,16 +753,16 @@
             // children removal, no listener re-bind. Used during
             // mouse hover preview to avoid the "cell vanishes under
             // the cursor" bug.
-            // Ce chemin n'existe QUE pendant une sélection en cours : ses
-            // deux appelants sont derrière ``_pendingStart`` (le
-            // ``mouseenter`` directement, le ``mouseleave`` via
-            // ``_hoverDate`` qui n'est posé que là). Il n'a donc jamais à
-            // lire l'attribut — qui, depuis le fix, ne peut de toute façon
-            // plus porter de paire à moitié ouverte. Le tester ici
-            // contredirait le reste du fichier.
+            // This path exists ONLY during a selection in progress: its
+            // two callers are behind ``_pendingStart`` (the
+            // ``mouseenter`` directly, the ``mouseleave`` through
+            // ``_hoverDate`` which is only set there). So it never has
+            // to read the attribute — which, since the fix, cannot carry
+            // a half-open pair anyway. Testing it here would contradict
+            // the rest of the file.
             //
-            // Le garde de mode est implicite : ``_pendingStart`` n'est posé
-            // que dans la branche ``range`` de ``_handleCellClick``.
+            // The mode guard is implicit: ``_pendingStart`` is only set
+            // in ``_handleCellClick``'s ``range`` branch.
             var rangeStart = this._pendingStart;
             if (!rangeStart) return;
             var effEnd = this._hoverDate || '';
@@ -780,10 +785,10 @@
 
         _wireListeners() {
             var self = this;
-            // Mode ``month`` : des cellules d'un autre type, un clic d'une
-            // autre nature. Câblé AVANT la boucle des jours parce qu'en
-            // mode month il n'y a aucune cellule de jour — la boucle
-            // ci-dessous tourne à vide.
+            // ``month`` mode: cells of another kind, a click of
+            // another nature. Wired BEFORE the day loop because in month
+            // mode there is no day cell at all — the loop below runs
+            // empty.
             this.querySelectorAll('[data-month-cell]').forEach(function (c) {
                 c.onclick = function () {
                     if (c.getAttribute('aria-disabled') === 'true') return;
@@ -820,9 +825,9 @@
                     // cursor stays over the SAME node from start to
                     // finish, listeners stay live.
                     cell.onmouseenter = function () {
-                        // « Sommes-nous entre les deux clics ? » se lit
-                        // désormais sur ``_pendingStart`` — l'attribut ne
-                        // porte plus jamais de paire à moitié ouverte.
+                        // "Are we between the two clicks?" now reads on
+                        // ``_pendingStart`` — the attribute never carries
+                        // a half-open pair any more.
                         if (!self._pendingStart) return;
                         self._hoverDate = cell.getAttribute('data-date');
                         self._paintHoverPreview();
@@ -888,11 +893,11 @@
             }
 
             if (mode === 'week') {
-                // Cliquer N'IMPORTE quel jour choisit sa semaine, et ce
-                // qui sort est le PREMIER jour de cette semaine — jamais
-                // le jour cliqué. Sans ce recalage, deux clics dans la
-                // même semaine produiraient deux valeurs différentes
-                // pour la même sélection.
+                // Clicking ANY day picks its week, and what comes out
+                // is that week's FIRST day — never the clicked day.
+                // Without that snapping, two clicks in the same week
+                // would produce two different values for the same
+                // selection.
                 var ws = (parseInt(
                     this.getAttribute('weekstart') || '1', 10
                 ) % 7 + 7) % 7;
@@ -902,19 +907,19 @@
                 return;
             }
 
-            // range mode — deux temps : on ouvre sur un début EN ATTENTE,
-            // on ferme sur le second clic. Seule la fermeture touche
-            // l'attribut ``value`` (cf. ``_pendingStart``).
+            // range mode — two steps: we open on a PENDING start, we
+            // close on the second click. Only the closing touches the
+            // ``value`` attribute (cf. ``_pendingStart``).
             var rangeStart = this._pendingStart;
 
             if (!rangeStart) {
                 this._hoverDate = null;
                 this._pendingStart = s;
-                // Repeindre : sans écriture d'attribut il n'y a plus de
-                // ``attributeChangedCallback`` pour le faire. On passe par
-                // ``_scheduleRender`` et pas ``_render`` pour garder le
-                // rendu ASYNCHRONE comme avant — le chemin par l'attribut
-                // batchait déjà en microtask.
+                // Repaint: with no attribute write there is no
+                // ``attributeChangedCallback`` left to do it. We go
+                // through ``_scheduleRender`` and not ``_render`` to keep
+                // the render ASYNCHRONOUS as before — the attribute path
+                // already batched in a microtask.
                 this._scheduleRender();
                 return;
             }

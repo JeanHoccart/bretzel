@@ -30,16 +30,16 @@ SIZES = ("xs", "sm", "md", "lg", "xl")
 
 WEEKDAYS_FR = ("Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa")
 MONTHS_FR = (
-    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+    "Janvier", 'February', "Mars", "Avril", "Mai", "Juin",
+    "Juillet", 'August', "Septembre", "Octobre", "Novembre", 'December',
 )
 
 TODAY = dt.date.today()
-#: Le 1er du mois courant. Les demos de ``marks=`` s'y ancrent : la
-#: grille n'affiche QUE le mois courant, donc ``TODAY + 11 jours``
-#: un 25 tombe dans le mois suivant et la demo ne montre aucune
-#: pastille. Tout mois a au moins 28 jours, donc ces decalages-la
-#: sont toujours dedans.
+#: The 1st of the current month. The ``marks=`` demos anchor on it:
+#: the grid shows ONLY the current month, so ``TODAY + 11 days`` on a
+#: 25th falls into the next month and the demo shows no dot at all.
+#: Every month has at least 28 days, so those offsets are always
+#: inside.
 MONTH_START = TODAY.replace(day=1)
 
 
@@ -167,13 +167,13 @@ def server_panel() -> None:
             ui.select(value=state.size, options=[(s, s) for s in SIZES],
                       on_change=server_changed)
         with control("weekstart (0=Sun, 1=Mon)"):
-            # ``state.weekstart`` SANS ``str()`` : la valeur porte un tampon
-            # (le nom du champ) et c'est la seule chose qui atteste « le
-            # serveur fait foi ». ``str()`` le déballe → pas de
-            # ``_serverSync`` → le contrôle reste figé sur son ancienne
-            # valeur après un refresh du panneau. Select normalise déjà en
-            # chaîne pour matcher les clés d'options (mesuré : le champ vaut
-            # "1" avec ou sans le ``str()``), donc il ne protégeait de rien.
+            # ``state.weekstart`` WITHOUT ``str()``: the value carries a
+            # stamp (the field's name) and it is the only thing attesting
+            # "the server is authoritative". ``str()`` unwraps it → no
+            # ``_serverSync`` → the control stays frozen on its old value
+            # after a panel refresh. Select already normalises to a string
+            # to match the option keys (measured: the field is "1" with or
+            # without the ``str()``), so it protected nothing.
             ui.select(value=state.weekstart,
                       options=[("0", "0 (Sunday)"), ("1", "1 (Monday)")],
                       on_change=server_changed)
@@ -288,32 +288,30 @@ def page() -> None:
                                         size="sm")
 
                     ui.text(
-                        "En mode ``week``, cliquez N'IMPORTE quel jour : "
-                        "c'est sa semaine entière qui se sélectionne, et "
-                        "la valeur rendue est son PREMIER jour (selon "
-                        "``weekstart``). Deux clics dans la même semaine "
-                        "donnent donc la même valeur. Le surlignage "
-                        "réutilise la bande du mode ``range`` — une "
-                        "semaine EST une plage fermée de sept jours.",
+                        'In ``week`` mode, click ANY day: its whole week '
+                            'gets selected, and the value returned is its '
+                            'FIRST day (according to ``weekstart``). Two '
+                            'clicks in the same week therefore give the same '
+                            "value. The highlight reuses ``range`` mode's "
+                            'band — a week IS a closed range of seven days.',
                         color="muted", size="xs",
                     )
 
                     ui.text(
-                        "Le mode ``month`` est le seul qui ne rend pas "
-                        "des jours : une grille d'ANNÉE de 12 cellules, "
-                        "et une valeur en \"2026-08\". Les flèches y "
-                        "avancent d'un AN, et le sélecteur de mois du "
-                        "header disparaît — la grille EST le sélecteur "
-                        "de mois, le garder ferait deux chemins pour le "
-                        "même geste.",
+                        '``month`` mode is the only one that does not '
+                            'render days: a 12-cell YEAR grid, and a value '
+                            'like "2026-08". The arrows there move by a YEAR,'
+                            " and the header's month selector disappears — "
+                            'the grid IS the month selector, keeping it would'
+                            ' make two routes to the same gesture.',
                         color="muted", size="xs",
                     )
 
                     ui.heading("month × bornes", level=3)
                     ui.text(
-                        "``min`` / ``max`` sont tronqués au mois : un "
-                        "``min`` au 15 mars n'interdit PAS « mars », "
-                        "puisqu'une partie du mois reste permise.",
+                        '``min`` / ``max`` are truncated to the month: a '
+                            '``min`` on 15 March does NOT forbid “March”, '
+                            'since part of the month stays allowed.',
                         color="muted", size="xs",
                     )
                     with ui.flex(wrap=True, gap="md", align="start"):
@@ -324,13 +322,14 @@ def page() -> None:
                                         min=dt.date(2026, 3, 15),
                                         max=dt.date(2026, 9, 30))
                         with ui.vstack(gap="xs", align="center"):
-                            ui.text("sans valeur", color="muted", size="xs")
+                            ui.text('with no value', color="muted", size="xs")
                             ui.calendar(mode="month", size="sm")
 
                     ui.heading("week × weekstart", level=3)
                     ui.text(
-                        "La même date n'appartient pas à la même semaine "
-                        "selon le jour de départ. À comparer côte à côte.",
+                        'The same date does not belong to the same week '
+                            'depending on the starting day. Worth comparing '
+                            'side by side.',
                         color="muted", size="xs",
                     )
                     with ui.flex(wrap=True, gap="md", align="start"):
@@ -777,12 +776,11 @@ def page() -> None:
                         level=3,
                     )
                     ui.text(
-                        "Binding fournie ET on appelle les méthodes "
-                        "impératives sur l'instance. Le framework "
-                        "détecte la binding et délègue à "
-                        "``binding.set(...)`` — **le DOM dispatch "
-                        "n'est pas utilisé**, single source of truth "
-                        "préservée.",
+                        'A binding supplied AND the imperative methods '
+                            'called on the instance. The framework detects '
+                            'the binding and delegates to '
+                            '``binding.set(...)`` — **the DOM dispatch is not'
+                            ' used**, single source of truth preserved.',
                         color="muted", size="sm",
                     )
                     both = CalendarClient(key="both")

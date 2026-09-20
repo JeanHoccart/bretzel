@@ -1,39 +1,40 @@
-"""Règle : une classe Tailwind **assemblée** n'existe qu'en dev.
+"""Rule: an **assembled** Tailwind class only exists in dev.
 
-Le mode d'échec le plus vicieux du dépôt, et le seul qui produise un HTML
-**identique** des deux côtés. Le compilateur Tailwind de prod scanne les
-*sources* : une classe qui n'apparaît nulle part en toutes lettres n'est
-jamais générée. En dev, le compilateur navigateur scanne le *DOM*, où la
-classe est déjà résolue — donc tout marche.
+The repository's most vicious failure mode, and the only one producing
+**identical** HTML on both sides. The production Tailwind compiler scans
+the *sources*: a class that appears nowhere in full is never generated.
+In dev, the browser compiler scans the *DOM*, where the class is already
+resolved — so everything works.
 
-``classes=f"bg-{color}-500"`` produit un ``class="bg-tomato-500"`` correct
-dans les deux cas. En dev il est stylé. En prod la règle CSS n'existe pas,
-et rien — ni le HTML, ni la console, ni un test de rendu — ne le dit.
+``classes=f"bg-{color}-500"`` produces a correct ``class="bg-tomato-500"``
+in both cases. In dev it is styled. In production the CSS rule does not
+exist, and nothing — not the HTML, not the console, not a render test —
+says so.
 
-⚠️ **La règle ne PROUVE pas une rupture, elle signale une dépendance
-invisible.** Ses six occurrences d'``examples/``, mesurées le 2026-08-16,
-produisaient des classes (``bg-primary/15``, ``font-medium``…) qui
-existaient par ailleurs dans les sources — donc bien générées, par
-coïncidence. La coïncidence était la clôture couleur de la safelist ; la
-phase 5 du chantier des jetons l'a déposée, et elles ont cessé d'exister.
-C'est ce que la règle rend visible : le call-site ne suffit plus à savoir
-si le style existera. Les six sont réécrites, ``examples/`` en compte
-**zéro** depuis le 2026-09-05 (gelé par
+⚠️ **The rule does not PROVE a breakage, it reports an invisible
+dependency.** Its six occurrences in ``examples/``, measured on
+2026-08-16, produced classes (``bg-primary/15``, ``font-medium``…) that
+existed elsewhere in the sources — so they were generated, by
+coincidence. The coincidence was the safelist's colour closure; phase 5
+of the token project dropped it, and they stopped existing. That is what
+the rule makes visible: the call site is no longer enough to know whether
+the style will exist. All six are rewritten, ``examples/`` has held
+**zero** since 2026-09-05 (frozen by
 ``test_lint_baseline_on_examples``).
 
-**Le critère est précis, pour ne pas hurler à tort.** On ne signale que
-lorsqu'un morceau littéral **complète** une classe, c'est-à-dire quand il
-précède une interpolation sans espace :
+**The criterion is precise, so as not to shout wrongly.** We only report
+when a literal piece **completes** a class, that is to say when it
+precedes an interpolation with no space:
 
-- ``f"bg-{c}-500"`` → littéral ``"bg-"``, pas d'espace final → **signalé** ;
-- ``f"p-4 {extra}"`` → le littéral finit par un espace, ``extra`` apporte
-  ses propres classes entières → ignoré ;
-- ``f"{base} p-4"`` → rien ne précède l'interpolation → ignoré.
+- ``f"bg-{c}-500"`` → literal ``"bg-"``, no trailing space → **reported**;
+- ``f"p-4 {extra}"`` → the literal ends with a space, ``extra`` brings
+  its own whole classes → ignored;
+- ``f"{base} p-4"`` → nothing precedes the interpolation → ignored.
 
-Le framework, lui, a le droit d'écrire des gabarits (``ring-{c}/40``) :
-ils passent par ``resolve_slot`` et sont récoltés dans la safelist par
-``dynamic_color_shapes``. **Une app n'a pas ce pont** — d'où une règle
-plus stricte ici que la gate ``test_safelist_covers_theme_shapes``.
+The framework itself is allowed to write templates (``ring-{c}/40``):
+they go through ``resolve_slot`` and are harvested into the safelist by
+``dynamic_color_shapes``. **An app does not have that bridge** — hence a
+stricter rule here than the ``test_safelist_covers_theme_shapes`` gate.
 """
 
 from __future__ import annotations
@@ -43,31 +44,30 @@ import ast
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-RULE = "classe-tailwind-assemblee"
+RULE = "assembled-tailwind-class"
 
-#: Les kwargs dont la valeur atterrit dans un attribut ``class``.
+#: The kwargs whose value lands in a ``class`` attribute.
 _CLASS_KWARGS = frozenset({"classes", "class_"})
 
 
-#: Les préfixes de classe que Bretzel GÉNÈRE lui-même, et qu'on a donc le
-#: droit d'assembler.
+#: The class prefixes Bretzel GENERATES itself, and which one is
+#: therefore allowed to assemble.
 #:
-#: ``bz-c-<couleur>`` est une classe-PONT : sa règle est écrite par
-#: ``theme/bridges.py``, pas compilée depuis les sources. Le compilateur
-#: Tailwind n'a rien à en faire, donc l'argument entier de cette règle —
-#: « la classe finale n'apparaît en toutes lettres nulle part » — ne
-#: s'applique pas.
+#: ``bz-c-<colour>`` is a BRIDGE class: its rule is written by
+#: ``theme/bridges.py``, not compiled from the sources. The Tailwind
+#: compiler has nothing to do with it, so this rule's whole argument —
+#: "the final class appears in full nowhere" — does not apply.
 #:
-#: ⚠️ C'est même l'idiome RECOMMANDÉ depuis les paliers : le remède au
-#: ``f"bg-{color}/10"`` que cette règle attrape est précisément
-#: ``bg-(--bz-bg)`` plus ``f"bz-c-{color}"``. Sans cette exemption, la
-#: règle refuserait sa propre solution — mesuré le 2026-08-30 sur la page
-#: ``/theme-studio`` du playground.
+#: ⚠️ It is even the RECOMMENDED idiom since the steps: the remedy for
+#: the ``f"bg-{color}/10"`` this rule catches is precisely
+#: ``bg-(--bz-bg)`` plus ``f"bz-c-{color}"``. Without this exemption, the
+#: rule would refuse its own solution — measured on 2026-08-30 on the
+#: playground's ``/theme-studio`` page.
 _GENERATED_PREFIXES = ("bz-c-",)
 
 
 def _completes_a_class(node: ast.JoinedStr) -> bool:
-    """Un littéral colle-t-il à une interpolation, sans espace ?"""
+    """Does a literal abut an interpolation, with no space?"""
     for literal, following in zip(node.values, node.values[1:], strict=False):
         if not (
             isinstance(literal, ast.Constant)
@@ -102,17 +102,18 @@ def check(module: Module) -> list[Finding]:
                     path=module.path,
                     line=keyword.value.lineno,
                     message=(
-                        f"`{keyword.arg}=` reçoit une f-string qui COMPLÈTE une "
-                        f"classe : la classe finale n'apparaît en toutes lettres "
-                        f"nulle part ici. Elle ne sera stylée en prod que si une "
-                        f"AUTRE source la contient par hasard — et si ce n'est "
-                        f"pas le cas, rien ne le dira : le HTML est identique en "
-                        f"dev, où le compilateur scanne le DOM déjà résolu."
+                        f"`{keyword.arg}=` receives an f-string that "
+                        f"COMPLETES a class: the final class appears in full "
+                        f"nowhere here. It will only be styled in production "
+                        f"if ANOTHER source happens to contain it — and if it "
+                        f"does not, nothing will say so: the HTML is identical "
+                        f"in dev, where the compiler scans the already "
+                        f"resolved DOM."
                     ),
                     hint=(
-                        "Écris les classes entières et choisis-en une "
-                        "(`'bg-red-500' if danger else 'bg-green-500'`), ou "
-                        "mets le scalaire en safelist."
+                        "Write whole classes and pick one "
+                        "(`'bg-red-500' if danger else 'bg-green-500'`), or "
+                        "put the scalar in the safelist."
                     ),
                 )
             )

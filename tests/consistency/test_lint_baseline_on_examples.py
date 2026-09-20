@@ -42,8 +42,8 @@ _EXAMPLES = _ROOT / "examples"
 _BASELINE: dict[tuple[str, str], int] = {
     # Le banc `ui.html` : les six appels non littéraux SONT le sujet de la
     # page (contenu piloté par l'état, pour démontrer la primitive).
-    ("examples/playground/features/html.py", "html-non-litteral"): 6,
-    # ⚠️ **`classe-tailwind-assemblee` n'a plus AUCUNE entrée** — la
+    ("examples/playground/features/html.py", "non-literal-html"): 6,
+    # ⚠️ **`assembled-tailwind-class` n'a plus AUCUNE entrée** — la
     # dernière est sortie le 2026-09-05. Cinq y figuraient : carousel (1)
     # et todo/stats (2), sorties le 2026-08-30, puis resizable (2) et la
     # carte d'app (1). Toutes disaient « la classe produite
@@ -60,14 +60,14 @@ _BASELINE: dict[tuple[str, str], int] = {
     # `hx-include` sur le banc combobox : pilotage direct du swap engine,
     # la famille que `test_raw_htmx_stays_in_the_allowlist` gèle côté
     # framework. Ici c'est un banc qui démontre ce pilotage.
-    ("examples/playground/features/combobox.py", "transport-a-la-main"): 1,
+    ("examples/playground/features/combobox.py", "hand-written-transport"): 1,
     # Deux bancs comparent DÉLIBÉRÉMENT deux tailles côte à côte : la
     # cellule de droite est étiquetée « cellule étroite », et montrer
     # qu'un picker s'y adapte EST le sujet de la démonstration. C'est la
     # seule forme légitime de mélange trouvée sur les 180 groupes de
     # contrôles frères d'`examples/`.
-    ("examples/playground/features/month_picker.py", "tailles-melangees"): 1,
-    ("examples/playground/features/week_picker.py", "tailles-melangees"): 1,
+    ("examples/playground/features/month_picker.py", "mixed-sizes"): 1,
+    ("examples/playground/features/week_picker.py", "mixed-sizes"): 1,
 }
 
 

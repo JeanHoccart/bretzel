@@ -1,39 +1,39 @@
-/* 16_accordion.js — scopes partagés d'Accordion, Tree, Tabs, Stepper
- * et Tooltip. (Le nom du fichier date du premier arrivant.)
+/* 16_accordion.js — the shared scopes of Accordion, Tree, Tabs, Stepper
+ * and Tooltip. (The file's name dates from the first arrival.)
  *
- * Les deux composants sérialisaient tous leurs corps de méthode dans le
- * ``bz-data`` de chaque instance — Accordion 622 octets, Tree 293 — et
- * Accordion cuisait en plus sa configuration DANS le code :
+ * Both components serialised all their method bodies into every
+ * instance's ``bz-data`` — Accordion 622 bytes, Tree 293 — and Accordion
+ * additionally baked its configuration INTO the code:
  *
  *     toggle(v) { … if (cur === target) { if (true) { … } } … }
  *                                            ^^^^ collapsible
  *     expandAll() { const ids = ["a","b","c"]; … }
  *
- * Deux accordéons de configurations différentes produisaient donc deux
- * CODES différents, pas deux états différents — c'est ce qui rendait la
- * factorisation impossible. La bascule est « config en données », le même
- * prérequis que NumberInput (11) et Pagination (15).
+ * Two accordions with different configurations therefore produced two
+ * different CODES, not two different states — that is what made
+ * factoring impossible. The switch is "config as data", the same
+ * prerequisite as NumberInput (11) and Pagination (15).
  *
  *   bz-data="{...$bz.accordion.single, value: "a", _read(){…}, _write(v){…},
  *             _collapsible: true, _allIds: ["a","b"]}"
  *   bz-data="{...$bz.accordion.multi,  value: ["a"],
  *             _allIds: ["a","b"]}"
  *
- * Deux variantes plutôt qu'une seule paramétrée : le mode single porte une
- * CHAÎNE, le mode multi un TABLEAU. Fusionner obligerait chaque méthode à
- * re-tester le type à l'exécution — la même raison qui a donné
- * ``$bz.select.single`` et ``$bz.select.multi``.
+ * Two variants rather than a single parameterised one: single mode
+ * carries a STRING, multi mode an ARRAY. Merging them would force every
+ * method to re-test the type at runtime — the same reason that gave
+ * ``$bz.select.single`` and ``$bz.select.multi``.
  *
- * ⚠️ Des MÉTHODES, jamais des getters : ``scope.absorb`` invoque chaque
- * clé à l'enregistrement et figerait un getter sur sa première valeur
- * (cf. traps.md).
+ * ⚠️ METHODS, never getters: ``scope.absorb`` invokes each key at
+ * registration and would freeze a getter on its first value (cf.
+ * traps.md).
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
   $bz.accordion = {
-    // ── Un seul panneau ouvert à la fois ────────────────────────────
+    // ── One panel open at a time ────────────────────────────────────
     single: {
       isOpen(v) {
         return String(this._read() || "") === String(v);
@@ -42,7 +42,7 @@
         const cur = String(this._read() || "");
         const target = String(v);
         if (cur === target) {
-          // ``_collapsible`` : refermer le panneau courant est-il permis ?
+          // ``_collapsible``: is closing the current panel allowed?
           if (this._collapsible) this._write("");
         } else {
           this._write(target);
@@ -58,7 +58,7 @@
           this._write("");
         }
       },
-      // En mode single, « tout ouvrir » ne peut ouvrir que le premier.
+      // In single mode, "open everything" can only open the first.
       expandAll() {
         const ids = this._allIds || [];
         if (ids.length) this._write(String(ids[0]));
@@ -97,10 +97,10 @@
   };
 
   // ── Tree ──────────────────────────────────────────────────────────
-  // Même famille : ouverture multiple (les nœuds dépliés) + une sélection
-  // unique optionnelle. ``sel`` / ``isSel`` / ``select`` ne servent que
-  // lorsque ``selectable=True`` ; les laisser dans le scope partagé ne
-  // coûte rien (le HTML ne les appelle pas) et évite une seconde variante.
+  // The same family: multiple opening (the expanded nodes) + an optional
+  // single selection. ``sel`` / ``isSel`` / ``select`` only serve when
+  // ``selectable=True``; leaving them in the shared scope costs nothing
+  // (the HTML does not call them) and avoids a second variant.
   $bz.tree = {
     scope: {
       isOpen(id) {
@@ -117,9 +117,9 @@
       select(id) {
         this._writeSel(String(id));
       },
-      // Défauts pour le cas NON sélectionnable : le composant ne les
-      // remplace que quand ``selectable=True``. Sans eux, ``isSel``
-      // lèverait si un thème appelait la méthode.
+      // Defaults for the NON-selectable case: the component only
+      // replaces them when ``selectable=True``. Without them, ``isSel``
+      // would raise if a theme called the method.
       _readSel() {
         return "";
       },
@@ -128,19 +128,19 @@
   };
 
   // ── Tabs ──────────────────────────────────────────────────────────
-  // Un setter avec garde de changement — même forme que
-  // ``$bz.pagination.setActive``. Sérialisé par instance jusqu'au
+  // A setter with a change guard — the same shape as
+  // ``$bz.pagination.setActive``. Serialised per instance until
   // 2026-07-29.
   //
-  // ``_url`` — le nom du paramètre d'URL, quand l'appelant a écrit
-  // ``ui.tabs(url="onglet")``. Absent par défaut, donc tout ce qui suit
-  // est inerte : un onglet n'a d'adresse que si on la demande.
+  // ``_url`` — the URL parameter's name, when the caller wrote
+  // ``ui.tabs(url="tab")``. Absent by default, so everything that
+  // follows is inert: a tab only has an address if you ask for one.
   //
-  // C'est le pendant CLIENT de ``URL = {…}`` sur un état serveur. Les
-  // deux existent parce que les deux chemins existent : un tri passe par
-  // le serveur, qui peut poser un en-tête ; un onglet bascule dans le
-  // scope, sans requête — personne côté serveur n'apprend rien, donc
-  // c'est au runtime de faire suivre la barre d'adresse.
+  // It is the CLIENT counterpart of ``URL = {…}`` on a server state.
+  // Both exist because both paths exist: a sort goes through the server,
+  // which can set a header; a tab flips in the scope, with no request —
+  // nobody on the server side learns anything, so it is up to the
+  // runtime to keep the address bar in step.
   $bz.tabs = {
     scope: {
       setTab(v) {
@@ -150,41 +150,40 @@
         if (this._url) $bz.helpers.pushUrl(this._url, s);
       },
 
-      // Le RETOUR. Sans lui, la flèche du navigateur changerait l'adresse
-      // et laisserait l'onglet où il est — pire que pas d'adresse du
-      // tout, parce que l'URL affichée mentirait alors sur ce qui est à
-      // l'écran.
+      // The BACK button. Without it, the browser's arrow would change
+      // the address and leave the tab where it is — worse than no
+      // address at all, because the displayed URL would then lie about
+      // what is on screen.
       //
-      // On ne peut pas laisser htmx s'en charger : il ne restaure que
-      // les entrées qu'il a lui-même créées (il teste sa propre marque
-      // dans ``history.state``), et celle-ci vient d'ici. Et le faire
-      // nous-même est de toute façon meilleur — c'est un basculement de
-      // signal, instantané, là où htmx referait la page entière pour
-      // changer d'onglet.
+      // We cannot leave it to htmx: it only restores the entries it
+      // created itself (it tests its own mark in ``history.state``), and
+      // this one comes from here. And doing it ourselves is better
+      // anyway — it is a signal toggle, instant, where htmx would redo
+      // the whole page to change tab.
       //
-      // Posé par ``bz-init``, la voie que ``06_helpers.js`` documente
-      // pour un événement qui n'existe que sur ``window``.
+      // Set by ``bz-init``, the route ``06_helpers.js`` documents for an
+      // event that only exists on ``window``.
       _urlInit() {
         if (!this._url) return;
         const param = this._url;
         const self = this;
-        // Ce que le SERVEUR a rendu — l'onglet quand l'adresse ne dit
-        // rien. Capturé ici, au montage, parce que le signal aura bougé
-        // quand le premier ``popstate`` arrivera.
+        // What the SERVER rendered — the tab when the address says
+        // nothing. Captured here, at mount, because the signal will have
+        // moved by the time the first ``popstate`` arrives.
         const initial = String(self._read());
         $bz.helpers.onWindow("popstate", function () {
           const raw = $bz.helpers.urlParam(param);
-          // **Absent = le défaut.** Pas « ne rien faire » : revenir sur
-          // ``/contacts/5`` après ``?onglet=activites`` doit ROUVRIR
-          // l'onglet initial. La première écriture gardait sur
-          // ``if (next)`` et laissait donc l'onglet précédent affiché
-          // sous une adresse qui disait autre chose — attrapé par
-          // ``probe_tabs_url``, invisible à tout test SSR.
+          // **Absent = the default.** Not "do nothing": coming back to
+          // ``/contacts/5`` after ``?tab=activity`` must REOPEN the
+          // initial tab. The first writing gated on ``if (next)`` and
+          // therefore left the previous tab displayed under an address
+          // that said something else — caught by ``probe_tabs_url``,
+          // invisible to every SSR test.
           //
-          // C'est aussi la règle que le serveur applique déjà des deux
-          // côtés (``state/url.py`` : absent → on garde le défaut, à son
-          // défaut → n'apparaît pas). Les trois s'accordent, donc un
-          // aller-retour est fidèle.
+          // It is also the rule the server already applies on both sides
+          // (``state/url.py``: absent → we keep the default, at its
+          // default → does not appear). All three agree, so a round trip
+          // is faithful.
           const next = raw == null || raw === "" ? initial : String(raw);
           if (String(self._read()) !== next) self._write(next);
         });
@@ -193,23 +192,23 @@
   };
 
   // ── Stepper ───────────────────────────────────────────────────────
-  // L'index courant est un ENTIER, et c'est ce qui rend le scope aussi
-  // petit : « cette étape est-elle faite ? » se répond par une
-  // comparaison, là où un id demanderait un indexOf dans une liste bakée.
+  // The current index is an INTEGER, and that is what makes the scope so
+  // small: "is this step done?" is answered by a comparison, where an id
+  // would require an indexOf in a baked list.
   //
   //   bz-data="{...$bz.stepper.scope, current: 1, _read(){…}, _write(v){…},
   //             _max: 3}"
   //
-  // ``_max`` = le plus grand index atteignable — le nombre d'ÉTAPES, ou de
-  // PANNEAUX s'il y en a un de plus (l'écran « terminé »). Sans lui,
-  // ``next()`` ne saurait pas où s'arrêter, et cuire la borne dans le
-  // corps de la méthode ferait deux CODES différents pour deux steppers
-  // de longueurs différentes — la dérive que ce fichier existe pour tuer.
+  // ``_max`` = the greatest reachable index — the number of STEPS, or of
+  // PANELS if there is one more (the "done" screen). Without it,
+  // ``next()`` would not know where to stop, and baking the bound into
+  // the method's body would make two different CODES for two steppers of
+  // different lengths — the drift this file exists to kill.
   $bz.stepper = {
     scope: {
-      // Le seul état que le thème lit (``data-[status=done]/step:``).
-      // Une étape en ERREUR ne passe pas par ici : son attribut est
-      // statique côté serveur, donc jamais recalculé.
+      // The only state the theme reads (``data-[status=done]/step:``).
+      // A step in ERROR does not come through here: its attribute is
+      // static on the server side, so never recomputed.
       _status(i) {
         const cur = Number(this._read()) || 0;
         return i < cur ? "done" : i === cur ? "current" : "upcoming";
@@ -231,19 +230,20 @@
   };
 
   // ── Tooltip ───────────────────────────────────────────────────────
-  // Le cas le plus net de « config cuite dans le code » après Pagination :
-  // le corps sérialisé contenait ``if (!(true)) return;`` — le drapeau
-  // d'activation en dur — et le délai d'ouverture en littéral. Deux
-  // tooltips de délais différents produisaient deux CODES différents.
+  // The clearest case of "config baked into the code" after Pagination:
+  // the serialised body contained ``if (!(true)) return;`` — the
+  // activation flag hard-coded — and the opening delay as a literal. Two
+  // tooltips with different delays produced two different CODES.
   //
-  // ``_delay`` passe en données — c'est un littéral server-side, donc une
-  // VRAIE donnée. ``_enabled`` non : il accepte un ClientBinding ou une
-  // expression JS vive, et un champ de bz-data n'est évalué qu'une fois,
-  // hors effet (``absorb`` en découple le snapshot du store). La bascule
-  // en champ l'avait donc figé au montage alors que la docstring du
-  // builder promettait l'inverse — « la condition est évaluée au moment
-  // du survol ». Il redevient une MÉTHODE : constante par défaut ici,
-  // surchargée par le builder quand la condition est réelle.
+  // ``_delay`` becomes data — it is a server-side literal, so REAL data.
+  // ``_enabled`` does not: it accepts a ClientBinding or a live JS
+  // expression, and a bz-data field is evaluated only once, outside any
+  // effect (``absorb`` decouples its snapshot from the store). Switching
+  // it to a field had therefore frozen it at mount although the
+  // builder's docstring promised the opposite — "the condition is
+  // evaluated at hover time". It becomes a METHOD again: a constant by
+  // default here, overridden by the builder when the condition is
+  // real.
   $bz.tooltip = {
     scope: {
       _enabled() {

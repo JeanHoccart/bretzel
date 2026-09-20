@@ -66,25 +66,25 @@ class EmptyState(Component):
         color: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             size=size, color=color, icon=icon,
             **kwargs,
         )
-        # ``adopt_slot`` laisse passer string / ClientBinding intacts (donc
-        # ``emit_text_slot`` voit toujours le binding) et détache un
-        # Component, qui sinon rend deux fois. Cf. traps.md § « Slot
-        # Component stocké sans adopt_slot ».
+        # ``adopt_slot`` lets string / ClientBinding through intact (so
+        # ``emit_text_slot`` always sees the binding) and detaches a
+        # Component, which would otherwise render twice. Cf. traps.md
+        # § "A Component slot stored without adopt_slot".
         self._title = Component.adopt_slot(title)
         self._description = Component.adopt_slot(description)
 
-        # ``size=`` doit atteindre le GLYPHE, pas seulement sa boîte. La
-        # table portait déjà un token ``icon_size`` par palier, jamais
-        # branché : la boîte passait de ``h-8`` à ``h-20`` (2,5 fois) pendant
-        # que le glyphe restait figé au défaut d'``Icon``. Même remède que
-        # Badge (``_adopt_icon``) — on ne re-taille QUE le raccourci
-        # string ; un ``ui.icon(size=…)`` construit par l'appelant porte
-        # une intention explicite qu'on n'écrase pas.
+        # ``size=`` must reach the GLYPH, not only its box. The table
+        # already carried an ``icon_size`` token per step, never wired
+        # up: the box went from ``h-8`` to ``h-20`` (2.5 times) while the
+        # glyph stayed frozen at ``Icon``'s default. Same remedy as
+        # Badge's (``_adopt_icon``) — we only re-size the STRING
+        # shortcut; a ``ui.icon(size=…)`` built by the caller carries an
+        # explicit intent we do not overwrite.
         if isinstance(icon, str):
             from bretzel.components.primitives.icon.icon import Icon
 
@@ -113,10 +113,10 @@ class EmptyState(Component):
             # Icon tint follows ``color=`` (icon inherits the box's
             # currentColor) ; ``muted`` keeps the original soft look.
             color_key = self._reactive_values.get("color") or "muted"
-            # Les PALIERS : la boîte d'icône descend de la racine, donc
-            # elle hérite du pont que le socle y a posé — rien à redire.
-            # ``muted`` garde sa teinte douce écrite en dur, qui n'est pas
-            # une couleur de composant mais un gris de repos.
+            # The STEPS: the icon's box descends from the root, so it
+            # inherits the bridge the base layer set there — nothing to
+            # say. ``muted`` keeps its soft tint written out, which is
+            # not a component colour but a resting grey.
             icon_tint = (
                 "bg-text/5 text-muted/70" if color_key == "muted"
                 else "bg-(--bz-bg) text-(--bz-text)"

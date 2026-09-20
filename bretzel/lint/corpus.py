@@ -1,15 +1,14 @@
-"""La découverte des fichiers d'une app, et leur AST — **sans plancher**.
+"""Discovering an app's files, and their AST — **with no floor**.
 
-C'est le point qui rend l'outil portable, et il mérite d'être écrit :
-les 124 gates de ``tests/consistency/`` fondent *la règle* avec *le corpus
-de CE dépôt et son plancher de non-vacuité* (``EXAMPLES_FLOOR`` et
-consorts). Une gate a raison de le faire — elle protège un corpus connu.
-Un outil qui vise **une app quelconque** ne le peut pas : il ne sait rien
-de la taille attendue.
+That is what makes the tool portable, and it deserves writing down: the
+124 gates in ``tests/consistency/`` fuse *the rule* with *THIS
+repository's corpus and its non-vacuity floor* (``EXAMPLES_FLOOR`` and
+friends). A gate is right to do so — it protects a known corpus. A tool
+aimed at **any app** cannot: it knows nothing of the expected size.
 
-D'où la découpe : ici on découvre et on parse, sans jamais juger de la
-population. Les planchers restent du côté des gates, qui deviennent des
-**consommateurs** de ce module sur leur propre corpus.
+Hence the split: here we discover and parse, never judging the
+population. The floors stay on the gates' side, which become
+**consumers** of this module on their own corpus.
 """
 
 from __future__ import annotations
@@ -22,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
-#: Dossiers qu'on ne descend jamais — ni du code de l'app, ni lisible.
+#: Folders we never descend into — neither app code, nor readable.
 _SKIP_DIRS = frozenset(
     {
         "__pycache__",
@@ -41,7 +40,7 @@ _SKIP_DIRS = frozenset(
 
 @dataclass(frozen=True)
 class Module:
-    """Un fichier source et son arbre, parsés une fois."""
+    """A source file and its tree, parsed once."""
 
     path: Path
     tree: ast.Module
@@ -49,7 +48,7 @@ class Module:
 
 
 def discover(paths: list[Path] | tuple[Path, ...]) -> list[Path]:
-    """Les fichiers ``.py`` sous ``paths`` (fichiers ou dossiers)."""
+    """The ``.py`` files under ``paths`` (files or folders)."""
     found: list[Path] = []
     for entry in paths:
         if entry.is_file():
@@ -63,12 +62,12 @@ def discover(paths: list[Path] | tuple[Path, ...]) -> list[Path]:
 
 
 def parse(path: Path) -> Module | None:
-    """Parse un fichier, ou rend ``None`` s'il est illisible.
+    """Parse a file, or return ``None`` when it is unreadable.
 
-    Lu en ``utf-8-sig`` : un BOM avait sorti un fichier de sept gates de ce
-    dépôt pendant des mois, et l'échec était silencieux. Un fichier qui ne
-    parse pas n'est pas un constat de lint — c'est une erreur de syntaxe
-    que l'interpréteur signalera bien mieux que nous.
+    Read as ``utf-8-sig``: a BOM had taken a file out of seven of this
+    repository's gates for months, and the failure was silent. A file that
+    does not parse is not a lint finding — it is a syntax error the
+    interpreter will report far better than we can.
     """
     try:
         source = path.read_text(encoding="utf-8-sig")
@@ -78,47 +77,46 @@ def parse(path: Path) -> Module | None:
 
 
 def modules(paths: list[Path] | tuple[Path, ...]) -> list[Module]:
-    """Tout ce qui est lisible sous ``paths``, parsé."""
+    """Everything readable under ``paths``, parsed."""
     return [m for m in (parse(p) for p in discover(paths)) if m is not None]
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# Le corpus du passage — pour les rares règles qui ne peuvent pas juger seules
+# The pass's corpus — for the rare rules that cannot judge on their own
 # ───────────────────────────────────────────────────────────────────────────
 #
-# Une règle constate sur UN module, et c'est ce qui la garde pure et
-# testable. Une seule question échappe à ce cadre :
-# ``ui.button(variant="brand")`` est correct **si** un
-# ``Theme(components={"button": {"variants": {"brand": …}}})` existe — et
-# ce thème vit presque toujours dans un AUTRE fichier. Sans le corpus, la
-# règle condamnerait l'échappatoire documentée pour dévier du thème livré,
-# c'est-à-dire précisément la forme qu'on recommande.
+# A rule reports on ONE module, and that is what keeps it pure and
+# testable. One single question escapes that frame:
+# ``ui.button(variant="brand")`` is correct **if** a
+# ``Theme(components={"button": {"variants": {"brand": …}}})`` exists —
+# and that theme nearly always lives in ANOTHER file. Without the corpus,
+# the rule would condemn the documented escape hatch for deviating from
+# the shipped theme, that is to say precisely the form we recommend.
 #
-# ``contextvars`` et non une variable de module : l'anti-règle 2 du charter
-# interdit l'état global mutable et autorise nommément les registres scopés
-# à un appel. Non lié = tuple vide, donc une règle appelée hors ``run`` (un
-# test unitaire) dégrade proprement au lieu de casser.
+# ``contextvars`` and not a module variable: the charter's anti-rule 2
+# forbids mutable global state and explicitly allows registries scoped to
+# a call. Unbound = an empty tuple, so a rule called outside ``run`` (a
+# unit test) degrades cleanly instead of breaking.
 
 _CORPUS: ContextVar[tuple[Module, ...]] = ContextVar("bretzel_lint_corpus", default=())
 
 
-# Les dérivations qui coûtent O(corpus) — calculées UNE fois par passage
+# The derivations that cost O(corpus) — computed ONCE per pass
 # ───────────────────────────────────────────────────────────────────────────
 #
-# Une règle constate sur un module, mais celles qui lisent ``current()``
-# calculent la même chose pour chacun. Sans mémoire, ``run`` devient
-# quadratique : mesuré le 2026-08-27, ``valeur-hors-table`` reparcourait
-# l'AST des 322 fichiers d'``examples/`` pour chacun de ces 322 fichiers,
-# soit **56 s** — à lui seul les deux tiers de la baseline de lint, et
-# ~110 s des 230 s d'un ``pytest`` nu (il est payé deux fois : la règle
-# seule, puis la baseline).
+# A rule reports on one module, but those reading ``current()`` compute
+# the same thing for each of them. Without memoisation, ``run`` becomes
+# quadratic: measured on 2026-08-27, ``value-outside-table`` re-walked the
+# AST of ``examples/``'s 322 files for each of those 322 files, so
+# **56 s** — on its own two thirds of the lint baseline, and ~110 s of a
+# bare ``pytest``'s 230 s (it is paid twice: the rule alone, then the
+# baseline).
 #
-# La mémoire vit dans la LIAISON, pas dans un cache global : sa durée de
-# vie est exactement celle du passage, donc deux ``run`` sur deux corpus
-# ne peuvent pas se contaminer, et l'anti-règle 2 du charter est tenue.
-# Hors ``run`` (une règle appelée seule dans un test unitaire), il n'y a
-# pas de liaison : on construit sans mémoriser plutôt que d'écrire dans
-# un défaut partagé par tous les appelants.
+# The memo lives in the BINDING, not in a global cache: its lifetime is
+# exactly the pass's, so two ``run`` over two corpora cannot contaminate
+# each other, and the charter's anti-rule 2 holds. Outside ``run`` (a rule
+# called on its own in a unit test), there is no binding: we build without
+# memoising rather than write into a default shared by every caller.
 _DERIVED: ContextVar[dict[str, Any] | None] = ContextVar(
     "bretzel_lint_corpus_derived", default=None
 )
@@ -128,7 +126,7 @@ _T = TypeVar("_T")
 
 @contextmanager
 def bound(found: Sequence[Module]) -> Iterator[None]:
-    """Expose ``found`` comme corpus du passage courant."""
+    """Expose ``found`` as the current pass's corpus."""
     token = _CORPUS.set(tuple(found))
     memo_token = _DERIVED.set({})
     try:
@@ -139,18 +137,18 @@ def bound(found: Sequence[Module]) -> Iterator[None]:
 
 
 def current() -> tuple[Module, ...]:
-    """Le corpus du passage, ou un tuple vide hors ``run``."""
+    """The pass's corpus, or an empty tuple outside ``run``."""
     return _CORPUS.get()
 
 
 def derived(key: str, build: Callable[[], _T]) -> _T:
-    """La dérivation ``key`` du corpus du passage, construite une fois.
+    """The corpus's ``key`` derivation, built once.
 
-    ``build`` ne prend aucun argument : il doit se dériver du corpus
-    exposé par :func:`current`, sinon deux appelants sous la même clé
-    liraient le résultat de l'autre. Hors ``run``, rien n'est mémorisé —
-    ``build`` est appelé à chaque fois, ce qui garde une règle juste
-    quand elle est exercée seule.
+    ``build`` takes no argument: it must derive from the corpus exposed
+    by :func:`current`, otherwise two callers under the same key would
+    read each other's result. Outside ``run``, nothing is memoised —
+    ``build`` is called every time, which keeps a rule correct when it is
+    exercised on its own.
     """
     memo = _DERIVED.get()
     if memo is None:

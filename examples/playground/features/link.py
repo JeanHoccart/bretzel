@@ -312,7 +312,7 @@ def page() -> None:
                                 ui.link("• Input reference",
                                         href="/input")
                                 ui.link("• Theme cookbook",
-                                        href="https://bretzel.dev",
+                                        href="https://bretzel-py.dev",
                                         external=True)
 
                     ui.heading("Inside ui.tooltip", level=3)

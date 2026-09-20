@@ -1,8 +1,8 @@
-"""features/errors — error : les deux pages d'erreur, dans la coque.
+"""features/errors — error: the two error pages, inside the shell.
 
-Dans la COQUE et pas nues : une 404 qui perd la barre latérale enferme —
-on se retrouve devant un message sans aucun moyen de repartir autrement
-qu'avec la flèche du navigateur.
+INSIDE the shell and not bare: a 404 that loses the sidebar traps — one
+ends up in front of a message with no way out other than the browser's
+back arrow.
 """
 
 from __future__ import annotations

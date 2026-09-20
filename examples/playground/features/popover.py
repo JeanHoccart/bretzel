@@ -686,13 +686,12 @@ def page() -> None:
                         level=3,
                     )
                     ui.text(
-                        "Binding fournie ET on appelle ``.open()`` "
-                        "sur l'instance. Le framework détecte la "
-                        "binding et délègue à ``binding.set(True)`` "
-                        "— **le DOM dispatch n'est pas utilisé**, "
-                        "single source of truth préservée. La switch "
-                        "et les boutons imperatifs convergent sur "
-                        "le même flag.",
+                        'A binding supplied AND ``.open()`` called on the'
+                            ' instance. The framework detects the binding and'
+                            ' delegates to ``binding.set(True)`` — **the DOM '
+                            'dispatch is not used**, the single source of '
+                            'truth is preserved. The switch and the '
+                            'imperative buttons converge on the same flag.',
                         color="muted", size="sm",
                     )
                     both = PopoverClient(key="both")

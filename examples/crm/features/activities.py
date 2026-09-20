@@ -1,19 +1,18 @@
-"""features/activities — écran 6 : le journal, et les pickers EN FILTRE.
+"""features/activities — screen 6: the log, and the pickers AS FILTERS.
 
-Ce que cet écran met sous contrainte : ``ui.date_range_picker``,
-``ui.calendar`` et ``ui.date_picker`` **dans une vraie barre de filtres et
-dans un vrai formulaire**, pas montés seuls sur un banc. Le playground les
-rend tous les trois — mais aucun n'y est lié à un état serveur, donc le
-chemin « je choisis une période, le serveur relit la base » n'avait jamais
-été parcouru.
+What this screen puts under constraint: ``ui.date_range_picker``,
+``ui.calendar`` and ``ui.date_picker`` **in a real filter bar and in a
+real form**, not mounted alone on a bench. The playground renders all
+three — but none is bound there to a server state, so the path "I choose
+a period, the server re-reads the database" had never been walked.
 
-Trois usages distincts, pris au mot :
+Three distinct uses, taken at their word:
 
-- la **période** est un ``date_range_picker`` : deux bornes, un seul geste ;
-- le **jour** est un ``ui.calendar`` : on le survole du regard avant de
-  cliquer, ce qu'un champ ne permet pas ;
-- la **date d'une activité qu'on journalise** est un ``date_picker`` : un
-  champ dans un formulaire, entre deux autres champs.
+- the **period** is a ``date_range_picker``: two bounds, one gesture;
+- the **day** is a ``ui.calendar``: you scan it with your eyes before
+  clicking, which a field does not allow;
+- the **date of an activity being logged** is a ``date_picker``: a field
+  in a form, between two other fields.
 """
 
 from __future__ import annotations
@@ -25,10 +24,8 @@ from bretzel.state import PageState, field, validator
 from examples.crm.core.domain import (
     ACTIVITY_KEYS,
     ACTIVITY_KINDS,
-    MONTHS_FR,
     OWNERS,
     TODAY,
-    WEEKDAYS_FR,
     activity_badge,
 )
 from examples.crm.core.ui import kpi
@@ -42,20 +39,20 @@ from examples.crm.features.activities_data import (
 )
 from examples.crm.features.shell import shell
 
-#: La fenêtre par défaut : le mois écoulé. Calculée depuis ``TODAY``, la date
-#: figée du jeu de données — pas depuis l'horloge, sinon la page serait vide
-#: le jour où on relit ce dépôt.
+#: The default window: the past month. Computed from ``TODAY``, the data
+#: set's frozen date — not from the clock, otherwise the page would be
+#: empty the day this repository is re-read.
 DEFAULT_END = TODAY
 DEFAULT_START = TODAY - timedelta(days=30)
 
 
 def parse_range(raw) -> tuple[str, str]:
-    """Les deux bornes de la période, remises dans l'ordre.
+    """The period's two bounds, put back in order.
 
-    Le décodage JSON n'est plus ici : le socle le fait au bord du champ.
-    Ce qui reste est du métier — une période dont la fin précède le début
-    est une saisie, pas une erreur, et on la retourne plutôt que de la
-    refuser.
+    The JSON decoding is no longer here: the base layer does it at the
+    field's edge. What is left is domain — a period whose end precedes
+    its start is an entry, not an error, and we swap it rather than
+    refuse it.
     """
     if not isinstance(raw, (list, tuple)) or len(raw) != 2:
         return DEFAULT_START.isoformat(), DEFAULT_END.isoformat()
@@ -66,36 +63,36 @@ def parse_range(raw) -> tuple[str, str]:
 
 
 class ActivitiesUI(PageState):
-    """La fenêtre regardée : période, jour choisi, type.
+    """The window being looked at: period, chosen day, type.
 
-    **Plus de propriétaire** : le portefeuille est un cadrage, pas un
-    filtre d'écran — cf. ``access.visible_owner``.
+    **No more owner**: the portfolio is a scoping, not a screen filter —
+    cf. ``access.visible_owner``.
     """
 
-    #: Une LISTE, et son défaut s'écrit en clair. Le composant sérialise
-    #: ses deux bornes en JSON dans un champ caché, et le socle le décode
-    #: à l'arrivée (``_coerce_composite``) — c'était le finding 10 du
-    #: chantier, levé par la réparation du 19 : les deux étaient le même
-    #: trou, vu depuis deux composants.
-    periode: list = field(
+    #: A LIST, and its default is written out in the open. The component
+    #: serialises its two bounds as JSON in a hidden field, and the base
+    #: layer decodes it on arrival (``_coerce_composite``) — it was the
+    #: work's finding 10, lifted by the fix of the 19th: both were the
+    #: same hole, seen from two components.
+    period: list = field(
         default_factory=lambda: [DEFAULT_START.isoformat(),
                                  DEFAULT_END.isoformat()]
     )
-    jour: str = field(default='')
+    day: str = field(default='')
     kind: str = field(default='all')
-    #: Le mois AFFICHÉ par l'agenda.
+    #: The month the calendar SHOWS.
     #:
-    #: Un vrai champ, et **pas** `jour or fin_de_periode` au point d'appel.
-    #: `a or b` rend l'opérande TELLE QUELLE : l'estampille de provenance
-    #: survivait donc quand `jour` était rempli et disparaissait quand il
-    #: était vide, et le calendrier se resynchronisait une fois sur deux
-    #: selon la donnée. Conséquence visible : sans jour choisi, changer la
-    #: période ne déplaçait pas le calendrier.
+    #: A real field, and **not** `day or period_end` at the call
+    #: site. `a or b` returns the operand AS IT IS: the provenance stamp
+    #: therefore survived when `day` was filled and disappeared when it
+    #: was empty, and the calendar resynchronised one time in two
+    #: depending on the data. Visible consequence: with no day chosen,
+    #: changing the period did not move the calendar.
     #:
-    #: C'est le même piège que celui déjà écrit dans `save_activity`, où
-    #: un `or` défaisait le verrou de portefeuille. Gardé par la règle
-    #: `etat-perdu-par-un-cast`, élargie aux `BoolOp` le 2026-08-30.
-    mois: str = field(default=DEFAULT_END.isoformat())
+    #: It is the same trap as the one already written in `save_activity`,
+    #: where an `or` undid the portfolio lock. Guarded by the
+    #: `state-lost-by-a-cast` rule, widened to `BoolOp` on 2026-08-30.
+    month: str = field(default=DEFAULT_END.isoformat())
 
     @validator("kind")
     def _kind(cls, value: str) -> str:
@@ -117,45 +114,45 @@ class ActivityDraft(PageState):
 
 
 def filter_changed(state: ActivitiesUI) -> None:
-    """La période ou le type a bougé ; ``deps=`` re-render la zone.
+    """The period or the type has moved; ``deps=`` re-renders the zone.
 
-    Le mois affiché SUIT la période : sans ça, on déplace la fenêtre et
-    l'agenda reste sur l'ancien mois.
+    The month shown FOLLOWS the period: without that, you move the window
+    and the calendar stays on the old month.
     """
-    state.mois = parse_range(list(state.periode))[1]
+    state.month = parse_range(list(state.period))[1]
 
 
 def pick_day(state: ActivitiesUI) -> None:
-    """Un clic dans l'agenda : le jour choisi devient la fenêtre."""
-    if state.jour:
-        state.mois = str(state.jour)
+    """A click in the calendar: the chosen day becomes the window."""
+    if state.day:
+        state.month = str(state.day)
 
 
 def clear_day() -> None:
-    """Retour à la période entière — le mois repart de sa fin."""
+    """Back to the whole period — the month starts from its end again."""
     state = ActivitiesUI()
-    state.jour = ""
-    state.mois = parse_range(list(state.periode))[1]
+    state.day = ""
+    state.month = parse_range(list(state.period))[1]
 
 
 def save_activity(form: ActivityDraft) -> None:
     subject = str(form.subject).strip()[:120]
     if not subject or not form.contact_id:
-        ui.notification("Un sujet et un identifiant de contact sont requis.",
+        ui.notification("A subject and a contact identifier are required.",
                         variant="warning", duration_ms=2500)
         return
-    # Le cadrage ÉCRASE le champ : il arrive du navigateur, donc un
-    # commercial pourrait le forger pour journaliser au nom d'un collègue.
-    # Le champ n'est lu que là où il n'y a pas de cadrage — la direction.
+    # The scoping OVERWRITES the field: it arrives from the browser, so
+    # a salesperson could forge it to log in a colleague's name. The
+    # field is only read where there is no scoping — the directorate.
     #
-    # ⚠️ Le test est `is None`, pas un `or`. Une première écriture disait
-    # `effective_owner(...) or str(form.owner)` : pour un anonyme le
-    # cadrage vaut `NOBODY` (`""`), qui est FAUX, donc le `or` rendait la
-    # valeur du navigateur — le verrou défait par sa propre écriture.
+    # ⚠️ The test is `is None`, not an `or`. A first writing said
+    # `effective_owner(...) or str(form.owner)`: for an anonymous visitor
+    # the scoping is `NOBODY` (`""`), which is FALSE, so the `or`
+    # returned the browser's value — the lock undone by its own writing.
     scope = visible_owner()
     stamped = str(form.owner) if scope is None else scope
     if stamped not in OWNERS:
-        ui.notification("Propriétaire inconnu.", variant="error",
+        ui.notification("Unknown owner.", variant="error",
                         duration_ms=3000)
         return
     created = add_activity(int(form.contact_id), str(form.kind), subject,
@@ -165,19 +162,19 @@ def save_activity(form: ActivityDraft) -> None:
                         variant="error", duration_ms=3000)
         return
     form.subject = ""
-    ui.notification("Activité journalisée", variant="success",
+    ui.notification("Activity logged", variant="success",
                     duration_ms=2000)
 
 
 def window_of(state: ActivitiesUI) -> tuple[str, str]:
-    """La fenêtre effective : le jour choisi l'emporte sur la période."""
-    if state.jour:
-        return str(state.jour), str(state.jour)
-    return parse_range(list(state.periode))
+    """The effective window: the chosen day wins over the period."""
+    if state.day:
+        return str(state.day), str(state.day)
+    return parse_range(list(state.period))
 
 
-# ``ViewerPrefs`` dans les ``deps`` : sans lui, changer de portefeuille
-# dans la barre latérale laisserait la zone sur la donnée de l'ancien.
+# ``ViewerPrefs`` in the ``deps``: without it, changing portfolio in the
+# sidebar would leave the zone on the previous one's data.
 @refreshable(deps=[ActivitiesUI, ActivitiesRev, ViewerPrefs])
 def counters() -> None:
     state = ActivitiesUI()
@@ -190,31 +187,30 @@ def counters() -> None:
 
 @refreshable(deps=[ActivitiesUI, ActivitiesRev, ViewerPrefs])
 def agenda() -> None:
-    """L'agenda + le palmarès des journées chargées.
+    """The calendar + the ranking of busy days.
 
-    ⚠️ Les deux vont ensemble par défaut du composant : ``ui.calendar`` ne
-    sait pas MARQUER un jour (ni prop d'événements, ni slot de cellule), donc
-    il ne peut pas montrer où il se passe quelque chose. Le tableau à côté
-    dit ce que l'agenda devrait porter.
+    ⚠️ The two go together by default of the component: ``ui.calendar``
+    cannot MARK a day (no events prop, no cell slot), so it cannot show
+    where something is happening. The table beside it says what the
+    calendar should carry.
     """
     state = ActivitiesUI()
     start, end = window_of(state)
     with ui.vstack(gap="md"):
         with ui.hstack(justify="between", align="center"):
-            ui.heading("Agenda", level=2, size="md")
-            if state.jour:
-                ui.button("Toute la période", size="xs", variant="ghost",
+            ui.heading("Calendar", level=2, size="md")
+            if state.day:
+                ui.button("The whole range", size="xs", variant="ghost",
                           icon_left="x", on_click=clear_day)
-        ui.calendar(value=state.jour, month=state.mois,
-                    weekstart=1, size="sm", month_names=MONTHS_FR,
-                    weekday_names=WEEKDAYS_FR, on_change=pick_day)
-        ui.divider(label="Journées chargées")
+        ui.calendar(value=state.day, month=state.month,
+                    weekstart=1, size="sm", on_change=pick_day)
+        ui.divider(label="Busiest days")
         days = busiest_days(start, end, str(state.kind), visible_owner())
         if not days:
-            ui.text("Rien sur cette fenêtre.", color="muted", size="sm")
-        for day in ui.each(days, key="jour"):
+            ui.text("Nothing in this window.", color="muted", size="sm")
+        for day in ui.each(days, key="day"):
             with ui.hstack(justify="between", align="center"):
-                ui.text(day["jour"], size="sm")
+                ui.text(day["day"], size="sm")
                 ui.badge(str(day["n"]), variant="soft", color="muted",
                          size="xs")
 
@@ -227,11 +223,11 @@ def journal() -> None:
                               visible_owner())
     with ui.vstack(gap="sm"):
         with ui.hstack(justify="between", align="center"):
-            ui.heading("Journal", level=2, size="md")
+            ui.heading("Log", level=2, size="md")
             ui.text(f"{start} → {end}", color="muted", size="xs")
         if not rows:
-            ui.empty_state("Aucune activité", icon="calendar-x",
-                           description="Élargis la période ou change de type.")
+            ui.empty_state("No activity", icon="calendar-x",
+                           description="Widen the range or change the type.")
         for row in ui.each(rows, key="id"):
             _label, icon, color = activity_badge(row["kind"])
             with ui.card(padding="sm"):
@@ -253,20 +249,18 @@ def journal() -> None:
 
 def filter_bar() -> None:
     state = ActivitiesUI()
-    start, end = parse_range(list(state.periode))
+    start, end = parse_range(list(state.period))
     with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
-        with ui.form_field(label="Période",
-                           hint="La borne du jour choisi dans l'agenda "
-                                "l'emporte sur celle-ci."):
-            ui.date_range_picker(value=state.periode,
-                                 month_names=MONTHS_FR,
-                                 weekday_names=WEEKDAYS_FR,
+        with ui.form_field(label="Range",
+                           hint="The day picked in the calendar wins "
+                                "over this bound."):
+            ui.date_range_picker(value=state.period,
                                  placeholder_start=start, placeholder_end=end,
                                  on_change=filter_changed)
         with ui.form_field(label="Type"):
             ui.select(
                 value=state.kind,
-                options=[("all", "Tous les types"),
+                options=[("all", "Every type"),
                          *[(k, lbl) for k, (lbl, _i, _c)
                            in ACTIVITY_KINDS.items()]],
                 on_change=filter_changed,
@@ -279,7 +273,7 @@ def log_form() -> None:
     draft = ActivityDraft()
     with ui.form(on_submit=save_activity):
         with ui.vstack(gap="md"):
-            ui.heading("Journaliser une activité", level=2, size="md")
+            ui.heading("Log an activity", level=2, size="md")
             with ui.grid(cols={"base": 1, "md": 5}, gap="md"):
                 with ui.form_field(label="Contact (id)", required=True):
                     ui.number_input(value=draft.contact_id, min=1,
@@ -288,36 +282,35 @@ def log_form() -> None:
                     ui.select(value=draft.kind,
                               options=[(k, lbl) for k, (lbl, _i, _c)
                                        in ACTIVITY_KINDS.items()])
-                with ui.form_field(label="Sujet", required=True):
+                with ui.form_field(label="Subject", required=True):
                     ui.input(value=draft.subject, maxlength=120,
-                             placeholder="Point d'avancement")
+                             placeholder="Progress check")
                 with ui.form_field(label="Date"):
-                    ui.date_picker(value=draft.at, clearable=False,
-                                   month_names=MONTHS_FR,
-                                   weekday_names=WEEKDAYS_FR)
+                    ui.date_picker(value=draft.at, clearable=False)
                 if visible_owner() is None:
-                    # La direction DOIT dire pour qui elle journalise ;
-                    # un commercial n'a pas ce choix à faire.
-                    with ui.form_field(label="Propriétaire"):
+                    # The directorate MUST say who it is logging for; a
+                    # salesperson has no such choice to make.
+                    with ui.form_field(label="Owner"):
                         ui.select(value=draft.owner,
                                   options=[(o, o) for o in OWNERS])
             with ui.hstack(justify="end"):
-                ui.button("Journaliser", type="submit", color="primary",
+                ui.button("Log it", type="submit", color="primary",
                           icon_left="plus")
 
 
-@page("/activites", layout=shell, title="Activités")
+@page("/activities", layout=shell, title="Activities")
 def activities_page() -> None:
     with ui.vstack(gap="lg"):
-        ui.heading("Activités", level=1, size="2xl")
+        ui.heading("Activities", level=1, size="2xl")
         filter_bar()
         counters()
         with ui.card(padding="md"):
             log_form()
-        # Deux colonnes ÉGALES, pas un tiers / deux tiers : ``ui.grid``
-        # n'expose que ``cols`` et ``gap``, donc aucun de ses enfants ne peut
-        # occuper deux colonnes. La seule façon d'obtenir « un tiers / deux tiers » serait un
-        # ``classes="lg:col-span-2"``, que ce chantier interdit de poser.
+        # Two EQUAL columns, not a third / two thirds: ``ui.grid``
+        # exposes only ``cols`` and ``gap``, so none of its children can
+        # take two columns. The only way to get "a third / two thirds"
+        # would be a ``classes="lg:col-span-2"``, which this work forbids
+        # placing.
         with ui.grid(cols={"base": 1, "lg": 2}, gap="lg"):
             with ui.card(padding="md"):
                 agenda()

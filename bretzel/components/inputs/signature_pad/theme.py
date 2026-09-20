@@ -1,36 +1,35 @@
 """Default :class:`SignaturePad` theme.
 
-Un cadre pointillé, une ligne de base, et un canvas qui remplit tout.
-Trois détails ne sont pas cosmétiques :
+A dashed frame, a baseline, and a canvas that fills everything. Three
+details are not cosmetic:
 
-- ``touch-none`` (``touch-action: none``) sur le canvas est
-  **obligatoire**. Sans lui le navigateur prend le glissement d'un doigt
-  pour un défilement de page et n'envoie jamais les ``pointermove`` : le
-  pad est inutilisable au tactile, en silence, alors qu'il marche à la
-  souris. Même piège que la poignée du Resizable, payé une fois pour
-  toutes.
-- ``text-text`` sur le canvas n'est pas décoratif : c'est la couleur que
-  le runtime LIT (``getComputedStyle(...).color``) pour encrer le trait.
-  Elle suit donc le mode sombre sans qu'aucun prop ne l'énonce — un
-  ``pen_color`` aurait figé une encre qui devient invisible sur l'autre
-  fond.
-- La hauteur vient du slot ``pad`` via la table ``sizes``, et de nulle
-  part ailleurs : un ``<canvas>`` n'a **aucune taille intrinsèque**, donc
-  un pad sans hauteur déclarée est un pad de zéro pixel.
+- ``touch-none`` (``touch-action: none``) on the canvas is
+  **mandatory**. Without it the browser takes a finger drag for a page
+  scroll and never sends the ``pointermove``: the pad is unusable on
+  touch, in silence, while it works with a mouse. Same trap as the
+  Resizable's handle, paid once and for all.
+- ``text-text`` on the canvas is not decorative: it is the colour the
+  runtime READS (``getComputedStyle(...).color``) to ink the stroke. It
+  therefore follows dark mode without any prop stating it — a
+  ``pen_color`` would have frozen an ink that becomes invisible on the
+  other background.
+- The height comes from the ``pad`` slot through the ``sizes`` table,
+  and from nowhere else: a ``<canvas>`` has **no intrinsic size**, so a
+  pad with no declared height is a pad of zero pixels.
 
-L'invite (``hint``) est masquée dès qu'un trait existe, via
-``data-empty`` que le runtime pose sur le cadre. Un attribut plutôt
-qu'une classe : ``data-[empty=…]:`` est le variant que le reste du dépôt
-utilise pour les états pilotés par le JS (cf. ``data-selected`` des
-clusters sélecteurs).
+The prompt (``hint``) is hidden as soon as a stroke exists, through
+``data-empty`` that the runtime sets on the frame. An attribute rather
+than a class: ``data-[empty=…]:`` is the variant the rest of the
+repository uses for JS-driven states (cf. the selector clusters'
+``data-selected``).
 
 Slots :
-- ``root``    : la colonne — cadre puis barre d'actions
-- ``pad``     : le cadre pointillé qui porte la hauteur et ``data-empty``
-- ``canvas``  : la surface de tracé
-- ``hint``    : l'invite centrée, effacée au premier trait
-- ``baseline``: la ligne au-dessus de laquelle on signe
-- ``actions`` : la rangée sous le cadre (le bouton Effacer)
+- ``root``    : the column — frame then action bar
+- ``pad``     : the dashed frame carrying the height and ``data-empty``
+- ``canvas``  : the drawing surface
+- ``hint``    : the centred prompt, erased at the first stroke
+- ``baseline``: the line you sign above
+- ``actions`` : the row under the frame (the Clear button)
 """
 
 from __future__ import annotations
@@ -45,26 +44,26 @@ SIGNATURE_PAD_THEME: dict[str, Any] = {
             "border-(length:--bz-stroke-strong) border-dashed border-text/15 bg-surface "
             "transition-colors duration-150 ease-out "
             "focus-within:border-(--bz-border-hover) "
-            # Le cadre grise ET perd son pointillé quand il est verrouillé
-            # : un pad signé ne doit plus INVITER à signer.
+            # The frame greys out AND loses its dashes when it is
+            # locked: a signed pad must no longer INVITE a signature.
             "data-[locked=true]:border-solid "
             "data-[locked=true]:bg-text/5 "
             "data-[locked=true]:cursor-not-allowed"
         ),
-        # ``block`` : un canvas est ``inline`` par défaut, donc il traîne
-        # la ligne de base de son parent et laisse quelques pixels sous
-        # lui — une bande claire au bas du cadre, que personne ne relie
-        # jamais à ça.
+        # ``block``: a canvas is ``inline`` by default, so it drags its
+        # parent's baseline around and leaves a few pixels under it — a
+        # light band at the bottom of the frame, which nobody ever links
+        # back to that.
         "canvas": "block w-full h-full touch-none select-none text-text",
-        # Pas de ``text-<taille>`` ici : la table ``sizes`` en pose une,
-        # et les deux coexisteraient dans le HTML — c'est Tailwind qui
-        # trancherait par l'ordre de SA feuille, pas la string. Le slot
-        # ne garde que ce qui ne dépend pas du palier.
+        # No ``text-<size>`` here: the ``sizes`` table sets one, and
+        # both would coexist in the HTML — Tailwind would decide by ITS
+        # sheet's order, not the string. The slot keeps only what does
+        # not depend on the step.
         "hint": (
             "pointer-events-none absolute inset-x-0 bottom-3 "
             "text-center text-text/40 "
-            # Effacée dès le premier trait — l'invite a dit ce qu'elle
-            # avait à dire.
+            # Erased at the first stroke — the prompt has said what it
+            # had to say.
             "transition-opacity duration-150 ease-out "
             "data-[empty=false]:opacity-0"
         ),
@@ -74,10 +73,10 @@ SIGNATURE_PAD_THEME: dict[str, Any] = {
         ),
         "actions": "flex items-center justify-end",
     },
-    # La hauteur du cadre, et rien d'autre : c'est le seul axe de taille
-    # qu'un pad ait. Pas de prop ``height=`` en plus — deux façons de
-    # dire la même chose (principe 4) ; qui veut une hauteur exacte passe
-    # par ``classes="!h-64"``.
+    # The frame's height, and nothing else: it is the only size axis a
+    # pad has. No extra ``height=`` prop — two ways of saying the same
+    # thing (principle 4); whoever wants an exact height goes through
+    # ``classes="!h-64"``.
     "sizes": {
         "xs": {"pad": "h-24", "hint": "text-xs", "button": "xs"},
         "sm": {"pad": "h-32", "hint": "text-xs", "button": "xs"},

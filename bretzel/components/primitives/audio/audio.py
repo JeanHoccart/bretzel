@@ -1,46 +1,44 @@
-"""``Audio`` — le plus mince de la famille média, et il l'assume.
+"""``Audio`` — the thinnest of the media family, and it owns it.
 
-Contrairement à ses frères, ce composant n'apporte presque rien qu'une
-balise ``<audio controls>`` ne fasse déjà :
+Unlike its siblings, this component brings almost nothing an
+``<audio controls>`` tag does not already do:
 
-- pas de ``ratio`` — un lecteur audio a une hauteur FIXE, connue avant le
-  chargement, donc il ne provoque aucun saut de page ;
-- pas de ``poster``, pas de ``fit`` — il n'y a pas d'image ;
-- pas de thème digne de ce nom — la barre est dessinée par le navigateur.
+- no ``ratio`` — an audio player has a FIXED height, known before
+  loading, so it causes no page jump;
+- no ``poster``, no ``fit`` — there is no image;
+- no theme worth the name — the bar is drawn by the browser.
 
-Il existe pour deux raisons, toutes deux honnêtes :
+It exists for two reasons, both honest:
 
-1. **la symétrie de la famille** — quelqu'un qui a trouvé ``ui.video``
-   cherchera ``ui.audio``, et l'absence lui coûterait un détour par
-   ``ui.html`` pour une balise triviale ;
-2. **``controls=True`` par défaut** — un ``<audio>`` sans contrôles est
-   invisible ET inaudible. Le défaut de la plateforme (pas de contrôles)
-   est un piège pour tout le monde sauf celui qui pilote la lecture en JS.
+1. **the family's symmetry** — somebody who found ``ui.video`` will look
+   for ``ui.audio``, and its absence would cost them a detour through
+   ``ui.html`` for a trivial tag;
+2. **``controls=True`` by default** — an ``<audio>`` with no controls is
+   invisible AND inaudible. The platform's default (no controls) is a
+   trap for everybody except whoever drives the playback in JS.
 
-⚠️ **Pas de ``tracks=``, contrairement à ``ui.video`` — mesuré, pas
-supposé.** ``ui.video`` a reçu les sous-titres le 2026-08-31 et la
-symétrie de la famille voudrait qu'``ui.audio`` suive. Il ne suit pas,
-parce que la piste serait INERTE ici : les contrôles natifs d'un
-``<audio>`` n'ont pas de bouton CC. Vérifié dans Chromium le 2026-08-31
-en photographiant deux lecteurs côte à côte, l'un avec une piste de
-sous-titres et l'autre sans — **les deux captures sont octet pour octet
-identiques** (2 637 octets, même empreinte). L'élément charge bien la
-piste (``textTracks.length === 1``, mode ``showing``, une cue lue), donc
-un lecteur maison en JS pourrait s'en servir ; mais ce composant a
-tranché au cadrage qu'il n'en est pas un. Une prop qui n'affiche rien et
-qui s'appelle ``tracks=`` promettrait des sous-titres et livrerait un
-attribut — exactement la demi-livraison que ce dépôt traque. La sortie
-accessible d'un fichier audio reste donc la **transcription posée à
-côté, en texte réel**, ce que montre la carte *A11y* de son banc.
+⚠️ **No ``tracks=``, unlike ``ui.video`` — measured, not assumed.**
+``ui.video`` got subtitles on 2026-08-31 and the family's symmetry would
+want ``ui.audio`` to follow. It does not follow, because the track would
+be INERT here: an ``<audio>``'s native controls have no CC button.
+Checked in Chromium on 2026-08-31 by photographing two players side by
+side, one with a subtitle track and the other without — **both captures
+are byte for byte identical** (2,637 bytes, same digest). The element
+does load the track (``textTracks.length === 1``, mode ``showing``, one
+cue read), so a home-made JS player could use it; but this component
+decided at framing time that it is not one. A prop that displays nothing
+and is called ``tracks=`` would promise subtitles and deliver an
+attribute — exactly the half-delivery this repository hunts. An audio
+file's accessible output therefore remains the **transcript placed
+beside it, as real text**, which its bench's *A11y* card shows.
 
-⚠️ **Pas de garde ``autoplay`` → ``muted``, contrairement à ``ui.video``,
-et ce n'est pas un oubli.** Sur une vidéo, forcer le silence sauve la
-lecture automatique : l'image reste, et c'était l'essentiel. Sur du son,
-le silence supprime *tout* ce que la lecture apportait — on livrerait un
-lecteur qui tourne pour rien. Une lecture audio automatique est de toute
-façon bloquée tant que l'utilisateur n'a pas interagi avec la page ;
-c'est une politique navigateur qu'aucun attribut ne contourne. On émet
-donc ``autoplay`` tel que demandé, et on le dit.
+⚠️ **No ``autoplay`` → ``muted`` guard, unlike ``ui.video``, and it is
+not an oversight.** On a video, forcing silence saves the automatic
+playback: the picture stays, and that was the point. On sound, silence
+removes *everything* the playback brought — we would ship a player
+running for nothing. An automatic audio playback is blocked anyway until
+the user has interacted with the page; it is a browser policy no
+attribute gets around. So we emit ``autoplay`` as asked, and we say so.
 """
 
 from __future__ import annotations
@@ -76,7 +74,7 @@ class Audio(Component):
         muted: bool | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             src=src, controls=controls, autoplay=autoplay,
             loop=loop, muted=muted, **kwargs,
@@ -85,20 +83,21 @@ class Audio(Component):
     def render(self) -> Element:
         values = self._reactive_values
 
-        # ``classes=`` est posé par le wrap métaclasse — pas ici (doublon).
+        # ``classes=`` is set by the metaclass wrap — not here (duplicate).
         root_class = self.slot_class("root")
 
         attrs = self.emit_attrs()
         attrs["class"] = root_class
-        # ``src`` omis plutôt que vide — un ``src=""`` est résolu contre
-        # l'URL du document, donc le navigateur retélécharge la page en
-        # croyant charger le son. Cf. le fix du 2026-08-14 sur image/video.
+        # ``src`` omitted rather than empty — a ``src=""`` is resolved
+        # against the document's URL, so the browser re-downloads the
+        # page believing it is loading the sound. Cf. the 2026-08-14 fix
+        # on image/video.
         if values.get("src"):
             attrs["src"] = values["src"]
         if values.get("controls"):
             attrs["controls"] = True
-        # Pas de garde muted ici : cf. le docstring du module. Forcer le
-        # silence sur du son supprimerait tout ce que la lecture apporte.
+        # No muted guard here: cf. the module's docstring. Forcing
+        # silence on sound would remove everything the playback brings.
         if values.get("autoplay"):
             attrs["autoplay"] = True
         if values.get("muted"):

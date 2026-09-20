@@ -1,74 +1,72 @@
-"""core/theme — le seul vrai global de l'app.
+"""core/theme — the app's only real global.
 
-**La densité vient du framework**, et l'app n'a rien à demander : c'est
-le DÉFAUT livré depuis le 2026-09-13. Ce fichier ne décide que des
-COULEURS.
+**The density comes from the framework**, and the app has nothing to ask
+for: it is the DEFAULT shipped since 2026-09-13. This file only decides
+the COLOURS.
 
-L'échelle a été écrite à la main dans un ``core/preset.py`` le
-2026-09-12, sur jugement de l'utilisateur devant l'écran (*« regarde,
-kanban est plus compact par défaut »*) — d'abord en recopiant les 300
-lignes du kanban, puis en déplaçant deux jetons de Tailwind. Le second
-essai était le bon, et il est devenu l'échelle livrée : deux apps qui
-écrivent la même correction, c'est un manque du framework, pas une
-préférence d'app.
+The scale was written by hand in a ``core/preset.py`` on 2026-09-12, on
+the user's judgement in front of the screen (*"look, kanban is more
+compact by default"*) — first by copying the kanban's 300 lines, then by
+moving two Tailwind tokens. The second attempt was the right one, and it
+became the shipped scale: two apps writing the same correction is a gap
+in the framework, not an app preference.
 
-**Les couleurs : calmes, et pas de noir pur.** Une grille d'emploi du
-temps est un MUR de cartes colorées, et à cette densité un fond très
-sombre sous une teinte saturée fatigue en dix secondes. Le fond sombre
-est donc un gris légèrement chaud, le texte descend du blanc pur, et
-l'accent est un vert-bleu sourd qui laisse le rouge et l'ambre dire ce
-qu'ils ont à dire — ce sont eux qui portent l'information (une heure à
-nature, un jour sans classe, une note refusée).
+**The colours: calm, and no pure black.** A timetable grid is a WALL of
+coloured cards, and at that density a very dark background under a
+saturated hue tires in ten seconds. So the dark background is a slightly
+warm grey, the text comes down from pure white, and the accent is a muted
+blue-green that lets red and amber say what they have to say — they are
+what carries the information (an hour with a nature, a day without class,
+a refused mark).
 
-**Le clair est un papier, pas un écran** : ``#f6f5f2``, parce que l'app
-se regarde à côté de copies.
+**Light is paper, not a screen**: ``#f6f5f2``, because the app is looked
+at next to exercise books.
 
-⚠️ **La taille de base à 19 px a été RETIRÉE le 2026-09-12**, sur
-jugement de l'utilisateur devant l'écran : *« c'est trop gros »*. EF-U3
-demandait *« rien ne s'affiche sous 19 px — la tablette est un poste de
-travail, pas une consultation »*, et c'était appliqué en déplaçant la
-racine typographique. Le résultat tenait l'exigence à la lettre et
-ratait son intention : sur un écran de bureau, une app 19 % plus grande
-ne se lit pas mieux, elle montre moins — la semaine sortait de l'écran.
+⚠️ **The 19 px base size was REMOVED on 2026-09-12**, on the user's
+judgement in front of the screen: *"it is too big"*. EF-U3 asked for
+*"nothing shows below 19 px — the tablet is a workstation, not a
+consultation"*, and that was applied by moving the typographic root. The
+result held the requirement to the letter and missed its intent: on a
+desktop screen, an app 19 % larger does not read better, it shows less —
+the week went off the screen.
 
-Le besoin derrière EF-U3 reste vrai et reste à traiter là où il se pose :
-sur la tablette, où le navigateur a son propre réglage de taille. Ce qui
-a changé, c'est qu'il est maintenant EXPRIMABLE — ``Theme(text={…})``
-prend l'échelle entière, sans recopier un slot de composant.
+The need behind EF-U3 stays true and stays to be handled where it arises:
+on the tablet, where the browser has its own size setting. What has
+changed is that it is now EXPRESSIBLE — ``Theme(text={…})`` takes the
+whole scale, without copying a component slot.
 
-Ce qui reste vrai est gaté :
-``tests/consistency/test_ecole_never_sets_a_text_size.py`` tient que
-l'app ne décide aucune taille de texte — c'est ce qui laisse au thème la
-seule autorité sur la densité.
+What stays true is gated:
+``tests/consistency/test_ecole_never_sets_a_text_size.py`` holds that the
+app decides no text size — it is what leaves the theme sole authority
+over density.
 """
 
 from bretzel.theme import Theme
 
-#: Ce qui VOLE pendant un glisser, et ce que la chaise d'origine devient.
+#: What FLIES during a drag, and what the original seat becomes.
 #:
-#: Le runtime fait déjà ce que font Sortable.js et le ``DragOverlay`` de
-#: dnd-kit : le vrai nœud reste dans le flux, marqué
-#: ``data-bz-dragging``, et un clone anonyme classé ``.bz-drag-preview``
-#: suit le pointeur. Le défaut est un clone **au 1 pour 1** — donc, sur
-#: un plan de classe, la même grande carte deux fois, superposées. Vu à
-#: l'écran : *« c'est assez déroutant de voir toute la carte prendre la
-#: place. »*
+#: The runtime already does what Sortable.js and dnd-kit's
+#: ``DragOverlay`` do: the real node stays in the flow, marked
+#: ``data-bz-dragging``, and an anonymous clone classed
+#: ``.bz-drag-preview`` follows the pointer. The default is a **1:1**
+#: clone — so, on a seating plan, the same large card twice, on top of
+#: each other. Seen on screen: *"it is quite disconcerting to see the
+#: whole card take the place."*
 #:
-#: Ce que font les autres, et ce qu'on copie ici : **ce qui vole est plus
-#: petit que l'original**. Trello, Linear et Notion font voler une carte
-#: compacte et laissent un emplacement vide derrière ; les agendas
-#: laissent la CIBLE porter l'information. Sur une grille de créneaux
-#: fixes, c'est la seconde qui compte — d'où la chaise d'origine vidée
-#: plutôt que grisée.
+#: What the others do, and what is copied here: **what flies is smaller
+#: than the original**. Trello, Linear and Notion fly a compact card and
+#: leave an empty slot behind; the calendars let the TARGET carry the
+#: information. On a grid of fixed slots, it is the second that counts —
+#: hence the original seat emptied rather than greyed out.
 #:
-#: ⚠️ **Aucune API touchée**, et c'est le sujet de l'essai : le clone
-#: porte une classe connue, l'original un état de thème. Une app peut
-#: donc redessiner les deux sans rien demander au framework. Ce que ça ne
-#: donne pas : le CHOIX de ce qui vole. On cache des morceaux du clone au
-#: lieu de déclarer une représentation — donc ce bloc connaît la
-#: structure de ``vignette_assise`` (avatar, prénom, nom, icônes) et
-#: casserait si elle changeait d'ordre. C'est la limite de l'essai, pas
-#: une fatalité.
+#: ⚠️ **No API touched**, and it is the point of the trial: the clone
+#: carries a known class, the original a theme state. So an app can
+#: redraw both without asking the framework for anything. What it does
+#: not give: the CHOICE of what flies. We hide pieces of the clone
+#: instead of declaring a representation — so this block knows
+#: ``vignette_assise``'s structure (avatar, first name, surname, icons)
+#: and would break if it changed order. It is the trial's limit, not a
+#: fatality.
 APERCU_DE_GLISSER = """
 /* La pastille qui suit le doigt : l'avatar et le prénom, rien d'autre. */
 .bz-drag-preview {
@@ -95,17 +93,17 @@ APERCU_DE_GLISSER = """
 }
 """
 
-#: Le vert-bleu d'accent. Sourd exprès : il sert à dire « ceci est un
-#: cours », c'est-à-dire le cas ORDINAIRE, qui ne doit pas crier.
+#: The blue-green accent. Muted on purpose: it serves to say "this is a
+#: lesson", that is, the ORDINARY case, which must not shout.
 ACCENT = "#2f7d6b"
 
 THEME = Theme(
     css=APERCU_DE_GLISSER,
-    # La chaise d'origine se VIDE au lieu de griser : sur une grille de
-    # créneaux, ce qui informe c'est la place libérée et la cible visée,
-    # pas une copie pâle sous celle qui vole. Le défaut du framework
-    # (`opacity-30 grayscale`) est bon pour une LISTE, où l'élément
-    # quitte le flux — ici il reste dans sa chaise.
+    # The original seat EMPTIES rather than greying out: on a grid of
+    # slots, what informs is the place freed and the target aimed at,
+    # not a pale copy under the one that flies. The framework's default
+    # (`opacity-30 grayscale`) is good for a LIST, where the item leaves
+    # the flow — here it stays in its seat.
     components={
         "draggable": {
             "slots": {"dragging": "data-[bz-dragging=true]:opacity-0"},
@@ -114,7 +112,7 @@ THEME = Theme(
     semantic={
         "primary": ACCENT,
         "secondary": "#7a6a9c",
-        # Un papier, pas un écran.
+        # Paper, not a screen.
         "background": "#f6f5f2",
         "surface": "#ffffff",
         "interface": "#ecebe7",
@@ -124,11 +122,11 @@ THEME = Theme(
     semantic_dark={
         "primary": "#5fb3a1",
         "secondary": "#a892d4",
-        # Un gris légèrement chaud, pas un quasi-noir : voir la docstring.
+        # A slightly warm grey, not a near-black: see the docstring.
         "background": "#15181c",
         "surface": "#1c2026",
         "interface": "#272c34",
-        # Un blanc cassé : le blanc pur sur fond sombre bave.
+        # An off-white: pure white on a dark background blooms.
         "text": "#e6e8ea",
         "muted": "#9aa3ad",
     },

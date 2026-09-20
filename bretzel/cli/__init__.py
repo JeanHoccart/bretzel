@@ -1,5 +1,5 @@
-"""Couche 7 — le CLI. Voir :mod:`bretzel.cli.main`.
+"""Layer 7 — the CLI. See :mod:`bretzel.cli.main`.
 
-Le CLI crée et lance le squelette public minimal, décrit le framework, juge le
-code applicatif et pilote une app dans un navigateur.
+The CLI creates and runs the minimal public skeleton, describes the
+framework, judges application code and drives an app in a browser.
 """

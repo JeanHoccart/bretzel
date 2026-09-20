@@ -47,35 +47,35 @@ class _StubApp:
 
     @property
     def config(self) -> Any:
-        """Assez de config pour que les actions soient SIGNÉES.
+        """Enough config for the actions to be SIGNED.
 
-        ``RenderContext._action_key`` lit ``app.config._action_key`` ; sans
-        elle, ``register_action`` rend une signature vide et les
-        ``hx-post`` sortent sans ``data-bz-sig``. C'était sans conséquence
-        tant que personne ne regardait — et ça a cessé de l'être le
-        2026-08-27, quand le bridge s'est mis à REFUSER tout POST sans
-        porteur de signature (une action détachée par un morph partait
-        sinon nue et rechargeait la page entière).
+        ``RenderContext._action_key`` reads ``app.config._action_key``;
+        without it, ``register_action`` returns an empty signature and
+        the ``hx-post`` come out with no ``data-bz-sig``. That was
+        inconsequential as long as nobody looked — and it stopped being
+        so on 2026-08-27, when the bridge started REFUSING any POST with
+        no signature carrier (an action detached by a morph otherwise
+        left bare and reloaded the whole page).
 
-        Depuis, un montage navigateur bâti sur ``render_isolated`` produit
-        des boutons qu'aucun clic ne peut faire partir, et son rouge
-        accuse le composant. Mesuré sur ``probe_overlay_dual_event``, dont
-        les deux porteurs sortaient avec ``data-bz-ts`` et sans
+        Since then, a browser mount built on ``render_isolated`` produces
+        buttons no click can make fire, and its red accuses the
+        component. Measured on ``probe_overlay_dual_event``, whose two
+        carriers came out with ``data-bz-ts`` and without
         ``data-bz-sig``.
 
-        La clé est FIXE et publique : ce rig ne protège rien, il reproduit
-        une forme. Ce que la docstring de :func:`render_isolated` promet
-        déjà — « behaves like in production » — et qui n'était pas vrai
-        pour les actions.
+        The key is FIXED and public: this rig protects nothing, it
+        reproduces a shape. What :func:`render_isolated`'s docstring
+        already promises — "behaves like in production" — and which was
+        not true for the actions.
         """
         return _StubConfig()
 
 
 class _StubConfig:
-    """La part de ``BretzelConfig`` que la couche rendu lit vraiment."""
+    """The part of ``BretzelConfig`` the render layer really reads."""
 
-    #: Clé de démonstration, jamais un secret : les probes servent leur
-    #: HTML depuis un fichier, il n'y a pas de serveur pour vérifier.
+    #: A demonstration key, never a secret: the probes serve their HTML
+    #: from a file, there is no server to verify.
     _action_key = b"bretzel-test-rig-action-key"
 
 

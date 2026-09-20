@@ -1,38 +1,36 @@
-"""core/domain — le vocabulaire métier et les huit règles transverses.
+"""core/domain — the business vocabulary and the eight cross-cutting rules.
 
-Aucun import de ``bretzel`` ici, et c'est délibéré : ce module est la
-partie de l'app qu'on peut relire sans rien savoir du framework. Il
-porte le § 4 (glossaire) et le § 6 (règles transverses) du cahier des
-charges, et rien d'autre.
+No ``bretzel`` import here, and that is deliberate: this module is the
+part of the app one can re-read knowing nothing of the framework. It
+carries § 4 (glossary) and § 6 (cross-cutting rules) of the
+specification, and nothing else.
 
-**Pourquoi les règles vivent ici et pas dans les écrans.** RT-8 dit
-qu'une règle métier tient *quel que soit l'écran*. Une règle écrite dans
-un écran est une règle qu'un second écran redécouvrira de travers — le
-cahier documente quatorze pièges payés dans l'application d'origine, et
-quatre d'entre eux (n° 1, 2, 3, 4) sont exactement cela : une règle
-recalculée sur place, avec une nuance oubliée.
+**Why the rules live here and not in the screens.** RT-8 says a business
+rule holds *whatever the screen*. A rule written in a screen is a rule a
+second screen will rediscover wrongly — the specification documents
+fourteen traps paid for in the original application, and four of them
+(no. 1, 2, 3, 4) are exactly that: a rule recomputed on the spot, with a
+nuance forgotten.
 
-Les cinq règles calculatoires sont ici, chacune en une fonction :
+The five computational rules are here, each in one function:
 
 =====  =====================================================  =====================
-règle  ce qu'elle dit                                         la fonction
+rule   what it says                                           the function
 =====  =====================================================  =====================
-RT-3   le CYCLE décide, jamais le code de la classe           :func:`cycle_propose`
-RT-4   une date qui manque n'est pas une panne                :func:`trimestre_de`
-RT-5   l'alternance A/B se compte en JOURS entre deux lundis  :func:`semaine_ab`
-RT-6   le décompte saute les vacances et les fériés           :func:`periode_sans_classe`
-EF-L3  un niveau rapproche une classe d'un chapitre           :func:`niveau_du_code`
+RT-3   the CYCLE decides, never the class code                :func:`cycle_propose`
+RT-4   a missing date is not a failure                        :func:`trimestre_de`
+RT-5   the A/B alternation counts in DAYS between two Mondays :func:`semaine_ab`
+RT-6   the count skips holidays and public holidays           :func:`periode_sans_classe`
+EF-L3  a level brings a class close to a chapter              :func:`niveau_du_code`
 =====  =====================================================  =====================
 
-RT-1 (l'année en cours est la seule qu'on écrit) et RT-2 (rien ne
-s'efface qui porte de l'histoire) ne sont pas des calculs : la première
-est une garde, elle vit dans ``features/annees.py`` ; la seconde est une
-forme de schéma — une inscription DATÉE plutôt qu'une ligne qu'on
-supprime — et elle vit dans ``core/db.py``.
+RT-1 (the current year is the only one written) and RT-2 (nothing that
+carries history is erased) are not computations: the first is a guard, it
+lives in ``features/annees.py``; the second is a form of schema — a DATED
+enrolment rather than a row one deletes — and it lives in ``core/db.py``.
 
-RT-7 (ce qui est proposé n'est jamais imposé) et RT-8 (une règle tient
-quel que soit l'écran) sont des règles de conception : elles ne
-s'écrivent pas, elles se tiennent.
+RT-7 (what is proposed is never imposed) and RT-8 (a rule holds whatever
+the screen) are design rules: they are not written, they are held.
 """
 
 from __future__ import annotations
@@ -41,28 +39,27 @@ from datetime import date, timedelta
 
 # ── Le glossaire, en constantes ───────────────────────────────────────
 
-#: Les deux cycles. Ils décident du nombre de compétences, des dates de
-#: trimestre et de ce qu'on propose à l'écran (RT-3).
+#: The two cycles. They decide the number of skills, the term dates and
+#: what is proposed on screen (RT-3).
 CYCLES: dict[str, str] = {"college": "Collège", "lycee": "Lycée"}
 
-#: Les niveaux, dans l'ordre de la progression. C'est aussi l'ordre de
-#: tri : ``NIVEAUX.index(niveau)`` est le rang.
+#: The levels, in progression order. It is also the sort order:
+#: ``NIVEAUX.index(niveau)`` is the rank.
 #:
-#: ⚠️ Ils sont écrits comme le professeur écrit ses codes de classe —
-#: « 2°GT2 », « 1°S1 » — parce que :func:`niveau_du_code` les reconnaît
-#: par PRÉFIXE (EF-L3). Une table qui dirait « seconde » ne rapprocherait
-#: rien.
+#: ⚠️ They are written the way the teacher writes their class codes —
+#: "2°GT2", "1°S1" — because :func:`niveau_du_code` recognises them by
+#: PREFIX (EF-L3). A table saying "seconde" would bring nothing close.
 NIVEAUX: tuple[str, ...] = ("6e", "5e", "4e", "3e", "2°GT", "1°", "T°")
 
-#: Le cycle de chaque niveau. Sert UNE fois — à la création d'une classe
-#: (cf. :func:`cycle_propose`). Ce n'est pas un chemin de lecture.
+#: Each level's cycle. Serves ONCE — when creating a class (cf.
+#: :func:`cycle_propose`). It is not a read path.
 CYCLE_DU_NIVEAU: dict[str, str] = {
     "6e": "college", "5e": "college", "4e": "college", "3e": "college",
     "2°GT": "lycee", "1°": "lycee", "T°": "lycee",
 }
 
-#: Les compétences évaluées, par cycle : sept au collège, cinq au lycée
-#: (EF-D3). Le nombre vient du CYCLE, jamais du code de la classe.
+#: The skills assessed, per cycle: seven at collège, five at lycée
+#: (EF-D3). The number comes from the CYCLE, never from the class code.
 COMPETENCES: dict[str, tuple[tuple[str, str], ...]] = {
     "college": (
         ("APP", "S'approprier"),
@@ -82,45 +79,44 @@ COMPETENCES: dict[str, tuple[tuple[str, str], ...]] = {
     ),
 }
 
-#: Les compétences qui ne se jugent PAS sur une copie (EF-D3). Un devoir
-#: sur table ne peut pas évaluer le geste au poste de travail.
+#: The skills that are NOT judged on a paper (EF-D3). A written test
+#: cannot assess the gesture at the workbench.
 HORS_COPIE: frozenset[str] = frozenset({"REA", "AUT"})
 
-#: Les types d'évaluation.
+#: The assessment types.
 TYPES_EVALUATION: tuple[str, ...] = ("DS", "IE", "TP", "Oral", "Projet",
                                      "Maison")
 
-#: Ceux qui se font sur copie, et qui écartent donc :data:`HORS_COPIE`.
+#: Those done on paper, which therefore exclude :data:`HORS_COPIE`.
 TYPES_SUR_COPIE: frozenset[str] = frozenset({"DS", "IE", "Maison"})
 
-#: Les NATURES — ce qui fait qu'une heure n'est pas un cours. La liste
-#: est fermée, et c'est tout le piège n° 1 : **tout ce qui n'est pas
-#: là-dedans est une SALLE** (EF-B7). L'inverse a fait disparaître 31
-#: créneaux sur 43 du cahier de texte le jour où les salles ont été
-#: saisies.
+#: The NATURES — what makes an hour something other than a lesson. The
+#: list is closed, and it is the whole of trap no. 1: **anything not in
+#: it is a ROOM** (EF-B7). The opposite made 31 slots out of 43 vanish
+#: from the lesson log the day the rooms were entered.
 NATURES: tuple[str, ...] = ("HVC",)
 
-#: Les aménagements d'un élève (EF-C4).
+#: A pupil's accommodations (EF-C4).
 AMENAGEMENTS: tuple[str, ...] = ("PAP", "PPS", "PAI", "PPRE")
 
-#: Les six jours de la grille, du lundi au samedi (EF-B1). L'index dans
-#: ce tuple EST le numéro de jour stocké — ``date.weekday()`` donne le
-#: même, ce qui évite une table de correspondance.
+#: The grid's six days, Monday to Saturday (EF-B1). The index in this
+#: tuple IS the stored day number — ``date.weekday()`` gives the same,
+#: which avoids a lookup table.
 JOURS: tuple[str, ...] = ("lundi", "mardi", "mercredi", "jeudi",
                           "vendredi", "samedi")
 
-#: Les trois lettres du jour, pour « ven 16/10 » (EF-A7).
+#: The day's three letters, for "ven 16/10" (EF-A7).
 JOURS_COURTS: tuple[str, ...] = ("lun", "mar", "mer", "jeu", "ven", "sam",
                                  "dim")
 
-#: Les huit bornes d'une journée, en heures de 55 minutes. Ce sont les
-#: valeurs SEMÉES : elles se règlent ensuite pour toute l'année dans la
-#: première colonne de la grille (EF-B3).
+#: A day's eight boundaries, in 55-minute hours. These are the SEEDED
+#: values: they are then set for the whole year in the grid's first
+#: column (EF-B3).
 #:
-#: ⚠️ Les cours ne commencent pas à l'heure ronde. Quatre départs cités
-#: par le cahier — 10 h 10, 11 h 10, 13 h 30, 15 h 40 — sont ici tels
-#: quels : une table arrondie rendrait la grille fausse à l'œil du seul
-#: qui la connaisse par cœur.
+#: ⚠️ Lessons do not start on the round hour. Four start times quoted by
+#: the specification — 10:10, 11:10, 13:30, 15:40 — are here as they are:
+#: a rounded table would make the grid wrong to the eye of the only
+#: person who knows it by heart.
 BORNES: tuple[tuple[str, str], ...] = (
     ("08:15", "09:10"),
     ("09:15", "10:10"),
@@ -132,23 +128,23 @@ BORNES: tuple[tuple[str, str], ...] = (
     ("16:40", "17:35"),
 )
 
-#: Les quatre vacances de la zone B, dans l'ordre de l'année. L'écran
-#: des réglages les PROPOSE, remplies ou non, **sans créer de lignes
-#: vides à l'avance** (EF-A4) : une proposition est une ligne à l'écran,
-#: pas une ligne en base.
+#: Zone B's four holidays, in the year's order. The settings screen
+#: PROPOSES them, filled in or not, **without creating empty rows in
+#: advance** (EF-A4): a proposal is a row on screen, not a row in the
+#: database.
 VACANCES_ZONE_B: tuple[str, ...] = ("Toussaint", "Noël", "Février",
                                     "Pâques")
 
-#: Les quatre critères d'observation, dans l'ordre du bulletin (§ 5.3).
+#: The four observation criteria, in report-card order (§ 5.3).
 CRITERES: tuple[str, ...] = ("Comportement", "Travail", "Participation",
                              "Matériel, ponctualité")
 
-#: Les niveaux de chaque critère : ``(rang, court, long, teinte)``.
-#: Rang 1 = le plus favorable. La teinte va de 1 à 4 — 1-2 favorable ou
-#: neutre, 3-4 signale une difficulté (EF-E1).
+#: Each criterion's levels: ``(rank, short, long, tint)``. Rank 1 = the
+#: most favourable. The tint goes from 1 to 4 — 1-2 favourable or
+#: neutral, 3-4 signals a difficulty (EF-E1).
 #:
-#: Sept pour Comportement et Travail, six pour Participation, quatre
-#: pour Matériel : les comptes viennent du cahier, pas d'une symétrie.
+#: Seven for Comportement and Travail, six for Participation, four for
+#: Matériel: the counts come from the specification, not from a symmetry.
 NIVEAUX_CRITERE: dict[str, tuple[tuple[int, str, str, int], ...]] = {
     "Comportement": (
         (1, "Exemplaire", "adopte un comportement exemplaire", 1),
@@ -185,43 +181,43 @@ NIVEAUX_CRITERE: dict[str, tuple[tuple[int, str, str, int], ...]] = {
 }
 
 
-# ── RT-3 · Le cycle décide, jamais le code de la classe ───────────────
+# ── RT-3 · The cycle decides, never the class code ────────────────────
 
 def niveau_du_code(code: str) -> str:
-    """Le niveau qu'un code de classe désigne — « 3e1 » → « 3e ».
+    """The level a class code names — "3e1" → "3e".
 
-    **L'unique façon de rapprocher une classe d'un niveau** dans toute
-    l'application (EF-L3). Le tableau de progression s'en sert pour
-    ranger cinq classes sous un chapitre ; la création d'une classe s'en
-    sert pour remplir sa colonne ``niveau``.
+    **The only way of relating a class to a level** in the whole
+    application (EF-L3). The progression table uses it to file five
+    classes under a chapter; creating a class uses it to fill its
+    ``niveau`` column.
 
-    Le plus long préfixe gagne — sans quoi « 1° » mordrait avant
-    « 1°STL » si l'ordre de :data:`NIVEAUX` changeait un jour. Rend
-    ``""`` quand rien ne correspond, ce qui n'est pas une panne : un
-    établissement peut nommer une classe autrement, et c'est alors elle
-    qui n'apparaît dans aucune ligne de progression.
+    The longest prefix wins — without which "1°" would bite before
+    "1°STL" if :data:`NIVEAUX`'s order ever changed. Returns ``""`` when
+    nothing matches, which is not a failure: a school may name a class
+    otherwise, and it is then that class that appears in no progression
+    row.
     """
     candidats = [n for n in NIVEAUX if code.startswith(n)]
     return max(candidats, key=len) if candidats else ""
 
 
 def rang_du_niveau(niveau: str) -> int:
-    """La place du niveau dans la progression — pour le TRI."""
+    """The level's place in the progression — for SORTING."""
     return NIVEAUX.index(niveau) if niveau in NIVEAUX else len(NIVEAUX)
 
 
 def cycle_propose(niveau: str) -> str:
-    """Le cycle qu'on PROPOSE pour un niveau, à la création d'une classe.
+    """The cycle PROPOSED for a level, when creating a class.
 
-    ⚠️ **C'est le seul endroit de l'app où un cycle se dérive**, et le
-    mot « propose » est le contrat : la valeur est écrite une fois dans
-    la colonne ``classes.cycle``, et tous les écrans lisent ensuite la
-    COLONNE. Redeviner le cycle en lisant « 2°GT2 » au moment d'afficher
-    est l'erreur que RT-3 nomme — elle marche jusqu'au jour où un
-    établissement nomme ses secondes autrement.
+    ⚠️ **It is the app's only place where a cycle is derived**, and the
+    word "propose" is the contract: the value is written once into the
+    ``classes.cycle`` column, and every screen then reads the COLUMN.
+    Re-guessing the cycle by reading "2°GT2" at display time is the error
+    RT-3 names — it works until the day a school names its secondes
+    otherwise.
 
-    Le défaut est ``college`` : c'est le cycle de la majorité des
-    classes, et une classe mal classée se corrige à l'écran.
+    The default is ``college``: it is the cycle of most classes, and a
+    misfiled class is corrected on screen.
     """
     return CYCLE_DU_NIVEAU.get(niveau, "college")
 
@@ -229,10 +225,10 @@ def cycle_propose(niveau: str) -> str:
 def competences_de(
     cycle: str, type_evaluation: str
 ) -> tuple[tuple[str, str], ...]:
-    """Les compétences proposées pour une évaluation (EF-D3).
+    """The skills proposed for an assessment (EF-D3).
 
-    Le CYCLE donne la liste — sept au collège, cinq au lycée — et le
-    TYPE en retire celles qui ne se jugent pas sur une copie.
+    The CYCLE gives the list — seven at collège, five at lycée — and the
+    TYPE removes those that are not judged on a paper.
     """
     toutes = COMPETENCES.get(cycle, COMPETENCES["college"])
     if type_evaluation in TYPES_SUR_COPIE:
@@ -240,25 +236,25 @@ def competences_de(
     return toutes
 
 
-# ── RT-5 · L'alternance se compte en JOURS entre deux lundis ──────────
+# ── RT-5 · The alternation counts in DAYS between two Mondays ────────
 
 def lundi_de(jour: date) -> date:
-    """Le lundi de la semaine de ``jour``."""
+    """The Monday of ``jour``'s week."""
     return jour - timedelta(days=jour.weekday())
 
 
 def semaine_ab(jour: date, lundi_ref: date | None) -> str | None:
-    """``"A"``, ``"B"``, ou ``None`` quand l'alternance est indéterminée.
+    """``"A"``, ``"B"``, or ``None`` when the alternation is undetermined.
 
-    **Piège n° 2, payé pour de vrai** : calculée sur les NUMÉROS de
-    semaine ISO, l'alternance s'inverse en janvier une année sur cinq —
-    celles qui comptent 53 semaines. On compte donc l'écart en JOURS
-    entre deux lundis, ce qui ne connaît ni les numéros ni les années.
+    **Trap no. 2, paid for real**: computed on ISO week NUMBERS, the
+    alternation inverts in January one year in five — those with 53
+    weeks. So we count the gap in DAYS between two Mondays, which knows
+    neither numbers nor years.
 
-    ``lundi_ref`` vide rend ``None`` et **ce n'est pas une panne**
-    (RT-4) : c'est une année dont la date de référence n'a pas encore
-    été saisie. L'écran doit le DIRE — « on ne sait pas » — plutôt que
-    d'inventer une lettre (EF-A11, dernier paragraphe).
+    An empty ``lundi_ref`` returns ``None`` and **that is not a failure**
+    (RT-4): it is a year whose reference date has not been entered yet.
+    The screen must SAY so — "we do not know" — rather than invent a
+    letter (EF-A11, last paragraph).
     """
     if lundi_ref is None:
         return None
@@ -266,22 +262,21 @@ def semaine_ab(jour: date, lundi_ref: date | None) -> str | None:
     return "A" if ecart % 2 == 0 else "B"
 
 
-# ── RT-6 · Le décompte saute les vacances et les fériés ───────────────
+# ── RT-6 · The count skips holidays and public holidays ──────────────
 
 def periode_sans_classe(
     jour: date, periodes: list[tuple[str, date, date]]
 ) -> str | None:
-    """Le libellé de la période qui couvre ``jour``, ou ``None``.
+    """The label of the period covering ``jour``, or ``None``.
 
-    Une période est ``(libellé, premier jour SANS classe, dernier jour
-    SANS classe)`` — les deux bornes sont incluses (EF-A5). Les périodes
-    peuvent se chevaucher ; la première qui couvre gagne, et l'ordre
-    d'entrée fait donc foi.
+    A period is ``(label, first day WITHOUT class, last day WITHOUT
+    class)`` — both bounds are inclusive (EF-A5). Periods may overlap;
+    the first that covers wins, so the entry order is authoritative.
 
-    **Piège n° 3** : la grille est un emploi du temps TYPE, elle place
-    la classe au lundi sans savoir que ce lundi tombe à la Toussaint.
-    Tout décompte de séances passe par ici, sinon le seuil est franchi
-    deux semaines trop tôt.
+    **Trap no. 3**: the grid is a TYPICAL timetable, it places the class
+    on Monday without knowing that Monday falls in the Toussaint break.
+    Every session count goes through here, otherwise the threshold is
+    crossed two weeks too early.
     """
     for libelle, debut, fin in periodes:
         if debut <= jour <= fin:
@@ -292,38 +287,38 @@ def periode_sans_classe(
 def est_jour_de_classe(
     jour: date, periodes: list[tuple[str, date, date]]
 ) -> bool:
-    """Un jour ouvré hors vacances et hors férié. Le dimanche n'en est pas.
+    """A working day outside holidays and public holidays. Sunday is not
+    one.
 
-    Le samedi, si : la grille va du lundi au samedi (EF-B1), et une
-    classe peut y avoir cours.
+    Saturday is: the grid runs from Monday to Saturday (EF-B1), and a
+    class may have lessons there.
     """
     if jour.weekday() == 6:
         return False
     return periode_sans_classe(jour, periodes) is None
 
 
-# ── Les périodes de travail — EF-A9, EF-A10 ───────────────────────────
+# ── The working periods — EF-A9, EF-A10 ───────────────────────────────
 
-#: Au-delà de combien de jours une période SANS CLASSE coupe l'année en
-#: deux périodes de travail. *« Seules les vraies vacances coupent ; un
-#: férié, un pont, une journée banalisée tombent DANS une période »*
-#: (EF-A9). Sept jours, c'est la semaine entière : en dessous, on est
-#: encore dans le même morceau d'année.
+#: Beyond how many days a period WITHOUT CLASS cuts the year into two
+#: working periods. *"Only real holidays cut; a public holiday, a bridge
+#: day, a staff day fall INSIDE a period"* (EF-A9). Seven days is the
+#: whole week: below that, we are still in the same piece of the year.
 SEUIL_VRAIES_VACANCES = 7
 
 
 def sont_de_vraies_vacances(debut: date, fin: date) -> bool:
-    """Cette période coupe-t-elle l'année (EF-A9) ?"""
+    """Does this period cut the year (EF-A9)?"""
     return (fin - debut).days + 1 > SEUIL_VRAIES_VACANCES
 
 
 def semaines_touchees(debut: date, fin: date) -> int:
-    """Le nombre de LUNDIS touchés, jamais les jours divisés par sept.
+    """The number of MONDAYS touched, never the days divided by seven.
 
-    *« Une période qui commence un mardi et finit un vendredi occupe la
-    semaine entière dans la tête de celui qui la vit »* (EF-A10). Quatre
-    jours divisés par sept donneraient zéro semaine, ce qui est faux pour
-    tout le monde sauf pour une calculette.
+    *"A period starting on a Tuesday and ending on a Friday occupies the
+    whole week in the head of whoever lives it"* (EF-A10). Four days
+    divided by seven would give zero weeks, which is wrong for everybody
+    except a calculator.
     """
     return ((lundi_de(fin) - lundi_de(debut)).days // 7) + 1
 
@@ -331,16 +326,16 @@ def semaines_touchees(debut: date, fin: date) -> int:
 def periodes_de_travail(
     periodes: list[tuple[str, date, date]], debut: date, fin: date
 ) -> list[tuple[int, date, date, int]]:
-    """Découpe l'année en morceaux de travail : ``(n°, début, fin, semaines)``.
+    """Cut the year into working pieces: ``(no., start, end, weeks)``.
 
-    Seules les VRAIES vacances coupent (EF-A9). Un férié, un pont, une
-    journée banalisée tombent donc à l'intérieur d'un morceau, ce qui est
-    exactement ce que le professeur vit : la semaine du 11 novembre est
-    une semaine de la période 1, amputée d'un jour.
+    Only REAL holidays cut (EF-A9). A public holiday, a bridge day, a
+    staff day therefore fall inside a piece, which is exactly what the
+    teacher lives: the week of 11 November is a week of period 1, one day
+    short.
 
-    Les périodes sont triées ici plutôt que par l'appelant : le découpage
-    n'a aucun sens sur une liste en désordre, et un appelant qui devrait
-    s'en souvenir finit par l'oublier.
+    The periods are sorted here rather than by the caller: the cutting
+    makes no sense on an unordered list, and a caller who had to remember
+    it ends up forgetting.
     """
     coupures = sorted(
         (d, f) for _lib, d, f in periodes if sont_de_vraies_vacances(d, f)
@@ -359,27 +354,28 @@ def periodes_de_travail(
     return morceaux
 
 
-# ── La grille — les blocs, les TP, la saisie d'une case ───────────────
+# ── The grid — the blocks, the practicals, entering a cell ───────────
 
-#: Au-delà de combien de minutes une pause COUPE un bloc. *« Une
-#: récréation ne coupe pas un bloc, la pause de midi si »* (EF-B9). Le
-#: seuil est en minutes et pas « la pause du midi », parce que les bornes
-#: horaires se règlent pour l'année (EF-B3) : c'est l'écart RÉEL entre
-#: deux heures qui décide, jamais le rang de la case.
+#: Beyond how many minutes a break CUTS a block. *"A break does not cut
+#: a block, the lunch break does"* (EF-B9). The threshold is in minutes
+#: and not "the lunch break", because the time boundaries are set for the
+#: year (EF-B3): it is the REAL gap between two hours that decides, never
+#: the cell's rank.
 SEUIL_PAUSE_MINUTES = 30
 
-#: Combien d'heures de suite avec la même classe font un TP (EF-B10).
+#: How many hours in a row with the same class make a practical (EF-B10).
 #:
-#: ⚠️ **C'est l'UNIQUE définition du TP dans l'application**, et EF-K12 le
-#: demande explicitement : la grille qui réunit trois cases et le cahier
-#: de texte qui annonce « TP de trois heures » doivent dire la même
-#: chose. Deux définitions divergeraient le jour où l'une des deux
-#: apprendrait un cas particulier.
+#: ⚠️ **It is the application's ONLY definition of a practical**, and
+#: EF-K12 asks for it explicitly: the grid that joins three cells and the
+#: lesson log announcing "a three-hour practical" must say the same
+#: thing. Two definitions would diverge the day one of them learned a
+#: special case.
 TAILLE_TP = 3
 
 
 def minutes_de(horaire: str) -> int:
-    """``"08:15"`` → 495. Pour comparer deux bornes sans objet ``time``."""
+    """``"08:15"`` → 495. To compare two boundaries without a ``time``
+    object."""
     heures, _, mins = horaire.partition(":")
     return int(heures) * 60 + int(mins)
 
@@ -387,21 +383,21 @@ def minutes_de(horaire: str) -> int:
 def blocs_du_jour(
     cases: dict[int, dict], bornes: dict[int, tuple[str, str]]
 ) -> list[dict]:
-    """Réunit les heures consécutives d'une même classe (EF-B9).
+    """Join the consecutive hours of the same class (EF-B9).
 
-    Rend une liste de blocs ``{debut, fin, code, nature, salles}`` où
-    ``debut`` et ``fin`` sont des rangs d'horaire (inclus). Les quatre
-    règles du cahier, et chacune est un test :
+    Returns a list of blocks ``{debut, fin, code, nature, salles}`` where
+    ``debut`` and ``fin`` are time-slot ranks (inclusive). The
+    specification's four rules, and each is a test:
 
-    - des cases **consécutives** de la **même classe** se réunissent ;
-    - une **récréation ne coupe pas**, la **pause de midi si** — c'est
-      :data:`SEUIL_PAUSE_MINUTES`, mesuré sur les bornes réelles ;
-    - une heure à **nature** ne se fond pas dans le bloc voisin : « HVC »
-      n'est pas un cours, et le réunir avec le cours d'avant ferait
-      disparaître la frontière que le cahier de texte lit ;
-    - un changement de **salle ne coupe rien**. Le bloc garde alors les
-      DEUX salles — les cacher ferait afficher la première pour deux
-      heures qui ne sont pas au même endroit.
+    - **consecutive** cells of the **same class** join;
+    - a **break does not cut**, the **lunch break does** — it is
+      :data:`SEUIL_PAUSE_MINUTES`, measured on the real boundaries;
+    - an hour with a **nature** does not merge into the neighbouring
+      block: "HVC" is not a lesson, and joining it with the previous
+      lesson would erase the boundary the lesson log reads;
+    - a change of **room cuts nothing**. The block then keeps BOTH rooms
+      — hiding them would show the first for two hours that are not in
+      the same place.
     """
     blocs: list[dict] = []
     for rang in sorted(bornes):
@@ -429,11 +425,10 @@ def blocs_du_jour(
 
 
 def est_un_tp(bloc: dict) -> bool:
-    """Trois heures de suite avec la même classe (EF-B10).
+    """Three hours in a row with the same class (EF-B10).
 
-    Rien n'est saisi ni stocké : la règle se LIT dans la grille. Une
-    heure à nature n'en est jamais un — « trois HVC de suite » n'est pas
-    un travail pratique.
+    Nothing is entered or stored: the rule is READ from the grid. An hour
+    with a nature is never one — "three HVC in a row" is not a practical.
     """
     return (not bloc["nature"]
             and bloc["fin"] - bloc["debut"] + 1 >= TAILLE_TP)
@@ -444,19 +439,19 @@ def lire_saisie(
 ) -> tuple[str, str, str]:
     """``"4e2 - HVC - C209"`` → ``("4e2", "HVC", "C209")`` (EF-B7, EF-B8).
 
-    **Le piège n° 1 du cahier tient dans une phrase** : *seuls les mots de
-    la liste des natures retirent une heure du cahier de texte ; tout le
-    reste est une salle*. L'inverse — prendre ce qui suit le code pour
-    une nature — a fait disparaître **31 créneaux sur 43** le jour où les
-    salles ont été saisies. Le défaut, ici, est donc « c'est un cours ».
+    **The specification's trap no. 1 fits in one sentence**: *only the
+    words in the list of natures remove an hour from the lesson log;
+    everything else is a room*. The opposite — taking what follows the
+    code for a nature — made **31 slots out of 43** vanish the day the
+    rooms were entered. So the default here is "it is a lesson".
 
-    **Et le découpage n'a lieu que si le premier morceau désigne une
-    classe DÉJÀ EXISTANTE** (EF-B8). Un établissement qui nommerait ses
-    classes « 2nde - 4 » verrait sinon ses codes amputés sans prévenir :
-    faute de reconnaître « 2nde », on garde la chaîne entière.
+    **And the split only happens if the first piece names an ALREADY
+    EXISTING class** (EF-B8). A school naming its classes "2nde - 4"
+    would otherwise see its codes truncated without warning: failing to
+    recognise "2nde", we keep the whole string.
 
-    Deux écritures sont acceptées pour la même chose, parce que les deux
-    se tapent : ``3e4 (L)`` et ``3e4 - L``.
+    Two spellings are accepted for the same thing, because both get
+    typed: ``3e4 (L)`` and ``3e4 - L``.
     """
     texte = texte.strip()
     if not texte:
@@ -483,19 +478,18 @@ def lire_saisie(
     return morceaux[0], nature, salle
 
 
-# ── RT-4 · Une date qui manque n'est pas une panne ────────────────────
+# ── RT-4 · A missing date is not a failure ────────────────────────────
 
 def trimestre_de(
     jour: date, fins: dict[int, date | None], fin_annee: date
 ) -> int | None:
-    """Le numéro de trimestre d'une date — ``None`` hors de l'année.
+    """A date's term number — ``None`` outside the year.
 
-    Seule la FIN d'un trimestre se saisit ; le début est le lendemain du
-    précédent (EF-A3). Un trimestre **sans fin court jusqu'à la fin de
-    l'année** (RT-4), ce qui veut dire qu'un tableau de trimestres à
-    moitié rempli répond quand même — c'est exactement le comportement
-    qu'on veut en septembre, quand les dates du troisième ne sont pas
-    connues.
+    Only a term's END is entered; the start is the day after the previous
+    one (EF-A3). A term **with no end runs to the end of the year**
+    (RT-4), which means a half-filled table of terms still answers — it
+    is exactly the behaviour wanted in September, when the third term's
+    dates are not known.
     """
     for numero in (1, 2, 3):
         fin = fins.get(numero) or fin_annee
@@ -507,21 +501,21 @@ def trimestre_de(
 # ── La moyenne — § 5.2 ────────────────────────────────────────────────
 
 def moyenne_de(notes: list[tuple[float | None, float, float]]) -> float | None:
-    """La moyenne d'un élève sur un trimestre, ou ``None``.
+    """A pupil's average over a term, or ``None``.
 
-    ``notes`` est une liste de ``(valeur, barème, coefficient)``. La règle
-    du § 5.2 en entier, et chacun de ses trois morceaux compte :
+    ``notes`` is a list of ``(value, scale, coefficient)``. The whole of
+    § 5.2's rule, and each of its three parts counts:
 
-    - **pondérée par le coefficient** — un devoir sur table ne pèse pas
-      une interrogation rapide ;
-    - **chaque note ramenée sur 20 par son barème** — un TP sur 40 et une
-      interrogation sur 10 ne s'additionnent pas autrement ;
-    - **les absences ne comptent pas**. Elles ne valent pas zéro : une
-      absence n'est pas une note, et la compter comme telle ferait
-      chuter une moyenne pour une raison qui n'est pas un résultat.
+    - **weighted by the coefficient** — a written test does not weigh the
+      same as a quick quiz;
+    - **each mark brought back to 20 by its scale** — a practical out of
+      40 and a quiz out of 10 do not add up otherwise;
+    - **absences do not count**. They are not worth zero: an absence is
+      not a mark, and counting it as one would drop an average for a
+      reason that is not a result.
 
-    ``None`` quand il n'y a rien à moyenner — un trimestre sans note ne
-    vaut pas zéro non plus.
+    ``None`` when there is nothing to average — a term with no mark is
+    not worth zero either.
     """
     total = 0.0
     poids = 0.0
@@ -533,23 +527,23 @@ def moyenne_de(notes: list[tuple[float | None, float, float]]) -> float | None:
     return round(total / poids, 2) if poids else None
 
 
-# ── Affichage — la forme qui a tenu trois ans ─────────────────────────
+# ── Display — the form that held for three years ──────────────────────
 
 def jour_et_date(jour: date) -> str:
-    """« ven 16/10 » — le jour de la semaine PRÉCÈDE la date (EF-A7).
+    """"ven 16/10" — the weekday PRECEDES the date (EF-A7).
 
-    *Poser une journée banalisée un mercredi ou un vendredi n'a pas le
-    même prix* : une date nue oblige à faire le calcul de tête.
+    *Putting a staff day on a Wednesday or a Friday does not cost the
+    same*: a bare date forces you to work it out in your head.
     """
     return f"{JOURS_COURTS[jour.weekday()]} {jour.day:02d}/{jour.month:02d}"
 
 
 def rentree_de(jour: date) -> int:
-    """L'année civile de la rentrée qui couvre ``jour``.
+    """The calendar year of the school year covering ``jour``.
 
-    Une année scolaire est à cheval sur deux années civiles : en juin
-    2027 on est dans « 2026-2027 », en septembre 2027 dans « 2027-2028 ».
-    La bascule est au 1er août — après le 31 juillet, la rentrée qui
-    vient est celle de l'année civile en cours.
+    A school year straddles two calendar years: in June 2027 we are in
+    "2026-2027", in September 2027 in "2027-2028". The switch is on 1
+    August — after 31 July, the coming school year is that of the current
+    calendar year.
     """
     return jour.year if jour.month >= 8 else jour.year - 1

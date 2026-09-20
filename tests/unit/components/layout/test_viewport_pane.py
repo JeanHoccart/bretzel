@@ -122,7 +122,7 @@ class TestPane:
         message doit dire quoi écrire à la place — c'est la leçon de la
         coupe de ``bottom_bar(variant=)``.
         """
-        with render_isolated(), pytest.raises(TypeError, match="ne se replie pas"):
+        with render_isolated(), pytest.raises(TypeError, match="does not wrap"):
             ui.pane(wrap=True)
 
     def test_the_seal_is_visible_from_outside(self) -> None:

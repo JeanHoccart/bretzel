@@ -1,29 +1,29 @@
 """Create, run, describe, check, and probe a Bretzel application.
 
-Le scaffold ne prétend pas décider de l'architecture d'une grande application :
-il fige seulement le plus petit trajet public et documenté, ``main`` + une
-feature. C'est précisément le trajet que l'installation et la CI exercent.
+The scaffold does not claim to decide a large application's
+architecture: it only fixes the smallest public, documented path,
+``main`` plus one feature. That is precisely the path installation and
+CI exercise.
 
-Les commandes répondent chacune à une question concrète :
+Each command answers a concrete question:
 
-- ``bretzel new`` — crée la plus petite application complète, sans jamais
-  fusionner avec un dossier existant.
-- ``bretzel dev`` — importe une app et la relance à chaque modification.
+- ``bretzel new`` — creates the smallest complete application, never
+  merging with an existing folder.
+- ``bretzel dev`` — imports an app and restarts it on every change.
 
-- ``bretzel describe`` — l'index de toute la surface, ou la fiche d'un
-  symbole : un composant, un module, ou n'importe quel nom public
-  (``page``, ``PageState``, ``ClientBinding``, ``ROUTE_ACTION``).
-  Sortie texte par défaut, ``--json`` pour un consommateur.
-- ``bretzel check`` — passe les règles sur du code applicatif. Code de
-  sortie 1 s'il y a un constat, pour qu'un pre-commit ou une CI puisse
-  s'en servir.
-- ``bretzel probe`` — pilote une app EN MARCHE dans un vrai navigateur
-  et rend un bloc de verdict unique. Les deux premières lisent du
-  texte ; celle-ci est la seule qui regarde ce que l'utilisateur voit.
-  Demande l'extra ``bretzel[probe]``.
+- ``bretzel describe`` — the index of the whole surface, or one symbol's
+  card: a component, a module, or any public name (``page``,
+  ``PageState``, ``ClientBinding``, ``ROUTE_ACTION``). Text output by
+  default, ``--json`` for a consumer.
+- ``bretzel check`` — runs the rules over application code. Exit code 1
+  when there is a finding, so a pre-commit hook or a CI can use it.
+- ``bretzel probe`` — drives a RUNNING app in a real browser and returns
+  a single verdict block. The first two read text; this one is the only
+  one that looks at what the user sees. Requires the ``bretzel[probe]``
+  extra.
 
-``argparse`` et non une dépendance : le CLI ne justifie pas d'élargir la
-surface d'installation du framework pour trois sous-commandes.
+``argparse`` and not a dependency: the CLI does not justify widening the
+framework's installation surface for three subcommands.
 """
 
 from __future__ import annotations
@@ -64,8 +64,8 @@ def _describe(args: argparse.Namespace) -> int:
     from bretzel.introspect import describe, index
 
     if args.theme:
-        # Avant tout le reste : `--theme` répond à une AUTRE question que
-        # la fiche, et sans un nom il n'a personne à interroger.
+        # Before anything else: `--theme` answers a DIFFERENT question
+        # from the card, and without a name it has nobody to ask.
         if args.symbol is None:
             print(
                 "`--theme` requires a component: `describe button --theme`.",
@@ -106,19 +106,17 @@ def _describe(args: argparse.Namespace) -> int:
 
 
 def _as_dict(name: str) -> dict:
-    """La fiche d'un symbole en JSON — la MÊME résolution que le texte.
+    """A symbol's card in JSON — the SAME resolution as the text.
 
-    « Même » au sens propre : les deux appellent
-    :func:`~bretzel.introspect.resolve`. Une seconde échelle de
-    résolution écrite ici avait déjà divergé — elle ignorait l'étage
-    module, donc ``describe bretzel.core --json`` levait et
-    ``describe bretzel.state --json`` répondait la fiche d'un autre
-    symbole.
+    "Same" in the literal sense: both call
+    :func:`~bretzel.introspect.resolve`. A second resolution ladder
+    written here had already diverged — it ignored the module tier, so
+    ``describe bretzel.core --json`` raised and
+    ``describe bretzel.state --json`` answered another symbol's card.
 
-    Le payload porte sa version : sans elle, un consommateur qui lit
-    cette sortie n'a aucun moyen de savoir que la forme a bougé, ce qui
-    est précisément ce que :data:`~bretzel.introspect.SCHEMA_VERSION`
-    existe pour dire.
+    The payload carries its version: without it, a consumer reading this
+    output has no way of knowing the shape has moved, which is precisely
+    what :data:`~bretzel.introspect.SCHEMA_VERSION` exists to say.
     """
     from bretzel.introspect import SCHEMA_VERSION, resolve
 
@@ -159,15 +157,15 @@ def _check(args: argparse.Namespace) -> int:
 
 
 def _probe(args: argparse.Namespace) -> int:
-    """Piloter une app en marche et rendre un seul bloc de verdict.
+    """Drive a running app and return a single verdict block.
 
-    Sans scénario, on ne lance que le **balayage** — c'est possible
-    uniquement parce que le framework connaît les routes de l'app, et
-    c'est le gain concret du « natif ».
+    With no scenario, only the **sweep** runs — which is possible only
+    because the framework knows the app's routes, and that is the
+    concrete gain of being "native".
     """
     try:
         from bretzel.probe import ProbeFailedError, probe
-    except ImportError as exc:  # pragma: no cover — dépend de l'extra
+    except ImportError as exc:  # pragma: no cover — needs the extra
         print(
             "`bretzel probe` requires the optional dependency: "
             "pip install bretzel[probe]\n"
@@ -176,12 +174,11 @@ def _probe(args: argparse.Namespace) -> int:
         )
         return 2
 
-    # ⚠️ UN probe PAR ROUTE, et pas une boucle de navigations dans un
-    # seul. Le balayage tourne à la sortie du ``with`` et mesure la page
-    # où chaque fenêtre se trouve ALORS : une boucle interne chargeait
-    # donc trois routes pour n'en mesurer qu'une, la dernière. Un drapeau
-    # qui fait payer trois navigations pour un verdict ment sur ce qu'il
-    # fait.
+    # ⚠️ ONE probe PER ROUTE, and not a loop of navigations in a single
+    # one. The sweep runs when the ``with`` exits and measures the page
+    # each window is on AT THAT POINT: an inner loop therefore loaded
+    # three routes to measure only one, the last. A flag that makes you
+    # pay for three navigations for one verdict lies about what it does.
     worst = 0
     for route in args.route or ["/"]:
         try:
@@ -201,11 +198,11 @@ def _probe(args: argparse.Namespace) -> int:
 
 
 def _parse_size(raw: str) -> tuple[int, int]:
-    """``1280x700`` → ``(1280, 700)``. Passé en ``type=`` à argparse.
+    """``1280x700`` → ``(1280, 700)``. Passed as ``type=`` to argparse.
 
-    C'est argparse qui doit lever : il transforme une ``ValueError`` de
-    ``type=`` en message d'usage, là où un appel à la main la laisse
-    remonter en pile complète.
+    It is argparse that must raise: it turns a ``ValueError`` from
+    ``type=`` into a usage message, where a hand-written call would let
+    it surface as a full traceback.
     """
     width, _, height = raw.lower().partition("x")
     if not width.isdigit() or not height.isdigit():
@@ -214,19 +211,18 @@ def _parse_size(raw: str) -> tuple[int, int]:
 
 
 def _force_utf8_output() -> None:
-    """Écrire en UTF-8 quelle que soit la console.
+    """Write UTF-8 whatever the console.
 
-    Sans ceci, ``bretzel describe button`` **échouait** sur une console
-    Windows : la sortie par défaut y est en ``cp1252``, et la fiche
-    d'un composant porte une flèche ``→`` dans son titre. Toutes les
-    fiches étant construites autour de cette flèche, la commande la plus
-    utile du CLI ne rendait rien sur la plateforme de dev principale du
-    projet — sans que rien ne le dise, l'erreur étant rattrapée en
-    « code de sortie 2 ».
+    Without this, ``bretzel describe button`` **failed** on a Windows
+    console: the default output there is ``cp1252``, and a component's
+    card carries an arrow ``→`` in its title. Every card being built
+    around that arrow, the CLI's most useful command returned nothing on
+    the project's main development platform — with nothing saying so,
+    the error being caught as "exit code 2".
 
-    ``errors="replace"`` en second temps : sur une console vraiment
-    incapable d'UTF-8, une fiche avec quelques ``?`` vaut mieux qu'une
-    exception d'encodage.
+    ``errors="replace"`` as a second step: on a console genuinely
+    incapable of UTF-8, a card with a few ``?`` is better than an
+    encoding exception.
     """
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
@@ -357,5 +353,5 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
 
-if __name__ == "__main__":  # pragma: no cover — point d'entrée
+if __name__ == "__main__":  # pragma: no cover — entry point
     raise SystemExit(main())

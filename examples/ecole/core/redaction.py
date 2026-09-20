@@ -1,65 +1,65 @@
-"""core/redaction — la fabrique d'appréciations et de bilans.
+"""core/redaction — the factory for comments and class summaries.
 
-Pur Python, aucune base, aucun ``bretzel`` : on lui donne ce qu'on sait
-d'un élève, elle rend un texte. C'est ce qui permet de la tester sans
-monter quoi que ce soit, et c'est la partie de l'app la plus dense en
-règles métier — EF-E2 à EF-E8 et EF-F1 à EF-F4 y tiennent en entier.
+Pure Python, no database, no ``bretzel``: give it what is known about a
+pupil, it returns a text. That is what allows testing it without mounting
+anything, and it is the app's densest part in business rules — EF-E2 to
+EF-E8 and EF-F1 to EF-F4 fit in it entirely.
 
-Les quatre règles qui décident de la FORME du texte
-----------------------------------------------------
-**EF-E4 — jamais plus de 400 caractères, et l'ordre de sacrifice est
-écrit.** Chaque phrase porte une priorité ; au-delà de la limite, les
-moins essentielles tombent — *jamais le travail, jamais le comportement,
-jamais la conclusion*. C'est une liste ordonnée, pas un tri par longueur :
-couper la phrase la plus longue donnerait un texte plus court et faux.
+The four rules that decide the text's SHAPE
+--------------------------------------------
+**EF-E4 — never more than 400 characters, and the order of sacrifice is
+written down.** Every sentence carries a priority; beyond the limit, the
+least essential fall — *never the work, never the behaviour, never the
+conclusion*. It is an ordered list, not a sort by length: cutting the
+longest sentence would give a shorter text and a false one.
 
-**EF-E5 — une formulation par trimestre.** La même observation ne donne
-pas la même phrase au premier et au troisième : *« adopte un comportement
-exemplaire »* devient *« aura été exemplaire d'un bout à l'autre »*. Les
-cadres sont dans :data:`CADRES`.
+**EF-E5 — one wording per term.** The same observation does not give the
+same sentence in the first and the third: *"adopte un comportement
+exemplaire"* becomes *"aura été exemplaire d'un bout à l'autre"*. The
+frames are in :data:`CADRES`.
 
-**EF-E6 — entre deux formulations, celle qui RÉPÈTE LE MOINS** ce qui
-précède. C'est ce qui évite *« des résultats solides […] un ensemble
-solide »* — et c'est mesurable : on compte les mots déjà employés.
+**EF-E6 — between two wordings, the one that REPEATS LEAST** what
+precedes. It is what avoids *"des résultats solides […] un ensemble
+solide"* — and it is measurable: we count the words already used.
 
-**EF-E7 — les paliers de moyenne**, et le cahier donne la raison du
-seuil : *« 12 est une moyenne juste satisfaisante, pas "solide" — le
-palier "résultats solides" ne commence qu'à 13 »*.
+**EF-E7 — the average thresholds**, and the specification gives the
+reason for the threshold: *"12 is a just-satisfactory average, not
+'solid' — the 'solid results' step only starts at 13"*.
 
-Ce que la fabrique NE fait pas
--------------------------------
-Elle ne décide jamais d'écraser un texte. EF-E3 — *« dès que le
-professeur écrit son propre texte, l'application ne le réécrit plus
-jamais »* — est une règle de STOCKAGE (le drapeau ``ecrite_main``), pas
-de rédaction. La fabrique est appelée ou ne l'est pas.
+What the factory does NOT do
+-----------------------------
+It never decides to overwrite a text. EF-E3 — *"as soon as the teacher
+writes their own text, the application never rewrites it again"* — is a
+STORAGE rule (the ``ecrite_main`` flag), not a writing one. The factory
+is called or it is not.
 """
 
 from __future__ import annotations
 
-#: La limite d'EF-E4, en caractères.
+#: EF-E4's limit, in characters.
 LIMITE = 400
 
-#: L'ordre de SACRIFICE d'EF-E4, du plus gardé au plus sacrifiable. Ce
-#: sont des clés de phrase ; l'ordre de LECTURE, lui, est celui de
-#: :data:`ORDRE_LECTURE`. Les deux diffèrent, et c'est le point : on
-#: coupe par importance, on lit par déroulé.
+#: EF-E4's order of SACRIFICE, from most protected to most sacrificial.
+#: These are sentence keys; the READING order is :data:`ORDRE_LECTURE`.
+#: The two differ, and that is the point: we cut by importance, we read
+#: by narrative.
 SACRIFICE: tuple[str, ...] = (
     "travail", "comportement", "resultats", "conclusion", "evolution",
     "participation", "competences", "materiel",
 )
 
-#: L'ordre dans lequel les phrases retenues se lisent.
+#: The order in which the sentences kept are read.
 ORDRE_LECTURE: tuple[str, ...] = (
     "comportement", "travail", "participation", "materiel", "resultats",
     "competences", "evolution", "conclusion",
 )
 
-#: Les paliers d'EF-E7 : ``(plancher, mot)``. Lus du haut vers le bas.
+#: EF-E7's steps: ``(floor, word)``. Read from the top down.
 #:
-#: ⚠️ Le palier « solides » commence à **13** et pas à 12, et le cahier
-#: en donne la raison : *« 12 est une moyenne juste satisfaisante »*.
-#: Descendre ce seuil ferait écrire « solides » sur des bulletins où ce
-#: serait faux, et personne ne le relèverait.
+#: ⚠️ The "solides" step starts at **13** and not at 12, and the
+#: specification gives the reason: *"12 is a just-satisfactory average"*.
+#: Lowering that threshold would write "solides" on report cards where it
+#: would be false, and nobody would catch it.
 PALIERS: tuple[tuple[float, str], ...] = (
     (15.0, "très bons"),
     (13.0, "solides"),
@@ -67,9 +67,9 @@ PALIERS: tuple[tuple[float, str], ...] = (
     (0.0, "fragiles"),
 )
 
-#: Les cadres d'EF-E5 : par critère et par trimestre, DEUX formulations.
-#: La seconde existe pour EF-E6 — sans choix, il n'y a rien à départager.
-#: ``{}`` reçoit le libellé long du niveau coché.
+#: EF-E5's frames: per criterion and per term, TWO wordings. The second
+#: exists for EF-E6 — with no choice, there is nothing to decide between.
+#: ``{}`` receives the long label of the level ticked.
 CADRES: dict[str, tuple[tuple[str, str], ...]] = {
     "Comportement": (
         ("Élève qui {}.", "{}."),
@@ -93,7 +93,7 @@ CADRES: dict[str, tuple[tuple[str, str], ...]] = {
     ),
 }
 
-#: Les phrases de RÉSULTATS, par palier. Deux par palier, pour EF-E6.
+#: The RESULTS sentences, per step. Two per step, for EF-E6.
 RESULTATS: dict[str, tuple[str, ...]] = {
     "très bons": ("Les résultats sont très bons ({moyenne} de moyenne).",
                   "Une moyenne de {moyenne} vient confirmer l'ensemble."),
@@ -105,7 +105,7 @@ RESULTATS: dict[str, tuple[str, ...]] = {
                  "Avec {moyenne} de moyenne, les acquis sont encore fragiles."),
 }
 
-#: Les phrases d'ÉVOLUTION entre deux trimestres.
+#: The PROGRESS sentences between two terms.
 EVOLUTION: dict[str, tuple[str, ...]] = {
     "hausse": ("Les progrès par rapport au trimestre précédent sont nets.",
                "L'évolution depuis le trimestre dernier est encourageante."),
@@ -115,7 +115,7 @@ EVOLUTION: dict[str, tuple[str, ...]] = {
                "La régularité est là d'un trimestre à l'autre."),
 }
 
-#: Les conclusions d'EF-E8, par ce qui DOMINE.
+#: EF-E8's conclusions, by what DOMINATES.
 CONCLUSIONS: dict[str, tuple[str, ...]] = {
     "comportement": ("Un changement d'attitude est la première chose à "
                      "obtenir.",
@@ -133,12 +133,12 @@ CONCLUSIONS: dict[str, tuple[str, ...]] = {
                "Des efforts soutenus sont attendus."),
 }
 
-#: Au-delà de quelle TEINTE un critère signale une difficulté (EF-E1).
+#: Beyond which TINT a criterion signals a difficulty (EF-E1).
 TEINTE_DIFFICULTE = 3
 
 
 def palier_de(moyenne: float | None) -> str | None:
-    """Le mot d'EF-E7 pour une moyenne, ou ``None`` s'il n'y en a pas."""
+    """EF-E7's word for an average, or ``None`` if there is none."""
     if moyenne is None:
         return None
     for plancher, mot in PALIERS:
@@ -148,10 +148,10 @@ def palier_de(moyenne: float | None) -> str | None:
 
 
 def tendance(moyenne: float | None, precedente: float | None) -> str | None:
-    """``"hausse"``, ``"baisse"``, ``"stable"`` — ou rien à dire.
+    """``"hausse"``, ``"baisse"``, ``"stable"`` — or nothing to say.
 
-    Un demi-point de seuil : en dessous, deux moyennes qui diffèrent de
-    0,2 feraient écrire « des progrès nets » pour du bruit de mesure.
+    A half-point threshold: below it, two averages differing by 0.2 would
+    make it write "des progrès nets" for measurement noise.
     """
     if moyenne is None or precedente is None:
         return None
@@ -163,29 +163,29 @@ def tendance(moyenne: float | None, precedente: float | None) -> str | None:
     return "stable"
 
 
-#: Sur combien de lettres on compare deux mots pour EF-E6.
+#: On how many letters two words are compared for EF-E6.
 #:
-#: ⚠️ **Cinq, et pas le mot entier.** La première version comparait des
-#: mots exacts, et elle ratait précisément l'exemple que le cahier
-#: donne : « solide » n'est pas « solides », donc *« des résultats
-#: solides […] un ensemble solide »* passait. Un test l'a dit avant que
-#: quiconque lise un bulletin. Cinq lettres attrapent aussi
-#: « régulier » / « régularité », ce qui est le même phénomène.
+#: ⚠️ **Five, and not the whole word.** The first version compared exact
+#: words, and it missed precisely the example the specification gives:
+#: "solide" is not "solides", so *"des résultats solides […] un ensemble
+#: solide"* got through. A test said so before anybody read a report
+#: card. Five letters also catch "régulier" / "régularité", which is the
+#: same phenomenon.
 RACINE_COMPAREE = 5
 
 
 def racine(mot: str) -> str:
-    """Le début d'un mot, pour comparer « solide » et « solides »."""
+    """A word's start, to compare "solide" and "solides"."""
     return mot.strip(".,;:!?'«»…").lower()[:RACINE_COMPAREE]
 
 
 def moins_repetitive(candidates: tuple[str, ...], deja: str) -> str:
-    """EF-E6 — celle qui répète le moins ce qui précède.
+    """EF-E6 — the one that repeats least what precedes.
 
-    *« C'est ce qui évite "des résultats solides […] un ensemble
-    solide". »* On compare les RACINES des mots de plus de quatre
-    lettres déjà employés ; à égalité, la première l'emporte, ce qui
-    garde la formulation par défaut quand le choix ne change rien.
+    *"It is what avoids 'des résultats solides […] un ensemble
+    solide'."* We compare the STEMS of the words of more than four
+    letters already used; on a tie, the first wins, which keeps the
+    default wording when the choice changes nothing.
     """
     deja_dites = {racine(m) for m in deja.split() if len(m) > 4}
 
@@ -198,14 +198,14 @@ def moins_repetitive(candidates: tuple[str, ...], deja: str) -> str:
 
 def choisir_conclusion(niveaux: dict[str, int], palier: str | None,
                        sens: str | None) -> str:
-    """EF-E8 — la conclusion dépend de ce qui DOMINE.
+    """EF-E8 — the conclusion depends on what DOMINATES.
 
-    L'ordre des tests EST la règle, et il se lit comme le cahier l'écrit :
-    *« le comportement s'il est le sujet, le défaut d'organisation s'il
-    prime, la tendance entre trimestres sinon, et à défaut les seules
-    notes »*.
+    The order of the tests IS the rule, and it reads as the
+    specification writes it: *"the behaviour if it is the subject, the
+    lack of organisation if it prevails, the trend between terms
+    otherwise, and failing that the marks alone"*.
 
-    ``niveaux`` donne la TEINTE de chaque critère coché (1-4).
+    ``niveaux`` gives each ticked criterion's TINT (1-4).
     """
     if niveaux.get("Comportement", 0) >= TEINTE_DIFFICULTE:
         return "comportement"
@@ -229,13 +229,13 @@ def rediger(
     moyenne_precedente: float | None = None,
     competences: str = "",
 ) -> str:
-    """L'appréciation d'EF-E2, sous les 400 caractères d'EF-E4.
+    """EF-E2's comment, under EF-E4's 400 characters.
 
-    ``observations`` : ``critère → (libellé long du niveau, teinte)``.
+    ``observations``: ``criterion → (long label of the level, tint)``.
 
-    Les phrases sont composées dans l'ordre de LECTURE, puis coupées dans
-    l'ordre de SACRIFICE : les deux listes sont différentes et c'est
-    voulu. Couper la plus longue donnerait un texte plus court et faux.
+    The sentences are composed in READING order, then cut in SACRIFICE
+    order: the two lists are different and that is intended. Cutting the
+    longest would give a shorter text and a false one.
     """
     cadre_index = min(max(trimestre, 1), 3) - 1
     phrases: dict[str, str] = {}
@@ -273,8 +273,8 @@ def rediger(
 
 
 def cle_de(critere: str) -> str:
-    """Le nom de la phrase que porte un critère, pour les deux
-    ordres — celui du sacrifice et celui de la lecture."""
+    """The name of the sentence a criterion carries, for both orders —
+    the sacrifice one and the reading one."""
     return {
         "Comportement": "comportement",
         "Travail": "travail",
@@ -284,11 +284,11 @@ def cle_de(critere: str) -> str:
 
 
 def assembler(phrases: dict[str, str]) -> str:
-    """Coupe jusqu'à tenir sous :data:`LIMITE`, dans l'ordre de sacrifice.
+    """Cut until it fits under :data:`LIMITE`, in sacrifice order.
 
-    On retire à partir de la FIN de :data:`SACRIFICE` — la dernière de la
-    liste est la plus sacrifiable — et on ne descend jamais en dessous du
-    noyau : travail, comportement, conclusion.
+    We remove starting from the END of :data:`SACRIFICE` — the last of
+    the list is the most sacrificial — and we never go below the core:
+    work, behaviour, conclusion.
     """
     gardees = dict(phrases)
     sacrifiables = [c for c in reversed(SACRIFICE)
@@ -303,21 +303,21 @@ def assembler(phrases: dict[str, str]) -> str:
         " ", 1)[0] + "…"
 
 
-# ── Le bilan de classe — EF-F1 à EF-F4 ────────────────────────────────
+# ── The class summary — EF-F1 to EF-F4 ────────────────────────────────
 
-#: Les seuils d'EF-F3 : une difficulté n'est nommée qu'au-delà d'une
-#: proportion. En dessous, elle existe et ne se dit pas — nommer deux
-#: élèves sur trente comme un trait de la classe serait faux.
+#: EF-F3's thresholds: a difficulty is only named beyond a proportion.
+#: Below it, it exists and is not said — naming two pupils out of thirty
+#: as a trait of the class would be false.
 SEUIL_PLUSIEURS = 0.30
 SEUIL_QUELQUES = 0.15
 
-#: EF-F4 : **en dessous de cinq, on ne parle pas.** *« Deux fiches sur
-#: trente donneraient "la grande majorité", ce qui est faux. »*
+#: EF-F4: **below five, we do not speak.** *"Two sheets out of thirty
+#: would give 'the vast majority', which is false."*
 MINIMUM_POUR_PARLER = 5
 
 
 def proportion_dite(part: float) -> str | None:
-    """« plusieurs », « quelques », ou rien du tout (EF-F3)."""
+    """"plusieurs", "quelques", or nothing at all (EF-F3)."""
     if part >= SEUIL_PLUSIEURS:
         return "plusieurs"
     if part >= SEUIL_QUELQUES:
@@ -330,12 +330,11 @@ def bilan(
     moyennes: list[float],
     teintes_par_critere: dict[str, list[int]],
 ) -> str:
-    """Le profil de classe d'EF-F1, et il PART de ce qui domine (EF-F2).
+    """EF-F1's class profile, and it STARTS from what dominates (EF-F2).
 
-    *« Un bilan de classe se lit en salle des professeurs ; il doit être
-    juste sans être accablant. »* La difficulté arrive donc en NUANCE,
-    après le constat d'ensemble, et jamais comme sujet de la première
-    phrase.
+    *"A class summary is read in the staff room; it must be fair without
+    being damning."* So the difficulty arrives as a NUANCE, after the
+    overall observation, and never as the subject of the first sentence.
     """
     morceaux: list[str] = []
 

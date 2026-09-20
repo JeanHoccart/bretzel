@@ -1,28 +1,27 @@
-"""features/reglages — page : l'année, ses trimestres, ses périodes.
+"""features/reglages — page: the year, its terms, its periods.
 
-L'écran d'EF-A1 à EF-A11. Trois blocs, et le troisième est celui qui
-demande vraiment quelque chose au framework : un tableau dont chaque
-ligne est calculée et **coupé par des lignes de période de travail**.
+The screen of EF-A1 to EF-A11. Three blocks, and the third is the one
+that really asks something of the framework: a table where every row is
+computed and **cut by working-period lines**.
 
-Ce que ce tableau doit dire, et qui n'est pas dans les colonnes
----------------------------------------------------------------
-*« Une ligne bleue en travers du tableau sépare les périodes de travail :
-Période 1 · 7 semaines »* (EF-A9). Le besoin derrière la ligne bleue est
-**qu'on voie où une période de travail commence et combien de semaines
-elle dure** — la ligne était la réponse de l'application d'origine. Ici
-c'est un ``ui.divider(label=…)``, qui est littéralement ça : un trait
-avec un mot au milieu.
+What this table must say, and that is not in the columns
+--------------------------------------------------------
+*"A blue line across the table separates the working periods: Period 1 ·
+7 weeks"* (EF-A9). The need behind the blue line is **to see where a
+working period starts and how many weeks it lasts** — the line was the
+original application's answer. Here it is a ``ui.divider(label=…)``,
+which is literally that: a rule with a word in the middle.
 
-Et la colonne « Cours perdus » a **trois réponses distinctes**, jamais
-deux (EF-A11) : rien du tout pour de vraies vacances (l'année est bâtie
-autour d'elles), « aucun cours ce jour-là » pour une liste vide — la
-bonne nouvelle — et la liste des classes quand ça coûte. Sans date de
-référence de semaine A, on dit qu'on **ne sait pas** plutôt que d'inventer.
+And the "Cours perdus" column has **three distinct answers**, never two
+(EF-A11): nothing at all for real holidays (the year is built around
+them), "aucun cours ce jour-là" for an empty list — the good news — and
+the list of classes when it costs. Without a week-A reference date, we
+say we **do not know** rather than invent.
 
-⚠️ **Le tableau n'est pas un ``ui.table``**, et c'est une décision. Un
-tableau de composant rend des lignes homogènes ; ici il faut insérer des
-séparateurs ENTRE des groupes de lignes, et la ligne de séparation porte
-un texte calculé. C'est une grille, pas une table de données.
+⚠️ **The table is not a ``ui.table``**, and it is a decision. A component
+table renders homogeneous rows; here separators must be inserted BETWEEN
+groups of rows, and the separating row carries computed text. It is a
+grid, not a data table.
 """
 
 from __future__ import annotations
@@ -60,21 +59,21 @@ from examples.ecole.features.shell import shell
 
 PATH = "/reglages"
 
-#: La largeur des colonnes du tableau des périodes. Une seule définition
-#: pour l'en-tête ET les lignes : deux chaînes finiraient par diverger
-#: d'un quart de colonne, ce qui ne se voit qu'à l'écran.
+#: The column widths of the periods table. A single definition for the
+#: header AND the rows: two strings would end up diverging by a quarter
+#: of a column, which only shows on screen.
 COLONNES = "grid-cols-[minmax(10rem,1.4fr)_9rem_9rem_6rem_minmax(12rem,1.6fr)]"
 
 
 class ReglagesAnnee(PageState):
-    """Le brouillon des quatre champs de l'année (EF-A1).
+    """The draft of the year's four fields (EF-A1).
 
-    ``annee_id`` n'est rendu par aucun champ et arrive quand même du
-    navigateur : c'est un attribut déclaré du ``PageState``, donc le
-    socle l'hydrate depuis le corps du POST. Il sert ici à détecter que
-    le brouillon parle d'une AUTRE année que celle affichée — sans quoi
-    changer d'année dans la barre latérale laisserait les quatre champs
-    de la précédente.
+    ``annee_id`` is rendered by no field and arrives from the browser
+    anyway: it is a declared attribute of the ``PageState``, so the base
+    layer hydrates it from the POST body. It serves here to detect that
+    the draft speaks of ANOTHER year than the one shown — without which
+    changing year in the sidebar would leave the previous one's four
+    fields.
     """
 
     annee_id: int = field(default=0)
@@ -85,12 +84,12 @@ class ReglagesAnnee(PageState):
 
 
 class ReglagesTrimestres(PageState):
-    """Les six fins de trimestre : trois numéros × deux cycles (EF-A3).
+    """The six term ends: three numbers × two cycles (EF-A3).
 
-    Six champs DÉCLARÉS plutôt qu'un dict, et c'est ce que la grille
-    demande : elle a exactement six cases, connues à l'écriture. Un champ
-    déclaré se lie par ``value=``, donc l'autoname lui donne son nom HTML
-    et le socle l'hydrate — ce qu'un dict indexé ne peut pas faire.
+    Six DECLARED fields rather than a dict, and it is what the grid
+    requires: it has exactly six cells, known at writing time. A declared
+    field binds through ``value=``, so autoname gives it its HTML name
+    and the base layer hydrates it — which an indexed dict cannot do.
     """
 
     annee_id: int = field(default=0)
@@ -103,16 +102,16 @@ class ReglagesTrimestres(PageState):
 
 
 class PeriodeDraft(PageState):
-    """La période en cours d'édition, dans son dialogue.
+    """The period being edited, in its dialog.
 
-    ``ouvert`` est un CHAMP booléen et pas une expression : un
-    ``ui.dialog(open=…)`` piloté par le serveur exige un champ déclaré,
-    sinon la valeur perd sa provenance et le dialogue ne s'ouvre jamais
-    (le silence B3 de ``livrer-une-app.md``).
+    ``ouvert`` is a boolean FIELD and not an expression: a
+    ``ui.dialog(open=…)`` driven by the server requires a declared field,
+    otherwise the value loses its provenance and the dialog never opens
+    (``livrer-une-app.md``'s silence B3).
 
-    ``libelle_origine`` retient le nom sous lequel la ligne est rangée en
-    base. Sans lui, renommer une période en créerait une seconde et
-    laisserait l'ancienne : la clé de la table est le NOM (EF-A4).
+    ``libelle_origine`` keeps the name under which the row is filed in
+    the database. Without it, renaming a period would create a second one
+    and leave the old: the table's key is the NAME (EF-A4).
     """
 
     annee_id: int = field(default=0)
@@ -124,7 +123,7 @@ class PeriodeDraft(PageState):
 
 
 class NouvelleAnnee(PageState):
-    """Le brouillon de création d'année (EF-A2)."""
+    """The year-creation draft (EF-A2)."""
 
     ouvert: bool = field(default=False)
     libelle: str = field(default="")
@@ -145,12 +144,12 @@ def enregistrer_annee(form: ReglagesAnnee) -> None:
 
 
 def enregistrer_trimestres(form: ReglagesTrimestres) -> None:
-    """Les six cases d'un coup, y compris les vides.
+    """The six cells at once, empty ones included.
 
-    Une case vidée DOIT repartir au serveur, sinon on ne peut jamais
-    retirer une date. C'est pour ça que l'enregistrement est global et
-    non case par case : « je n'ai rien saisi » et « j'ai effacé » se
-    ressemblent trait pour trait dans un POST partiel.
+    An emptied cell MUST go back to the server, otherwise a date can
+    never be removed. That is why saving is global and not cell by cell:
+    "I entered nothing" and "I cleared it" look exactly alike in a
+    partial POST.
     """
     annee_id = int(form.annee_id)
     for cycle in CYCLES:
@@ -162,7 +161,7 @@ def enregistrer_trimestres(form: ReglagesTrimestres) -> None:
 
 
 def ouvrir_periode(libelle: str, debut: str, fin: str) -> None:
-    """Ouvre le dialogue sur une période — existante ou proposée."""
+    """Open the dialog on a period — existing or proposed."""
     draft = PeriodeDraft()
     draft.annee_id = annee_regardee()["id"]
     draft.libelle_origine = libelle
@@ -214,12 +213,12 @@ def mettre_en_service(annee_id: int) -> None:
                     duration_ms=2000)
 
 
-# ── Bloc 1 · l'année (EF-A1, EF-A2) ──────────────────────────────────
+# ── Block 1 · the year (EF-A1, EF-A2) ────────────────────────────────
 
-# ⚠️ `NouvelleAnnee` n'est PAS ici, et c'est le finding F12 : le
-# brouillon appartient à `creation_dialogue()`, qui est une zone et le
-# déclare déjà. Le porter ici ferait redessiner tout le bloc à chaque
-# frappe dans le dialogue. La règle `zone-qui-ecoute-trop` le refuse.
+# ⚠️ `NouvelleAnnee` is NOT here, and it is finding F12: the draft
+# belongs to `creation_dialogue()`, which is a zone and already declares
+# it. Carrying it here would redraw the whole block at every keystroke in
+# the dialog. The `zone-listening-too-widely` rule refuses it.
 @refreshable(deps=[AnneeVue, ReglagesAnnee])
 def bloc_annee() -> None:
     annee = annee_regardee()
@@ -290,7 +289,7 @@ def creation_dialogue() -> None:
             ui.button("Créer", type="submit", color="primary")
 
 
-# ── Bloc 2 · les trimestres (EF-A3) ──────────────────────────────────
+# ── Block 2 · the terms (EF-A3) ──────────────────────────────────────
 
 @refreshable(deps=[AnneeVue, ReglagesTrimestres])
 def bloc_trimestres() -> None:
@@ -333,18 +332,18 @@ def bloc_trimestres() -> None:
                           disabled=fige)
 
 
-# ── Bloc 3 · les périodes sans classe (EF-A4 … EF-A11) ───────────────
+# ── Block 3 · the days without class (EF-A4 … EF-A11) ────────────────
 
 def lignes_du_tableau(annee: dict) -> list[dict]:
-    """Les lignes à rendre : les périodes posées + les quatre proposées.
+    """The rows to render: the periods set + the four proposed.
 
-    EF-A4 : les vacances de zone B sont **proposées remplies ou non, sans
-    créer de lignes vides à l'avance**. Une proposition est donc une
-    ligne à l'écran et rien en base — elle n'existe que si on la remplit.
+    EF-A4: zone B's holidays are **proposed filled in or not, without
+    creating empty rows in advance**. So a proposal is a row on screen
+    and nothing in the database — it only exists if it is filled in.
 
-    EF-A6 : l'ordre est celui de l'ANNÉE, et ce qui n'a pas de date ferme
-    la marche. Le tri par date vient de la requête (piège n° 13) ; ce qui
-    se décide ici est seulement où mettre les propositions vides.
+    EF-A6: the order is the YEAR's, and what has no date brings up the
+    rear. The sort by date comes from the query (trap no. 13); what is
+    decided here is only where to put the empty proposals.
     """
     posees = periodes_de(annee["id"])
     connues = {p["libelle"] for p in posees}
@@ -360,17 +359,18 @@ def lignes_du_tableau(annee: dict) -> list[dict]:
 
 
 def cellule_cours_perdus(annee: dict, ligne: dict) -> None:
-    """La colonne d'EF-A11 — trois réponses, jamais deux.
+    """EF-A11's column — three answers, never two.
 
-    L'ordre des tests EST la règle : on regarde d'abord si ce sont de
-    vraies vacances (auquel cas il n'y a rien à dire), puis si
-    l'alternance est calculable, et seulement ensuite ce que ça coûte.
+    The order of the tests IS the rule: we look first at whether these
+    are real holidays (in which case there is nothing to say), then
+    whether the alternation is computable, and only then at what it
+    costs.
     """
     debut = date.fromisoformat(ligne["debut"])
     fin = date.fromisoformat(ligne["fin"])
     if sont_de_vraies_vacances(debut, fin):
-        # Rien. L'année est bâtie autour d'elles ; écrire « 43 heures
-        # perdues » à côté de Noël serait du bruit exact et inutile.
+        # Nothing. The year is built around them; writing "43 hours
+        # lost" beside Christmas would be exact and useless noise.
         return
     perdus = cours_perdus(annee, debut, fin)
     if perdus is None:
@@ -384,9 +384,9 @@ def cellule_cours_perdus(annee: dict, ligne: dict) -> None:
             with ui.hstack(gap="none", align="baseline"):
                 ui.text(code, weight="medium")
                 if heures > 1:
-                    # Le SEUL endroit du tableau où quelque chose coûte
-                    # vraiment, donc le seul en rouge. Une heure ne se
-                    # compte pas : « 4e1 » dit déjà tout.
+                    # The ONLY place in the table where something
+                    # really costs, hence the only one in red. An hour is
+                    # not counted: "4e1" already says everything.
                     ui.text(f" ×{heures}", color="error", weight="semibold")
 
 
@@ -398,10 +398,10 @@ def ligne_periode(annee: dict, ligne: dict, fige: bool) -> None:
                     color="muted")
             ui.text(ligne["libelle"], weight="medium" if posee else None,
                     color=None if posee else "muted")
-        # EF-A7 : le jour de la semaine PRÉCÈDE la date, et l'année reste
-        # affichée. EF-A8 : un férié montre ses DEUX dates, identiques —
-        # une colonne à moitié vide se lit plus mal que deux colonnes
-        # toujours remplies.
+        # EF-A7: the weekday PRECEDES the date, and the year stays
+        # shown. EF-A8: a public holiday shows BOTH its dates, identical
+        # — a half-empty column reads worse than two columns always
+        # filled.
         for borne in ("debut", "fin"):
             if posee:
                 jour = date.fromisoformat(ligne[borne])
@@ -430,9 +430,9 @@ def ligne_periode(annee: dict, ligne: dict, fige: bool) -> None:
             )
 
 
-# ``PeriodeDraft`` n'apparaît pas ici : le bloc ne le lit pas. Il y
-# était pour ``periode_dialogue``, que ce bloc appelait — donc ouvrir
-# une période redessinait la liste entière.
+# ``PeriodeDraft`` does not appear here: the block does not read it. It
+# was there for ``periode_dialogue``, which this block called — so
+# opening a period redrew the whole list.
 @refreshable(deps=[AnneeVue])
 def bloc_periodes() -> None:
     annee = annee_regardee()
@@ -466,10 +466,10 @@ def bloc_periodes() -> None:
                            "Durée", "Cours perdus"):
                 ui.text(entete, color="muted", weight="semibold")
 
-        # EF-A9 : la ligne qui sépare les périodes de TRAVAIL. Elle
-        # s'insère avant la première ligne dont le début tombe après
-        # la fin du morceau — donc entre deux vraies vacances, et
-        # jamais autour d'un férié.
+        # EF-A9: the line separating the WORKING periods. It is
+        # inserted before the first row whose start falls after the
+        # piece's end — so between two real holidays, and never around a
+        # public holiday.
         with ui.vstack(gap="none", classes="divide-y divide-text/5"):
             restants = list(morceaux)
             for ligne in lignes:
@@ -531,7 +531,7 @@ def reglages_page() -> None:
         bloc_annee()
         bloc_trimestres()
         bloc_periodes()
-    # Montés par la PAGE, pas par les blocs : cf. le commentaire sur
+    # Mounted by the PAGE, not by the blocks: cf. the comment on
     # ``bloc_periodes``.
     creation_dialogue()
     periode_dialogue()

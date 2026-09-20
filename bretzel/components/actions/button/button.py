@@ -3,12 +3,12 @@
 A callable ``on_click`` becomes an HMAC-stamped ``hx-post`` action route ;
 a string is emitted as a ``bz-on:click`` expression evaluated client-side.
 
-``href=`` turns the button into an **anchor** — même habillage, autre
-sémantique. C'est une distinction fonctionnelle, pas décorative : un
-``<a>`` s'ouvre au clic-milieu, se copie par « ouvrir dans un nouvel
-onglet », et se dit « lien » à un lecteur d'écran. Un appel à l'action
-qui NAVIGUE doit donc utiliser ``href=`` plutôt qu'un changement manuel de
-balise. :class:`~bretzel.components.layout.card.Card` suit le même contrat.
+``href=`` turns the button into an **anchor** — same dressing, different
+semantics. It is a functional distinction, not a decorative one: an
+``<a>`` opens on a middle click, is copied by "open in a new tab", and
+says "link" to a screen reader. A call to action that NAVIGATES should
+therefore use ``href=`` rather than a manual tag change.
+:class:`~bretzel.components.layout.card.Card` follows the same contract.
 
 ``loading=True`` swaps the ``icon_left`` slot for a :class:`Spinner`,
 suppresses ``icon_right``, and forces the rendered ``<button>`` into the
@@ -90,8 +90,9 @@ class Button(Component):
         on_mouseleave: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive ``None`` (garde
-        # le défaut du descripteur) ; un slot ``None`` se lit ``.get()``→None.
+        # Direct forward: the base layer drops reactive ``None`` kwargs
+        # (keeps the descriptor's default); a ``None`` slot reads as
+        # ``.get()``→None.
         super().__init__(
             variant=variant,
             size=size,
@@ -116,26 +117,26 @@ class Button(Component):
         self._label = Component.adopt_slot(label)
         self._external = external
 
-        # ── Un href fait de ce bouton un ANCRE ────────────────────────
-        # Le tag bascule ici et pas dans ``render`` : ``self._tag`` est
-        # lu par l'introspection et par les gates, et un composant dont
-        # la balise ne se connaît qu'au rendu ment à qui l'interroge.
-        # Un ``tag=`` explicite gagne — c'est l'échappatoire tier 2, et
-        # l'appelant qui l'écrit sait ce qu'il fait.
+        # ── An href makes this button an ANCHOR ───────────────────────
+        # The tag switches here and not in ``render``: ``self._tag`` is
+        # read by introspection and by the gates, and a component whose
+        # tag only knows itself at render lies to whoever asks it.
+        # An explicit ``tag=`` wins — it is the tier-2 escape hatch, and
+        # the caller who writes it knows what they are doing.
         if href is not None and "tag" not in kwargs:
             self._tag = "a"
         if href is not None and on_click is not None:
             raise TypeError(
-                "ui.button ne prend pas `href=` ET `on_click=` : ce sont "
-                "deux métiers (naviguer / agir) sur une même cible, et "
-                "rien n'annoncerait lequel s'applique. Choisis — ou pose "
-                "deux contrôles."
+                "ui.button does not take `href=` AND `on_click=`: they "
+                "are two jobs (navigate / act) on one target, and nothing "
+                "would announce which applies. Choose — or place two "
+                "controls."
             )
         if href is not None and type is not None:
             raise TypeError(
-                "ui.button(href=…) rend un `<a>`, où `type=` désigne le "
-                "type MIME de la cible et non la nature d'un bouton. "
-                "Retire `type=`."
+                "ui.button(href=…) renders an `<a>`, where `type=` names "
+                "the target's MIME type and not a button's nature. Remove "
+                "`type=`."
             )
 
         # Build the spinner eagerly here (not in render()) : Spinner's ctor
@@ -153,12 +154,12 @@ class Button(Component):
         attrs = self.emit_attrs()
         self.apply_class_attrs(attrs)
 
-        # ── Ce qui n'a plus de sens une fois la balise changée ────────
-        # ``type`` est déclaré avec ``default="button"``, donc il sort
-        # de ``emit_attrs`` même quand personne ne l'a demandé. Sur un
-        # ``<a>`` il désigne le type MIME de la cible : le laisser
-        # produisait `<a type="button">`, du HTML qui ne veut rien dire
-        # et que le mode d'emploi `tag="a"` livrait tel quel.
+        # ── What no longer makes sense once the tag has changed ───────
+        # ``type`` is declared with ``default="button"``, so it comes out
+        # of ``emit_attrs`` even when nobody asked for it. On an ``<a>``
+        # it names the target's MIME type: leaving it produced
+        # `<a type="button">`, HTML that means nothing and that the
+        # `tag="a"` instructions shipped as is.
         if self._tag != "button":
             attrs.pop("type", None)
 
@@ -205,17 +206,17 @@ class Button(Component):
             children.append(icon_right.render())
 
         if self._tag == "a":
-            # Externe : nouvel onglet + opener neutralisé. Même écriture
-            # que ``ui.link`` — la paire ``rel`` n'est pas cosmétique,
-            # elle empêche la page ouverte d'atteindre ``window.opener``.
+            # External: a new tab + a neutralised opener. Same writing
+            # as ``ui.link`` — the ``rel`` pair is not cosmetic, it stops
+            # the opened page reaching ``window.opener``.
             if self._external:
                 attrs.setdefault("target", "_blank")
                 attrs.setdefault("rel", "noopener noreferrer")
-            # Désactivé : un ``<a>`` n'a pas d'attribut ``disabled``, et
-            # le poser ne bloque RIEN. On retire la destination, on le
-            # sort de l'ordre de tabulation et on le dit à voix haute —
-            # exactement ce que fait ``ui.link``, dont le thème et
-            # celui-ci partagent le sélecteur ``aria-disabled:``.
+            # Disabled: an ``<a>`` has no ``disabled`` attribute, and
+            # setting it blocks NOTHING. We remove the destination, take
+            # it out of the tab order and say so out loud — exactly what
+            # ``ui.link`` does, whose theme and this one share the
+            # ``aria-disabled:`` selector.
             if attrs.pop("disabled", None):
                 attrs.pop("href", None)
                 attrs["aria-disabled"] = "true"

@@ -1,20 +1,19 @@
-"""Middleware qui pose les en-têtes de sécurité sur chaque réponse.
+"""Middleware that sets the security headers on every response.
 
-Ne lit rien de la requête et ne bloque jamais : il intercepte le
-``http.response.start`` et ajoute ses en-têtes à ceux que la réponse
-porte déjà. Les valeurs sont décidées dans
-:mod:`bretzel.server.security` ; ce fichier ne fait que les poser.
+It reads nothing from the request and never blocks: it intercepts
+``http.response.start`` and adds its headers to those the response
+already carries. The values are decided in
+:mod:`bretzel.server.security`; this file only sets them.
 
-**La politique est construite une fois, paresseusement.** Elle dépend
-des URL que la coque émet — donc de savoir si ``python -m
-bretzel.render.vendor`` a tourné — et du thème résolu. Les deux sont
-connus dès la première réponse, jamais avant ; la calculer à la
-construction du middleware la figerait trop tôt. Le coût est d'un seul
-calcul par process.
+**The policy is built once, lazily.** It depends on the URLs the shell
+emits — so on knowing whether ``python -m bretzel.render.vendor`` has run
+— and on the resolved theme. Both are known from the first response,
+never before; computing it when the middleware is built would freeze it
+too early. The cost is a single computation per process.
 
-Ordre : ce middleware est **au-dessus** de la pile framework (juste sous
-la compression), pour que ses en-têtes couvrent aussi les réponses que
-les couches du dessous produisent seules — un 403 CSRF, un 401 auth.
+Order: this middleware is **above** the framework stack (just below
+compression), so that its headers also cover the responses the layers
+below produce on their own — a CSRF 403, an auth 401.
 """
 
 from __future__ import annotations
@@ -27,11 +26,11 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from bretzel.server.security import BORING_HEADERS, build_policy
 
-#: ``report-only`` fait TOUT sauf bloquer : le navigateur évalue la
-#: politique et signale ce qui aurait sauté. C'est le premier barreau,
-#: celui qui permet de poser une CSP sur une app réelle sans risquer de
-#: la casser — on regarde ce qui remonte, on complète ``csp_sources``,
-#: puis on passe à ``csp=True``.
+#: ``report-only`` does EVERYTHING but block: the browser evaluates the
+#: policy and reports what would have been dropped. It is the first rung,
+#: the one that lets a CSP be set on a real app without risking breaking
+#: it — you watch what comes back, you complete ``csp_sources``, then you
+#: move to ``csp=True``.
 _HEADER = {
     True: "content-security-policy",
     "report-only": "content-security-policy-report-only",
@@ -39,7 +38,7 @@ _HEADER = {
 
 
 class SecurityHeadersMiddleware:
-    """Poser :data:`BORING_HEADERS` et, si demandée, la CSP."""
+    """Set :data:`BORING_HEADERS` and, if asked for, the CSP."""
 
     def __init__(
         self,
@@ -55,30 +54,30 @@ class SecurityHeadersMiddleware:
         self._csp = csp
         self._csp_sources = csp_sources or {}
         self._boring: dict[str, str] = dict(BORING_HEADERS) if boring else {}
-        # Le nom d'en-tête ne dépend que de ``csp``, fixé ici : le relire
-        # dans un dict de module à chaque réponse n'apportait rien.
+        # The header name depends only on ``csp``, fixed here: reading
+        # it back from a module dict on every response gained nothing.
         self._csp_header: str | None = (
             None if csp is False else _HEADER[csp]
         )
         self._policy_cache: str | None = None
 
     def _policy_value(self) -> str:
-        """La politique, calculée au premier passage puis mémorisée."""
+        """The policy, computed on the first pass then memoised."""
         if self._policy_cache is None:
             from bretzel.render import shell_sources
 
             app = self._bretzel_app
-            # ``_css_browser_fallback`` est posé par ``Bretzel.__init__``
-            # puis corrigé au démarrage : il vaut le pipeline demandé, OU
-            # ``True`` si la compilation Tailwind a échoué et qu'on est
-            # retombé sur le compilateur navigateur. On lit ce que la
-            # coque lit, pas le réglage demandé — sinon la politique
-            # bloquerait le CDN d'un repli qu'elle ignore.
+            # ``_css_browser_fallback`` is set by ``Bretzel.__init__``
+            # then corrected at startup: it holds the requested pipeline,
+            # OR ``True`` if the Tailwind compilation failed and we fell
+            # back on the browser compiler. We read what the shell reads,
+            # not the requested setting — otherwise the policy would
+            # block the CDN of a fallback it does not know about.
             #
-            # Lecture directe et non ``getattr`` avec défaut : l'attribut
-            # existe toujours, et le défaut qu'on écrivait recalculait
-            # depuis le réglage DEMANDÉ, c'est-à-dire faisait exactement
-            # ce que le paragraphe ci-dessus interdit.
+            # A direct read and not a ``getattr`` with a default: the
+            # attribute always exists, and the default we used to write
+            # recomputed from the REQUESTED setting, that is to say did
+            # exactly what the paragraph above forbids.
             sources = shell_sources(
                 browser_css=app._css_browser_fallback,
                 mobile_breakpoint=app.config.mobile_breakpoint,
@@ -103,18 +102,18 @@ class SecurityHeadersMiddleware:
 
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
-                # ``MutableHeaders`` est le geste des deux autres
-                # middlewares qui écrivent sur ``http.response.start``
-                # (``session``, ``render_context``) : il normalise la
-                # casse et encode en latin-1 lui-même. Son ``setdefault``
-                # n'écrase pas ce qu'une route a explicitement posé —
-                # une app qui veut son propre ``X-Frame-Options`` sur une
-                # route donnée le garde.
-                entetes = MutableHeaders(scope=message)
-                for cle, valeur in self._boring.items():
-                    entetes.setdefault(cle, valeur)
+                # ``MutableHeaders`` is the gesture of the two other
+                # middlewares that write on ``http.response.start``
+                # (``session``, ``render_context``): it normalises case
+                # and encodes to latin-1 itself. Its ``setdefault`` does
+                # not overwrite what a route explicitly set — an app that
+                # wants its own ``X-Frame-Options`` on a given route
+                # keeps it.
+                headers = MutableHeaders(scope=message)
+                for key, value in self._boring.items():
+                    headers.setdefault(key, value)
                 if self._csp_header is not None:
-                    entetes.setdefault(self._csp_header, self._policy_value())
+                    headers.setdefault(self._csp_header, self._policy_value())
             await send(message)
 
         await self.app(scope, receive, send_wrapper)

@@ -1,21 +1,21 @@
-"""features/eleve — page : la fiche d'un élève.
+"""features/eleve — page: a pupil's sheet.
 
-EF-C3 : *« sa photo, sa classe, ses notes du trimestre avec sa moyenne,
-ses observations cochées, son appréciation, ses particularités et ses
-vérifications en cours. »*
+EF-C3: *"their photo, their class, their term marks with their average,
+their ticked observations, their comment, their particularities and their
+pending checks."*
 
-Sept choses, et quatre arrivent avec leur lot : les notes au 5, les
-observations et l'appréciation au 6, les vérifications au 8. Le lot 4
-livre les trois qui ne dépendent de rien — l'identité, les
-particularités, et le **parcours** d'EF-C9, qui est la seule chose de
-cette fiche que personne d'autre ne montre.
+Seven things, and four arrive with their batch: the marks in 5, the
+observations and the comment in 6, the checks in 8. Batch 4 delivers the
+three that depend on nothing — the identity, the particularities, and
+EF-C9's **path**, which is the only thing on this sheet that nobody else
+shows.
 
-Pourquoi le parcours compte plus qu'il n'en a l'air
-----------------------------------------------------
-*« Les inscriptions sont datées précisément pour cela ; sans l'écran qui
-les montre, l'historique est conservé et invisible. »* RT-2 fait porter à
-chaque sortie une date au lieu d'effacer une ligne ; cet écran est la
-seule raison pour laquelle cette date sert à quelque chose.
+Why the path counts more than it seems
+---------------------------------------
+*"The enrolments are dated precisely for that; without the screen that
+shows them, the history is kept and invisible."* RT-2 makes every
+departure carry a date instead of erasing a row; this screen is the only
+reason that date serves any purpose.
 """
 
 from __future__ import annotations
@@ -48,13 +48,12 @@ from examples.ecole.features.suivi import (
 
 
 class VueEleve(PageState, addressable=True):
-    """L'élève ouvert et le trimestre regardé (EF-U1).
+    """The pupil open and the term being looked at (EF-U1).
 
-    L'élève est dans le chemin ; seul le trimestre a besoin d'un nom
-    d'URL, parce qu'il change ce que le serveur calcule. Mais
-    ``eleve_id`` doit vivre dans l'état quand même : une zone
-    ``@refreshable`` est rappelée sans argument, et le socle REFUSE
-    qu'elle déclare un paramètre.
+    The pupil is in the path; only the term needs a URL name, because it
+    changes what the server computes. But ``eleve_id`` must live in the
+    state anyway: a ``@refreshable`` zone is called back with no
+    argument, and the base layer REFUSES it to declare a parameter.
     """
 
     eleve_id: int = field(default=0)
@@ -62,12 +61,12 @@ class VueEleve(PageState, addressable=True):
 
 
 class Particularites(PageState):
-    """Le brouillon des quatre particularités (EF-C4).
+    """The draft of the four particularities (EF-C4).
 
-    ``eleve_id`` n'est rendu par aucun champ et arrive quand même : c'est
-    un attribut déclaré, donc le socle l'hydrate depuis le POST. Il sert
-    à détecter que le brouillon parle d'un AUTRE élève — sans quoi
-    ouvrir une seconde fiche garderait les cases de la première.
+    ``eleve_id`` is rendered by no field and arrives anyway: it is a
+    declared attribute, so the base layer hydrates it from the POST. It
+    serves to detect that the draft speaks of ANOTHER pupil — without
+    which opening a second sheet would keep the first one's boxes.
     """
 
     eleve_id: int = field(default=0)
@@ -133,17 +132,18 @@ def panneau_particularites() -> None:
 
 
 def changer_trimestre_eleve(vue: VueEleve) -> None:
-    """Vide : la mutation seule re-rend les zones ``deps=[VueEleve]``."""
+    """Empty: the mutation alone re-renders the ``deps=[VueEleve]``
+    zones."""
 
 
 @refreshable(deps=[AnneeVue, VueEleve])
 def panneau_notes() -> None:
-    """Les notes du trimestre et la MOYENNE (EF-C3).
+    """The term's marks and the AVERAGE (EF-C3).
 
-    La moyenne passe par :func:`~examples.ecole.core.domain.moyenne_de`,
-    qui porte la règle du § 5.2 en entier : pondérée par le
-    coefficient, chaque note ramenée sur 20 par son barème, et **les
-    absences ne comptent pas** — elles ne valent pas zéro.
+    The average goes through :func:`~examples.ecole.core.domain.moyenne_de`,
+    which carries § 5.2's whole rule: weighted by the coefficient, each
+    mark brought back to 20 by its scale, and **absences do not count** —
+    they are not worth zero.
     """
     vue = VueEleve()
     eleve_id = int(vue.eleve_id)
@@ -190,7 +190,7 @@ def panneau_notes() -> None:
 
 
 def panneau_parcours(eleve_id: int) -> None:
-    """EF-C9 — les classes traversées, avec leurs dates."""
+    """EF-C9 — the classes gone through, with their dates."""
     etapes = parcours_de(eleve_id)
     with ui.card(padding="lg"), ui.vstack(gap="md"):
         ui.heading("Parcours", level=2, size="lg")
@@ -217,14 +217,14 @@ def eleve_page(eleve_id: int) -> None:
     fiche = eleve(int(eleve_id))
     if fiche is None:
         abort(404)
-    # La page sème, la zone lit (cf. ``VueEleve``).
+    # The page seeds, the zone reads (cf. ``VueEleve``).
     vue = VueEleve()
     if int(vue.eleve_id) != int(eleve_id):
         vue.eleve_id = int(eleve_id)
     courante = classe_courante_de(int(eleve_id))
-    # La fiche d'observation a besoin des TROIS : l'élève, sa classe
-    # et le trimestre. Elle est semée ici pour la même raison que le
-    # reste — une zone se re-rend hors du routage (cf. F4).
+    # The observation sheet needs all THREE: the pupil, their class and
+    # the term. It is seeded here for the same reason as the rest — a
+    # zone re-renders outside the routing (cf. F4).
     observations = VueEleveFiche()
     observations.eleve_id = int(eleve_id)
     observations.classe_id = courante["id"] if courante else 0

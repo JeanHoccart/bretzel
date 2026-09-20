@@ -396,8 +396,8 @@ def test_the_one_line_optin_names_the_scalars_and_skips_the_dict() -> None:
 
     named = addressable_fields(Opted)
     assert named == {
-        "sort_key": "tri", "sort_dir": "sens",
-        "page": "p", "per_page": "taille", "search": "q",
+        "sort_key": "sort", "sort_dir": "dir",
+        "page": "p", "per_page": "size", "search": "q",
     }, named
     assert "filters" not in named, (
         "l'opt-in a allumé ``filters`` — la décision « jamais par "
@@ -430,7 +430,7 @@ def test_overriding_a_default_keeps_the_url_name() -> None:
         sort_key: str = field(default='name')
 
     named = addressable_fields(Overridden)
-    assert named.get("sort_key") == "tri", (
+    assert named.get("sort_key") == "sort", (
         f"la surcharge du défaut a perdu le nom d'URL : {named}"
     )
     assert Overridden().sort_key == "name", "et le défaut surchargé tient"
@@ -462,9 +462,9 @@ def test_a_structured_field_is_refused() -> None:
 
     # Le versant licite : les scalaires du même état restent déclarables.
     class Scalars(DatatableState):
-        URL = {"sort_key": "tri", "page": "p"}
+        URL = {"sort_key": "sort", "page": "p"}
 
-    assert addressable_fields(Scalars) == {"sort_key": "tri", "page": "p"}
+    assert addressable_fields(Scalars) == {"sort_key": "sort", "page": "p"}
 
 
 def test_two_states_claiming_the_same_param_is_refused() -> None:
@@ -524,7 +524,7 @@ def test_a_remembered_view_corrects_its_address() -> None:
         # On revient sur l'adresse NUE, comme le ferait un clic de menu.
         bare = client.get("/remembered").text
 
-    assert _envelope_address(bare) == "/remembered?tri=name", (
+    assert _envelope_address(bare) == "/remembered?sort=name", (
         f"la vue est triée mais l'adresse dit /remembered — "
         f"envelope : {_envelope_address(bare)!r}"
     )
@@ -540,7 +540,7 @@ def test_a_page_that_says_the_truth_corrects_nothing() -> None:
         url, args = _action(client.get("/remembered").text, "sort_by", "button")
         home = client.get("/remembered").text
         _post_action(client, url, args, _page_id(home), "http://t/remembered")
-        exact = client.get("/remembered?tri=name").text
+        exact = client.get("/remembered?sort=name").text
 
     assert _envelope_address(exact) == "", (
         f"l'adresse était déjà juste et le serveur la réécrit quand même : "

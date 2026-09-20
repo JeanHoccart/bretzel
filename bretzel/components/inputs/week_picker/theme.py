@@ -1,24 +1,24 @@
 """Default :class:`WeekPicker` theme.
 
-Même silhouette que :class:`DatePicker` — un champ éditable et un bouton
-icône DANS le même anneau de focus, un popover ancré dessous. Seul le
-CONTENU du panneau diffère (``ui.calendar(mode="week")``), donc les
-chaînes de classes sont volontairement les mêmes : deux champs de
-formulaire de la même famille doivent se ressembler au pixel.
+Same silhouette as :class:`DatePicker` — an editable field and an icon
+button INSIDE the same focus ring, an anchored popover below. Only the
+panel's CONTENT differs (``ui.calendar(mode="week")``), so the class
+strings are deliberately the same: two form fields of the same family
+must look alike to the pixel.
 
-⚠️ Les chaînes restent RECOPIÉES et non partagées, à dessein — c'est la
-règle du dépôt (`feedback_no_shared_style_tokens`) : on harmonise la
-convention, on ne factorise pas les tokens visuels. Ce qui EST partagé,
-c'est la mécanique (`inputs/_picker_field.py`).
+⚠️ The strings stay COPIED and not shared, on purpose — it is the
+repository's rule (`feedback_no_shared_style_tokens`): we harmonise the
+convention, we do not factor out the visual tokens. What IS shared is
+the mechanics (`inputs/_picker_field.py`).
 
 Slots :
-- ``root``          : le wrapper — porte le scope ``bz-data``
-- ``input_frame``   : le champ visible (input + boutons, un seul anneau)
-- ``input_field``   : l'``<input>`` typable, sans cadre propre
-- ``clear_button``  : le ``×``, visible seulement s'il y a une valeur
-- ``trigger_button``: le bouton calendrier qui ouvre le panneau
-- ``button_icon``   : le glyphe dans les deux boutons
-- ``panel``         : le popover ancré par ``$bz.helpers.floating``
+- ``root``          : the wrapper — carries the ``bz-data`` scope
+- ``input_frame``   : the visible field (input + buttons, a single ring)
+- ``input_field``   : the typable ``<input>``, with no frame of its own
+- ``clear_button``  : the ``×``, visible only if there is a value
+- ``trigger_button``: the calendar button that opens the panel
+- ``button_icon``   : the glyph in both buttons
+- ``panel``         : the popover anchored by ``$bz.helpers.floating``
 """
 
 from __future__ import annotations
@@ -59,22 +59,22 @@ WEEK_PICKER_THEME: dict[str, Any] = {
         "panel": (
             "absolute z-40 mt-1 "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface shadow-lg "
-            # Le fondu entrant, cadence des CHAMPS (75 ms, moitié de
-            # celle des menus). Mécanisme des trois classes : un seul
-            # exemplaire, dans ``overlay/dropdown/theme.py``.
+            # The enter fade, FIELD cadence (75 ms, half the menus').
+            # Mechanism of the three classes: a single copy, in
+            # ``overlay/dropdown/theme.py``.
             "transition-[opacity,display] transition-discrete duration-75 "
             "starting:opacity-0"
         ),
     },
-    # La hauteur du palier vit sur ``input_frame`` — le cadre, qui porte la
-    # bordure. En ``box-sizing: border-box``, ``h-10`` sur le cadre vaut
-    # 40 px bordure comprise, comme ``ui.input`` qui pose hauteur et
-    # bordure sur le MÊME élément. Posée sur l'enfant, elle donnait
-    # 40 px + les 2 px du cadre : **42 px**, 2 px de plus que tout autre
-    # contrôle, aux cinq paliers. Mesuré le 2026-08-23, gardé par
+    # The step's height lives on ``input_frame`` — the frame, which
+    # carries the border. Under ``box-sizing: border-box``, ``h-10`` on
+    # the frame is 40 px border included, like ``ui.input`` which sets
+    # height and border on the SAME element. Set on the child, it gave
+    # 40 px + the frame's 2 px: **42 px**, 2 px more than any other
+    # control, at all five steps. Measured on 2026-08-23, guarded by
     # ``tests/runtime_js/test_form_controls_share_one_height.py``.
-    # Les enfants n'ont donc plus de ``h-*`` : le cadre est
-    # ``items-stretch``, ils remplissent sa hauteur intérieure.
+    # The children therefore no longer have an ``h-*``: the frame is
+    # ``items-stretch``, they fill its inner height.
     "sizes": {
         "xs": {"input_frame": "h-7", "input_field": "text-xs",
                "clear_button": "w-6", "trigger_button": "w-7",

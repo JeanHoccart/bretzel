@@ -8,49 +8,49 @@ app = Bretzel(
     title="Bretzel · Playground",
     secret_key="dev-playground-secret-change-me",
     mode="dev",
-    # Le playground est aussi le banc d'essai de la CSP — en BLOCAGE,
-    # pas en observation : une politique qu'on ne fait qu'observer ne
-    # prouve rien. Bretzel calcule déjà ce qu'il se doit (les empreintes
-    # de ses scripts inline, ``'unsafe-eval'``, les hôtes d'icônes, les
-    # origines de ses assets) ; ce qui suit est ce que l'APP charge, et
-    # rien d'autre. Cf. ``.claude/bretzel/security.md``.
+    # The playground is also the CSP test bench — in BLOCKING mode, not
+    # in report-only: a policy one only observes proves nothing. Bretzel
+    # already computes what it owes (the digests of its inline scripts,
+    # ``'unsafe-eval'``, the icon hosts, its assets' origins); what
+    # follows is what the APP loads, and nothing else. Cf.
+    # ``.claude/bretzel/security.md``.
     csp=True,
     csp_sources={
         "img-src": [
-            # Les avatars de démonstration de ``/avatar``.
+            # ``/avatar``'s demonstration avatars.
             "https://i.pravatar.cc",
-            # ⚠️ Déclaré alors qu'il ne répondra JAMAIS : ``/avatar``
-            # démontre le repli sur les initiales quand l'image échoue,
-            # et cette URL est fausse exprès. Sans cette ligne elle
-            # échouerait quand même — mais pour la mauvaise raison, en
-            # laissant une violation CSP permanente dans la console du
-            # banc d'essai, là où « zéro violation » est le signal utile.
+            # ⚠️ Declared although it will NEVER answer: ``/avatar``
+            # demonstrates falling back on the initials when the image
+            # fails, and this URL is wrong on purpose. Without this line
+            # it would fail anyway — but for the wrong reason, leaving a
+            # permanent CSP violation in the test bench's console, where
+            # "zero violations" is the useful signal.
             "https://invalid.example",
         ],
-        # ``/iframe`` monte un ``ui.iframe(src="data:text/html,…")``.
-        # Ce n'est PAS un défaut du framework : Bretzel ne peut pas
-        # savoir qu'une app veut des iframes ``data:``, et l'autoriser
-        # d'office élargirait la politique de toutes les autres.
+        # ``/iframe`` mounts a ``ui.iframe(src="data:text/html,…")``.
+        # It is NOT a framework defect: Bretzel cannot know an app wants
+        # ``data:`` iframes, and allowing it by default would widen every
+        # other app's policy.
         "frame-src": ["data:"],
     },
-    # Le playground se déclare INSTALLABLE — c'est le banc d'essai de
-    # ``PWA``, au même titre qu'il est celui des composants.
+    # The playground declares itself INSTALLABLE — it is ``PWA``'s test
+    # bench, just as it is the components'.
     #
-    # ``icon=`` prend la marque du framework, qui est un SVG : c'est le
-    # cas où ``sizes="any"`` est EXACT et non une approximation
-    # tolérée. Pas de ``maskable`` — le dessin n'a pas la marge que le
-    # rognage d'Android demande, et le déclarer ferait couper dedans.
+    # ``icon=`` takes the framework's mark, which is an SVG: it is the
+    # case where ``sizes="any"`` is EXACT and not a tolerated
+    # approximation. No ``maskable`` — the drawing has not the margin
+    # Android's masking asks for, and declaring it would cut into it.
     #
-    # Pour l'essayer : ouvrir le playground sur ``localhost`` (un
-    # contexte sécurisé), puis l'icône d'installation de la barre
-    # d'adresse. ⚠️ Chrome a longtemps exigé EN PLUS un service worker
-    # pour la proposer, et Bretzel n'en livre pas — si l'invite
-    # n'apparaît pas, c'est ça, pas le manifeste : lui est validé par
-    # Chromium (``tests/probes/probe_pwa.py``).
+    # To try it: open the playground on ``localhost`` (a secure
+    # context), then the address bar's install icon. ⚠️ Chrome long
+    # required a service worker ON TOP to offer it, and Bretzel ships
+    # none — if the prompt does not appear, that is why, not the
+    # manifest: that one is validated by Chromium
+    # (``tests/probes/probe_pwa.py``).
     pwa=PWA(
         name="Bretzel Playground",
         short_name="Bretzel",
-        description="Le banc d'essai des composants Bretzel.",
+        description="The test bench for Bretzel's components.",
         icon="/_bretzel/favicon.svg",
         theme_color="#2f5fd0",
         background_color="#f8fafc",
@@ -68,16 +68,16 @@ app.include(routes.PAGES, errors)
 
 @app.fastapi.post("/_demo/upload")
 async def demo_upload(request: Request) -> dict[str, object]:
-    """Cible d'upload pour les cartes ``upload_url=`` du playground.
+    """Upload target for the playground's ``upload_url=`` cards.
 
-    Le mode async de ``ui.file_upload`` POSTe chaque fichier et n'émet
-    ``upload_complete`` que sur une réponse 2xx — sans vraie cible, la
-    page ne peut démontrer ni la barre de progression ni l'event. On
-    consomme le corps et on le jette : c'est une démo, rien n'est stocké.
+    ``ui.file_upload``'s async mode POSTs every file and only emits
+    ``upload_complete`` on a 2xx response — with no real target, the page
+    can demonstrate neither the progress bar nor the event. We consume
+    the body and throw it away: it is a demo, nothing is stored.
 
-    Le CSRF s'applique ici comme sur tout POST hors ``/_bretzel/action/*``
-    (le slab envoie le header depuis ``$bz._csrf``) — donc cet endpoint
-    exerce aussi ce chemin pour de vrai.
+    CSRF applies here as on every POST outside ``/_bretzel/action/*``
+    (the slab sends the header from ``$bz._csrf``) — so this endpoint
+    also exercises that path for real.
     """
     form = await request.form()
     upload = form.get("file")
@@ -88,12 +88,12 @@ async def demo_upload(request: Request) -> dict[str, object]:
 
 @app.fastapi.post("/_demo/upload-fail")
 async def demo_upload_fail() -> Response:
-    """Cible qui échoue exprès, pour la carte ``upload_error``.
+    """A target that fails on purpose, for the ``upload_error`` card.
 
-    ``upload_error`` ne fire que sur une réponse non-2xx. Tant que la
-    carte pointait sur la cible qui réussit, l'event était indémontrable —
-    il ne se déclenchait que par accident, quand l'upload était cassé pour
-    une autre raison (c'était le cas avec le 403 CSRF).
+    ``upload_error`` only fires on a non-2xx response. As long as the
+    card pointed at the target that succeeds, the event was
+    undemonstrable — it only fired by accident, when the upload was
+    broken for another reason (which was the case with the CSRF 403).
     """
     return Response(status_code=500, content="demo failure")
 

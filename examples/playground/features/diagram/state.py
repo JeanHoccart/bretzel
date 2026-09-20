@@ -1,12 +1,12 @@
-"""État page-scopé du playground Diagram, plus les axes constants.
+"""The Diagram playground's page-scoped state, plus the constant axes.
 
-Un champ par prop du composant, un par échappatoire universelle, un
-par modificateur — c'est ce que le gabarit demande, et c'est ce qui
-fait du Server playground un vrai banc plutôt qu'une démo.
+One field per component prop, one per universal escape hatch, one per
+modifier — it is what the template asks for, and it is what makes the
+Server playground a real bench rather than a demo.
 
-``Picked`` est à part : il pilote le RESSERREMENT de la carte
-Reference. Serveur, parce que changer le centre change les nœuds
-dessinés, donc le placement.
+``Picked`` is apart: it drives the Reference card's NARROWING. Server
+side, because changing the centre changes the nodes drawn, hence the
+placement.
 """
 
 from bretzel import ui
@@ -17,10 +17,10 @@ COLORS = ["primary", "secondary", "success", "warning", "error", "info",
           "muted"]
 DIRECTIONS = ["right", "down"]
 
-# La forme d'une vraie carte d'app : des pages qui consomment un moteur,
-# qui consomme lui-même deux sources. Un losange plus une arête longue,
-# donc des nœuds fantômes — la configuration où une arête peut passer
-# SUR un nœud si le placement est faux.
+# The shape of a real app map: pages consuming an engine, which itself
+# consumes two sources. A diamond plus a long edge, hence phantom nodes —
+# the configuration where an edge can pass OVER a node if the placement
+# is wrong.
 EDGES = [
     ("dashboard", "planning_engine"),
     ("planning", "planning_engine"),
@@ -36,7 +36,7 @@ NODES = [
             badge="1 route", group="pages"),
     ui.node("planning", label="planning", icon="calendar-days",
             badge="2 routes", group="pages"),
-    ui.node("tournees", label="tournées", icon="truck", group="pages"),
+    ui.node("tournees", label='rotated', icon="truck", group="pages"),
     ui.node("settings", label="settings", icon="settings", group="pages"),
     ui.node("planning_engine", label="planning_engine", icon="cog",
             group="socle", width=200),
@@ -46,10 +46,10 @@ NODES = [
 
 
 class Picked(PageState):
-    """Le nœud centré dans la carte Reference — SERVEUR.
+    """The node centred in the Reference card — SERVER side.
 
-    Resserrer change les nœuds dessinés, donc le placement : ça ne peut
-    pas être client. Éclairer, si — et le composant le fait tout seul.
+    Narrowing changes the nodes drawn, hence the placement: it cannot be
+    client side. Lighting up can be — and the component does it alone.
     """
 
     key: str = field(default="")
@@ -67,7 +67,7 @@ class DiagramPlayground(PageState):
     empty:        bool = field(default=False)
     render_mode:  str  = field(default="default")
     click_mode:   str  = field(default="none")
-    # Échappatoires universelles.
+    # Universal escape hatches.
     classes:      str  = field(default="")
     custom_id:    str  = field(default="")
     aria_label:   str  = field(default="")
@@ -81,33 +81,33 @@ class DiagramPlayground(PageState):
 
 
 class DiagramServerEvents(PageState):
-    """Le journal de la carte Server events.
+    """The Server events card's log.
 
-    ``item_click`` est le SEUL event de ``Diagram`` — le gabarit exige
-    qu'ils soient tous câblés, donc un seul contrôle vivant suffit ici.
+    ``item_click`` is ``Diagram``'s ONLY event — the template requires
+    them all to be wired, so a single live control is enough here.
     """
 
     log: list = field(default_factory=list)
 
 
 class DiagramClientEvents(ClientState, persist="memory"):
-    """Le même journal, mais en mémoire du NAVIGATEUR.
+    """The same log, but in the BROWSER's memory.
 
-    Le même event câblé sur une expression cliente : la liste grossit
-    sans qu'aucune requête parte. C'est ce que le bloc HTML de la carte
-    montre — un ``bz-on:click`` là où le serveur mettait un ``hx-post``.
+    The same event wired onto a client expression: the list grows without
+    any request leaving. It is what the card's HTML block shows — a
+    ``bz-on:click`` where the server put an ``hx-post``.
     """
 
     log: list = field(default_factory=list)
 
 
 class DiagramClient(ClientState, persist="memory"):
-    """Le nœud sélectionné, côté NAVIGATEUR.
+    """The selected node, on the BROWSER side.
 
-    Le miroir du contrat ``BINDABLE_PROPS = ("value",)`` : lier
-    ``value=`` à ce champ, c'est brancher la sélection sur le magasin
-    client. Un clic écrit dedans sans qu'aucune requête parte, et tout
-    ce qui lit le champ suit.
+    The mirror of the ``BINDABLE_PROPS = ("value",)`` contract: binding
+    ``value=`` to this field is wiring the selection onto the client
+    store. A click writes into it without any request leaving, and
+    everything reading the field follows.
     """
 
     node: str = field(default="")

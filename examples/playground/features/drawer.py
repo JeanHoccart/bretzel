@@ -392,16 +392,15 @@ def page() -> None:
                     ui.text("Edge inputs and exotic combinations.",
                             color="muted", size="sm")
 
-                    ui.heading("dismissible=False — on ne SORT plus",
+                    ui.heading('dismissible=False — there is no way OUT any more',
                                level=3)
                     ui.text(
-                        "Même coupe que le dialog : ni Escape ni le "
-                        "clic sur le voile. Le tiroir doit alors "
-                        "offrir sa propre sortie, sans quoi il n'y "
-                        "en a aucune.",
+                        'The same cut as the dialog: neither Escape nor a'
+                            ' click on the veil. The drawer must then offer '
+                            'its own way out, failing which there is none.',
                         color="muted", size="xs",
                     )
-                    with ui.drawer(title="Étape obligatoire",
+                    with ui.drawer(title='Mandatory step',
                                    dismissible=False) as locked_drw:
                         ui.text("Choisissez avant de continuer.")
                         ui.button("Terminer",
@@ -668,13 +667,12 @@ def page() -> None:
                         level=3,
                     )
                     ui.text(
-                        "Binding fournie ET on appelle ``.open()`` "
-                        "sur l'instance. Le framework détecte la "
-                        "binding et délègue à ``binding.set(True)`` "
-                        "— **le DOM dispatch n'est pas utilisé**, "
-                        "single source of truth préservée. La switch "
-                        "et les boutons imperatifs convergent sur "
-                        "le même flag.",
+                        'A binding supplied AND ``.open()`` called on the'
+                            ' instance. The framework detects the binding and'
+                            ' delegates to ``binding.set(True)`` — **the DOM '
+                            'dispatch is not used**, the single source of '
+                            'truth is preserved. The switch and the '
+                            'imperative buttons converge on the same flag.',
                         color="muted", size="sm",
                     )
                     both = DrawerClient(key="both")

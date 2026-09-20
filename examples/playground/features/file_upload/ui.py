@@ -284,10 +284,9 @@ def page() -> None:
                             ui.file_upload(variant="button")
 
                     ui.heading("list (tiles / chips)", level=3)
-                    ui.text("Axe INDEPENDANT de variant= : celui-ci habille "
-                            "la liste des fichiers deposes, pas le "
-                            "declencheur. Depose un fichier dans chacun "
-                            "pour voir la difference.",
+                    ui.text('An axis INDEPENDENT of variant=: this one dresses '
+                        'the list of dropped files, not the trigger. Drop a '
+                        'file in each to see the difference.',
                             color="muted", size="xs")
                     with ui.flex(wrap=True, gap="md", align="start"):
                         with ui.vstack(gap="xs", align="start"):
@@ -296,12 +295,12 @@ def page() -> None:
                                     color="muted", size="xs")
                             ui.file_upload(multiple=True)
                         with ui.vstack(gap="xs", align="start"):
-                            ui.text("chips — icone, nom, x inline, "
-                                    "s enroulent sur plusieurs lignes",
+                            ui.text('chips — icon, name, inline x, wrapping onto '
+                                'several lines',
                                     color="muted", size="xs")
                             ui.file_upload(multiple=True, list="chips")
-                    ui.text("La forme composer : un declencheur compact et "
-                            "des puces sous le champ.",
+                    ui.text('The composer shape: a compact trigger and pills '
+                        'under the field.',
                             color="muted", size="xs")
                     ui.file_upload(variant="button", multiple=True,
                                    list="chips", label="Joindre")
@@ -635,9 +634,10 @@ def page() -> None:
                                        label="upload_complete",
                                        upload_url="/_demo/upload",
                                        on_upload_complete=log_upload_complete)
-                        # Cible qui répond 500 exprès : ``upload_error`` ne
-                        # fire que sur un non-2xx, donc la cible qui
-                        # réussit le rendrait indémontrable.
+                        # A target answering 500 on purpose:
+                        # ``upload_error`` only fires on a non-2xx, so the
+                        # target that succeeds would make it
+                        # undemonstrable.
                         ui.file_upload(variant="button",
                                        label="upload_error",
                                        upload_url="/_demo/upload-fail",

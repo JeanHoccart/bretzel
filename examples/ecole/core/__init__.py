@@ -1,1 +1,2 @@
-"""core/ — le global de l'app École : domaine (pur), thème, mots, base."""
+"""core/ — the École app's globals: domain (pure), theme, words,
+database."""

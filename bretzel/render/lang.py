@@ -1,43 +1,42 @@
-"""Quelle langue servir à CETTE requête — et la table de mots qui va avec.
+"""Which language to serve THIS request — and the word table that goes with it.
 
-Pair de :mod:`bretzel.render.screen`, et pour la même raison : le
-navigateur sait quelque chose que le serveur doit rendre. Là-bas c'est la
-forme de l'écran, ici la langue ; dans les deux cas un cookie porte le
-choix, et le serveur rend depuis une vraie valeur plutôt que de deviner.
+The pair of :mod:`bretzel.render.screen`, and for the same reason: the
+browser knows something the server has to render. There it is the shape of
+the screen, here the language; in both cases a cookie carries the choice,
+and the server renders from a real value rather than guessing.
 
-Le partage avec :mod:`bretzel.render.texts` est net : **ce module choisit
-la langue, l'autre possède les mots.**
+The split with :mod:`bretzel.render.texts` is clean: **this module picks
+the language, the other owns the words.**
 
-La chaîne, et pourquoi son ordre est le sujet
-----------------------------------------------
-1. le cookie ``bz_lang``, s'il nomme une langue déclarée ;
-2. ``Accept-Language``, négocié contre les langues de l'app ;
-3. la langue par défaut (``Bretzel(lang=…)``).
+The chain, and why its order is the subject
+-------------------------------------------
+1. the ``bz_lang`` cookie, if it names a declared language;
+2. ``Accept-Language``, negotiated against the app's languages;
+3. the default language (``Bretzel(lang=…)``).
 
-C'est l'ordre de Django (``LocaleMiddleware``), de Rails et de
-next-intl, et ce n'est pas un goût. ``Accept-Language`` décrit la
-configuration du système d'exploitation, **pas un choix de lecture** :
-quelqu'un dont le système est anglais mais qui lit en français doit
-pouvoir le dire, et sans un cookie au-dessus de l'en-tête un sélecteur
-de langue serait inécrivable. Une page qui dépend du seul en-tête cesse
-aussi d'être adressable — deux personnes ouvrant la même URL voient deux
-pages, ce qui casse les favoris, le référencement, et oblige le cache à
-``Vary``.
+That is Django's order (``LocaleMiddleware``), Rails's and next-intl's,
+and it is not a matter of taste. ``Accept-Language`` describes the
+operating system's configuration, **not a reading choice**: someone whose
+system is in English but who reads in French must be able to say so, and
+without a cookie above the header a language selector would be
+unwritable. A page depending on the header alone also stops being
+addressable — two people opening the same URL see two pages, which breaks
+bookmarks, search indexing, and forces the cache to ``Vary``.
 
-Inverser cet ordre ne casse **rien de visible** : la négociation
-continue de marcher, les pages continuent de rendre, et seul le
-sélecteur cesse d'avoir un effet, pour les gens dont le système n'est
-pas dans la langue qu'ils ont choisie. D'où deux mesures plutôt qu'une
-relecture : ``tests/integration/test_the_language_is_resolved_per_request.py``
-et ``tests/probes/probe_lang.py``, qui l'éprouve au navigateur.
+Reversing that order breaks **nothing visible**: negotiation keeps
+working, pages keep rendering, and only the selector stops having an
+effect, for the people whose system is not in the language they chose.
+Hence two measurements rather than a re-read:
+``tests/integration/test_the_language_is_resolved_per_request.py`` and
+``tests/probes/probe_lang.py``, which exercises it in the browser.
 
-Ce que ce module ne fait pas
------------------------------
-Traduire les chaînes de l'app. :attr:`Language.code` rend la langue
-résolue, et un
-dict par langue dans l'app fait le reste en six lignes ; les catalogues,
-l'extraction et les règles de pluriel par langue sont un chantier à part
-(v2.1). Ce qui manquait vraiment, c'était de savoir QUELLE langue servir.
+What this module does not do
+----------------------------
+Translate the app's strings. :attr:`Language.code` returns the resolved
+language, and a dict per language in the app does the rest in six lines;
+catalogues, extraction and per-language plural rules are a separate
+project (v2.1). What was really missing was knowing WHICH language to
+serve.
 """
 
 from __future__ import annotations
@@ -58,9 +57,9 @@ __all__ = [
 ]
 
 
-#: ``fr``, ``fr-CA``, ``*`` — plus un ``;q=0,8`` toléré (des proxys en
-#: produisent). Tout le reste est ignoré silencieusement : un en-tête mal
-#: formé est du bruit venu du réseau, pas une erreur de l'app.
+#: ``fr``, ``fr-CA``, ``*`` — plus a tolerated ``;q=0,8`` (some proxies
+#: produce it). Everything else is silently ignored: a malformed header
+#: is noise from the network, not an app error.
 _ACCEPT_ITEM = re.compile(
     r"^\s*(?P<tag>[A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*|\*)"
     r"\s*(?:;\s*q\s*=\s*(?P<q>[0-9]+(?:[.,][0-9]+)?))?\s*$"
@@ -68,7 +67,7 @@ _ACCEPT_ITEM = re.compile(
 
 
 def _primary(tag: str) -> str:
-    """``fr-CA`` → ``fr``. La comparaison se fait toujours en minuscules."""
+    """``fr-CA`` → ``fr``. Comparison is always done in lower case."""
     return tag.lower().split("-", 1)[0]
 
 
@@ -91,16 +90,16 @@ def negotiate_language(
         quality = float(raw_q.replace(",", ".")) if raw_q else 1.0
         if quality > 0:
             ranked.append((quality, match.group("tag")))
-    # ``sort`` est STABLE, y compris avec ``reverse`` : l'ordre d'ajout
-    # (celui de l'en-tête) départage donc les qualités égales, sans avoir
-    # à porter un index dans le tuple.
+    # ``sort`` is STABLE, including with ``reverse``: insertion order
+    # (the header's) therefore breaks ties between equal qualities,
+    # without having to carry an index in the tuple.
     ranked.sort(key=lambda row: row[0], reverse=True)
 
-    #: dernier gagnant — deux entrées de même étiquette sont une faute de
-    #: l'app, pas une ambiguïté à arbitrer.
+    #: last one wins — two entries with the same tag are an app fault,
+    #: not an ambiguity to arbitrate.
     exact = {code.lower(): code for code in available}
-    #: premier gagnant : ``["fr-CA", "fr"]`` doit servir ``fr-BE`` par
-    #: ``fr-CA``, la première déclarée, pas par la dernière.
+    #: first one wins: ``["fr-CA", "fr"]`` must serve ``fr-BE`` through
+    #: ``fr-CA``, the first declared, not through the last.
     primaries: dict[str, str] = {}
     for code in available:
         primaries.setdefault(_primary(code), code)
@@ -128,9 +127,10 @@ class LanguageTables:
     ) -> None:
         codes = list(dict.fromkeys([default, *languages]))
         self._default = default
-        # Toute langue déclarée mais non surchargée retombe sur l'anglais.
-        # Pas d'erreur : une app qui ajoute ``"de"`` avant d'avoir traduit
-        # doit pouvoir la servir, en anglais, plutôt que refuser de démarrer.
+        # Any declared but unoverridden language falls back to English.
+        # No error: an app adding ``"de"`` before having translated it
+        # must be able to serve it, in English, rather than refuse to
+        # start.
         self._tables: dict[str, Mapping[str, str]] = dict.fromkeys(
             codes, DEFAULT_TEXTS
         )
@@ -138,16 +138,16 @@ class LanguageTables:
             return
 
         nested = {k for k, v in overrides.items() if isinstance(v, Mapping)}
-        # ``flat`` = tout le reste, pas « les chaînes » : une valeur d'un
-        # troisième type se glisserait entre deux listes et échapperait au
-        # garde ci-dessous.
+        # ``flat`` = everything else, not "the strings": a value of a
+        # third type would slip between two lists and escape the guard
+        # below.
         flat = set(overrides) - nested
         if nested and flat:
             raise TextsError(
-                f"texts= mélange les deux formes : {sorted(flat)[:3]} sont des "
-                f"phrases (forme plate) et {sorted(nested)[:3]} des tables "
-                f"(forme par langue). Choisis-en une — un dict qui contient "
-                f"les deux n'a pas de lecture juste."
+                f"texts= mixes the two forms: {sorted(flat)[:3]} are "
+                f"sentences (flat form) and {sorted(nested)[:3]} are tables "
+                f"(per-language form). Pick one — a dict containing both "
+                f"has no correct reading."
             )
         if not nested:
             self._tables[default] = resolve_texts(overrides)  # type: ignore[arg-type]
@@ -156,11 +156,10 @@ class LanguageTables:
         unknown = sorted(nested - set(codes))
         if unknown:
             raise TextsError(
-                f"texts= surcharge des langues non déclarées : "
-                f"{', '.join(repr(c) for c in unknown)}. Ajoute-les à "
-                f"``languages=``, sinon personne ne les recevra jamais — une "
-                f"table que rien ne peut sélectionner est du travail perdu en "
-                f"silence."
+                f"texts= overrides undeclared languages: "
+                f"{', '.join(repr(c) for c in unknown)}. Add them to "
+                f"``languages=``, otherwise nobody will ever receive them — "
+                f"a table nothing can select is work lost in silence."
             )
         for code in nested:
             self._tables[code] = resolve_texts(overrides[code])
@@ -195,19 +194,19 @@ class Language:
 
     __slots__ = ("code",)
 
-    #: La langue résolue de cette requête, en BCP-47 — ``"en"``,
+    #: This request's resolved language, in BCP-47 — ``"en"``,
     #: ``"fr-CA"``.
     #:
-    #: Annotée ICI et pas seulement assignée dans ``__init__`` : le
-    #: descripteur que ``__slots__`` pose suffirait à l'exécution, mais
-    #: ``test_cited_symbols_resolve`` lit les classes à l'AST, où un
-    #: slot n'est qu'une chaîne dans un tuple. Sans cette ligne, toute
-    #: prose qui écrit ``:attr:`Language.code``` rougit. (``Screen`` s'en
-    #: passe parce qu'aucune prose ne cite ses champs par un rôle.)
+    #: Annotated HERE and not merely assigned in ``__init__``: the
+    #: descriptor ``__slots__`` sets would be enough at runtime, but
+    #: ``test_cited_symbols_resolve`` reads classes at the AST level,
+    #: where a slot is only a string in a tuple. Without this line, any
+    #: prose writing ``:attr:`Language.code``` turns red. (``Screen``
+    #: does without it because no prose cites its fields by a role.)
     code: str
 
-    #: Un an. Une préférence de langue n'a pas de raison d'expirer avec la
-    #: session : quelqu'un qui a choisi le français le veut encore au retour.
+    #: One year. A language preference has no reason to expire with the
+    #: session: someone who chose French still wants it on their return.
     _COOKIE_MAX_AGE = 365 * 24 * 3600
 
     def __init__(self) -> None:
@@ -219,19 +218,19 @@ class Language:
     @classmethod
     def set(cls, code: str) -> None:
         """Select the language and reload the page in that language."""
-        # ``navigation`` est AU-DESSUS de ``render`` dans le DAG, d'où
-        # l'import différé — même forme que ``render/context.py``, qui
-        # remonte vers ``server.handlers`` pour signer une action.
-        # ``current_context`` est de la même couche, différé par la même
-        # convention que ``render/screen.py``.
+        # ``navigation`` is ABOVE ``render`` in the DAG, hence the
+        # deferred import — same shape as ``render/context.py``, which
+        # reaches up to ``server.handlers`` to sign an action.
+        # ``current_context`` is from the same layer, deferred by the
+        # same convention as ``render/screen.py``.
         #
-        # Cette remontée est l'asymétrie du sujet, et elle est vraie :
-        # ``Language`` est la seule des quatre lectures d'ambiance dont
-        # l'ÉCRITURE est un aller-retour serveur (cookie + rechargement).
-        # Son versant lecture reste où on le lit ; son versant écriture
-        # remonte. (Le concept, lui, s'étale déjà sur trois couches — le
-        # nom du cookie est dans ``runtime/protocol.py``, la déclaration
-        # ``languages`` dans ``server/config.py``.)
+        # That upward reach is the subject's asymmetry, and it is real:
+        # ``Language`` is the only one of the four ambient reads whose
+        # WRITE is a server round trip (cookie + reload). Its read side
+        # stays where it is read; its write side reaches up. (The concept
+        # itself already spreads over three layers — the cookie name is
+        # in ``runtime/protocol.py``, the ``languages`` declaration in
+        # ``server/config.py``.)
         from bretzel.render.context import current_context
         from bretzel.server.navigation import reload as _reload
 
@@ -239,12 +238,12 @@ class Language:
         languages = ctx.app.config.languages
         if code not in languages:
             hint = (
-                " L'app n'en déclare qu'une : ajoute Bretzel(languages=['en', 'fr'])."
+                " The app declares only one: add Bretzel(languages=['en', 'fr'])."
                 if len(languages) <= 1
                 else ""
             )
             raise BretzelError(
-                f"Language.set({code!r}) : langue non déclarée. languages="
+                f"Language.set({code!r}): undeclared language. languages="
                 f"{list(languages)}.{hint}"
             )
         ctx.set_cookie(
@@ -252,9 +251,9 @@ class Language:
             code,
             max_age=cls._COOKIE_MAX_AGE,
             samesite="lax",
-            # Lisible en JS À DESSEIN, contrairement au cookie de session :
-            # ce n'est pas un secret, et une app qui veut proposer sa langue
-            # côté client doit pouvoir la lire.
+            # Readable in JS ON PURPOSE, unlike the session cookie:
+            # this is not a secret, and an app wanting to offer its
+            # language client-side must be able to read it.
             httponly=False,
             path="/",
         )

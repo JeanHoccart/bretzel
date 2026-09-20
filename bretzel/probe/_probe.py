@@ -1,9 +1,9 @@
-"""Le probe — sert l'app, ouvre les fenêtres, enregistre les constats.
+"""The probe — serves the app, opens the windows, records the findings.
 
-Le harnais fournit les AXES, le probe fournit le SCÉNARIO. C'est la
-raison d'être du module : dans ``tests/probes/``, 146 fichiers et 21 898
-lignes réécrivaient les axes à la main — 75 ouvraient Playwright, 64
-lançaient le serveur, 66 redéfinissaient leur propre ``check``.
+The harness supplies the AXES, the probe supplies the SCENARIO. That is
+the module's reason to exist: in ``tests/probes/``, 146 files and 21 898
+lines rewrote the axes by hand — 75 opened Playwright, 64 started the
+server, 66 redefined their own ``check``.
 """
 
 from __future__ import annotations
@@ -45,8 +45,9 @@ class Net:
     def _guard(self) -> None:
         if not self._done:
             raise RuntimeError(
-                "le compte de requêtes ne se lit qu'APRÈS le bloc "
-                "`with p.requests() as net:` — pendant, le geste n'est pas fini."
+                "the request count can only be read AFTER the "
+                "`with p.requests() as net:` block — during it, the gesture "
+                "is not finished."
             )
 
     @property
@@ -72,21 +73,21 @@ class Net:
     def __repr__(self) -> str:
         if not self._done:
             return "Net(en cours)"
-        return f"Net({self.total} requêtes : {', '.join(self.urls) or '—'})"
+        return f"Net({self.total} requests: {', '.join(self.urls) or '—'})"
 
 
 def say(line: str) -> None:
-    """Imprime, quoi qu'il arrive à l'encodage de la console.
+    """Print, whatever happens to the console's encoding.
 
-    Un probe lancé à la main reconfigure sa sortie en UTF-8 ; un probe
-    collecté par ``pytest`` n'a rien reconfiguré du tout, et la console
-    Windows est en cp1252. Un nom de constat qui porte un « ① » faisait
-    alors tomber le scénario sur un ``UnicodeEncodeError`` — depuis
-    ``print``, c'est-à-dire depuis la ligne qui devait RENDRE COMPTE.
-    Mesuré le 2026-09-11 en portant une mesure de banc vers une gate.
+    A probe launched by hand reconfigures its output to UTF-8; a probe
+    collected by ``pytest`` has reconfigured nothing at all, and the
+    Windows console is in cp1252. A finding name carrying a "①" then
+    brought the scenario down on a ``UnicodeEncodeError`` — from
+    ``print``, that is to say from the line that was meant to REPORT.
+    Measured on 2026-09-11 while porting a bench measurement into a gate.
 
-    Le remplacement est préférable au silence : le verdict reste lisible,
-    seul le caractère qui ne passe pas devient un « ? ».
+    Replacement is preferable to silence: the verdict stays readable,
+    only the character that does not pass becomes a "?".
     """
     try:
         print(line)
@@ -140,7 +141,7 @@ class Probe:
         """Wait deliberately for the requested duration."""
         time.sleep(seconds)
 
-    # ── mesurer le réseau ─────────────────────────────────────────────
+    # ── measuring the network ─────────────────────────────────────────
     @contextlib.contextmanager
     def requests(self) -> Iterator[Net]:
         """Return the network requests made by the current probe gesture."""
@@ -152,49 +153,49 @@ class Probe:
         finally:
             net._close(tuple(s for w, m in marks for s in w.since(m)))
 
-    # ── lire ce que le SERVEUR croit ──────────────────────────────────
+    # ── reading what the SERVER believes ──────────────────────────────
     def state[S](self, klass: type[S], *, of: Window | None = None) -> S:
         """Return the shared backend state at the current instant."""
         from bretzel.state import AppState, StateRegistry
 
         if self._app is None:
             raise ScopeNotReadableError(
-                "state() a besoin du mode thread : en sous-processus l'app "
-                "vit ailleurs, donc son backend d'état n'est pas dans ce "
-                "processus. Relance sans serve=\"subprocess\"."
+                "state() needs thread mode: in subprocess mode the app "
+                "lives elsewhere, so its state backend is not in this "
+                "process. Re-run without serve=\"subprocess\"."
             )
         if of is not None:
             raise ScopeNotReadableError(
-                "of= n'est pas encore livré : lire une portée de session "
-                "demande de déchiffrer le cookie signé de la fenêtre."
+                "of= is not shipped yet: reading a session scope requires "
+                "decrypting the window's signed cookie."
             )
         if not (isinstance(klass, type) and issubclass(klass, AppState)):
             raise ScopeNotReadableError(
-                f"{klass.__name__} n'est pas un AppState. Seule la portée "
-                "partagée se lit sans requête : un PageState est indexé par "
-                "un uuid de rendu, un SessionState par un cookie."
+                f"{klass.__name__} is not an AppState. Only the shared "
+                "scope can be read without a request: a PageState is indexed "
+                "by a render uuid, a SessionState by a cookie."
             )
 
         backend = self._app.state_backend
         if backend is None:
             raise ScopeNotReadableError(
-                "l'app n'a pas encore de backend d'état — il est câblé au "
-                "démarrage, donc avant le lifespan il n'y a rien à lire."
+                "the app has no state backend yet — it is wired at "
+                "startup, so before the lifespan there is nothing to read."
             )
 
-        # ⚠️ On ne réécrit PAS l'hydratation. ``try_sync_resolve`` compose
-        # la clé de portée, choisit entre ``load_sync`` et la boucle, et
-        # construit par ``type.__call__`` — la métaclasse intercepterait
-        # ``klass(...)`` et RELANCERAIT une hydratation. Une première
-        # version de ce corps recopiait les trois : c'est exactement la
-        # divergence dont ``_build`` porte la cicatrice.
+        # ⚠️ We do NOT rewrite the hydration. ``try_sync_resolve``
+        # composes the scope key, chooses between ``load_sync`` and the
+        # loop, and builds through ``type.__call__`` — the metaclass
+        # would intercept ``klass(...)`` and RESTART a hydration. A first
+        # version of this body copied all three: that is exactly the
+        # divergence ``_build`` carries the scar of.
         #
-        # Un registre jetable suffit : la portée ``app`` ne dépend
-        # d'aucune identité de requête, et son cache d'instances meurt
-        # avec lui.
+        # A throwaway registry is enough: the ``app`` scope depends on no
+        # request identity, and its instance cache dies with it.
         resolved = StateRegistry(backend).try_sync_resolve(klass)
-        # ``None`` = le backend ne porte rien encore, donc l'état EST ses
-        # défauts. Hors registre, ``klass()`` construit sans hydrater.
+        # ``None`` = the backend carries nothing yet, so the state IS
+        # its defaults. Outside a registry, ``klass()`` builds without
+        # hydrating.
         return resolved if resolved is not None else klass()
 
     # ── rendre le verdict ─────────────────────────────────────────────
@@ -202,7 +203,7 @@ class Probe:
         total = len(self._verdicts)
         bad = self.failures
         say("")
-        say(f"  {total - len(bad)}/{total} verts — captures dans {self.out}")
+        say(f"  {total - len(bad)}/{total} green — screenshots in {self.out}")
         for verdict in bad:
             say(f"  ROUGE  {verdict.name}" + (f" — {verdict.detail}" if verdict.detail else ""))
 
@@ -237,9 +238,9 @@ def probe(
         try:
             yield p
         except BaseException:
-            # Le scénario a levé : on rend quand même les constats déjà
-            # posés — ils disent souvent OÙ ça a cassé — mais on ne balaie
-            # pas une page dont on ne sait plus dans quel état elle est.
+            # The scenario raised: we still return the findings already
+            # recorded — they often say WHERE it broke — but we do not
+            # sweep a page whose state we no longer know.
             p.report()
             raise
         sweep(p.windows, p.size, p.check)

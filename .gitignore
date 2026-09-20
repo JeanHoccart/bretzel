@@ -14,12 +14,16 @@ htmlcov/
 *.egg-info/
 build/
 dist/
+# …except the launch site, whose dist/ IS the deliverable: it is
+# a static page, not a build artefact rebuilt from source here.
+!launch/site/dist/
 .release-wheel/
 .tox/
 
 # Virtual envs
 .venv/
 venv/
+.ci-venv/
 env/
 
 # Local configuration and secrets

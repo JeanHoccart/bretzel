@@ -1,15 +1,15 @@
-"""Le balayage gratuit — ce que personne ne réécrit, donc personne n'oublie.
+"""The free sweep — what nobody rewrites, so nobody forgets.
 
-Il tourne à la sortie du ``with``, sur chaque fenêtre, sans qu'un probe
-ait à le demander. La liste vient de
-``.claude/bretzel/livrer-une-app.md`` § C et D.
+It runs when the ``with`` exits, on every window, without a probe having
+to ask for it. The list comes from
+``.claude/bretzel/livrer-une-app.md`` §§ C and D.
 
-Ce qu'il ne fait PAS, et pourquoi : les probes « couleurs distinctes » et
-« tailles distinctes » de ``creating-a-component.md`` § 9 comparent les
-VARIANTES d'un composant monté seul. Ils n'ont pas de sens sur une app
-assemblée, où il n'y a pas deux variantes à comparer. Ils restent au
-harnais de composant ; les prétendre ici en ferait deux lignes vertes qui
-ne mesurent rien.
+What it does NOT do, and why: the "distinct colours" and "distinct
+sizes" probes of ``creating-a-component.md`` § 9 compare the VARIANTS of
+a component mounted on its own. They make no sense on an assembled app,
+where there are no two variants to compare. They stay with the component
+harness; claiming them here would make two green lines that measure
+nothing.
 """
 
 from __future__ import annotations
@@ -19,22 +19,22 @@ from typing import Any
 
 from bretzel.probe._window import Window
 
-#: Ce que le balayage sait faire d'un constat. Il reçoit la fonction,
-#: pas le ``Probe`` : une politique ne consomme pas l'objet qui
-#: l'appelle. Sans ça il fallait un import différé « pour casser un
-#: cycle » qui n'existait pas.
+#: What the sweep can do with a finding. It receives the function, not
+#: the ``Probe``: a policy does not consume the object calling it.
+#: Without that, a deferred import was needed "to break a cycle" that did
+#: not exist.
 Check = Callable[[str, bool, object], None]
 
-#: C1 — « la plus PETITE fenêtre plausible, jamais la plus grande ».
-#: Mesurer à 1500×940 valide la taille où tout tient. La seconde taille
-#: n'est pas un luxe : le probe du kanban affirmait « toutes les colonnes
-#: tiennent » et avait raison, à la sienne.
+#: C1 — "the SMALLEST plausible window, never the largest". Measuring at
+#: 1500×940 validates the size where everything fits. The second size is
+#: not a luxury: the kanban's probe claimed "every column fits" and was
+#: right, at its own size.
 SECOND_SIZE = (1366, 640)
 
-#: ⚠️ Chaîne BRUTE : le JS ci-dessous porte des expressions
-#: régulières, et un ``\s`` interprété par Python arriverait au
-#: navigateur en espace littéral — erreur de syntaxe à
-#: l'évaluation, donc un balayage qui LÈVE au lieu de mesurer.
+#: ⚠️ A RAW string: the JS below carries regular expressions, and a
+#: ``\s`` interpreted by Python would arrive at the browser as a literal
+#: space — a syntax error at evaluation time, so a sweep that RAISES
+#: instead of measuring.
 _GEOMETRY_JS = r"""
 () => {
     const doc = document.documentElement;
@@ -43,9 +43,9 @@ _GEOMETRY_JS = r"""
     const clipped = [];
     for (const el of document.querySelectorAll('*')) {
         const st = getComputedStyle(el);
-        const deborde = el.scrollHeight > el.clientHeight + 1
+        const overflows = el.scrollHeight > el.clientHeight + 1
             && el.clientHeight > 0;
-        if (/auto|scroll/.test(st.overflowY) && deborde) {
+        if (/auto|scroll/.test(st.overflowY) && overflows) {
             const r = el.getBoundingClientRect();
             scrollers.push({
                 tag: el.tagName.toLowerCase(),
@@ -53,9 +53,9 @@ _GEOMETRY_JS = r"""
                 bottom: Math.round(r.bottom),
             });
         }
-        // Coupé POUR DE BON : ni barre de défilement, ni recours. La
-        // marge de 2 px écarte les arrondis sous-pixel d'une ligne de
-        // texte, qui ne cachent rien.
+        // Clipped FOR GOOD: no scrollbar, no recourse. The 2 px margin
+        // sets aside the sub-pixel rounding of a line of text, which
+        // hides nothing.
         if (/hidden|clip/.test(st.overflowY)
             && el.clientHeight > 0
             && el.scrollHeight > el.clientHeight + 2
@@ -63,9 +63,9 @@ _GEOMETRY_JS = r"""
             clipped.push({
                 tag: el.tagName.toLowerCase(),
                 cls: (el.getAttribute('class') || '').slice(0, 40),
-                haut: el.clientHeight,
-                faut: el.scrollHeight,
-                texte: (el.innerText || '').split('\n')[0].slice(0, 30),
+                shown: el.clientHeight,
+                needed: el.scrollHeight,
+                text: (el.innerText || '').split('\n')[0].slice(0, 30),
             });
         }
     }
@@ -99,18 +99,18 @@ def sweep(
     size: tuple[int, int],
     check: Check,
 ) -> None:
-    """Mesure chaque fenêtre, à deux tailles et dans les deux thèmes.
+    """Measure every window, at two sizes and in both themes.
 
-    Trois attentes ont été retirées le 2026-09-10, mesurées en A/B
-    alterné dans un seul processus : le premier ``resize`` remettait
-    la fenêtre à la taille qu'elle avait déjà (463 ms de plancher pour
-    rien), et les deux bascules de thème ne mutent aucun DOM — une
-    capture se synchronise seule sur le rendu. ~1,75 s par fenêtre.
+    Three waits were removed on 2026-09-10, measured in in-process A/B
+    alternation: the first ``resize`` put the window back to the size it
+    already had (463 ms of floor for nothing), and the two theme toggles
+    mutate no DOM — a screenshot synchronises itself on the render.
+    ~1.75 s per window.
     """
     for window in windows:
-        # Une seule fois, pour absorber ce que le scénario a laissé en
-        # vol. Les attentes qui suivent ne suivent AUCUN geste, donc
-        # elles n'ont pas de plancher à payer.
+        # Once only, to absorb what the scenario left in flight. The
+        # waits that follow FOLLOW NO GESTURE, so they have no floor to
+        # pay.
         window.settle(timeout=2.0)
         _errors_and_requests(check, window)
         _tab_order(check, window)
@@ -121,8 +121,8 @@ def sweep(
         _geometry(check, window, f"taille-2 {SECOND_SIZE[0]}×{SECOND_SIZE[1]}")
         window.resize(size)
 
-        # C4 — le clair d'abord : c'est celui que l'auteur qui code en
-        # sombre ne regarde jamais.
+        # C4 — light first: it is the one an author who codes in dark
+        # never looks at.
         for theme in ("light", "dark"):
             window.page.emulate_media(color_scheme=theme)
             window.shot(theme)
@@ -135,7 +135,7 @@ def _errors_and_requests(check: Check, window: Window) -> None:
         window.errors[:3],
     )
     check(
-        f"[{window.name}] aucune requête en échec",
+        f"[{window.name}] no failed request",
         not window.broken,
         window.broken[:3],
     )
@@ -149,63 +149,62 @@ def _errors_and_requests(check: Check, window: Window) -> None:
 def _geometry(check: Check, window: Window, label: str) -> None:
     geo: dict[str, Any] = window.page.evaluate(_GEOMETRY_JS)
     check(
-        f"[{window.name}] {label} — la page ne déborde pas latéralement",
+        f"[{window.name}] {label} — the page does not overflow sideways",
         geo["overflowX"] == 0,
-        f"{geo['overflowX']} px de trop",
+        f"{geo['overflowX']} px too many",
     )
     if not geo["documentScrolls"]:
-        # Document GELÉ : toute région qui défile doit finir AU-DESSUS du
-        # bord. Une région qui déborde par le bas n'a rien pour la
-        # rattraper — le kanban a payé ça avec 878 px dans un cadre de 591.
+        # FROZEN document: every scrolling region must end ABOVE the
+        # edge. A region overflowing at the bottom has nothing to catch it
+        # — the kanban paid that with 878 px in a 591 px frame.
         below = [s for s in geo["scrollers"] if s["bottom"] > geo["viewport"][1] + 1]
         check(
-            f"[{window.name}] {label} — les régions finissent au-dessus du bord",
+            f"[{window.name}] {label} — the regions end above the edge",
             not below,
             below[:3],
         )
-    # C5 — ce qui est COUPÉ, et qui n'a pas de barre pour le rattraper.
+    # C5 — what is CLIPPED, with no bar to catch it.
     #
-    # ⚠️ **Le débordement et le rognage ne sont pas la même faute.** Les
-    # deux constats du dessus mesurent ce qui SORT — d'une page, d'une
-    # région. Celui-ci mesure ce qui reste DEDANS et ne se peint pas : une
-    # boîte à hauteur imposée sur laquelle un thème pose
-    # ``overflow:hidden`` garde son contenu dans le DOM et n'en montre
-    # qu'une partie. Aucune erreur, aucune requête en échec, un HTML
-    # complet et juste — c'est le mode d'échec le plus coûteux d'un écran,
-    # parce qu'on ne peut pas savoir qu'on regarde une information
-    # manquante.
+    # ⚠️ **Overflow and clipping are not the same fault.** The two
+    # findings above measure what goes OUT — of a page, of a region. This
+    # one measures what stays IN and is not painted: a box with an
+    # imposed height on which a theme sets ``overflow:hidden`` keeps its
+    # content in the DOM and shows only part of it. No error, no failed
+    # request, complete and correct HTML — it is a screen's most
+    # expensive failure mode, because one cannot know one is looking at
+    # missing information.
     #
-    # Mesuré sur ``examples/ecole`` le 2026-09-12 : une case d'emploi du
-    # temps affichait sa classe et rien d'autre, la salle et le lien vers
-    # le cahier coupés net. Le compte de l'auteur — « deux lignes plus le
-    # cadre » — s'est trompé TROIS fois de suite, parce que la hauteur
-    # s'écrit dans l'app et le rembourrage dans un thème de composant, et
-    # que leur somme ne vit nulle part.
+    # Measured on ``examples/ecole`` on 2026-09-12: a timetable cell
+    # showed its class and nothing else, the room and the link to the
+    # workbook cut clean off. The author's count — "two lines plus the
+    # frame" — was wrong THREE times in a row, because the height is
+    # written in the app and the padding in a component theme, and their
+    # sum lives nowhere.
     #
-    # Le coût est nul : la boucle du dessus existait déjà.
+    # The cost is nil: the loop above already existed.
     check(
-        f"[{window.name}] {label} — rien n'est coupé sans recours",
+        f"[{window.name}] {label} — nothing is clipped without recourse",
         not geo["clipped"],
         geo["clipped"][:3],
     )
 
 
 def _tab_order(check: Check, window: Window) -> None:
-    """Où la tabulation atterrit — et où elle n'a rien à faire.
+    """Where tabbing lands — and where it has no business being.
 
-    Le hors-écran ne suffit pas. Un ``ui.dialog`` fermé est CENTRÉ : ses
-    champs sont pile au milieu du viewport, donc un contrôle joignable
-    dans un dialogue fermé passait ce balayage en vert. Mesuré le
-    2026-09-07 sur ``examples/messagerie``, où la 2ᵉ tabulation de la
-    page tombait dans un dépôt de fichier invisible.
+    Off-screen is not enough. A closed ``ui.dialog`` is CENTRED: its
+    fields sit right in the middle of the viewport, so a control
+    reachable inside a closed dialog passed this sweep green. Measured on
+    2026-09-07 on ``examples/messagerie``, where the page's 2nd tab
+    landed in an invisible file drop.
 
-    Le marqueur visé (``data-bz-overlay``) est celui des overlays MODAUX
-    — ``dialog`` et ``drawer``. Les ancrés (``popover``, ``dropdown``) se
-    ferment en ``display:none``, donc rien ne peut y prendre le focus et
-    il n'y a rien à mesurer ; le jour où l'un d'eux passerait à
-    ``visibility`` pour animer sa sortie, c'est la gate composant
-    (``test_a_closed_overlay_is_out_of_the_tab_order``) qui le dirait,
-    pas ce balayage.
+    The marker targeted (``data-bz-overlay``) is that of MODAL overlays —
+    ``dialog`` and ``drawer``. The anchored ones (``popover``,
+    ``dropdown``) close with ``display:none``, so nothing can take focus
+    there and there is nothing to measure; the day one of them moved to
+    ``visibility`` to animate its exit, it is the component gate
+    (``test_a_closed_overlay_is_out_of_the_tab_order``) that would say
+    so, not this sweep.
     """
     reached = False
     offscreen: list[dict[str, Any]] = []
@@ -223,7 +222,7 @@ def _tab_order(check: Check, window: Window) -> None:
         if focused["closed"]:
             in_closed.append(focused)
         if focused["w"] == 0 and focused["h"] == 0:
-            continue  # un contrôle volontairement invisible, pas une faute
+            continue  # a deliberately invisible control, not a fault
         if (
             focused["x"] + focused["w"] < 0
             or focused["y"] + focused["h"] < 0
@@ -232,17 +231,17 @@ def _tab_order(check: Check, window: Window) -> None:
         ):
             offscreen.append(focused)
     check(
-        f"[{window.name}] la tabulation atteint quelque chose",
+        f"[{window.name}] tabbing reaches something",
         reached,
-        "aucun élément focusable",
+        "no focusable element",
     )
     check(
-        f"[{window.name}] la tabulation ne sort pas de l'écran",
+        f"[{window.name}] tabbing does not leave the screen",
         not offscreen,
         offscreen[:3],
     )
     check(
-        f"[{window.name}] la tabulation n'entre pas dans un overlay fermé",
+        f"[{window.name}] tabbing does not enter a closed overlay",
         not in_closed,
         in_closed[:3],
     )

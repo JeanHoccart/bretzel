@@ -1,57 +1,55 @@
-"""features/emploi_du_temps — page : la grille de la semaine. L'ouverture.
+"""features/emploi_du_temps — page: the week's grid. The opening.
 
-*« C'est l'écran d'ouverture »* (§ 8 du cahier), et c'est l'écran des
-vingt secondes sur le pas de la porte. EF-B1 à EF-B14.
+*"It is the opening screen"* (§ 8 of the specification), and it is the
+twenty-seconds-on-the-doorstep screen. EF-B1 to EF-B14.
 
-Les trois modes, et pourquoi ce sont trois et pas deux
-------------------------------------------------------
+The three modes, and why there are three and not two
+-----------------------------------------------------
 ========================  ==================================================
-mode                      ce qu'on y fait
+mode                      what is done there
 ========================  ==================================================
-**lecture** (le défaut)   on regarde la semaine. Les jours sans classe
-                          sont VIDES et portent le nom de leur période
-**modification**          on reprend la grille TYPE. *« C'est pendant les
-                          vacances qu'on a le temps de reprendre la
-                          grille »* — donc **tout revient** (EF-B5)
-**exceptions**            on pose une heure en plus ou une annulation sur
-                          une VRAIE date (EF-B11)
+**reading** (the default) one looks at the week. The days without class
+                          are EMPTY and carry their period's name
+**modification**          one reworks the TYPICAL grid. *"It is during
+                          the holidays that there is time to rework the
+                          grid"* — so **everything comes back** (EF-B5)
+**exceptions**            one sets an extra hour or a cancellation on a
+                          REAL date (EF-B11)
 ========================  ==================================================
 
-Ils sont trois parce que les deux derniers n'écrivent pas la même chose :
-la modification touche la grille qui se répète, l'exception touche un
-jour précis. Les confondre, c'est annuler tous les lundis en croyant
-annuler celui-ci.
+There are three because the last two do not write the same thing: the
+modification touches the grid that repeats, the exception touches one
+precise day. Confusing them is cancelling every Monday while believing
+one is cancelling this one.
 
-Ce que l'écran REFUSE d'afficher, et c'est le piège n° 12
----------------------------------------------------------
-*« Griser les jours de vacances en laissant lire les classes ne suffit
-pas — on lit quand même cinq cours qu'on ne fera pas. »* Un jour sans
-classe est donc VIDE, et le nom de la période est écrit sous la date
-(EF-B4). En mode modification, il redevient plein : la grille type n'est
-jamais effacée, ce sont les jours qui ne l'appliquent pas.
+What the screen REFUSES to show, and it is trap no. 12
+-------------------------------------------------------
+*"Greying out the holiday days while leaving the classes readable is not
+enough — one still reads five lessons that will not happen."* So a day
+without class is EMPTY, and the period's name is written under the date
+(EF-B4). In modification mode it fills up again: the typical grid is
+never erased, it is the days that do not apply it.
 
-Et ce qu'il refuse de construire
----------------------------------
-**Pas de bandeau « Maintenant : 4e3 »** (EF-B16). Il a été construit puis
-retiré dans les DEUX applications réelles, pour la même raison : la
-grille est juste en dessous et dit la même chose en mieux, et le bandeau
-occupait la première ligne de l'écran même sans rien à dire.
+And what it refuses to build
+-----------------------------
+**No "Maintenant: 4e3" banner** (EF-B16). It was built then removed in
+BOTH real applications, for the same reason: the grid is just below and
+says the same thing better, and the banner occupied the screen's first
+line even with nothing to say.
 
-⚠️ La mise en page n'est pas une grille CSS à ``row-span``
------------------------------------------------------------
-Elle l'a été une heure, et c'est faux : le placement automatique d'une
-grille CSS est SÉQUENTIEL, donc une case qui déborde de trois rangées
-décale toutes les suivantes d'une colonne — le mercredi se retrouve sous
-le mardi. Ici, **sept colonnes qui empilent chacune leurs cases**, toutes
-à la même hauteur, et un bloc de trois heures prend la hauteur de trois
-cases par un ``style=`` calculé. Les colonnes restent alignées parce que
-chaque case pèse exactement pareil.
+⚠️ The layout is not a CSS grid with ``row-span``
+--------------------------------------------------
+It was for an hour, and it is wrong: a CSS grid's automatic placement is
+SEQUENTIAL, so a cell overflowing three rows shifts every following one
+by a column — Wednesday ends up under Tuesday. Here, **seven columns each
+stacking their own cells**, all at the same height, and a three-hour
+block takes the height of three cells through a computed ``style=``. The
+columns stay aligned because every cell weighs exactly the same.
 
-⚠️ Et aucune classe Tailwind n'est ASSEMBLÉE en f-string : une classe
-construite (``bg-{couleur}/5``) n'existe qu'en développement, où le
-compilateur tourne dans le navigateur — en production elle disparaît sans
-une erreur. Les trois teintes sont donc des chaînes ENTIÈRES, dans une
-table finie.
+⚠️ And no Tailwind class is ASSEMBLED in an f-string: a built class
+(``bg-{colour}/5``) only exists in development, where the compiler runs
+in the browser — in production it disappears without an error. So the
+three tints are WHOLE strings, in a closed table.
 """
 
 from __future__ import annotations
@@ -84,83 +82,78 @@ from examples.ecole.features.suivi import cadres_du_jour
 
 PATH = "/"
 
-#: Sept colonnes : les horaires, puis les six jours.
+#: Seven columns: the time slots, then the six days.
 #:
-#: ⚠️ **En ``px``, pas en ``rem``.** Une largeur écrite en ``rem``
-#: suit la taille du texte, et la semaine cesse de tenir à l'écran
-#: dès que celle-ci bouge. Mesuré avec la base à 19 px que l'app
-#: portait un temps : la grille réclamait 1 178 px à elle seule, et
-#: vendredi et samedi passaient derrière une barre de défilement —
-#: sur l'écran dont TOUT le propos est de se lire d'un coup d'œil.
-#: La largeur d'une colonne appartient à l'écran, pas au texte.
+#: ⚠️ **In ``px``, not in ``rem``.** A width written in ``rem`` follows
+#: the text size, and the week stops fitting on screen as soon as that
+#: moves. Measured with the 19 px base the app carried for a while: the
+#: grid asked for 1 178 px on its own, and Friday and Saturday went
+#: behind a scrollbar — on the screen whose WHOLE point is to be read at
+#: a glance. A column's width belongs to the screen, not to the text.
 COLONNES = "grid-cols-[56px_repeat(6,minmax(88px,1fr))]"
 
-#: La hauteur d'UNE heure et l'espace entre deux, **en pixels**. Les
-#: deux servent à calculer la hauteur d'un bloc de N heures — d'où des
-#: nombres et pas des classes : ``h-24`` ne sait pas additionner.
+#: The height of ONE hour and the space between two, **in pixels**. Both
+#: serve to compute the height of an N-hour block — hence numbers and not
+#: classes: ``h-24`` cannot add up.
 #:
-#: 64 px, et le calcul vaut d'être écrit parce qu'il s'est trompé
-#: trois fois. Une case montre DEUX lignes — le code de la classe, puis
-#: la salle et le lien vers le cahier — soit 42 px de texte à l'échelle
-#: du preset (14 px, interligne normal). Le reste est le CADRE :
-#: ``ui.card(padding="xs")`` pose 8 px de chaque côté, plus un liseré.
-#: Une carte a ``overflow:hidden``, donc tout ce qui ne rentre pas dans
-#: ce compte disparaît **sans un mot** — pas d'erreur, pas de trace, et
-#: un HTML complet.
+#: 64 px, and the calculation is worth writing down because it got it
+#: wrong three times. A cell shows TWO lines — the class code, then the
+#: room and the link to the log — that is 42 px of text at the preset's
+#: scale (14 px, normal leading). The rest is the FRAME:
+#: ``ui.card(padding="xs")`` sets 8 px on each side, plus a hairline. A
+#: card has ``overflow:hidden``, so anything not fitting in that count
+#: disappears **without a word** — no error, no trace, and complete HTML.
 #:
-#: ⚠️ 72 et pas 64 : le compte « deux lignes plus le cadre » était
-#: juste et INCOMPLET — un lien souligné descend sous sa ligne de base,
-#: et la carte a un liseré. Le probe a rendu le chiffre exact (68), la
-#: tête en donnait 60. C'est la quatrième valeur de la journée, et la
-#: seule qu'on n'ait pas devinée.
+#: ⚠️ 72 and not 64: the count "two lines plus the frame" was right and
+#: INCOMPLETE — an underlined link descends below its baseline, and the
+#: card has a hairline. The probe gave the exact figure (68), the head
+#: gave 60. It is the day's fourth value, and the only one not guessed.
 #:
-#: L'historique dit pourquoi le constat (24) du probe existe : 52 px,
-#: une heure perdait sa salle ; 64 px avec ``padding="sm"``, le cadre
-#: mangeait 32 px des 62 utilisables et il en fallait 80 ; 80 px avec
-#: le preset, deux tiers de la case étaient vides. C'est le finding F9,
-#: et aucune de ces trois valeurs n'était devinable en lisant le code.
+#: The history says why the probe's finding (24) exists: at 52 px an
+#: hour lost its room; at 64 px with ``padding="sm"`` the frame ate 32 px
+#: of the 62 usable and 80 were needed; at 80 px with the preset, two
+#: thirds of the cell were empty. It is finding F9, and none of those
+#: three values was guessable by reading the code.
 HAUTEUR_CASE = 72
 
-#: L'espace entre deux cases, **DÉRIVÉ et plus recopié**.
+#: The space between two cells, **DERIVED and no longer copied**.
 #:
-#: Les colonnes sont des ``ui.vstack(gap="xs")``, soit ``gap-1``, soit
-#: un cran d'espacement. Le lire depuis le préréglage au lieu de l'écrire
-#: ici supprime la classe entière du finding F10 : la valeur ne peut
-#: plus diverger de celle que la colonne pose vraiment.
+#: The columns are ``ui.vstack(gap="xs")``, that is ``gap-1``, that is
+#: one spacing step. Reading it from the preset instead of writing it
+#: here removes finding F10's whole class: the value can no longer
+#: diverge from the one the column really sets.
 #:
-#: ⚠️ Elle avait divergé deux fois. 6 px pour un ``gap-1`` de 4, puis
-#: 4 pour un ``gap-1`` devenu 3 quand la densité est passée à 3 px le
-#: pas. Le défaut ne se voit sur aucune case d'une heure — il ne sert
-#: qu'aux BLOCS, qui glissent d'autant par heure supplémentaire.
+#: ⚠️ It had diverged twice. 6 px for a ``gap-1`` of 4, then 4 for a
+#: ``gap-1`` become 3 when the density moved to a 3 px step. The defect
+#: shows on no one-hour cell — it only serves the BLOCKS, which slip by
+#: that much per extra hour.
 ESPACE_CASE = DEFAULT_SPACING_PX
 
-#: Le pas d'une rangée : la case plus son espace. C'est la période du
-#: filet de fond, et la seule façon que les lignes tombent PILE entre
-#: deux cases.
+#: A row's pitch: the cell plus its space. It is the background rule's
+#: period, and the only way the lines fall EXACTLY between two cells.
 PAS_RANGEE = HAUTEUR_CASE + ESPACE_CASE
 
-#: Le filet horizontal des vrais calendriers, dessiné en FOND.
+#: The horizontal rule of real calendars, drawn as a BACKGROUND.
 #:
-#: ⚠️ **En fond et pas en bordure**, et c'est ce qui change tout. Une
-#: bordure vit sur une case, donc elle s'arrête là où il y a une case :
-#: la grille était un damier de cartes flottant dans du vide, sans
-#: repère pour aligner un cours sur son heure. Le fond, lui, ne dépend
-#: d'aucun contenu — il continue sous les blocs et à travers les heures
-#: creuses, exactement comme la trame d'un agenda.
+#: ⚠️ **As a background and not a border**, and it is what changes
+#: everything. A border lives on a cell, so it stops where there is a
+#: cell: the grid was a chequerboard of cards floating in a void, with no
+#: landmark to align a lesson with its hour. The background, for its
+#: part, depends on no content — it continues under the blocks and
+#: through the empty hours, exactly like a diary's ruling.
 #:
-#: ⚠️ Un gris neutre à faible opacité plutôt qu'un jeton de thème : la
-#: même valeur doit tenir sur le papier clair et sur le gris sombre, et
-#: un filet qui suit la couleur du texte disparaît d'un côté ou crie de
-#: l'autre.
+#: ⚠️ A neutral grey at low opacity rather than a theme token: the same
+#: value must hold on the light paper and on the dark grey, and a rule
+#: that follows the text colour vanishes on one side or shouts on the
+#: other.
 FILET = "rgba(128,128,128,0.16)"
 
 
 def fond_de_colonne(rangs: int) -> str:
-    """Le ``style=`` d'une colonne : sa hauteur et sa trame.
+    """A column's ``style=``: its height and its ruling.
 
-    La trame se répète sur :data:`PAS_RANGEE` et pose son filet sur le
-    dernier pixel — donc dans l'espace inter-cases, jamais sous une
-    carte.
+    The ruling repeats on :data:`PAS_RANGEE` and puts its line on the
+    last pixel — so in the inter-cell space, never under a card.
     """
     haut = rangs * HAUTEUR_CASE + (rangs - 1) * ESPACE_CASE
     return (
@@ -171,26 +164,26 @@ def fond_de_colonne(rangs: int) -> str:
         f"transparent {HAUTEUR_CASE + 1}px,transparent {PAS_RANGEE}px)"
     )
 
-#: La hauteur d'un en-tête de colonne, **fixe pour les sept**.
+#: A column header's height, **fixed for all seven**.
 #:
-#: ⚠️ Sans hauteur fixe, chaque colonne se dimensionne sur SON
-#: contenu : un jour de vacances porte une ligne de plus (le nom de
-#: la période, EF-B4), donc SA colonne descend d'un cran et ses cases
-#: cessent d'être en face des horaires. Le décalage n'apparaît que
-#: les semaines de vacances, ce qui est la pire façon de le trouver.
+#: ⚠️ Without a fixed height, each column sizes itself on ITS content: a
+#: holiday day carries one more line (the period's name, EF-B4), so ITS
+#: column drops a step and its cells stop facing the time slots. The
+#: shift only appears in holiday weeks, which is the worst way of finding
+#: it.
 #:
-#: 44 px : deux lignes courtes à l'échelle du preset, plus le filet.
+#: 44 px: two short lines at the preset's scale, plus the rule.
 HAUTEUR_ENTETE = 44
 
-#: Les trois teintes d'une case, en chaînes ENTIÈRES. Une table finie,
-#: parce qu'une classe assemblée n'existe qu'en dev (cf. l'en-tête).
-#: ⚠️ **Pas de cadre complet, un liseré à GAUCHE.** Un contour sur les
-#: quatre côtés se lit comme un bouton ; c'est le cas de tous les
-#: agendas qui valent d'être copiés — l'événement est une surface
-#: teintée que sa barre de gauche identifie. Trente contours dans une
-#: grille font un damier, trente surfaces font une semaine.
-#: Chaînes ENTIÈRES, jamais assemblées : une classe fabriquée en
-#: f-string n'existe pas dans la feuille de prod.
+#: A cell's three tints, as WHOLE strings. A closed table, because an
+#: assembled class only exists in dev (cf. the header).
+#: ⚠️ **No full frame, a hairline on the LEFT.** An outline on all four
+#: sides reads as a button; it is the case in every calendar worth
+#: copying — the event is a tinted surface its left bar identifies.
+#: Thirty outlines in a grid make a chequerboard, thirty surfaces make a
+#: week.
+#: WHOLE strings, never assembled: a class built in an f-string does not
+#: exist in the production sheet.
 TEINTES: dict[str, str] = {
     "cours": ("bg-primary/12 border-l-[3px] border-l-primary "
               "rounded-r-md overflow-hidden px-2 py-1"),
@@ -200,7 +193,7 @@ TEINTES: dict[str, str] = {
                   "rounded-r-md overflow-hidden px-2 py-1"),
 }
 
-#: Les trois modes, leur libellé et leur icône.
+#: The three modes, their label and their icon.
 MODES: tuple[tuple[str, str, str], ...] = (
     ("lecture", "Lecture", "eye"),
     ("modification", "Modifier la grille", "pencil"),
@@ -209,26 +202,26 @@ MODES: tuple[tuple[str, str, str], ...] = (
 
 
 class SemaineVue(PageState, addressable=True):
-    """La semaine affichée — **et l'adresse en fait foi** (EF-U1).
+    """The week shown — **and the address is authoritative** (EF-U1).
 
-    *« Un écran qu'on ne peut pas renvoyer par un lien n'est pas
-    partageable avec soi-même le lendemain »* : ``/?semaine=2026-11-16``
-    ouvre cette semaine-là chez qui reçoit le lien.
+    *"A screen one cannot send back by a link is not shareable with
+    oneself the next day"*: ``/?semaine=2026-11-16`` opens that week for
+    whoever receives the link.
 
-    Vide = la semaine d'aujourd'hui. Un défaut CALCULÉ serait figé au
-    démarrage du processus et faux le lendemain ; un défaut vide reste
-    juste tous les jours.
+    Empty = today's week. A COMPUTED default would be frozen at process
+    startup and wrong the next day; an empty default stays right every
+    day.
     """
 
     lundi: str = field(default="", url="semaine")
 
 
 class ModeGrille(PageState):
-    """Le mode de la grille, et la case en cours d'édition.
+    """The grid's mode, and the cell being edited.
 
-    ``PageState`` sans adresse : un mode n'est pas *ce qu'on regarde*
-    mais *ce qu'on est en train de faire*. Le mettre dans l'URL ouvrirait
-    l'écran de celui qui reçoit le lien en modification.
+    A ``PageState`` with no address: a mode is not *what one is looking
+    at* but *what one is doing*. Putting it in the URL would open the
+    screen of whoever receives the link in modification mode.
     """
 
     mode: str = field(default="lecture")
@@ -241,7 +234,7 @@ class ModeGrille(PageState):
 
 
 class HoraireDraft(PageState):
-    """Les bornes d'un créneau, réglées pour toute l'année (EF-B3)."""
+    """A slot's boundaries, set for the whole year (EF-B3)."""
 
     ouvert: bool = field(default=False)
     rang: int = field(default=1)
@@ -250,7 +243,7 @@ class HoraireDraft(PageState):
 
 
 def hauteur(rangs: int) -> str:
-    """Le ``style=`` d'une case qui couvre ``rangs`` heures."""
+    """The ``style=`` of a cell covering ``rangs`` hours."""
     total = rangs * HAUTEUR_CASE + (rangs - 1) * ESPACE_CASE
     return f"height:{total}px"
 
@@ -258,7 +251,7 @@ def hauteur(rangs: int) -> str:
 # ── Les handlers ─────────────────────────────────────────────────────
 
 def aller_a(decalage: int) -> None:
-    """Les flèches de semaine (EF-B1). ``0`` ramène à aujourd'hui."""
+    """The week arrows (EF-B1). ``0`` brings back to today."""
     vue = SemaineVue()
     if decalage == 0:
         vue.lundi = ""
@@ -289,19 +282,19 @@ def fermer_case(etat: ModeGrille) -> None:
 
 
 def lettre_affichee() -> str | None:
-    """La lettre de la semaine affichée — DÉDUITE, jamais choisie (EF-B2)."""
+    """The letter of the week shown — DEDUCED, never chosen (EF-B2)."""
     annee = annee_regardee()
     lundi = lundi_affiche(annee, str(SemaineVue().lundi))
     return semaine_affichee(annee, lundi)["lettre"]
 
 
 def enregistrer_case(etat: ModeGrille) -> None:
-    """Le geste d'EF-B6 : on tape un code, la case le prend.
+    """EF-B6's gesture: a code is typed, the cell takes it.
 
-    La lettre vient de la semaine AFFICHÉE et n'est donc pas un champ du
-    formulaire : elle ne se choisit pas. Sans date de référence, on ne
-    sait pas quelle moitié de la grille on écrit — et écrire quand même
-    poserait le cours une semaine sur deux, au hasard.
+    The letter comes from the week SHOWN and is therefore not a form
+    field: it is not chosen. Without a reference date, we do not know
+    which half of the grid we are writing — and writing anyway would set
+    the lesson every other week, at random.
     """
     lettre = lettre_affichee()
     if not lettre:
@@ -320,10 +313,10 @@ def enregistrer_case(etat: ModeGrille) -> None:
 
 
 def annuler_lheure(etat: ModeGrille) -> None:
-    """Une case OCCUPÉE ne propose qu'une annulation (EF-B11).
+    """An OCCUPIED cell offers only a cancellation (EF-B11).
 
-    *On n'est pas à deux endroits à la fois* : proposer d'ajouter une
-    classe sur une heure déjà prise n'aurait aucun sens.
+    *One is not in two places at once*: offering to add a class on an
+    hour already taken would make no sense.
     """
     poser_exception(annee_regardee()["id"], str(etat.date_iso),
                     int(etat.rang), "")
@@ -331,7 +324,7 @@ def annuler_lheure(etat: ModeGrille) -> None:
 
 
 def ajouter_lheure(etat: ModeGrille) -> None:
-    """Une case LIBRE ne propose qu'un ajout — il n'y a rien à y annuler."""
+    """A FREE cell offers only an addition — there is nothing to cancel."""
     code = str(etat.saisie).strip()
     if code:
         poser_exception(annee_regardee()["id"], str(etat.date_iso),
@@ -373,42 +366,41 @@ def enregistrer_horaire(draft: HoraireDraft) -> None:
 def cellule_bloc(bloc: dict, rangs: int, cible: int | None,
                  jour: str = "", changer: Callable[[], None] | None = None,
                  fige: bool = False, geste: tuple[str, str] = ("", "")) -> None:
-    """Une case occupée : la classe, sa salle, son TP, sa pastille.
+    """An occupied cell: the class, its room, its practical, its badge.
 
-    **EF-B14 — la case mène à DEUX endroits** : la classe, et le cahier
-    de texte avec la classe ET la date. *« C'est le chemin le plus court
-    entre "qu'ai-je fait lundi ?" et la réponse. »*
+    **EF-B14 — the cell leads to TWO places**: the class, and the lesson
+    log with the class AND the date. *"It is the shortest path between
+    'what did I do on Monday?' and the answer."*
 
-    ⚠️ **Ce sont deux LIENS dans une carte ordinaire, et surtout pas une
-    carte-lien qui en contient un second.** La première version faisait
-    ça — ``ui.card(href=…)`` avec un ``ui.link`` dedans — et le résultat
-    était cassé d'une façon qu'aucun test ne voyait : HTML interdit un
-    ``<a>`` dans un ``<a>``, donc le parseur du navigateur FERME le lien
-    extérieur en rencontrant l'intérieur, et tout ce qui suit sort de la
-    carte. Mesuré : la carte rendait 130 px de vide, et le nom de la
-    salle s'affichait dessous, dans la case de l'heure suivante. Le HTML
-    sérialisé était pourtant juste — c'est le parseur qui le réécrit.
+    ⚠️ **These are two LINKS in an ordinary card, and above all not a
+    link-card containing a second one.** The first version did that —
+    ``ui.card(href=…)`` with a ``ui.link`` inside — and the result was
+    broken in a way no test saw: HTML forbids an ``<a>`` inside an
+    ``<a>``, so the browser's parser CLOSES the outer link on meeting the
+    inner one, and everything that follows leaves the card. Measured: the
+    card rendered 130 px of emptiness, and the room's name showed below
+    it, in the next hour's cell. The serialised HTML was correct — it is
+    the parser that rewrites it.
     """
-    # Un liseré de 2 px et pas de 4 : une grille de trente cases est
-    # un MUR, et c'est l'ambre d'une nature ou le rouge d'un refus qui
-    # doivent s'y voir — pas le cas ordinaire.
+    # A 2 px hairline and not 4: a grid of thirty cells is a WALL, and
+    # it is the amber of a nature or the red of a refusal that must show
+    # there — not the ordinary case.
     teinte = TEINTES["nature"] if bloc["nature"] else (
         TEINTES["exception"] if bloc.get("exception") else TEINTES["cours"])
-    # ⚠️ Plus de ``ui.card`` : son thème pose un contour sur les quatre
-    # côtés, et trente contours dans une grille font un damier. Un
-    # événement d'agenda est une SURFACE teintée que sa barre de gauche
-    # identifie — c'est ce que font tous les calendriers qu'on ouvre
-    # sans y penser. Le rattrapage aurait été un ``border-0`` posé en
-    # ``classes=`` par-dessus le thème ; c'est un composant de MOINS,
-    # pas une classe de plus.
+    # ⚠️ No more ``ui.card``: its theme sets an outline on all four
+    # sides, and thirty outlines in a grid make a chequerboard. A diary
+    # event is a tinted SURFACE its left bar identifies — it is what
+    # every calendar one opens without thinking does. The catch-up would
+    # have been a ``border-0`` set in ``classes=`` over the theme; this
+    # is one component FEWER, not one class more.
     with ui.vstack(gap="none", classes=teinte, style=hauteur(rangs)):
         with ui.hstack(gap="sm", justify="between", align="center"):
-            # Le code de la classe s'écrit PAREIL, lien ou pas : c'est
-            # ``ui.text`` qui porte sa graisse, dans les deux branches.
-            # ``ui.link`` n'a ni ``weight=`` ni ``size=``, et le
-            # rattraper en ``classes=`` aurait fait dire la même chose
-            # à deux vocabulaires — celui du composant d'un côté,
-            # Tailwind de l'autre.
+            # The class code is written the SAME, link or not: it is
+            # ``ui.text`` that carries its weight, in both branches.
+            # ``ui.link`` has neither ``weight=`` nor ``size=``, and
+            # catching that up in ``classes=`` would have made two
+            # vocabularies say the same thing — the component's on one
+            # side, Tailwind on the other.
             if cible:
                 with ui.link(href=f"/classe/{cible}", variant="hover"):
                     ui.text(bloc["code"], weight="semibold")
@@ -416,17 +408,17 @@ def cellule_bloc(bloc: dict, rangs: int, cible: int | None,
                 ui.text(bloc["code"], weight="semibold")
             with ui.hstack(gap="sm", align="center"):
                 if changer is not None:
-                    # ⚠️ DANS la case, et pas en dessous. La version
-                    # d'avant empilait la carte et un bouton « Changer »
-                    # dans un cadre haut de `hauteur(rangs)` — donc un
-                    # contenu plus haut que sa boîte : le bouton sortait
-                    # par le bas, recouvrait la case suivante, et la
-                    # carte rognait sa deuxième ligne. Vu à l'écran.
+                    # ⚠️ INSIDE the cell, and not below it. The
+                    # previous version stacked the card and a "Changer"
+                    # button in a frame of height `hauteur(rangs)` — so
+                    # content taller than its box: the button came out at
+                    # the bottom, covered the next cell, and the card cut
+                    # its second line. Seen on screen.
                     #
-                    # Le poser ici a un second effet, plus important que
-                    # le premier : la grille ne BOUGE PLUS en passant de
-                    # la lecture à la modification. On édite ce qu'on
-                    # regardait, à la même place.
+                    # Putting it here has a second effect, more important
+                    # than the first: the grid NO LONGER MOVES when going
+                    # from reading to modification. One edits what one
+                    # was looking at, in the same place.
                     mot, icone = geste
                     ui.icon_button(
                         icone, variant="ghost", size="sm",
@@ -435,13 +427,13 @@ def cellule_bloc(bloc: dict, rangs: int, cible: int | None,
                         disabled=fige, on_click=changer,
                     )
                 if est_un_tp(bloc):
-                    # EF-B10 : rien n'est saisi ni stocké — la règle
-                    # se LIT dans la grille.
+                    # EF-B10: nothing is entered or stored — the rule
+                    # is READ from the grid.
                     ui.badge(label="TP", color="primary", variant="soft",
                              size="lg")
                 if bloc["consignee"]:
-                    # EF-B13 : d'un coup d'œil sur la semaine, ce qui
-                    # reste à écrire au cahier de texte.
+                    # EF-B13: at a glance over the week, what is left
+                    # to write in the lesson log.
                     ui.icon("book-check", color="success",
                             tooltip="Consignée au cahier de texte")
         with ui.hstack(gap="sm", align="center", wrap=True):
@@ -459,11 +451,10 @@ def cellule_bloc(bloc: dict, rangs: int, cible: int | None,
 
 
 def case_vide(mode: str, rangs: int = 1) -> None:
-    """Ce qui occupe la place d'une heure sans cours.
+    """What occupies the place of an hour with no lesson.
 
-    En lecture, du vide. En modification, un cadre en pointillés : une
-    case libre doit se voir comme une cible, sinon on ne sait pas où
-    cliquer.
+    In reading, emptiness. In modification, a dotted frame: a free cell
+    must look like a target, otherwise one does not know where to click.
     """
     classes = ("rounded-lg border border-dashed border-text/15"
                if mode != "lecture" else "")
@@ -473,14 +464,14 @@ def case_vide(mode: str, rangs: int = 1) -> None:
 def colonne_du_jour(jour: dict, index: int, bornes: dict, mode: str,
                     fige: bool, aujourdhui: date,
                     annee_id: int) -> None:
-    """Une journée : son en-tête, puis ses cases de haut en bas.
+    """A day: its header, then its cells from top to bottom.
 
-    La colonne se lit en DEUX étages, et c'est ce qui la rend
-    lisible : l'en-tête, puis un cadre qui porte la trame horizontale
-    et toutes les cases. Le filet vit sur le cadre, donc il continue
-    sous les blocs et à travers les heures creuses — une bordure posée
-    sur les cases s'arrêterait là où il n'y a pas de case, c'est-à-dire
-    exactement là où l'œil en a besoin.
+    The column reads in TWO storeys, and it is what makes it readable:
+    the header, then a frame carrying the horizontal ruling and all the
+    cells. The rule lives on the frame, so it continues under the blocks
+    and through the empty hours — a border set on the cells would stop
+    where there is no cell, that is to say exactly where the eye needs
+    it.
     """
     vide_ce_jour = bool(jour["periode"]) and mode != "modification"
     dernier = max(bornes)
@@ -492,8 +483,8 @@ def colonne_du_jour(jour: dict, index: int, bornes: dict, mode: str,
                 bloc = next(
                     (b for b in jour["blocs"] if b["debut"] == rang), None)
                 if vide_ce_jour:
-                    # Piège n° 12 : VIDE, pas grisé. On lirait quand même
-                    # les cinq cours qu'on ne fera pas.
+                    # Trap no. 12: EMPTY, not greyed out. One would
+                    # still read the five lessons that will not happen.
                     case_vide("lecture")
                     rang += 1
                     continue
@@ -507,9 +498,9 @@ def colonne_du_jour(jour: dict, index: int, bornes: dict, mode: str,
                     continue
                 rangs = bloc["fin"] - bloc["debut"] + 1
                 if mode == "lecture":
-                    # Le lien ne s'ouvre QU'EN LECTURE : en modification,
-                    # un clic sur la case doit poser une classe, pas
-                    # naviguer ailleurs.
+                    # The link only opens IN READING mode: in
+                    # modification, a click on the cell must set a class,
+                    # not navigate elsewhere.
                     cellule_bloc(
                         bloc, rangs, classe_id_de(annee_id, bloc["code"]),
                         jour["date"].isoformat())
@@ -527,12 +518,12 @@ def colonne_du_jour(jour: dict, index: int, bornes: dict, mode: str,
 
 
 def entete_de_jour(jour: dict, aujourdhui: date) -> None:
-    """La colonne porte la DATE RÉELLE, et le jour même est marqué.
+    """The column carries the REAL DATE, and today is marked.
 
-    Hauteur FIXE : cf. :data:`HAUTEUR_ENTETE`. Un jour de vacances porte
-    une ligne de plus, et sans cette contrainte il décalerait sa seule
-    colonne d'un cran — le mardi en face de la mauvaise heure, la semaine
-    de la Toussaint et pas les autres.
+    A FIXED height: cf. :data:`HAUTEUR_ENTETE`. A holiday day carries one
+    more line, and without this constraint it would shift its one column
+    by a step — Tuesday facing the wrong hour, in the Toussaint week and
+    not the others.
     """
     cest_aujourdhui = jour["date"] == aujourdhui
     with ui.vstack(
@@ -546,13 +537,13 @@ def entete_de_jour(jour: dict, aujourdhui: date) -> None:
                 weight="semibold" if cest_aujourdhui else None,
                 color="primary" if cest_aujourdhui else None)
         if jour["periode"]:
-            # EF-B4 : le nom de la période SOUS la date. Une colonne vide
-            # sans explication se lit comme une panne.
+            # EF-B4: the period's name UNDER the date. An empty column
+            # with no explanation reads as a failure.
             ui.text(jour["periode"], color="warning", truncate=True)
         else:
-            # ⚠️ La DATE seule : ``jour_et_date`` rend « lun 07/09 »,
-            # et la ligne du dessus dit déjà « Lundi ». Deux fois le
-            # même mot dans un en-tête de trois centimètres.
+            # ⚠️ The DATE alone: ``jour_et_date`` returns "lun 07/09",
+            # and the line above already says "Lundi". The same word
+            # twice in a header three centimetres wide.
             ui.text(jour["date"].strftime("%d/%m"),
                     size="sm", color="muted", classes="tabular-nums")
 
@@ -560,19 +551,19 @@ def entete_de_jour(jour: dict, aujourdhui: date) -> None:
 def bouton_de_case(jour: dict, index: int, rang: int, mode: str, fige: bool,
                    *, occupee: bool, saisie: str) -> None:
     if mode == "exceptions":
-        # EF-B11 : la case occupée ne propose qu'une annulation, la case
-        # libre qu'un ajout. Le libellé dit lequel des deux, et c'est la
-        # seule chose qui les distingue à l'écran.
+        # EF-B11: the occupied cell offers only a cancellation, the
+        # free cell only an addition. The label says which of the two,
+        # and it is the only thing distinguishing them on screen.
         libelle = "Annuler" if occupee else "Ajouter"
         icone = "calendar-x" if occupee else "calendar-plus"
     else:
         libelle = "Changer" if occupee else "Poser"
         icone = "pencil" if occupee else "plus"
-    # ⚠️ ``ghost`` et ``muted`` pour une case LIBRE : une grille de
-    # quarante cibles cerclées de la couleur d'accent crie plus fort que
-    # les cinq cours qu'elle entoure. Dans un agenda, le vide est un
-    # fond, pas un bouton — il devient une cible au survol et au clavier,
-    # et le reste du temps il se tait.
+    # ⚠️ ``ghost`` and ``muted`` for a FREE cell: a grid of forty
+    # targets ringed in the accent colour shouts louder than the five
+    # lessons it surrounds. In a diary, emptiness is a background, not a
+    # button — it becomes a target on hover and from the keyboard, and
+    # the rest of the time it keeps quiet.
     ui.button(
         libelle, variant="ghost", color="muted", icon_left=icone,
         disabled=fige,
@@ -583,26 +574,26 @@ def bouton_de_case(jour: dict, index: int, rang: int, mode: str, fige: bool,
 
 
 def colonne_horaires(bornes: dict[int, tuple[str, str]], fige: bool) -> None:
-    """La PREMIÈRE colonne, où se règlent les bornes (EF-B3)."""
+    """The FIRST column, where the boundaries are set (EF-B3)."""
     with ui.vstack(gap="xs"):
         with ui.vstack(gap="none", align="center", justify="center",
                        style=f"height:{HAUTEUR_ENTETE}px",
                        classes="border-b-2 border-text/10"):
             ui.text("Horaires", color="muted", weight="semibold",
                     size="sm")
-        # La gouttière porte la MÊME trame que les jours : sans elle,
-        # les heures flottent à côté d'une grille réglée, et c'est
-        # justement l'alignement qu'on cherche à donner à l'œil.
+        # The gutter carries the SAME ruling as the days: without it,
+        # the hours float beside a ruled grid, and it is precisely that
+        # alignment one is trying to give the eye.
         with ui.vstack(gap="xs", style=fond_de_colonne(max(bornes))):
             for rang in sorted(bornes):
                 debut, fin = bornes[rang]
-                # ⚠️ L'heure de DÉBUT seule, et posée en HAUT de sa
-                # rangée. C'est la convention de tous les agendas, et
-                # ce n'est pas un goût : une heure centrée dans sa
-                # bande ne marque aucune frontière, donc l'œil ne sait
-                # pas où un bloc de deux heures commence. La fin se lit
-                # sur la ligne suivante ; celle du dernier créneau vit
-                # dans le dialogue de réglage, qui porte les deux.
+                # ⚠️ The START time alone, and set at the TOP of its
+                # row. It is every diary's convention, and it is not a
+                # taste: an hour centred in its band marks no boundary,
+                # so the eye does not know where a two-hour block
+                # starts. The end reads on the next line; the last
+                # slot's lives in the settings dialog, which carries
+                # both.
                 ui.button(
                     debut, variant="ghost", disabled=fige, size="sm",
                     classes="w-full justify-end items-start pt-1 "
@@ -627,9 +618,9 @@ def barre_de_semaine(lundi: date, lettre: str | None, mode: str,
                            on_click=partial(aller_a, 1))
             ui.text(f"{jour_et_date(lundi)} — {jour_et_date(samedi)}",
                     weight="medium")
-            # EF-B2 : la lettre se DÉDUIT de la semaine affichée et
-            # s'affiche en tête. Elle ne se choisit pas — il n'y a donc
-            # aucun contrôle ici, juste le résultat.
+            # EF-B2: the letter is DEDUCED from the week shown and
+            # displayed at the head. It is not chosen — so there is no
+            # control here, just the result.
             if lettre:
                 ui.badge(label=f"Semaine {lettre}", color="primary",
                          variant="solid", size="xl")
@@ -650,10 +641,9 @@ def barre_de_semaine(lundi: date, lettre: str | None, mode: str,
                           on_click=revenir_en_arriere)
 
 
-# ``HoraireDraft`` n'est PAS dans cette liste : la grille ne le lit
-# pas. Il y était pour rafraîchir ``dialogue_horaire``, qui était
-# appelé ici — donc ouvrir les bornes d'un créneau redessinait la
-# semaine entière.
+# ``HoraireDraft`` is NOT in this list: the grid does not read it. It
+# was there to refresh ``dialogue_horaire``, which was called here — so
+# opening a slot's boundaries redrew the whole week.
 @refreshable(deps=[AnneeVue, SemaineVue, ModeGrille])
 def grille() -> None:
     annee = annee_regardee()
@@ -761,15 +751,14 @@ def dialogue_horaire() -> None:
 def emploi_du_temps_page() -> None:
     with ui.vstack(gap="lg"):
         ui.heading("Emploi du temps", level=1, size="2xl")
-        # EF-B15 : les cadres d'entrée en cours, EN TÊTE de la
-        # grille. Ce n'est pas le bandeau « Maintenant » d'EF-B16 :
-        # celui-là répétait ce que la grille dit en mieux, celui-ci
-        # porte ce qu'on ne peut lire nulle part ailleurs — la
-        # dernière séance faite et le travail à vérifier.
+        # EF-B15: the start-of-lesson frames, at the HEAD of the grid.
+        # It is not EF-B16's "Maintenant" banner: that one repeated what
+        # the grid says better, this one carries what can be read nowhere
+        # else — the last session held and the work to check.
         cadres_du_jour()
         grille()
-    # Montés par la PAGE : une zone appelée dans une autre repart avec
-    # elle, et ces deux dialogues sont fermés presque tout le temps.
+    # Mounted by the PAGE: a zone called inside another goes out with
+    # it, and these two dialogs are closed almost all the time.
     dialogue_de_case()
     dialogue_horaire()
 

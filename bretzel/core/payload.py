@@ -1,13 +1,13 @@
 """``EventPayload`` — a typed value object a component sends with an action.
 
 Some components need to hand their handler something a form field cannot
-express : a drag reports *which* item moved, from where, to where. Bretzel
-already has the shape for « the handler declares a type and the framework
-fills it in » — ``def save(form: MyForm)``, ``def load(q: Query)``. This is
-that shape for **event payloads**, which differ from both :
+express: a drag reports *which* item moved, from where, to where. Bretzel
+already has the shape for "the handler declares a type and the framework
+fills it in" — ``def save(form: MyForm)``, ``def load(q: Query)``. This is
+that shape for **event payloads**, which differ from both:
 
-- a ``ServerState`` is *persisted* state, hydrated from named form fields ;
-- a ``Query`` is built by the component and passed as a plain argument ;
+- a ``ServerState`` is *persisted* state, hydrated from named form fields;
+- a ``Query`` is built by the component and passed as a plain argument;
 - an ``EventPayload`` is produced by the **runtime**, in the browser, and
   travels as one JSON blob in a single hidden field.
 
@@ -29,7 +29,7 @@ payload — a resize reporting its new dimensions, a canvas reporting a
 stroke — subclasses this and is injected for free, instead of reopening the
 same discussion in the dispatch path.
 
-Coercion is deliberately narrow : the declared annotation is applied when
+Coercion is deliberately narrow: the declared annotation is applied when
 it is one of ``str`` / ``int`` / ``float`` / ``bool``, and anything else is
 passed through untouched. The wire is JSON written by our own runtime, not
 user input, so this is a *typing* convenience — the security boundary is
@@ -64,7 +64,7 @@ class EventPayload:
     def from_wire(cls: type[T], raw: str) -> T:
         """Build an instance from the JSON blob the runtime wrote.
 
-        Unknown keys are ignored rather than raising : the runtime may
+        Unknown keys are ignored rather than raising: the runtime may
         legitimately be newer than the server it talks to (a cached
         ``runtime.js`` after a deploy), and dropping a field the handler
         never declared is the harmless half of that skew.
@@ -115,7 +115,7 @@ def _coerce(value: Any, annotation: Any) -> Any:
         try:
             return annotation(value)
         except (TypeError, ValueError):
-            # Keep the raw value : a handler reading a surprising type is
+            # Keep the raw value: a handler reading a surprising type is
             # easier to debug than one that never ran.
             return value
     return value

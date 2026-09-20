@@ -1,14 +1,15 @@
-"""features/auth_data — data : la table des comptes utilisateurs.
+"""features/auth_data — data: the user accounts table.
 
-Le framework ne modélise pas d'utilisateur au-delà de son identifiant :
-``bretzel.auth`` retient « telle requête appartient à X » dans un cookie
-signé, et expose quatre fonctions pour l'écrire et le relire. **Le profil,
-le rôle et le mot de passe sont à l'app** — c'est écrit dans le module.
+The framework does not model a user beyond their identifier:
+``bretzel.auth`` remembers "this request belongs to X" in a signed
+cookie, and exposes four functions to write and read it back. **The
+profile, the role and the password belong to the app** — it is written in
+the module.
 
-Cette feature est donc la moitié que le CRM apporte, côté données. Le
-hachage vit dans ``core/security.py`` (bibliothèque standard, PBKDF2), et
-la décision « qui voit quoi » vit dans ``access.py`` — trois choses
-distinctes, trois endroits.
+This feature is therefore the half the CRM brings, on the data side. The
+hashing lives in ``core/security.py`` (standard library, PBKDF2), and the
+"who sees what" decision lives in ``access.py`` — three distinct things,
+three places.
 """
 
 from __future__ import annotations
@@ -20,11 +21,11 @@ from examples.crm.core.security import verify_password
 
 
 def find_by_login(login: str) -> dict | None:
-    """Un compte par son login, ou ``None``.
+    """An account by its login, or ``None``.
 
-    ``COLLATE NOCASE`` : un login se tape, et refuser « A.Benali » parce
-    qu'on a saisi une majuscule est une frustration sans contrepartie —
-    l'unicité est déjà garantie par la contrainte de colonne.
+    ``COLLATE NOCASE``: a login gets typed, and refusing "A.Benali"
+    because a capital was entered is a frustration with no upside — the
+    uniqueness is already guaranteed by the column constraint.
     """
     rows = query(
         "SELECT * FROM users WHERE login = ? COLLATE NOCASE", (login.strip(),)
@@ -33,12 +34,12 @@ def find_by_login(login: str) -> dict | None:
 
 
 def all_users() -> list[dict]:
-    """Les comptes, pour la liste de démonstration de la connexion.
+    """The accounts, for the sign-in's demonstration list.
 
-    Lue en BASE plutôt que refabriquée depuis ``OWNERS`` : la page de
-    connexion la reconstruisait à la main, donc ajouter un compte au semis
-    la faisait mentir en silence. ``role`` d'abord : « commercial » trie
-    avant « directeur ».
+    Read from the DATABASE rather than rebuilt from ``OWNERS``: the
+    sign-in page reconstructed it by hand, so adding an account to the
+    seed made it lie in silence. ``role`` first: "commercial" sorts
+    before "directeur".
     """
     return query(
         "SELECT login, display_name, role FROM users ORDER BY role, login"
@@ -46,12 +47,12 @@ def all_users() -> list[dict]:
 
 
 def find_by_id(user_id: str) -> dict | None:
-    """Un compte par l'identifiant que porte le cookie d'authentification.
+    """An account by the identifier the authentication cookie carries.
 
-    ``bretzel.auth`` ne transporte qu'une **chaîne** — c'est ce que dit sa
-    docstring, et c'est pour ça qu'on la reconvertit ici plutôt que de
-    supposer un entier ailleurs. Un cookie signé mais dont l'utilisateur a
-    été supprimé rend ``None``, et l'appelant traite ça comme anonyme.
+    ``bretzel.auth`` only carries a **string** — it is what its docstring
+    says, and it is why we convert it back here rather than assume an
+    integer elsewhere. A signed cookie whose user has been deleted
+    returns ``None``, and the caller treats that as anonymous.
     """
     if not user_id.isdigit():
         return None
@@ -60,17 +61,18 @@ def find_by_id(user_id: str) -> dict | None:
 
 
 def authenticate(login: str, password: str) -> dict | None:
-    """Le compte si les identifiants sont bons, ``None`` sinon.
+    """The account if the credentials are right, ``None`` otherwise.
 
-    ⚠️ **Un seul message d'échec pour les deux causes**, et c'est
-    volontaire : distinguer « login inconnu » de « mot de passe faux »
-    donne à qui essaie la liste des comptes qui existent. L'appelant ne
-    reçoit donc qu'un ``None``, et n'a pas de quoi être plus bavard.
+    ⚠️ **A single failure message for both causes**, and it is
+    deliberate: distinguishing "unknown login" from "wrong password"
+    gives whoever is trying the list of accounts that exist. So the
+    caller only receives a ``None``, and has nothing to be more talkative
+    with.
 
-    ⚠️ On vérifie le mot de passe **même quand le login n'existe pas** —
-    contre une empreinte factice. Sinon le temps de réponse trahit
-    l'existence du compte : quelques millisecondes pour un login inconnu,
-    240 000 itérations de PBKDF2 pour un login connu.
+    ⚠️ We verify the password **even when the login does not exist** —
+    against a dummy digest. Otherwise the response time betrays the
+    account's existence: a few milliseconds for an unknown login,
+    240 000 PBKDF2 iterations for a known one.
     """
     user = find_by_login(login)
     stored = user["password_hash"] if user else _DUMMY_HASH
@@ -78,9 +80,9 @@ def authenticate(login: str, password: str) -> dict | None:
     return user if ok else None
 
 
-#: Une empreinte valide d'un mot de passe que personne n'a. Elle n'existe
-#: que pour donner à :func:`authenticate` quelque chose à vérifier quand le
-#: login est inconnu — cf. sa docstring.
+#: A valid digest of a password nobody has. It exists only to give
+#: :func:`authenticate` something to verify when the login is unknown —
+#: cf. its docstring.
 _DUMMY_HASH = (
     "pbkdf2_sha256$240000$"
     "00000000000000000000000000000000$"

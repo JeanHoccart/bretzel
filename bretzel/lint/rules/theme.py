@@ -1,51 +1,50 @@
-"""Règle : un nom de ``Theme(components={…})`` que rien ne lit.
+"""Rule: a ``Theme(components={…})`` name that nothing reads.
 
-Le silence qu'elle ferme
-------------------------
+The silence it closes
+---------------------
 
-La couche thème n'a jamais refusé une clé. Mesuré le 2026-08-16, sur
-``main`` :
+The theme layer never refused a key. Measured on 2026-08-16, on
+``main``:
 
-- ``Theme(components={"crad": {...}})`` — accepté. Le composant n'existe
-  pas, la surcharge n'atteint jamais rien.
-- ``Theme(components={"card": {"slotz": {...}}})`` — accepté. Le groupe
-  n'existe pas.
-- ``Theme(components={"card": {"slots": {"rooot": "..."}}})`` — accepté.
-  ``Card`` compose ``root``, jamais ``rooot``.
+- ``Theme(components={"crad": {...}})`` — accepted. The component does
+  not exist, the override never reaches anything.
+- ``Theme(components={"card": {"slotz": {...}}})`` — accepted. The group
+  does not exist.
+- ``Theme(components={"card": {"slots": {"rooot": "..."}}})`` — accepted.
+  ``Card`` composes ``root``, never ``rooot``.
 
-Dans les trois cas le résultat est identique : **rien ne change**, sans
-erreur, sans avertissement, sans trace dans le HTML. C'est le symptôme
-qu'on attribue à son cache navigateur pendant une demi-heure avant de
-soupçonner sa propre faute de frappe.
+In all three cases the result is identical: **nothing changes**, with no
+error, no warning, no trace in the HTML. It is the symptom one blames on
+one's browser cache for half an hour before suspecting one's own typo.
 
-Pourquoi une règle et pas une levée
-------------------------------------
+Why a rule and not a raise
+--------------------------
 
-Lever à la construction changerait le comportement d'applications
-existantes : comme le silence est total aujourd'hui, personne ne sait si
-son thème porte une clé morte. Le lint **constate** — il ne casse rien, et
-il voit sans exécuter, donc il voit aussi le thème d'un module jamais
-importé. La levée reste ouverte, inscrite dans ``.claude/work/todo.md``.
+Raising at construction would change the behaviour of existing
+applications: since the silence is total today, nobody knows whether
+their theme carries a dead key. The lint **reports** — it breaks nothing,
+and it sees without executing, so it also sees the theme of a module
+never imported. Raising stays open, recorded in ``.claude/work/todo.md``.
 
-Ce qu'elle ne signale PAS, et c'est délibéré
---------------------------------------------
+What it does NOT report, and deliberately
+-----------------------------------------
 
-**Les clés inconnues des groupes adressés par une VALEUR de prop**
-(``variants``, ``sizes``, ``paddings``, ``widths``, ``gaps``…). Y ajouter
-une entrée est une **fonctionnalité**, pas une faute : c'est le chemin
-par lequel une app déclare sa propre variante, et il marche —
-``Theme(components={"button": {"variants": {"brand": "…"}}})`` suivi de
-``ui.button(variant="brand")`` rend la variante (vérifié). Les signaler
-condamnerait le seul moyen propre de dévier du thème livré.
+**The unknown keys of the groups addressed by a prop VALUE**
+(``variants``, ``sizes``, ``paddings``, ``widths``, ``gaps``…). Adding an
+entry there is a **feature**, not a fault: it is the path by which an app
+declares its own variant, and it works —
+``Theme(components={"button": {"variants": {"brand": "…"}}})`` followed
+by ``ui.button(variant="brand")`` renders the variant (verified).
+Reporting them would condemn the only clean way of deviating from the
+shipped theme.
 
-**Les clés de ``slots``, elles, sont signalées** : un slot n'est pas
-adressé par une valeur d'utilisateur mais composé par le code du
-composant (``compose_class("root")``). Un nom que le composant ne compose
-jamais est mort par construction — il n'y a aucun appel qui pourrait le
-réveiller.
+**The ``slots`` keys, by contrast, are reported**: a slot is not
+addressed by a user value but composed by the component's code
+(``compose_class("root")``). A name the component never composes is dead
+by construction — there is no call that could wake it.
 
-La règle est **pure** : un module, l'index d'API, des constats. Elle ne
-connaît ni corpus, ni plancher.
+The rule is **pure**: one module, the API index, some findings. It knows
+neither corpus nor floor.
 """
 
 from __future__ import annotations
@@ -56,21 +55,21 @@ from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 from bretzel.lint.rules._theme_calls import component_maps, dict_items
 
-RULE = "theme-vocabulaire-inconnu"
+RULE = "unknown-theme-vocabulary"
 
-#: Le seul groupe dont on juge les CLÉS. Cf. le docstring : ailleurs, une
-#: clé neuve est la façon supportée d'étendre le thème.
+#: The only group whose KEYS are judged. Cf. the docstring: elsewhere, a
+#: new key is the supported way of extending the theme.
 _KEYED_GROUP = "slots"
 
 
 def _index() -> dict[str, dict[str, frozenset[str]]]:
-    """``THEME_KEY`` → ``groupe`` → clés connues.
+    """``THEME_KEY`` → ``group`` → known keys.
 
-    Lu depuis :func:`bretzel.introspect.theme_vocabulary`, la source unique
-    que partagent les deux règles de thème ET la validation au démarrage.
-    Une table de noms écrite à la main dans un linter est exactement ce qui
-    dérive du code qu'elle prétend juger — et deux dérivations parallèles
-    en sont la version lente.
+    Read from :func:`bretzel.introspect.theme_vocabulary`, the single
+    source shared by both theme rules AND the startup validation. A
+    hand-written table of names in a linter is exactly what drifts from
+    the code it claims to judge — and two parallel derivations are the
+    slow version of that.
     """
     from bretzel.introspect import theme_vocabulary
 
@@ -78,7 +77,7 @@ def _index() -> dict[str, dict[str, frozenset[str]]]:
 
 
 def check(module: Module) -> list[Finding]:
-    """Les noms de thème que rien ne lira."""
+    """The theme names nothing will read."""
     findings: list[Finding] = []
     calls = list(component_maps(module.tree))
     if not calls:
@@ -95,13 +94,13 @@ def check(module: Module) -> list[Finding]:
                         path=module.path,
                         line=comp_key_node.lineno,
                         message=(
-                            f"`Theme(components={{{comp_name!r}: …}})` : aucun "
-                            f"composant n'a cette clé de thème."
+                            f"`Theme(components={{{comp_name!r}: …}})`: no "
+                            f"component has this theme key."
                         ),
                         hint=(
-                            "La clé est `THEME_KEY`, pas toujours le nom `ui.*` "
-                            "— `sidebar_section` s'écrit sous `'sidebar'`. "
-                            "`bretzel describe <nom>` la donne."
+                            "The key is `THEME_KEY`, not always the `ui.*` "
+                            "name — `sidebar_section` is written under "
+                            "`'sidebar'`. `bretzel describe <name>` gives it."
                         ),
                     )
                 )
@@ -128,7 +127,7 @@ def _check_groups(
                     line=group_key_node.lineno,
                     message=(
                         f"`Theme(components={{{comp_name!r}: {{{group!r}: …}}}})` : "
-                        f"`{comp_name}` n'a pas de groupe `{group}`."
+                        f"`{comp_name}` has no `{group}` group."
                     ),
                     hint=(
                         f"Ses groupes : {', '.join(sorted(groups)) or '(aucun)'}. "
@@ -138,7 +137,7 @@ def _check_groups(
             )
             continue
         if group != _KEYED_GROUP:
-            # Ailleurs, une clé neuve étend le thème — c'est supporté.
+            # Elsewhere, a new key extends the theme — that is supported.
             continue
         known = groups[group]
         for slot, slot_key_node, _ in dict_items(group_value):
@@ -149,14 +148,14 @@ def _check_groups(
                         path=module.path,
                         line=slot_key_node.lineno,
                         message=(
-                            f"`{comp_name}` ne compose aucun slot `{slot}` — "
-                            f"la surcharge n'atteindra rien."
+                            f"`{comp_name}` composes no `{slot}` slot — "
+                            f"the override will reach nothing."
                         ),
                         hint=(
-                            f"Ses slots : {', '.join(known) or '(aucun)'}. "
-                            f"Un slot est composé par le code du composant, "
-                            f"donc un nom qu'il ignore est mort : rien ne peut "
-                            f"le réveiller depuis l'app."
+                            f"Its slots: {', '.join(known) or '(none)'}. "
+                            f"A slot is composed by the component's code, so "
+                            f"a name it does not know is dead: nothing in the "
+                            f"app can wake it."
                         ),
                     )
                 )

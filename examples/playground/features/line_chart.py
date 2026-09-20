@@ -146,11 +146,11 @@ def build_preview(state: LineChartPlayground):
     if state.empty_desc:
         kwargs["empty_description"] = state.empty_desc
     if state.empty_escape:
-        # L'échappatoire : l'auteur pose ce qu'il veut à la place
-        # de l'état vide automatique — même contrat que
+        # The escape hatch: the author puts what they want in place
+        # of the automatic empty state — the same contract as
         # ``ui.table`` / ``ui.diagram``.
         kwargs["empty"] = lambda: ui.button(
-            "Importer un jeu de données", variant="soft", size="sm")
+            'Import a data set', variant="soft", size="sm")
     if state.classes:
         kwargs["classes"] = state.classes
     if state.custom_id:
@@ -225,9 +225,9 @@ def server_panel() -> None:
             ui.input(value=state.empty_icon, placeholder="line-chart",
                      on_change=server_changed)
         with control("empty_description (dataset='empty')"):
-            ui.input(value=state.empty_desc, placeholder="Choisis une période.",
+            ui.input(value=state.empty_desc, placeholder='Pick a range.',
                      on_change=server_changed)
-        with control("empty= (échappatoire, dataset='empty')"):
+        with control("empty= (escape hatch, dataset='empty')"):
             ui.switch(checked=state.empty_escape, on_change=server_changed)
         with control("dataset (single-series)"):
             ui.select(value=state.dataset,
@@ -436,10 +436,10 @@ def page() -> None:
                             ]
                             ui.line_chart(hourly, width=400, size="sm",
                                           y_unit="ms")
-                            # ``x_format=`` reprend la main sur le choix
-                            # automatique — la phrase au-dessus l'annonce
-                            # depuis toujours, personne ne le passait.
-                            ui.text("...avec x_format=callable",
+                            # ``x_format=`` takes over from the
+                            # automatic choice — the sentence above has
+                            # announced it forever, nobody passed it.
+                            ui.text('...with x_format=callable',
                                     color="muted", size="xs")
                             ui.line_chart(
                                 hourly, width=400, size="sm", y_unit="ms",
@@ -579,23 +579,22 @@ def page() -> None:
             # ── Card 4 — A11y ───────────────────────────────────────
             with ui.card():
                 with ui.vstack():
-                    ui.heading("État vide — les trois props et l'échappatoire",
+                    ui.heading('Empty state — the three props and the escape hatch',
                                level=3)
-                    ui.text("Les quatre graphiques n'offraient que "
-                            "``empty_text`` quand table, datatable et "
-                            "diagram offraient les quatre. Ils "
-                            "composent le même ``ui.empty_state`` "
-                            "depuis le 2026-09-07.",
+                    ui.text('The four charts only offered ``empty_text`` where '
+                        'table, datatable and diagram offered all four. They '
+                        'have composed the same ``ui.empty_state`` since '
+                        '2026-09-07.',
                             color="muted", size="xs")
-                    ui.line_chart(data=[], empty_text="Rien à montrer.",
+                    ui.line_chart(data=[], empty_text='Nothing to show.',
                              empty_icon="unplug",
-                             empty_description="Aucune mesure sur la période.")
+                             empty_description='No measurement over the range.')
 
-                    ui.heading("État vide — ``empty=`` prend la main",
+                    ui.heading('Empty state — ``empty=`` takes over',
                                level=3)
                     ui.line_chart(
                         data=[],
-                        empty=lambda: ui.button("Importer un jeu",
+                        empty=lambda: ui.button('Import a set',
                                                 icon_left="plus",
                                                 variant="soft",
                                                 size="sm"))

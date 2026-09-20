@@ -29,10 +29,10 @@ Wired (both modes, ``V`` = ``_value_expr()``) :
 - the clear ``×`` button does ``V = ''`` and is shown only when ``V``
   is non-empty (``bz-show="V"`` + FOUC pre-stamp) ;
 - the calendar trigger ``<button>`` toggles ``open`` ;
-- the inner ``<bz-calendar>`` reçoit ``V`` par le ``bz-effect`` du wrapper
-  (voir le point suivant) — **pas** par ``bz-attr:value``, qui est
-  explicitement retiré du calendrier (``release_root_attr``). Il écrit en
-  retour sur son ``change`` natif
+- the inner ``<bz-calendar>`` receives ``V`` through the wrapper's
+  ``bz-effect`` (see the next point) — **not** through
+  ``bz-attr:value``, which is explicitly removed from the calendar
+  (``release_root_attr``). It writes back on its native ``change``
   (``bz-on:change="V = $event.detail.value; open = false
   [if close_on_pick]"``) ;
 - a ``bz-effect`` on the wrapper mirrors ``V`` onto the calendar's
@@ -80,8 +80,8 @@ from bretzel.render import text
 
 def _date_to_iso(value: Any) -> str:
     """``DatePicker``'s date coercion — the shared one, bound to this
-    component's name for the error message (audit F50 : les trois
-    composants de la famille date en portaient une copie identique)."""
+    component's name for the error message (audit F50: the three
+    components of the date family each carried an identical copy)."""
     return date_to_iso(value, owner="DatePicker")
 
 
@@ -129,10 +129,10 @@ class DatePicker(Component):
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = (
         "value", "min", "max", "disabled",
     )
-    #: Un picker est les DEUX natures à la fois : un panneau ancré
-    #: (comme `dialog`) et un champ qui porte une valeur (comme
-    #: `input`). Sa surface est donc l'union des deux vocabulaires
-    #: déjà fixés par ses voisins — rien d'inventé ici.
+    #: A picker is BOTH natures at once: an anchored panel (like
+    #: `dialog`) and a field carrying a value (like `input`). Its surface
+    #: is therefore the union of the two vocabularies already fixed by
+    #: its neighbours — nothing invented here.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
@@ -142,10 +142,10 @@ class DatePicker(Component):
     value: Any = reactive_prop(default=None, writes=True, names_field=True)
     min: Any = reactive_prop(default=None, emit_attr=False)
     max: Any = reactive_prop(default=None, emit_attr=False)
-    # ``emit_attr=False`` : la racine est un ``<div>`` wrapper, où
-    # ``disabled`` ne fait RIEN. Le binding est forwardé à la main dans
-    # ``render()`` sur les trois carriers réels (champ, ×, trigger) —
-    # cf. gate ``test_binding_lands_on_carrier``.
+    # ``emit_attr=False``: the root is a wrapper ``<div>``, where
+    # ``disabled`` does NOTHING. The binding is forwarded by hand in
+    # ``render()`` onto the three real carriers (field, ×, trigger) —
+    # cf. the ``test_binding_lands_on_carrier`` gate.
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -176,22 +176,22 @@ class DatePicker(Component):
         **kwargs: Any,
     ) -> None:
         self._placeholder = placeholder
-        # ``None`` = « laisse le navigateur nommer », depuis
-        # ``<html lang>``. Figer l'anglais ici obligeait chaque app à
-        # repasser les 19 chaînes à chaque montage. Cf. ``ui.calendar``.
+        # ``None`` = "let the browser name them", from ``<html lang>``.
+        # Freezing English here forced every app to pass the 19 strings
+        # again at every mount. Cf. ``ui.calendar``.
         self._weekday_names = list(weekday_names) if weekday_names else None
         self._month_names = list(month_names) if month_names else None
         self._disabled_dates = list(disabled_dates or [])
-        # Transmis tel quel : la grille de jours est la MEME que
-        # celle de ``ui.calendar``, donc une marque a une cellule ou
-        # atterrir. ``ui.month_picker`` ne l'a pas : sa grille est
-        # faite de MOIS, pas de jours.
+        # Passed on as is: the day grid is the SAME as
+        # ``ui.calendar``'s, so a mark has a cell to land in.
+        # ``ui.month_picker`` does not have it: its grid is made of
+        # MONTHS, not days.
         self._marks = marks
         self._weekstart = weekstart
         self._clearable = clearable
         self._close_on_pick = close_on_pick
 
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, value=value,
             min=min, max=max,
@@ -202,12 +202,12 @@ class DatePicker(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # APRÈS `super().__init__` : les deux installeurs lisent
-        # `_binding_metadata`, qui n'est peuplé qu'à ce moment-là.
+        # AFTER `super().__init__`: both installers read
+        # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ PAS `"input"` : le premier `<input>` d'un picker est le
-        # porteur CACHÉ (`hidden_carrier`), qui ne prend pas le
-        # focus. Mesuré — `.focus()` ne faisait rien sur les six.
+        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
+        # carrier (`hidden_carrier`), which does not take focus.
+        # Measured — `.focus()` did nothing on all six.
         install_value_commands(
             self, focus_selector="input:not([type=hidden])"
         )
@@ -246,12 +246,12 @@ class DatePicker(Component):
         disabled_binding = self._binding_metadata.get("disabled")
 
         # ── Root attrs + scope (bz-data) ──────────────────────────
-        # Les deux appels sont la mécanique commune aux trois pickers
-        # (``inputs/_picker_field.py``, extrait le 2026-08-02) : router
-        # chaque handler vers le porteur capable de le tirer, et vider la
-        # racine de ce qu'un ``<div>`` ne peut pas porter. Les blocs
-        # qu'ils remplacent vivaient ici en trois copies dont les
-        # commentaires expliquaient trois fois la même chose.
+        # Both calls are the mechanics shared by the three pickers
+        # (``inputs/_picker_field.py``, extracted on 2026-08-02): route
+        # each handler to the carrier able to fire it, and empty the root
+        # of what a ``<div>`` cannot carry. The blocks they replace lived
+        # here in three copies whose comments explained the same thing
+        # three times.
         val = value_expr(self)
         root_attrs = self.emit_attrs()
         hidden_extra: dict[str, Any] = {}
@@ -284,12 +284,12 @@ class DatePicker(Component):
                 f"{{open: false, {key}: {json.dumps(initial_iso)}"
                 + (f",{sync}" if sync else "") + "}"
             )
-            # ── Les récepteurs de l'API impérative ───────────────────
+            # ── The receivers of the imperative API ──────────────────
             #
-            # En mode LIÉ, `.open()` / `.set()` écrivent directement dans le
-            # store et ces écouteurs ne se déclenchent jamais ; on les pose
-            # quand même pour que le contrat soit le même dans les deux
-            # modes — le choix déjà fait par Sidebar, Dialog et Select.
+            # In BOUND mode, `.open()` / `.set()` write straight into the
+            # store and these listeners never fire; we set them anyway so
+            # the contract is the same in both modes — the choice already
+            # made by Sidebar, Dialog and Select.
             for _ev, _handler in imperative_listeners("open").items():
                 root_attrs.setdefault(_ev, _handler)
             root_attrs.setdefault(
@@ -307,13 +307,13 @@ class DatePicker(Component):
         root_attrs["bz-init"] = anchored_dismiss_init("open")
 
         # ── Hidden form-data input ────────────────────────────────
-        # Passe désormais par la primitive partagée : le squelette (type
-        # / bz-ref / value SSR / bz-attr:value) vient de
-        # ``hidden_carrier_attrs``, que ce composant réécrivait à la main
-        # parce qu'il est ANTÉRIEUR à son extraction. Le ``bz-ref``
-        # manquait donc ici — c'est ce qui a fait rougir
-        # ``test_hidden_carrier_skeleton_is_shared`` sur TimePicker quand
-        # j'ai recopié ce bloc.
+        # It now goes through the shared primitive: the skeleton (type /
+        # bz-ref / SSR value / bz-attr:value) comes from
+        # ``hidden_carrier_attrs``, which this component rewrote by hand
+        # because it PREDATES its extraction. The ``bz-ref`` was
+        # therefore missing here — it is what made
+        # ``test_hidden_carrier_skeleton_is_shared`` go red on TimePicker
+        # when I copied this block.
         hidden_input = hidden_carrier(
             value_expr=val,
             initial=initial_iso,
@@ -347,9 +347,10 @@ class DatePicker(Component):
                 f"{field_attrs['bz-on:blur']}; {relocated_to_field['bz-on:blur']}"
             )
         field_attrs.update(relocated_to_field)
-        # Reactive ``disabled`` → le champ éditable, pas le wrapper. Le
-        # frame se grise tout seul avec (``has-[input:disabled]`` dans le
-        # thème), donc l'anneau suit le binding sans directive de plus.
+        # Reactive ``disabled`` → the editable field, not the wrapper.
+        # The frame greys out by itself with it
+        # (``has-[input:disabled]`` in the theme), so the ring follows
+        # the binding with no extra directive.
         self.forward_binding("disabled", field_attrs)
         field_input = Element(
             tag="input", attrs=field_attrs, children=()
@@ -388,10 +389,11 @@ class DatePicker(Component):
         input_frame = Element(
             tag="div",
             attrs={
-                # ``slot_with_size`` et non ``compose_class`` : la
-                # hauteur du palier vit sur le CADRE, qui porte la
-                # bordure — sinon le contrôle rend 2 px de plus que
-                # ``ui.input`` au même ``size=`` (cf. la note du thème).
+                # ``slot_with_size`` and not ``compose_class``: the
+                # step's height lives on the FRAME, which carries the
+                # border — otherwise the control renders 2 px more than
+                # ``ui.input`` at the same ``size=`` (cf. the theme's
+                # note).
                 "class": slot_with_size("input_frame"),
                 "bz-ref": "bztrigger",
             },

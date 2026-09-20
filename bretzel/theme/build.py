@@ -132,47 +132,47 @@ def download_binary() -> Path:
 # ───────────────────────────────────────────────────────────────────────────
 
 
-#: Ce que Tailwind lit en plus du CSS d'entrée : il balaie l'espace de
-#: travail à la recherche de classes. Ces dossiers n'en portent pas, ou
-#: pas de vivantes, et les inclure ferait de l'empreinte un coût inutile.
+#: What Tailwind reads besides the input CSS: it scans the workspace
+#: looking for classes. These folders carry none, or none that are live,
+#: and including them would make the fingerprint a needless cost.
 _SCAN_SKIP: frozenset[str] = frozenset({
     ".bretzel", ".git", ".venv", "venv", "__pycache__", "node_modules",
     ".mypy_cache", ".pytest_cache", ".ruff_cache", "build", "dist",
-    "archive",          # le V1 est READ-ONLY par charte, il ne bouge pas
+    "archive",          # V1 is READ-ONLY by charter, it does not move
 })
 
-#: Les extensions où une classe peut vivre. Un `.py` en porte (les thèmes
-#: de composants sont du Python), un `.html` aussi.
+#: The extensions a class can live in. A `.py` carries some (component
+#: themes are Python), an `.html` does too.
 _SCAN_SUFFIXES: frozenset[str] = frozenset({".py", ".html", ".js", ".md"})
 
 
 def _content_fingerprint(roots: Sequence[Path]) -> str:
-    """Empreinte des fichiers que le compilateur BALAIE.
+    """Fingerprint of the files the compiler SCANS.
 
-    Tailwind v4 ne compile pas seulement le CSS d'entrée : il lit
-    l'espace de travail pour savoir quelles classes existent. Le compilé
-    dépend donc de DEUX choses, et le cache doit refléter les deux.
+    Tailwind v4 does not only compile the input CSS: it reads the
+    workspace to know which classes exist. The compiled output therefore
+    depends on TWO things, and the cache must reflect both.
 
-    **Sans ça, un changement de classe ne parvient jamais en prod.** Le
-    2026-08-27, remplacer ``transition-all`` par une liste explicite dans
-    ``sidebar/theme.py`` n'a rien changé : la classe ne touche aucune
-    couleur, donc elle n'entre pas dans la safelist, donc l'empreinte du
-    CSS d'entrée ne bouge pas, donc le cache rendait l'ancien fichier. Le
-    rendu restait celui d'avant, sans une seule erreur.
+    **Without this, a class change never reaches production.** On
+    2026-08-27, replacing ``transition-all`` with an explicit list in
+    ``sidebar/theme.py`` changed nothing: the class touches no colour, so
+    it does not enter the safelist, so the input CSS's fingerprint does
+    not move, so the cache returned the old file. The render stayed what
+    it was, with not a single error.
 
-    Le piège était masqué jusque-là : le cache tenait une seule place et
-    deux apps se la reprenaient sans cesse, donc il recompilait presque à
-    chaque démarrage — frais par accident. Le réparer a découvert ceci.
+    The trap was masked until then: the cache held a single slot and two
+    apps kept taking it from each other, so it recompiled on almost every
+    startup — fresh by accident. Fixing that uncovered this.
 
-    On lit ``(chemin, taille, mtime_ns)``, jamais le contenu : c'est un
-    parcours de ``stat``, pas une lecture.
+    We read ``(path, size, mtime_ns)``, never the content: it is a
+    ``stat`` walk, not a read.
 
-    ⚠️ **L'élagage se fait EN DESCENDANT, pas en filtrant après.** Une
-    première version faisait ``root.rglob("*")`` puis écartait les
-    chemins indésirables : elle descendait donc dans ``.git`` et
-    ``archive/`` avant de les jeter. Mesuré sur ce dépôt : **1 462 ms**
-    contre 60 ms avec l'élagage — pour une fonction qui tourne au
-    démarrage de chaque app en mode prod.
+    ⚠️ **Pruning happens ON THE WAY DOWN, not by filtering afterwards.**
+    A first version did ``root.rglob("*")`` then discarded the unwanted
+    paths: so it descended into ``.git`` and ``archive/`` before throwing
+    them away. Measured on this repository: **1 462 ms** against 60 ms
+    with pruning — for a function that runs at the startup of every app
+    in production mode.
     """
     parts: list[str] = []
     for root in roots:
@@ -188,11 +188,10 @@ def _content_fingerprint(roots: Sequence[Path]) -> str:
                     st = path.stat()
                 except OSError:
                     continue
-                # Le chemin de la racine PRÉFIXE l'entrée : deux racines
-                # peuvent porter le même chemin relatif (``theme/css.py``
-                # existe dans le paquet ET dans un dossier d'app qui
-                # l'imiterait), et deux entrées identiques s'annuleraient
-                # dans le hash.
+                # The root's path PREFIXES the entry: two roots can
+                # carry the same relative path (``theme/css.py`` exists
+                # in the package AND in an app folder that mirrored it),
+                # and two identical entries would cancel out in the hash.
                 parts.append(
                     f"{prefix}/{path.relative_to(root).as_posix()}"
                     f":{st.st_size}:{st.st_mtime_ns}"
@@ -201,41 +200,41 @@ def _content_fingerprint(roots: Sequence[Path]) -> str:
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
-#: Une racine déclarée dans le CSS de thème, telle que
-#: :func:`bretzel.theme.tailwind.generate_source_directives` l'écrit.
+#: A root declared in the theme CSS, as
+#: :func:`bretzel.theme.tailwind.generate_source_directives` writes it.
 _SOURCE_PATH_RE = re.compile(r'@source "([^"]+)";')
 
 
 def scan_roots(theme_css: str) -> list[Path]:
-    """Les dossiers que le compilateur va lire, pour CE CSS d'entrée.
+    """The folders the compiler will read, for THIS input CSS.
 
-    **Le CSS est la source de vérité, pas un paramètre.** Les racines y
-    sont déjà écrites — c'est ce que le binaire lira. Les relire ici
-    plutôt que de les faire redescendre par la pile garantit que
-    l'empreinte couvre exactement ce qui est balayé : un appelant ne peut
-    pas déclarer une racine au compilateur en oubliant de la déclarer au
-    cache, ce qui rendrait un ``style.css`` périmé **sans erreur**.
+    **The CSS is the source of truth, not a parameter.** The roots are
+    already written in it — that is what the binary will read. Reading
+    them back here rather than passing them down the stack guarantees
+    the fingerprint covers exactly what is scanned: a caller cannot
+    declare a root to the compiler while forgetting to declare it to the
+    cache, which would return a stale ``style.css`` **with no error**.
 
-    Le ``cwd`` ouvre la liste parce que Tailwind le balaie de lui-même,
-    sans qu'aucune directive ne le dise.
+    The ``cwd`` opens the list because Tailwind scans it by itself, with
+    no directive saying so.
 
-    Une racine imbriquée dans une autre est écartée : la parcourir deux
-    fois doublerait le coût du walk sans changer une seule entrée (les
-    deux passes produiraient le même préfixe pour les mêmes fichiers).
+    A root nested inside another is dropped: walking it twice would
+    double the walk's cost without changing a single entry (both passes
+    would produce the same prefix for the same files).
     """
     roots: list[Path] = [Path.cwd().resolve()]
     for raw in _SOURCE_PATH_RE.findall(theme_css):
         path = Path(raw).resolve()
         if not path.is_dir():
-            # Une racine absente n'est pas rattrapée en silence : le
-            # binaire, lui, échouera dessus, et ``get_or_build_css``
-            # transforme cet échec en repli explicite. Ici on l'ignore
-            # seulement pour ne pas faire tomber le calcul du cache.
+            # An absent root is not silently made up for: the binary
+            # will fail on it, and ``get_or_build_css`` turns that
+            # failure into an explicit fallback. Here we ignore it only
+            # so as not to bring the cache computation down.
             continue
         roots.append(path)
-    # Élagage des imbriquées, dans les deux sens : le cas normal du dépôt
-    # en développement est ``cwd`` = la racine du dépôt, donc le paquet
-    # est DEDANS et ne doit pas être parcouru une seconde fois.
+    # Pruning the nested ones, in both directions: the normal case of
+    # the repository in development is ``cwd`` = the repository root, so
+    # the package is INSIDE it and must not be walked a second time.
     return [
         r for r in roots
         if not any(other != r and other in r.parents for other in roots)
@@ -243,41 +242,41 @@ def scan_roots(theme_css: str) -> list[Path]:
 
 
 def _theme_digest(theme_css: str) -> str:
-    """Empreinte de l'entrée — elle NOMME le fichier compilé.
+    """Fingerprint of the input — it NAMES the compiled file.
 
-    Elle vivait dans un ``style.css.sha256`` posé à côté d'un
-    ``style.css`` unique, ce qui ne laissait de place qu'à UN thème
-    par dossier. Cf. :func:`get_or_build_css`.
+    It used to live in a ``style.css.sha256`` set beside a single
+    ``style.css``, which left room for only ONE theme per folder. Cf.
+    :func:`get_or_build_css`.
     """
     return hashlib.sha256(theme_css.encode("utf-8")).hexdigest()
 
 
-#: Combien de feuilles compilées le cache garde. Chacune pèse 230 à
-#: 740 Ko, et la clé inclut l'empreinte des sources balayées : **toute**
-#: édition d'un ``theme.py`` du framework crée une entrée neuve. Sans
-#: éviction, mesuré le 2026-08-30 sur la machine de dev : **470 fichiers,
-#: 298 Mo** accumulés en deux jours de travail sur les thèmes.
+#: How many compiled sheets the cache keeps. Each weighs 230 to 740 KB,
+#: and the key includes the fingerprint of the scanned sources: **any**
+#: edit to a framework ``theme.py`` creates a fresh entry. Without
+#: eviction, measured on 2026-08-30 on the dev machine: **470 files,
+#: 298 MB** accumulated over two days of work on the themes.
 #:
-#: Douze parce que c'est ce qu'un aller-retour normal consomme — deux ou
-#: trois apps d'exemple, chacune avec ses variations de thème — sans
-#: qu'on paie 3 s de recompilation à chaque bascule.
+#: Twelve because that is what a normal round trip consumes — two or
+#: three example apps, each with its theme variations — without paying
+#: 3 s of recompilation on every switch.
 CACHE_KEEP: Final[int] = 12
 
 
 def _touch(path: Path) -> None:
-    """Remet la date à maintenant. Ne lève jamais — perdre un rang de
-    LRU est sans conséquence, perdre un démarrage d'app ne l'est pas."""
+    """Set the date to now. Never raises — losing an LRU rank has no
+    consequence, losing an app startup does."""
     with contextlib.suppress(OSError):
         path.touch()
 
 
 def _sheet_for(pointer: Path) -> Path | None:
-    """La feuille que désigne ce pointeur, ou ``None``.
+    """The sheet this pointer designates, or ``None``.
 
-    Un pointeur ORPHELIN — dont la feuille a été évincue — rend ``None``,
-    donc se comporte comme une absence de cache : on recompile. C'est le
-    bon défaut, et c'est pour ça que l'éviction n'a pas à toucher aux
-    pointeurs pour rester correcte.
+    An ORPHANED pointer — whose sheet has been evicted — returns
+    ``None``, so it behaves like a cache miss: we recompile. That is the
+    right default, and it is why eviction does not have to touch the
+    pointers to stay correct.
     """
     try:
         sheet = pointer.parent / pointer.read_text(encoding="utf-8").strip()
@@ -287,30 +286,30 @@ def _sheet_for(pointer: Path) -> Path | None:
 
 
 def _store_sheet(scratch: Path, css_dir: Path, pointer: Path) -> Path:
-    """Range la feuille fraîchement compilée SOUS L'EMPREINTE DE SON
-    CONTENU, et fait pointer la clé dessus.
+    """Store the freshly compiled sheet UNDER THE FINGERPRINT OF ITS
+    CONTENT, and point the key at it.
 
-    Pourquoi deux niveaux. La clé de cache inclut l'empreinte des
-    sources balayées — il le FAUT, sinon changer une classe qui ne
-    touche aucune couleur ne parviendrait jamais en prod (cf.
-    :func:`_content_fingerprint`). Mais la réciproque est fausse :
-    toucher un ``theme.py`` sans changer une seule classe produit une
-    clé neuve pour une sortie IDENTIQUE.
+    Why two levels. The cache key includes the fingerprint of the
+    scanned sources — it MUST, otherwise changing a class that touches
+    no colour would never reach production (cf.
+    :func:`_content_fingerprint`). But the converse is false: touching a
+    ``theme.py`` without changing a single class produces a fresh key for
+    an IDENTICAL output.
 
-    Mesuré le 2026-08-31 : **6 des 7 feuilles en cache étaient octet
-    pour octet identiques** — deux contenus distincts pour sept entrées.
-    Le cache annonçait douze places et en tenait deux utiles pendant une
-    session de travail sur les thèmes, et la feuille du CRM pouvait se
-    faire évincer par six copies de celle du playground.
+    Measured on 2026-08-31: **6 of the 7 cached sheets were byte for
+    byte identical** — two distinct contents for seven entries. The cache
+    advertised twelve slots and held two useful ones during a session of
+    theme work, and the CRM's sheet could be evicted by six copies of the
+    playground's.
 
-    Adresser par le contenu règle ça sans toucher à la clé : douze
-    places tiennent maintenant douze thèmes DIFFÉRENTS.
+    Addressing by content fixes that without touching the key: twelve
+    slots now hold twelve DIFFERENT themes.
     """
     payload = scratch.read_bytes()
     sheet = css_dir / f"{hashlib.sha256(payload).hexdigest()[:16]}.css"
     if sheet.is_file():
-        # Déjà là, octet pour octet : on jette le doublon et on relève
-        # sa date, puisqu'on vient de s'en servir.
+        # Already there, byte for byte: we throw away the duplicate and
+        # bump its date, since we have just used it.
         with contextlib.suppress(OSError):
             scratch.unlink()
         _touch(sheet)
@@ -318,8 +317,8 @@ def _store_sheet(scratch: Path, css_dir: Path, pointer: Path) -> Path:
         try:
             scratch.replace(sheet)
         except OSError:
-            # Un autre processus a pu la ranger entre-temps. Sa copie
-            # vaut la nôtre — elles ont la même empreinte.
+            # Another process may have stored it in the meantime. Its
+            # copy is as good as ours — they have the same fingerprint.
             if not sheet.is_file():
                 raise
     with contextlib.suppress(OSError):
@@ -328,16 +327,16 @@ def _store_sheet(scratch: Path, css_dir: Path, pointer: Path) -> Path:
 
 
 def _prune_css_cache(css_dir: Path, *, keep: int = CACHE_KEEP) -> int:
-    """Ne garder que les ``keep`` feuilles les plus RÉCEMMENT UTILISÉES.
+    """Keep only the ``keep`` MOST RECENTLY USED sheets.
 
-    Sur la date de modification, et le chemin du cache-hit la remet à
-    jour : sans ce ``touch``, l'ordre serait celui des compilations, donc
-    la feuille qu'on sert dix fois par jour se ferait évincer par une
-    variation compilée une fois et jamais relue.
+    By modification date, and the cache-hit path refreshes it: without
+    that ``touch``, the order would be that of compilations, so the sheet
+    served ten times a day would be evicted by a variation compiled once
+    and never read again.
 
-    Ne lève jamais. Un fichier qu'un autre processus tient ouvert refuse
-    d'être supprimé sous Windows, et perdre une éviction est sans
-    conséquence — perdre le démarrage de l'app ne l'est pas.
+    Never raises. A file another process holds open refuses to be deleted
+    on Windows, and losing an eviction has no consequence — losing the
+    app's startup does.
     """
     try:
         entries = sorted(
@@ -362,28 +361,28 @@ def get_or_build_css(
 ) -> str:
     """Return a compiled ``style.css`` string for ``theme_css``.
 
-    Tries (in order) :
+    Tries (in order):
 
-    1. Le compilé déjà en cache pour CETTE entrée —
-       ``./.bretzel/css/<empreinte>.css``, sauf ``rebuild=True``.
+    1. The already-cached compilation for THIS input —
+       ``./.bretzel/css/<fingerprint>.css``, unless ``rebuild=True``.
     2. A binary already locatable via :func:`find_lightning_binary`
        (env var / wheel / ``$PATH``) — runs the compile, caches the
        result.
-    3. Un binaire déjà présent dans ``./.bretzel/bin/``.
-       Son téléchargement n'est permis que si ``allow_download=True``.
+    3. A binary already present in ``./.bretzel/bin/``. Downloading it
+       is only allowed when ``allow_download=True``.
 
     Errors :class:`CompilerError` if every path fails.
 
-    La clé combine le CSS d'entrée et l'empreinte des sources scannées.
-    Un fichier ``.key`` pointe vers la feuille nommée par son contenu :
-    plusieurs entrées peuvent partager le même CSS compilé. Le cache est
-    borné par :data:`CACHE_KEEP` et peut être reconstruit après suppression.
+    The key combines the input CSS and the fingerprint of the scanned
+    sources. A ``.key`` file points at the sheet named by its content:
+    several entries can share the same compiled CSS. The cache is bounded
+    by :data:`CACHE_KEEP` and can be rebuilt after deletion.
     """
     cache = _cache_dir()
-    # DEUX entrées, donc deux moitiés de clé : le CSS de thème, et les
-    # fichiers que le compilateur balaie pour y trouver des classes.
-    # Les racines balayées sortent du CSS lui-même (``scan_roots``) : le
-    # ``cwd``, plus le paquet installé et ce que l'app a déclaré.
+    # TWO inputs, hence two halves of a key: the theme CSS, and the
+    # files the compiler scans to find classes in. The scanned roots come
+    # out of the CSS itself (``scan_roots``): the ``cwd``, plus the
+    # installed package and what the app declared.
     digest = _theme_digest(
         theme_css + _content_fingerprint(scan_roots(theme_css))
     )
@@ -394,22 +393,22 @@ def get_or_build_css(
     if not rebuild:
         sheet = _sheet_for(pointer)
         if sheet is not None:
-            # ``touch`` : c'est ce qui fait de l'éviction un LRU plutôt
-            # qu'un FIFO. Sans lui, la feuille servie tous les jours
-            # porterait la date de sa compilation et tomberait avant une
-            # variation compilée une fois par erreur.
+            # ``touch``: that is what makes eviction an LRU rather than
+            # a FIFO. Without it, the sheet served every day would carry
+            # its compilation date and fall before a variation compiled
+            # once by mistake.
             _touch(sheet)
             _touch(pointer)
             return sheet.read_text(encoding="utf-8")
 
-    # Aucun téléchargement implicite au démarrage : l'appelant doit
-    # autoriser explicitement cet accès réseau avec ``allow_download``.
+    # No implicit download at startup: the caller must explicitly allow
+    # this network access with ``allow_download``.
     try:
         binary = find_lightning_binary()
     except CompilerError:
-        # ``find_lightning_binary`` ne connaît que l'env, le wheel et le
-        # PATH — pas notre propre cache. Un binaire déjà téléchargé dans
-        # ``.bretzel/bin/`` doit évidemment servir.
+        # ``find_lightning_binary`` only knows the env, the wheel and
+        # the PATH — not our own cache. A binary already downloaded into
+        # ``.bretzel/bin/`` must obviously serve.
         cached = _binary_path()
         if cached.is_file():
             binary = cached
@@ -422,23 +421,21 @@ def get_or_build_css(
     import time
 
     t0 = time.time()
-    # On compile vers un nom PROVISOIRE : le nom définitif est
-    # l'empreinte de ce qui sort, et on ne la connaît qu'après.
+    # We compile to a TEMPORARY name: the final name is the fingerprint
+    # of what comes out, and we only know it afterwards.
     #
-    # ⚠️ **Le nom doit être unique par APPELANT, pas par clé.** Il était
-    # dérivé de la clé, donc deux processus compilant le MÊME thème en
-    # même temps se partageaient le fichier : le premier le renommait,
-    # le second lisait un chemin disparu et mourait sur
-    # ``FileNotFoundError`` au démarrage de l'app. Or « deux apps qui
-    # démarrent ensemble depuis la même racine » est précisément la
-    # situation pour laquelle ce cache tient plusieurs places.
+    # ⚠️ **The name must be unique per CALLER, not per key.** It was
+    # derived from the key, so two processes compiling the SAME theme at
+    # the same time shared the file: the first renamed it, the second
+    # read a vanished path and died on ``FileNotFoundError`` at the app's
+    # startup. And "two apps starting together from the same root" is
+    # precisely the situation this cache holds several slots for.
     #
-    # Trouvé le 2026-08-31 dans `-m browser -n 4`, et l'apprentissage
-    # vaut plus que le correctif : ça se manifestait comme une erreur de
-    # COLLECTE pytest (« Different tests were collected between gw3 and
-    # gw0 »), à trois runs sur six, parce que la gate qui monte les
-    # bancs le fait à l'import. J'avais d'abord attribué ça à mes
-    # propres éditions — faux.
+    # Found on 2026-08-31 in `-m browser -n 4`, and the lesson is worth
+    # more than the fix: it showed up as a pytest COLLECTION error
+    # ("Different tests were collected between gw3 and gw0"), on three
+    # runs out of six, because the gate mounting the benches does it at
+    # import time. I first attributed it to my own edits — wrongly.
     fd, tmp_name = tempfile.mkstemp(
         dir=css_dir, prefix=f".{digest[:16]}.", suffix=".tmp",
     )

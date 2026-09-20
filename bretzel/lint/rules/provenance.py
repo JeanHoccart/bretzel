@@ -1,86 +1,84 @@
-"""Règle : un cast qui efface la PROVENANCE d'une valeur d'état.
+"""Rule: a cast that erases a state value's PROVENANCE.
 
-Le silence qu'elle ferme, rapporté par l'utilisateur le 2026-08-25
---------------------------------------------------------------------
-« Je dois rafraîchir la page pour rafraîchir le stepper. » L'écran
-d'import du CRM restait bloqué sur son premier panneau : on cliquait
-« Vérifier », l'état serveur passait bien à l'étape suivante, le reste de
-la zone se re-rendait — et le stepper, lui, ne bougeait pas. Seul un F5
-remettait les deux d'accord. Pire : après « Recommencer », l'écran restait
-sur le dernier pas pendant que l'état était revenu à zéro.
+The silence it closes, reported by the user on 2026-08-25
+---------------------------------------------------------
+"I have to refresh the page to refresh the stepper." The CRM's import
+screen stayed stuck on its first panel: you clicked "Check", the server
+state did move to the next step, the rest of the zone re-rendered — and
+the stepper did not budge. Only an F5 put the two back in agreement.
+Worse: after "Start over", the screen stayed on the last step while the
+state had gone back to zero.
 
-Une seule ligne en était la cause ::
+One single line was the cause ::
 
-    ui.stepper(value=int(draft.etape), clickable=False)
+    ui.stepper(value=int(draft.step), clickable=False)
                      ^^^^
 
-Le mécanisme
+The mechanism
 -------------
-Un composant à état client (stepper, tabs, accordion, les cinq pickers,
-les quatre overlays…) garde sa valeur courante dans un signal JavaScript,
-pas dans le DOM. Le morph d'une zone ``@refreshable`` **préserve
-délibérément** l'élément existant — c'est ce qui fait qu'un menu ouvert ou
-un champ en cours de saisie survivent à un rafraîchissement déclenché
-ailleurs sur la page. Le signal, lui, n'est pas relu.
+A client-state component (stepper, tabs, accordion, the five pickers, the
+four overlays…) keeps its current value in a JavaScript signal, not in
+the DOM. The morph of a ``@refreshable`` zone **deliberately preserves**
+the existing element — that is what makes an open menu or a field being
+typed into survive a refresh triggered elsewhere on the page. The signal
+is not re-read.
 
-Le composant doit donc dire « ma valeur vient du serveur, ré-adopte-la
-après le morph » — le marqueur ``_serverSync`` (cf.
-``components/base/_wiring.server_sync_marker``). Et il ne l'émet **que**
-s'il peut voir que la valeur vient du serveur : un champ d'état arrive
-ESTAMPILLÉ (``_BoundInt`` / ``_BoundStr``…, posés par
-``state/scopes/server._stamp``), un littéral ne l'est pas.
+So the component has to say "my value comes from the server, re-adopt it
+after the morph" — the ``_serverSync`` marker (cf.
+``components/base/_wiring.server_sync_marker``). And it only emits it
+**if** it can see the value comes from the server: a state field arrives
+STAMPED (``_BoundInt`` / ``_BoundStr``…, set by
+``state/scopes/server._stamp``), a literal does not.
 
-``int(draft.etape)`` rend un entier Python ordinaire. L'estampille est
-perdue, le composant conclut « valeur du client », et n'émet rien.
+``int(draft.step)`` returns an ordinary Python integer. The stamp is
+lost, the component concludes "client value", and emits nothing.
 
-⚠️ **Et ce n'est pas rattrapable à l'exécution.** À ce moment-là le
-composant ne voit qu'un ``int``, indiscernable d'un ``value=1``
-parfaitement légitime — qui, lui, doit justement NE PAS être ré-adopté,
-sinon un rafraîchissement voisin renverrait l'utilisateur là où le serveur
-croit qu'il en est. La seule place où l'information existe encore est le
-**code source**. D'où cette règle, et pas une garde runtime.
+⚠️ **And it cannot be caught at runtime.** At that point the component
+only sees an ``int``, indistinguishable from a perfectly legitimate
+``value=1`` — which must precisely NOT be re-adopted, otherwise a
+neighbouring refresh would send the user back to where the server thinks
+they are. The only place where the information still exists is the
+**source code**. Hence this rule, and not a runtime guard.
 
-Mesuré au navigateur, la même page avec et sans le cast ::
+Measured in the browser, the same page with and without the cast ::
 
-    apres Avancer      panneau 1        panneau 2
-    apres Avancer x2   panneau 1        panneau 3
-    apres F5           panneau 3        panneau 3
-    apres Recommencer  panneau 3        panneau 1
+    after Next        panel 1        panel 2
+    after Next x2     panel 1        panel 3
+    after F5          panel 3        panel 3
+    after Start over  panel 3        panel 1
 
-Ce que la règle couvre, et ce qu'elle laisse
-----------------------------------------------
-Elle vise les **props à double sens** (``ComponentInfo.two_way``,
-30 composants) — la population exacte où un signal client détient la
-valeur et peut diverger du serveur. Un cast sur un slot de texte
-(``ui.badge(label=str(n))``) est inoffensif : il n'y a pas de signal à
-ré-adopter, le morph remplace le nœud.
+What the rule covers, and what it leaves
+----------------------------------------
+It targets the **two-way props** (``ComponentInfo.two_way``, 30
+components) — the exact population where a client signal holds the value
+and can diverge from the server. A cast on a text slot
+(``ui.badge(label=str(n))``) is harmless: there is no signal to re-adopt,
+the morph replaces the node.
 
-Elle exige que l'argument soit un **accès d'attribut ou d'indice**
-(``draft.etape``, ``prefs["x"]``) — donc plausiblement une lecture
-d'état. ``int(3)`` est inutile mais sans conséquence, et une règle qui
-signale de l'inoffensif finit par ne plus être lue.
+It requires the argument to be an **attribute or subscript access**
+(``draft.step``, ``prefs["x"]``) — so plausibly a state read. ``int(3)``
+is useless but harmless, and a rule that reports the harmless ends up
+unread.
 
-Elle voit **trois** formes depuis le 2026-08-30, pas une seule — le
-cast, le ``or`` et la f-string. L'inventaire à jour est dans
-:func:`stripping_expr`, qui EST le détecteur ; ce qui suit dit ce qui
-reste dehors.
+It sees **three** forms since 2026-08-30, not one — the cast, the ``or``
+and the f-string. The up-to-date inventory is in :func:`stripping_expr`,
+which IS the detector; what follows says what stays out.
 
-⚠️ **Ce paragraphe a décrit l'inverse jusqu'au 2026-09-01.** Il
-énumérait « ce qu'elle NE voit pas : une f-string, une arithmétique, un
-``state.x or defaut`` » — écrit avant l'élargissement, et laissé tel
-quel après, à cinquante lignes d'un ``stripping_expr`` qui les traite.
-C'est la forme de docstring la plus coûteuse de ce dépôt : elle se
-contredit elle-même dans le même fichier, et la moitié fausse est celle
-qu'on lit en premier.
+⚠️ **This paragraph described the opposite until 2026-09-01.** It
+enumerated "what it does NOT see: an f-string, arithmetic, a
+``state.x or default``" — written before the widening, and left as-is
+afterwards, fifty lines from a ``stripping_expr`` that handles them. It
+is this repository's most expensive docstring shape: it contradicts
+itself in the same file, and the false half is the one read first.
 
-**Ce qui reste DEHORS**, mesuré et volontaire : l'arithmétique. Ses
-trois sites du dépôt portent tous sur des littéraux (``'A' * 200``),
-donc inoffensifs. Élargir à « toute expression non triviale » serait
-maximal et probablement bruyant.
+**What stays OUT**, measured and deliberate: arithmetic. Its three sites
+in the repository all operate on literals (``'A' * 200``), so harmless.
+Widening to "any non-trivial expression" would be maximal and probably
+noisy.
 
-**Le versant licite est payé** : ``bretzel check examples`` rend 12
-constats sur 321 fichiers, dont **zéro** de cette règle — les trois
-formes surveillées ne produisent aucun faux positif sur le corpus réel.
+**The licit side is paid for**: ``bretzel check examples`` returns 12
+findings over 321 files, of which **zero** from this rule — the three
+watched forms produce no false positive on the real corpus.
 """
 
 from __future__ import annotations
@@ -90,19 +88,19 @@ import ast
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-RULE = "etat-perdu-par-un-cast"
+RULE = "state-lost-by-a-cast"
 
-#: Les coercions du langage. Toutes rendent un objet NEUF, donc toutes
-#: perdent l'estampille — il n'y a pas d'exception à trier.
+#: The language's coercions. They all return a NEW object, so they all
+#: lose the stamp — there is no exception to sort out.
 _CASTS = frozenset({"int", "str", "float", "bool", "list", "tuple", "set", "dict"})
 
 
 def _two_way(ui_name: str) -> frozenset[str]:
-    """Les props à double sens de ``ui.<ui_name>``, ou l'ensemble vide.
+    """The two-way props of ``ui.<ui_name>``, or the empty set.
 
-    Lu sur l'introspection plutôt que recopié : la liste est dérivée de
-    ``reactive_prop(writes=True)``, donc une prop qui devient bidirection-
-    nelle entre ici et le socle ne peut pas sortir de la règle en silence.
+    Read from introspection rather than copied: the list derives from
+    ``reactive_prop(writes=True)``, so a prop that becomes bidirectional
+    between here and the base layer cannot leave the rule silently.
     """
     from bretzel.introspect import ComponentInfo, describe_ui_symbol, ui_symbol_names
 
@@ -115,17 +113,17 @@ def _two_way(ui_name: str) -> frozenset[str]:
 
 
 def _reads_state(node: ast.expr) -> bool:
-    """``node`` ressemble-t-il à une lecture d'état — ``a.b`` ou ``a["b"]`` ?
+    """Does ``node`` look like a state read — ``a.b`` or ``a["b"]``?
 
-    Heuristique assumée, la même que depuis l'origine : c'est ce qui
-    empêche ``int(3)`` de compter. Le lint n'a pas le typage, il a la
-    forme.
+    An accepted heuristic, the same one as from the start: it is what
+    keeps ``int(3)`` from counting. The lint does not have typing, it has
+    shape.
     """
     return isinstance(node, ast.Attribute | ast.Subscript)
 
 
 def _first_state_read(node: ast.expr) -> ast.expr | None:
-    """La première lecture d'état sous ``node``, ou ``None``."""
+    """The first state read under ``node``, or ``None``."""
     return next(
         (sub for sub in ast.walk(node) if _reads_state(sub)),  # type: ignore[misc]
         None,
@@ -133,30 +131,29 @@ def _first_state_read(node: ast.expr) -> ast.expr | None:
 
 
 def stripping_expr(value: ast.expr) -> tuple[str, str] | None:
-    """``(forme, source de la lecture)`` si ``value`` efface la provenance.
+    """``(form, read's source)`` when ``value`` erases the provenance.
 
-    Isolé du balayage pour que la preuve de morsure l'attaque directement,
-    sur des expressions fabriquées, plutôt que sur un faux dépôt.
+    Isolated from the sweep so that the bite proof attacks it directly,
+    on fabricated expressions, rather than on a fake repository.
 
-    **Trois formes, élargies le 2026-08-30** — le cast n'était que la
-    première trouvée, pas la seule qui efface :
+    **Three forms, widened on 2026-08-30** — the cast was only the first
+    one found, not the only one that erases:
 
-    - ``CAST(state.x)`` — rend un ``int`` / ``str`` nu. La forme d'origine,
-      quatre sites mesurés, tous corrigés ;
-    - ``state.x or defaut`` — **la plus traître**, et c'est pourquoi elle
-      entre : ``a or b`` rend l'opérande TELLE QUELLE, donc l'estampille
-      survit quand la valeur est vraie et disparaît quand elle est
-      fausse. Le composant se resynchronise une fois sur deux, selon la
-      donnée — et un banc qui n'essaie que le cas rempli le déclare bon ;
-    - ``f"{state.x}"`` — efface toujours, comme le cast. Zéro site mesuré
-      aujourd'hui, incluse parce qu'elle est du même ordre et gratuite.
+    - ``CAST(state.x)`` — returns a bare ``int`` / ``str``. The original
+      form, four measured sites, all fixed;
+    - ``state.x or default`` — **the most treacherous**, and that is why
+      it is in: ``a or b`` returns the operand AS-IS, so the stamp
+      survives when the value is truthy and vanishes when it is falsy.
+      The component resynchronises half the time, depending on the data —
+      and a bench that only tries the filled case declares it good;
+    - ``f"{state.x}"`` — always erases, like the cast. Zero sites measured
+      today, included because it is of the same order and free.
 
-    ⚠️ Ce qui reste DEHORS, et volontairement : l'arithmétique. Balayée
-    sur les 18 apps le 2026-08-25, ses trois sites portent tous sur des
-    littéraux (``'A' * 200``) — inoffensifs. Élargir à « toute expression
-    non triviale » serait maximal et probablement bruyant ; la mesure du
-    versant licite est ce qui a trouvé les deux seuls bugs de gate de ce
-    dépôt.
+    ⚠️ What stays OUT, and deliberately: arithmetic. Swept over the 18
+    apps on 2026-08-25, its three sites all operate on literals
+    (``'A' * 200``) — harmless. Widening to "any non-trivial expression"
+    would be maximal and probably noisy; measuring the licit side is what
+    found this repository's only two gate bugs.
     """
     if isinstance(value, ast.Call):
         if not (isinstance(value.func, ast.Name) and value.func.id in _CASTS):
@@ -171,8 +168,8 @@ def stripping_expr(value: ast.expr) -> tuple[str, str] | None:
         lu = _first_state_read(value)
         if lu is None:
             return None
-        mot = "or" if isinstance(value.op, ast.Or) else "and"
-        return f"… {mot} …", ast.unparse(lu)
+        word = "or" if isinstance(value.op, ast.Or) else "and"
+        return f"… {word} …", ast.unparse(lu)
 
     if isinstance(value, ast.JoinedStr):
         lu = _first_state_read(value)
@@ -184,7 +181,7 @@ def stripping_expr(value: ast.expr) -> tuple[str, str] | None:
 
 
 def check(module: Module) -> list[Finding]:
-    """Les casts posés sur une prop à double sens."""
+    """The casts set on a two-way prop."""
     findings: list[Finding] = []
     for node in ast.walk(module.tree):
         if not isinstance(node, ast.Call):
@@ -202,20 +199,19 @@ def check(module: Module) -> list[Finding]:
         for keyword in node.keywords:
             if keyword.arg not in props:
                 continue
-            efface = stripping_expr(keyword.value)
-            if efface is None:
+            stripped = stripping_expr(keyword.value)
+            if stripped is None:
                 continue
-            forme, inner = efface
-            # ``or`` n'efface que par INTERMITTENCE : l'opérande est rendue
-            # telle quelle, donc l'estampille survit quand la valeur est
-            # vraie. C'est ce qui le rend plus dangereux qu'un cast, pas
-            # moins — le message doit le dire, sinon on lit « parfois ça
-            # marche » comme « ce n'est pas grave ».
-            quand = (
-                " — et seulement quand la valeur est fausse, donc le "
-                "composant se resynchronise une fois sur deux selon la "
-                "donnée"
-                if forme.endswith("or …") else ""
+            shape, inner = stripped
+            # ``or`` only erases INTERMITTENTLY: the operand is returned
+            # as-is, so the stamp survives when the value is truthy. That
+            # is what makes it more dangerous than a cast, not less — the
+            # message has to say so, otherwise "it works sometimes" reads
+            # as "it does not matter".
+            when = (
+                " — and only when the value is falsy, so the component "
+                "resynchronises half the time depending on the data"
+                if shape.endswith("or …") else ""
             )
             findings.append(
                 Finding(
@@ -223,16 +219,17 @@ def check(module: Module) -> list[Finding]:
                     path=module.path,
                     line=node.lineno,
                     message=(
-                        f"`ui.{func.attr}({keyword.arg}={forme})` : "
-                        f"l'expression efface la provenance de `{inner}`{quand}, "
-                        f"donc le composant "
-                        f"ne saura pas que la valeur vient du serveur et ne la "
-                        f"ré-adoptera pas après un rafraîchissement."
+                        f"`ui.{func.attr}({keyword.arg}={shape})` : "
+                        f"the expression erases `{inner}`'s provenance{when}, "
+                        f"so the component will not know the value comes from "
+                        f"the server and will not re-adopt it after a "
+                        f"refresh."
                     ),
                     hint=(
-                        f"Passe la valeur nue : `{keyword.arg}={inner}`. Si un "
-                        f"formatage est nécessaire, il va dans l'état (un "
-                        f"validateur, un champ calculé), pas au point d'appel."
+                        f"Pass the bare value: `{keyword.arg}={inner}`. If "
+                        f"formatting is needed, it goes in the state (a "
+                        f"validator, a computed field), not at the call "
+                        f"site."
                     ),
                 )
             )

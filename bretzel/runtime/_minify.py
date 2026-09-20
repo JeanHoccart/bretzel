@@ -1,47 +1,47 @@
-r"""Retire les commentaires et l'indentation d'un bundle JS. Rien d'autre.
+r"""Strip comments and indentation from a JS bundle. Nothing else.
 
-Pourquoi un minifieur maison, et pourquoi si peu ambitieux
------------------------------------------------------------
+Why a home-made minifier, and why such a modest one
+---------------------------------------------------
 
-Le charter interdit npm en production ; un minifieur du monde JS
-demanderait soit npm, soit un binaire de plus à télécharger. Or la
-mesure du 2026-08-27 dit que l'ambition ne sert à rien ici : sur
-``runtime.js``, **retirer les seuls commentaires et l'indentation**
-donne 286 758 → 107 395 octets, et 90 563 → **31 581 octets gzippés**
-(−65 %). Le renommage des variables locales, lui, se paie en risque et
-ne rendrait que quelques kilo-octets une fois gzippé — gzip encode déjà
-un identifiant répété en une référence.
+The charter forbids npm in production; a minifier from the JS world
+would need either npm or one more binary to download. And the
+measurement of 2026-08-27 says ambition buys nothing here: on
+``runtime.js``, **stripping only the comments and the indentation**
+gives 286 758 → 107 395 bytes, and 90 563 → **31 581 bytes gzipped**
+(−65 %). Renaming local variables, on the other hand, is paid for in
+risk and would return only a few kilobytes once gzipped — gzip already
+encodes a repeated identifier as a reference.
 
-Donc : on ne fusionne PAS les lignes, on ne réécrit aucun identifiant,
-on ne touche à aucun opérateur. Chaque ligne du bundle reste une ligne,
-ce qui rend l'insertion automatique de point-virgule (ASI) rigoureusement
-inchangée — le mode d'échec classique d'un minifieur naïf.
+So: lines are NOT merged, no identifier is rewritten, no operator is
+touched. Every line of the bundle stays a line, which leaves automatic
+semicolon insertion (ASI) rigorously unchanged — the classic failure
+mode of a naive minifier.
 
-Le seul vrai piège : ``/``
---------------------------
+The one real trap: ``/``
+------------------------
 
-Un ``//`` n'est un commentaire que s'il n'est pas dans une chaîne, un
-gabarit, ou une **expression régulière littérale** — et le bundle en
-porte 43. ``x.replace(/\/\//g, '')`` doit survivre intact. Le scanner
-suit donc l'état lexical, et décide « littéral régulier ou division »
-sur le dernier lexème significatif, l'heuristique standard.
+A ``//`` is a comment only when it is not inside a string, a template, or
+a **regular-expression literal** — and the bundle carries 43 of them.
+``x.replace(/\/\//g, '')`` must survive intact. The scanner therefore
+tracks the lexical state, and decides "regex literal or division" from
+the last significant token, the standard heuristic.
 
-Vérifié par exécution, pas par relecture :
-``tests/runtime_js/test_the_minified_runtime_boots.py`` charge le bundle
-minifié dans un vrai navigateur et exige que le runtime démarre.
+Verified by execution, not by re-reading:
+``tests/runtime_js/test_the_minified_runtime_boots.py`` loads the
+minified bundle in a real browser and requires the runtime to start.
 """
 
 from __future__ import annotations
 
 from typing import Final
 
-#: Après ces caractères, un ``/`` ouvre une expression régulière — jamais
-#: une division. ``)`` et ``}`` en sont volontairement absents : ils
-#: terminent bien plus souvent une valeur (``(a + b) / 2``) qu'un
-#: ``if (x) {} /re/.test(y)``, qui ne s'écrit pas.
+#: After these characters, a ``/`` opens a regular expression — never a
+#: division. ``)`` and ``}`` are deliberately absent: they far more often
+#: end a value (``(a + b) / 2``) than an ``if (x) {} /re/.test(y)``,
+#: which nobody writes.
 _REGEX_CAN_FOLLOW: Final[frozenset[str]] = frozenset("(,=:[!&|?{};+-*%~^<>\n")
 
-#: Les mots-clés après lesquels un ``/`` ouvre une expression régulière.
+#: The keywords after which a ``/`` opens a regular expression.
 _REGEX_AFTER_WORD: Final[frozenset[str]] = frozenset(
     {
         "return", "typeof", "instanceof", "in", "of", "new", "delete",
@@ -55,7 +55,7 @@ _IDENT_CHARS: Final[str] = (
 
 
 def _skip_string(src: str, i: int) -> int:
-    """Index juste après la chaîne ouverte en ``i`` (``'`` ou ``\"``)."""
+    """Index just after the string opened at ``i`` (``'`` or ``\"``)."""
     quote = src[i]
     j = i + 1
     while j < len(src):
@@ -69,11 +69,10 @@ def _skip_string(src: str, i: int) -> int:
 
 
 def _skip_template(src: str, i: int) -> int:
-    """Index juste après le gabarit ouvert en ``i``.
+    """Index just after the template opened at ``i``.
 
-    Descend dans chaque ``${…}`` : une substitution peut contenir des
-    chaînes, des gabarits, des accolades — et un ``//`` qui n'est pas un
-    commentaire.
+    Descends into every ``${…}``: a substitution may contain strings,
+    templates, braces — and a ``//`` that is not a comment.
     """
     j = i + 1
     while j < len(src):
@@ -105,10 +104,10 @@ def _skip_template(src: str, i: int) -> int:
 
 
 def _skip_regex(src: str, i: int) -> int:
-    """Index juste après le littéral régulier ouvert en ``i``.
+    """Index just after the regex literal opened at ``i``.
 
-    Les classes ``[...]`` sont suivies parce qu'un ``/`` y est littéral :
-    ``/[/]/`` est un motif valide.
+    The ``[...]`` classes are followed because a ``/`` is literal inside
+    them: ``/[/]/`` is a valid pattern.
     """
     j = i + 1
     in_class = False
@@ -127,15 +126,15 @@ def _skip_regex(src: str, i: int) -> int:
                 j += 1
             return j
         elif c == "\n":
-            # Un littéral régulier ne franchit pas la ligne : c'était une
-            # division. On rend la main juste après le ``/`` d'ouverture.
+            # A regex literal does not cross the line: it was a
+            # division. We hand back just after the opening ``/``.
             return i + 1
         j += 1
     return len(src)
 
 
 def _regex_may_start(out: list[str]) -> bool:
-    """``/`` ouvre-t-il une expression régulière, vu ce qui précède ?"""
+    """Does ``/`` open a regular expression, given what precedes it?"""
     text = "".join(out[-64:])
     stripped = text.rstrip(" \t\r\n")
     if not stripped:
@@ -154,11 +153,11 @@ def _regex_may_start(out: list[str]) -> bool:
 
 
 def strip_comments(src: str) -> str:
-    """``src`` sans ses commentaires — chaînes, gabarits et regex intacts.
+    """``src`` without its comments — strings, templates and regexes intact.
 
-    Un commentaire de bloc devient une ESPACE, pas un saut de ligne :
-    rendre les lignes qu'il occupait pourrait couper une expression en
-    deux et laisser l'ASI insérer un point-virgule.
+    A block comment becomes a SPACE, not a newline: returning the lines
+    it occupied could cut an expression in two and let ASI insert a
+    semicolon.
     """
     out: list[str] = []
     i = 0
@@ -197,10 +196,10 @@ def strip_comments(src: str) -> str:
 
 
 def minify(src: str) -> str:
-    """Le bundle sans commentaires, sans indentation, sans lignes vides.
+    """The bundle without comments, indentation or blank lines.
 
-    Les lignes ne sont jamais fusionnées : l'ASI voit exactement les
-    mêmes fins de ligne qu'avant.
+    Lines are never merged: ASI sees exactly the same line endings as
+    before.
     """
     lines = (line.strip() for line in strip_comments(src).splitlines())
     return "\n".join(line for line in lines if line) + "\n"

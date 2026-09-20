@@ -6,7 +6,7 @@ Le bug que cette gate ferme, mesuré le 2026-08-18 sur
 - ça **se construit** — aucune validation sur ``color=`` ;
 - ça **se rend** — la classe sort dans le HTML ;
 - ``bretzel check`` répond « aucun constat » — sa règle
-  ``valeur-hors-table`` lit les tables du THÈME (``variants``,
+  ``value-outside-the-table`` lit les tables du THÈME (``variants``,
   ``sizes``), or ``color`` n'a pas de table par composant : il puise
   dans la palette. La règle n'a rien à comparer ;
 - et l'élément sort **sans style en production**.

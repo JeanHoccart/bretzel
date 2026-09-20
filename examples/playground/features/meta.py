@@ -31,12 +31,12 @@ PATH = "/meta"
 
 
 class VerbDemo(ClientState):
-    """La valeur que le bouton copie, VIVANTE.
+    """The value the button copies, LIVE.
 
-    Elle est en ``ClientState`` et pas en littéral pour montrer le seul
-    cas qui compte : ``bretzel.copy`` interpole le CHEMIN du champ, pas
-    sa valeur au rendu. Tape dans le champ, copie, colle — c'est ce que
-    tu viens de taper qui sort, sans que le serveur l'ait jamais vu.
+    It is a ``ClientState`` and not a literal to show the only case that
+    matters: ``bretzel.copy`` interpolates the field's PATH, not its
+    value at render time. Type in the field, copy, paste — what comes out
+    is what you have just typed, without the server ever having seen it.
     """
 
     secret: str = field(default="sk-live-4f2a91")
@@ -162,12 +162,12 @@ def meta_tag_panel() -> None:
 
 
 class IntervalDemo(ClientState, persist="memory"):
-    """La porte du minuteur et son compteur.
+    """The timer's gate and its counter.
 
-    ``ClientState`` et pas ``PageState`` : tout le point de
-    ``ui.interval`` est que la cadence s'arrête sans que le
-    serveur ait une tâche à gérer. Un état serveur ramènerait
-    exactement le cycle de vie qu'on évite.
+    ``ClientState`` and not ``PageState``: the whole point of
+    ``ui.interval`` is that the cadence stops without the server having a
+    task to manage. A server state would bring back exactly the life
+    cycle being avoided.
     """
 
     running: bool = field(default=False)
@@ -175,29 +175,29 @@ class IntervalDemo(ClientState, persist="memory"):
 
 
 class FilterDemo(ClientState, persist="memory"):
-    """La saisie qui filtre. ``ClientState`` pour la même raison que
-    ci-dessus : tout l'intérêt de ``filter_each`` est de filtrer SANS
-    aller-retour, donc son état ne peut pas vivre au serveur."""
+    """The input that filters. ``ClientState`` for the same reason as
+    above: the whole point of ``filter_each`` is to filter WITHOUT a
+    round trip, so its state cannot live on the server."""
 
     query: str = field(default="")
 
 
-#: Le jeu filtré. Court exprès — on démontre le mécanisme, pas la
-#: pagination.
+#: The filtered set. Short on purpose — we demonstrate the mechanism,
+#: not the pagination.
 FRUITS: list[str] = [
     "abricot", "banane", "cerise", "citron", "figue", "fraise",
-    "framboise", "grenade", "kiwi", "mangue", "myrtille", "pêche",
+    "framboise", "grenade", "kiwi", "mangue", "myrtille", 'peach',
 ]
 
 
 @download("/meta-demo.csv", filename="fruits.csv")
 def fruits_csv() -> list[dict]:
-    """La démo de ``@download`` — un vrai fichier, une vraie route.
+    """The ``@download`` demo — a real file, a real route.
 
-    Au niveau MODULE et pas dans le corps de la page : ``@download``
-    MARQUE une fonction, et l'app ramasse la marque à ``include()``.
-    Déclarée dans un rendu, elle serait re-marquée à chaque requête et
-    ne serait jamais montée.
+    At MODULE level and not in the page's body: ``@download`` MARKS a
+    function, and the app picks the mark up at ``include()``. Declared
+    inside a render, it would be re-marked at every request and would
+    never be mounted.
     """
     return [{"fruit": f, "lettres": len(f)} for f in FRUITS]
 
@@ -520,25 +520,25 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Interval", level=2)
                     ui.text(
-                        "La quatrième primitive du groupe, et la seule "
-                        "qui BOUGE : un minuteur caché. Elle est arrivée "
-                        "ici le 2026-08-30, en supprimant ``/matrix`` — "
-                        "qui était le seul endroit du playground où elle "
-                        "était construite.",
+                        "The group's fourth primitive, and the only one "
+                            'that MOVES: a hidden timer. It arrived here on '
+                            '2026-08-30, when ``/matrix`` was deleted — which'
+                            ' was the only place in the playground where it '
+                            'was built.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "``seconds=`` fixe la cadence, ``on_tick=`` ce "
-                        "qui part à chaque battement, et ``active=`` la "
-                        "porte. C'est ``active`` qui compte : lié à un "
-                        "``ClientBinding``, il rend la cadence "
-                        "arrêtable SANS cycle de vie côté serveur — "
-                        "personne n'a de tâche à démarrer ni à tuer, un "
-                        "interrupteur du navigateur suffit.",
+                        '``seconds=`` sets the cadence, ``on_tick=`` what'
+                            ' fires on every beat, and ``active=`` the gate. '
+                            'It is ``active`` that counts: bound to a '
+                            '``ClientBinding``, it makes the cadence '
+                            'stoppable WITHOUT a server-side lifecycle — '
+                            'nobody has a task to start or to kill, a browser'
+                            ' switch is enough.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("Live — un compteur qu'on coupe", level=3)
+                    ui.heading('Live — a counter you can cut', level=3)
                     ticker = IntervalDemo()
                     with ui.hstack(gap="sm", align="center"):
                         ui.switch(checked=ticker.running,
@@ -558,12 +558,12 @@ def page() -> None:
                         on_tick=ticker.ticks.increment(),
                     )
 
-                    ui.heading("Le HTML émis", level=3)
+                    ui.heading('The emitted HTML', level=3)
                     ui.text(
-                        "Aucune surface visible : un nœud caché qui "
-                        "porte sa cadence et sa porte. C'est pourquoi "
-                        "il vit dans le groupe meta et non dans les "
-                        "composants d'affichage.",
+                        'No visible surface: a hidden node carrying its '
+                            'own cadence and its own door. That is why it '
+                            'lives in the meta group and not among the '
+                            'display components.',
                         color="muted", size="xs",
                     )
                     emitted_html_block(
@@ -579,27 +579,27 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("filter_each", level=2)
                     ui.text(
-                        "La cinquième primitive du groupe, et elle "
-                        "arrive ici le 2026-08-31 pour une raison qu'il "
-                        "faut dire : ``ui.filter_each`` est PUBLIC et "
-                        "n'était démontré NULLE PART. Sa seule page — "
-                        "le hub filtrable — est partie avec ``/matrix`` "
-                        "le 2026-08-30, et il ne restait qu'un probe "
-                        "navigateur qui lançait un banc supprimé, donc "
-                        "mort en silence.",
+                        "The group's fifth primitive, and it arrives here"
+                            ' on 2026-08-31 for a reason worth saying: '
+                            '``ui.filter_each`` is PUBLIC and was '
+                            'demonstrated NOWHERE. Its only page — the '
+                            'filterable hub — went with ``/matrix`` on '
+                            '2026-08-30, and all that was left was a browser '
+                            'probe launching a deleted bench, hence dead in '
+                            'silence.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "Ce qu'elle fait : elle enveloppe chaque ligne "
-                        "d'un ``bz-show`` dérivé du framework, qui "
-                        "compare ``text(item)`` à ``query``. Le filtre "
-                        "est donc ENTIÈREMENT côté client — aucun "
-                        "aller-retour, aucun JS écrit à la main — et "
-                        "les lignes sont cachées, pas retirées.",
+                        'What it does: it wraps every row in a framework-'
+                            'derived ``bz-show`` that compares ``text(item)``'
+                            ' with ``query``. The filtering is therefore '
+                            'ENTIRELY client side — no round trip, no hand-'
+                            'written JS — and the rows are hidden, not '
+                            'removed.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("Live — la liste se resserre à la frappe",
+                    ui.heading('Live — the list narrows as you type',
                                level=3)
                     filtre = FilterDemo()
                     ui.input(value=filtre.query, placeholder="Filtrer…",
@@ -611,18 +611,17 @@ def page() -> None:
                             text=lambda f: f,
                             key=lambda f: f,
                             empty=lambda: ui.text(
-                                "Aucun fruit ne correspond.",
+                                'No fruit matches.',
                                 color="muted", size="sm",
                             ),
                         ):
                             ui.text(fruit, size="sm")
 
-                    ui.heading("Le HTML émis", level=3)
+                    ui.heading('The emitted HTML', level=3)
                     ui.text(
-                        "Chaque ligne porte son ``bz-show`` : c'est ce "
-                        "qui rend le filtre instantané, et ce qui "
-                        "explique que le compte du DOM ne bouge pas "
-                        "quand on tape.",
+                        'Every row carries its own ``bz-show``: that is '
+                            'what makes the filter instant, and what explains'
+                            ' why the DOM count does not move as you type.',
                         color="muted", size="xs",
                     )
                     emitted_html_block(
@@ -637,30 +636,29 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Verbes clients", level=2)
                     ui.text(
-                        "``bretzel.copy`` / ``print_page`` / "
-                        "``fullscreen`` — livrés le 2026-09-01. Ce ne "
-                        "sont pas des composants, d'où leur place ici : "
-                        "ils n'émettent aucun balisage, ils déclenchent "
-                        "une action du NAVIGATEUR.",
+                        '``bretzel.copy`` / ``print_page`` / '
+                            '``fullscreen`` — shipped on 2026-09-01. They are'
+                            ' not components, hence their place here: they '
+                            'emit no markup, they trigger a BROWSER action.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "Ils ne coûtent presque rien parce que le slot "
-                        "existait déjà : ``on_<event>=`` est polymorphe "
-                        "— un callable part en POST signé, une CHAÎNE "
-                        "est de la source client évaluée sur place. "
-                        "C'est le contrat de ``dialog.open()``, les "
-                        "verbes s'y branchent sans plomberie neuve.",
+                        'They cost almost nothing because the slot '
+                            'already existed: ``on_<event>=`` is polymorphic '
+                            '— a callable leaves as a signed POST, a STRING '
+                            'is client source evaluated in place. That is '
+                            "``dialog.open()``'s contract, and the verbs plug"
+                            ' into it with no new plumbing.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("Live — copie ce que tu tapes", level=3)
+                    ui.heading('Live — copies what you type', level=3)
                     ui.text(
-                        "La valeur vit dans un ``ClientState``. Le verbe "
-                        "interpole son CHEMIN, pas sa valeur au rendu : "
-                        "modifie le champ, copie, colle — c'est ta "
-                        "saisie qui sort, et le serveur ne l'a jamais "
-                        "vue passer.",
+                        'The value lives in a ``ClientState``. The verb '
+                            'interpolates its PATH, not its value at render '
+                            'time: edit the field, copy, paste — what comes '
+                            'out is your own input, and the server never saw '
+                            'it go by.',
                         color="muted", size="sm",
                     )
                     verbes = VerbDemo()
@@ -674,108 +672,105 @@ def page() -> None:
                                   id="meta-verb-print",
                                   on_click=bretzel.print_page())
                     ui.text(
-                        "⚠️ Aucun retour visuel, et c'est le contrat : "
-                        "le verbe copie, l'app câble le retour qu'elle "
-                        "veut. Un ``ui.copy_button`` qui bascule deux "
-                        "secondes reste la forme évidente le jour où le "
-                        "besoin remonte.",
+                        '⚠️ No visual feedback, and that is the contract:'
+                            ' the verb copies, the app wires whatever '
+                            'feedback it wants. A ``ui.copy_button`` that '
+                            'flips for two seconds stays the obvious shape '
+                            'the day the need comes up.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("Plein écran", level=3)
+                    ui.heading('Full screen', level=3)
                     ui.text(
-                        "``fullscreen()`` vise la page ; "
-                        "``fullscreen(un_composant)`` vise un élément par "
-                        "son ``id`` — même convention que l'API "
-                        "impérative. Le navigateur EXIGE un geste de "
-                        "l'utilisateur, ce qui est tenu par "
-                        "construction : un verbe vit toujours dans un "
-                        "``on_*=``.",
+                        '``fullscreen()`` targets the page; '
+                            '``fullscreen(a_component)`` targets an element '
+                            'by its ``id`` — the same convention as the '
+                            'imperative API. The browser DEMANDS a user '
+                            'gesture, which is held by construction: a verb '
+                            'always lives inside an ``on_*=``.',
                         color="muted", size="sm",
                     )
-                    # On garde la RÉFÉRENCE de la carte, exactement comme
-                    # l'API impérative (``confirm = ui.dialog()`` puis
-                    # ``confirm.open()``). Construire un second composant
-                    # juste pour porter le même ``id`` marcherait à
-                    # l'écran et émettrait un élément vide de plus — la
-                    # première version de cette carte le faisait.
+                    # We keep the card's REFERENCE, exactly like the
+                    # imperative API (``confirm = ui.dialog()`` then
+                    # ``confirm.open()``). Building a second component
+                    # just to carry the same ``id`` would work on screen
+                    # and emit one more empty element — this card's first
+                    # version did that.
                     zone = ui.card(padding="sm", id="meta-verb-zone")
                     with zone:
-                        ui.text("Cette carte peut passer en plein écran.",
+                        ui.text('This card can go full screen.',
                                 size="sm")
-                        ui.button("Plein écran", size="sm",
+                        ui.button('Full screen', size="sm",
                                   variant="outline",
                                   id="meta-verb-fullscreen",
                                   on_click=bretzel.fullscreen(zone))
 
                     ui.heading("Partager et vibrer", level=3)
                     ui.text(
-                        "``share()`` ouvre la feuille native — et quand "
-                        "elle manque, ce qui est le cas NORMAL sur un "
-                        "navigateur de bureau, elle COPIE l'URL. Sans "
-                        "argument, c'est la page courante qui part : "
-                        "depuis que l'état s'écrit dans l'adresse, l'URL "
-                        "porte la vue, donc partager la page c'est "
-                        "partager ce qu'on regarde.",
+                        '``share()`` opens the native sheet — and when '
+                            'there is none, which is the NORMAL case on a '
+                            'desktop browser, it COPIES the URL. With no '
+                            'argument, it is the current page that goes: '
+                            'since state writes itself into the address, the '
+                            'URL carries the view, so sharing the page is '
+                            'sharing what you are looking at.',
                         color="muted", size="sm",
                     )
                     with ui.hstack(gap="sm", align="center"):
-                        ui.button("Partager cette vue", size="sm",
+                        ui.button('Share this view', size="sm",
                                   variant="outline", id="meta-verb-share",
                                   on_click=bretzel.share(title="Bretzel · meta"))
                         ui.button("Vibrer", size="sm", variant="outline",
                                   id="meta-verb-vibrate",
                                   on_click=bretzel.vibrate([50, 30, 50]))
                     ui.text(
-                        "``vibrate`` ne fait rien sur un ordinateur, et "
-                        "c'est normal : la fonction existe partout, elle "
-                        "n'a simplement aucun matériel à piloter. C'est "
-                        "ce qui la rend gratuite — il n'y a aucune "
-                        "absence à gérer, contrairement à ``share``.",
+                        '``vibrate`` does nothing on a computer, and that'
+                            ' is normal: the function exists everywhere, it '
+                            'simply has no hardware to drive. That is what '
+                            'makes it free — there is no absence to handle, '
+                            'unlike ``share``.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("@download — un vrai fichier", level=3)
+                    ui.heading('@download — a real file', level=3)
                     ui.text(
-                        "Ce n'est PAS un verbe : la réponse d'une action "
-                        "est avalée par le bridge et appliquée en "
-                        "``<bz-patch>``, alors qu'un téléchargement doit "
-                        "ÊTRE le fichier. C'est donc un lien ORDINAIRE, "
-                        "pas un ``on_click=`` — et il ne se fait pas "
-                        "avaler par le ``hx-boost`` de la coque, ce que "
-                        "seul un navigateur peut vérifier "
-                        "(``tests/probes/probe_download.py``).",
+                        "This is NOT a verb: an action's response is "
+                            'swallowed by the bridge and applied as a ``<bz-'
+                            'patch>``, whereas a download must BE the file. '
+                            'So it is an ORDINARY link, not an ``on_click=`` '
+                            "— and it does not get swallowed by the shell's "
+                            '``hx-boost``, which only a browser can check '
+                            '(``tests/probes/probe_download.py``).',
                         color="muted", size="sm",
                     )
-                    # ``download=True`` est OBLIGATOIRE ici, et ce n'est
-                    # pas de la décoration : sans lui la coque avale le
-                    # lien en ``hx-boost`` et injecte le CSV dans la
-                    # page au lieu de le télécharger. Mesuré.
-                    ui.link("Télécharger les fruits (CSV)",
+                    # ``download=True`` is MANDATORY here, and it is
+                    # not decoration: without it the shell swallows the
+                    # link in ``hx-boost`` and injects the CSV into the
+                    # page instead of downloading it. Measured.
+                    ui.link('Download the fruits (CSV)',
                             href="/meta-demo.csv", download=True,
                             id="meta-download-link")
                     ui.text(
-                        "La fonction rend une ``list[dict]`` et le "
-                        "framework en fait un CSV : en-têtes déduits des "
-                        "clés, BOM UTF-8 pour qu'Excel ne mange pas les "
-                        "accents, citation RFC 4180. Elle peut aussi "
-                        "rendre une ``str``, des ``bytes``, ou une "
-                        "``Response`` construite à la main.",
+                        'The function returns a ``list[dict]`` and the '
+                            'framework makes a CSV of it: headers derived '
+                            'from the keys, a UTF-8 BOM so Excel does not eat'
+                            ' the accents, RFC 4180 quoting. It can also '
+                            'return a ``str``, ``bytes``, or a hand-built '
+                            '``Response``.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("Le presse-papiers a une condition", level=3)
+                    ui.heading('The clipboard has one condition', level=3)
                     ui.text(
-                        "``navigator.clipboard`` exige un contexte "
-                        "SÉCURISÉ. ``https://`` et ``http://localhost`` "
-                        "en sont ; ``http://192.168.1.20:8000`` n'en est "
-                        "PAS — et c'est très exactement la façon dont un "
-                        "outil interne se sert. Là-bas l'API vaut "
-                        "``undefined``, et un appel nu ne ferait rien, "
-                        "sans un mot. D'où le repli sur "
-                        "``document.execCommand`` dans "
-                        "``22_verbs.js`` : déprécié, et le seul chemin "
-                        "qui existe là-bas.",
+                        '``navigator.clipboard`` demands a SECURE '
+                            'context. ``https://`` and ``http://localhost`` '
+                            'are ones; ``http://192.168.1.20:8000`` is NOT — '
+                            'and that is exactly how an internal tool gets '
+                            'used. There the API is ``undefined``, and a bare'
+                            ' call would do nothing, without a word. Hence '
+                            'the fallback to ``document.execCommand`` in '
+                            '``22_verbs.js``: deprecated, and the only route '
+                            'that exists there.',
                         color="muted", size="sm",
                     )
 

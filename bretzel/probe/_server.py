@@ -1,15 +1,15 @@
-"""Servir l'app le temps du probe — en thread, ou en sous-processus.
+"""Serving the app for the probe's duration — in a thread, or a subprocess.
 
-Le **thread** est le défaut, et ce n'est pas un détail de confort : c'est
-la seule des deux façons où l'app vit dans NOTRE processus, donc la seule
-où :func:`bretzel.probe.Probe.state` peut lire ce que le serveur croit.
-Sans elle, un écran immobile ne se distingue pas d'un rendu cassé.
+The **thread** is the default, and that is not a convenience detail: it
+is the only one of the two where the app lives in OUR process, so the
+only one where :func:`bretzel.probe.Probe.state` can read what the server
+believes. Without it, a motionless screen is indistinguishable from a
+broken render.
 
-Le **sous-processus** est conservé pour le cas que
-``tests/probes/probe_kanban.py`` documente : l'app peut vouloir démarrer
-avec son propre environnement (variables, bundle runtime installé plutôt
-que celui du dépôt, worker Redis). On y perd ``state()``, et le refus le
-dit.
+The **subprocess** is kept for the case ``tests/probes/probe_kanban.py``
+documents: the app may want to start with its own environment
+(variables, the installed runtime bundle rather than the repository's, a
+Redis worker). One loses ``state()`` there, and the refusal says so.
 """
 
 from __future__ import annotations
@@ -33,13 +33,13 @@ def free_port() -> int:
 
 
 def resolve(app: Any) -> Any:
-    """``"module:attr"`` → l'objet. Un objet reste lui-même."""
+    """``"module:attr"`` → the object. An object stays itself."""
     if not isinstance(app, str):
         return app
     if ":" not in app:
         raise ValueError(
-            f"{app!r} n'est pas une cible d'app : il faut "
-            "« module:attribut », par exemple « examples.kanban.main:app »."
+            f"{app!r} is not an app target: it must be "
+            "\"module:attribute\", for example \"examples.kanban.main:app\"."
         )
     import importlib
 
@@ -49,7 +49,7 @@ def resolve(app: Any) -> Any:
         return getattr(module, attr)
     except AttributeError as exc:
         raise ValueError(
-            f"le module {module_name!r} n'a pas d'attribut {attr!r}."
+            f"the module {module_name!r} has no attribute {attr!r}."
         ) from exc
 
 
@@ -65,10 +65,10 @@ class _ThreadServer:
     def start(self) -> None:
         self._thread = threading.Thread(target=self._server.run, daemon=True)
         self._thread.start()
-        # uvicorn n'expose pas d'événement « prêt » : on sonde son
-        # drapeau. Fin d'abord — mesuré le 2026-09-10, il bascule en 6 à
-        # 40 ms une fois les imports chauds, donc un pas de 50 ms en
-        # gaspille la moitié — puis on relâche, le budget restant 5 s.
+        # uvicorn exposes no "ready" event: we poll its flag. Tight
+        # first — measured on 2026-09-10, it flips in 6 to 40 ms once the
+        # imports are warm, so a 50 ms step wastes half of it — then we
+        # relax, the budget being 5 s.
         deadline = time.monotonic() + 5.0
         step = 0.002
         while time.monotonic() < deadline:
@@ -100,22 +100,22 @@ class _SubprocessServer:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        # Une route volontairement absente : un 404 prouve qu'il écoute
-        # aussi bien qu'un 200, et il ne fait pas rendre la page
-        # d'accueil entière juste pour répondre à une sonde.
+        # A deliberately missing route: a 404 proves it is listening as
+        # well as a 200, and it does not make the whole home page render
+        # just to answer a probe.
         url = f"http://127.0.0.1:{self._port}/_bretzel_probe_ping"
         deadline = time.time() + 30.0
         while time.time() < deadline:
             if self._proc.poll() is not None:
                 raise RuntimeError(
-                    f"le serveur {self._target!r} s'est arrêté au démarrage "
+                    f"the server {self._target!r} stopped at startup "
                     f"(code {self._proc.returncode})."
                 )
             try:
                 with urllib.request.urlopen(url, timeout=1.0):
                     return
             except urllib.error.HTTPError:
-                return  # il répond, même en 4xx : il est debout.
+                return  # it answers, even with a 4xx: it is up.
             except OSError:
                 time.sleep(0.05)
         raise RuntimeError(f"server {self._target!r} did not respond within 30 seconds")
@@ -132,10 +132,10 @@ class _SubprocessServer:
 
 @contextlib.contextmanager
 def serve(app: Any, *, mode: str) -> Iterator[tuple[str, Any]]:
-    """Rend ``(base_url, objet_app_ou_None)``.
+    """Return ``(base_url, app_object_or_None)``.
 
-    L'objet n'est rendu qu'en mode thread — c'est lui qui porte le
-    backend d'état, donc c'est lui qui rend ``state()`` possible.
+    The object is only returned in thread mode — it is what carries the
+    state backend, so it is what makes ``state()`` possible.
     """
     if mode not in ("thread", "subprocess"):
         raise ValueError(f"unknown serving mode: {mode!r}")
@@ -144,9 +144,9 @@ def serve(app: Any, *, mode: str) -> Iterator[tuple[str, Any]]:
     if mode == "subprocess":
         if not isinstance(app, str):
             raise ValueError(
-                "le mode sous-processus a besoin d'une cible « module:attr », "
-                "pas d'un objet d'app : le sous-processus doit pouvoir "
-                "l'importer lui-même."
+                "subprocess mode needs a \"module:attr\" target, not an "
+                "app object: the subprocess must be able to import it "
+                "itself."
             )
         server: Any = _SubprocessServer(app, port)
         served: Any = None

@@ -1,36 +1,36 @@
-"""features/shell — layout : la coque, et la seule région que les pages remplissent.
+"""features/shell — layout: the shell, and the only region the pages fill.
 
-Feature ``kind="layout"`` : elle n'a pas de route à elle, elle EXPOSE une
-région (``ui.outlet()``) que les pages viennent remplir.
+A ``kind="layout"`` feature: it has no route of its own, it EXPOSES a
+region (``ui.outlet()``) that the pages come and fill.
 
-Document GELÉ (``ui.viewport`` + ``ui.pane``) : c'est un outil, pas un
-document qu'on fait défiler. La barre latérale reste, seule la région
-change — donc une navigation ne repeint pas l'écran entier.
+A FROZEN document (``ui.viewport`` + ``ui.pane``): it is a tool, not a
+document one scrolls. The sidebar stays, only the region changes — so a
+navigation does not repaint the whole screen.
 """
 
 from __future__ import annotations
 
 from bretzel import Feature, layout, ui
 
-#: Les écrans, dans l'ordre où on les lit : d'abord le rythme (la
-#: question posée), puis ce qui l'explique.
+#: The screens, in the order they are read: first the rhythm (the
+#: question asked), then what explains it.
 NAV = (
-    ("/", "Tâches", "activity"),
+    ("/", "Tasks", "activity"),
     ("/phases", "Phases", "layers"),
-    ("/outils", "Outils", "wrench"),
+    ("/tools", "Tools", "wrench"),
     ("/sessions", "Sessions", "calendar"),
 )
 
 
 @layout
 def shell() -> None:
-    """Rail à gauche, région à droite."""
+    """Rail on the left, region on the right."""
     with ui.viewport():
         with ui.sidebar(collapsible="rail"):
-            ui.sidebar_title("Atelier", icon="activity")
-            with ui.sidebar_section(label="Mesures"):
-                for href, libelle, icone in NAV:
-                    ui.sidebar_item(libelle, icon=icone, href=href)
+            ui.sidebar_title("Workshop", icon="activity")
+            with ui.sidebar_section(label="Measurements"):
+                for href, label, icon in NAV:
+                    ui.sidebar_item(label, icon=icon, href=href)
         with ui.pane(classes="flex-1 min-w-0 p-6"):
             ui.outlet()
 

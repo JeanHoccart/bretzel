@@ -1,27 +1,26 @@
-"""Chapitres pas encore écrits — placeholders générés depuis ``NAV``.
+"""Chapters not yet written — placeholders generated from ``NAV``.
 
-La nav montre la carte complète dès maintenant ; les chapitres non
-livrés rendent ce stub au lieu d'un 404. Chaque stub est une page
-décorée déposée dans le namespace du module ; ``app.include(stubs)``
-les découvre comme n'importe quelle feature.
+The nav shows the complete map right away; the chapters not delivered
+render this stub instead of a 404. Every stub is a decorated page dropped
+into the module's namespace; ``app.include(stubs)`` discovers them like
+any feature.
 
-⚠️ **La liste des chapitres livrés est DÉRIVÉE, plus tenue à la main**
-(2026-09-03). Elle était un ``_BUILT`` recopié, et elle avait dérivé
-dans les deux sens à la fois :
+⚠️ **The list of delivered chapters is DERIVED, no longer kept by hand**
+(2026-09-03). It was a copied ``_BUILT``, and it had drifted in both
+directions at once:
 
-- **trois routes étaient servies DEUX fois.** ``/browser``,
-  ``/capabilities`` et ``/tree`` avaient une vraie page ET un stub
-  généré, parce que personne n'avait pensé à les inscrire. Seul l'ordre
-  des arguments d'``app.include`` décidait laquelle gagnait — un
-  classement qui n'est écrit nulle part et que rien ne protégeait ;
-- **sept chapitres livrés étaient annoncés « pas encore ».** La
-  convention de la nav était « blurb vide = livré », et sept entrées
-  livrées portaient encore un blurb.
+- **three routes were served TWICE.** ``/browser``, ``/capabilities``
+  and ``/tree`` had a real page AND a generated stub, because nobody had
+  thought to list them. Only the order of ``app.include``'s arguments
+  decided which won — a ranking written nowhere and that nothing
+  protected;
+- **seven delivered chapters were announced "not yet".** The nav's
+  convention was "empty blurb = delivered", and seven delivered entries
+  still carried a blurb.
 
-Les deux moitiés du même bug : une liste écrite à la main à côté de la
-vérité. La vérité, ici, c'est la marque que ``@page`` pose sur la
-fonction — cf. :func:`routes_livrees`. Gardé par
-``test_no_route_is_served_twice``.
+Both halves of the same bug: a list written by hand beside the truth. The
+truth, here, is the mark ``@page`` sets on the function — cf.
+:func:`routes_livrees`. Guarded by ``test_no_route_is_served_twice``.
 """
 
 from __future__ import annotations
@@ -30,28 +29,28 @@ import sys
 
 from bretzel import page, ui
 
-from examples.docs.features.shell import NAV, shell
+from examples.docs.features.shell import NAV, localized_nav_label, shell
+from examples.docs.lib.i18n import tr
 
 
 def routes_livrees() -> frozenset[str]:
-    """Les routes qu'un VRAI chapitre sert déjà.
+    """The routes a REAL chapter already serves.
 
-    Lues sur la marque ``_bz_page`` que le décorateur pose, dans les
-    modules frères DÉJÀ IMPORTÉS — ``main`` importe ce module en
-    dernier, donc ils le sont tous.
+    Read from the ``_bz_page`` mark the decorator sets, in the sibling
+    modules ALREADY IMPORTED — ``main`` imports this module last, so they
+    all are.
 
-    Pourquoi cette source et pas les constantes ``PATH``
-    -----------------------------------------------------
-    Parce que six chapitres n'en ont pas : ``home``, ``how``,
-    ``describe``, les deux ``actions_*`` et ``reactivity_server``
-    écrivent leur route directement dans ``@page("…")``. Se fier à
-    ``PATH`` les déclarerait non livrés, et on aurait remplacé un
-    doublon par six.
+    Why this source and not the ``PATH`` constants
+    -----------------------------------------------
+    Because six chapters have none: ``home``, ``how``, ``describe``, the
+    two ``actions_*`` and ``reactivity_server`` write their route
+    directly in ``@page("…")``. Relying on ``PATH`` would declare them
+    undelivered, and one would have replaced one duplicate by six.
 
-    La marque, elle, est posée par le décorateur quelle que soit la
-    forme d'écriture. C'est le même mécanisme que le framework emploie
-    partout ailleurs pour retrouver un handler (``sys.modules`` +
-    ``getattr``), donc rien de neuf à comprendre.
+    The mark, on the other hand, is set by the decorator whatever the
+    writing form. It is the same mechanism the framework uses everywhere
+    else to find a handler (``sys.modules`` + ``getattr``), so there is
+    nothing new to understand.
     """
     paquet = __name__.rsplit(".", 1)[0] + "."
     livrees: set[str] = set()
@@ -71,10 +70,10 @@ def stub_body(title: str, blurb: str) -> None:
         with ui.vstack(gap="lg", align="center", justify="center",
                        classes="min-h-[60vh] text-center"):
             ui.icon("hard-hat", size="xl", color="muted")
-            ui.heading(title, level=1, size="2xl")
+            ui.heading(localized_nav_label(title), level=1, size="2xl")
             ui.text(blurb, color="muted", size="lg")
-            ui.badge("Prochaine tranche", color="warning", variant="soft")
-            ui.link("← Retour à l'accueil", href="/")
+            ui.badge(tr("Coming next", "Prochaine tranche"), color="warning", variant="soft")
+            ui.link(tr("← Back to home", "← Retour à l'accueil"), href="/")
 
 
 def make(title: str, blurb: str):
@@ -90,7 +89,7 @@ for _section, _items in NAV:
         if _path in _LIVREES or _path.startswith("http"):
             continue
         _slug = _path.strip("/").replace("-", "_") or "root"
-        _fn = make(_label, _blurb or "Bientôt.")
+        _fn = make(_label, _blurb or tr("Coming soon.", "Bientôt."))
         _fn.__name__ = f"stub_{_slug}"
         _fn.__qualname__ = _fn.__name__
         globals()[_fn.__name__] = page(_path, layout=shell, title=_label)(_fn)

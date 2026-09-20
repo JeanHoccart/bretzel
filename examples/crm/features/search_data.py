@@ -1,23 +1,24 @@
-"""features/search_data — data : la recherche globale, trois tables en une.
+"""features/search_data — data: the global search, three tables in one.
 
-Sert l'écran 8. Chaque table est interrogée séparément puis plafonnée : un
-``UNION`` sur trois schémas différents demanderait de les aplatir en colonnes
-communes, et le résultat ne saurait plus dire ce qu'il montre.
+Serves screen 8. Each table is queried separately then capped: a
+``UNION`` over three different schemas would require flattening them into
+common columns, and the result would no longer be able to say what it
+shows.
 
-**Le préfixe, pas la sous-chaîne.** Une recherche globale se tape lettre par
-lettre : ``LIKE '%mot%'`` interdit tout index et scanne 170 000 lignes à
-chaque frappe. ``LIKE 'mot%'`` peut être une plage d'index. Ce que ça coûte
-est réel et assumé : « genève » ne trouve plus « Bordeaux-Genève ». Une
-recherche par sous-chaîne à ces volumes demande un index FTS, pas un
-``LIKE``.
+**The prefix, not the substring.** A global search is typed letter by
+letter: ``LIKE '%word%'`` forbids any index and scans 170 000 rows at
+every keystroke. ``LIKE 'word%'`` can be an index range. What it costs is
+real and accepted: "geneva" no longer finds "Bordeaux-Geneva". A
+substring search at these volumes needs an FTS index, not a ``LIKE``.
 
-⚠️ **« Peut être », pas « est »** — et la nuance vaut un facteur 20. SQLite
-n'applique l'optimisation que si l'index a la MÊME collation que ``LIKE``,
-qui est insensible à la casse par défaut. Avec les seuls index binaires, les
-trois requêtes ci-dessous planifiaient un ``SCAN`` : 898 ms par frappe sur
-les contacts. Les index ``COLLATE NOCASE`` de ``core/db.py`` sont ce qui
-rend la phrase vraie — 43,7 ms. Écrire « c'est une plage d'index » sans
-regarder ``EXPLAIN QUERY PLAN`` était une croyance, pas une mesure.
+⚠️ **"Can be", not "is"** — and the nuance is worth a factor of 20.
+SQLite only applies the optimisation if the index has the SAME collation
+as ``LIKE``, which is case-insensitive by default. With the binary
+indexes alone, the three queries below planned a ``SCAN``: 898 ms per
+keystroke on the contacts. ``core/db.py``'s ``COLLATE NOCASE`` indexes
+are what makes the sentence true — 43.7 ms. Writing "it is an index
+range" without looking at ``EXPLAIN QUERY PLAN`` was a belief, not a
+measurement.
 """
 
 from __future__ import annotations
@@ -25,9 +26,9 @@ from __future__ import annotations
 from bretzel import Feature
 from examples.crm.core.db import owner_scope, query
 
-#: Un plafond par famille. Une recherche globale montre les meilleurs, pas
-#: tous — et trois listes de dix tiennent dans un écran, trois listes de cent
-#: sont une pagination déguisée.
+#: One cap per family. A global search shows the best, not all — and
+#: three lists of ten fit in a screen, three lists of a hundred are a
+#: disguised pagination.
 PER_KIND = 8
 
 
@@ -41,10 +42,10 @@ def search_accounts(needle: str, owner: str | None,
     )
 
 
-#: Une lecture de contact, sans son ``WHERE``. Les deux branches de
-#: :func:`search_contacts_by_name` doivent projeter EXACTEMENT les mêmes
-#: colonnes — un ``UNION`` qui diverge d'une colonne lève à l'exécution,
-#: et seulement quand quelqu'un cherche.
+#: A contact read, without its ``WHERE``. Both branches of
+#: :func:`search_contacts_by_name` must project EXACTLY the same columns
+#: — a ``UNION`` diverging by one column raises at run time, and only
+#: when somebody searches.
 _CONTACT_SELECT = (
     "SELECT c.id, c.first_name, c.last_name, c.email, c.status, "
     "a.name AS account_name FROM contacts c "
@@ -54,19 +55,20 @@ _CONTACT_SELECT = (
 
 def search_contacts_by_name(needle: str, owner: str | None,
                             limit: int = PER_KIND) -> list[dict]:
-    """Nom de famille OU email — les deux clés par lesquelles on cherche
-    quelqu'un, et les deux qui ont un index utilisable en préfixe.
+    """Surname OR email — the two keys by which one searches for
+    somebody, and the two that have an index usable on a prefix.
 
-    ⚠️ **Un ``UNION`` de deux lectures, pas un ``OR``.** SQLite sait
-    servir ``last_name LIKE 'x%' OR email LIKE 'x%'`` par un
-    ``MULTI-INDEX OR`` — mais il ne sait PAS combiner ce plan avec un
-    prédicat d'égalité sur ``owner``. Cadré, le ``OR`` retombait en scan :
-    **93,7 ms**. Deux lectures cadrées réunies, chacune sur son index
-    ``(owner, colonne COLLATE NOCASE)`` : **6,1 ms**.
+    ⚠️ **A ``UNION`` of two reads, not an ``OR``.** SQLite can serve
+    ``last_name LIKE 'x%' OR email LIKE 'x%'`` through a
+    ``MULTI-INDEX OR`` — but it CANNOT combine that plan with an equality
+    predicate on ``owner``. Scoped, the ``OR`` fell back to a scan:
+    **93.7 ms**. Two scoped reads united, each on its
+    ``(owner, column COLLATE NOCASE)`` index: **6.1 ms**.
 
-    ⚠️ Le ``LIMIT`` est posé DEUX fois par branche et une fois sur
-    l'union : sans les internes, chaque branche rendrait tout avant qu'on
-    en jette ; sans l'externe, l'union en rendrait deux fois trop.
+    ⚠️ The ``LIMIT`` is set TWICE per branch and once on the union:
+    without the inner ones, each branch would return everything before we
+    threw any away; without the outer one, the union would return twice
+    too many.
     """
     scope, scope_params = owner_scope(owner, " AND c.owner = ?")
     pattern = f"{needle}%"
@@ -86,10 +88,10 @@ def search_contacts_by_name(needle: str, owner: str | None,
 
 def search_deals(needle: str, owner: str | None,
                  limit: int = PER_KIND) -> list[dict]:
-    """Les affaires, par le nom de LEUR COMPTE.
+    """The deals, by THEIR ACCOUNT's name.
 
-    Une affaire s'appelle « Renouvellement annuel » chez tout le monde : la
-    chercher par son propre nom rendrait douze lignes indiscernables.
+    A deal is called "Renouvellement annuel" at everybody's: searching it
+    by its own name would return twelve indistinguishable rows.
     """
     scope, scope_params = owner_scope(owner, " AND a.owner = ?")
     return query(
@@ -103,28 +105,28 @@ def search_deals(needle: str, owner: str | None,
 
 def search_everywhere(needle: str,
                       owner: str | None) -> dict[str, list[dict]]:
-    """Les trois familles d'un coup. Vide en dessous de deux caractères.
+    """All three families at once. Empty below two characters.
 
-    Le plancher n'est pas cosmétique : à une lettre, chaque famille rend son
-    plafond et le classement ne veut rien dire.
+    The floor is not cosmetic: at one letter, each family returns its cap
+    and the ranking means nothing.
     """
     needle = needle.strip()
     if len(needle) < 2:
-        return {"comptes": [], "contacts": [], "affaires": []}
+        return {"accounts": [], "contacts": [], "deals": []}
     return {
-        "comptes": search_accounts(needle, owner),
+        "accounts": search_accounts(needle, owner),
         "contacts": search_contacts_by_name(needle, owner),
-        "affaires": search_deals(needle, owner),
+        "deals": search_deals(needle, owner),
     }
 
 
 feature = Feature(
     name="search_data",
     kind="data",
-    # ``PER_KIND`` n'est PAS déclaré : un ``provides`` classe ses entrées
-    # par ``__name__``, qu'un ``int`` n'a pas — la carte de l'app affichait
-    # un nœud nommé « int », et la garde d'import se réduisait à l'identité
-    # du petit entier interné par CPython.
+    # ``PER_KIND`` is NOT declared: a ``provides`` files its entries by
+    # ``__name__``, which an ``int`` does not have — the app map showed a
+    # node named "int", and the import guard reduced to the identity of
+    # the small integer interned by CPython.
     provides=[search_everywhere],
     uses=["db"],
 )

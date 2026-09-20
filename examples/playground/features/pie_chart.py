@@ -46,7 +46,7 @@ LONG_TAIL = [
 
 
 class PieChartClientEvents(ClientState, persist="memory"):
-    """Le journal de la carte Client events — cote navigateur."""
+    """The Client events card's log — on the browser side."""
 
     log: list = field(default_factory=list)
 
@@ -135,11 +135,11 @@ def build_preview(state: PieChartPlayground):
     if state.empty_desc:
         kwargs["empty_description"] = state.empty_desc
     if state.empty_escape:
-        # L'échappatoire : l'auteur pose ce qu'il veut à la place
-        # de l'état vide automatique — même contrat que
+        # The escape hatch: the author puts what they want in place
+        # of the automatic empty state — the same contract as
         # ``ui.table`` / ``ui.diagram``.
         kwargs["empty"] = lambda: ui.button(
-            "Importer un jeu de données", variant="soft", size="sm")
+            'Import a data set', variant="soft", size="sm")
     if state.classes:
         kwargs["classes"] = state.classes
     if state.custom_id:
@@ -205,9 +205,9 @@ def server_panel() -> None:
             ui.input(value=state.empty_icon, placeholder="pie-chart",
                      on_change=server_changed)
         with control("empty_description (dataset='empty')"):
-            ui.input(value=state.empty_desc, placeholder="Choisis une période.",
+            ui.input(value=state.empty_desc, placeholder='Pick a range.',
                      on_change=server_changed)
-        with control("empty= (échappatoire, dataset='empty')"):
+        with control("empty= (escape hatch, dataset='empty')"):
             ui.switch(checked=state.empty_escape, on_change=server_changed)
         with control("dataset"):
             ui.select(value=state.dataset,
@@ -292,22 +292,22 @@ def events_panel() -> None:
 
 
 def client_events_panel() -> None:
-    """Le MEME event, cable sur une expression cliente.
+    """The SAME event, wired onto a client expression.
 
-    Pas de ``@refreshable`` : c'est le point. Le journal vit dans un
-    ``ClientState``, le texte se re-evalue dans le navigateur, aucune
-    requete ne part.
+    No ``@refreshable``: that is the point. The log lives in a
+    ``ClientState``, the text is re-evaluated in the browser, no request
+    leaves.
 
-    ATTENTION : cette carte n'existait pas avant le 2026-09-06, et la
-    raison etait mecanique. ``EVENTS`` etait vide, donc le gabarit lisait
-    « ce composant n'a pas d'event » — alors que la page portait deja sa
-    carte Server events. Le ClassVar etait faux, pas le composant. Cf.
+    WARNING: this card did not exist before 2026-09-06, and the reason
+    was mechanical. ``EVENTS`` was empty, so the template read "this
+    component has no event" — although the page already carried its
+    Server events card. The ClassVar was wrong, not the component. Cf.
     ``.claude/work/audit-declaration-2026-09-06.md``.
     """
     events = PieChartClientEvents()
     ui.text(
-        "``on_item_click`` cable sur une expression cliente qui empile dans "
-        "un ClientState. Zero requete.",
+        '``on_item_click`` wired to a client expression that pushes onto '
+            'a ClientState. Zero requests.',
         color="muted", size="sm",
     )
     clicked = ClientExpression("String($event.detail ?? 'click')")
@@ -322,8 +322,8 @@ def client_events_panel() -> None:
         ui.button("Clear", variant="ghost", size="xs",
                   on_click=events.log.clear())
     log_text = ClientExpression(
-        r"($bz.state.PieChartClientEvents.default.log || []).join('\n')"
-        r" || '(aucun event — clique la demo ci-dessus)'"
+        "($bz.state.PieChartClientEvents.default.log || []).join('\\n') ||"
+            " '(no events yet — click the demo above)'"
     )
     ui.text(log_text, color="muted", size="sm",
             classes="font-mono whitespace-pre")
@@ -467,23 +467,22 @@ def page() -> None:
             # ── Card 4 — A11y ───────────────────────────────────────
             with ui.card():
                 with ui.vstack():
-                    ui.heading("État vide — les trois props et l'échappatoire",
+                    ui.heading('Empty state — the three props and the escape hatch',
                                level=3)
-                    ui.text("Les quatre graphiques n'offraient que "
-                            "``empty_text`` quand table, datatable et "
-                            "diagram offraient les quatre. Ils "
-                            "composent le même ``ui.empty_state`` "
-                            "depuis le 2026-09-07.",
+                    ui.text('The four charts only offered ``empty_text`` where '
+                        'table, datatable and diagram offered all four. They '
+                        'have composed the same ``ui.empty_state`` since '
+                        '2026-09-07.',
                             color="muted", size="xs")
-                    ui.pie_chart(data=[], empty_text="Rien à montrer.",
+                    ui.pie_chart(data=[], empty_text='Nothing to show.',
                              empty_icon="unplug",
-                             empty_description="Aucune part à répartir.")
+                             empty_description='No share to divide.')
 
-                    ui.heading("État vide — ``empty=`` prend la main",
+                    ui.heading('Empty state — ``empty=`` takes over',
                                level=3)
                     ui.pie_chart(
                         data=[],
-                        empty=lambda: ui.button("Importer un jeu",
+                        empty=lambda: ui.button('Import a set',
                                                 icon_left="plus",
                                                 variant="soft",
                                                 size="sm"))

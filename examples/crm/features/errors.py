@@ -1,8 +1,8 @@
-"""features/errors — error : les pages 404 et 403, dans le shell.
+"""features/errors — error: the 404 and 403 pages, inside the shell.
 
-Sans elles, un ``abort(404)`` rend une réponse nue : l'utilisateur perd la
-navigation en même temps que la page. Les monter dans le shell garde le rail
-sous la main.
+Without them, an ``abort(404)`` returns a bare response: the user loses
+the navigation along with the page. Mounting them in the shell keeps the
+rail at hand.
 """
 
 from __future__ import annotations
@@ -16,17 +16,17 @@ def not_found() -> None:
     with ui.vstack(gap="md"):
         ui.empty_state(
             "Page introuvable", icon="search-x",
-            description="Ce contact, ce compte ou cette adresse n'existe pas.",
+            description="This contact, this account or this address does not exist.",
         )
-        ui.link("Retour au pipeline", href="/", variant="underline",
+        ui.link("Back to the pipeline", href="/", variant="underline",
                 color="primary")
 
 
 @error_page(403, layout=shell)
 def forbidden() -> None:
     ui.empty_state(
-        "Accès refusé", icon="lock",
-        description="Cette vue n'est pas ouverte à ce profil.",
+        "Access refused", icon="lock",
+        description="This view is not open to this profile.",
     )
 
 

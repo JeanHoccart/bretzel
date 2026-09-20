@@ -37,15 +37,15 @@ class Icon(Component):
     size: str = reactive_prop(default="md", emit_attr=False)
     color: str = reactive_prop(default="current", emit_attr=False)
     set: str | None = reactive_prop(default=None, emit_attr=False)
-    # ⚠️ ``icon_style``, PAS ``style`` : ``style=`` fait partie des kwargs
-    # universels que ``Component.__init__`` absorbe (classes / id / attrs /
-    # visible / tooltip / style / tag). Il les ``pop`` AVANT le routage
-    # vers les reactive_prop, donc une prop nommée ``style`` ne peut
-    # jamais recevoir de valeur. Tant que ce paramètre s'appelait
-    # ``style``, il était mort des deux côtés : le suffixe Iconify
-    # n'atteignait jamais le glyphe, et la valeur partait en CSS inline
-    # invalide (``style="bold"``). Le playground l'exerçait sur 4 icônes
-    # Phosphor, sans effet. Audit F27 ; gaté par
+    # ⚠️ ``icon_style``, NOT ``style``: ``style=`` is one of the
+    # universal kwargs ``Component.__init__`` absorbs (classes / id /
+    # attrs / visible / tooltip / style / tag). It ``pop`` them BEFORE
+    # the routing to the reactive_prop, so a prop named ``style`` can
+    # never receive a value. As long as this parameter was called
+    # ``style``, it was dead on both sides: the Iconify suffix never
+    # reached the glyph, and the value left as invalid inline CSS
+    # (``style="bold"``). The playground exercised it on 4 Phosphor
+    # icons, with no effect. Audit F27; gated by
     # ``test_no_universal_kwarg_shadowing``.
     icon_style: str | None = reactive_prop(default=None, emit_attr=False)
 
@@ -59,7 +59,7 @@ class Icon(Component):
         icon_style: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, size=size, color=color, set=set,
             icon_style=icon_style, **kwargs,

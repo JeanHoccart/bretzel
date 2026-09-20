@@ -1,14 +1,14 @@
-"""core/seed — la fabrique du jeu de données. ~262 000 lignes, déterministe.
+"""core/seed — the data set factory. ~262 000 rows, deterministic.
 
-Appelé une seule fois par ``db.init_db()`` (marqueur ``SEED_VERSION``). Aucun
-``random`` global : un ``Random(GRAINE)`` local, donc deux machines obtiennent
-la même base, et un id de ligne cité dans un test reste le même demain.
+Called once by ``db.init_db()`` (``SEED_VERSION`` marker). No global
+``random``: a local ``Random(SEED_RNG)``, so two machines get the same
+database, and a row id quoted in a test is still the same tomorrow.
 
-**Pourquoi ces volumes.** 50 000 comptes, c'est le chiffre qui interdit à la
-datatable de l'écran 2 le mode liste : le composant ne peut pas trier en
-Python ce que la page ne charge pas. 120 000 contacts, c'est ce qui rend la
-liste sélectionnable de l'écran 3 impossible à rendre d'un bloc. Tout le
-chantier tient sur cette contrainte-là.
+**Why these volumes.** 50 000 accounts is the figure that forbids screen
+2's datatable the list mode: the component cannot sort in Python what
+the page does not load. 120 000 contacts is what makes screen 3's
+selectable list impossible to render in one go. The whole work rests on
+that constraint.
 """
 
 from __future__ import annotations
@@ -32,8 +32,8 @@ from examples.crm.core.domain import (
 )
 from examples.crm.core.security import hash_password
 
-#: Fixe. Change de graine et tous les ids de la base changent.
-GRAINE = 20260819
+#: Fixed. Change the seed and every id in the database changes.
+SEED_RNG = 20260819
 
 N_ACCOUNTS = 50_000
 N_CONTACTS = 120_000
@@ -53,7 +53,7 @@ _ROOTS = (
 )
 _STEMS = (
     "tech", "logic", "mont", "flux", "corp", "labs", "soft", "prod",
-    "gest", "form", "care", "med", "bat", "agro", "élec", "net",
+    "gest", "form", "care", "med", "build", "agro", "volt", "net",
     "data", "vision", "plus", "pro", "concept", "systems", "group", "partners",
     "services", "solutions", "industries", "consulting", "digital", "invest",
 )
@@ -61,16 +61,16 @@ _SUFFIXES = ("SA", "SAS", "SARL", "& Cie", "Group", "France", "Europe",
              "International", "Holding", "", "", "")
 
 _FIRST = (
-    "Aïcha", "Marc", "Sofia", "Léa", "Tom", "Clara", "Hugo", "Nadia",
-    "Julien", "Émilie", "Karim", "Chloé", "Antoine", "Fatou", "Louis",
-    "Manon", "Yanis", "Camille", "Théo", "Inès", "Paul", "Sarah", "Nathan",
-    "Zoé", "Lucas", "Amina", "Mathis", "Jade", "Gabriel", "Alice", "Rayan",
-    "Louise", "Adam", "Anna", "Noah", "Eva", "Ismaël", "Julia", "Enzo",
-    "Lina", "Victor", "Maya", "Samuel", "Nora", "Élias", "Rose", "Malik",
-    "Iris", "Bastien", "Salomé",
+    "Aicha", "Marc", "Sofia", "Lea", "Tom", "Clara", "Hugo", "Nadia",
+    "Julien", "Emily", "Karim", "Chloe", "Antoine", "Fatou", "Louis",
+    "Manon", "Yanis", "Camille", "Theo", "Ines", "Paul", "Sarah", "Nathan",
+    "Zoe", "Lucas", "Amina", "Mathis", "Jade", "Gabriel", "Alice", "Rayan",
+    "Louise", "Adam", "Anna", "Noah", "Eva", "Ismael", "Julia", "Enzo",
+    "Lina", "Victor", "Maya", "Samuel", "Nora", "Elias", "Rose", "Malik",
+    "Iris", "Bastien", "Salome",
 )
 _LAST = (
-    "Benali", "Dubois", "Rossi", "Martin", "Nguyen", "Weiss", "Lefèvre",
+    "Benali", "Dubois", "Rossi", "Martin", "Nguyen", "Weiss", "Lefevre",
     "Moreau", "Girard", "Bernard", "Fontaine", "Lacroix", "Petit", "Roux",
     "Vincent", "Fournier", "Morel", "Andre", "Mercier", "Blanc", "Guerin",
     "Boyer", "Garnier", "Chevalier", "Francois", "Legrand", "Gauthier",
@@ -80,49 +80,51 @@ _LAST = (
     "Charpentier", "Poirier",
 )
 _TITLES = (
-    "Directeur des achats", "Responsable IT", "DAF", "Chef de projet",
-    "Directrice générale", "Responsable qualité", "Acheteur", "DRH",
-    "Responsable logistique", "Directeur technique", "Assistante de direction",
-    "Responsable marketing", "Contrôleur de gestion", "Chargé d'affaires",
+    "Head of purchasing", "IT manager", "CFO", "Project manager",
+    "Managing director", "Quality manager", "Buyer", "HR director",
+    "Logistics manager", "Technical director", "Executive assistant",
+    "Marketing manager", "Financial controller", "Account manager",
 )
 _DEAL_SUBJECTS = (
-    "Renouvellement annuel", "Extension multi-sites", "Migration du parc",
-    "Licences supplémentaires", "Contrat cadre", "Pilote sur 3 mois",
-    "Refonte du poste de travail", "Module analytique", "Support premium",
-    "Déploiement européen", "Passage à l'offre entreprise", "Audit + formation",
+    "Annual renewal", "Multi-site rollout", "Estate migration",
+    "Extra licences", "Framework agreement", "Three-month pilot",
+    "Desktop overhaul", "Analytics module", "Premium support",
+    "European rollout", "Move to the enterprise plan", "Audit + training",
 )
 _ACTIVITY_SUBJECTS = {
-    "call": ("Appel de découverte", "Point d'avancement", "Relance devis",
-             "Appel de clôture", "Prise de contact"),
-    "email": ("Envoi de la proposition", "Relance sans réponse",
-              "Récapitulatif de réunion", "Envoi des CGV", "Réponse technique"),
-    "meeting": ("Réunion de cadrage", "Démonstration produit",
-                "Comité de pilotage", "Atelier besoins", "Revue de contrat"),
-    "note": ("Compte rendu interne", "Contexte concurrentiel",
-             "Budget confirmé", "Changement d'interlocuteur", "Point vigilance"),
-    "task": ("Préparer le devis", "Envoyer les références",
-             "Planifier la démo", "Valider la remise", "Relancer la semaine 38"),
+    "call": ("Discovery call", "Progress check", "Chasing the quote",
+             "Closing call", "First contact"),
+    "email": ("Proposal sent", "Chaser, no reply",
+              "Meeting summary", "Terms sent", "Technical answer"),
+    "meeting": ("Scoping meeting", "Product demo",
+                "Steering committee", "Requirements workshop",
+                "Contract review"),
+    "note": ("Internal write-up", "Competitive landscape",
+             "Budget confirmed", "New point of contact", "Watch point"),
+    "task": ("Prepare the quote", "Send the references",
+             "Schedule the demo", "Approve the discount",
+             "Chase in week 38"),
 }
 _NOTE_BODIES = (
-    "Interlocuteur réactif, préfère être joint le matin.",
-    "Budget arbitré au niveau du groupe — décision en comité.",
-    "A comparé avec deux concurrents, sensible au coût de migration.",
-    "Renouvellement conditionné à la reprise de l'historique.",
-    "Demande une clause de réversibilité dans le contrat cadre.",
-    "Passage en revue annuelle prévu, garder le contact tiède.",
-    "Le service achats impose un appel d'offres au-delà de 50 k€.",
-    "Sponsor interne identifié : la direction technique.",
+    "Responsive contact, prefers to be called in the morning.",
+    "Budget settled at group level — decided in committee.",
+    "Compared us with two competitors, sensitive to migration cost.",
+    "Renewal conditional on carrying the history over.",
+    "Wants an exit clause in the framework agreement.",
+    "Annual review coming up, keep the contact warm.",
+    "Purchasing insists on a tender above 50 k\u20ac.",
+    "Internal sponsor identified: the technical directorate.",
 )
 
-#: Poids des étapes : un pipeline réel n'est pas uniforme — il y a beaucoup
-#: de pistes et peu de négociations en cours.
+#: Stage weights: a real pipeline is not uniform — there are many leads
+#: and few negotiations in flight.
 _STAGE_WEIGHTS = (30, 22, 16, 10, 14, 8)
 
 _STATUS_WEIGHTS = (45, 30, 15, 10)
 
 
 def iso_at(day_offset: int) -> str:
-    """Une date ISO à ``day_offset`` jours de :data:`TODAY` (négatif = passé)."""
+    """An ISO date ``day_offset`` days from :data:`TODAY` (negative = past)."""
     return (TODAY + timedelta(days=day_offset)).isoformat()
 
 
@@ -131,9 +133,9 @@ def build_accounts(rng: random.Random) -> list[tuple]:
     for i in range(1, N_ACCOUNTS + 1):
         country, cities = rng.choice(COUNTRIES)
         size = rng.choice(SIZES)
-        # L'ARR suit la taille : un « grand compte » à 900 € rendrait tout
-        # tri par montant absurde à l'œil.
-        floor = {"TPE": 1, "PME": 8, "ETI": 40, "Grand compte": 200}[size]
+        # The ARR follows the size: a "large account" at €900 would make
+        # any sort by amount absurd to the eye.
+        floor = {"Micro": 1, "Small": 8, "Mid-market": 40, "Enterprise": 200}[size]
         name = (
             f"{rng.choice(_ROOTS)}"
             f"{rng.choice(_STEMS)} "
@@ -155,21 +157,21 @@ def build_accounts(rng: random.Random) -> list[tuple]:
 
 def build_contacts(rng: random.Random,
                    owner_of: dict[int, str]) -> list[tuple]:
-    """Les contacts. ``owner_of`` = le propriétaire de chaque compte.
+    """The contacts. ``owner_of`` = each account's owner.
 
-    ⚠️ Le propriétaire est RECOPIÉ sur la ligne, comme pour les affaires
-    et les activités. Ici c'est une dénormalisation pure — un contact n'a
-    pas de propriétaire à lui, il a celui de son compte — et elle existe
-    pour que le cadrage n'oblige pas à joindre (cf. le schéma).
+    ⚠️ The owner is COPIED onto the row, as for the deals and the
+    activities. Here it is pure denormalisation — a contact has no owner
+    of their own, they have their account's — and it exists so the
+    scoping does not force a join (cf. the schema).
     """
     rows = []
     statuses = list(STATUS_KEYS)
     for i in range(1, N_CONTACTS + 1):
         first = rng.choice(_FIRST)
         last = rng.choice(_LAST)
-        # L'id dans l'email : 4 800 combinaisons prénom/nom pour 120 000
-        # contacts, donc les homonymes sont garantis — et une adresse doit
-        # rester unique pour que « rechercher par email » ait un sens.
+        # The id in the email: 4 800 first-name/surname combinations for
+        # 120 000 contacts, so homonyms are guaranteed — and an address
+        # must stay unique for "search by email" to mean anything.
         slug = f"{first[:1]}.{last}{i}".lower().replace(" ", "")
         account_id = rng.randint(1, N_ACCOUNTS)
         rows.append((
@@ -190,26 +192,25 @@ def build_contacts(rng: random.Random,
 
 
 def build_deals(rng: random.Random, owner_of: dict[int, str]) -> list[tuple]:
-    """Les affaires. ``owner_of`` = le propriétaire de chaque compte.
+    """The deals. ``owner_of`` = each account's owner.
 
-    ⚠️ Le propriétaire d'une affaire **suit celui de son compte**, il n'est
-    pas tiré à part. Il l'était jusqu'au 2026-08-19, et c'était incohérent
-    dès qu'on regardait un portefeuille : le pipeline d'un commercial
-    contenait des affaires sur des comptes appartenant à quelqu'un d'autre,
-    et « mes comptes » ne recoupait pas « mes affaires ». Sans compte
-    connecté, personne ne s'en apercevait ; avec l'authentification, c'est
-    la première chose qu'on voit.
+    ⚠️ A deal's owner **follows their account's**, it is not drawn
+    separately. It was until 2026-08-19, and it was inconsistent as soon
+    as one looked at a portfolio: a salesperson's pipeline contained
+    deals on accounts belonging to somebody else, and "my accounts" did
+    not overlap "my deals". With no signed-in account nobody noticed;
+    with authentication, it is the first thing one sees.
     """
     rows = []
     stages = list(STAGE_KEYS)
-    # ``position`` = le rang dans SA colonne de kanban. Compté par étape :
-    # c'est ce que l'écran 1 réordonne, et deux cartes ne peuvent pas
-    # partager un rang sans que le drop devienne ambigu.
+    # ``position`` = the rank in ITS kanban column. Counted per stage:
+    # it is what screen 1 reorders, and two cards cannot share a rank
+    # without the drop becoming ambiguous.
     #
-    # Pas de 1, 2, 3 mais un PAS de 64 : insérer entre deux cartes prend le
-    # milieu de leurs deux rangs, et sur des entiers consécutifs il n'y a pas
-    # de milieu — chaque déplacement forcerait à renuméroter la colonne
-    # entière (~2 000 lignes) dès le premier geste.
+    # Not 1, 2, 3 but a STEP of 64: inserting between two cards takes the
+    # midpoint of their two ranks, and on consecutive integers there is
+    # no midpoint — every move would force renumbering the whole column
+    # (~2 000 rows) from the very first gesture.
     next_position = dict.fromkeys(stages, 0)
     for i in range(1, N_DEALS + 1):
         stage = rng.choices(stages, weights=_STAGE_WEIGHTS, k=1)[0]
@@ -232,8 +233,8 @@ def build_deals(rng: random.Random, owner_of: dict[int, str]) -> list[tuple]:
 def build_activities(
     rng: random.Random, contacts: list[tuple], owner_of: dict[int, str]
 ) -> list[tuple]:
-    """Les activités. Même règle que les affaires : le propriétaire suit le
-    compte, pas le hasard (cf. :func:`build_deals`)."""
+    """The activities. The same rule as the deals: the owner follows the
+    account, not chance (cf. :func:`build_deals`)."""
     rows = []
     kinds = list(ACTIVITY_KEYS)
     for i in range(1, N_ACTIVITIES + 1):
@@ -243,9 +244,10 @@ def build_activities(
         rows.append((
             i,
             contact[0],                    # contact_id
-            contact[1],                    # account_id — dénormalisé exprès :
-                                           # la fiche compte agrège par compte
-                                           # sans passer par une jointure.
+            contact[1],                    # account_id — denormalised on purpose:
+                                           # the account sheet aggregates
+                                           # per account without going
+                                           # through a join.
             kind,
             rng.choice(subjects),
             iso_at(-rng.randint(0, 400)),
@@ -255,24 +257,24 @@ def build_activities(
 
 
 def build_users() -> list[tuple]:
-    """Les sept comptes : les six commerciaux du jeu de données, plus une
-    direction qui n'a pas de portefeuille et les voit tous.
+    """The seven accounts: the data set's six salespeople, plus a
+    directorate with no portfolio that sees them all.
 
-    Le sel est **dérivé du login**, pas tiré au hasard : le semis doit
-    rester déterministe (deux machines, la même base). C'est la seule
-    entorse acceptable, et elle ne concerne que des comptes de
-    démonstration — ``hash_password`` sans ``salt=`` reste aléatoire, et
-    c'est ce que l'app utilise si elle crée un compte.
+    The salt is **derived from the login**, not drawn at random: the seed
+    must stay deterministic (two machines, the same database). It is the
+    only acceptable lapse, and it concerns only demonstration accounts —
+    ``hash_password`` without ``salt=`` stays random, and that is what
+    the app uses if it creates an account.
 
-    ``owner`` est la clé de jointure avec les données : c'est le nom qui
-    apparaît dans ``accounts.owner``. La direction n'en a pas.
+    ``owner`` is the join key with the data: it is the name appearing in
+    ``accounts.owner``. Management has none.
     """
     people = [
-        (i, login_for(name), name, "commercial", name)
+        (i, login_for(name), name, "rep", name)
         for i, name in enumerate(OWNERS, start=1)
     ]
-    people.append((len(OWNERS) + 1, "direction", "Direction commerciale",
-                   "directeur", ""))
+    people.append((len(OWNERS) + 1, "management", "Sales management",
+                   "director", ""))
     return [
         (uid, login, display, hash_password(
             DEMO_PASSWORD, salt=hashlib.sha256(login.encode()).digest()[:16]
@@ -295,18 +297,18 @@ def build_notes(rng: random.Random) -> list[tuple]:
 
 
 def build_seed() -> list[tuple[str, list[tuple]]]:
-    """``[(table, lignes), …]`` dans l'ordre d'insertion (clés étrangères).
+    """``[(table, rows), …]`` in insertion order (foreign keys).
 
-    Renvoie tout d'un bloc plutôt qu'un générateur : ``executemany`` veut une
-    séquence, et les activités doivent relire les contacts déjà tirés pour
-    pointer un couple (contact, compte) qui existe.
+    Returns everything in one go rather than a generator: ``executemany``
+    wants a sequence, and the activities must re-read the contacts
+    already drawn to point at a (contact, account) pair that exists.
     """
-    rng = random.Random(GRAINE)
+    rng = random.Random(SEED_RNG)
     accounts = build_accounts(rng)
-    # Le propriétaire de chaque compte, indexé une fois. C'est LUI qui décide
-    # de celui de ses contacts, de ses affaires et de ses activités — sinon
-    # « mes comptes » ne recoupe pas « mes affaires », et un portefeuille ne
-    # veut rien dire.
+    # Each account's owner, indexed once. It is THAT which decides the
+    # owner of its contacts, its deals and its activities — otherwise "my
+    # accounts" does not overlap "my deals", and a portfolio means
+    # nothing.
     owner_of = {row[0]: row[7] for row in accounts}
     contacts = build_contacts(rng, owner_of)
     return [

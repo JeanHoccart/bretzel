@@ -1,27 +1,27 @@
-"""Auth — les quatre façons d'entrer, une seule identité en sortie.
+"""Auth — the four ways in, a single identity out.
 
-Run : ``py -m examples.auth.main`` (port 8012).
+Run: ``py -m examples.auth.main`` (port 8012).
 
-Ce que cette app met sous contrainte, et qu'aucune autre n'exerçait :
+What this app puts under constraint, and that no other exercised:
 
-1. **le formulaire** — l'app vérifie, ``auth.login(user_id)`` transporte ;
-2. **une porte OAuth / OIDC** — ``@auth.door``, configurée par
-   l'environnement, qui finit sur le même ``auth.login`` ;
-3. **un jeton de machine** — ``@auth.source``, sans cookie ni session,
-   revérifié à chaque requête ;
-4. **un en-tête de proxy SSO** — ``@auth.source`` aussi, éteint par défaut.
+1. **the form** — the app verifies, ``auth.login(user_id)`` transports;
+2. **an OAuth / OIDC door** — ``@auth.door``, configured by the
+   environment, ending on the same ``auth.login``;
+3. **a machine token** — ``@auth.source``, with no cookie and no session,
+   re-checked at every request;
+4. **an SSO proxy header** — ``@auth.source`` too, off by default.
 
-Les quatre aboutissent au même ``auth.user_id()``, donc au même
-``UserState``. Les deux derniers n'ont pas d'écran : ils répondent sur
-``/moi``, en texte ::
+All four end at the same ``auth.user_id()``, hence the same
+``UserState``. The last two have no screen: they answer on ``/me``, in
+plain text ::
 
-    curl.exe -s -H "Authorization: Bearer jeton-demo" http://127.0.0.1:8012/moi
+    curl.exe -s -H "Authorization: Bearer demo-token" http://127.0.0.1:8012/me
 
-Tout allumer en une commande : ``py -m examples.auth.demo``.
+Turn everything on in one command: ``py -m examples.auth.demo``.
 
-⚠️ ``secret_key`` est en clair ici parce que c'est une démo locale. Une
-app réelle la lit dans son environnement — c'est elle qui dérive la clé
-qui signe le cookie d'identité.
+⚠️ ``secret_key`` is in clear here because this is a local demo. A real
+app reads it from its environment — it is what derives the key that signs
+the identity cookie.
 """
 
 from __future__ import annotations
@@ -44,31 +44,31 @@ app = Bretzel(
 
 @app.middleware
 async def require_login(request, call_next):
-    """La garde. Écrite en premier, donc la plus externe.
+    """The guard. Written first, so the outermost.
 
-    ``auth.user_id(request)`` — avec la requête — parce qu'à ce niveau ni
-    le contexte de rendu ni ``request.state`` n'existent encore. C'est
-    elle qui joue la chaîne complète : le cookie signé, puis les
-    ``@auth.source`` de l'app. Sans ça, un appel au jeton serait renvoyé sur
-    la page de connexion.
+    ``auth.user_id(request)`` — with the request — because at this level
+    neither the render context nor ``request.state`` exists yet. It is
+    what plays the full chain: the signed cookie, then the app's
+    ``@auth.source``. Without that, a token call would be sent back to
+    the login page.
 
-    ``redirect_response`` et non ``redirect`` : le premier tranche entre
-    une vraie 302 (navigation) et un ``HX-Redirect`` (action du bridge) ;
-    le second lève hors d'un contexte de rendu.
+    ``redirect_response`` and not ``redirect``: the first decides between
+    a real 302 (navigation) and an ``HX-Redirect`` (bridge action); the
+    second raises outside a render context.
 
-    ⚠️ **``is_public_asset_path`` et pas seulement l'appartenance à
-    ``PUBLIC``.** ``app.public_paths`` contient un MOTIF de route —
-    ``/_bretzel/vendor/{filename}`` — qui n'est égal à aucun chemin
-    réel, donc l'égalité seule refuse les trois scripts tiers. La garde
-    les redirige alors vers la page de connexion, et le navigateur
-    reçoit du HTML là où il attend du JavaScript : ``Unexpected token
-    '<'`` en boucle, htmx jamais chargé, plus aucun POST. L'app paraît
-    morte sans qu'une seule erreur serveur soit émise.
+    ⚠️ **``is_public_asset_path`` and not merely membership of
+    ``PUBLIC``.** ``app.public_paths`` holds a route PATTERN —
+    ``/_bretzel/vendor/{filename}`` — which equals no real path, so
+    equality alone refuses the three third-party scripts. The guard then
+    redirects them to the login page, and the browser receives HTML where
+    it expects JavaScript: ``Unexpected token '<'`` on a loop, htmx never
+    loaded, no POST at all any more. The app looks dead without a single
+    server error being emitted.
 
-    Ça ne se voit **que si ``.bretzel/vendor/`` existe** : sans cache
-    vendorisé, les ``<script>`` pointent les CDN et cette route n'est
-    jamais demandée. Donc le symptôme apparaît le jour où quelqu'un
-    lance la vendorisation, pas le jour où la garde est écrite.
+    It shows **only if ``.bretzel/vendor/`` exists**: with no vendored
+    cache, the ``<script>`` tags point at the CDNs and this route is
+    never requested. So the symptom appears the day somebody runs the
+    vendoring, not the day the guard is written.
     """
     if (request.url.path in PUBLIC
             or is_public_asset_path(request.url.path)
@@ -77,41 +77,40 @@ async def require_login(request, call_next):
     return redirect_response(request, LOGIN_PATH)
 
 
-@app.fastapi.get("/moi")
-async def qui_suis_je(request: Request) -> PlainTextResponse:
-    """« Qui suis-je ? », en TEXTE — la réponse aux deux façons sans écran.
+@app.fastapi.get("/me")
+async def who_am_i(request: Request) -> PlainTextResponse:
+    """"Who am I?", in TEXT — the answer for the two screen-less ways.
 
-    Un jeton de machine et un en-tête de proxy n'ouvrent pas de page :
-    ils s'essaient au terminal, et le HTML d'une vraie page y est
-    illisible. Cette route rend trois lignes, donc la commande ``curl``
-    montre enfin quelque chose.
+    A machine token and a proxy header open no page: they are tried at
+    the terminal, and a real page's HTML is unreadable there. This route
+    returns three lines, so the ``curl`` command finally shows something.
 
-    Elle est DERRIÈRE la garde, exprès : sans identité, on reçoit la
-    redirection vers ``/login``, ce qui prouve que c'est bien la garde
-    qui a lu le jeton — et pas la route qui serait ouverte.
+    It is BEHIND the guard, on purpose: with no identity you get the
+    redirect to ``/login``, which proves the guard is what read the token
+    — and not that the route would be open.
 
-    ⚠️ Une route brute sur ``app.fastapi`` (échappatoire publique) : le
-    framework n'a pas de décorateur pour un routable qui ne rend pas du
-    HTML. C'est noté dans ``.claude/work/todo.md`` (@download), et ça
-    dépasse cette démo.
+    ⚠️ A raw route on ``app.fastapi`` (public escape hatch): the framework
+    has no decorator for a routable that does not return HTML. It is
+    noted in ``.claude/work/todo.md`` (@download), and it is beyond this
+    demo.
 
-    ``request.state.user_id`` est ce que ``AuthMiddleware`` a résolu —
-    la même valeur que ``auth.user_id()`` verrait au rendu.
+    ``request.state.user_id`` is what ``AuthMiddleware`` resolved — the
+    same value ``auth.user_id()`` would see at render time.
     """
     user_id = getattr(request.state, "user_id", None)
     user = by_id(user_id)
-    porte = "cookie de session (navigateur)"
+    door = "session cookie (browser)"
     if request.headers.get("authorization", "").lower().startswith("bearer "):
-        porte = "jeton de machine (Authorization: Bearer)"
+        door = "machine token (Authorization: Bearer)"
     elif request.headers.get(PROXY_HEADER):
-        porte = f"en-tête de proxy ({PROXY_HEADER})"
-    adresse = user["email"] if user else "—"
+        door = f"proxy header ({PROXY_HEADER})"
+    address = user["email"] if user else "—"
     return PlainTextResponse(
         "\n".join(
             [
-                f"user_id     : {user_id}",
-                f"adresse     : {adresse}",
-                f"reconnu par : {porte}",
+                f"user_id      : {user_id}",
+                f"address      : {address}",
+                f"recognised by: {door}",
                 "",
             ]
         )
@@ -120,19 +119,20 @@ async def qui_suis_je(request: Request) -> PlainTextResponse:
 
 app.include(access, login, home)
 
-#: Ce que la garde laisse passer. ``app.public_paths`` porte les assets du
-#: runtime ET les deux routes de chaque porte montée — l'app n'a donc rien
-#: à énumérer du framework, et une porte ajoutée demain n'oblige à rien.
+#: What the guard lets through. ``app.public_paths`` carries the runtime's
+#: assets AND the two routes of every mounted door — so the app has
+#: nothing of the framework's to enumerate, and a door added tomorrow
+#: obliges nothing.
 #:
-#: Calculé APRÈS ``include`` : c'est lui qui fait connaître les portes. Le
-#: middleware lit ce nom au moment de l'appel, pas au moment où il est
-#: décoré, donc l'ordre d'écriture ci-dessus est sans effet.
+#: Computed AFTER ``include``: that is what makes the doors known. The
+#: middleware reads this name at call time, not at decoration time, so the
+#: writing order above has no effect.
 PUBLIC = {
     LOGIN_PATH,
-    # ⚠️ Le formulaire de connexion POSTe une action, et une garde en
-    # défaut-fermé la bloque comme le reste. Le symptôme ne ressemble à
-    # rien : htmx suit la redirection en transparence, le HTML de /login
-    # revient, et le bouton paraît mort — aucune erreur nulle part.
+    # ⚠️ The login form POSTs an action, and a closed-by-default guard
+    # blocks it like the rest. The symptom looks like nothing: htmx
+    # follows the redirect transparently, /login's HTML comes back, and
+    # the button seems dead — no error anywhere.
     action_path(login.sign_in),
     *app.public_paths,
 }

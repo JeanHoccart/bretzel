@@ -29,12 +29,12 @@ Three pieces, mirror of the Sidebar trio :
   does, so a page hosting both stays in sync on partial nav.
   ``sticky=True`` pins the bar to the top during scroll ;
   ``variant="floating"`` gives the Stripe / Linear marketing-site
-  rounded-card look. Une barre ``sticky`` dans une coque « document
-  gelé » (``ui.viewport``) est soumise à la même garde de placement que
-  ``ui.bottom_bar``, dont elle est le miroir vers le haut — cf. la
-  docstring de ce dernier, et ``traps.md`` § *Une barre `sticky` hors du
-  cadre gelé*. Sans ``sticky``, rien n'est jugé : la barre défile avec
-  le document.
+  rounded-card look. A ``sticky`` bar in a "frozen document" shell
+  (``ui.viewport``) is subject to the same placement guard as
+  ``ui.bottom_bar``, of which it is the upward mirror — cf. the latter's
+  docstring, and ``traps.md`` § *A `sticky` bar outside the frozen
+  frame*. Without ``sticky``, nothing is judged: the bar scrolls with
+  the document.
 - **NavbarSection** — positional grouping with ``side="left"`` /
   ``"center"`` / ``"right"``. No behaviour of its own, just a flex
   container with the right margin auto.
@@ -86,13 +86,13 @@ class Navbar(Component):
         variant: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(sticky=sticky, variant=variant, **kwargs)
-        # Une navbar non-``sticky`` est un bloc ordinaire : elle défile
-        # avec le reste et n'a rien à dire au modèle gelé. Seule la
-        # version collée dépend de qui la contient — même mécanisme que
-        # ``ui.bottom_bar``, retourné vers le haut. On relit la valeur
-        # RÉSOLUE : ``sticky=`` peut arriver à ``None``.
+        # A non-``sticky`` navbar is an ordinary block: it scrolls with
+        # the rest and has nothing to say to the frozen model. Only the
+        # stuck version depends on what contains it — the same mechanism
+        # as ``ui.bottom_bar``, flipped upwards. We re-read the RESOLVED
+        # value: ``sticky=`` can arrive as ``None``.
         if self._reactive_values.get("sticky"):
             register_sticky_bar(self, 'ui.navbar(sticky=True)')
 
@@ -127,12 +127,12 @@ class Navbar(Component):
         # (marketing site, settings shell), so it can't rely on the
         # sidebar's scope.
         attrs.setdefault("bz-data", current_path_scope())
-        # Resync ``current_path`` sur back/forward et sur une nav
-        # partielle déclenchée ailleurs dans la page. Le flip optimiste
-        # au clic ne couvre QUE les navs parties de la navbar : sans ces
-        # deux écoutes, le surlignage se décollait de l'URL au premier
-        # back — alors que le docstring de la classe promettait la parité
-        # avec Sidebar (audit F26). Partagé avec elle.
+        # Resync ``current_path`` on back/forward and on a partial nav
+        # triggered elsewhere in the page. The optimistic flip on click
+        # covers ONLY the navs that left from the navbar: without these
+        # two listeners, the highlighting came unstuck from the URL at
+        # the first back — while the class's docstring promised parity
+        # with Sidebar (audit F26). Shared with it.
         attrs.setdefault("bz-init", current_path_resync_init())
 
         # Inner ``<nav>`` wraps the children with the max-width clamp +
@@ -156,11 +156,11 @@ class NavbarSection(Component):
 
     THEME: ClassVar[dict[str, Any]] = NAVBAR_THEME
     THEME_KEY: ClassVar[str] = "navbar"
-    # la vérification sur ``is not None``, donc ``None`` = « ne vérifie
-    # rien » → un binding passé ici était ACCEPTÉ puis jeté en silence
-    # (``side`` est ``emit_attr=False`` → la valeur SSR se fige et
-    # n'évolue jamais). ``()`` = « aucune prop bindable », et le refus
-    # devient explicite. Cf. todo.md § C.
+    # the check on ``is not None``, so ``None`` = "check nothing" → a
+    # binding passed here was ACCEPTED then thrown away in silence
+    # (``side`` is ``emit_attr=False`` → the SSR value freezes and never
+    # changes). ``()`` = "no bindable prop", and the refusal becomes
+    # explicit. Cf. todo.md § C.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     # Default ``"left"`` matches the visual order : left → center →
     # right reads in source order, the auto-margin pushes each to its
@@ -173,7 +173,7 @@ class NavbarSection(Component):
         side: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(side=side, **kwargs)
 
     def render(self) -> Element:
@@ -241,7 +241,7 @@ class NavbarItem(Component):
         on_click: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             label=label,
             href=href,
@@ -266,8 +266,9 @@ class NavbarItem(Component):
         theme = self._resolved_theme()
         slots = theme.get("slots", {})
 
-        # Lecture + câblage : le corps partagé des trois items de nav
-        # (navigation/_wiring.py). Ce qui suit est propre à ce composant.
+        # Reading + wiring: the shared body of the three nav items
+        # (navigation/_wiring.py). What follows is specific to this
+        # component.
         w = wire_nav_item(self, slots)
         tag, attrs = w.tag, w.attrs
         badge_value, badge_binding = w.badge_value, w.badge_binding

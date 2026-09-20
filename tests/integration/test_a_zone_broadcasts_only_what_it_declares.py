@@ -149,7 +149,7 @@ class TestWhatIsDeclared:
         d'écrire ``deps=[X], broadcast=[X]``. Un refus bruyant plutôt
         qu'un ``tuple(True)`` et son ``TypeError`` incompréhensible.
         """
-        with pytest.raises(TypeError, match="prend une LISTE"):
+        with pytest.raises(TypeError, match="takes a LIST"):
 
             @refreshable(deps=[Globale], broadcast=True)
             def zone_ancienne() -> None: ...

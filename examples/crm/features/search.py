@@ -1,24 +1,25 @@
-"""features/search — écran 8 : la recherche globale.
+"""features/search — screen 8: the global search.
 
-Ce que cet écran met sous contrainte : le cas d'usage qui déciderait
-``ui.command_palette``. Il est construit ici avec ce qui existe — un
-``ui.input`` débouncé, trois listes groupées, et une navigation au clic —
-pour que la question « qu'est-ce qui manque ? » ait une réponse mesurée
-plutôt qu'une intuition.
+What this screen puts under constraint: the use case that would decide
+``ui.command_palette``. It is built here with what exists — a debounced
+``ui.input``, three grouped lists, and navigation by click — so the
+question "what is missing?" has a measured answer rather than an
+intuition.
 
-Ce qu'une palette apporterait et que cette page n'a pas, constaté en la
-construisant :
+What a palette would bring and this page does not have, observed while
+building it:
 
-1. **elle s'ouvre par-dessus, depuis n'importe où** ; ici il faut naviguer
-   vers ``/recherche``, donc quitter ce qu'on regardait — l'inverse du geste ;
-2. **elle se pilote au clavier de bout en bout** (↑↓ à travers des groupes
-   hétérogènes, Entrée pour ouvrir, Échap pour fermer). ``ui.combobox`` sait
-   le faire, mais sur UNE liste d'options homogènes qui écrit une valeur ;
-   ici chaque résultat mène à une URL différente et rien n'est sélectionné ;
-3. **elle a un raccourci** (Ctrl+K) — aucun composant du catalogue n'écoute
-   une combinaison globale.
+1. **it opens on top, from anywhere**; here you have to navigate to
+   ``/recherche``, hence leave what you were looking at — the opposite of
+   the gesture;
+2. **it is driven from the keyboard end to end** (↑↓ across heterogeneous
+   groups, Enter to open, Escape to close). ``ui.combobox`` can do that,
+   but on ONE list of homogeneous options that writes a value; here each
+   result leads to a different URL and nothing is selected;
+3. **it has a shortcut** (Ctrl+K) — no component in the catalogue listens
+   for a global combination.
 
-Aucun de ces trois manques n'est rattrapé ici : la page reste une page.
+None of these three gaps is made up for here: the page stays a page.
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ class SearchUI(PageState):
 
 
 def search_changed(state: SearchUI) -> None:
-    """La frappe hydrate ``needle`` ; ``deps=`` re-render les résultats."""
+    """Typing hydrates ``needle``; ``deps=`` re-renders the results."""
 
 
 def result_row(icon: str, color: str, title: str, subtitle: str, href: str,
@@ -64,7 +65,7 @@ def result_group(title: str, icon: str, rows: list, render) -> None:
             ui.badge(f"{len(rows)}" + ("+" if len(rows) == PER_KIND else ""),
                      variant="soft", color="muted", size="xs")
         if not rows:
-            ui.text("Rien ici.", color="muted", size="sm")
+            ui.text("Nothing here.", color="muted", size="sm")
         for row in ui.each(rows, key="id"):
             render(row)
 
@@ -72,7 +73,7 @@ def result_group(title: str, icon: str, rows: list, render) -> None:
 def account_result(row: dict) -> None:
     result_row("building-2", "primary", row["name"],
                f"{row['industry']} · {row['city']}",
-               f"/comptes/{row['id']}", euros(row["arr"]))
+               f"/accounts/{row['id']}", euros(row["arr"]))
 
 
 def contact_result(row: dict) -> None:
@@ -90,8 +91,8 @@ def deal_result(row: dict) -> None:
     result_row("folder-open", STAGE_COLOR.get(row["stage"], "muted"),
                f"{row['account_name']} — {row['name']}",
                f"{STAGE_LABEL.get(row['stage'], row['stage'])} · "
-               f"échéance {row['close_date']}",
-               f"/comptes/{row['account_id']}", euros(row["amount"]))
+               f"closing {row['close_date']}",
+               f"/accounts/{row['account_id']}", euros(row["amount"]))
 
 
 @refreshable(deps=[SearchUI, ViewerPrefs])
@@ -100,39 +101,39 @@ def results() -> None:
     needle = str(state.needle).strip()
     if len(needle) < 2:
         ui.empty_state(
-            "Cherche un compte, un contact ou une affaire",
+            "Search an account, a contact or a deal",
             icon="search",
-            description="Deux caractères suffisent. La recherche porte sur "
-                        "le DÉBUT du nom — c'est ce qu'un index sait faire "
-                        "sans scanner 170 000 lignes à chaque frappe.",
+            description="Two characters are enough. The search is on the "
+                        "START of the name — that is what an index can do "
+                        "without scanning 170 000 rows at every keystroke.",
         )
         return
     found = search_everywhere(needle, visible_owner())
     total = sum(len(v) for v in found.values())
     if not total:
-        ui.empty_state(f"Rien ne commence par « {needle} »", icon="search-x",
-                       description="Essaie les premières lettres du nom du "
-                                   "compte, du nom de famille ou de l'email.")
+        ui.empty_state(f"Nothing starts with \u201c{needle}\u201d", icon="search-x",
+                       description="Try the first letters of the account "
+                                   "name, the last name or the email.")
         return
     with ui.grid(cols={"base": 1, "lg": 3}, gap="lg"):
-        result_group("Comptes", "building-2", found["comptes"],
+        result_group("Accounts", "building-2", found["accounts"],
                      account_result)
         result_group("Contacts", "users", found["contacts"], contact_result)
-        result_group("Affaires", "folder-open", found["affaires"],
+        result_group("Affaires", "folder-open", found["deals"],
                      deal_result)
 
 
-@page("/recherche", layout=shell, title="Recherche")
+@page("/search", layout=shell, title="Search")
 def search_page() -> None:
     state = SearchUI()
     with ui.vstack(gap="lg"):
-        ui.heading("Recherche", level=1, size="2xl")
-        # ``on_input`` et non ``on_change`` : une recherche globale se lit
-        # pendant la frappe. ``on_change`` est l'événement natif — il
-        # n'arrive qu'au blur ou à Entrée, et le ``debounce`` n'y aurait
-        # rien à temporiser.
+        ui.heading("Search", level=1, size="2xl")
+        # ``on_input`` and not ``on_change``: a global search reads
+        # while typing. ``on_change`` is the native event — it only
+        # arrives on blur or Enter, and the ``debounce`` would have
+        # nothing to debounce.
         ui.input(value=state.needle, icon_left="search", clearable=True,
-                 placeholder="Compte, nom de famille, email…",
+                 placeholder="Account, last name, email…",
                  on_input=search_changed, debounce=250)
         results()
 

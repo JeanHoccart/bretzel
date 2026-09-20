@@ -1,25 +1,24 @@
-"""Règle : ``ui.html`` avec autre chose qu'un littéral.
+"""Rule: ``ui.html`` with anything but a literal.
 
-``ui.html`` injecte du balisage **verbatim, jamais échappé**. Son nœud le
-dit depuis toujours (``core/tree.py`` : *« every occurrence is a candidate
-XSS sink and should be auditable »*), et le composant s'appelle
-délibérément ``ui.html`` et non ``ui.raw_html`` — un nom effrayant
-n'avertit qu'une personne, une fois, au moment où elle l'écrit.
+``ui.html`` injects markup **verbatim, never escaped**. Its node has said
+so forever (``core/tree.py``: *"every occurrence is a candidate XSS sink
+and should be auditable"*), and the component is deliberately called
+``ui.html`` and not ``ui.raw_html`` — a frightening name warns one
+person, once, at the moment they write it.
 
-Ce qui avertit à chaque fois, c'est un outil. Dans le dépôt du framework
-c'est une liste gelée d'appels (``test_ui_html_call_sites_are_listed``) ;
-pour une app, geler n'a aucun sens — mais **juger la littéralité** en a.
+What warns every time is a tool. In the framework's repository that is a
+frozen list of calls (``test_ui_html_call_sites_are_listed``); for an
+app, freezing makes no sense — but **judging literalness** does.
 
-- ``ui.html("<hr>")`` → littéral, aucun chemin depuis une entrée
-  utilisateur : ignoré.
-- ``ui.html(article.body)`` → la valeur vient d'ailleurs. Signalé, parce
-  que c'est exactement la forme qui transforme un champ de base de données
-  en script exécuté.
+- ``ui.html("<hr>")`` → a literal, no path from user input: ignored.
+- ``ui.html(article.body)`` → the value comes from elsewhere. Reported,
+  because that is exactly the form that turns a database field into an
+  executed script.
 
-La règle ne prétend pas détecter une XSS : elle rend le choix **visible**,
-pour qu'il soit posé plutôt que subi. Le constructeur, lui, refuse déjà
-une `ClientBinding` — faire écrire du balisage au runtime depuis l'état
-client serait un puits piloté par le client.
+The rule does not claim to detect an XSS: it makes the choice
+**visible**, so that it is taken rather than suffered. The constructor
+already refuses a `ClientBinding` — making the runtime write markup from
+client state would be a client-driven sink.
 """
 
 from __future__ import annotations
@@ -29,11 +28,11 @@ import ast
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-RULE = "html-non-litteral"
+RULE = "non-literal-html"
 
 
 def _is_literal(node: ast.expr) -> bool:
-    """Un littéral, ou une concaténation/f-string de littéraux seuls."""
+    """A literal, or a concatenation / f-string of literals only."""
     if isinstance(node, ast.Constant):
         return isinstance(node.value, str)
     if isinstance(node, ast.JoinedStr):
@@ -67,14 +66,14 @@ def check(module: Module) -> list[Finding]:
                 path=module.path,
                 line=node.lineno,
                 message=(
-                    "`ui.html(…)` reçoit une valeur non littérale : le balisage "
-                    "est injecté verbatim, jamais échappé."
+                    "`ui.html(…)` receives a non-literal value: the markup "
+                    "is injected verbatim, never escaped."
                 ),
                 hint=(
-                    "Assainis (bleach/nh3) avant, ou passe par `ui.markdown` "
-                    "qui échappe le HTML embarqué et réécrit les URLs "
-                    "dangereuses. Si la valeur est sûre, dis-le en commentaire "
-                    "au call-site."
+                    "Sanitise (bleach/nh3) first, or go through "
+                    "`ui.markdown`, which escapes embedded HTML and rewrites "
+                    "dangerous URLs. If the value is safe, say so in a "
+                    "comment at the call site."
                 ),
             )
         )

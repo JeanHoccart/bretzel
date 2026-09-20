@@ -1,13 +1,13 @@
-"""Les règles — chacune pure, chacune énumérable.
+"""The rules — each pure, each enumerable.
 
-Une règle a la signature ``check(module) -> list[Finding]``. Elle ne
-connaît ni corpus, ni plancher, ni code de sortie : elle constate sur UN
-module et rend des :class:`~bretzel.lint.report.Finding`.
+A rule has the signature ``check(module) -> list[Finding]``. It knows
+neither corpus, nor floor, nor exit code: it reports on ONE module and
+returns :class:`~bretzel.lint.report.Finding`.
 
-**Le registre est une liste, pas un système de plugins.** Le charter exclut
-un plugin system avant stabilisation du core, et un jeu de règles
-non-énumérable empêcherait ``check`` de dire ce qu'il sait vérifier — ce
-qui est précisément la question qu'on pose à un outil de ce genre.
+**The registry is a list, not a plugin system.** The charter rules out a
+plugin system before the core stabilises, and a non-enumerable rule set
+would stop ``check`` saying what it can verify — which is precisely the
+question one asks a tool of this kind.
 """
 
 from __future__ import annotations
@@ -39,34 +39,33 @@ from bretzel.lint.rules import (
 
 Rule = Callable[[Module], list[Finding]]
 
-#: Les règles statiques — AST seul, **rien n'est exécuté**. C'est ce qui
-#: permet de les lancer sur le code d'un tiers sans conséquence.
+#: The static rules — AST only, **nothing is executed**. That is what
+#: makes it safe to run them over a third party's code.
 #:
-#: L'ordre est celui de la **discrétion de l'échec**, du plus silencieux au
-#: plus bruyant, parce que c'est l'ordre dans lequel on veut les lire :
-#: un état construit dans un corps
-#: `async def` marche en mémoire et LÈVE le jour où `redis_url` est
-#: posé — muet aussi, mais d'un silence à retardement : ce n'est pas le
-#: code qui se tait, c'est le dev qui ne montre pas la panne ; une
-#: classe Tailwind assemblée ne
-#: casse qu'en prod avec un HTML identique ; un nom de thème inconnu ne
-#: change RIEN nulle part (même pas en prod : il n'y a pas d'attribut à
-#: voir, pas de classe à chercher, le rendu est celui du thème livré) ; une
-#: valeur hors table retire une classe et laisse le composant à l'écran,
-#: nu — et une surcharge de thème qui garde le nom en changeant la FORME
-#: fait exactement ça, mesuré : le palier perd tous ses jetons et le
-#: composant rend à la taille de son contenu (son autre sens, lui, lève
-#: au rendu, ce qui le range juste après) ; un cast sur une valeur d'état ne retire rien non plus et laisse le
-#: composant afficher le MAUVAIS état, que seul un rechargement corrige ;
-#: une classe qui double une prop n'en retire aucune — les DEUX sont dans
-#: le HTML, et c'est l'ordre de la feuille Tailwind qui tranche, donc même
-#: la relecture des classes ne voit rien ; des tailles mélangées ne
-#: retirent RIEN non plus — la page est juste, deux
-#: champs voisins n'ont simplement pas la même hauteur, et il faut
-#: regarder l'écran pour le voir ; un kwarg inconnu part en attribut
-#: inerte ; un `hx-` à la main fait une
-#: requête refusée ; un `ui.html` non littéral est un choix à rendre
-#: visible ; un lambda lève au rendu.
+#: The order is that of the **discretion of the failure**, from the most
+#: silent to the loudest, because that is the order one wants to read
+#: them in: a state built in an `async def` body works in memory and
+#: RAISES the day `redis_url` is set — mute too, but with a delayed
+#: silence: it is not the code that stays quiet, it is the developer who
+#: does not surface the failure; an assembled Tailwind class only breaks
+#: in production with identical HTML; an unknown theme name changes
+#: NOTHING anywhere (not even in production: there is no attribute to
+#: see, no class to look for, the render is the shipped theme's); a value
+#: outside the table removes a class and leaves the component on screen,
+#: bare — and a theme override that keeps the name while changing the
+#: SHAPE does exactly that, measured: the step loses all its tokens and
+#: the component renders at its content's size (its other meaning does
+#: raise at render time, which places it just after); a cast on a state
+#: value removes nothing either and leaves the component displaying the
+#: WRONG state, which only a reload fixes; a class duplicating a prop
+#: removes none — BOTH are in the HTML, and it is the Tailwind sheet's
+#: order that settles it, so even re-reading the classes shows nothing;
+#: mixed sizes remove NOTHING either — the page is correct, two
+#: neighbouring fields simply do not have the same height, and one has to
+#: look at the screen to see it; an unknown kwarg goes out as an inert
+#: attribute; a hand-written `hx-` makes a refused request; a
+#: non-literal `ui.html` is a choice to make visible; a lambda raises at
+#: render time.
 STATIC: dict[str, Rule] = {
     loop_state.RULE: loop_state.check,
     shared_counter.RULE: shared_counter.check,

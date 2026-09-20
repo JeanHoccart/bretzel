@@ -1,6 +1,6 @@
 """Partial rendering — single ``@refreshable`` section + state delta.
 
-Triggered by :
+Triggered by:
 
 - A zone enqueued during an action — by a ``deps=`` state change or the
   free :func:`refresh` — the pipeline drains
@@ -12,7 +12,7 @@ Triggered by :
 The output is **not** a full HTML5 document — just the inner content
 of the swap target plus a ``<bz-patch>`` tag carrying the
 post-action client-state patches. Layer 6 wraps it in a Starlette
-``HTMLResponse`` ; we stop at the bytes.
+``HTMLResponse``; we stop at the bytes.
 
 """
 
@@ -40,9 +40,9 @@ from bretzel.runtime.envelope import serialize_patch
 from bretzel.runtime.protocol import HEADER_ZONE_HASHES
 from bretzel.state.scopes.client import ClientState, rendering_scope
 
-#: Le ``<template>`` dont le runtime projette le contenu sous
-#: ``<body>``. Écrit ici plutôt qu'importé de ``components`` :
-#: ``render`` ne remonte pas la pile au chargement (principe 5).
+#: The ``<template>`` whose content the runtime projects under
+#: ``<body>``. Written here rather than imported from ``components``:
+#: ``render`` does not reach up the stack at load time (principle 5).
 TELEPORT_ATTR = "bz-teleport"
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -85,30 +85,29 @@ async def render_partial(
     ctx.is_partial = True
 
     # Every refreshable rides as an OOB fragment. The dispatcher
-    # (il n'y a PAS de dispatcher custom : ``05_bridge.js`` enrichit les
-    # en-têtes d'un POST htmx natif) issues the action POST with
+    # (there is NO custom dispatcher: ``05_bridge.js`` enriches the
+    # headers of a native htmx POST) issues the action POST with
     # ``swap: 'none'`` — the response body is never swapped into the
     # trigger, only ``hx-swap-oob`` fragments find their target by id.
     # If we emitted the primary without ``hx-swap-oob``, it would be
-    # silently dropped. (V1 made the same call : every refresh emits as
+    # silently dropped. (V1 made the same call: every refresh emits as
     # OOB, swap-by-id, no trigger-vs-target distinction.)
-    # ── Une zone imbriquée n'expédie qu'UNE fois ──────────────────
-    # Le parent rend son sous-arbre, enfant compris ; si l'enfant est
-    # AUSSI dans la file, son fragment part une seconde fois et le morph
-    # en jette un. Mesuré : deux zones sur le même état, 200 lignes dans
-    # l'enfant → 19,7 Ko dont la moitié inutile ; à trois niveaux,
-    # l'intérieur part TROIS fois.
+    # ── A nested zone ships only ONCE ─────────────────────────────
+    # The parent renders its subtree, child included; if the child is
+    # ALSO in the queue, its fragment goes out a second time and the
+    # morph throws one away. Measured: two zones on the same state, 200
+    # rows in the child → 19.7 KB of which half is useless; at three
+    # levels, the inside goes out THREE times.
     #
-    # L'imbrication ne se sait pas plus tôt : ``enqueue_deps`` ne voit
-    # que des déclarations, et « parent appelle enfant » est un fait de
-    # RENDU, conditionnel de surcroît. Elle se découvre donc ici, une
-    # fois l'arbre construit, et elle ne coûte rien de plus — l'arbre est
-    # déjà là.
+    # Nesting cannot be known any earlier: ``enqueue_deps`` sees only
+    # declarations, and "parent calls child" is a RENDER fact,
+    # conditional at that. So it is discovered here, once the tree is
+    # built, and it costs nothing more — the tree is already there.
     #
-    # Deux sens, parce que l'ordre de la file est celui des décorations :
-    # une zone déjà couverte n'est pas rendue DU TOUT (on épargne aussi
-    # le travail serveur), et si l'enfant est passé le premier, son
-    # fragment est retiré quand le parent le recouvre.
+    # Both directions, because the queue's order is that of the
+    # decorations: a zone already covered is not rendered AT ALL (we save
+    # the server work too), and if the child came first, its fragment is
+    # removed when the parent covers it.
     ordered: list[RefreshableHandle] = []
     seen: set[str] = set()
     for h in (handle, *extra_handles):
@@ -118,46 +117,47 @@ async def render_partial(
 
     emitted: dict[str, str] = {}
     covered: set[str] = set()
-    #: Ce que cette réponse expédie, par zone — renvoyé au client, qui
-    #: nous le représentera à la requête suivante.
-    empreintes: dict[str, str] = {}
+    #: What this response ships, by zone — sent back to the client, who
+    #: will present it to us again on the next request.
+    digests: dict[str, str] = {}
     for h in ordered:
         if h.id in covered:
             continue
         try:
             html, root = await _render_one(app, h, ctx, oob=True)
-        except Exception as exc:  # large à dessein — voir la docstring d'à côté
+        except Exception as exc:  # broad on purpose — see the docstring next door
             emitted[h.id] = _zone_failure_fragment(app, h, exc)
             continue
         for zone_id in _zone_ids_inside(root, among=seen):
             covered.add(zone_id)
             emitted.pop(zone_id, None)
-            empreintes.pop(zone_id, None)
-        # ── Une zone dont le rendu n'a pas bougé ne part pas ──────────
+            digests.pop(zone_id, None)
+        # ── A zone whose render has not moved does not go out ─────────
         #
-        # Le rendu est déjà payé ici — c'est l'expédition, le gzip et le
-        # morph qu'on épargne. Mesuré sur ``examples/messagerie`` le
-        # 2026-09-08 : re-cliquer un fil déjà ouvert coûtait 9 461
-        # octets et 50 ms ; 300 octets et 10 ms une fois les trois zones
-        # tues. Un clic qui change vraiment quelque chose paie toujours
-        # son plein tarif, et c'est normal.
+        # The render is already paid for here — it is the shipping, the
+        # gzip and the morph that are saved. Measured on
+        # ``examples/messagerie`` on 2026-09-08: re-clicking an already
+        # open thread cost 9 461 bytes and 50 ms; 300 bytes and 10 ms
+        # once the three zones were silenced. A click that really changes
+        # something still pays full price, and that is normal.
         #
-        # Le serveur ne garde RIEN : l'empreinte de référence vient du
-        # client, qui porte le HTML en question. Une empreinte absente,
-        # périmée ou mensongère ne peut donc que faire ré-expédier —
-        # jamais taire à tort. C'est ce qui rend l'optimisation sûre par
-        # construction plutôt que par prudence, et
-        # ``test_an_unchanged_zone_is_not_shipped`` garde les deux sens.
-        empreinte = _empreinte(html)
-        empreintes[h.id] = empreinte
-        if ctx.zone_hashes.get(h.id) == empreinte:
+        # The server keeps NOTHING: the reference fingerprint comes from
+        # the client, who carries the HTML in question. An absent, stale
+        # or lying fingerprint can therefore only cause a re-ship — never
+        # a wrongful silence. That is what makes the optimisation safe by
+        # construction rather than by caution, and
+        # ``test_an_unchanged_zone_is_not_shipped`` guards both
+        # directions.
+        digest = _digest(html)
+        digests[h.id] = digest
+        if ctx.zone_hashes.get(h.id) == digest:
             emitted.pop(h.id, None)
             continue
         emitted[h.id] = html
 
-    if empreintes:
+    if digests:
         ctx.response_headers[HEADER_ZONE_HASHES] = ",".join(
-            f"{zone_id}:{e}" for zone_id, e in empreintes.items()
+            f"{zone_id}:{e}" for zone_id, e in digests.items()
         )
 
     pieces: list[str] = list(emitted.values())
@@ -167,12 +167,12 @@ async def render_partial(
     if delta_html:
         pieces.append(delta_html)
 
-    # Drain the toast queue : ``ui.notification(...)`` calls during the
+    # Drain the toast queue: ``ui.notification(...)`` calls during the
     # action collected dicts on ``ctx.notifications``. They ride ONE
-    # ``<bz-patch>`` under the reserved ``_notifications`` key ; the
+    # ``<bz-patch>`` under the reserved ``_notifications`` key; the
     # bridge forwards them to ``$bz.notify`` and the auto-mounted
-    # toaster shows them. (Il n'y a pas de ``NotificationContainer`` —
-    # ce nom, et l'ancien ``<script>`` inline, datent de la V2.)
+    # toaster shows them. (There is no ``NotificationContainer`` — that
+    # name, and the old inline ``<script>``, date from V2.)
     from bretzel.components.feedback.notification import serialise_pending
 
     notif_html = serialise_pending(ctx.notifications)
@@ -195,13 +195,13 @@ async def render_partial(
 
 
 def _lower(ctx: RenderContext) -> list[Node]:
-    """Rabattre les enfants de racine en Nodes, une seule passe.
+    """Flatten the root's children into Nodes, in a single pass.
 
-    ``is_rendering=True`` pour la marche : un Component construit
-    *pendant* un ``render()`` (un ``ui.badge`` bâti dans le ``render=``
-    d'une cellule) est alors traité en sous-composant et saute
-    l'enregistrement racine. Sans ce garde, ils fuiraient en frères de
-    la racine de section et ressortiraient en doublons dans le swap OOB.
+    ``is_rendering=True`` for the walk: a Component built *during* a
+    ``render()`` (a ``ui.badge`` built in a cell's ``render=``) is then
+    treated as a subcomponent and skips root registration. Without that
+    guard, they would leak as siblings of the section root and come back
+    out as duplicates in the OOB swap.
     """
     produced: list[Node] = []
     previous_is_rendering = ctx.is_rendering
@@ -217,22 +217,23 @@ def _lower(ctx: RenderContext) -> list[Node]:
 
 
 def _zone_identity(handle: RefreshableHandle) -> dict[str, str]:
-    """Les attributs d'identité d'une zone, tels que son rendu les pose.
+    """A zone's identity attributes, as its render sets them.
 
-    Passe par :func:`~bretzel.render.decorators.refreshable.zone_attrs`,
-    la source unique — un fragment qui les recopierait dériverait, et
-    c'est déjà arrivé (cf. ``_zone_failure_fragment``).
+    Goes through
+    :func:`~bretzel.render.decorators.refreshable.zone_attrs`, the single
+    source — a fragment copying them would drift, and that has already
+    happened (cf. ``_zone_failure_fragment``).
 
-    Les attributs de souscription sont recalculés depuis la poignée
-    plutôt que devinés : une zone ``broadcast=[State]`` qui les perdrait en
-    tombant perdrait aussi son ``EventSource``, donc son temps réel, en
-    plus de son rafraîchissement.
+    The subscription attributes are recomputed from the handle rather
+    than guessed: a ``broadcast=[State]`` zone that lost them while
+    failing would also lose its ``EventSource``, hence its real-time
+    behaviour, on top of its refresh.
     """
-    etats = handle._broadcast_qualnames()
+    states = handle._broadcast_qualnames()
     return zone_attrs(
         handle.id,
-        subscribe_state_qualname=" ".join(etats) if etats else None,
-        subscribe_url=handle._subscribe_url(etats) if etats else None,
+        subscribe_state_qualname=" ".join(states) if states else None,
+        subscribe_url=handle._subscribe_url(states) if states else None,
     )
 
 
@@ -241,34 +242,34 @@ def _zone_failure_fragment(
     handle: RefreshableHandle,
     exc: BaseException,
 ) -> str:
-    """Le fragment qui remplace une zone dont le rendu a levé.
+    """The fragment replacing a zone whose render raised.
 
-    **Pourquoi isoler plutôt que laisser remonter.** Une zone qui lève
-    pendant le drain emportait la réponse entière en 500, et trois choses
-    se perdaient d'un coup : les autres zones — valides, parfois déjà
-    rendues — n'atteignaient jamais le navigateur ; htmx ne swappe pas
-    sur un non-2xx, donc l'utilisateur voyait sa page ne rien faire ; et
-    comme ``commit()`` vient APRÈS le drain, les mutations du handler
-    étaient annulées. Mesuré le 2026-09-05 : un bug d'AFFICHAGE dans une
-    zone annulait l'enregistrement demandé, sans un mot.
+    **Why isolate rather than let it surface.** A zone raising during the
+    drain took the whole response down as a 500, and three things were
+    lost at once: the other zones — valid, sometimes already rendered —
+    never reached the browser; htmx does not swap on a non-2xx, so the
+    user saw their page do nothing; and since ``commit()`` comes AFTER
+    the drain, the handler's mutations were cancelled. Measured on
+    2026-09-05: a DISPLAY bug in one zone cancelled the requested
+    registration, without a word.
 
-    Isoler règle les trois : le drain va au bout, donc le commit
-    s'exécute, donc l'action de l'utilisateur tient.
+    Isolating fixes all three: the drain goes to the end, so the commit
+    runs, so the user's action holds.
 
-    **Pourquoi une erreur VISIBLE et non la zone laissée telle quelle.**
-    Une zone muette afficherait des données périmées dans une page qui a
-    l'air correcte — le mensonge silencieux, précisément ce que ce dépôt
-    refuse ailleurs. Mieux vaut dire où ça casse.
+    **Why a VISIBLE error and not the zone left as-is.** A mute zone
+    would show stale data in a page that looks correct — the silent lie,
+    precisely what this repository refuses elsewhere. Better to say where
+    it breaks.
 
-    **Le détail suit ``expose_errors``**, jamais ``debug`` : c'est déjà
-    la ligne de partage du framework pour les pages d'erreur
-    (``server/routing/errors.py``) — une décision d'exposition, pas de
-    verbosité. Une seule politique, pas deux.
+    **The detail follows ``expose_errors``**, never ``debug``: that is
+    already the framework's dividing line for error pages
+    (``server/routing/errors.py``) — an exposure decision, not a
+    verbosity one. One policy, not two.
 
-    ⚠️ Ne concerne QUE le drain (réponse d'action, refetch SSE, swap
-    OOB). Une zone qui lève pendant le rendu d'une PAGE fait toujours
-    remonter l'exception, où ``@error_page`` l'attend : là, il n'y a pas
-    d'autre contenu valide à sauver.
+    ⚠️ Concerns the drain ONLY (action response, SSE refetch, OOB swap).
+    A zone raising while rendering a PAGE still lets the exception
+    surface, where ``@error_page`` awaits it: there, no other valid
+    content has to be saved.
     """
     _log.exception(
         "zone %s failed to render — isolated so the rest of the response "
@@ -278,30 +279,29 @@ def _zone_failure_fragment(
     if bool(getattr(cfg, "expose_errors", False)):
         message = f"{type(exc).__name__}: {exc}"
     else:
-        message = "Cette zone n'a pas pu s'afficher."
+        message = "This zone could not be displayed."
 
-    # On compose avec ``ui.alert`` plutôt que d'écrire le balisage à la
-    # main : c'est le composant du dépôt pour dire ça, et une seconde
-    # version divergerait de son thème au premier changement.
+    # We compose with ``ui.alert`` rather than writing the markup by
+    # hand: it is the repository's component for saying that, and a
+    # second version would drift from its theme at the first change.
     from bretzel.components.feedback.alert import Alert  # cycle : render → components
 
     try:
         node: Node = Alert(message=message, color="error").render()
     except Exception:  # le secours du secours
-        # Si même l'alerte casse, on ne relance pas : on rend du texte
-        # nu. Une exception ici ferait exactement ce qu'on répare.
-        _log.exception("zone %s : l'alerte de secours a levé aussi", handle.id)
+        # If even the alert breaks, we do not retry: we render bare
+        # text. An exception here would do exactly what we are fixing.
+        _log.exception("zone %s: the fallback alert raised too", handle.id)
         node = Element("span", {}, [message])
 
-    # ⚠️ Le MÊME emballage que le rendu nominal, pas un ``<div>`` écrit à
-    # la main. Le fragment a été composé en f-string pendant une journée,
-    # et il omettait ``DATA_ZONE`` : après une erreur, la zone sortait de
-    # l'énumération du navigateur, l'en-tête ``X-Bretzel-Zones`` ne la
-    # portait plus, ``enqueue_deps`` la filtrait — elle ne se
-    # rafraîchissait PLUS JAMAIS, jusqu'au rechargement complet et sans
-    # un mot. Il perdait aussi le ``class="contents"`` de ``fuse_or_wrap``,
-    # donc la zone en échec reprenait une boîte de disposition que sa
-    # jumelle saine n'a pas.
+    # ⚠️ The SAME wrapping as the nominal render, not a hand-written
+    # ``<div>``. The fragment was composed as an f-string for a day, and
+    # it omitted ``DATA_ZONE``: after an error, the zone dropped out of
+    # the browser's enumeration, the ``X-Bretzel-Zones`` header no longer
+    # carried it, ``enqueue_deps`` filtered it out — it NEVER refreshed
+    # again, until a full reload, and without a word. It also lost the
+    # ``class="contents"`` of ``fuse_or_wrap``, so the failed zone got
+    # back a layout box its healthy twin does not have.
     return serialize(
         fuse_or_wrap(
             [node],
@@ -311,13 +311,12 @@ def _zone_failure_fragment(
     )
 
 
-def _empreinte(html: str) -> str:
-    """L'empreinte courte d'un fragment de zone.
+def _digest(html: str) -> str:
+    """A zone fragment's short fingerprint.
 
-    ``blake2s`` sur huit octets : on compare des chaînes rendues par le
-    même processus à quelques millisecondes d'intervalle, pas des
-    fichiers signés — la résistance aux collisions adverses n'est pas le
-    sujet, la brièveté de l'en-tête si.
+    ``blake2s`` over eight bytes: we compare strings rendered by the same
+    process a few milliseconds apart, not signed files — resistance to
+    adversarial collisions is not the subject, the header's brevity is.
     """
     return hashlib.blake2s(html.encode("utf-8"), digest_size=8).hexdigest()
 
@@ -329,13 +328,12 @@ async def _render_one(
     *,
     oob: bool,
 ) -> tuple[str, Node]:
-    """Run ``handle.fn`` and return ``(HTML sérialisé, nœud racine)``.
+    """Run ``handle.fn`` and return ``(serialised HTML, root node)``.
 
-    Le nœud est rendu en plus des octets pour que l'appelant sache ce
-    que ce fragment CONTIENT — c'est ce qui lui permet de ne pas
-    réexpédier une zone imbriquée. Le lire depuis le HTML marcherait
-    aussi, mais chercher une sous-chaîne dans du balisage est une
-    devinette là où l'arbre est une réponse.
+    The node is returned alongside the bytes so the caller knows what
+    this fragment CONTAINS — that is what lets it avoid re-shipping a
+    nested zone. Reading it from the HTML would work too, but looking for
+    a substring in markup is a guess where the tree is an answer.
 
     Drains ``ctx.root_children`` written by the function (the
     component-tree path), or accepts a directly-returned :class:`Node`
@@ -372,42 +370,41 @@ async def _render_one(
         # ``handle()`` runs through ``RefreshableHandle.__call__`` which
         # creates a ``_RefreshableSection``, pushes it on parent_stack,
         # and runs the user fn. Any value the fn returns directly is
-        # attached to the section's children by __call__ ; nothing for
+        # attached to the section's children by __call__; nothing for
         # us to capture here.
-        # Le corps SYNCHRONE d'une zone rendue seule — SSE ou OOB — part
-        # sur le threadpool : sans ça une zone temps réel qui lit une
-        # base bloquante gèlerait la boucle une fois par signal ET par
-        # client abonné.
+        # The SYNCHRONOUS body of a zone rendered on its own — SSE or OOB
+        # — goes to the threadpool: without that, a real-time zone
+        # reading a blocking database would freeze the loop once per
+        # signal AND per subscribed client.
         #
-        # ``is_async`` d'abord, parce que ``__call__`` est synchrone dans
-        # les DEUX cas : pour un corps ``async`` il ne fait que poser la
-        # section et ranger la coroutine (du bookkeeping de framework,
-        # rien qui puisse bloquer), et le drain juste en dessous l'attend
-        # sur la boucle. Le déléguer coûterait un saut de thread pour
-        # rien.
+        # ``is_async`` first, because ``__call__`` is synchronous in BOTH
+        # cases: for an ``async`` body it merely sets the section down and
+        # stores the coroutine (framework bookkeeping, nothing that can
+        # block), and the drain just below awaits it on the loop.
+        # Delegating it would cost a thread hop for nothing.
         if handle.is_async:
             handle()
         else:
             await call_without_blocking(handle)
-        # Une zone ``async`` n'a posé que sa section ; son corps attend
-        # dans ``ctx.pending_async_zones``. Ce chemin-ci est celui du
-        # rafraîchissement (OOB ou refetch SSE) : ne pas drainer ici
-        # rendrait la zone pleine au premier affichage et VIDE à chaque
-        # refresh — la moitié la plus difficile à voir.
+        # An ``async`` zone has only set its section down; its body
+        # waits in ``ctx.pending_async_zones``. This path is the refresh
+        # one (OOB or SSE refetch): not draining here would render the
+        # zone full on first display and EMPTY on every refresh — the
+        # half that is hardest to see.
         await drain_pending_async_zones(ctx)
 
     # Drain the section (now the single root child) — its ``render``
     # produces an Element whose ``bz-id`` already matches handle.id,
-    # so we don't need to ``fuse_or_wrap`` here ; doing so would
+    # so we don't need to ``fuse_or_wrap`` here; doing so would
     # double-wrap. We just merge the ``hx-swap-oob`` extra attr when
     # appropriate.
     #
     #
-    # Le rabattage est DÉLESTÉ, comme le corps : ``render()`` rappelle du
-    # code d'app (le ``rows=`` d'un ``ui.datatable``, le ``render=`` d'une
-    # colonne), et le framework EXIGE que ce ``rows=`` soit un ``def`` —
-    # il refuse une coroutine. Le laisser ici le ferait tourner sur la
-    # boucle, une fois par signal SSE et par client abonné.
+    # The flattening is OFFLOADED, like the body: ``render()`` calls app
+    # code back (a ``ui.datatable``'s ``rows=``, a column's ``render=``),
+    # and the framework REQUIRES that ``rows=`` to be a ``def`` — it
+    # refuses a coroutine. Leaving it here would run it on the loop, once
+    # per SSE signal and per subscribed client.
     produced = await call_without_blocking(_lower, ctx)
 
     # Restore caller's scope.
@@ -459,27 +456,27 @@ async def _render_one(
 
 
 def _zone_ids_inside(root: Node, *, among: set[str]) -> set[str]:
-    """Les zones de ``among`` que ce fragment porte DÉJÀ, racine exclue.
+    """The zones of ``among`` this fragment ALREADY carries, root excluded.
 
-    ``among`` est la file de rafraîchissement : on ne cherche pas « les
-    zones » mais « celles qu'on allait aussi expédier ». C'est ce qui
-    rend le filtre sûr malgré un ``bz-id`` qui n'appartient pas qu'aux
-    zones — tout composant que le runtime doit retrouver en porte un
-    (``Component.emit_attrs``). Un id de composant ne peut pas se
-    trouver dans la file, donc l'intersection tranche.
+    ``among`` is the refresh queue: we are not looking for "the zones"
+    but for "the ones we were also about to ship". That is what makes the
+    filter safe despite a ``bz-id`` that does not belong to zones alone —
+    every component the runtime must find again carries one
+    (``Component.emit_attrs``). A component id cannot be in the queue, so
+    the intersection settles it.
 
-    Le parcours s'ARRÊTE sous un ``bz-teleport`` : le runtime déplace le
-    contenu de ce ``<template>`` sous ``<body>`` (les panneaux d'overlay
-    ancrés — Tooltip, Popover, Dropdown). Une zone qui vit là-dedans
-    n'est plus, dans le DOM vivant, un descendant de l'ancêtre qui la
-    porte dans le SSR : morpher l'ancêtre ne l'atteindrait pas, et lui
-    retirer son fragment la figerait. C'est une DÉCLARATION lue dans
-    l'arbre, pas une devinette sur la mise en page.
+    The walk STOPS under a ``bz-teleport``: the runtime moves that
+    ``<template>``'s content under ``<body>`` (the anchored overlay
+    panels — Tooltip, Popover, Dropdown). A zone living in there is no
+    longer, in the live DOM, a descendant of the ancestor carrying it in
+    the SSR: morphing the ancestor would not reach it, and removing its
+    fragment would freeze it. It is a DECLARATION read from the tree, not
+    a guess about layout.
 
-    ⚠️ Un descendant caché dans un nœud :class:`Html` (du balisage brut)
-    ne serait pas vu. Aucun chemin ne produit ça aujourd'hui — une zone
-    rend un :class:`Element` — et la table d'abstentions de la gate le
-    déclare plutôt que de faire semblant de le couvrir.
+    ⚠️ A descendant hidden in an :class:`Html` node (raw markup) would
+    not be seen. No path produces that today — a zone renders an
+    :class:`Element` — and the gate's abstention table declares it rather
+    than pretending to cover it.
     """
     found: set[str] = set()
     stack: list[Node] = list(getattr(root, "children", ()) or ())

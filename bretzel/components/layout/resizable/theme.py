@@ -1,52 +1,51 @@
 """Default :class:`Resizable` / :class:`ResizablePanel` theme.
 
-Le groupe est un conteneur **flex** dont chaque panneau porte
-``flex-grow: <poids>`` en style inline, écrit par le runtime. Trois
-détails du slot ``panel`` ne sont pas cosmétiques :
+The group is a **flex** container each of whose panels carries
+``flex-grow: <weight>`` as an inline style, written by the runtime.
+Three details of the ``panel`` slot are not cosmetic:
 
-- ``basis-0`` est ce qui rend le partage proportionnel. Sans lui, la base
-  d'un panneau est son contenu, donc deux panneaux à poids égal
-  s'affichent inégaux dès que l'un est plus rempli que l'autre.
-- ``min-w-0 min-h-0`` désactive le plancher automatique de flexbox
-  (``min-width: auto`` sur un item flex). Sans eux, un panneau REFUSE de
-  descendre sous la largeur de son contenu — une table large, et la
-  poignée se bloque bien avant le minimum déclaré, sans que rien
-  n'échoue.
-- ``overflow-hidden`` garde le contenu dans sa boîte quand on rétrécit.
-  C'est la contrepartie de ``min-w-0`` : ensemble, ils font qu'un
-  panneau se réduit vraiment au lieu de déborder sur son voisin.
+- ``basis-0`` is what makes the split proportional. Without it, a
+  panel's basis is its content, so two panels of equal weight show up
+  unequal as soon as one is fuller than the other.
+- ``min-w-0 min-h-0`` disables flexbox's automatic floor
+  (``min-width: auto`` on a flex item). Without them, a panel REFUSES to
+  go below its content's width — a wide table, and the handle jams well
+  before the declared minimum, with nothing failing.
+- ``overflow-hidden`` keeps the content in its box when you shrink it.
+  It is the counterpart of ``min-w-0``: together, they make a panel
+  really shrink instead of overflowing onto its neighbour.
 
-La poignée est une barre fine avec une zone de saisie PLUS LARGE qu'elle,
-étendue par un pseudo-élément (``before:-inset-x-1``). Une barre de 1 px
-serait conforme au dessin et impossible à attraper ; une barre épaisse
-serait attrapable et laide. Les deux moitiés du problème n'ont pas la
-même réponse, d'où la séparation visuel / zone de saisie.
+The handle is a thin bar with a grab zone WIDER than itself, extended by
+a pseudo-element (``before:-inset-x-1``). A 1 px bar would match the
+drawing and be impossible to catch; a thick bar would be catchable and
+ugly. The two halves of the problem do not have the same answer, hence
+the visual / grab-zone separation.
 
-``touch-none`` (``touch-action: none``) est OBLIGATOIRE et pas un
-raffinement : sans lui, le navigateur interprète le glissement d'un doigt
-sur la poignée comme un défilement de la page et n'envoie jamais les
-``pointermove`` — le composant est alors inutilisable au tactile, en
-silence, alors qu'il marche à la souris.
+``touch-none`` (``touch-action: none``) is MANDATORY and not a
+refinement: without it, the browser reads a finger dragging on the
+handle as a page scroll and never sends the ``pointermove`` — the
+component is then unusable on touch, in silence, while it works with a
+mouse.
 
-**L'état verrouillé est une BRANCHE, pas un variant négatif.** Les tokens
-interactifs vivent dans ``handle_active``, que le composant n'ajoute que
-si ``disabled`` est faux. Écrire ``not-aria-disabled:hover:…`` aurait
-tenu en une chaîne, mais aurait fait reposer l'affordance sur une
-composition de variants non vérifiée dans ce dépôt — et une classe qui
-ne compile pas échoue en SILENCE, avec un HTML identique des deux côtés
-(memory ``project_assembled_tailwind_class_dev_only``). Deux chaînes
-statiques ne peuvent pas mentir.
+**The locked state is a BRANCH, not a negative variant.** The
+interactive tokens live in ``handle_active``, which the component only
+adds if ``disabled`` is false. Writing ``not-aria-disabled:hover:…``
+would have fitted in one string, but would have rested the affordance on
+a composition of variants unverified in this repository — and a class
+that does not compile fails in SILENCE, with identical HTML on both
+sides (memory ``project_assembled_tailwind_class_dev_only``). Two static
+strings cannot lie.
 
 Slots :
-- ``root``           : le groupe flex — porte le scope ``bz-data``
-- ``horizontal`` / ``vertical`` : la direction du groupe, un slot par axe
-- ``panel``          : un panneau (``ui.resizable_panel``)
-- ``handle``         : la poignée entre deux panneaux, au repos
-- ``handle_active``  : ce que la poignée gagne quand elle est pilotable
-- ``handle_locked``  : ce qu'elle gagne quand ``disabled=True``
-- ``handle_h`` / ``handle_v`` : ce qui dépend de l'axe (curseur, sens de
-  la zone de saisie)
-- ``grip``           : la marque centrale, révélée au survol et au focus
+- ``root``           : the flex group — carries the ``bz-data`` scope
+- ``horizontal`` / ``vertical`` : the group's direction, one slot per axis
+- ``panel``          : one panel (``ui.resizable_panel``)
+- ``handle``         : the handle between two panels, at rest
+- ``handle_active``  : what the handle gains when it is drivable
+- ``handle_locked``  : what it gains when ``disabled=True``
+- ``handle_h`` / ``handle_v`` : what depends on the axis (cursor,
+  direction of the grab zone)
+- ``grip``           : the central mark, revealed on hover and on focus
 """
 
 from __future__ import annotations
@@ -55,25 +54,24 @@ from typing import Any
 
 RESIZABLE_THEME: dict[str, Any] = {
     "slots": {
-        # ``w-full`` et pas ``w-fit`` : un splitter partage une place
-        # donnée, il ne se dimensionne pas à son contenu — la règle
-        # « root w-fit » des clusters sélecteurs (traps.md) vise les
-        # contrôles enveloppables par un tooltip, pas les conteneurs de
-        # mise en page.
+        # ``w-full`` and not ``w-fit``: a splitter shares a given place,
+        # it does not size itself to its content — the "root w-fit" rule
+        # of the selector clusters (traps.md) targets controls
+        # wrappable in a tooltip, not layout containers.
         "root": "flex w-full",
         "horizontal": "flex-row",
         "vertical": "flex-col",
         "panel": "basis-0 min-w-0 min-h-0 overflow-hidden",
         "handle": (
-            # ``group/rz`` nomme le groupe que le grip observe. Nommé et
-            # pas nu : un Resizable IMBRIQUÉ ferait sinon réagir le grip
-            # du parent au survol de l'enfant.
+            # ``group/rz`` names the group the grip watches. Named and
+            # not bare: a NESTED Resizable would otherwise make the
+            # parent's grip react to hovering the child.
             "group/rz relative shrink-0 touch-none select-none "
             "bg-text/10 transition-colors duration-150 ease-out "
             "flex items-center justify-center "
-            # La zone de saisie déborde la barre — pseudo-élément, donc
-            # aucun nœud de plus dans le DOM et aucune boîte qui
-            # participerait au flex.
+            # The grab zone overflows the bar — a pseudo-element, so no
+            # extra node in the DOM and no box that would take part in
+            # the flex.
             "before:absolute before:content-[''] "
             "focus-visible:outline-none focus-visible:ring-2 "
             "focus-visible:ring-inset focus-visible:ring-(--bz-focus)"
@@ -82,50 +80,49 @@ RESIZABLE_THEME: dict[str, Any] = {
             "cursor-grab active:cursor-grabbing "
             "hover:bg-(--bz-solid)/40 active:bg-(--bz-solid)"
         ),
-        # Pas de ``pointer-events-none`` à côté du curseur : un élément
-        # qui ne reçoit aucun événement de pointeur ne peint jamais son
-        # curseur, donc la classe serait présente et invisible. C'est le
-        # bug que ``test_disabled_affordance`` verrouille, payé par Tree.
+        # No ``pointer-events-none`` beside the cursor: an element that
+        # receives no pointer event never paints its cursor, so the class
+        # would be present and invisible. It is the bug
+        # ``test_disabled_affordance`` locks down, paid for by Tree.
         "handle_locked": "cursor-not-allowed",
         "handle_h": "cursor-col-resize before:-inset-x-1 before:inset-y-0",
         "handle_v": "cursor-row-resize before:-inset-y-1 before:inset-x-0",
-        # Le grip est TOUJOURS visible, et le survol ne fait que
-        # l'appuyer. Le réflexe inverse (``opacity-0`` puis
-        # ``group-hover:opacity-100``) est ce que fait la moitié de
-        # l'écosystème et c'est un piège à deux détentes : un doigt ne
-        # survole pas, donc au tactile la poignée n'annonce plus qu'elle
-        # s'attrape — et le navigateur de l'utilisateur rapporte
-        # justement ``any-hover: false`` (memory
-        # ``project_user_browser_has_no_fine_pointer``). Gaté par
-        # ``test_hover_only_controls_reachable``, qui a refusé la
-        # première version de ce slot.
+        # The grip is ALWAYS visible, and hover only emphasises it. The
+        # opposite reflex (``opacity-0`` then
+        # ``group-hover:opacity-100``) is what half the ecosystem does
+        # and it is a two-stage trap: a finger does not hover, so on
+        # touch the handle no longer announces that it can be grabbed —
+        # and the user's browser reports precisely ``any-hover: false``
+        # (memory ``project_user_browser_has_no_fine_pointer``). Gated by
+        # ``test_hover_only_controls_reachable``, which refused this
+        # slot's first version.
         "grip": (
             "pointer-events-none rounded-full bg-text/25 "
             "transition-colors duration-150 ease-out "
             "group-hover/rz:bg-text/60 group-focus-within/rz:bg-text/60"
         ),
     },
-    # ``bar_*`` = l'ÉPAISSEUR de la barre, ``grip_*`` = la marque centrale.
-    # Le suffixe dit l'axe du GROUPE : ``_h`` = panneaux côte à côte, donc
-    # une barre verticale dont c'est la largeur qui varie.
-    #: L'espace entre un panneau et la poignee — la GOUTTIERE. Meme
-    #: echelle a six crans que ``ui.flex`` / ``ui.hstack`` / ``ui.vstack``
-    #: / ``ui.grid`` / ``ui.carousel``, parce que c'est le meme espace :
-    #: un conteneur flex qui separe ses enfants.
+    # ``bar_*`` = the bar's THICKNESS, ``grip_*`` = the central mark.
+    # The suffix says the GROUP's axis: ``_h`` = panels side by side, so
+    # a vertical bar whose width is what varies.
+    #: The space between a panel and the handle — the GUTTER. Same
+    #: six-step scale as ``ui.flex`` / ``ui.hstack`` / ``ui.vstack`` /
+    #: ``ui.grid`` / ``ui.carousel``, because it is the same space: a
+    #: flex container separating its children.
     #:
-    #: ⚠️ **Recopiee, pas importee de ``FLEX_THEME``**, et c'est la
-    #: convention du depot : un theme reste self-contained, on harmonise
-    #: sans factoriser. L'accord des deux tables est tenu par
+    #: ⚠️ **Copied, not imported from ``FLEX_THEME``**, and it is the
+    #: repository's convention: a theme stays self-contained, we
+    #: harmonise without factoring. The agreement of the two tables is
+    #: held by
     #: ``tests/consistency/test_a_flex_container_spaces_its_children.py``,
-    #: qui les compare cran par cran.
+    #: which compares them step by step.
     #:
-    #: Pourquoi c'est le GROUPE qui la porte, et pas le panneau : le
-    #: padding d'un ancetre ne peut jamais creer d'espace A L'INTERIEUR
-    #: du groupe. Mesure du 2026-08-23 sur la coque du CRM (parent en
-    #: ``p-8``) : le panneau commencait bien a x=32, donc le padding
-    #: l'atteignait — mais son contenu courait jusqu'a 384, ou la
-    #: poignee commence. Zero. Seul le parent des panneaux sait ou est
-    #: la poignee.
+    #: Why it is the GROUP that carries it, and not the panel: an
+    #: ancestor's padding can never create space INSIDE the group.
+    #: Measurement of 2026-08-23 on the CRM shell (parent at ``p-8``):
+    #: the panel did start at x=32, so the padding reached it — but its
+    #: content ran to 384, where the handle starts. Zero. Only the
+    #: panels' parent knows where the handle is.
     "gaps": {
         "none": "gap-0",
         "xs": "gap-1",
@@ -169,15 +166,16 @@ RESIZABLE_THEME: dict[str, Any] = {
 }
 
 RESIZABLE_PANEL_THEME: dict[str, Any] = {
-    # Le panneau ne porte AUCUNE classe à lui : sa boîte est composée par
-    # le groupe (slot ``panel``), qui est le seul à savoir s'il est en
-    # ligne ou en colonne et quel poids lui revient. Un thème propre au
-    # panneau donnerait deux auteurs à la même boîte.
+    # The panel carries NO class of its own: its box is composed by the
+    # group (slot ``panel``), which alone knows whether it is in a row or
+    # a column and what weight it gets. A theme proper to the panel would
+    # give the same box two authors.
     #
-    # Le dict existe quand même — ``THEME`` est lu par ``_resolved_theme``
-    # et par l'override utilisateur ``Theme(components={…})``, donc un
-    # composant sans table de slots déclare la table VIDE plutôt que de
-    # laisser le sentinel hérité.
+    # The dict exists all the same — ``THEME`` is read by
+    # ``_resolved_theme`` and by the user override
+    # ``Theme(components={…})``, so a component with no slot table
+    # declares the EMPTY table rather than leaving the inherited
+    # sentinel.
     "slots": {
         "root": "",
     },

@@ -72,7 +72,7 @@ _SYMBOL_FLOOR = 120
 #: Les natures que ``kind_of`` sait produire pour un symbole de module.
 #: ``module`` en fait partie : ``auth`` et ``oauth`` sont des modules
 #: exportés au premier étage, et leur fiche liste leur ``__all__``.
-_KINDS = ("classe", "fonction", "décorateur", "valeur", "module")
+_KINDS = ("class", "function", "decorator", "value", "module")
 
 #: Les modules couverts, **écrits en toutes lettres**. C'est un des
 #: rares cas où `gates.md` autorise à recopier une population : elle EST
@@ -148,13 +148,13 @@ def _carries(detail: SymbolDetail) -> bool:
     ``hollow()`` balaie ; c'est ici que se prend la décision, et c'est
     donc ici qu'une preuve peut mordre.
     """
-    if detail.kind == "valeur":
+    if detail.kind == "value":
         # Un objet constant (``TRACKER``, ``ui``) n'a pas de ``repr``
         # montrable — il porte une adresse mémoire, et son affichage ferait
         # bouger l'index d'un process à l'autre. Là, la docstring de sa
         # classe EST le résumé, et c'est la réponse.
         return detail.value_repr is not None or bool(detail.doc)
-    if detail.kind in ("fonction", "décorateur"):
+    if detail.kind in ("function", "decorator"):
         return detail.signature is not None or bool(detail.doc)
     if detail.kind == "module":
         return bool(detail.methods)
@@ -266,7 +266,7 @@ def test_the_hollow_verdict_still_bites_on_a_fabricated_fiche() -> None:
     """
     empty = SymbolDetail(
         name="fabrique", module="bretzel", exported_by=("bretzel",), also_known_as=(),
-        category="autre", kind="valeur", doc=None, signature=None, methods=(),
+        category="other", kind="value", doc=None, signature=None, methods=(),
         value_repr=None, algebra=(), state=None,
     )
     assert not _carries(empty), "une fiche vide de tout doit être creuse"

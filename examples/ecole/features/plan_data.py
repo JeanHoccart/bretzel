@@ -1,23 +1,22 @@
-"""features/plan_data — data : les salles, les places, les contraintes.
+"""features/plan_data — data: the rooms, the seats, the constraints.
 
-``kind="data"``. Elle porte les règles d'EF-G qui vivent dans la donnée,
-et deux d'entre elles sont des pièges MESURÉS de l'application d'origine.
+``kind="data"``. It carries the EF-G rules that live in the data, and two
+of them are MEASURED traps from the original application.
 
-**Piège n° 6 — une allée est un COULOIR, pas une case.** Le bouton
-« allée » ouvre le passage sur TOUTE la colonne, pas sur la seule place
-touchée (EF-G4). *« Un passage ouvert sur trois rangées et fermé sur
-deux ne ressemble à aucune salle réelle. »* Le stockage reste par place,
-le geste est par colonne, et c'est :func:`basculer_allee` qui tient la
-différence.
+**Trap no. 6 — an aisle is a CORRIDOR, not a cell.** The "aisle" button
+opens the passage on the WHOLE column, not on the one seat touched
+(EF-G4). *"A passage open on three rows and closed on two looks like no
+real room."* The storage stays per seat, the gesture is per column, and
+it is :func:`basculer_allee` that holds the difference.
 
-**Piège n° 7 — la largeur d'allée décrit la SALLE, pas le cycle.** Une
-seule valeur par salle (EF-G6). L'écrire en dur par cycle est ce qui
-avait été fait, et c'est faux : deux secondes n'ont pas le même mobilier.
+**Trap no. 7 — the aisle width describes the ROOM, not the cycle.** One
+value per room (EF-G6). Hard-coding it per cycle is what had been done,
+and it is wrong: two secondes do not have the same furniture.
 
-**EF-G10 — les contraintes sont attachées à la CLASSE, pas à la salle.**
-*« Les ressaisir par salle serait une corvée doublée d'un risque de
-divergence. »* Une classe reçue dans deux salles a donc deux plans et un
-seul jeu de contraintes.
+**EF-G10 — the constraints are attached to the CLASS, not to the room.**
+*"Re-entering them per room would be a chore doubled by a risk of
+divergence."* A class taught in two rooms therefore has two plans and one
+single set of constraints.
 """
 
 from __future__ import annotations
@@ -31,48 +30,48 @@ from examples.ecole.core.db import execute, query, scalar
 from examples.ecole.core.placement import rangees_du_gabarit
 from examples.ecole.features.annees import garde_ecriture
 
-#: Combien de versions on garde par salle (EF-G13).
+#: How many versions are kept per room (EF-G13).
 VERSIONS_GARDEES = 6
 
-#: Les bornes d'EF-G3 : douze rangées et douze places au plus.
+#: EF-G3's bounds: twelve rows and twelve seats at most.
 MAX_RANGEES = 12
 MAX_COLONNES = 12
 
-#: Le tracé proposé par « tracer la salle » (EF-G2).
+#: The outline proposed by "trace the room" (EF-G2).
 LARGEUR_ALLEE_DEFAUT = 60
 
 
 class PlanRev(AppState):
-    """Le jeton que les zones du plan surveillent.
+    """The token the plan's zones watch.
 
-    Même raison qu'``appreciations_data.FichesRev`` : une écriture en
-    base ne touche aucun état typé, donc rien ne se re-rend sans lui.
-    ``merge="add"`` pour qu'un dépôt et une répartition simultanés ne
-    perdent pas un incrément.
+    The same reason as ``appreciations_data.FichesRev``: a database write
+    touches no typed state, so nothing re-renders without it.
+    ``merge="add"`` so a simultaneous drop and distribution do not lose
+    an increment.
     """
 
     rev: int = field(default=0, merge="add")
 
 
 class ContraintesRev(AppState):
-    """Le jeton de la COLONNE de droite — séparations, devants, versions.
+    """The RIGHT COLUMN's token — separations, front seats, versions.
 
-    Un second jeton et pas une dépendance de plus sur :class:`PlanRev` :
-    ce sont deux surfaces qui ne bougent pas ensemble. Asseoir un élève
-    ne change ni une paire à séparer, ni la liste des versions ; cocher
-    « devant » ne déplace personne.
+    A second token and not one more dependency on :class:`PlanRev`: these
+    are two surfaces that do not move together. Seating a pupil changes
+    neither a pair to separate nor the list of versions; ticking "front"
+    moves nobody.
 
-    Mesuré le 2026-09-13 avant la coupe : vider une place renvoyait
-    **248 ko**, dont la colonne entière — trente boutons d'élèves, les
-    séparations, les versions — redessinée pour rien, à chaque geste de
-    glisser. ``merge="add"``, même raison que ci-dessus.
+    Measured on 2026-09-13 before the cut: emptying a seat sent back
+    **248 kB**, including the whole column — thirty pupil buttons, the
+    separations, the versions — redrawn for nothing, at every drag
+    gesture. ``merge="add"``, the same reason as above.
     """
 
     rev: int = field(default=0, merge="add")
 
 
 def salles_de(classe_id: int) -> list[dict]:
-    """Les salles d'une classe, dans l'ordre des onglets (EF-G11)."""
+    """A class's rooms, in tab order (EF-G11)."""
     return query(
         "SELECT id, nom, ordre, demi_groupe, fige FROM salles_plan "
         "WHERE classe_id = ? ORDER BY ordre, id", (classe_id,))
@@ -87,7 +86,7 @@ def salle(salle_id: int) -> dict | None:
 
 
 def places_de(salle_id: int) -> list[dict]:
-    """Les places d'une salle, avec l'élève assis s'il y en a un."""
+    """A room's seats, with the pupil sitting there if there is one."""
     return query(
         """
         SELECT p.id, p.rangee, p.colonne, p.eleve_id, p.nouvelle_table,
@@ -101,7 +100,8 @@ def places_de(salle_id: int) -> list[dict]:
 
 
 def contraintes_de(classe_id: int) -> dict:
-    """Les paires à séparer et les élèves à mettre devant (EF-G10)."""
+    """The pairs to separate and the pupils to put at the front
+    (EF-G10)."""
     return {
         "separations": [
             (r["eleve_a"], r["eleve_b"]) for r in query(
@@ -115,7 +115,7 @@ def contraintes_de(classe_id: int) -> dict:
 
 
 def separations_nommees(classe_id: int) -> list[dict]:
-    """Les paires à séparer, avec les noms — pour l'écran."""
+    """The pairs to separate, with the names — for the screen."""
     return query(
         """
         SELECT s.id, a.nom AS nom_a, a.prenom AS prenom_a,
@@ -136,19 +136,19 @@ def versions_de(salle_id: int) -> list[dict]:
 
 
 def gabarits() -> list[dict]:
-    """Les formes de salle réutilisables (EF-G15) — sans aucune classe."""
+    """The reusable room shapes (EF-G15) — with no class at all."""
     return query(
         "SELECT id, nom, rangees, allees, largeur_allee FROM gabarits_salle "
         "ORDER BY nom")
 
 
 def premiere_salle(classe_id: int, annee_id: int) -> int:
-    """La salle d'une classe, créée à la volée si elle n'en a pas (EF-G11).
+    """A class's room, created on the fly if it has none (EF-G11).
 
-    *« Une classe n'a pas de salle tant qu'on n'a pas ouvert son plan :
-    la première est créée à la volée. »* Sans ça, l'écran s'ouvrirait sur
-    un état vide qu'il faudrait « initialiser » — un geste de plus qui ne
-    répond à aucune question.
+    *"A class has no room until its plan has been opened: the first is
+    created on the fly."* Without that, the screen would open on an empty
+    state one would have to "initialise" — one more gesture answering no
+    question.
     """
     existantes = salles_de(classe_id)
     if existantes:
@@ -162,16 +162,16 @@ def premiere_salle(classe_id: int, annee_id: int) -> int:
     return salle_id
 
 
-# ── Les écritures ────────────────────────────────────────────────────
+# ── The writes ───────────────────────────────────────────────────────
 
 def tracer(salle_id: int, annee_id: int, longueurs: list[int],
            allees: list[int], largeur: int) -> None:
-    """EF-G2 — *« la salle se trace d'un seul geste »*.
+    """EF-G2 — *"the room is traced in a single gesture"*.
 
-    Efface et refait : c'est une remise à zéro assumée, et l'écran le dit
-    avant. Conserver les élèves assis en redessinant la salle donnerait
-    des places « à moitié » gardées, ce qui est plus dur à comprendre
-    qu'une grille vide.
+    Erases and redoes: it is an accepted reset, and the screen says so
+    beforehand. Keeping the seated pupils while redrawing the room would
+    give "half" kept seats, which is harder to understand than an empty
+    grid.
     """
     garde_ecriture(annee_id)
     longueurs = [min(n, MAX_COLONNES) for n in longueurs[:MAX_RANGEES]]
@@ -187,11 +187,11 @@ def tracer(salle_id: int, annee_id: int, longueurs: list[int],
 
 def allonger(salle_id: int, annee_id: int, rangee: int,
              delta: int) -> str | None:
-    """Le ``−`` et le ``+`` d'EF-G3. Rend un refus, ou ``None``.
+    """EF-G3's ``−`` and ``+``. Returns a refusal, or ``None``.
 
-    *« Une place occupée refuse de partir. »* Le refus est rendu en
-    PHRASE et pas en booléen : l'écran doit dire pourquoi, sinon le
-    bouton a l'air cassé.
+    *"An occupied seat refuses to go."* The refusal is returned as a
+    SENTENCE and not a boolean: the screen must say why, otherwise the
+    button looks broken.
     """
     garde_ecriture(annee_id)
     places = [p for p in places_de(salle_id) if p["rangee"] == rangee]
@@ -219,14 +219,14 @@ def allonger(salle_id: int, annee_id: int, rangee: int,
 
 def basculer_allee(salle_id: int, annee_id: int, colonne: int,
                    largeur: int) -> str | None:
-    """EF-G4 — le passage s'ouvre sur TOUTE la colonne, pas sur une place.
+    """EF-G4 — the passage opens on the WHOLE column, not on one seat.
 
-    C'est le piège n° 6, et il tient en une clause ``WHERE`` : ``colonne
-    = ?`` et pas ``id = ?``. *« Seules bougent les rangées où la colonne
-    visée existe »* — ce qui est vrai sans rien faire, puisque les autres
-    n'ont pas de ligne pour cette colonne.
+    It is trap no. 6, and it fits in a ``WHERE`` clause: ``colonne = ?``
+    and not ``id = ?``. *"Only the rows where the column aimed at exists
+    move"* — which is true without doing anything, since the others have
+    no row for that column.
 
-    EF-G5 : une allée devant la PREMIÈRE place est refusée.
+    EF-G5: an aisle in front of the FIRST seat is refused.
     """
     garde_ecriture(annee_id)
     if colonne <= 1:
@@ -243,7 +243,7 @@ def basculer_allee(salle_id: int, annee_id: int, colonne: int,
 
 
 def regler_largeur(salle_id: int, annee_id: int, largeur: int) -> None:
-    """EF-G6 — **une salle a un passage, pas dix largeurs.**"""
+    """EF-G6 — **a room has one passage, not ten widths.**"""
     garde_ecriture(annee_id)
     execute(
         "UPDATE places SET allee_avant = ? WHERE salle_id = ? "
@@ -253,12 +253,12 @@ def regler_largeur(salle_id: int, annee_id: int, largeur: int) -> None:
 
 def asseoir(salle_id: int, annee_id: int, place_id: int,
             eleve_id: int | None) -> None:
-    """Pose un élève sur une place — et l'ÉCHANGE si elle est prise.
+    """Put a pupil on a seat — and SWAP if it is taken.
 
-    EF-G8 demande quatre gestes (glisser, vider, tout vider, échanger) ;
-    trois d'entre eux sont ce même appel. L'échange n'est pas un cas
-    particulier : un élève lâché sur une place occupée doit aller
-    quelque part, et l'endroit d'où il vient est le seul qui soit libre.
+    EF-G8 asks for four gestures (drag, empty, empty all, swap); three of
+    them are this same call. The swap is not a special case: a pupil
+    dropped on an occupied seat has to go somewhere, and the place they
+    came from is the only free one.
     """
     garde_ecriture(annee_id)
     if eleve_id is None:
@@ -287,7 +287,7 @@ def tout_vider(salle_id: int, annee_id: int) -> None:
 
 def appliquer(salle_id: int, annee_id: int,
               assises: dict[int, int]) -> None:
-    """Écrit une répartition entière."""
+    """Write a whole distribution."""
     garde_ecriture(annee_id)
     execute("UPDATE places SET eleve_id = NULL WHERE salle_id = ?",
             (salle_id,))
@@ -298,12 +298,13 @@ def appliquer(salle_id: int, annee_id: int,
 
 
 def figer(salle_id: int, annee_id: int, fige: bool) -> None:
-    """EF-G14 — **le plan se fige, et l'état est RETENU**.
+    """EF-G14 — **the plan freezes, and the state is KEPT**.
 
-    *« Sur tablette, la main qui tient l'appareil effleure l'écran et
-    déplace un élève sans que rien ne le signale — on s'en aperçoit au
-    cours suivant, devant un plan faux. »* L'état vit en base et pas dans
-    une session : *« on fige une fois pour l'année, pas à chaque heure »*.
+    *"On a tablet, the hand holding the device brushes the screen and
+    moves a pupil with nothing to flag it — one notices at the next
+    lesson, in front of a false plan."* The state lives in the database
+    and not in a session: *"one freezes once for the year, not every
+    hour"*.
     """
     garde_ecriture(annee_id)
     execute("UPDATE salles_plan SET fige = ? WHERE id = ?",
@@ -313,7 +314,7 @@ def figer(salle_id: int, annee_id: int, fige: bool) -> None:
 
 def ajouter_salle(classe_id: int, annee_id: int, nom: str,
                   demi_groupe: int | None) -> int:
-    """Une seconde salle pour la même classe (EF-G11)."""
+    """A second room for the same class (EF-G11)."""
     garde_ecriture(annee_id)
     ordre = (scalar("SELECT COALESCE(MAX(ordre), -1) FROM salles_plan "
                     "WHERE classe_id = ?", (classe_id,)) or 0) + 1
@@ -327,12 +328,11 @@ def ajouter_salle(classe_id: int, annee_id: int, nom: str,
 
 
 def supprimer_salle(salle_id: int, annee_id: int) -> str | None:
-    """EF-G11 — **la DERNIÈRE salle ne se supprime pas.**
+    """EF-G11 — **the LAST room cannot be deleted.**
 
-    *« "Effacer la grille" existe déjà pour repartir de zéro. »* Une
-    classe sans aucune salle rouvrirait son plan sur une création à la
-    volée, donc la suppression n'aurait rien supprimé — juste perdu les
-    places.
+    *""Erase the grid" already exists to start over."* A class with no
+    room at all would reopen its plan on an on-the-fly creation, so the
+    deletion would have deleted nothing — just lost the seats.
     """
     garde_ecriture(annee_id)
     donnees = salle(salle_id)
@@ -349,7 +349,7 @@ def supprimer_salle(salle_id: int, annee_id: int) -> str | None:
 
 
 def figer_version(salle_id: int, annee_id: int, nom: str) -> None:
-    """EF-G13 — on fige un plan, six sont gardées par salle."""
+    """EF-G13 — one freezes a plan, six are kept per room."""
     garde_ecriture(annee_id)
     photo = [
         {"rangee": p["rangee"], "colonne": p["colonne"],
@@ -410,8 +410,8 @@ def retirer_separation(separation_id: int, annee_id: int) -> None:
 
 
 def basculer_devant(classe_id: int, annee_id: int, eleve_id: int) -> None:
-    """Le CHOIX MANUEL d'EF-G9 — qui se cumule avec l'aménagement et la
-    vue fragile, il ne les remplace pas."""
+    """EF-G9's MANUAL CHOICE — which adds up with the accommodation and
+    the fragile eyesight, it does not replace them."""
     garde_ecriture(annee_id)
     deja = query(
         "SELECT id FROM devants WHERE classe_id = ? AND eleve_id = ?",
@@ -426,13 +426,13 @@ def basculer_devant(classe_id: int, annee_id: int, eleve_id: int) -> None:
 
 def regler_demi_groupe(eleve_id: int, annee_id: int, classe_id: int,
                        groupe: int | None) -> None:
-    """EF-G17 — répartir la classe en deux demi-groupes de TP."""
+    """EF-G17 — split the class into two practical half-groups."""
     garde_ecriture(annee_id)
     execute(
         "UPDATE inscriptions SET demi_groupe = ? WHERE eleve_id = ? "
         "AND classe_id = ? AND fin IS NULL", (groupe, eleve_id, classe_id))
-    # Les DEUX : le demi-groupe change qui la salle assied *et* qui la
-    # colonne des contraintes propose de mettre devant.
+    # BOTH: the half-group changes who the room seats *and* who the
+    # constraints column offers to put at the front.
     PlanRev().rev += 1
     ContraintesRev().rev += 1
 

@@ -28,97 +28,95 @@ from bretzel.runtime.protocol import (
 def _resolve_broadcast(
     broadcast: Sequence[type], zone: str
 ) -> tuple[type, ...]:
-    """``broadcast=`` → les états sur lesquels la zone écoute le SSE.
+    """``broadcast=`` → the states the zone listens to over SSE.
 
-    **Orthogonal à ``deps``**, et c'est tout le modèle :
+    **Orthogonal to ``deps``**, and that is the whole model:
 
     ==============  ====================================================
-    qui change      où on l'écrit
+    who changes     where you write it
     ==============  ====================================================
-    **moi**         ``deps`` — la zone est re-rendue DANS la réponse de
-                    l'action. Un aller-retour, un swap.
-    **les autres**  ``broadcast`` — un signal SSE, puis un refetch. Deux
-                    allers-retours, mais l'onglet qui n'a rien fait suit.
-    **les deux**    les deux listes. Ce n'est pas une redondance : ça dit
-                    « instantané pour moi, poussé aux autres ».
+    **me**          ``deps`` — the zone is re-rendered IN the action's
+                    response. One round trip, one swap.
+    **the others**  ``broadcast`` — an SSE signal, then a refetch. Two
+                    round trips, but the tab that did nothing follows.
+    **both**        both lists. That is not redundancy: it says
+                    "instant for me, pushed to the others".
     ==============  ====================================================
 
-    Un ``broadcast=[X]`` SEUL est donc légitime — le cas « cet état, je
-    ne le change jamais moi-même » (un job de fond, un autre utilisateur).
-    Il n'y a aucune règle d'inclusion : les deux listes ne se recouvrent
-    que si l'auteur le veut.
+    A ``broadcast=[X]`` on its OWN is therefore legitimate — the "I never
+    change this state myself" case (a background job, another user).
+    There is no inclusion rule: the two lists only overlap if the author
+    wants them to.
 
-    Les booléens sont refusés : déduire les états diffusés de ``deps``
-    couplerait les deux listes. L'appelant nomme explicitement les états
-    qu'il veut observer chez les autres clients.
+    Booleans are refused: deriving the broadcast states from ``deps``
+    would couple the two lists. The caller explicitly names the states it
+    wants to observe on other clients.
     """
     if broadcast is True or broadcast is False:
         raise TypeError(
-            f"@refreshable({zone}) : broadcast= prend une LISTE d'états, "
-            f"plus un booléen (supprimé le 2026-08-23). `deps` dit ce qui "
-            f"me re-rend dans la réponse de MON action, `broadcast` ce sur "
-            f"quoi j'écoute les AUTRES clients — ce sont deux questions. "
-            f"Écris `broadcast=[MonEtat]`, et garde-le aussi dans `deps` "
-            f"si c'est ta propre action qui le change (sinon tu paies un "
-            f"aller-retour de plus pour l'onglet qui a cliqué)."
+            f"@refreshable({zone}): broadcast= takes a LIST of states, "
+            f"no longer a boolean (removed on 2026-08-23). `deps` says "
+            f"what re-renders me in MY action's response, `broadcast` what "
+            f"I listen to from OTHER clients — those are two questions. "
+            f"Write `broadcast=[MyState]`, and keep it in `deps` too if "
+            f"your own action is what changes it (otherwise you pay one "
+            f"more round trip for the tab that clicked)."
         )
     return tuple(broadcast)
 
 
-#: Les deux formes variadiques. Elles ne sont PAS refusées : rien dans
-#: une signature ne dit ce qu'un ``**kwargs`` porte, donc les refuser
-#: reviendrait à juger sur le nom. Un banc du dépôt s'en sert
-#: (``tests/unit/components/data/test_datatable.py``) pour bâtir une vraie
-#: zone autour d'un composant paramétré.
+#: The two variadic forms. They are NOT refused: nothing in a signature
+#: says what a ``**kwargs`` carries, so refusing them would amount to
+#: judging by the name. One bench in the repository uses them
+#: (``tests/unit/components/data/test_datatable.py``) to build a real
+#: zone around a parameterised component.
 _VARIADIC = (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
 
 
 def _reject_parameters(fn: Callable[..., Any], zone: str) -> None:
-    """Une zone ne prend pas de paramètre — refusé à la DÉCORATION.
+    """A zone takes no parameter — refused at DECORATION time.
 
-    Le chemin de rafraîchissement appelle la poignée **nue**
-    (``render/partials.py``, ``handle()``), alors que le rendu de page,
-    lui, passe par ``__call__(*args, **kwargs)``. Les deux chemins ne
-    voient donc pas la même signature, et la divergence est invisible :
+    The refresh path calls the handle **bare**
+    (``render/partials.py``, ``handle()``), whereas the page render goes
+    through ``__call__(*args, **kwargs)``. The two paths therefore do not
+    see the same signature, and the divergence is invisible:
 
     ``def zone(x)``
-        La page s'affiche parfaitement. Puis la première action qui
-        touche un ``deps`` lève ``TypeError`` — **un 500 sur le
-        re-rendu, pas sur la page**, donc à l'endroit où on ne le
-        cherche pas. C'est le cas qui a motivé ce refus (2026-09-04).
+        The page renders perfectly. Then the first action touching a
+        ``deps`` raises ``TypeError`` — **a 500 on the re-render, not on
+        the page**, so in the place nobody looks. That is the case that
+        motivated this refusal (2026-09-04).
 
     ``def zone(x=0)``
-        Pire, parce que muet : la page rend ``zone(3)``, et chaque
-        rafraîchissement rend ``zone(0)``. Rien ne lève, l'écran change
-        de contenu tout seul. Refusé pour la même raison, et c'est la
-        moitié que l'énoncé d'origine ratait.
+        Worse, because mute: the page renders ``zone(3)``, and every
+        refresh renders ``zone(0)``. Nothing raises, the screen changes
+        content by itself. Refused for the same reason, and that is the
+        half the original statement missed.
 
-    Le fond : une zone est re-rendue **hors de son appelant**, donc tout
-    ce dont elle a besoin doit être joignable depuis elle — c'est-à-dire
-    un état. Un paramètre est une donnée que le rafraîchissement ne peut
-    pas retrouver. Deux pages qui appelleraient la même zone avec deux
-    arguments partageraient de toute façon un ``id`` et un ``name``
-    uniques : le modèle n'a nulle part où ranger la différence.
+    The root of it: a zone is re-rendered **outside its caller**, so
+    everything it needs must be reachable from it — that is to say, a
+    state. A parameter is data the refresh cannot find again. Two pages
+    calling the same zone with two arguments would share a unique ``id``
+    and ``name`` anyway: the model has nowhere to put the difference.
 
-    Remède : lire l'état dans le corps, ou garder une fonction ordinaire
-    (paramétrable) que la zone appelle.
+    Remedy: read the state in the body, or keep an ordinary
+    (parameterisable) function that the zone calls.
     """
-    fautifs = [
+    offenders = [
         p.name
         for p in inspect.signature(fn).parameters.values()
         if p.kind not in _VARIADIC
     ]
-    if not fautifs:
+    if not offenders:
         return
     raise TypeError(
-        f"@refreshable({zone}) : une zone ne prend pas de paramètre, et "
-        f"celle-ci en déclare {', '.join(fautifs)}. Le rafraîchissement "
-        f"l'appelle SANS argument — un paramètre obligatoire lève un 500 "
-        f"à la première action qui touche un `deps` (jamais au "
-        f"chargement de la page), un paramètre à valeur par défaut ne "
-        f"lève rien et re-rend simplement autre chose. Lis un état dans "
-        f"le corps de la zone, ou garde une fonction ordinaire "
-        f"paramétrable que la zone appelle."
+        f"@refreshable({zone}): a zone takes no parameter, and this one "
+        f"declares {', '.join(offenders)}. The refresh calls it WITHOUT "
+        f"arguments — a required parameter raises a 500 on the first "
+        f"action touching a `deps` (never on page load), a parameter with "
+        f"a default raises nothing and simply re-renders something else. "
+        f"Read a state in the zone's body, or keep an ordinary "
+        f"parameterisable function that the zone calls."
     )
 
 
@@ -139,12 +137,12 @@ _ZONE_BY_NAME: dict[str, RefreshableHandle] = {}
 # change (see :func:`enqueue_deps`).
 _ZONES_BY_DEP: dict[type, list[RefreshableHandle]] = {}
 
-#: ``État → zones qui l'écoutent sur le SSE``. Un index SÉPARÉ de
-#: ``_ZONES_BY_DEP``, et pas un filtre dessus : les deux listes sont
-#: orthogonales depuis le 2026-08-23, donc une zone peut être ici
-#: sans être là-bas (« cet état, je ne le change jamais moi-même »).
-#: Les fusionner rendrait le re-rendu LOCAL sensible à un canal, ce
-#: qui est exactement la confusion qu'on vient de défaire.
+#: ``State → zones listening to it over SSE``. An index SEPARATE from
+#: ``_ZONES_BY_DEP``, and not a filter on it: the two lists have been
+#: orthogonal since 2026-08-23, so a zone can be here without being
+#: there ("I never change this state myself"). Merging them would make
+#: the LOCAL re-render sensitive to a channel, which is exactly the
+#: confusion we have just undone.
 _ZONES_BY_CHANNEL: dict[type, list[RefreshableHandle]] = {}
 
 
@@ -154,27 +152,26 @@ def zone_attrs(
     subscribe_state_qualname: str | None = None,
     subscribe_url: str | None = None,
 ) -> dict[str, str]:
-    """Les attributs qu'une zone pose EN PLUS de son ``bz-id``.
+    """The attributes a zone sets IN ADDITION to its ``bz-id``.
 
-    Au niveau module et non sur la section, parce que **trois** chemins
-    en ont besoin : le rendu (``_RefreshableSection.render``), la
-    recomposition par un parent (``_rewrap``), et le fragment de secours
-    d'une zone qui a levé (``render/partials._zone_failure_fragment``).
+    At module level and not on the section, because **three** paths need
+    them: the render (``_RefreshableSection.render``), recomposition by a
+    parent (``_rewrap``), and the fallback fragment of a zone that raised
+    (``render/partials._zone_failure_fragment``).
 
-    Le troisième a été écrit à la main pendant une journée, et ça a coûté
-    exactement ce que cette fonction existe pour empêcher : il omettait
-    ``DATA_ZONE``, donc après une erreur la zone sortait de
-    l'énumération du navigateur, donc l'en-tête ``X-Bretzel-Zones`` ne la
-    portait plus, donc ``enqueue_deps`` la filtrait — **elle ne se
-    rafraîchissait plus jamais** jusqu'au rechargement complet, sans un
-    mot. Deux gates la couvraient, chacune de son côté ; aucune ne
-    voyait le croisement.
+    The third was hand-written for a day, and it cost exactly what this
+    function exists to prevent: it omitted ``DATA_ZONE``, so after an
+    error the zone dropped out of the browser's enumeration, so the
+    ``X-Bretzel-Zones`` header no longer carried it, so ``enqueue_deps``
+    filtered it out — **it never refreshed again** until a full reload,
+    without a word. Two gates covered it, each on its own side; neither
+    saw the crossing.
 
-    ``DATA_ZONE`` est VIDE : l'identifiant est déjà sur le même élément
-    en ``bz-id``. Le marqueur dit « je suis une zone », ``bz-id`` dit
-    laquelle. Un attribut dédié plutôt qu'un préfixe d'``id`` deviné en
-    JS — ``refresh_`` est une convention de ``_stable_id``, et la
-    recopier côté client ferait un miroir qui dérive.
+    ``DATA_ZONE`` is EMPTY: the identifier is already on the same element
+    as ``bz-id``. The marker says "I am a zone", ``bz-id`` says which
+    one. A dedicated attribute rather than an ``id`` prefix guessed in JS
+    — ``refresh_`` is a ``_stable_id`` convention, and copying it
+    client-side would make a mirror that drifts.
     """
     attrs = {DATA_ZONE: ""}
     if subscribe_state_qualname and subscribe_url:
@@ -233,10 +230,10 @@ def _section_cls() -> type:
         THEME_KEY: ClassVar[str] = "_refreshable"
         DEFAULT_TAG: ClassVar[str] = "div"
         IS_CONTAINER: ClassVar[bool] = True
-        #: « Je ne suis pas là. » Un parent qui trie ses enfants SELON
-        #: LEUR TYPE doit me traverser pour trouver ce que je porte, puis
-        #: me rendre mon ``bz-id`` sur le nœud qu'il a composé — sinon
-        #: l'onglet est correct et ne se rafraîchit plus jamais. Cf.
+        #: "I am not here." A parent sorting its children BY THEIR TYPE
+        #: must see through me to find what I carry, then give me back my
+        #: ``bz-id`` on the node it composed — otherwise the tab is
+        #: correct and never refreshes again. Cf.
         #: ``base/_wiring.unwrap_transparent``.
         IS_TRANSPARENT_WRAPPER: ClassVar[bool] = True
 
@@ -257,20 +254,20 @@ def _section_cls() -> type:
             self._subscribe_url = subscribe_url
 
         def _rewrap(self, node: Any) -> Any:
-            """Reposer l'identité de la zone sur un nœud composé AILLEURS.
+            """Set the zone's identity back on a node composed ELSEWHERE.
 
-            Le parent (``ui.tabs`` et compagnie) a besoin de l'enfant nu
-            pour le composer à sa façon ; la zone a besoin que son
-            ``bz-id`` soit sur le résultat. Les deux passent par le même
-            ``fuse_or_wrap`` que ``render``, donc la forme est identique
-            — une seule règle wrap-ou-fusionne dans le dépôt.
+            The parent (``ui.tabs`` and company) needs the bare child to
+            compose it its own way; the zone needs its ``bz-id`` to be on
+            the result. Both go through the same ``fuse_or_wrap`` as
+            ``render``, so the shape is identical — one single
+            wrap-or-fuse rule in the repository.
             """
             return fuse_or_wrap([node], bz_id=self._refresh_id,
                                 extra_attrs=self._zone_attrs())
 
         def _zone_attrs(self) -> dict[str, str]:
-            """Délègue à :func:`zone_attrs` — la source unique des trois
-            chemins (rendu, recomposition, fragment de secours)."""
+            """Delegates to :func:`zone_attrs` — the single source for
+            the three paths (render, recomposition, fallback fragment)."""
             return zone_attrs(
                 self._refresh_id,
                 subscribe_state_qualname=self._subscribe_state_qualname,
@@ -291,25 +288,25 @@ def _section_cls() -> type:
 
 
 async def drain_pending_async_zones(ctx: Any) -> None:
-    """Attendre le corps des zones ``async`` posées pendant ce rendu.
+    """Await the bodies of the ``async`` zones set down during this render.
 
-    Appelée par les DEUX chemins de rendu — la page complète
-    (``render/pipeline.py``) et le fragment (``render/partials.py``) —
-    parce qu'une zone se rend par les deux, et qu'une file drainée d'un
-    seul côté redonnerait la zone vide sur l'autre.
+    Called by BOTH render paths — the full page
+    (``render/pipeline.py``) and the fragment (``render/partials.py``) —
+    because a zone renders through both, and a queue drained on one side
+    only would give the zone back empty on the other.
 
-    Trois propriétés, et chacune répare une façon de se tromper :
+    Three properties, and each repairs one way of getting it wrong:
 
-    - **en boucle**, pas en une passe : une zone async peut en appeler
-      une autre, qui s'ajoute à la file pendant qu'on attend la première ;
-    - **en SÉRIE**, pas en ``gather`` : les corps partagent
-      ``ctx.parent_stack``, donc deux corps concurrents enregistreraient
-      leurs enfants l'un chez l'autre. La concurrence se prend DANS un
-      corps (un ``asyncio.gather`` sur ses requêtes), là où elle ne
-      traverse pas la pile ;
-    - **sous ``with section``** : la section a été posée dans l'arbre à
-      l'appel, mais la pile a continué à vivre depuis. La repousser est
-      ce qui fait atterrir les enfants dans LA zone et pas à la racine.
+    - **in a loop**, not in one pass: an async zone can call another,
+      which is added to the queue while we await the first;
+    - **in SERIES**, not in a ``gather``: the bodies share
+      ``ctx.parent_stack``, so two concurrent bodies would register their
+      children with each other. Concurrency is taken INSIDE a body (an
+      ``asyncio.gather`` over its requests), where it does not cross the
+      stack;
+    - **under ``with section``**: the section was set down in the tree at
+      call time, but the stack has kept living since. Pushing it back is
+      what makes the children land in THE zone and not at the root.
     """
     while ctx.pending_async_zones:
         section, coro = ctx.pending_async_zones.pop(0)
@@ -359,41 +356,39 @@ class RefreshableHandle:
     ) -> None:
         self.fn = fn
         self.id = id
-        # Avant tout le reste : une signature paramétrée ne survit pas au
-        # rafraîchissement, qui appelle nu. Ici plutôt que dans ``_wrap``
-        # pour que ce soit STRUCTUREL — aucune poignée ne peut exister
-        # autour d'une fonction paramétrée, quel que soit le chemin de
-        # construction.
+        # Before anything else: a parameterised signature does not
+        # survive the refresh, which calls bare. Here rather than in
+        # ``_wrap`` so that it is STRUCTURAL — no handle can exist around
+        # a parameterised function, whatever the construction path.
         _reject_parameters(fn, f"{fn.__module__}.{fn.__qualname__}")
-        # Lu UNE fois à la décoration : ``iscoroutinefunction`` déballe
-        # les ``functools.wraps``/``partial`` et coûte une introspection
-        # qu'on ne veut pas payer à chaque rendu de zone.
+        # Read ONCE at decoration time: ``iscoroutinefunction`` unwraps
+        # ``functools.wraps``/``partial`` and costs an introspection we
+        # do not want to pay on every zone render.
         self.is_async: bool = inspect.iscoroutinefunction(fn)
         # Wire identifier for the zone function — ``module::qualname``,
         # same scheme as action handlers. Used by the realtime route
         # to resolve the fn back through ``sys.modules`` and re-render.
         self.zone_qualname = f"{fn.__module__}{WIRE_ID_SEP}{fn.__qualname__}"
         # ── Declarative reactivity (target model) ──────────────────────
-        # ``deps`` : the State classes this zone reads. A change to ANY of
+        # ``deps``: the State classes this zone reads. A change to ANY of
         # them re-renders the zone (wired in the action pipeline, Phase 3).
-        # ``broadcast`` : pousse AUSSI le changement aux autres clients
-        # par SSE.
-        # ``name`` : stable string address for ``refresh("name")`` ;
+        # ``broadcast``: ALSO pushes the change to other clients over SSE.
+        # ``name``: stable string address for ``refresh("name")``;
         # defaults to the module-qualified zone name.
         self.deps: tuple[type, ...] = tuple(deps)
-        #: **Les états sur lesquels cette zone écoute le SSE.**
-        #: Orthogonal à ``deps`` : les deux listes ne se recouvrent que si
-        #: l'auteur le veut. Vide = zone purement locale.
+        #: **The states this zone listens to over SSE.** Orthogonal to
+        #: ``deps``: the two lists only overlap if the author wants them
+        #: to. Empty = a purely local zone.
         #:
-        #: Jusqu'au 2026-08-23, ``broadcast`` était un booléen et
-        #: ``deps`` servait DEUX rôles dans le même mot : « ce qui me
-        #: re-rend » et « ce sur quoi je diffuse ». Conséquence, mesurée
-        #: sur `examples/crm` : une zone temps réel ne pouvait pas
-        #: déclarer une dépendance PERSONNELLE — y mettre la préférence
-        #: de portefeuille de la direction aurait fait refetcher le monde
-        #: entier dès qu'un seul utilisateur change SON réglage. L'écran
-        #: temps réel ne suivait donc pas le changement de portefeuille,
-        #: faute de pouvoir l'écrire.
+        #: Until 2026-08-23, ``broadcast`` was a boolean and ``deps``
+        #: served TWO roles in the same word: "what re-renders me" and
+        #: "what I broadcast on". Consequence, measured on
+        #: `examples/crm`: a real-time zone could not declare a PERSONAL
+        #: dependency — putting management's portfolio preference in it
+        #: would have made the whole world refetch as soon as a single
+        #: user changed THEIR setting. The real-time screen therefore did
+        #: not follow the portfolio change, for want of being able to
+        #: write it.
         self.broadcast: tuple[type, ...] = _resolve_broadcast(
             broadcast, self.zone_qualname
         )
@@ -407,10 +402,10 @@ class RefreshableHandle:
     def _broadcast_qualnames(self) -> list[str]:
         """Wire qualnames of the states this zone broadcasts on.
 
-        Vide pour une zone locale. Sinon, exactement les états déclarés
-        dans ``broadcast`` — qui peut être un sous-ensemble strict de
-        ``deps``. Calculé à la demande (les deps sont peu nombreux),
-        donc la poignée ne garde aucun cache dérivé à tenir à jour.
+        Empty for a local zone. Otherwise exactly the states declared in
+        ``broadcast`` — which may be a strict subset of ``deps``.
+        Computed on demand (deps are few), so the handle keeps no derived
+        cache to maintain.
         """
         return [state_qualname(dep) for dep in self.broadcast]
 
@@ -460,19 +455,19 @@ class RefreshableHandle:
             subscribe_state_qualname=subscribe_state_attr,
             subscribe_url=subscribe_url,
         )
-        # ── Corps ASYNC : la section est posée, le corps est différé ──
+        # ── ASYNC body: the section is set down, the body is deferred ──
         #
-        # La zone garde sa convention d'appel — ``zone()``, jamais
-        # ``await zone()``. Un ``await`` à écrire serait un ``await`` à
-        # OUBLIER, et l'oublier redonnerait exactement la panne que ce
-        # chemin répare : une coroutine jamais attendue, donc une zone
-        # VIDE, sans erreur (finding [1], 2026-08-21).
+        # The zone keeps its calling convention — ``zone()``, never
+        # ``await zone()``. An ``await`` to write would be an ``await`` to
+        # FORGET, and forgetting it would give back exactly the failure
+        # this path repairs: a coroutine never awaited, hence an EMPTY
+        # zone, with no error (finding [1], 2026-08-21).
         #
-        # La section entre dans l'arbre MAINTENANT parce que la place de
-        # la zone dans la page se décide ici — à l'endroit de l'appel — et
-        # pas quand sa donnée arrive. Le pipeline attendra le corps
-        # ensuite, en repoussant cette section-là sur ``parent_stack``,
-        # donc les enfants atterrissent au bon endroit.
+        # The section enters the tree NOW because the zone's place in the
+        # page is decided here — at the call site — and not when its data
+        # arrives. The pipeline will await the body afterwards, pushing
+        # that section back onto ``parent_stack``, so the children land
+        # in the right place.
         if self.is_async:
             ctx.pending_async_zones.append(
                 (section, self.fn(*args, **kwargs))
@@ -486,12 +481,12 @@ class RefreshableHandle:
 
     @staticmethod
     def _attach_direct_return(section: Any, result: Any) -> None:
-        """Rattacher une valeur RENDUE directement par le corps.
+        """Attach a value RENDERED directly by the body.
 
-        L'idiome de banc où ``fn`` retourne un ``ui.text(...).render()``
-        au lieu de s'enregistrer via ``parent_stack``. Sans cette
-        branche, le chemin partiel — qui passe par ``__call__`` — le
-        laisserait tomber.
+        The bench idiom where ``fn`` returns a ``ui.text(...).render()``
+        instead of registering through ``parent_stack``. Without this
+        branch, the partial path — which goes through ``__call__`` —
+        would drop it.
         """
         if result is not None and (
             hasattr(result, "tag") or hasattr(result, "render")
@@ -538,35 +533,34 @@ def enqueue_deps(ctx: Any, changed_classes: set[type]) -> None:
     :meth:`~bretzel.state.registry.StateRegistry.diff_and_notify`. Dedup is
     by handle identity (a zone hit by several changed deps enqueues once) —
     the same ``if self not in queue`` guard an explicit refresh uses. This is
-    the LOCAL auto-refresh ; the cross-client broadcast for ``broadcast=[State]``
+    the LOCAL auto-refresh; the cross-client broadcast for ``broadcast=[State]``
     zones is wired separately (Phase 5).
 
-    **On n'enfile que ce que le navigateur a sous les yeux.**
-    ``_ZONES_BY_DEP`` est indexé par CLASSE d'état, pas par page : une
-    classe partagée par plusieurs écrans traîne toutes leurs zones, et
-    sans filtre le serveur rendait celles des autres pages pour rien —
-    le navigateur les jetait faute de cible, sans une erreur nulle part.
-    Mesuré le 2026-09-05 sur ``examples/mad`` : une action depuis
-    ``/patients`` rendait aussi la zone du tableau de bord, **8,4 ms**
-    contre 9,6 ms pour la zone utile. Sur ``examples/crm``,
-    ``ViewerPrefs`` traîne 14 zones sur 8 modules pour 4 au plus par
-    page.
+    **Only what the browser has in front of it is enqueued.**
+    ``_ZONES_BY_DEP`` is indexed by state CLASS, not by page: a class
+    shared by several screens drags all their zones, and without a filter
+    the server rendered the other pages' zones for nothing — the browser
+    threw them away for want of a target, with no error anywhere.
+    Measured on 2026-09-05 on ``examples/mad``: an action from
+    ``/patients`` also rendered the dashboard's zone, **8.4 ms** against
+    9.6 ms for the useful one. On ``examples/crm``, ``ViewerPrefs`` drags
+    14 zones across 8 modules for 4 at most per page.
 
-    ⚠️ ``ctx.live_zones is None`` veut dire « le client ne l'a pas dit »
-    et **ne filtre rien** — pas « aucune zone ». Un runtime en cache, un
-    client tiers ou un test qui POSTe à la main retombent donc sur
-    l'ancien comportement. Confondre les deux ferait taire toutes les
-    zones du premier client qui ne parle pas la dernière version du
-    protocole, et le symptôme serait une page qui cesse de se mettre à
-    jour sans que rien ne lève.
+    ⚠️ ``ctx.live_zones is None`` means "the client did not say" and
+    **filters nothing** — not "no zone". A cached runtime, a third-party
+    client or a test POSTing by hand therefore falls back on the old
+    behaviour. Confusing the two would silence every zone of the first
+    client that does not speak the latest version of the protocol, and
+    the symptom would be a page that stops updating without anything
+    raising.
     """
     if not changed_classes:
         return
-    vivantes = ctx.live_zones
+    live = ctx.live_zones
     queue = ctx.refresh_queue
     for cls in changed_classes:
         for zone in _ZONES_BY_DEP.get(cls, ()):
-            if vivantes is not None and zone.id not in vivantes:
+            if live is not None and zone.id not in live:
                 continue
             if zone not in queue:
                 queue.append(zone)
@@ -577,30 +571,30 @@ def _publish_broadcast(ctx: Any, qualnames: Iterable[str]) -> None:
     subscribed connection (tab). No-op when no broker is wired (test rigs
     bypassing the lifecycle).
 
-    ⚠️ **L'onglet qui vient d'écrire est EXCLU** depuis le 2026-09-09.
-    Il a déjà reçu ses zones dans la réponse de son action ; sa
-    re-lecture renvoyait donc exactement ce qu'il affichait — un
-    aller-retour PAR ZONE, pour un rendu identique qu'idiomorph diffait
-    en no-op. Mesuré sur ``examples/kanban`` : cocher une sous-tâche
-    coûtait **cinq requêtes et 354 Ko**, dont 177 Ko de re-lectures.
+    ⚠️ **The tab that has just written is EXCLUDED** since 2026-09-09. It
+    already received its zones in its action's response; its re-read
+    therefore returned exactly what it was displaying — one round trip
+    PER ZONE, for an identical render that idiomorph diffed to a no-op.
+    Measured on ``examples/kanban``: ticking a subtask cost **five
+    requests and 354 KB**, of which 177 KB were re-reads.
 
-    Cette ligne a longtemps dit que l'exclusion « needs a per-tab id
-    threaded through the action ; that optimization is deferred ». C'est
-    exactement ce qui a été fait : le navigateur tire une identité par
-    chargement de page, la porte dans l'URL du flux et dans un en-tête
-    sur chaque action, et le broker saute cette connexion-là.
+    This line long said the exclusion "needs a per-tab id threaded
+    through the action; that optimization is deferred". That is exactly
+    what was done: the browser draws an identity per page load, carries
+    it in the stream's URL and in a header on every action, and the
+    broker skips that connection.
 
-    On exclut l'ONGLET, pas la session — deux onglets de la même personne
-    doivent continuer à se voir. Un client muet (runtime plus ancien,
-    appel hors navigateur) retombe sur l'ancien comportement : il
-    reçoit sa propre diffusion, ce qui est correct, juste plus cher.
+    We exclude the TAB, not the session — two tabs of the same person
+    must keep seeing each other. A mute client (an older runtime, a call
+    outside a browser) falls back on the old behaviour: it receives its
+    own broadcast, which is correct, just more expensive.
     """
     broker = getattr(ctx.app, "sse_broker", None)
     if broker is None:
         return
-    emetteur = getattr(ctx, "tab_id", "") or ""
+    emitter = getattr(ctx, "tab_id", "") or ""
     for qualname in qualnames:
-        broker.publish(qualname, except_tab=emetteur)
+        broker.publish(qualname, except_tab=emitter)
 
 
 def broadcast_deps(ctx: Any, changed_classes: set[type]) -> None:
@@ -613,10 +607,10 @@ def broadcast_deps(ctx: Any, changed_classes: set[type]) -> None:
     """
     if not changed_classes:
         return
-    # L'index des CANAUX, pas celui des deps — c'est ici que se joue la
-    # correction du 2026-08-23. Une zone qui diffuse sur ``Deals`` et lit
-    # AUSSI une préférence personnelle ne publie rien quand c'est la
-    # préférence qui bouge : la préférence n'est pas dans cet index.
+    # The CHANNEL index, not the deps one — this is where the
+    # 2026-08-23 fix plays out. A zone broadcasting on ``Deals`` and
+    # ALSO reading a personal preference publishes nothing when it is the
+    # preference that moves: the preference is not in this index.
     to_publish = [
         state_qualname(cls) for cls in changed_classes if _ZONES_BY_CHANNEL.get(cls)
     ]

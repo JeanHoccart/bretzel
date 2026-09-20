@@ -62,7 +62,7 @@ class Checkbox(Component):
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             checked=checked, name=name, value=value,
             disabled=disabled, required=required,
@@ -72,11 +72,12 @@ class Checkbox(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # ``adopt_slot`` + ``emit_text_slot`` sont un COUPLE (cf. le docstring
-        # d'emit_text_slot) : le 1er détache le Component (sinon rendu 2×), le
-        # 2nd le REND (sinon il file dans TextNode() qui attend une string →
-        # `'Text' object has no attribute 'replace'` au serialize). Faire l'un
-        # sans l'autre échange un bug contre un autre.
+        # ``adopt_slot`` + ``emit_text_slot`` are a COUPLE (cf.
+        # emit_text_slot's docstring): the 1st detaches the Component
+        # (otherwise rendered twice), the 2nd RENDERS it (otherwise it
+        # goes into TextNode() which expects a string → `'Text' object
+        # has no attribute 'replace'` at serialize). Doing one without
+        # the other swaps one bug for another.
         self._label = Component.adopt_slot(label)
 
     # ── Imperative write-only API ─────────────────────────────────────
@@ -100,9 +101,9 @@ class Checkbox(Component):
             self._resolved_theme().get("sizes", {}).get(size_key) or {}
         )
 
-        # Le SVG de coche — un seul trait, style lucide. Largeur/hauteur
-        # héritent des classes d'icône ; le trait vient de
-        # ``currentColor``, posé par le palier ``--bz-on-solid`` du slot.
+        # The tick SVG — a single stroke, lucide style. Width/height
+        # inherit the icon classes; the stroke comes from
+        # ``currentColor``, set by the slot's ``--bz-on-solid`` step.
         svg = Element(
             tag="svg",
             attrs={

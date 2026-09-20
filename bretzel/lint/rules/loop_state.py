@@ -1,56 +1,54 @@
-"""Règle : un `ServerState` construit dans un corps ``async def``.
+"""Rule: a `ServerState` built in an ``async def`` body.
 
-Le silence qu'elle ferme, et il n'est silencieux QU'EN DEV
-----------------------------------------------------------
+The silence it closes, and it is silent ONLY IN DEV
+---------------------------------------------------
 
-``MonEtat()`` est un constructeur : il ne peut pas attendre. Quand le
-backend se lit aussi en synchrone — c'est le cas de ``MemoryBackend``,
-donc de toute app lancée sans ``redis_url`` — l'hydratation se fait sur
-place et tout marche. Quand il ne lit qu'en ``await`` (Redis), le
-registre passe par un thread du pool… et un corps ``async def`` ne
-tourne PAS dans ce thread, il tourne sur la boucle, où attendre gèlerait
-le worker entier. ``StateRegistry`` lève donc
-:class:`~bretzel.state.StateHydrationError` plutôt que de rendre des
-valeurs par défaut que le commit de fin de requête écraserait
-par-dessus les vraies.
+``MyState()`` is a constructor: it cannot wait. When the backend also
+reads synchronously — which is the case of ``MemoryBackend``, so of any
+app started without ``redis_url`` — hydration happens on the spot and
+everything works. When it only reads with ``await`` (Redis), the registry
+goes through a pool thread… and an ``async def`` body does NOT run in
+that thread, it runs on the loop, where waiting would freeze the whole
+worker. ``StateRegistry`` therefore raises
+:class:`~bretzel.state.StateHydrationError` rather than returning default
+values the end-of-request commit would write over the real ones.
 
-Conséquence : **la même ligne marche en dev et lève en prod**, le jour
-où quelqu'un pose ``redis_url``. C'est la classe de panne la plus chère
-de ce dépôt — celle qui attend le déploiement pour se montrer, comme la
-classe Tailwind assemblée (``rules/tailwind.py``). D'où une règle
-statique : elle rend le verdict en dev, sans backend, sans exécuter
-quoi que ce soit.
+Consequence: **the same line works in dev and raises in production**, the
+day somebody sets ``redis_url``. It is this repository's most expensive
+class of failure — the one that waits for deployment to show itself, like
+the assembled Tailwind class (``rules/tailwind.py``). Hence a static
+rule: it gives the verdict in dev, with no backend, executing nothing.
 
-Le geste correct est écrit dans le message : ``etat = await
-MonEtat.load()``, ou repasser le corps en ``def`` — le framework le
-délestera sur un thread, où ``MonEtat()`` marche tel quel.
+The correct gesture is written in the message: ``state = await
+MyState.load()``, or put the body back to ``def`` — the framework will
+offload it onto a thread, where ``MyState()`` works as-is.
 
-⚠️ Ce que cette règle ne voit PAS
-----------------------------------
+⚠️ What this rule does NOT see
+------------------------------
 
-Elle lit **un** module et suit la LEXIQUE, pas les appels. Une
-construction rangée dans un helper synchrone appelé depuis l'``async
-def`` lui échappe entièrement — et c'est le cas réel qui a motivé la
-règle : ``examples/crm/features/import_screen.py`` fait
-``judge(rows, visible_owner())`` dans un handler ``async``, et c'est
-``visible_owner()``, dans un AUTRE fichier, qui construit l'état.
-Suivre ça demanderait un graphe d'appels inter-modules, que le corpus de
-``bretzel.lint`` ne construit pas (une règle voit un
-:class:`~bretzel.lint.corpus.Module`, un seul).
+It reads **one** module and follows the LEXICON, not the calls. A
+construction tucked into a synchronous helper called from the ``async
+def`` escapes it entirely — and that is the real case that motivated the
+rule: ``examples/crm/features/import_screen.py`` does
+``judge(rows, visible_owner())`` in an ``async`` handler, and it is
+``visible_owner()``, in ANOTHER file, that builds the state. Following
+that would require an inter-module call graph, which
+``bretzel.lint``'s corpus does not build (a rule sees one
+:class:`~bretzel.lint.corpus.Module`, one only).
 
-Elle attrape donc la FORME directe, pas la chaîne. C'est écrit ici pour
-qu'on ne lise pas son silence comme un acquittement.
+So it catches the direct FORM, not the chain. That is written here so
+that its silence is not read as an acquittal.
 
-Ce qu'elle épargne, et pourquoi c'est la moitié qui compte
------------------------------------------------------------
+What it spares, and why that is the half that counts
+----------------------------------------------------
 
-- ``await MonEtat.load()`` — un appel d'ATTRIBUT, jamais un nom nu :
-  c'est la porte prévue, elle ne peut pas être confondue.
-- Un ``ClientState`` : il ne touche aucun backend, sa valeur arrive
-  dans le corps de la requête. Le construire sur la boucle est gratuit.
-- Un ``def`` imbriqué dans un ``async def`` compte quand même comme
-  « sur la boucle » : le framework ne délestera pas une fonction locale
-  que l'auteur appelle lui-même.
+- ``await MyState.load()`` — an ATTRIBUTE call, never a bare name: it is
+  the intended door, it cannot be confused.
+- A ``ClientState``: it touches no backend, its value arrives in the
+  request body. Building it on the loop is free.
+- A ``def`` nested inside an ``async def`` still counts as "on the
+  loop": the framework will not offload a local function the author
+  calls themselves.
 """
 
 from __future__ import annotations
@@ -61,17 +59,17 @@ from functools import lru_cache
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-RULE = "etat-construit-sur-la-boucle"
+RULE = "state-built-on-the-loop"
 
 
 @lru_cache(maxsize=1)
 def _server_state_names() -> frozenset[str]:
-    """Les classes d'état SERVEUR publiques, dérivées et non recopiées.
+    """The public SERVER state classes, derived and not copied.
 
-    Dérivées, parce qu'une table de noms écrite à la main dérive du code
-    qu'elle juge — c'est la règle du dossier. Le
-    filtre est ``ServerState`` et pas ``State`` — un ``ClientState`` n'a
-    pas de backend à attendre, donc rien à refuser.
+    Derived, because a hand-written table of names drifts from the code
+    it judges — that is the folder's rule. The filter is ``ServerState``
+    and not ``State`` — a ``ClientState`` has no backend to wait for, so
+    nothing to refuse.
     """
     import inspect
 
@@ -89,7 +87,7 @@ def _server_state_names() -> frozenset[str]:
 
 
 def _base_names(node: ast.ClassDef) -> set[str]:
-    """Les noms de base écrits, ``module.Classe`` réduit à ``Classe``."""
+    """The base names written, ``module.Class`` reduced to ``Class``."""
     names: set[str] = set()
     for base in node.bases:
         if isinstance(base, ast.Name):
@@ -100,12 +98,12 @@ def _base_names(node: ast.ClassDef) -> set[str]:
 
 
 def _local_server_states(tree: ast.Module) -> set[str]:
-    """Les états serveur déclarés DANS ce module.
+    """The server states declared IN this module.
 
-    Une app dérive volontiers un état de base commun ; ne reconnaître
-    que les classes du framework raterait toute la seconde génération.
-    Les classes sont lues dans l'ordre du fichier, donc une base locale
-    est connue avant ses filles — l'ordre d'écriture de Python.
+    An app readily derives a common base state; recognising only the
+    framework's classes would miss the whole second generation. The
+    classes are read in file order, so a local base is known before its
+    children — Python's writing order.
     """
     known = _server_state_names()
     local: set[str] = set()
@@ -116,7 +114,7 @@ def _local_server_states(tree: ast.Module) -> set[str]:
 
 
 def check(module: Module) -> list[Finding]:
-    """Les constructions d'état serveur faites depuis la boucle."""
+    """The server-state constructions made from the loop."""
     names = _server_state_names() | _local_server_states(module.tree)
 
     findings: list[Finding] = []
@@ -135,16 +133,18 @@ def check(module: Module) -> list[Finding]:
                     path=module.path,
                     line=node.lineno,
                     message=(
-                        f"`{built}()` est construit dans `{func.name}`, qui est "
-                        f"`async def` — donc sur la boucle, où l'état ne peut "
-                        f"pas s'hydrater si le backend lit par le réseau."
+                        f"`{built}()` is built in `{func.name}`, which is "
+                        f"`async def` — so on the loop, where the state "
+                        f"cannot hydrate if the backend reads over the "
+                        f"network."
                     ),
                     hint=(
-                        f"Écris `etat = await {built}.load()`, ou repasse "
-                        f"`{func.name}` en `def` (le framework le délestera sur "
-                        f"un thread, où `{built}()` marche tel quel). En "
-                        f"mémoire la ligne actuelle marche ; avec `redis_url` "
-                        f"elle lève — c'est une faute qui attend la prod."
+                        f"Write `state = await {built}.load()`, or put "
+                        f"`{func.name}` back to `def` (the framework will "
+                        f"offload it onto a thread, where `{built}()` works "
+                        f"as-is). In memory the current line works; with "
+                        f"`redis_url` it raises — it is a fault that waits "
+                        f"for production."
                     ),
                 )
             )

@@ -1,102 +1,102 @@
-/* 18_time_picker.js — scope partagé du composant TimePicker.
+/* 18_time_picker.js — the TimePicker component's shared scope.
  *
- * La valeur est une CHAÎNE ``"HH:MM"`` — même forme que l'ISO des
- * pickers de date : triable, comparable, sérialisable telle quelle dans
- * une form data, et lisible par un humain dans le champ éditable.
+ * The value is an ``"HH:MM"`` STRING — the same shape as the date
+ * pickers' ISO: sortable, comparable, serialisable as is in a form data,
+ * and readable by a human in the editable field.
  *
  *   bz-data="{...$bz.time.scope, open: false, value: "09:30",
  *             _read(){…}, _write(v){…}}"
  *
- * ⚠️ ``_read`` / ``_write`` ne sont PAS une élégance : une expression
- * liée doit vivre dans un CORPS DE MÉTHODE. Un champ de ``bz-data`` est
- * évalué UNE fois, hors effet — ``absorb`` en emballe le snapshot dans
- * un signal neuf découplé de la cellule du store, que plus rien ne
- * réécrit (régression mesurée sur Pagination et Tooltip, cf. traps.md
- * § « un champ de bz-data n'est pas réactif »).
+ * ⚠️ ``_read`` / ``_write`` are NOT an elegance: a bound expression must
+ * live in a METHOD BODY. A ``bz-data`` field is evaluated ONCE, outside
+ * any effect — ``absorb`` wraps its snapshot in a new signal decoupled
+ * from the store cell, which nothing rewrites any more (a regression
+ * measured on Pagination and Tooltip, cf. traps.md § "a bz-data field is
+ * not reactive").
  *
- * Pourquoi un scope partagé plutôt que des expressions inline : un
- * panneau à 24 heures et 4 minutes fait 28 boutons. Écrire le pick et le
- * test de sélection en toutes lettres sur chacun sérialiserait le même
- * algorithme 28 fois PAR INSTANCE — exactement ce que les bascules
- * « config en données » de Pagination et Accordion ont retiré.
+ * Why a shared scope rather than inline expressions: a panel with 24
+ * hours and 4 minutes is 28 buttons. Writing the pick and the selection
+ * test out in full on each would serialise the same algorithm 28 times
+ * PER INSTANCE — exactly what Pagination's and Accordion's "config as
+ * data" switches removed.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  //: Index des deux parties dans le tuple rendu par ``_parts``.
+  //: The index of the two parts in the tuple ``_parts`` returns.
   const HOUR = 0;
   const MINUTE = 1;
 
   $bz.time = {
     scope: {
-      // ── Lecture ──────────────────────────────────────────────────
-      // Des MÉTHODES, jamais des getters : ``scope.absorb`` invoque
-      // chaque clé à l'enregistrement et figerait un getter sur sa
-      // première valeur (cf. traps.md).
+      // ── Reading ──────────────────────────────────────────────────
+      // METHODS, never getters: ``scope.absorb`` invokes each key at
+      // registration and would freeze a getter on its first value (cf.
+      // traps.md).
       _parts() {
         const m = String(this._read() || "").match(/^(\d{1,2}):(\d{2})/);
-        // Deux chaînes vides plutôt que null : les appelants comparent,
-        // ils n'ont jamais à tester la présence.
+        // Two empty strings rather than null: the callers compare, they
+        // never have to test presence.
         return m ? [m[1].padStart(2, "0"), m[2]] : ["", ""];
       },
       _is(part, v) {
         return this._parts()[part] === v;
       },
 
-      // ── Écriture ─────────────────────────────────────────────────
+      // ── Writing ──────────────────────────────────────────────────
       _pick(part, v) {
         const p = this._parts();
         p[part] = v;
-        // Une heure choisie alors que la minute est inconnue vaut ``:00``
-        // — sinon le champ resterait VIDE juste après un clic, et
-        // l'utilisateur croirait que le clic n'a pas pris. Symétrique
-        // pour une minute choisie en premier.
+        // An hour chosen while the minute is unknown is ``:00`` —
+        // otherwise the field would stay EMPTY right after a click, and
+        // the user would think the click did not take. Symmetrical for a
+        // minute chosen first.
         this._write(
           (p[HOUR] || "00") + ":" + (p[MINUTE] || "00")
         );
       },
-      // Le clic sur une MINUTE referme le panneau, celui sur une heure
-      // non : l'ordre de lecture est heure puis minute, donc refermer à
-      // l'heure couperait la main de l'utilisateur au milieu de son
-      // geste. ``_closeOnPick`` est une donnée (le prop du composant).
+      // Clicking a MINUTE closes the panel, clicking an hour does not:
+      // the reading order is hour then minute, so closing on the hour
+      // would cut the user's hand off mid-gesture. ``_closeOnPick`` is
+      // data (the component's prop).
       pick(part, v) {
         this._pick(part, v);
         if (this._closeOnPick && part === MINUTE) this.open = false;
       },
     },
 
-    /* Peindre les cellules des deux colonnes, puis marquer la sélection.
+    /* Paint the two columns' cells, then mark the selection.
      *
-     * Pourquoi les cellules ne sont plus rendues par Python
-     * ------------------------------------------------------
-     * Elles portaient chacune la chaîne de classe du thème — 452
-     * caractères — et deux directives (``bz-attr:data-selected`` +
-     * ``bz-on:click``). À ``step=1`` ça fait 84 cellules : 49 Ko sur les
-     * 54 que pesait le composant, dont 38 pour la seule classe répétée à
-     * l'identique. Mesuré le 2026-09-01.
+     * Why the cells are no longer rendered by Python
+     * -----------------------------------------------
+     * They each carried the theme's class string — 452 characters — and
+     * two directives (``bz-attr:data-selected`` + ``bz-on:click``). At
+     * ``step=1`` that is 84 cells: 49 kB of the 54 the component
+     * weighed, 38 of them for the single class repeated identically.
+     * Measured on 2026-09-01.
      *
-     * C'est le même remède que ``<bz-calendar>``, qui laisse sa grille
-     * VIDE en SSR et la remplit ici — mais SANS custom element : sa
-     * docstring dit qu'un deuxième serait le moment d'en faire une
-     * politique du runtime, et alléger un payload ne justifie pas
-     * d'ouvrir ce chantier. Un ``bz-effect`` sur le conteneur suffit.
+     * It is the same remedy as ``<bz-calendar>``, which leaves its grid
+     * EMPTY in SSR and fills it here — but WITHOUT a custom element: its
+     * docstring says a second one would be the moment to make it a
+     * runtime policy, and lightening a payload does not justify opening
+     * that work. A ``bz-effect`` on the container is enough.
      *
-     * Les cellules n'ont plus AUCUNE directive
-     * -----------------------------------------
-     * Un clic délégué remplace 84 ``bz-on:click``, et cet effet remplace
-     * 84 ``bz-attr:data-selected``. C'est ce qui évite d'avoir à
-     * rescanner le sous-arbre après l'avoir peint — un ``$bz._scan``
-     * appelé depuis le corps d'un effet qu'un scan vient d'installer se
-     * réinstallerait lui-même.
+     * The cells have NO directive left
+     * ---------------------------------
+     * A delegated click replaces 84 ``bz-on:click``, and this effect
+     * replaces 84 ``bz-attr:data-selected``. It is what avoids having to
+     * rescan the subtree after painting it — a ``$bz._scan`` called from
+     * the body of an effect a scan has just installed would reinstall
+     * itself.
      *
-     * L'effet re-tourne à chaque changement de la valeur (il lit
-     * ``_parts()``), donc la sélection se repeint sans que rien d'autre
-     * ne bouge. La construction, elle, ne se fait qu'une fois : la garde
-     * est une MESURE du DOM (« ai-je déjà des cellules ? »), légitime
-     * ici pour la même raison que dans ``bz-calendar.rehydrate`` — elle
-     * ne dérive aucun affichage, elle constate un fait ponctuel au seul
-     * moment où la question se pose.
+     * The effect runs again at every change of the value (it reads
+     * ``_parts()``), so the selection is repainted without anything else
+     * moving. The construction, for its part, only happens once: the
+     * guard is a DOM MEASUREMENT ("do I already have cells?"),
+     * legitimate here for the same reason as in
+     * ``bz-calendar.rehydrate`` — it derives no display, it observes a
+     * one-off fact at the only moment the question arises.
      */
     fill(el, parts, pick) {
       const cellCls = el.getAttribute("data-bz-cell-class") || "";
@@ -126,12 +126,12 @@
           col.insertAdjacentHTML("beforeend", html);
         }
 
-        // Un seul écouteur par colonne. Le drapeau vit sur le NŒUD, et
-        // c'est correct ici : si idiomorph garde le nœud, l'écouteur
-        // survit avec lui ; s'il le remplace, le nouveau n'a pas le
-        // drapeau et se recâble. Le drapeau et l'écouteur sont toujours
-        // d'accord — c'est très exactement ce qui manquait au suivi de
-        // ``bz-class`` (cf. traps.md).
+        // A single listener per column. The flag lives on the NODE, and
+        // it is correct here: if idiomorph keeps the node, the listener
+        // survives with it; if it replaces it, the new one has no flag
+        // and re-wires. The flag and the listener always agree — which
+        // is very exactly what ``bz-class``'s tracking was missing (cf.
+        // traps.md).
         if (!col._bzTimeWired) {
           col._bzTimeWired = true;
           col.addEventListener("click", function (ev) {
@@ -141,7 +141,7 @@
           });
         }
 
-        // La sélection, à chaque passage de l'effet.
+        // The selection, at every pass of the effect.
         const courant = parts[part];
         const cells = col.querySelectorAll("[data-bz-v]");
         for (let j = 0; j < cells.length; j++) {

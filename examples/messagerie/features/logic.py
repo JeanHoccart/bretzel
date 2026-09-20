@@ -1,16 +1,15 @@
-"""messagerie/logic — les handlers. Ils mutent, l'affichage suit.
+"""messagerie/logic — the handlers. They mutate, the display follows.
 
-Aucun ne touche au DOM et aucun ne renvoie de HTML : ils écrivent dans un
-état, et les zones ``@refreshable`` qui en dépendent se re-rendent. Deux
-d'entre eux écrivent dans :class:`Vue`, donc **l'adresse change aussi** —
-sans qu'une seule ligne ne le demande, parce que ``Vue`` déclare ses
-champs adressables.
+None touches the DOM and none returns HTML: they write into a state, and
+the ``@refreshable`` zones depending on it re-render. Two of them write
+into :class:`View`, so **the address changes too** — without a single
+line asking for it, because ``View`` declares its addressable fields.
 
-⚠️ **Une collection se RÉASSIGNE, elle ne se mute pas en place.**
-``boite.messages[0]["lu"] = True`` écrit bien la valeur, mais ne change
-pas l'identité de la liste : la détection de changement ne voit rien et
-la zone ne se re-rend pas (`traps.md` § mutation de collection). D'où le
-``remplacer`` ci-dessous, qui rebâtit la liste autour du message modifié.
+⚠️ **A collection is REASSIGNED, it is not mutated in place.**
+``mailbox.messages[0]["read"] = True`` does write the value, but does not
+change the list's identity: change detection sees nothing and the zone
+does not re-render (`traps.md` § collection mutation). Hence the
+rebuilding below, which remakes the list around the modified message.
 """
 
 from __future__ import annotations
@@ -19,266 +18,264 @@ import re
 from typing import Any
 
 from bretzel.components import Move
-from examples.messagerie.features.donnees import (
-    CLES,
-    Boite,
-    fil_de,
-    fil_ouvert,
-    identifiant_libre,
+from examples.messagerie.features.data import (
+    KEYS,
+    Mailbox,
+    free_id,
+    thread_in_folder,
+    thread_of,
 )
-from examples.messagerie.features.state import Panneau, Redaction, Vue
+from examples.messagerie.features.state import Draft, Panel, View
 
-#: Le préfixe du ``name=`` des zones de dépôt de la colonne des dossiers.
-#: Le suffixe est la clé du dossier, donc ``to_zone`` suffit à savoir où
-#: le message a atterri.
-ZONE_DOSSIER = "dossier-"
+#: The prefix of the ``name=`` of the folder column's drop zones. The
+#: suffix is the folder's key, so ``to_zone`` is enough to know where the
+#: message landed.
+ZONE_FOLDER = "folder-"
 
-#: Le ``name=`` de la zone qui porte la liste. Elle est la SOURCE des
-#: glissements, jamais leur destination — on ne dépose pas un message sur
-#: la liste dont il vient déjà.
-ZONE_LISTE = "liste"
+#: The ``name=`` of the zone carrying the list. It is the SOURCE of the
+#: drags, never their destination — one does not drop a message onto the
+#: list it already comes from.
+ZONE_LIST = "list"
 
 
-def ouvrir(clef: str) -> None:
-    """Afficher un FIL, et marquer lus tous ses messages entrants.
+def open_thread(tkey: str) -> None:
+    """Show a THREAD, and mark all its incoming messages read.
 
-    C'est ce que fait un client mail : ouvrir une conversation la lit
-    entière. Marquer un seul message laisserait le fil « en partie non
-    lu », un état que rien n'affiche et que personne ne sait résoudre.
+    That is what a mail client does: opening a conversation reads it
+    whole. Marking a single message would leave the thread "partly
+    unread", a state nothing shows and nobody knows how to resolve.
     """
-    vue = Vue()
-    if fil_ouvert(vue.dossier, clef) is None:
+    view = View()
+    if thread_in_folder(view.folder, tkey) is None:
         return
-    vue.ouvert = clef
-    boite = Boite()
-    boite.messages = [
-        {**m, "lu": True} if fil_de(m) == clef and m["entrant"] else m
-        for m in boite.messages
+    view.opened = tkey
+    mailbox = Mailbox()
+    mailbox.messages = [
+        {**m, "read": True} if thread_of(m) == tkey and m["incoming"] else m
+        for m in mailbox.messages
     ]
 
 
-def fermer() -> None:
-    """Refermer le fil affiché, sans changer de dossier."""
-    Vue().ouvert = ""
+def close_thread() -> None:
+    """Close the displayed thread, without changing folder."""
+    View().opened = ""
 
 
-#: Ce qui ressemble à une adresse : un arobase, du texte des deux côtés,
-#: un point dans le domaine, et aucune espace. VOLONTAIREMENT permissif —
-#: la grammaire complète (RFC 5322) accepte des formes que personne
-#: n'écrit, et une expression qui prétend l'implémenter rejette surtout
-#: des adresses valides. Le vrai contrôle d'une adresse, c'est d'y
-#: envoyer un message.
-ADRESSE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+#: What looks like an address: an at sign, text on both sides, a dot in
+#: the domain, and no space. DELIBERATELY permissive — the full grammar
+#: (RFC 5322) accepts forms nobody writes, and an expression claiming to
+#: implement it mostly rejects valid addresses. The real check on an
+#: address is sending a message to it.
+ADDRESS = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-# ── Les actions sur le message affiché ────────────────────────────────
+# ── The actions on the displayed message ──────────────────────────────
 #
-# Toutes suivent la même forme : lire le message courant, refuser si
-# rien n'est ouvert, muter, et laisser les zones se re-rendre.
+# All follow the same shape: read the current message, refuse if nothing
+# is open, mutate, and let the zones re-render.
 
 
-def basculer_lu() -> None:
-    """Marquer le fil affiché non lu, ou tout relire.
+def toggle_read() -> None:
+    """Mark the displayed thread unread, or read it all again.
 
-    ⚠️ N'agit que sur les messages ENTRANTS. « Marquer non lu » ce qu'on
-    a écrit soi-même n'a pas de sens, et la barre d'outils n'offre le
-    bouton que si le fil en contient — ce garde est là pour que la règle
-    vive dans le domaine et pas seulement dans le rendu.
+    ⚠️ Acts only on INCOMING messages. "Mark unread" on what one wrote
+    oneself makes no sense, and the toolbar only offers the button if the
+    thread contains any — this guard is here so the rule lives in the
+    domain and not only in the rendering.
     """
-    vue = Vue()
-    fil = fil_ouvert(vue.dossier, vue.ouvert)
-    if fil is None:
+    view = View()
+    thread = thread_in_folder(view.folder, view.opened)
+    if thread is None:
         return
-    entrants = [m for m in fil["messages"] if m["entrant"]]
-    if not entrants:
+    incoming = [m for m in thread["messages"] if m["incoming"]]
+    if not incoming:
         return
-    cible = fil["non_lus"] == 0  # tout lu → on repasse en non lu
-    boite = Boite()
-    boite.messages = [
-        {**m, "lu": not cible} if fil_de(m) == vue.ouvert and m["entrant"]
+    target = thread["unread"] == 0  # all read → back to unread
+    mailbox = Mailbox()
+    mailbox.messages = [
+        {**m, "read": not target}
+        if thread_of(m) == view.opened and m["incoming"]
         else m
-        for m in boite.messages
+        for m in mailbox.messages
     ]
 
 
-def ranger(cible: str) -> None:
-    """Déplacer TOUT le fil affiché vers ``cible``, et le refermer.
+def file_into(target: str) -> None:
+    """Move the WHOLE displayed thread to ``target``, and close it.
 
-    Le fil est l'unité : archiver une conversation en laissant deux de
-    ses messages dans les reçus la ferait réapparaître à la ligne
-    suivante, et personne ne comprendrait pourquoi.
+    The thread is the unit: archiving a conversation while leaving two of
+    its messages in the inbox would make it reappear on the next line,
+    and nobody would understand why.
     """
-    vue = Vue()
-    fil = fil_ouvert(vue.dossier, vue.ouvert)
-    if fil is None or cible not in CLES:
+    view = View()
+    thread = thread_in_folder(view.folder, view.opened)
+    if thread is None or target not in KEYS:
         return
-    boite = Boite()
-    boite.messages = [
-        {**m, "dossier": cible} if fil_de(m) == vue.ouvert else m
-        for m in boite.messages
+    mailbox = Mailbox()
+    mailbox.messages = [
+        {**m, "folder": target} if thread_of(m) == view.opened else m
+        for m in mailbox.messages
     ]
-    vue.ouvert = ""
+    view.opened = ""
 
 
-def deplacer(mouvement: Move) -> None:
-    """Ranger un message dans le dossier où on vient de le lâcher.
+def on_drop(move: Move) -> None:
+    """File a message in the folder it has just been dropped on.
 
-    C'est la zone qui REÇOIT qui décide : le socle appelle le ``on_move``
-    de la zone d'arrivée, donc ``to_zone`` porte déjà la destination et
-    ce handler n'a rien à deviner.
+    It is the RECEIVING zone that decides: the base layer calls the
+    arrival zone's ``on_move``, so ``to_zone`` already carries the
+    destination and this handler has nothing to guess.
 
-    Refuser, c'est ne rien faire. Le navigateur a déjà bougé la carte de
-    façon optimiste ; un handler qui ne mute pas laisse le re-rendu
-    serveur en désaccord avec le DOM, et le morph la remet en place. Il
-    n'y a donc pas de ``reject()`` à appeler.
+    Refusing is doing nothing. The browser has already moved the card
+    optimistically; a handler that does not mutate leaves the server
+    re-render disagreeing with the DOM, and the morph puts it back. So
+    there is no ``reject()`` to call.
     """
-    if not mouvement.to_zone.startswith(ZONE_DOSSIER):
+    if not move.to_zone.startswith(ZONE_FOLDER):
         return
-    cible = mouvement.to_zone[len(ZONE_DOSSIER) :]
-    if cible not in CLES:
+    target = move.to_zone[len(ZONE_FOLDER) :]
+    if target not in KEYS:
         return
-    # ``item_key`` est la clé du FIL : c'est un fil qu'on glisse, donc
-    # c'est un fil entier qui change de dossier.
-    clef = mouvement.item_key
-    boite = Boite()
-    concernes = [m for m in boite.messages if fil_de(m) == clef]
-    if not concernes:
+    # ``item_key`` is the THREAD's key: a thread is what gets dragged, so
+    # a whole thread is what changes folder.
+    tkey = move.item_key
+    mailbox = Mailbox()
+    concerned = [m for m in mailbox.messages if thread_of(m) == tkey]
+    if not concerned:
         return
-    boite.messages = [
-        {**m, "dossier": cible} if fil_de(m) == clef else m
-        for m in boite.messages
+    mailbox.messages = [
+        {**m, "folder": target} if thread_of(m) == tkey else m
+        for m in mailbox.messages
     ]
-    # Le fil quitte le dossier affiché : le panneau de droite ne peut
-    # plus le montrer. Le refermer ICI plutôt que de laisser la vue
-    # pointer un fil absent — et l'adresse suit.
-    if Vue().ouvert == clef:
-        Vue().ouvert = ""
+    # The thread leaves the displayed folder: the right panel can no
+    # longer show it. Close it HERE rather than let the view point at an
+    # absent thread — and the address follows.
+    if View().opened == tkey:
+        View().opened = ""
 
 
-# ── La rédaction ──────────────────────────────────────────────────────
+# ── Composing ─────────────────────────────────────────────────────────
 
 
-def rediger() -> None:
-    """Déployer le panneau de rédaction, vide."""
-    brouillon = Redaction()
-    brouillon.a = ""
-    brouillon.sujet = ""
-    brouillon.corps = ""
-    deployer()
+def compose() -> None:
+    """Open the compose panel, empty."""
+    draft = Draft()
+    draft.to = ""
+    draft.subject = ""
+    draft.body = ""
+    unfold()
 
 
-def citer(messages: list[dict[str, Any]]) -> str:
-    """TOUT le fil en citation, du plus récent au plus ancien.
+def quote(messages: list[dict[str, Any]]) -> str:
+    """THE WHOLE thread quoted, newest first.
 
-    ⚠️ Pas seulement le dernier message. Une réponse par courrier
-    emporte l'historique — c'est ce qui permet au destinataire de relire
-    l'échange sans ouvrir sa propre boîte, et c'est ce que fait Outlook
-    en réabattant le fil sous la réponse. La première version ne citait
-    que le message auquel on répondait : sur une conversation de six
-    allers-retours, la réponse arrivait sans son contexte.
+    ⚠️ Not only the last message. A reply by mail carries the history
+    along — it is what lets the recipient re-read the exchange without
+    opening their own mailbox, and it is what Outlook does by folding the
+    thread back under the reply. The first version quoted only the
+    message being replied to: on a six-round conversation, the reply
+    arrived without its context.
 
-    Le corps est rendu en markdown à l'affichage, donc le préfixe ``>``
-    n'est pas décoratif : il produit un vrai bloc de citation. Deux
-    lignes vides devant, pour que le curseur arrive AU-DESSUS de la
-    citation — c'est la convention de tous les clients mail, et l'inverse
-    (écrire sous la citation) est ce qu'on reproche au courrier
-    d'entreprise depuis vingt ans.
+    The body is rendered as markdown on display, so the ``>`` prefix is
+    not decorative: it produces a real block quote. Two blank lines in
+    front, so the cursor lands ABOVE the quote — it is every mail
+    client's convention, and the opposite (writing under the quote) is
+    what corporate mail has been blamed for these twenty years.
     """
-    blocs = []
-    for courant in reversed(messages):
-        lignes = courant["corps"].splitlines()
-        citation = "\n".join(f"> {l}" if l else ">" for l in lignes)
-        # « X a écrit (date) » et non « Le {date}, X a écrit » : les dates
-        # de cette boîte prennent trois formes (« aujourd'hui, 09:14 »,
-        # « hier, 18:37 », « 12 août »), et la seconde tournure rend
-        # « Le hier, 18:37, X a écrit ». La parenthèse marche avec les
-        # trois.
-        blocs.append(
-            f"{courant['de']} a écrit ({courant['date']}) :\n{citation}"
+    blocks = []
+    for current in reversed(messages):
+        lines = current["body"].splitlines()
+        quoted = "\n".join(f"> {line}" if line else ">" for line in lines)
+        # "X wrote (date)" and not "On {date}, X wrote": the dates in
+        # this mailbox take three shapes ("today, 09:14", "yesterday,
+        # 18:37", "12 August"), and the second turn of phrase gives "On
+        # yesterday, 18:37, X wrote". The parenthesis works with all
+        # three.
+        blocks.append(
+            f"{current['sender']} wrote ({current['date']}):\n{quoted}"
         )
-    return "\n\n" + "\n\n".join(blocs)
+    return "\n\n" + "\n\n".join(blocks)
 
 
-def repondre() -> None:
-    """Déployer le panneau, en réponse au DERNIER message du fil."""
-    vue = Vue()
-    fil = fil_ouvert(vue.dossier, vue.ouvert)
-    if fil is None:
+def reply() -> None:
+    """Open the panel, replying to the LAST message of the thread."""
+    view = View()
+    thread = thread_in_folder(view.folder, view.opened)
+    if thread is None:
         return
-    courant = fil["dernier"]
-    sujet = courant["sujet"]
-    brouillon = Redaction()
-    brouillon.a = courant["adresse"]
-    brouillon.sujet = sujet if sujet.startswith("Re: ") else f"Re: {sujet}"
-    brouillon.corps = citer(fil["messages"])
-    deployer()
+    current = thread["last"]
+    subject = current["subject"]
+    draft = Draft()
+    draft.to = current["address"]
+    draft.subject = subject if subject.startswith("Re: ") else f"Re: {subject}"
+    draft.body = quote(thread["messages"])
+    unfold()
 
 
-def deployer() -> None:
-    """Ouvrir le panneau à sa taille normale, sans erreur affichée."""
-    panneau = Panneau()
-    panneau.ouvert = True
-    panneau.taille = "normal"
-    panneau.erreur = ""
+def unfold() -> None:
+    """Open the panel at its normal size, with no error shown."""
+    panel = Panel()
+    panel.opened = True
+    panel.size = "normal"
+    panel.error = ""
 
 
-def redimensionner(taille: str) -> None:
-    """Passer le panneau en ``normal``, ``reduit`` ou ``plein``."""
-    Panneau().taille = taille
+def resize(size: str) -> None:
+    """Put the panel into ``normal``, ``small`` or ``full``."""
+    Panel().size = size
 
 
-def fermer_redaction() -> None:
-    """Replier le panneau sans rien enregistrer."""
-    panneau = Panneau()
-    panneau.ouvert = False
-    panneau.erreur = ""
+def close_compose() -> None:
+    """Fold the panel away without recording anything."""
+    panel = Panel()
+    panel.opened = False
+    panel.error = ""
 
 
-def envoyer() -> None:
-    """Déposer le brouillon dans « Envoyés », puis replier le panneau.
+def send() -> None:
+    """Drop the draft into "Sent", then fold the panel away.
 
-    La validation est ici, au SERVEUR, et pas seulement dans le
-    ``type="email"`` de l'input. Le contrôle natif du navigateur est un
-    confort — il signale la faute pendant la frappe — mais il se
-    contourne : rien n'empêche de poster l'action sans passer par le
-    formulaire. Un handler qui fait foi ne peut pas se contenter de ce
-    que le client lui promet.
+    The validation is here, on the SERVER, and not only in the input's
+    ``type="email"``. The browser's native check is a comfort — it flags
+    the mistake while typing — but it is bypassed: nothing stops the
+    action being POSTed without going through the form. A handler that is
+    authoritative cannot settle for what the client promises it.
     """
-    brouillon = Redaction()
-    panneau = Panneau()
-    sujet = (brouillon.sujet or "").strip()
-    corps = (brouillon.corps or "").strip()
-    destinataire = (brouillon.a or "").strip()
+    draft = Draft()
+    panel = Panel()
+    subject = (draft.subject or "").strip()
+    body = (draft.body or "").strip()
+    recipient = (draft.to or "").strip()
 
-    if not destinataire:
-        panneau.erreur = "Il manque le destinataire."
+    if not recipient:
+        panel.error = "The recipient is missing."
         return
-    if not ADRESSE.match(destinataire):
-        panneau.erreur = f"« {destinataire} » n'est pas une adresse valide."
+    if not ADDRESS.match(recipient):
+        panel.error = f"“{recipient}” is not a valid address."
         return
-    if not sujet and not corps:
-        panneau.erreur = "Un message vide et sans objet ne part pas."
+    if not subject and not body:
+        panel.error = "An empty message with no subject does not go out."
         return
-    panneau.erreur = ""
+    panel.error = ""
 
-    boite = Boite()
-    boite.messages = [
-        *boite.messages,
+    mailbox = Mailbox()
+    mailbox.messages = [
+        *mailbox.messages,
         {
-            "id": identifiant_libre(),
-            "dossier": "envoyes",
-            "entrant": False,
-            "de": "moi",
-            "adresse": destinataire,
-            "sujet": sujet or "(sans objet)",
-            "date": "à l'instant",
-            "lu": True,
-            "corps": corps,
-            "pieces": [],
+            "id": free_id(),
+            "folder": "sent",
+            "incoming": False,
+            "sender": "me",
+            "address": recipient,
+            "subject": subject or "(no subject)",
+            "date": "just now",
+            "read": True,
+            "body": body,
+            "attachments": [],
         },
     ]
 
-    brouillon.a = ""
-    brouillon.sujet = ""
-    brouillon.corps = ""
-    panneau.ouvert = False
+    draft.to = ""
+    draft.subject = ""
+    draft.body = ""
+    panel.opened = False

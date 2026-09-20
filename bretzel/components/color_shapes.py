@@ -1,54 +1,52 @@
-"""Ce que les thèmes composants savent et que le scanner Tailwind ignore.
+"""What the component themes know and the Tailwind scanner does not.
 
-Deux collectes, une seule raison d'être : une classe qui n'apparaît
-littéralement dans aucun fichier source n'atteint jamais le ``style.css``
-compilé. Un gabarit couleur n'est comblé qu'au render ; une classe
-graduée (``md:gap-6``) n'est préfixée qu'au render. Dans les deux cas le
-compilateur de prod ne peut pas deviner, et dans les deux cas le bug ne
-se voit **qu'en production**.
+Two collections, a single reason to be: a class that appears literally
+in no source file never reaches the compiled ``style.css``. A colour
+template is only filled at render; a graded class (``md:gap-6``) is only
+prefixed at render. In both cases the production compiler cannot guess,
+and in both cases the bug shows **only in production**.
 
-Pourquoi ce module existe
--------------------------
+Why this module exists
+----------------------
 
-⚠️ **La moitié COULEUR de ce module n'existe plus depuis la phase 3 du
-chantier des jetons (2026-08-30).** Aucun thème n'écrit plus de trou :
-ils lisent des PALIERS (``ring-(--bz-focus)``), qui sont des classes
-complètes que le compilateur voit. ``dynamic_color_shapes()`` a été
-supprimée avec eux, et son dernier reste — le ramasseur ``_walk``, resté
-seul à référencer un ``SHAPE_TOKEN_RE`` déjà parti — l'a suivie le
-2026-09-07. Le nom du fichier est donc plus large que son contenu : il
-ne reste que la moitié GRADUÉE (``dynamic_responsive_classes``), qui,
-elle, sert toujours.
+⚠️ **The COLOUR half of this module no longer exists since phase 3 of
+the tokens work (2026-08-30).** No theme writes a hole any more: they
+read STEPS (``ring-(--bz-focus)``), which are complete classes the
+compiler sees. ``dynamic_color_shapes()`` was removed with them, and its
+last remnant — the ``_walk`` collector, left alone referencing an
+already-gone ``SHAPE_TOKEN_RE`` — followed it on 2026-09-07. The file's
+name is therefore wider than its contents: only the GRADED half remains
+(``dynamic_responsive_classes``), which does still serve.
 
-Ce qu'il faisait, et pourquoi il a existé : les thèmes écrivaient leurs
-classes avec un trou — la moitié d'un nom de classe, comblée au render
-contre la couleur résolue du composant (cf.
-``resolve_slot``, déposé depuis). Conséquence : la classe finale
-n'apparaissait **dans aucun fichier source**, donc le compilateur ne
-pouvait pas la générer, donc il fallait en calculer la CLÔTURE — chaque
-forme × chaque couleur. 3 791 classes, 80 % de la feuille compilée.
+What it did, and why it existed: the themes wrote their classes with a
+hole — half a class name, filled at render against the component's
+resolved colour (cf. ``resolve_slot``, since removed). Consequence: the
+final class appeared **in no source file**, so the compiler could not
+generate it, so its CLOSURE had to be computed — each shape × each
+colour. 3,791 classes, 80 % of the compiled sheet.
 
-En dev ça ne se voit pas — ``@tailwindcss/browser`` scanne le DOM vivant,
-donc il voit les classes déjà résolues. En prod le binaire Tailwind ne
-scanne que les sources : sans aide, il ne génère aucune de ces règles et
-tout l'état interactif du design system (anneaux de focus, teintes de
-hover, états cochés / sélectionnés) sort du CSS compilé.
+In dev it does not show — ``@tailwindcss/browser`` scans the live DOM,
+so it sees the already-resolved classes. In prod the Tailwind binary
+only scans the sources: with no help, it generates none of those rules
+and the design system's whole interactive state (focus rings, hover
+tints, checked / selected states) leaves the compiled CSS.
 
-L'aide, c'est la directive ``@source inline(...)`` produite par
-:func:`bretzel.theme.tailwind.generate_safelist_comment`. Elle était
-maintenue **à la main** — 5 gabarits + 7 opacités — pendant que les thèmes
-en utilisaient 57. D'où 49 formes absentes du ``style.css`` de prod.
+The help is the ``@source inline(...)`` directive produced by
+:func:`bretzel.theme.tailwind.generate_safelist_comment`. It was
+maintained **by hand** — 5 templates + 7 opacities — while the themes
+used 57. Hence 49 shapes absent from production's ``style.css``.
 
-Ce module supprime la classe de bug : la safelist est désormais *dérivée*
-des thèmes eux-mêmes, donc elle ne peut plus diverger d'eux. La gate
-``tests/consistency/test_no_colour_class_is_assembled_by_hand.py`` couvre le
-risque résiduel (une forme construite en code de render plutôt que dans un
-dict ``THEME``, que l'introspection ne verrait pas).
+This module removes the class of bug: the safelist is now *derived* from
+the themes themselves, so it can no longer diverge from them. The gate
+``tests/consistency/test_no_colour_class_is_assembled_by_hand.py`` covers
+the residual risk (a shape built in render code rather than in a
+``THEME`` dict, which introspection would not see).
 
-Sens de la dépendance : ``theme`` est dans le socle et n'a pas le droit
-d'importer ``components`` (contrat import-linter *base-independent-of-app*).
-C'est donc ``components`` qui expose ses gabarits, et l'assemblage au
-démarrage (``server.lifecycle``) qui les passe au générateur.
+Direction of the dependency: ``theme`` is in the base layer and is not
+allowed to import ``components`` (the import-linter contract
+*base-independent-of-app*). So it is ``components`` that exposes its
+templates, and the assembly at startup (``server.lifecycle``) that
+passes them to the generator.
 """
 
 from __future__ import annotations
@@ -59,21 +57,21 @@ from bretzel.components.base.component import Component
 
 
 def _component_classes() -> set[type]:
-    """Toute sous-classe vivante de :class:`Component`, récursivement.
+    """Every live subclass of :class:`Component`, recursively.
 
-    Volontairement plus large que le namespace ``ui`` : des composants
-    internes (leaves d'un container, sous-parties de calendrier…) portent
-    leur propre ``THEME`` sans être exposés.
+    Deliberately wider than the ``ui`` namespace: internal components
+    (leaves of a container, calendar sub-parts…) carry their own
+    ``THEME`` without being exposed.
 
-    Portée réelle : les classes **déjà importées** au moment de l'appel.
-    ``components/__init__`` importe le catalogue du framework en bloc,
-    donc la couverture y est complète (la gate le vérifie). Un composant
-    utilisateur défini après le démarrage — dans un corps de fonction,
-    dans un module importé paresseusement au premier render — arrive
-    trop tard : ses couleurs n'atterriront pas dans la safelist.
+    Real scope: the classes **already imported** at call time.
+    ``components/__init__`` imports the framework's catalogue in one go,
+    so coverage there is complete (the gate checks it). A user component
+    defined after startup — in a function body, in a module imported
+    lazily at the first render — arrives too late: its colours will not
+    land in the safelist.
 
-    Pas de registre global (anti-règle 2) : on lit les classes vivantes
-    au moment de l'appel, après que les imports aient eu lieu.
+    No global registry (anti-rule 2): we read the live classes at call
+    time, after the imports have happened.
     """
     found: set[type] = set()
     stack: list[type] = list(Component.__subclasses__())
@@ -93,15 +91,14 @@ def dynamic_responsive_classes() -> tuple[str, ...]:
         keys = cls.__dict__.get("RESPONSIVE_THEME_KEYS") or ()
         if not keys:
             continue
-        # Remontée explicite de la MRO plutôt qu'un ``cls.THEME`` : la
-        # déclaration peut vivre sur une sous-classe qui HÉRITE son thème
-        # (VStack / HStack héritent celui de Flex), donc lire le seul
-        # ``__dict__`` de la classe raterait la table. Et l'accès par
-        # attribut est refusé ici par ``test_theme_reads_are_resolved``,
-        # qui garde un contrat de RENDER (passer par
-        # ``_resolved_theme()`` pour qu'un ``Theme(components=…)`` de
-        # l'app s'applique) — inapplicable à une introspection de classe,
-        # sans instance ni contexte.
+        # An explicit walk up the MRO rather than a ``cls.THEME``: the
+        # declaration can live on a subclass that INHERITS its theme
+        # (VStack / HStack inherit Flex's), so reading only the class's
+        # ``__dict__`` would miss the table. And attribute access is
+        # refused here by ``test_theme_reads_are_resolved``, which guards
+        # a RENDER contract (going through ``_resolved_theme()`` so an
+        # app's ``Theme(components=…)`` applies) — inapplicable to class
+        # introspection, with no instance and no context.
         theme: dict[str, Any] = next(
             (
                 found

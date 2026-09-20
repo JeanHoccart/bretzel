@@ -53,9 +53,9 @@ from bretzel.server.navigation import (
     response_is_read_by_htmx as response_is_read_by_htmx,
 )
 
-#: **Ce que l'utilisateur écrit.** La plupart de ces noms se tapent depuis
-#: le top-level (``from bretzel import Bretzel, abort``) ; ils restent ici
-#: parce que c'est la couche qui les définit.
+#: **What the user writes.** Most of these names are typed from the
+#: top level (``from bretzel import Bretzel, abort``); they stay here
+#: because this is the layer that defines them.
 from bretzel.server.pwa import PWA, PWAIcon
 
 __all__ = [
@@ -66,12 +66,12 @@ __all__ = [
     "ConfigError",
     "BretzelError",
     "AuthRequiredError",
-    # Le contrat de feature + l'introspection de la carte d'app
+    # The feature contract + app-map introspection
     "Feature",
     "FeatureError",
     "describe_app",
     "AppGraph",
-    # Les helpers appelables depuis un handler
+    # The helpers callable from a handler
     "abort",
     "push_url",
     "redirect",
@@ -80,20 +80,19 @@ __all__ = [
     "idempotent",
 ]
 
-#: **Ré-exporté pour les AUTRES COUCHES, pas pour l'auteur d'une app.**
+#: **Re-exported for the OTHER LAYERS, not for an app author.**
 #:
-#: Chaque nom d'ici porte l'alias redondant ``X as X`` à l'import : c'est le
-#: marqueur PEP 484 du ré-export intentionnel. La liste est vérifiée par
-#: ``tests/consistency/test_public_surface_is_classified.py`` : rien n'entre
-#: dans une façade sans être classé d'un côté ou de l'autre.
+#: Every name here carries the redundant ``X as X`` alias at import: that
+#: is the PEP 484 marker of an intentional re-export. The list is checked
+#: by ``tests/consistency/test_public_surface_is_classified.py``: nothing
+#: enters a facade without being classified on one side or the other.
 _INTERNAL = [
-    # La primitive niveau-requête de redirect() : c'est un middleware
-    # utilisateur qui l'appelle, pas le code d'une page. Documentée dans
-    # handlers.md § « garde d'auth par middleware ».
+    # The request-level primitive behind redirect(): it is a user
+    # middleware that calls it, not a page's code. Documented in
+    # handlers.md § "middleware auth guard".
     "redirect_response",
-    # Même nature : le chemin d'action d'un handler, pour qu'une garde
-    # puisse ouvrir la soumission d'un formulaire de connexion sans
-    # recomposer un wire-id à la main.
+    # Same nature: a handler's action path, so a guard can open a login
+    # form's submission without recomposing a wire-id by hand.
     "action_path",
     "response_is_read_by_htmx",
     "FEATURE_KINDS",

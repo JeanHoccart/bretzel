@@ -1,22 +1,21 @@
-"""Surface partagée des pickers à panneau — Select et Combobox.
+"""Shared surface of the panel pickers — Select and Combobox.
 
-Les deux composants sont **un miroir l'un de l'autre** par conception :
-même trigger ancré, même panneau d'options, mêmes pills en mode multi.
-Leurs thèmes promettent explicitement de « se lire comme une famille ».
-Ce module est l'endroit où cette promesse est tenue par le code plutôt
-que par la discipline.
+The two components are **a mirror of each other** by design: same
+anchored trigger, same option panel, same pills in multi mode. Their
+themes explicitly promise to "read as a family". This module is where
+that promise is kept by the code rather than by discipline.
 
-Avant, deux helpers (``_sized_slot``, ``_badge_pill_classes``) vivaient
-dans ``combobox.py`` et ``select.py`` les importait de là — un composant
-dépendant d'un frère faute de maison commune. Les quatre autres étaient
-recopiés des deux côtés (audit F13, F52), dont le template de pills
-entier, dont le docstring de select concédait la copie sans que
-l'extraction n'arrive jamais.
+Before, two helpers (``_sized_slot``, ``_badge_pill_classes``) lived in
+``combobox.py`` and ``select.py`` imported them from there — a component
+depending on a sibling for want of a common home. The four others were
+copied on both sides (audit F13, F52), including the whole pills
+template, whose copy select's docstring conceded without the extraction
+ever arriving.
 
-Ce qui reste **volontairement** par composant : ``.focus()`` / ``.blur()``
-(la surface focusable diffère : un ``<button>`` pour Select, l'``<input>``
-de recherche pour Combobox), et le chevron (Select le compose inline,
-Combobox le monte en méthode).
+What **deliberately** stays per component: ``.focus()`` / ``.blur()``
+(the focusable surface differs: a ``<button>`` for Select, the search
+``<input>`` for Combobox), and the chevron (Select composes it inline,
+Combobox mounts it as a method).
 """
 
 from __future__ import annotations
@@ -41,15 +40,14 @@ def sized_slot(
     slot: str,
     resolve_fn: Any,
 ) -> str:
-    """Compose ``slots[slot]`` + ``sizes[<size>][slot]`` en une string.
+    """Compose ``slots[slot]`` + ``sizes[<size>][slot]`` into one string.
 
-    L'idiome des composants multi-slots : le composeur de base SKIPPE en
-    silence une table ``sizes`` en dict, donc chaque slot sizé se compose
-    ici.
+    The multi-slot components' idiom: the base composer silently SKIPS a
+    ``sizes`` table that is a dict, so every sized slot composes here.
 
-    ``resolve_fn`` est appliqué systématiquement : ``_resolve_template``
-    court-circuite quand le template n'a pas de ``{``, donc les slots sans
-    placeholder ne paient rien.
+    ``resolve_fn`` is applied systematically: ``_resolve_template``
+    short-circuits when the template has no ``{``, so slots with no
+    placeholder pay nothing.
     """
     return " ".join(p for p in (
         resolve_fn(slots.get(slot, "")), size_map.get(slot, ""),
@@ -69,22 +67,23 @@ def badge_pill_classes(
     Select multi-pickers both delegate here so a Badge theme tweak
     propagates everywhere automatically.
 
-    ``badge_theme`` DOIT être le thème Badge RÉSOLU du call-site
-    (``self._resolved_theme("badge", BADGE_THEME)``) : lire la constante
-    ``BADGE_THEME`` ici contournerait un ``Theme(components={"badge":
-    …})`` de l'app, et les pills ne suivraient pas la surcharge — alors
-    que le docstring ci-dessus promet exactement l'inverse. Le défaut
-    ``None`` ne sert qu'aux tests hors contexte de render.
+    ``badge_theme`` MUST be the call site's RESOLVED Badge theme
+    (``self._resolved_theme("badge", BADGE_THEME)``): reading the
+    ``BADGE_THEME`` constant here would bypass an app's
+    ``Theme(components={"badge": …})``, and the pills would not follow
+    the override — while the docstring above promises exactly the
+    opposite. The ``None`` default only serves tests outside a render
+    context.
 
     ``resolve_fn`` is the call site's ``_resolve_template(template,
     color)`` partial so ``{bg_color}`` / ``{fg_color}`` placeholders
     get filled with the picker's chosen color.
 
-    ``size`` est REQUIS — et volontairement sans défaut. Il en avait un
-    (``"sm"``), et les quatre call-sites l'avaient tous laissé filer :
-    les pills restaient ``sm`` sur un picker ``xl``. Un défaut ici est
-    invisible au call-site ; l'absence de défaut force à décider. Passe
-    le token depuis ``sizes[<size>]["pill_size"]``.
+    ``size`` is REQUIRED — and deliberately without a default. It had
+    one (``"sm"``), and all four call sites had let it slip: the pills
+    stayed ``sm`` on an ``xl`` picker. A default here is invisible at the
+    call site; the absence of a default forces a decision. Pass the token
+    from ``sizes[<size>]["pill_size"]``.
     """
     theme = badge_theme if badge_theme is not None else BADGE_THEME
     slots = theme["slots"]
@@ -108,9 +107,9 @@ def normalise_option(opt: Any) -> tuple[Any, Any, bool]:
     """Return ``(value, label, disabled)`` for any of the accepted
     option shapes : str / tuple / dict.
 
-    Le contrat de forme des options DOIT être identique entre les deux
-    pickers — un ``options=`` qui marche sur l'un et pas sur l'autre
-    serait incompréhensible.
+    The options' shape contract MUST be identical between the two
+    pickers — an ``options=`` that works on one and not on the other
+    would be incomprehensible.
     """
     if isinstance(opt, dict):
         return (
@@ -127,40 +126,40 @@ def normalise_option(opt: Any) -> tuple[Any, Any, bool]:
 def option_body(
     render: Any, value: Any, label: Any
 ) -> tuple[Node, ...]:
-    """Le CORPS d'une option — ce que ``render=`` remplace.
+    """The BODY of an option — what ``render=`` replaces.
 
-    L'enveloppe reste au composant : le ``<button role="option">``, son
-    ``data-value``, son ``bz-on:click``, son ``aria-selected`` et — le
-    plus important — son ``bz-show="_matches(<haystack>)"``. Le rappel ne
-    remplit que l'intérieur.
+    The wrapper stays with the component: the ``<button role="option">``,
+    its ``data-value``, its ``bz-on:click``, its ``aria-selected`` and —
+    most importantly — its ``bz-show="_matches(<haystack>)"``. The
+    callback only fills the inside.
 
-    Pourquoi un rappel ici et des enfants ailleurs
-    ----------------------------------------------
+    Why a callback here and children elsewhere
+    -------------------------------------------
 
-    ``COLLECTION_OWNER = "component"`` : c'est le picker qui itère
-    ``options=``, l'auteur n'écrit pas cette boucle — il n'a donc aucun
-    endroit où poser son balisage sans ce rappel. Cf.
-    ``Component.COLLECTION_OWNER`` et
+    ``COLLECTION_OWNER = "component"``: it is the picker that iterates
+    ``options=``, the author does not write that loop — so they have
+    nowhere to put their markup without this callback. Cf.
+    ``Component.COLLECTION_OWNER`` and
     ``tests/consistency/test_collection_owner_decides_the_api.py``.
 
-    ⚠️ Signature ``(value, label)``, tous deux **déjà normalisés**, et
-    pas l'option brute. C'est délibéré : ``options=`` accepte trois
-    formes (str, tuple, dict), donc un rappel écrit
-    ``lambda opt: opt["label"]`` planterait sur deux d'entre elles. Le
-    même défaut avait été livré puis retiré sur ``breadcrumb`` le
-    2026-08-18. ``ui.column(render=lambda value, row)`` a la même
-    arité pour la même raison.
+    ⚠️ Signature ``(value, label)``, both **already normalised**, and not
+    the raw option. It is deliberate: ``options=`` accepts three shapes
+    (str, tuple, dict), so a callback written ``lambda opt:
+    opt["label"]`` would crash on two of them. The same default had been
+    shipped then removed on ``breadcrumb`` on 2026-08-18.
+    ``ui.column(render=lambda value, row)`` has the same arity for the
+    same reason.
 
-    Trois limites à connaître, toutes structurelles :
+    Three limits to know, all structural:
 
-    1. le **filtre** cherche dans le haystack, bâti côté serveur depuis
-       le label TEXTE — un badge rendu ici ne change pas ce qui est
-       cherché ;
-    2. le **déclencheur** et les **pills** lisent une carte
-       valeur→libellé en JS (``bz-text``), donc ils affichent le texte,
-       jamais ce balisage — un nœud texte ne porte pas de markup ;
-    3. le rappel ne touche ni au ``value``, ni au clic, ni à l'état
-       sélectionné.
+    1. the **filter** searches the haystack, built server-side from the
+       TEXT label — a badge rendered here does not change what is
+       searched;
+    2. the **trigger** and the **pills** read a value→label map in JS
+       (``bz-text``), so they display the text, never this markup — a
+       text node carries no markup;
+    3. the callback touches neither the ``value``, nor the click, nor the
+       selected state.
     """
     if render is None:
         return (TextNode(str(label)),)
@@ -168,12 +167,12 @@ def option_body(
 
 
 def has_picks(initial_value: Any, *, is_multi: bool) -> bool:
-    """SSR snapshot : le picker a-t-il une sélection au premier paint ?
+    """SSR snapshot: does the picker have a selection at the first paint?
 
-    Pilote le pré-stamp FOUC ``stamp_display_none`` — sur le bouton
-    clear (Combobox), sur les branches pills / clear / placeholder du
-    trigger multi (Select) — pour qu'ils peignent dans le bon état avant
-    le boot du runtime.
+    Drives the FOUC pre-stamp ``stamp_display_none`` — on the clear
+    button (Combobox), on the pills / clear / placeholder branches of the
+    multi trigger (Select) — so they paint in the right state before the
+    runtime boots.
     """
     if is_multi:
         if isinstance(initial_value, (list, tuple, set)):
@@ -183,7 +182,7 @@ def has_picks(initial_value: Any, *, is_multi: bool) -> bool:
 
 
 def render_x_icon(icon_size: str) -> Element:
-    """Le glyphe ``×`` du bouton clear, à la taille du picker."""
+    """The clear button's ``×`` glyph, at the picker's size."""
     return Component.render_detached(Icon("x", size=icon_size))
 
 
@@ -195,28 +194,28 @@ def option_check(
     picked_js: str,
     initially_picked: bool,
 ) -> Element:
-    """La coche d'une option PRISE, en mode multi.
+    """The tick of a PICKED option, in multi mode.
 
-    Sans elle, « pris » ne se lit qu'au gras + accent de
-    ``option_selected`` — et sur une liste ouverte avec TOUT pris (ce que
-    fait un filtre de colonne : « rien de décoché » = « rien de filtré »)
-    l'œil ne voit qu'une liste uniformément bleue, donc aucune sélection.
-    Pire, un survol pose ``option_active``, qui est lui aussi accentué :
-    survolé-non-pris et pris se ressemblent.
+    Without it, "picked" only reads from ``option_selected``'s bold +
+    accent — and on an open list with EVERYTHING picked (which a column
+    filter does: "nothing unticked" = "nothing filtered") the eye sees
+    only a uniformly blue list, so no selection at all. Worse, a hover
+    sets ``option_active``, which is also accented: hovered-not-picked
+    and picked look alike.
 
-    À DROITE, et pas une case à gauche : la case appartient au
-    formulaire, où elle est le contrôle lui-même ; ici le contrôle est la
-    rangée entière, et la coche en rapporte l'état. C'est ce que font
-    Linear / Notion / GitHub, et ça laisse les libellés alignés sur la
-    même colonne qu'en mode simple.
+    On the RIGHT, and not a checkbox on the left: the checkbox belongs to
+    the form, where it is the control itself; here the control is the
+    whole row, and the tick reports its state. It is what Linear / Notion
+    / GitHub do, and it leaves the labels aligned on the same column as
+    in single mode.
 
-    Mode MULTI seulement : en simple, le déclencheur affiche déjà
-    l'étiquette prise, et une coche sur l'unique ligne accentuée
-    redirait la même chose deux fois.
+    MULTI mode only: in single, the trigger already shows the picked
+    label, and a tick on the single accented row would say the same thing
+    twice.
 
-    ``picked_js`` est le prédicat du call-site (``_isPicked("x")``) ;
-    ``initially_picked`` pré-stampe l'état SSR pour qu'aucune coche ne
-    clignote avant le boot du runtime.
+    ``picked_js`` is the call site's predicate (``_isPicked("x")``);
+    ``initially_picked`` pre-stamps the SSR state so no tick flickers
+    before the runtime boots.
     """
     attrs: dict[str, Any] = {
         "class": sized_slot(slots, size_map, "option_check", resolve),
@@ -240,12 +239,12 @@ def build_pills_template(
     """Reactive pills via ``<template bz-for>``. Each picked value
     renders as ``<span class="pill">label <button>×</button></span>``.
 
-    Le libellé passe par ``_labelOf(v)``, une méthode du scope. Ce
-    gabarit inlinait la carte ``{valeur: libellé}`` ENTIÈRE dans son
-    ``bz-text`` jusqu'au 2026-08-28 — un deuxième exemplaire pour Select,
-    un TROISIÈME pour Combobox (qui la portait aussi dans ``_options``).
-    Chaque picker résout maintenant un libellé à sa façon : Select lit sa
-    carte, Combobox balaie ``_options``, qui le porte déjà.
+    The label goes through ``_labelOf(v)``, a scope method. This template
+    inlined the WHOLE ``{value: label}`` map in its ``bz-text`` until
+    2026-08-28 — a second copy for Select, a THIRD for Combobox (which
+    also carried it in ``_options``). Each picker now resolves a label
+    its own way: Select reads its map, Combobox sweeps ``_options``,
+    which already carries it.
 
     ``bz-for`` lives on a ``<template>`` with a SINGLE root child ;
     the key rides inside the attribute (``v in _picked() :key=v``)
@@ -323,39 +322,37 @@ def build_header_bar(
 ) -> Element:
     """The panel's sticky header — three zones in one flex row.
 
-    - **Compteur** (multi seulement) : ``"N / total"``, le nombre de
-      sélections d'un coup d'œil.
-    - **Pills** : les picks courants en badges retirables (le ``×``
-      enlève sans quitter le panneau).
-    - **Actions** (à droite, si ``show_bulk``) : ``Select all`` +
-      ``Clear``. Désactivées plutôt que masquées — la mise en page
-      reste stable.
+    - **Counter** (multi only): ``"N / total"``, the number of
+      selections at a glance.
+    - **Pills**: the current picks as removable badges (the ``×``
+      removes without leaving the panel).
+    - **Actions** (on the right, if ``show_bulk``): ``Select all`` +
+      ``Clear``. Disabled rather than hidden — the layout stays stable.
 
-    Visibilité : la barre entière se cache via ``bz-show`` quand il n'y
-    a ni pick ni action. Un pré-stamp FOUC la garde cachée au SSR quand
-    ni l'une ni l'autre condition ne tient.
+    Visibility: the whole bar hides through ``bz-show`` when there is
+    neither a pick nor an action. A FOUC pre-stamp keeps it hidden at SSR
+    when neither condition holds.
 
-    ``lead`` est une rangée pleine largeur posée EN TÊTE de la barre —
-    le champ de recherche du Combobox quand un ``trigger=`` custom l'a
-    délogé du déclencheur. La barre étant ``flex-wrap``, un enfant
-    ``w-full`` occupe sa propre ligne et le reste (compteur, actions)
-    se range dessous. Une barre qui porte la recherche ne peut plus se
-    cacher : ``lead`` force ``bz-show`` à vrai et annule le pré-stamp.
+    ``lead`` is a full-width row placed at the HEAD of the bar — the
+    Combobox's search field when a custom ``trigger=`` has evicted it
+    from the trigger. The bar being ``flex-wrap``, a ``w-full`` child
+    takes its own line and the rest (counter, actions) sits below. A bar
+    carrying the search can no longer hide: ``lead`` forces ``bz-show``
+    to true and cancels the pre-stamp.
 
-    ``lead`` retire aussi les pills : un filtre s'ouvre avec TOUTES ses
-    valeurs cochées, donc les badges seraient un mur au-dessus de la
-    liste qu'ils répètent — et le déclencheur, qui appartient à
-    l'appelant, dit déjà ce qui est pris. Dérivé plutôt que passé en
-    second drapeau : deux booléens qui doivent s'accorder, c'est un
-    booléen qui peut se contredire.
+    ``lead`` also removes the pills: a filter opens with ALL its values
+    ticked, so the badges would be a wall above the list they repeat —
+    and the trigger, which belongs to the caller, already says what is
+    picked. Derived rather than passed as a second flag: two booleans
+    that must agree are one boolean that can contradict itself.
 
-    ``select_all_disabled_js`` est la SEULE vraie divergence entre les
-    deux pickers (audit F14) : Select compare aux options totales,
-    Combobox à ce que la requête laisse visible. Tout le reste — ~100
-    lignes — était recopié, pour un contrat visuel que les deux thèmes
-    promettent explicitement de tenir en phase (« se lit comme une
-    famille »). Un ajustement du header dérivait donc en silence entre
-    Select-multi et Combobox-multi.
+    ``select_all_disabled_js`` is the ONLY real divergence between the
+    two pickers (audit F14): Select compares against the total options,
+    Combobox against what the query leaves visible. All the rest — ~100
+    lines — was copied, for a visual contract both themes explicitly
+    promise to keep in phase ("reads as a family"). An adjustment to the
+    header therefore drifted silently between Select-multi and
+    Combobox-multi.
     """
     bar_class = slots.get("header_bar", "")
     counter_class = sized_slot(slots, size_map, "header_counter", resolve)
@@ -369,15 +366,14 @@ def build_header_bar(
     btn_primary = sized_slot(slots, size_map, "header_btn_primary", resolve)
     btn_muted = sized_slot(slots, size_map, "header_btn_muted", resolve)
 
-    # Bulk on → la barre reste visible même sans pick (les actions
-    # doivent être découvrables). Une recherche en tête la rend
-    # inconditionnelle : la cacher emporterait le champ avec elle.
-    # UNE variable, lue par le ``bz-show`` runtime ET par le pré-stamp
-    # SSR plus bas. Les deux étaient deux expressions indépendantes de
-    # polarité inverse : ajouter une zone demandait un terme dans
-    # chacune, avec un signe différent, et se tromper sur le pré-stamp
-    # est invisible à toute la suite (aucun test SSR n'évalue un
-    # ``bz-show``).
+    # Bulk on → the bar stays visible even with no pick (the actions
+    # must be discoverable). A search at the head makes it
+    # unconditional: hiding it would take the field with it.
+    # ONE variable, read by the runtime ``bz-show`` AND by the SSR
+    # pre-stamp further down. They were two independent expressions of
+    # opposite polarity: adding a zone required a term in each, with a
+    # different sign, and getting the pre-stamp wrong is invisible to the
+    # whole suite (no SSR test evaluates a ``bz-show``).
     always_visible = show_bulk or lead is not None
     bar_bz_show = "true" if always_visible else "_hasPicked()"
 

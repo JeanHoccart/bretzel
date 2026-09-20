@@ -1,6 +1,6 @@
 """Envelope / patch serialisation — the V3 wire format server ↔ runtime.
 
-Two outgoing payloads cross the boundary (.claude/bretzel/runtime.md) :
+Two outgoing payloads cross the boundary (.claude/bretzel/runtime.md):
 
 - **``<bz-envelope>``** — bootstrap blob, emitted ONCE per full-page
   render. Carries every :class:`ClientState` instance (fields +
@@ -13,7 +13,7 @@ Two outgoing payloads cross the boundary (.claude/bretzel/runtime.md) :
   on the partial-nav seed path. ``05_bridge.js`` parses them on
   ``htmx:afterSwap`` and applies them to the signal store.
 
-Both are normal HTML tags (not ``<script type=...>`` workarounds) :
+Both are normal HTML tags (not ``<script type=...>`` workarounds):
 idiomorph swaps them like any element, the bridge consumes + removes
 them.
 
@@ -21,8 +21,8 @@ Incoming, client state rides as **namespaced form-data** in the POST
 body (``Class.key.field=value``).
 :func:`parse_client_payload` splits it from regular handler args.
 
-Le payload client ne porte pas de TTL. Les états serveur ont leurs
-propres durées de conservation, gérées par le registre et le backend.
+The client payload carries no TTL. Server states have their own
+retention durations, managed by the registry and the backend.
 """
 
 from __future__ import annotations
@@ -56,27 +56,27 @@ class Envelope(TypedDict):
     client_state: dict[str, Any]
     endpoints: dict[str, str]
     csrf: str
-    #: L'adresse CORRIGÉE, quand celle du navigateur est incomplète.
+    #: The CORRECTED address, when the browser's is incomplete.
     #:
-    #: Un état de portée ``session`` se souvient d'un tri ou d'un filtre
-    #: par-delà les navigations. Arriver sur ``/comptes`` nu rend donc une
-    #: vue triée sous une adresse qui n'en dit rien — et le lien copié
-    #: montre autre chose chez qui le reçoit. Le serveur, lui, sait les
-    #: deux : il compose l'adresse juste et la pose ici.
+    #: A ``session``-scoped state remembers a sort or a filter across
+    #: navigations. Landing on a bare ``/accounts`` therefore returns a
+    #: sorted view under an address that says nothing of it — and the
+    #: copied link shows something else to whoever receives it. The
+    #: server knows both: it composes the right address and sets it here.
     #:
-    #: Le runtime la passe à ``history.replaceState`` — **replace**, pas
-    #: push : corriger une adresse n'est pas naviguer, et empiler une
-    #: entrée à chaque chargement rendrait le bouton retour inutilisable.
+    #: The runtime passes it to ``history.replaceState`` — **replace**,
+    #: not push: correcting an address is not navigating, and stacking an
+    #: entry on every load would make the back button unusable.
     #:
-    #: Chaîne vide = rien à corriger, ce qui est le cas de toute app qui
-    #: n'a rien déclaré adressable.
+    #: Empty string = nothing to correct, which is the case for every app
+    #: that declared nothing addressable.
     address: str
-    #: L'identite de la page rendue. Le serveur en a besoin sur CHAQUE
-    #: action pour retrouver l'etat de scope ``page`` ; sans elle il en
-    #: forge une neuve, donc un etat vierge.
+    #: The identity of the rendered page. The server needs it on EVERY
+    #: action to find the ``page``-scoped state again; without it, it
+    #: forges a fresh one, hence a blank state.
     #:
-    #: Le runtime la reprend dans l'en-tête de chaque action, y compris
-    #: depuis un élément téléporté hors du conteneur de page.
+    #: The runtime carries it in the header of every action, including
+    #: from an element teleported outside the page container.
     page_id: str
 
 
@@ -84,22 +84,23 @@ class Patch(TypedDict):
     """Top-level shape of one ``<bz-patch>`` payload."""
 
     patches: dict[str, dict[str, Any]]
-    #: Config de transport, présente **uniquement sur le patch de seed**
-    #: (``include_unchanged=True``, le chemin de nav partielle). Une
-    #: réponse d'action ordinaire ne la porte pas : le client a déjà la
-    #: config de ces instances, la renvoyer serait des octets par clic.
+    #: Transport config, present **only on the seed patch**
+    #: (``include_unchanged=True``, the partial-nav path). An ordinary
+    #: action response does not carry it: the client already has the
+    #: config of those instances, sending it back would be bytes per
+    #: click.
     #:
-    #: Elle permet à un ``ClientState`` découvert pendant une navigation
-    #: partielle de recevoir ses champs et sa configuration ensemble.
+    #: It lets a ``ClientState`` discovered during a partial navigation
+    #: receive its fields and its configuration together.
     config: NotRequired[dict[str, dict[str, Any]]]
 
 
 def _transport_config(state: ClientState) -> dict[str, Any]:
-    """La config de transport d'une instance — UNE définition, deux porteurs.
+    """An instance's transport config — ONE definition, two carriers.
 
-    L'``<bz-envelope>`` la porte au chargement dur, le ``<bz-patch>`` de
-    seed la porte en nav partielle. Une seule fonction empêche les deux
-    représentations de diverger.
+    The ``<bz-envelope>`` carries it on a hard load, the seed
+    ``<bz-patch>`` carries it on a partial nav. A single function keeps
+    the two representations from diverging.
     """
     return {
         "persist": state.__persist__,
@@ -192,10 +193,10 @@ def build_patch(
     for state in client_states:
         if include_unchanged:
             patches[instance_key(state)] = full_field_dict(state)
-            # Le seed est le SEUL cas où le client peut découvrir une
-            # instance qu'il n'a jamais vue — donc le seul qui doive
-            # porter sa config. Une réponse d'action ordinaire parle
-            # d'instances déjà configurées au boot.
+            # The seed is the ONLY case where the client can discover
+            # an instance it has never seen — so the only one that must
+            # carry its config. An ordinary action response speaks of
+            # instances already configured at boot.
             config[instance_key(state)] = _transport_config(state)
         elif state._dirty:
             patches[instance_key(state)] = state.to_dict()
@@ -232,21 +233,22 @@ def error_envelope(kind: str, message: str = "") -> str:
     "Request failed (403)" toast — the bridge can't tell a stale HMAC
     signature (which a reload heals) from a real error. This wraps the
     body so ``05_bridge.js``'s ``htmx:responseError`` handler can dispatch
-    on ``kind`` :
+    on ``kind``:
 
     - ``"reload"`` → ``window.location.reload()``. A stale / rotated
-      action signature or CSRF token : re-rendering the page mints fresh
+      action signature or CSRF token: re-rendering the page mints fresh
       ones, so the user's next click just works instead of dead-ending.
-      (Loop-guarded client-side : a second reload-error within 3 s falls
+      (Loop-guarded client-side: a second reload-error within 3 s falls
       back to a toast.)
     - anything else → error toast (same as the un-enveloped fallback).
 
-    Une redirection passe par l'en-tête ``HX-Redirect`` que
-    :func:`bretzel.redirect` pose et qu'htmx traite nativement. Les kinds
-    émis sont gardés par ``tests/consistency/test_bridge_error_kinds_are_emitted.py``.
+    A redirection goes through the ``HX-Redirect`` header that
+    :func:`bretzel.redirect` sets and htmx handles natively. The emitted
+    kinds are guarded by
+    ``tests/consistency/test_bridge_error_kinds_are_emitted.py``.
 
     Emitted from the action route (bad / expired signature) and the CSRF
-    middleware. The ``<bz-patch>`` rides in the 4xx body ; HTMX doesn't
+    middleware. The ``<bz-patch>`` rides in the 4xx body; HTMX doesn't
     swap error responses, so the bridge extracts the tag by regex.
     """
     payload = escape_inline_json(

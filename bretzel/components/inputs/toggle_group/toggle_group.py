@@ -35,10 +35,11 @@ No per-item ``.add(v)`` / ``.remove(v)`` / ``.toggle(v)`` — the click
 handlers already do that UI-side. Server-side mutations use
 ``.set(new_list)`` (or write through the bound state field directly).
 
-La clé de scope s'appelle ``value``, comme pour les autres contrôles. Elle
-peut cohabiter avec l'attribut HTML ``value`` des boutons : l'élément est
-exposé sous ``$el`` et n'entre pas dans la chaîne du scope. Ce contrat est
-gardé par ``tests/runtime_js/test_a_scope_key_survives_a_child_of_the_same_name.py``.
+The scope key is called ``value``, like the other controls. It can
+coexist with the buttons' HTML ``value`` attribute: the element is
+exposed as ``$el`` and does not enter the scope's chain. That contract
+is guarded by
+``tests/runtime_js/test_a_scope_key_survives_a_child_of_the_same_name.py``.
 """
 
 from __future__ import annotations
@@ -79,10 +80,10 @@ def _pop_server_action(root_attrs: dict[str, Any]) -> dict[str, Any] | None:
     relocate them to — they're client-string only in practice) ; only
     the ``change`` server action moves to the hidden form carrier.
     """
-    # L'EVENT, pas la chaîne : avec un ``debounce=`` le trigger vaut
-    # ``"change delay:300ms"``, la comparaison échouait, et le bundle
-    # restait sur la racine — un ``<div>`` qui ne fire jamais
-    # ``change``. Handler mort, sans un mot.
+    # The EVENT, not the string: with a ``debounce=`` the trigger is
+    # ``"change delay:300ms"``, the comparison failed, and the bundle
+    # stayed on the root — a ``<div>`` that never fires ``change``. Dead
+    # handler, without a word.
     if trigger_event(root_attrs) != "change":
         return None
     return {
@@ -97,10 +98,10 @@ class ToggleGroup(Component):
 
     THEME: ClassVar[dict[str, Any]] = TOGGLE_GROUP_THEME
     THEME_KEY: ClassVar[str] = "toggle_group"
-    #: L'auteur possède la boucle : il ouvre un ``with`` et pose ses
-    #: ``ToggleButton``. ``options=`` est le raccourci du cas simple et
-    #: matérialise les mêmes enfants — c'est le patron à deux niveaux que
-    #: ``Breadcrumb`` reprend. Cf. ``Component.COLLECTION_OWNER``.
+    #: The author owns the loop: they open a ``with`` and place their
+    #: ``ToggleButton``. ``options=`` is the simple case's shortcut and
+    #: materialises the same children — it is the two-tier pattern
+    #: ``Breadcrumb`` takes up. Cf. ``Component.COLLECTION_OWNER``.
     COLLECTION_OWNER: ClassVar[str | None] = "author"
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "clear", "focus", "blur", "select_all", "deselect_all")
@@ -128,16 +129,16 @@ class ToggleGroup(Component):
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Garde : sans elle, un ancien ``type="multiple"`` filerait dans
-        # **kwargs → attribut HTML mort sur le <div> → groupe
-        # silencieusement single.
+        # Guard: without it, an old ``type="multiple"`` would slip into
+        # **kwargs → a dead HTML attribute on the <div> → a silently
+        # single group.
         if "type" in kwargs:
             raise TypeError(
-                "ToggleGroup(type='single'|'multiple') a été remplacé "
-                "par multiple=True|False — même API que Select / "
+                "ToggleGroup(type='single'|'multiple') has been replaced "
+                "by multiple=True|False — the same API as Select / "
                 "Combobox / FileUpload."
             )
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             value=value,
             multiple=multiple,
@@ -250,14 +251,14 @@ class ToggleGroup(Component):
         # the existing ``value`` signal across the morph (preserving a
         # user's client click), so without an opt-in the new server value
         # never lands. Same ``_serverSync`` boundary the rich inputs use
-        # (cf. traps.md § value lié-serveur suit le refresh). A local
-        # literal stays client-owned (no re-adopt). Binding mode needs
-        # nothing — the value lives in ``$bz._store``.
+        # (cf. traps.md § a server-bound value follows the refresh). A
+        # local literal stays client-owned (no re-adopt). Binding mode
+        # needs nothing — the value lives in ``$bz._store``.
         value_server_backed = self._value_server_backed("value")
 
-        # La clé de scope — ``value``, comme la prop, comme partout
-        # ailleurs (cf. docstring de module). Avec un binding en jeu,
-        # toutes les expressions tapent le chemin du magasin à la place.
+        # The scope key — ``value``, like the prop, like everywhere else
+        # (cf. the module docstring). With a binding in play, every
+        # expression hits the store path instead.
         (scope_key,) = self._scope_keys("value")
         picked_expr = binding_path if binding_path is not None else scope_key
 
@@ -267,13 +268,13 @@ class ToggleGroup(Component):
         # so we don't duplicate it locally (would race the framework's
         # delta apply).
         if binding_path is None:
-            # La clé vient de ``_scope_keys``, plus d'un littéral
-            # recopié ici : elle vivait à TROIS endroits (la variable
-            # locale, la déclaration, le marker) et un rename devait
-            # toucher les trois (audit F84). C'est la divergence de
-            # nommage (value/picked/active/sel) qui a causé 5 des 8
-            # oublis de ``_serverSync`` — elle est supprimée depuis le
-            # 2026-09-07, la clé vaut le nom de la prop.
+            # The key comes from ``_scope_keys``, no longer from a
+            # literal copied here: it lived in THREE places (the local
+            # variable, the declaration, the marker) and a rename had to
+            # touch all three (audit F84). It is the naming divergence
+            # (value/picked/active/sel) that caused 5 of the 8 forgotten
+            # ``_serverSync`` — it is gone since 2026-09-07, the key is
+            # the prop's name.
             sync = server_sync_marker(
                 *self._scope_keys("value"), enabled=value_server_backed)
             bz_data_obj = (
@@ -343,13 +344,12 @@ class ToggleGroup(Component):
         )
 
         for raw in self._children:
-            # ``unwrap_transparent`` : un bouton ENVELOPPÉ — zone
-            # ``@refreshable``, ``ui.fragment`` — n'est pas une instance
-            # de ``ToggleButton``, donc il tombait dans la branche
-            # « enfant étranger » et son ``render()`` nu LEVAIT
-            # (« only valid inside a ToggleGroup »). Le seul des cinq
-            # conteneurs qui trient à être bruyant ; les autres se
-            # dégradaient en silence.
+            # ``unwrap_transparent``: a WRAPPED button — a
+            # ``@refreshable`` zone, a ``ui.fragment`` — is not an
+            # instance of ``ToggleButton``, so it fell into the "foreign
+            # child" branch and its bare ``render()`` RAISED ("only valid
+            # inside a ToggleGroup"). The only one of the five sorting
+            # containers to be loud; the others degraded in silence.
             child, rewrap = unwrap_transparent(raw)
             if isinstance(child, ToggleButton):
                 buttons.append(rewrap(
@@ -388,16 +388,15 @@ class ToggleGroup(Component):
         relocated_change = root_attrs.pop("bz-on:change", None)
         relocated_server = _pop_server_action(root_attrs)
 
-        # ── focus / blur : re-clés en focusin / focusout ────────────────
-        # ``focus`` / ``blur`` ne BULLENT PAS : posé sur la root ``<div>``
-        # (non focusable), un listener ne se déclencherait jamais — les
-        # éléments focusables sont les ``<button>`` ENFANTS. ``focusin`` /
-        # ``focusout`` sont les jumeaux BULLANTS : posés sur le conteneur,
-        # ils se déclenchent quand n'importe quel enfant prend / perd le
-        # focus. Même relais que ``<bz-calendar>`` (07_calendar.js).
-        # Préféré à la relocation sur le premier ``<button>`` (idiome
-        # Select) : « le premier » serait arbitraire, le focus peut entrer
-        # par n'importe lequel.
+        # ── focus / blur: re-keyed to focusin / focusout ────────────────
+        # ``focus`` / ``blur`` do NOT BUBBLE: set on the root ``<div>``
+        # (not focusable), a listener would never fire — the focusable
+        # elements are the CHILD ``<button>``. ``focusin`` / ``focusout``
+        # are the BUBBLING twins: set on the container, they fire when
+        # any child takes / loses focus. Same relay as ``<bz-calendar>``
+        # (07_calendar.js). Preferred over relocating onto the first
+        # ``<button>`` (the Select idiom): "the first" would be
+        # arbitrary, the focus can come in through any of them.
         for src, dst in (("focus", "focusin"), ("blur", "focusout")):
             attr = f"bz-on:{src}"
             if attr in root_attrs:
@@ -427,11 +426,11 @@ class ToggleGroup(Component):
                     else str(initial_value)
                 )
             hidden_attrs: dict[str, Any] = {
-                # ``dispatch=`` : le SEUL appelant du catalogue dont la
-                # valeur postée (``hidden_value_expr``, sérialisée) et la
-                # valeur observée (``picked_expr``) ne sont pas la même
-                # expression. C'est cette divergence-là qui a fait garder
-                # le paramètre plutôt que de câbler le dispatcher en dur.
+                # ``dispatch=``: the catalogue's ONLY caller whose
+                # posted value (``hidden_value_expr``, serialised) and
+                # observed value (``picked_expr``) are not the same
+                # expression. It is that divergence that made us keep the
+                # parameter rather than hard-wire the dispatcher.
                 **hidden_carrier_attrs(
                     hidden_value_expr, initial=ssr_value, dispatch=picked_expr
                 ),
@@ -467,14 +466,14 @@ class ToggleGroup(Component):
             cmd_listeners["bz-on:bz-deselect-all"] = f"{picked_expr} = []"
 
         # ── Root assembly ──────────────────────────────────────────────
-        # ``classes=`` posé par le wrap métaclasse — pas ici (doublon).
+        # ``classes=`` set by the metaclass wrap — not here (duplicate).
         root_class = " ".join(
             p
             for p in (
                 _resolve(slots.get("root", "")),
-                # La hauteur du palier : elle est sur la root parce que
-                # c'est elle qui porte la bordure du cadre (cf. le
-                # commentaire de ``TOGGLE_GROUP_THEME["sizes"]``).
+                # The step's height: it is on the root because it is
+                # the root that carries the frame's border (cf. the
+                # comment on ``TOGGLE_GROUP_THEME["sizes"]``).
                 size_cfg.get("root", ""),
             )
             if p
@@ -503,27 +502,25 @@ class ToggleButton(Component):
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("disabled",)
     option_value: str = reactive_prop(default="", emit_attr=False)
-    # Nourrie depuis le ``value`` positionnel de l'option. La passer
-    # explicitement est refusé par ``reject_sealed``, appelé en tête
-    # de ``__init__`` — il FAUT que ce soit là, avant le
-    # ``super().__init__`` : la collision de kwargs est levée par
-    # Python au moment de construire l'appel, donc le socle ne la
-    # voit jamais.
+    # Fed from the option's positional ``value``. Passing it explicitly
+    # is refused by ``reject_sealed``, called at the head of
+    # ``__init__`` — it MUST be there, before the ``super().__init__``:
+    # the kwarg collision is raised by Python when building the call, so
+    # the base layer never sees it.
     #
-    # ⚠️ Ce commentaire disait « produit un multiple values » et
-    # s'en contentait, jusqu'au 2026-09-04. C'était décrire un
-    # message illisible au lieu de le réparer — rien n'aurait
-    # rappelé d'y revenir.
+    # ⚠️ This comment said "produces a multiple values" and left it at
+    # that, until 2026-09-04. That was describing an unreadable message
+    # instead of fixing it — nothing would have prompted a return to it.
     SEALED_PROPS: ClassVar[tuple[str, ...]] = ("option_value",)
-    #: Le message du refus. Sans lui, le défaut de ``reject_sealed``
-    #: parle d'AXE — vrai pour une pile, faux ici.
+    #: The refusal's message. Without it, ``reject_sealed``'s default
+    #: speaks of an AXIS — true for a stack, false here.
     SEALED_REASONS: ClassVar[dict[str, str]] = {
         "option_value": (
-            "ToggleButton(option_value=…) : ce prop est alimenté par le "
-            "``value`` positionnel de l'option — écrivez "
-            "``ui.toggle_button(\"ma-valeur\")``. Le passer en plus produirait "
-            "deux valeurs pour le même champ, ce qui est une "
-            "ambiguïté, pas un raccourci."
+            "ToggleButton(option_value=…): this prop is fed by the "
+            "option's positional ``value`` — write "
+            "``ui.toggle_button(\"my-value\")``. Passing it as well would "
+            "produce two values for the same field, which is an "
+            "ambiguity, not a shortcut."
         ),
     }
     disabled: bool = reactive_prop(default=False, emit_attr=False)
@@ -539,9 +536,9 @@ class ToggleButton(Component):
         **kwargs: Any,
     ) -> None:
         reject_sealed(kwargs, type(self))
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
-        # ``option_value`` (le ``value`` positionnel de l'item) est toujours
-        # transmis — ce n'est pas une garde None.
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
+        # ``option_value`` (the item's positional ``value``) is always
+        # passed on — it is not a None guard.
         super().__init__(
             option_value=value,
             disabled=disabled,
@@ -550,19 +547,19 @@ class ToggleButton(Component):
         self._option_value = value
         self._label = label
         self._tooltip = tooltip
-        # ⚠️ Un ``icon="star"`` garde son NOM ici : sa taille dépend du
-        # ``size=`` du GROUPE, qu'un enfant ne connaît pas à sa
-        # construction. Elle est dérivée au rendu, où ``item_class``
-        # porte enfin la classe de texte du libellé — un cran au-dessus,
-        # cf. ``base.sizes.ICON_SIZE_ABOVE``.
+        # ⚠️ An ``icon="star"`` keeps its NAME here: its size depends
+        # on the GROUP's ``size=``, which a child does not know at its
+        # construction. It is derived at render, where ``item_class``
+        # finally carries the label's text class — one step above, cf.
+        # ``base.sizes.ICON_SIZE_ABOVE``.
         #
-        # Une taille littérale ici serait figée quel que soit le
-        # ``size=`` du groupe : c'est la dette que
-        # ``test_child_component_size_is_not_frozen`` interdit, et elle
-        # se voit — ``xs`` veut une icône ``sm``, ``xl`` une ``lg``.
+        # A literal size here would be frozen whatever the group's
+        # ``size=``: that is the debt
+        # ``test_child_component_size_is_not_frozen`` forbids, and it
+        # shows — ``xs`` wants an ``sm`` icon, ``xl`` an ``lg``.
         #
-        # Un Component passé à la main garde SA taille : l'auteur l'a
-        # choisie.
+        # A Component passed by hand keeps ITS size: the author chose
+        # it.
         self._icon_name = icon if isinstance(icon, str) else None
         if icon is None or self._icon_name:
             self._icon: Component | None = None
@@ -669,27 +666,27 @@ class ToggleButton(Component):
             Component._detach_from_parent(icon)
         if icon is not None:
             children.append(icon.render())
-        # ``is not None`` ne suffit PAS : ``emit_text_slot`` renvoie aussi
-        # ``None`` pour la chaîne vide, et un ``None`` dans ``children``
-        # fait lever le sérialiseur. C'est le nœud émis qu'on teste, pas
-        # la valeur d'entrée.
+        # ``is not None`` is NOT enough: ``emit_text_slot`` also
+        # returns ``None`` for the empty string, and a ``None`` in
+        # ``children`` makes the serialiser raise. It is the emitted node
+        # we test, not the input value.
         label_node = self.emit_text_slot(self._label)
         if label_node is not None:
             children.append(label_node)
 
-        # ⚠️ ``finish_render`` et non un ``Element`` rendu tel quel.
+        # ⚠️ ``finish_render`` and not an ``Element`` rendered as is.
         #
-        # Ce chemin court-circuite le ``render()`` de l'enfant — donc le
-        # wrap métaclasse, donc les trois passes que TOUT nœud de composant
-        # doit subir. Mesuré avant ce fix :
+        # This path short-circuits the child's ``render()`` — so the
+        # metaclass wrap, so the three passes EVERY component node must
+        # undergo. Measured before this fix:
         # ``ui.toggle_button(..., classes=…, style=…, slots={"root": …})``
-        # perdait **les trois** kwargs universels, en silence, dès qu'il
-        # était dans un ``ui.toggle_group`` — alors qu'ils marchent sur les
-        # 75 autres composants.
+        # lost **all three** universal kwargs, in silence, as soon as it
+        # was inside a ``ui.toggle_group`` — while they work on the 75
+        # other components.
         #
-        # Tout parent qui rebâtit un enfant au lieu de l'appeler doit finir
-        # par ici. C'est le seul endroit qui décrit ce que « rendre un
-        # composant » veut dire.
+        # Any parent that rebuilds a child instead of calling it must end
+        # up here. It is the only place that describes what "rendering a
+        # component" means.
         return finish_render(
             self,
             Element(

@@ -532,7 +532,7 @@ pas oublier `merge`).
 
 ⚠️ Avant cette date, le second cas ne levait pas : il rendait les valeurs par **défaut**, et comme `commit` ne regarde que `_dirty`, la première mutation **écrasait** la valeur stockée. Ça ne pouvait se voir sur aucune suite — toutes tournent sur la mémoire, qui a `load_sync`. La gate est `tests/integration/server/test_an_async_only_backend_still_hydrates.py`, et elle monte un backend privé de `load_sync` exprès.
 
-⚠️ Et le refus dépend du **backend** : en mémoire, `MonEtat()` dans un `async def` marche. La faute n'apparaît donc qu'en prod. `bretzel check` la signale en dev (`etat-construit-sur-la-boucle`) — mais seulement quand la construction est DIRECTE dans le corps `async`, pas quand elle passe par un helper synchrone.
+⚠️ Et le refus dépend du **backend** : en mémoire, `MonEtat()` dans un `async def` marche. La faute n'apparaît donc qu'en prod. `bretzel check` la signale en dev (`state-built-on-the-loop`) — mais seulement quand la construction est DIRECTE dans le corps `async`, pas quand elle passe par un helper synchrone.
 
 ---
 

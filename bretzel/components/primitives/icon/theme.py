@@ -7,12 +7,11 @@ Default colour ``current`` → the ``bz-c-current`` bridge, whose
 ``--bz-text`` is ``currentColor`` : the icon inherits its parent's text
 colour unless ``color=`` overrides.
 
-⚠️ Le slot écrit ``text-(--bz-text)`` et non ``text-(--bz-text)`` : c'est
-un PALIER, posé par la classe-pont que le socle tamponne sur la racine
-(cf. :mod:`bretzel.theme.bridges`). La différence n'est pas cosmétique —
-``text-(--bz-text)`` est une demi-classe que le compilateur Tailwind ne
-voit pas et qu'il faut donc clôturer couleur par couleur, alors que
-``text-(--bz-text)`` est une classe complète et littérale.
+⚠️ The slot writes a STEP (``text-(--bz-text)``), set by the bridge class
+the base layer stamps on the root (cf. :mod:`bretzel.theme.bridges`). The
+difference is not cosmetic — a half-class assembled at render time is one
+the Tailwind compiler never sees, so it has to be closed colour by
+colour, whereas a step is a complete and literal class.
 """
 
 from __future__ import annotations

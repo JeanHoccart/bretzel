@@ -2,17 +2,17 @@
 
 Bumped only when the wire format between server and client changes
 incompatibly. Patch-level bumps (``v1.0`` → ``v1.1``) signal additive,
-backwards-compatible additions ; major bumps (``v1.x`` → ``v2.x``)
+backwards-compatible additions; major bumps (``v1.x`` → ``v2.x``)
 signal a break.
 
 The server checks the client's reported version on every action POST via
-:func:`check_compat` — dans ``server/routing/actions.py``, juste avant la
-vérification HMAC. Un major différent est refusé en **409** avec une
-envelope ``_error: reload``, donc le bridge recharge et re-tire un
-``runtime.js`` à jour.
+:func:`check_compat` — in ``server/routing/actions.py``, just before the
+HMAC verification. A different major is refused with a **409** carrying an
+``_error: reload`` envelope, so the bridge reloads and pulls a fresh
+``runtime.js``.
 
-⚠️ Ce contrôle sert la LISIBILITÉ, pas la sûreté : un header absent tombe
-dans le chemin HMAC, qui vérifie l'authenticité de l'action.
+⚠️ This check serves READABILITY, not safety: a missing header falls into
+the HMAC path, which verifies the action's authenticity.
 """
 
 from __future__ import annotations

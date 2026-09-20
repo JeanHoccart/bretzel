@@ -105,30 +105,31 @@ def coerce_xy_series(
 
 def coloured_slot(component: Any, name: str, override: str | None,
                   fallback: str) -> str:
-    """La classe d'un slot de chart, PLUS le pont de sa couleur.
+    """A chart slot's class, PLUS its colour's bridge.
 
-    Un chart est le seul composant dont **plusieurs enfants portent des
-    couleurs différentes** : une série par couleur, sur une racine qui
-    n'en a qu'une. Le pont posé par le socle sur la racine ne peut donc
-    pas les servir tous.
+    A chart is the only component whose **several children carry
+    different colours**: one series per colour, on a root that has only
+    one. The bridge the base layer sets on the root therefore cannot
+    serve them all.
 
-    Depuis que les thèmes se peignent aux paliers, la classe d'un slot ne
-    porte plus la couleur du tout : ``fill-(--bz-solid)`` est la même
-    pour toutes les séries. C'est la classe-pont, ajoutée ici, qui dit
-    laquelle. Sans elle, toutes les séries d'un même graphe rendraient de
-    la couleur de la racine — mesuré le 2026-08-30 en migrant les
-    thèmes : `fill-success` était devenu introuvable dans le HTML du
-    `bar_chart`, alors que la série le demandait.
+    Since the themes paint themselves with steps, a slot's class no
+    longer carries the colour at all: ``fill-(--bz-solid)`` is the same
+    for every series. It is the bridge class, added here, that says
+    which. Without it, every series of one chart would render in the
+    root's colour — measured on 2026-08-30 while migrating the themes:
+    `fill-success` had become unfindable in the `bar_chart`'s HTML,
+    although the series asked for it.
 
-    ``override`` est la couleur de la SÉRIE (``Series(color=…)``),
-    ``fallback`` celle du composant.
+    ``override`` is the SERIES' colour (``Series(color=…)``),
+    ``fallback`` the component's.
 
-    **Le pont n'est ajouté que s'il y a un override.** Sans override la
-    couleur est celle du composant, donc celle du pont que le socle a
-    déjà posé sur la racine : le redire sur chaque `<line>`, chaque
-    étiquette d'axe et chaque grille alourdirait le SVG pour rien.
-    Mesuré en l'écrivant sans ce garde : le slot ``crosshair``, qui ne
-    parle d'aucune couleur, ressortait avec un ``bz-c-primary`` collé.
+    **The bridge is only added if there is an override.** With no
+    override the colour is the component's, so the one of the bridge the
+    base layer has already set on the root: repeating it on every
+    `<line>`, every axis label and every gridline would weigh the SVG
+    down for nothing. Measured by writing it without that guard: the
+    ``crosshair`` slot, which speaks of no colour, came out with a
+    ``bz-c-primary`` stuck on it.
     """
     classes = component.compose_class(
         name,

@@ -192,7 +192,7 @@ def test_a_form_string_lands_as_the_declared_type() -> None:
 
 def test_an_unstorable_type_is_refused_at_import() -> None:
     """Tôt, pas à l'écriture — sinon la faute attend la production."""
-    with pytest.raises(TypeError, match="que le magasin ne sait pas écrire"):
+    with pytest.raises(TypeError, match="the store does not know how to write"):
 
         class Cassee(SessionState):
             truc: object = field(default=None)

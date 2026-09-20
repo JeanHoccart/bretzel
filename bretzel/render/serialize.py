@@ -44,16 +44,16 @@ def serialize_html(component: Component) -> str:
     # the component would render twice : once visually, once here.
     _Component._detach_from_parent(component)
 
-    # ⚠️ Entrer en RENDER MODE autour de ``render()`` — comme le fait
-    # ``_render_children`` pendant le walk normal. Sans ça, un Component
-    # construit DANS le ``render()`` de *component* (× de fermeture,
-    # chevron, icône thémée d'une string) s'auto-enregistre au parent
-    # actif et FUIT sur ``root_children`` : il rend une 2ᵉ fois, orphelin,
-    # dans la page qui appelle ``serialize_html``. C'est la racine du ×
-    # parasite du playground (2026-07-18) — un caller qui rendait hors
-    # render-mode, pas un composant fautif. Save/restore comme
-    # ``_render_children`` : un 2ᵉ serialize dans la même requête ne doit
-    # pas voir le flag coincé.
+    # ⚠️ Enter RENDER MODE around ``render()`` — as ``_render_children``
+    # does during the normal walk. Without it, a Component built INSIDE
+    # *component*'s ``render()`` (a close ×, a chevron, a themed icon
+    # from a string) registers itself with the active parent and LEAKS
+    # onto ``root_children``: it renders a 2nd time, orphaned, in the
+    # page that called ``serialize_html``. That is the root of the
+    # playground's stray × (2026-07-18) — a caller rendering outside
+    # render mode, not a faulty component. Save/restore like
+    # ``_render_children``: a 2nd serialize in the same request must not
+    # find the flag stuck.
     ctx = maybe_current_context()
     previous = ctx.is_rendering if ctx is not None else None
     if ctx is not None:
@@ -86,10 +86,10 @@ def _format_node(node: Node, depth: int) -> str:
 
 def _format_element(node: Element, depth: int) -> str:
     pad = _INDENT * depth
-    # Les attributs sont sérialisés par ``_format_opening``, sur chacune
-    # des quatre branches ci-dessous. La ligne qui les préparait ici les
-    # calculait donc une SECONDE fois, pour une variable que plus rien ne
-    # lisait depuis que l'ouverture est passée par ce helper.
+    # The attributes are serialised by ``_format_opening``, on each of
+    # the four branches below. The line that prepared them here therefore
+    # computed them a SECOND time, for a variable nothing has read since
+    # the opening went through that helper.
 
     # Void elements self-close, no children to walk.
     if node.tag in VOID_ELEMENTS:

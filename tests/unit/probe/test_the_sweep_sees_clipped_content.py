@@ -100,7 +100,7 @@ def verdict(verdicts: dict[str, bool], fragment: str) -> bool:
 def test_une_boite_coupee_rougit():
     """Le versant interdit : du contenu peint nulle part."""
     verdicts = _balayer(clipped=[COUPEE])
-    assert verdict(verdicts, "rien n'est coupé sans recours") is False
+    assert verdict(verdicts, "nothing is clipped without recourse") is False
 
 
 def test_une_boite_qui_defile_ne_rougit_pas():
@@ -111,8 +111,8 @@ def test_une_boite_qui_defile_ne_rougit_pas():
     des apps. Son contenu reste ATTEIGNABLE, donc rien n'est perdu.
     """
     verdicts = _balayer(scrollers=[QUI_DEFILE])
-    assert verdict(verdicts, "rien n'est coupé sans recours") is True
-    assert verdict(verdicts, "finissent au-dessus du bord") is True
+    assert verdict(verdicts, "nothing is clipped without recourse") is True
+    assert verdict(verdicts, "end above the edge") is True
 
 
 def test_une_page_sans_defaut_est_verte_partout():
@@ -135,5 +135,5 @@ def test_le_constat_survit_a_un_document_qui_defile():
     devait donc sortir du ``if``. C'est la faute que ce test garde.
     """
     verdicts = _balayer(documentScrolls=True, clipped=[COUPEE])
-    assert verdict(verdicts, "rien n'est coupé sans recours") is False
+    assert verdict(verdicts, "nothing is clipped without recourse") is False
     assert not [k for k in verdicts if "finissent au-dessus" in k]

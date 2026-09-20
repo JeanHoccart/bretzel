@@ -2,17 +2,18 @@
  *
  * Per envelope.client_state[<Class>.<key>].persist :
  *
- *   "memory"    → JS memory only, dropped on reload (no adapter). C'est
- *                 le DÉFAUT côté Python (``ClientState.__persist__``).
+ *   "memory"    → JS memory only, dropped on reload (no adapter). It is
+ *                 the DEFAULT on the Python side
+ *                 (``ClientState.__persist__``).
  *   "session"   → sessionStorage, key "$bz:<Class>.<key>"
  *   "local"     → localStorage, same key
  *
- * ⚠️ ``"volatile"`` et ``"cross_tab"`` étaient listés ici jusqu'au
- * 2026-08-01 : l'enum Python (``state/scopes/client.py::PERSISTS``) ne
- * peut émettre que les trois ci-dessus, donc ces deux modes sont
- * inatteignables — et "memory", le défaut, n'était pas documenté. Le
- * test ``mode === "volatile"`` du code ci-dessous ne matche donc jamais ;
- * il tombe dans le même no-op que "memory" (storageFor → null).
+ * ⚠️ ``"volatile"`` and ``"cross_tab"`` were listed here until
+ * 2026-08-01: the Python enum (``state/scopes/client.py::PERSISTS``) can
+ * only emit the three above, so those two modes are unreachable — and
+ * "memory", the default, was not documented. The ``mode === "volatile"``
+ * test in the code below therefore never matches; it falls into the same
+ * no-op as "memory" (storageFor → null).
  *
  * Wiring : 00_index.js calls register(path, mode) for each instance
  * AFTER seeding the envelope defaults — register() then overlays any

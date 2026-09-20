@@ -238,7 +238,7 @@ def events_panel() -> None:
     # derives ``name="value"`` from the binding's field_name → the
     # hidden input carries it → the dispatcher's payload matches
     # the handler's ``value=`` kwarg. NO manual ``name=`` (CLAUDE.md
-    # règle 4 : autoname est le canonical path, ``name=`` resté en
+    # rule 4: autoname is the canonical path, ``name=`` left as
     # escape hatch).
     tab_state = TabsServerEvents()
     with ui.tabs(value=tab_state.value, on_change=log_change):
@@ -563,31 +563,30 @@ def page() -> None:
                     ui.heading("Server events", level=2)
                     events_panel()
 
-            # ── Card 7b — L'onglet dans l'URL ───────────────────────
+            # ── Card 7b — The tab in the URL ───────────────────────
             with ui.card():
                 with ui.vstack():
-                    ui.heading("url= — l'onglet a une adresse", level=2)
+                    ui.heading('url= — the tab has an address', level=2)
                     ui.text(
-                        "Clique un onglet et regarde la barre d'adresse : "
-                        "elle devient ?onglet=… . Les flèches du navigateur "
-                        "font ensuite l'aller-retour, et le lien est "
-                        "partageable — c'est le même écran qui s'ouvre chez "
-                        "qui le reçoit.",
+                        'Click a tab and watch the address bar: it '
+                            "becomes ?tab=… . The browser's arrows then go "
+                            'back and forth, and the link is shareable — '
+                            'whoever receives it opens the same screen.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "Opt-in : sans url=, un onglet ne publie rien. Ce "
-                        "qui est dans l'URL part aussi dans l'historique, "
-                        "les logs et le Referer.",
+                        'Opt-in: with no url=, a tab publishes nothing. '
+                            'What is in the URL also leaves in the history, '
+                            'the logs and the Referer.',
                         color="muted", size="sm",
                     )
                     with ui.flex(justify="center"):
                         with ui.tabs(value="apercu", url="onglet"):
-                            ui.tab("apercu", label="Aperçu", icon="eye")
-                            ui.tab("details", label="Détails", icon="list")
+                            ui.tab("apercu", label='Preview', icon="eye")
+                            ui.tab("details", label='Details', icon="list")
                             ui.tab("brut", label="Brut", icon="code")
                             with ui.tab_panel(tab="apercu"):
-                                ui.text("?onglet est absent — c'est le défaut.")
+                                ui.text('?tab is absent — that is the default.')
                             with ui.tab_panel(tab="details"):
                                 ui.text("?onglet=details")
                             with ui.tab_panel(tab="brut"):

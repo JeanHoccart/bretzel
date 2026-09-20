@@ -34,8 +34,8 @@ def show_more(
     *,
     count: ClientBinding,
     step: int = 10,
-    # ``None`` et pas la phrase : un défaut de fonction est évalué à
-    # l'IMPORT du module, donc avant qu'une app ait déclaré sa langue.
+    # ``None`` and not the sentence: a function default is evaluated at
+    # the module's IMPORT, so before an app has declared its language.
     label: str | None = None,
     key: str | Callable[[Any], Any] | None = None,
 ) -> Iterator[Any]:

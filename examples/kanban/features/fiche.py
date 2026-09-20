@@ -1,16 +1,16 @@
-"""kanban/fiche — le tiroir de détail d'une carte.
+"""kanban/fiche — a card's detail drawer.
 
-Un ``ui.drawer`` dont l'ouverture est une FONCTION de l'état : il est
-ouvert si, et seulement si, ``Vue().ouverte`` désigne une carte qui
-existe encore. Rien d'autre ne l'ouvre et rien d'autre ne le ferme — et
-c'est ce qui fait qu'une carte archivée par quelqu'un d'autre referme
-proprement le tiroir de celui qui la regardait.
+A ``ui.drawer`` whose openness is a FUNCTION of the state: it is open if,
+and only if, ``Vue().ouverte`` names a card that still exists. Nothing
+else opens it and nothing else closes it — and that is what makes a card
+archived by somebody else close the drawer of whoever was looking at it,
+cleanly.
 
-**Deux régimes d'écriture, et la différence se voit à l'écran.** Le titre
-et la description se tapent : les enregistrer à chaque frappe écrirait
-dans un état que trois autres personnes regardent, donc ils attendent
-« Enregistrer ». Les étiquettes, les sous-tâches et les commentaires
-partent au clic, parce qu'un clic EST déjà la décision.
+**Two writing regimes, and the difference shows on screen.** The title
+and the description are typed: saving them at every keystroke would
+write into a state three other people are watching, so they wait for
+"Enregistrer". The labels, the subtasks and the comments leave on the
+click, because a click IS already the decision.
 """
 
 from __future__ import annotations
@@ -18,17 +18,18 @@ from __future__ import annotations
 from functools import partial
 
 from bretzel import refreshable, ui
+from examples.kanban.core.i18n import tr
 from examples.kanban.features.donnees import (
     COULEURS,
     ETIQUETTES,
     INITIALES,
-    LIBELLES,
     MEMBRES,
     NOMS,
     Tableau,
     avancement,
     carte_par_id,
     depuis,
+    libelles,
 )
 from examples.kanban.features.logic import (
     ajouter_sous_tache,
@@ -50,41 +51,44 @@ from examples.kanban.features.state import (
 
 
 def champs(brouillon: Brouillon) -> None:
-    """Le brouillon : ce qui se tape, et le bouton qui l'enregistre."""
+    """The draft: what gets typed, and the button that saves it."""
     with ui.form(on_submit=enregistrer), ui.vstack(gap="sm"):
-        with ui.form_field(label="Titre", required=True):
+        with ui.form_field(label=tr("Title", "Titre"), required=True):
             ui.input(value=brouillon.titre, maxlength=120, size="sm",
-                     placeholder="Titre de la carte")
-        with ui.form_field(label="Description"):
+                     placeholder=tr("The card's title", "Titre de la carte"))
+        with ui.form_field(label=tr("Description", "Description")):
             ui.textarea(value=brouillon.description, rows=4, maxlength=800,
                         size="sm",
-                        placeholder="Ce qu'il faut savoir pour la prendre")
-        # ⚠️ Deux colonnes et pas trois. À trois, le sélecteur de dates
-        # tombe sous 120 px et sa valeur est COUPÉE — « 2026-09 » au lieu
-        # de la date entière, sans le moindre débordement pour le
-        # signaler. Mesuré à la capture, invisible à la lecture du code.
-        with ui.form_field(label="Assigné"):
+                        placeholder=tr("What one needs to know to take it",
+                                       "Ce qu'il faut savoir pour la "
+                                       "prendre"))
+        # ⚠️ Two columns and not three. At three, the date picker falls
+        # below 120 px and its value is CUT — "2026-09" instead of the
+        # whole date, without the slightest overflow to signal it.
+        # Measured on a screenshot, invisible when reading the code.
+        with ui.form_field(label=tr("Assignee", "Assigné")):
             ui.select(value=brouillon.qui, size="sm",
                       options=[(cle, nom) for cle, nom, _, _ in MEMBRES])
         with ui.grid(cols={"base": 1, "sm": 2}, gap="sm"):
-            with ui.form_field(label="Échéance"):
+            with ui.form_field(label=tr("Due date", "Échéance")):
                 ui.date_picker(value=brouillon.echeance, size="sm")
-            with ui.form_field(label="Points"):
+            with ui.form_field(label=tr("Points", "Points")):
                 ui.number_input(value=brouillon.points, min=0, max=99, size="sm")
         with ui.hstack(justify="end"):
-            ui.button("Enregistrer", type="submit", color="primary",
-                      size="sm", icon_left="check")
+            ui.button(tr("Save", "Enregistrer"), type="submit",
+                      color="primary", size="sm", icon_left="check")
 
 
 def etiquettes(carte: dict) -> None:
-    """Les cinq étiquettes, posées ou retirées au clic.
+    """The five labels, set or removed on click.
 
-    Un bouton par étiquette plutôt qu'un ``select multiple`` : l'état
-    posé/non posé doit se lire d'un coup d'œil, et poser la troisième ne
-    doit pas rouvrir un menu.
+    One button per label rather than a ``select multiple``: the
+    set/unset state must read at a glance, and setting the third must not
+    reopen a menu.
     """
     with ui.vstack(gap="xs"):
-        ui.text("Étiquettes", size="xs", weight="medium", color="muted")
+        ui.text(tr("Labels", "Étiquettes"), size="xs", weight="medium",
+                color="muted")
         with ui.hstack(gap="xs", wrap=True):
             for cle, libelle, couleur in ETIQUETTES:
                 posee = cle in carte["etiquettes"]
@@ -97,52 +101,54 @@ def etiquettes(carte: dict) -> None:
 
 
 def sous_taches(carte: dict, brouillon: Brouillon) -> None:
-    """La liste à cocher, sa barre d'avancement, et le champ d'ajout."""
+    """The checklist, its progress bar, and the add field."""
     faites, total = avancement(carte)
-    # ⚠️ **Réamorcer à CHAQUE rendu, pas seulement à l'ouverture.** Le
-    # compteur est optimiste : il avance dans le navigateur avant que la
-    # requête parte. Cette ligne est la moitié « réconcilier » — elle
-    # remet la valeur du serveur, qui fait foi, y compris quand c'est
-    # quelqu'un d'AUTRE qui a coché. Sans elle, une case cochée à l'autre
-    # bout du monde bougerait la liste et pas la barre.
+    # ⚠️ **Re-seed at EVERY render, not only on opening.** The counter
+    # is optimistic: it advances in the browser before the request
+    # leaves. This line is the "reconcile" half — it puts back the
+    # server's value, which is authoritative, including when it is
+    # somebody ELSE who ticked. Without it, a box ticked on the other
+    # side of the world would move the list and not the bar.
     #
-    # ⚠️ Et c'est pour CETTE ligne qu'``Avancement`` est une classe à
-    # part : écrire une valeur d'état client depuis le serveur renvoie
-    # l'objet ENTIER dans le patch. Tant que le compteur vivait dans
-    # ``Brouillon``, réconcilier ici remettait aussi le commentaire en
-    # cours de frappe à ce que le serveur croyait — c'est-à-dire vide.
+    # ⚠️ And it is for THIS line that ``Avancement`` is a separate class:
+    # writing one client-state value from the server sends the WHOLE
+    # object back in the patch. As long as the counter lived in
+    # ``Brouillon``, reconciling here also put the comment being typed
+    # back to what the server believed — that is, empty.
     Avancement().faites = faites
     with ui.vstack(gap="xs"):
         with ui.hstack(justify="between", align="center"):
-            ui.text("Sous-tâches", size="xs", weight="medium", color="muted")
+            ui.text(tr("Subtasks", "Sous-tâches"), size="xs",
+                    weight="medium", color="muted")
             if total:
-                # Deux ``ui.text`` et pas une f-string : une f-string
-                # autour d'un binding LÈVE, et c'est un garde-fou — elle
-                # figerait la valeur au rendu. Le premier suit le
-                # compteur client, le second est constant.
+                # Two ``ui.text`` and not one f-string: an f-string
+                # around a binding RAISES, and it is a guard rail — it
+                # would freeze the value at render time. The first
+                # follows the client counter, the second is constant.
                 with ui.hstack(gap="none", align="center"):
                     ui.text(Avancement().faites, size="xs", color="muted")
-                    ui.text(f" sur {total}", size="xs", color="muted")
+                    ui.text(tr(f" of {total}", f" sur {total}"),
+                            size="xs", color="muted")
         if total:
-            # ``value=`` est une prop LIÉE : la barre bouge au clic, sans
-            # aller-retour. ``color=`` reste serveur — une classe ne se
-            # lie pas côté client, donc le vert de « tout est fait »
-            # arrive avec la réponse.
+            # ``value=`` is a BOUND prop: the bar moves on click, with
+            # no round trip. ``color=`` stays server side — a class does
+            # not bind on the client, so the green of "all done" arrives
+            # with the response.
             ui.progress(value=Avancement().faites, max=total,
                         color="success" if faites == total else "primary",
                         size="sm")
         for rang, sous in enumerate(carte["sous_taches"]):
             with ui.hstack(gap="sm", align="center"):
-                # ⚠️ ``label=`` sur la case, et pas un ``ui.text`` à côté.
-                # L'``<input>`` d'une case est ``sr-only`` : c'est sa boîte
-                # dessinée qui reçoit le clic, donc un texte posé en
-                # voisin n'est PAS une cible — et sur un écran tactile la
-                # zone utile tombe à 16 px de côté.
-                # Deux effets pour un clic : le serveur écrit la
-                # vérité, et le compteur client bouge tout de suite. Le
-                # SENS est décidé au rendu — une case cochée ne peut que
-                # se décocher — et la réconciliation ci-dessus rattrape
-                # le cas où le serveur n'est pas d'accord.
+                # ⚠️ ``label=`` on the box, and not a ``ui.text``
+                # beside it. A box's ``<input>`` is ``sr-only``: it is
+                # its drawn box that receives the click, so text placed
+                # as a neighbour is NOT a target — and on a touch screen
+                # the useful area drops to 16 px a side.
+                # Two effects for one click: the server writes the
+                # truth, and the client counter moves at once. The
+                # DIRECTION is decided at render time — a ticked box can
+                # only untick — and the reconciliation above catches the
+                # case where the server disagrees.
                 ui.checkbox(checked=sous["fait"], size="sm",
                             label=sous["texte"],
                             on_change=[
@@ -153,19 +159,22 @@ def sous_taches(carte: dict, brouillon: Brouillon) -> None:
                             classes="flex-1 min-w-0")
                 ui.icon_button("x", variant="ghost", size="xs", color="muted",
                                on_click=partial(retirer_sous_tache, rang),
-                               tooltip="Retirer cette sous-tâche")
+                               tooltip=tr("Remove this subtask",
+                                          "Retirer cette sous-tâche"))
         with ui.form(on_submit=ajouter_sous_tache), ui.hstack(gap="xs", align="center"):
             ui.input(value=brouillon.sous_tache, size="sm", maxlength=120,
-                     placeholder="Ajouter une sous-tâche",
+                     placeholder=tr("Add a subtask",
+                                    "Ajouter une sous-tâche"),
                      classes="flex-1")
             ui.icon_button("plus", type="submit", variant="soft",
-                           size="sm", tooltip="Ajouter")
+                           size="sm", tooltip=tr("Add", "Ajouter"))
 
 
 def commentaires(carte: dict, brouillon: Brouillon) -> None:
-    """Le fil de discussion de la carte, et le champ d'écriture."""
+    """The card's discussion thread, and the writing field."""
     with ui.vstack(gap="sm"):
-        ui.text("Commentaires", size="xs", weight="medium", color="muted")
+        ui.text(tr("Comments", "Commentaires"), size="xs",
+                weight="medium", color="muted")
         for mot in carte["commentaires"]:
             with ui.hstack(gap="sm", align="start"):
                 ui.avatar(initials=INITIALES[mot["qui"]], size="xs",
@@ -177,29 +186,30 @@ def commentaires(carte: dict, brouillon: Brouillon) -> None:
                     ui.text(mot["texte"], size="sm")
         with ui.form(on_submit=commenter), ui.vstack(gap="xs"):
             ui.textarea(value=brouillon.commentaire, rows=2, maxlength=600,
-                        placeholder="Écrire un commentaire")
+                        placeholder=tr("Write a comment",
+                                       "Écrire un commentaire"))
             with ui.hstack(justify="end"):
-                ui.button("Commenter", type="submit", variant="soft",
-                          size="sm", icon_left="message-circle")
+                ui.button(tr("Comment", "Commenter"), type="submit",
+                          variant="soft", size="sm",
+                          icon_left="message-circle")
 
 
 @refreshable(deps=[Tableau, Vue], broadcast=[Tableau])
 def tiroir() -> None:
-    """Le tiroir, ouvert par l'état et pas par un clic.
+    """The drawer, opened by the state and not by a click.
 
-    ``broadcast=[Tableau]`` : si quelqu'un d'autre coche une sous-tâche
-    de la carte que je regarde, la coche bouge sous mes yeux.
+    ``broadcast=[Tableau]``: if somebody else ticks a subtask of the card
+    I am looking at, the tick moves before my eyes.
 
-    Le brouillon n'est rechargé que si le tiroir change de carte. Sans
-    cette garde, chaque re-rendu — donc chaque geste de n'importe qui —
-    écraserait le titre en cours de frappe par celui du serveur.
+    The draft is only reloaded if the drawer changes card. Without that
+    guard, every re-render — so every gesture by anybody — would
+    overwrite the title being typed with the server's.
 
-    ⚠️ **Cette garde ne suffisait pas**, et c'est ce qui a fait passer
-    les champs en ``ClientState``. Elle empêche le serveur de RÉÉCRIRE le
-    brouillon ; elle n'empêchait pas le re-rendu de la zone de remplacer
-    les ``<input>`` par ceux du serveur. Mesuré à deux sessions : A glisse
-    une carte, et quatre secondes plus tard le commentaire que B tapait
-    est vide.
+    ⚠️ **That guard was not enough**, and it is what moved the fields to
+    ``ClientState``. It stops the server REWRITING the draft; it did not
+    stop the zone's re-render replacing the ``<input>`` with the
+    server's. Measured across two sessions: A drags a card, and four
+    seconds later the comment B was typing is empty.
     """
     vue = Vue()
     carte = carte_par_id(vue.ouverte) if vue.ouverte else None
@@ -208,15 +218,17 @@ def tiroir() -> None:
         charger(carte)
 
     with ui.drawer(open=vue.tiroir, side="right", width="lg",
-                   title=carte["titre"] if carte else "Carte",
+                   title=(carte["titre"] if carte
+                          else tr("Card", "Carte")),
                    on_close=fermer):
         if carte is None:
             return
         with ui.vstack(gap="md"):
             with ui.hstack(gap="xs", align="center"):
-                ui.badge(LIBELLES[carte["colonne"]], size="xs",
+                ui.badge(libelles()[carte["colonne"]], size="xs",
                          variant="soft", color="primary")
-                ui.text(f"Carte {carte['id']}", size="xs", color="muted")
+                ui.text(tr(f"Card {carte['id']}", f"Carte {carte['id']}"),
+                        size="xs", color="muted")
             champs(brouillon)
             ui.divider()
             etiquettes(carte)
@@ -226,6 +238,7 @@ def tiroir() -> None:
             commentaires(carte, brouillon)
             ui.divider()
             with ui.hstack(justify="end"):
-                ui.button("Archiver cette carte", variant="ghost",
-                          color="error", size="sm", icon_left="archive",
-                          on_click=archiver_ouverte)
+                ui.button(tr("Archive this card",
+                             "Archiver cette carte"),
+                          variant="ghost", color="error", size="sm",
+                          icon_left="archive", on_click=archiver_ouverte)

@@ -1,54 +1,53 @@
-"""Les composants publiés par des paquets INSTALLÉS — et pourquoi ce n'est
-pas le même point d'entrée que les racines à balayer.
+"""The components published by INSTALLED packages — and why it is not the
+same entry point as the roots to scan.
 
-La moitié qui manquait
-----------------------
-Depuis le 2026-08-29, une bibliothèque tierce voit ses classes Tailwind
-compilées : elle déclare une racine dans ``bretzel.scan_roots`` et le
-``style.css`` de prod les garde. Mais la porte du THÈME restait fermée ::
+The missing half
+----------------
+Since 2026-08-29, a third-party library has its Tailwind classes
+compiled: it declares a root in ``bretzel.scan_roots`` and the production
+``style.css`` keeps them. But the THEME door stayed closed ::
 
     Theme(components={"gauge": {...}})
-    # ThemeError: aucun composant n'a cette clé de thème
+    # ThemeError: no component has this theme key
 
-``server/lifecycle._validate_theme`` juge contre
-:func:`~bretzel.introspect.theme_vocabulary`, qui balaie la surface
-``ui.*`` du **framework** uniquement. Un ``THEME_KEY`` livré par un paquet
-n'y figurait pas, donc l'app qui l'installe ne pouvait pas le surcharger —
-il lui restait ``classes=`` au point d'appel, répété partout, sans
-cascade ni cohérence de thème sombre. C'est exactement la différence
-entre « un composant thémé » et « du HTML copié ».
+``server/lifecycle._validate_theme`` judges against
+:func:`~bretzel.introspect.theme_vocabulary`, which sweeps the
+**framework**'s ``ui.*`` surface only. A ``THEME_KEY`` shipped by a
+package was not in it, so the app installing it could not override it —
+all it had left was ``classes=`` at the call site, repeated everywhere,
+with no cascade and no dark-theme consistency. That is exactly the
+difference between "a themed component" and "copied HTML".
 
-Pourquoi un point d'entrée DISTINCT
-------------------------------------
-``bretzel.scan_roots`` nomme déjà un module, et on aurait pu l'importer
-pour y chercher les sous-classes de :class:`Component`. Ç'aurait été un
-revirement, pas une extension : son contrat est écrit noir sur blanc —
-« une racine déclarée est un dossier LU au démarrage, **pas du code
-exécuté** », et la résolution passe par ``find_spec``, qui ne charge
-rien. Le transformer en import silencieux changerait ce qu'un auteur a
-accepté en écrivant la ligne.
+Why a DISTINCT entry point
+--------------------------
+``bretzel.scan_roots`` already names a module, and we could have imported
+it to look for :class:`Component` subclasses there. That would have been
+a reversal, not an extension: its contract is written in black and white
+— "a declared root is a folder READ at startup, **not code that runs**",
+and resolution goes through ``find_spec``, which loads nothing. Turning
+it into a silent import would change what an author accepted when writing
+the line.
 
-D'où deux déclarations pour un paquet, mais deux contrats honnêtes :
-« balaie mes fichiers » n'est pas « charge mon code » ::
+Hence two declarations for one package, but two honest contracts: "scan
+my files" is not "load my code" ::
 
     [project.entry-points."bretzel.scan_roots"]
-    mes-composants = "mes_composants"
+    my-components = "my_components"
 
     [project.entry-points."bretzel.components"]
-    mes-composants = "mes_composants"
+    my-components = "my_components"
 
-La seconde ligne **importe** le module au démarrage, et c'est le prix à
-payer : un ``THEME_KEY`` ne se lit pas sans charger la classe qui le
-porte.
+The second line **imports** the module at startup, and that is the price
+to pay: a ``THEME_KEY`` cannot be read without loading the class carrying
+it.
 
-Les collisions de clé
----------------------
-``"gauge"`` est libre, ``"card"`` ne l'est pas. Un paquet qui publierait
-un composant sous une clé du framework rendrait ambigu tout
-``Theme(components={"card": …})`` — l'app croirait styler l'un et
-stylerait l'autre. La collision est donc REFUSÉE, et le message nomme
-les deux côtés : c'est le seul moment où on sait encore de qui vient
-quoi.
+Key collisions
+--------------
+``"gauge"`` is free, ``"card"`` is not. A package publishing a component
+under a framework key would make every ``Theme(components={"card": …})``
+ambiguous — the app would believe it was styling one and would style the
+other. The collision is therefore REFUSED, and the message names both
+sides: it is the only moment where one still knows what comes from whom.
 """
 
 from __future__ import annotations
@@ -58,104 +57,106 @@ from functools import cache
 from importlib import import_module, metadata
 from typing import Any
 
-#: Le groupe de points d'entrée. Distinct de ``bretzel.scan_roots`` —
-#: cf. le docstring du module.
+#: The entry-point group. Distinct from ``bretzel.scan_roots`` — cf. the
+#: module's docstring.
 ENTRY_POINT_GROUP = "bretzel.components"
 
 
 class ThemeKeyCollision(RuntimeError):
-    """Un paquet publie un ``THEME_KEY`` que le framework porte déjà."""
+    """A package publishes a ``THEME_KEY`` the framework already carries."""
 
 
 @cache
 def third_party_components() -> tuple[type, ...]:
-    """Les classes ``Component`` publiées par les paquets installés.
+    """The ``Component`` classes published by the installed packages.
 
-    Une entrée inutilisable ne fait pas tomber le démarrage — l'app n'est
-    pas responsable des métadonnées d'un tiers — mais elle ne passe pas
-    en silence : les composants de ce paquet resteraient inthématisables
-    et rien d'autre ne le dirait. Même arbitrage que
-    ``discovered_source_roots``, dont c'est le jumeau.
+    An unusable entry does not bring startup down — the app is not
+    responsible for a third party's metadata — but it does not pass in
+    silence either: that package's components would stay unthemeable and
+    nothing else would say so. Same arbitration as
+    ``discovered_source_roots``, whose twin it is.
 
-    Mémoïsée : les métadonnées d'installation ne changent pas pendant la
-    vie d'un process. ``third_party_components.cache_clear()`` existe pour
-    les tests, qui fabriquent des points d'entrée.
+    Memoised: installation metadata does not change during a process's
+    life. ``third_party_components.cache_clear()`` exists for the tests,
+    which fabricate entry points.
     """
     from bretzel.components.base import Component
 
-    trouves: list[type] = []
+    found: list[type] = []
     for point in metadata.entry_points(group=ENTRY_POINT_GROUP):
         try:
             module = import_module(point.module)
-        except Exception as exc:  # un tiers casse, pas nous
+        except Exception as exc:  # a third party breaks, not us
             print(
-                f"[bretzel] WARN : le point d'entrée {ENTRY_POINT_GROUP} "
-                f"« {point.name} » nomme {point.module!r}, qui ne s'importe "
-                f"pas ({type(exc).__name__}).\n"
-                "[bretzel]        Ses composants ne seront pas thématisables."
+                f"[bretzel] WARN: the {ENTRY_POINT_GROUP} entry point "
+                f"\"{point.name}\" names {point.module!r}, which does not "
+                f"import ({type(exc).__name__}).\n"
+                "[bretzel]        Its components will not be themeable."
             )
             continue
-        for _nom, objet in inspect.getmembers(module, inspect.isclass):
+        for _name, obj in inspect.getmembers(module, inspect.isclass):
             if (
-                issubclass(objet, Component)
-                and objet is not Component
-                and getattr(objet, "THEME_KEY", "")
-                # Une classe RÉEXPORTÉE depuis bretzel n'est pas publiée par
-                # le paquet : sans ce test, un simple ``from bretzel import
-                # ui`` en tête de module ferait entrer tout le catalogue.
-                and not objet.__module__.startswith("bretzel.")
+                issubclass(obj, Component)
+                and obj is not Component
+                and getattr(obj, "THEME_KEY", "")
+                # A class RE-EXPORTED from bretzel is not published by
+                # the package: without this test, a plain ``from bretzel
+                # import ui`` at the head of a module would bring in the
+                # whole catalogue.
+                and not obj.__module__.startswith("bretzel.")
             ):
-                trouves.append(objet)
-    # Dédoublonné par identité : un paquet qui expose la même classe depuis
-    # deux modules la déclarerait deux fois.
-    uniques = {id(c): c for c in trouves}
+                found.append(obj)
+    # De-duplicated by identity: a package exposing the same class from
+    # two modules would declare it twice.
+    unique = {id(c): c for c in found}
     return tuple(
-        sorted(uniques.values(), key=lambda c: (c.THEME_KEY, c.__name__))
+        sorted(unique.values(), key=lambda c: (c.THEME_KEY, c.__name__))
     )
 
 
 def third_party_theme_vocabulary() -> dict[str, dict[str, frozenset[str]]]:
-    """``THEME_KEY`` → groupe → clés, pour les composants tiers.
+    """``THEME_KEY`` → group → keys, for third-party components.
 
-    Même forme que :func:`~bretzel.introspect.theme_vocabulary` pour que
-    la fusion soit une simple mise à jour de dictionnaire.
+    Same shape as :func:`~bretzel.introspect.theme_vocabulary` so that
+    merging is a plain dictionary update.
 
-    LÈVE sur une collision avec une clé du framework — cf. le docstring
-    du module.
+    RAISES on a collision with a framework key — cf. the module's
+    docstring.
     """
     from bretzel.introspect.components import theme_vocabulary
 
-    du_framework = theme_vocabulary()
+    framework_keys = theme_vocabulary()
     out: dict[str, dict[str, frozenset[str]]] = {}
     for cls in third_party_components():
-        cle = cls.THEME_KEY
-        if cle in du_framework:
+        key = cls.THEME_KEY
+        if key in framework_keys:
             raise ThemeKeyCollision(
-                f"{cls.__module__}.{cls.__qualname__} publie "
-                f"``THEME_KEY = {cle!r}``, que le framework porte déjà.\n"
-                f"  Un ``Theme(components={{{cle!r}: …}})`` deviendrait "
-                f"ambigu : l'app croirait styler l'un et stylerait "
-                f"l'autre.\n"
-                f"  Préfixe la clé du paquet — ``{_suggestion(cls)}`` par "
-                f"exemple."
+                f"{cls.__module__}.{cls.__qualname__} publishes "
+                f"``THEME_KEY = {key!r}``, which the framework already "
+                f"carries.\n"
+                f"  A ``Theme(components={{{key!r}: …}})`` would become "
+                f"ambiguous: the app would believe it was styling one and "
+                f"would style the other.\n"
+                f"  Prefix the package's key — ``{_suggestion(cls)}`` for "
+                f"example."
             )
-        out.setdefault(cle, {}).update(_groupes_de(cls))
+        out.setdefault(key, {}).update(_groups_of(cls))
     return out
 
 
 def _suggestion(cls: type) -> str:
-    """Une clé préfixée plausible, pour que le message soit actionnable."""
-    paquet = cls.__module__.split(".")[0].replace("_", "-")
-    return f"{paquet}-{cls.THEME_KEY}"
+    """A plausible prefixed key, so the message is actionable."""
+    package = cls.__module__.split(".")[0].replace("_", "-")
+    return f"{package}-{cls.THEME_KEY}"
 
 
-def _groupes_de(cls: type) -> dict[str, frozenset[str]]:
-    """Les groupes surchargeables d'un ``THEME``, comme le fait le socle."""
+def _groups_of(cls: type) -> dict[str, frozenset[str]]:
+    """A ``THEME``'s overridable groups, as the base layer does."""
     theme: dict[str, Any] = getattr(cls, "THEME", {}) or {}
     return {
-        groupe: frozenset(valeur)
-        for groupe, valeur in theme.items()
-        if isinstance(valeur, dict)
+        group: frozenset(value)
+        for group, value in theme.items()
+        if isinstance(value, dict)
     }
 
 

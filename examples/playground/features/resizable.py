@@ -1,9 +1,9 @@
 """``Resizable`` test bench.
 
-Dix cards. ``Resizable.BINDABLE_PROPS = ("sizes",)`` — le partage des
-panneaux est bindable ; orientation / disabled / size / color restent du
-design-time, et ``min_size`` (sur le panneau) est une contrainte. Event :
-``change``. Impératif : ``.set([30, 70])`` / ``.reset()``.
+Ten cards. ``Resizable.BINDABLE_PROPS = ("sizes",)`` — the panels' split
+is bindable; orientation / disabled / size / color stay design-time, and
+``min_size`` (on the panel) is a constraint. Event: ``change``.
+Imperative: ``.set([30, 70])`` / ``.reset()``.
 """
 
 from bretzel import refreshable, ui
@@ -19,8 +19,8 @@ COLORS = ["primary", "secondary", "success", "warning",
           "error", "info", "muted"]
 ORIENTATIONS = ["horizontal", "vertical"]
 
-# Les partages proposés par le contrôle ``sizes``. Des CHAÎNES parce
-# qu'un select poste du texte ; ``build_preview`` les reparse.
+# The splits the ``sizes`` control offers. STRINGS because a select
+# posts text; ``build_preview`` re-parses them.
 SPLITS = ["", "50,50", "25,75", "70,30", "20,60,20"]
 
 TINTS = ["primary", "success", "warning", "error", "info",
@@ -28,22 +28,22 @@ TINTS = ["primary", "success", "warning", "error", "info",
 
 
 def panel_block(index: int, height: str = "h-40") -> None:
-    """Un panneau de démo — un bloc teinté qui porte son numéro.
+    """A demo panel — a tinted block carrying its number.
 
-    Au scope module parce qu'il sert dans les dix cards ; c'est le seuil
-    du gabarit (un bloc répété dix fois devient une fonction).
+    At module scope because it serves in all ten cards; it is the
+    template's threshold (a block repeated ten times becomes a function).
 
-    Il porte un contenu LARGE à dessein : c'est ce qui prouve que
-    ``min-w-0`` fait son travail. Sans lui, flexbox refuse de descendre
-    sous la largeur du contenu et la poignée se bloque bien avant le
-    minimum déclaré — sans que rien n'échoue.
+    It carries WIDE content on purpose: it is what proves ``min-w-0``
+    does its job. Without it, flexbox refuses to go below the content's
+    width and the handle blocks well before the declared minimum —
+    without anything failing.
     """
     tint = TINTS[index % len(TINTS)]
-    # ⚠️ ``bz-c-<teinte>`` + le PALIER, et surtout PAS un
-    # ``f"bg-{tint}/15"``. Une classe assemblée n'existe que sous le
-    # compilateur de dev, qui scanne le DOM vivant ; en prod le
-    # compilateur ne lit que les sources, il ne verra jamais
-    # ``bg-info/15``. Le pont, lui, est une classe complète.
+    # ⚠️ ``bz-c-<tint>`` + the STEP, and above all not an
+    # ``f"bg-{tint}/15"``. An assembled class only exists under the dev
+    # compiler, which scans the live DOM; in production the compiler only
+    # reads the sources, it will never see ``bg-info/15``. The bridge,
+    # for its part, is a complete class.
     with ui.resizable_panel():
         with ui.flex(justify="center", align="center",
                      classes=f"{height} w-full bg-(--bz-bg) bz-c-{tint}"):
@@ -84,22 +84,22 @@ class ResizableClientEvents(ClientState, persist="memory"):
     log: list = field(default_factory=list)
 
 
-# ⚠️ Le state qui rend le ``change`` du banc LISIBLE, et il n'est pas
-# décoratif. Sans binding ni ``name=``, le composant ne pose AUCUN
-# ``name`` sur son input caché — c'est le choix délibéré du socle
-# (``hidden_carrier_attrs`` : coller un name par défaut injecterait un
-# champ parasite dans chaque formulaire englobant). Le handler part donc
-# avec une FormData vide et reçoit sa valeur par défaut, soit
-# ``change(sizes='')``. Le nom du champ DOIT s'appeler ``split`` :
-# l'autoname le dérive de la binding, et c'est lui que le paramètre de
-# ``log_change`` porte.
+# ⚠️ The state that makes the bench's ``change`` READABLE, and it is not
+# decorative. With neither a binding nor a ``name=``, the component sets
+# NO ``name`` on its hidden input — it is the base layer's deliberate
+# choice (``hidden_carrier_attrs``: sticking a name on by default would
+# inject a stray field into every enclosing form). So the handler leaves
+# with an empty FormData and receives its default value, that is
+# ``change(sizes='')``. The field MUST be called ``split``: autoname
+# derives it from the binding, and it is the one ``log_change``'s
+# parameter carries.
 class ResizableServerEvents(ClientState, persist="memory"):
     split: list = field(default_factory=lambda: [50, 50])
 
 
-# ``persist="local"`` et pas "memory" : c'est LE cas d'usage qui a mis
-# ``resizable`` sur la roadmap — retrouver la largeur de sa colonne au
-# rechargement. Rien de plus à déclarer côté composant.
+# ``persist="local"`` and not "memory": it is THE use case that put
+# ``resizable`` on the roadmap — finding one's column width again after a
+# reload. Nothing more to declare on the component side.
 class ResizableRemembered(ClientState, persist="local"):
     split: list = field(default_factory=lambda: [50, 50])
 
@@ -149,7 +149,8 @@ def build_preview(state: ResizablePlayground) -> dict:
         "size": state.size,
         "color": state.color,
     }
-    # Chaîne vide = ne pas passer le kwarg (sizes=None = parts égales).
+    # An empty string = do not pass the kwarg (sizes=None = equal
+    # parts).
     if state.split:
         kwargs["sizes"] = [float(p) for p in state.split.split(",")]
     if state.name:
@@ -192,16 +193,16 @@ def server_panel() -> None:
     state = ResizablePlayground()
 
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
-        with control("sizes (les poids, vide = parts égales)"):
+        with control('sizes (the weights, empty = equal shares)'):
             ui.select(value=state.split,
-                      options=[(s, s or "None (parts égales)")
+                      options=[(s, s or 'None (equal shares)')
                                for s in SPLITS],
                       on_change=server_changed)
         with control("panels (combien en rendre)"):
             ui.select(value=state.panels,
                       options=[(i, str(i)) for i in (1, 2, 3, 4)],
                       on_change=server_changed)
-        with control("min_size (sur CHAQUE panneau, en %)"):
+        with control('min_size (on EVERY panel, in %)'):
             ui.select(value=state.min_size,
                       options=[(i, f"{i} %") for i in (0, 10, 20, 30)],
                       on_change=server_changed)
@@ -211,7 +212,7 @@ def server_panel() -> None:
                       on_change=server_changed)
         with control("disabled"):
             ui.switch(checked=state.disabled, on_change=server_changed)
-        with control("size (épaisseur de la poignée)"):
+        with control('size (handle thickness)'):
             ui.select(value=state.size,
                       options=[(s, s) for s in SIZES],
                       on_change=server_changed)
@@ -239,7 +240,7 @@ def server_panel() -> None:
                         placeholder="data-test=split",
                         on_change=server_changed)
         with control("tooltip"):
-            ui.input(value=state.tooltip, placeholder="Tirez la poignée",
+            ui.input(value=state.tooltip, placeholder='Drag the handle',
                      on_change=server_changed)
         with control("visible"):
             ui.select(value=state.visible,
@@ -274,7 +275,7 @@ def server_panel() -> None:
         with ui.resizable_panel():
             ui.text("B")
     emitted_html_block(
-        "Emitted HTML (Resizable + ses panneaux + la poignée dérivée)",
+        'Emitted HTML (Resizable + its panels + the derived handle)',
         serialize_html(preview),
     )
 
@@ -284,10 +285,10 @@ def events_panel() -> None:
     state = ResizableEvents()
 
     ui.text(
-        "Resizable émet UN ``change`` au relâchement de la poignée, "
-        "jamais pendant le geste — sinon c'est un POST par pixel. "
-        "Tirez la poignée ci-dessous et lâchez : une seule ligne "
-        "apparaît dans le log, avec la liste complète des poids.",
+        'Resizable emits ONE ``change`` when the handle is released, '
+            'never during the gesture — otherwise it is one POST per pixel. '
+            'Drag the handle below and let go: a single line appears in the '
+            'log, with the complete list of weights.',
         color="muted", size="sm",
     )
 
@@ -301,7 +302,7 @@ def events_panel() -> None:
         with ui.hstack(gap="sm"):
             ui.button("20 / 80", variant="outline",
                       on_click=group.set([20, 80]))
-            ui.button("Parts égales", on_click=group.reset())
+            ui.button('Equal shares', on_click=group.reset())
 
     ui.divider()
 
@@ -316,20 +317,20 @@ def events_panel() -> None:
                 ui.text(f"{i}. {evt}",
                         color="muted", size="sm", classes="font-mono")
     else:
-        ui.text("(no events yet — tirez la poignée ci-dessus)",
+        ui.text('(no events yet — drag the handle above)',
                 color="muted", size="sm")
 
     ui.divider()
 
     ui.text(
-        "L'autoname couvre le cas lié (``sizes=state.split`` dérive "
-        "``name=\"split\"``) — c'est le groupe ci-dessus. Pour un groupe "
-        "à valeur LITTÉRALE qui doit quand même poster son partage, "
-        "``name=`` est l'échappatoire, et le SEUL moyen : sans l'un ni "
-        "l'autre le composant ne pose aucun ``name``, donc le handler "
-        "part avec une FormData vide et reçoit ``sizes=''``. C'est "
-        "délibéré au socle — un ``name`` par défaut injecterait un champ "
-        "parasite dans chaque formulaire englobant.",
+        'Autoname covers the bound case (``sizes=state.split`` derives '
+            '``name="split"``) — that is the group above. For a group with a '
+            'LITERAL value that must still post its split, ``name=`` is the '
+            'escape hatch, and the ONLY way: with neither, the component sets'
+            ' no ``name`` at all, so the handler leaves with an empty '
+            "FormData and receives ``sizes=''``. That is deliberate in the "
+            'base layer — a default ``name`` would inject a stray field into '
+            'every enclosing form.',
         color="muted", size="sm",
     )
     with ui.resizable(name="chosen_split", on_change=log_change):
@@ -354,12 +355,11 @@ def page() -> None:
     with ui.container(), ui.vstack():
         ui.heading("Resizable", level=1)
         ui.text(
-            "Des panneaux qui se repartagent leur place, séparés par "
-            "des poignées dérivées. Le partage vit en POIDS, pas en "
-            "pixels : le groupe garde ses proportions quand il "
-            "rétrécit, sans écouter le moindre resize. Ce n'est PAS "
-            "la boîte à poignée de coin — celle-là, le CSS la fait "
-            "nativement avec resize: both.",
+            'Panels that share their space out again, separated by '
+                'derived handles. The share lives in WEIGHTS, not pixels: the'
+                ' group keeps its proportions as it shrinks, without '
+                'listening to a single resize. This is NOT the corner-handle '
+                'box — CSS does that one natively with resize: both.',
             color="muted",
         )
 
@@ -369,16 +369,15 @@ def page() -> None:
             ui.text("Visual scan of every prop.",
                     color="muted", size="sm")
 
-            ui.heading("Basic (parts égales)", level=3)
+            ui.heading('Basic (equal shares)', level=3)
             with ui.resizable():
                 panel_block(0)
                 panel_block(1)
 
             ui.heading("sizes", level=3)
             ui.text(
-                "Une liste de poids. [1, 3] et [25, 75] donnent la "
-                "même chose — c'est le RAPPORT qui compte, pas "
-                "l'unité.",
+                'A list of weights. [1, 3] and [25, 75] give the same '
+                    'thing — it is the RATIO that counts, not the unit.',
                 color="muted", size="xs",
             )
             for split in ([50, 50], [25, 75], [70, 30], [20, 60, 20]):
@@ -389,9 +388,8 @@ def page() -> None:
 
             ui.heading("orientation", level=3)
             ui.text(
-                "horizontal = panneaux CÔTE À CÔTE, donc une barre "
-                "verticale. Le nom décrit la disposition du groupe, "
-                "pas celle de la barre.",
+                'horizontal = panels SIDE BY SIDE, hence a vertical bar. '
+                    "The name describes the group's layout, not the bar's.",
                 color="muted", size="xs",
             )
             for o in ORIENTATIONS:
@@ -400,7 +398,7 @@ def page() -> None:
                     panel_block(0, height="h-full")
                     panel_block(1, height="h-full")
 
-            ui.heading("Sizes (épaisseur de la poignée)", level=3)
+            ui.heading('Sizes (handle thickness)', level=3)
             for s in SIZES:
                 ui.text(f"size={s}", color="muted", size="xs")
                 with ui.resizable(size=s):
@@ -416,9 +414,9 @@ def page() -> None:
 
             ui.heading("disabled", level=3)
             ui.text(
-                "La poignée reste DESSINÉE — elle sépare toujours "
-                "quelque chose — mais sort du tab order, porte "
-                "aria-disabled et le curseur interdit.",
+                'The handle stays DRAWN — it still separates something — '
+                    'but leaves the tab order, carries aria-disabled and the '
+                    'forbidden cursor.',
                 color="muted", size="xs",
             )
             with ui.resizable(disabled=True):
@@ -429,17 +427,17 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Slots", level=2)
             ui.text(
-                "Un seul sous-composant : ui.resizable_panel. Les "
-                "poignées, elles, ne se déclarent pas — il y en a "
-                "exactement une de moins que de panneaux, donc les "
-                "écrire n'ajouterait qu'une occasion de se tromper.",
+                'A single sub-component: ui.resizable_panel. The handles,'
+                    ' for their part, are not declared — there is exactly one'
+                    ' fewer than there are panels, so writing them would only'
+                    ' add one more chance to get it wrong.',
                 color="muted", size="sm",
             )
 
-            ui.heading("min_size — le butoir", level=3)
+            ui.heading('min_size — the stop', level=3)
             ui.text(
-                "Le premier panneau ne descend pas sous 30 %, le "
-                "second pas sous 20 %. Tirez : la poignée bute.",
+                'The first panel does not go below 30 %, the second not '
+                    'below 20 %. Drag: the handle stops.',
                 color="muted", size="xs",
             )
             with ui.resizable():
@@ -452,11 +450,11 @@ def page() -> None:
                                  classes="h-32 w-full bg-success/15"):
                         ui.text("min_size=20")
 
-            ui.heading("max_size — le plafond", level=3)
+            ui.heading('max_size — the ceiling', level=3)
             ui.text(
-                "Le jumeau symétrique de min_size, dans la même unité : "
-                "des points de pourcentage. Le premier panneau ne "
-                "dépasse pas 45 %, quoi qu'on tire.",
+                "min_size's symmetrical twin, in the same unit: "
+                    'percentage points. The first panel never goes past 45 %,'
+                    ' however you drag.',
                 color="muted", size="xs",
             )
             with ui.resizable():
@@ -467,15 +465,15 @@ def page() -> None:
                 with ui.resizable_panel():
                     with ui.flex(justify="center", align="center",
                                  classes="h-32 w-full bg-success/15"):
-                        ui.text("le reste")
+                        ui.text('the rest')
 
-            ui.heading("collapsible — ranger un panneau", level=3)
+            ui.heading('collapsible — folding a panel away', level=3)
             ui.text(
-                "Double-cliquez la poignée (ou Entrée quand elle a le "
-                "focus) : le panneau se range et rend sa place au "
-                "voisin. Recommencez pour le récupérer à sa taille "
-                "d'avant. Le repli passe outre min_size — c'est un "
-                "geste explicite, pas un glissement qui dérape.",
+                'Double-click the handle (or press Enter when it has '
+                    'focus): the panel folds away and gives its space back to'
+                    ' its neighbour. Do it again to get it back at its '
+                    'previous size. Folding overrides min_size — it is an '
+                    'explicit gesture, not a drag that slipped.',
                 color="muted", size="xs",
             )
             with ui.resizable(gap="sm"):
@@ -486,14 +484,14 @@ def page() -> None:
                 with ui.resizable_panel():
                     with ui.flex(justify="center", align="center",
                                  classes="h-32 w-full bg-success/15"):
-                        ui.text("je prends la place")
+                        ui.text('I take the space')
 
-            ui.heading("gap — la gouttière autour de la poignée", level=3)
+            ui.heading('gap — the gutter around the handle', level=3)
             ui.text(
-                "La même échelle à six crans que ui.flex / ui.hstack / "
-                "ui.grid, parce que c'est le même espace. Elle appartient "
-                "au GROUPE : le padding d'un parent ne peut pas créer "
-                "d'espace à l'intérieur, entre un panneau et la poignée.",
+                'The same six-step scale as ui.flex / ui.hstack / '
+                    'ui.grid, because it is the same space. It belongs to the'
+                    " GROUP: a parent's padding cannot create space inside, "
+                    'between a panel and the handle.',
                 color="muted", size="xs",
             )
             with ui.resizable(gap="lg"):
@@ -506,7 +504,7 @@ def page() -> None:
                     with ui.flex(justify="center", align="center",
                                  classes="h-24 w-full rounded-xl "
                                          "bg-success/15"):
-                        ui.text("24 px de chaque côté")
+                        ui.text('24 px on each side')
 
             ui.heading("Panneaux riches", level=3)
             with ui.resizable(sizes=[35, 65], style="height: 260px"):
@@ -522,7 +520,7 @@ def page() -> None:
                 with ui.resizable_panel():
                     with ui.vstack(gap="sm", classes="p-4"):
                         ui.heading("Aurora", level=3)
-                        ui.text("Le projet principal.", color="muted")
+                        ui.text('The main project.', color="muted")
                         ui.button("Ouvrir", variant="outline", size="sm")
 
         # ── Card 3 — Edge cases ─────────────────────────────────
@@ -531,41 +529,41 @@ def page() -> None:
             ui.text("Edge inputs and exotic combinations.",
                     color="muted", size="sm")
 
-            ui.heading("Un seul panneau", level=3)
-            ui.text("Aucune poignée : il n'y a rien à repartager.",
+            ui.heading('A single panel', level=3)
+            ui.text('No handle: there is nothing to share out.',
                     color="muted", size="xs")
             with ui.resizable():
                 panel_block(0, height="h-20")
 
             ui.heading("Aucun panneau", level=3)
-            ui.text("Un groupe vide — pas une erreur.",
+            ui.text('An empty group — not an error.',
                     color="muted", size="xs")
             ui.resizable()
 
-            ui.heading("sizes plus court que le nombre de panneaux",
+            ui.heading('sizes shorter than the number of panels',
                        level=3)
             ui.text(
-                "Complété à parts égales, jamais levé : les panneaux "
-                "viennent souvent des données, donc leur nombre "
-                "change sans que la valeur persistée l'ait su.",
+                'Completed into equal shares, never raised: the panels '
+                    'often come from the data, so their number changes '
+                    'without the persisted value knowing.',
                 color="muted", size="xs",
             )
             with ui.resizable(sizes=[50]):
                 for i in range(3):
                     panel_block(i, height="h-20")
 
-            ui.heading("sizes absurde (négatif, texte)", level=3)
-            ui.text("Chaque entrée cassée retombe à part égale, "
-                    "panneau par panneau — aucun ne disparaît.",
+            ui.heading('absurd sizes (negative, text)', level=3)
+            ui.text('Every broken entry falls back to an equal share, panel by '
+                'panel — none disappears.',
                     color="muted", size="xs")
             with ui.resizable(sizes=[-10, "nope", 40]):
                 for i in range(3):
                     panel_block(i, height="h-20")
 
-            ui.heading("Deux minimums qui ne tiennent pas", level=3)
+            ui.heading('Two minimums that do not fit', level=3)
             ui.text(
-                "60 + 60 > 100 : la poignée se fige au lieu de "
-                "violer l'un des deux.",
+                '60 + 60 > 100: the handle freezes instead of violating '
+                    'one of the two.',
                 color="muted", size="xs",
             )
             with ui.resizable():
@@ -578,16 +576,16 @@ def page() -> None:
                                  classes="h-20 w-full bg-warning/15"):
                         ui.text("min 60")
 
-            ui.heading("Contenu très large dans un panneau étroit",
+            ui.heading('Very wide content in a narrow panel',
                        level=3)
             ui.text(
-                "Le test de min-w-0 : le panneau doit RÉTRÉCIR sous "
-                "la largeur de son contenu, pas s'y arc-bouter.",
+                'The min-w-0 test: the panel must SHRINK below its '
+                    "content's width, not brace against it.",
                 color="muted", size="xs",
             )
             with ui.resizable(sizes=[20, 80]):
                 with ui.resizable_panel():
-                    ui.text("UnMotTrèsLongQuiNeVeutPasSeCouperDuTout",
+                    ui.text('AVeryLongWordThatRefusesToBreakAtAll',
                             classes="whitespace-nowrap")
                 with ui.resizable_panel():
                     ui.text("voisin", color="muted")
@@ -595,15 +593,15 @@ def page() -> None:
         # ── Card 4 — Composability ──────────────────────────────
         with ui.card(), ui.vstack():
             ui.heading("Composability", level=2)
-            ui.text("Resizable dans ses contextes habituels.",
+            ui.text('Resizable in its usual contexts.',
                     color="muted", size="sm")
 
-            ui.heading("Imbriqué (colonne + split vertical)", level=3)
+            ui.heading('Nested (column + vertical split)', level=3)
             ui.text(
-                "Le cas « éditeur / aperçu » : un groupe vertical "
-                "DANS un panneau d'un groupe horizontal. Chacun a "
-                "son scope, et le ``:scope >`` du runtime garantit "
-                "que le parent ne voit pas les panneaux de l'enfant.",
+                'The “editor / preview” case: a vertical group INSIDE a '
+                    'panel of a horizontal group. Each has its own scope, and'
+                    " the runtime's ``:scope >`` guarantees the parent does "
+                    "not see the child's panels.",
                 color="muted", size="xs",
             )
             with ui.resizable(sizes=[30, 70], style="height: 300px"):
@@ -614,30 +612,29 @@ def page() -> None:
                         panel_block(1, height="h-full")
                         panel_block(2, height="h-full")
 
-            ui.heading("Un enfant NU devient un panneau", level=3)
+            ui.heading('A BARE child becomes a panel', level=3)
             ui.text(
-                "Chaque enfant direct est un panneau — ui.resizable_panel "
-                "n'est pas un péage, c'est l'opt-in pour donner un "
-                "min_size. C'est ce qui fait qu'un @refreshable ou un "
-                "ui.fragment composent sans cérémonie : leurs nœuds "
-                "s'attachent au parent courant comme n'importe quel "
-                "composant, et une version qui les refusait rendait le "
-                "groupe inutilisable avec eux.",
+                'Every direct child is a panel — ui.resizable_panel is '
+                    'not a toll gate, it is the opt-in for giving a min_size.'
+                    ' That is what lets a @refreshable or a ui.fragment '
+                    'compose without ceremony: their nodes attach to the '
+                    'current parent like any component, and a version that '
+                    'refused them made the group unusable with them.',
                 color="muted", size="xs",
             )
             with ui.resizable(sizes=[40, 60]):
-                ui.text("enfant nu, sans resizable_panel",
+                ui.text('a bare child, with no resizable_panel',
                         classes="p-4 bg-info/10")
                 with ui.resizable_panel(min_size=25):
                     with ui.flex(justify="center", align="center",
                                  classes="h-24 w-full bg-success/15"):
-                        ui.text("panneau déclaré (min_size=25)")
+                        ui.text('a declared panel (min_size=25)')
 
-            ui.heading("Dans une cellule de grille (contexte contraint)",
+            ui.heading('In a grid cell (constrained context)',
                        level=3)
             ui.text(
-                "Le test qui compte : un groupe dans une colonne "
-                "étroite ne doit ni déborder ni pousser la page.",
+                'The test that counts: a group in a narrow column must '
+                    'neither overflow nor push the page.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
@@ -647,7 +644,7 @@ def page() -> None:
                 ui.text("Cellule voisine.", color="muted")
                 ui.text("Autre voisine.", color="muted")
 
-            ui.heading("Deux groupes indépendants", level=3)
+            ui.heading('Two independent groups', level=3)
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.resizable(color="success"):
                     panel_block(0, height="h-24")
@@ -660,15 +657,14 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("A11y", level=2)
             ui.text(
-                "Chaque poignée est un role=\"separator\" focusable "
-                "portant aria-valuenow / valuemin / valuemax et un "
-                "aria-controls vers le panneau qu'elle "
-                "redimensionne. Les flèches ← → (ou ↑ ↓ en vertical) "
-                "la déplacent par pas de 2 points : une poignée qui "
-                "n'obéit qu'au pointeur est inutilisable sans "
-                "souris. ⚠️ L'aria-orientation déclarée est celle de "
-                "la BARRE, donc l'INVERSE de celle du groupe — c'est "
-                "la confusion classique du motif.",
+                'Every handle is a focusable role="separator" carrying '
+                    'aria-valuenow / valuemin / valuemax and an aria-controls'
+                    ' pointing at the panel it resizes. The ← → arrows (or ↑ '
+                    '↓ when vertical) move it in steps of 2 points: a handle '
+                    'that only obeys the pointer is unusable without a mouse.'
+                    " ⚠️ The declared aria-orientation is the BAR's, hence "
+                    "the OPPOSITE of the group's — the classic confusion of "
+                    'this pattern.',
                 color="muted", size="sm",
             )
             with ui.resizable(aria_label="Demo split"):
@@ -695,10 +691,10 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Client playground", level=2)
             ui.text(
-                "Mirror of Resizable's BINDABLE_PROPS = ('sizes',). "
-                "Le partage est lié à un ClientState : tirer la "
-                "poignée le remonte, et les boutons l'écrivent — "
-                "sans aller-retour.",
+                "Mirror of Resizable's BINDABLE_PROPS = ('sizes',). The "
+                    'split is bound to a ClientState: dragging the handle '
+                    'pushes it back up, and the buttons write it — with no '
+                    'round trip.',
                 color="muted", size="sm",
             )
             client = ResizableClient()
@@ -728,14 +724,13 @@ def page() -> None:
 
             ui.heading("Persistance — persist=\"local\"", level=3)
             ui.text(
-                "Le cas d'usage qui a mis ce composant sur la "
-                "roadmap. Tirez la poignée, rechargez la page (F5) : "
-                "le partage est là. Aucun prop de persistance sur le "
-                "composant — c'est le ClientState qui le décide, et "
-                "il n'y a pas de flash au chargement (la racine "
-                "porte un bz-data, donc elle attend html.bz-ready, "
-                "que le boot ne pose qu'APRÈS avoir relu "
-                "localStorage).",
+                'The use case that put this component on the roadmap. '
+                    'Drag the handle, reload the page (F5): the split is '
+                    'there. No persistence prop on the component — the '
+                    'ClientState decides that, and there is no flash on load '
+                    '(the root carries a bz-data, so it waits for html.bz-'
+                    'ready, which boot only sets AFTER re-reading '
+                    'localStorage).',
                 color="muted", size="sm",
             )
             remembered = ResizableRemembered()
@@ -752,9 +747,9 @@ def page() -> None:
                 with ui.resizable_panel():
                     ui.text("B")
             emitted_html_block(
-                "Emitted HTML — les directives lisent la cellule du "
-                "store directement ; les panneaux se reposent quand "
-                "elle bouge, et le geste la remonte au relâchement.",
+                'Emitted HTML — the directives read the store cell '
+                    'directly; the panels settle again when it moves, and the'
+                    ' gesture pushes it back up on release.',
                 serialize_html(preview),
             )
 
@@ -762,11 +757,11 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("External controls — the 3 modes", level=2)
             ui.text(
-                ".reset() dispatche TOUJOURS un event DOM, binding "
-                "ou pas : la part égale dépend du NOMBRE de "
-                "panneaux vivants, que le serveur ne connaît plus "
-                "après un morph qui en a ajouté. .set([…]) écrit "
-                "dans la binding quand il y en a une.",
+                '.reset() ALWAYS dispatches a DOM event, binding or not: '
+                    'the equal share depends on the NUMBER of live panels, '
+                    'which the server no longer knows after a morph has added'
+                    ' some. .set([…]) writes into the binding when there is '
+                    'one.',
                 color="muted", size="sm",
             )
 
@@ -779,16 +774,16 @@ def page() -> None:
                           on_click=m1.set([20, 80]))
                 ui.button("80 / 20", variant="outline",
                           on_click=m1.set([80, 20]))
-                ui.button("Parts égales", variant="ghost",
+                ui.button('Equal shares', variant="ghost",
                           on_click=m1.reset())
 
             ui.divider()
 
             ui.heading("Mode 2 — ClientBinding only", level=3)
             ui.text(
-                "À utiliser quand un AUTRE composant doit lire le "
-                "partage — un compteur, un panneau qui se replie "
-                "quand sa part descend trop bas.",
+                'To be used when ANOTHER component has to read the split '
+                    '— a counter, a panel that folds away when its share '
+                    'drops too low.',
                 color="muted", size="sm",
             )
             bound = ResizableClient(key="binding_only")
@@ -814,7 +809,7 @@ def page() -> None:
             with ui.hstack(gap="sm", align="center"):
                 ui.button("25 / 75", variant="outline",
                           on_click=m3.set([25, 75]))
-                ui.button("Parts égales", on_click=m3.reset())
+                ui.button('Equal shares', on_click=m3.reset())
                 ui.text(
                     ClientExpression(
                         "'bound = ' + JSON.stringify("
@@ -832,9 +827,9 @@ def page() -> None:
                 with ui.resizable_panel():
                     ui.text("B")
             emitted_html_block(
-                "Emitted HTML — la root porte bz-on:bz-set et "
-                "bz-on:bz-reset, les deux récepteurs vers lesquels "
-                "les méthodes impératives dispatchent.",
+                'Emitted HTML — the root carries bz-on:bz-set and bz-'
+                    'on:bz-reset, the two receivers the imperative methods '
+                    'dispatch to.',
                 serialize_html(imperative_preview),
             )
 
@@ -880,8 +875,8 @@ def page() -> None:
                 with ui.resizable_panel():
                     ui.text("B")
             emitted_html_block(
-                "Emitted HTML — le handler bz-on:change est "
-                "relocalisé sur l'input caché, dont le bz-effect "
-                "re-tire un change à chaque relâchement de poignée.",
+                'Emitted HTML — the bz-on:change handler is relocated '
+                    'onto the hidden input, whose bz-effect re-fires a change'
+                    ' every time a handle is released.',
                 serialize_html(preview),
             )

@@ -1,28 +1,28 @@
-"""La lecture d'un ``Theme(components={…})`` littéral — une seule fois.
+"""Reading a literal ``Theme(components={…})`` — once only.
 
-Ce n'est **pas** un module d'helpers AST, et la nuance décide de ce qui a
-le droit d'entrer ici : trois règles — ``theme``, ``variant``, ``shape``
-— posent la même question à l'arbre, « qu'est-ce que ce fichier déclare
-comme thème », et c'est cette question-là qui est partagée. Les autres
-règles ne l'ont pas. Un fourre-tout d'helpers attirerait exactement le
-couplage que la pureté des règles protège.
+This is **not** a module of AST helpers, and the nuance decides what may
+enter here: three rules — ``theme``, ``variant``, ``shape`` — ask the
+tree the same question, "what does this file declare as a theme", and it
+is that question that is shared. The other rules do not have it. A
+grab-bag of helpers would attract exactly the coupling the rules' purity
+protects.
 
-Pourquoi l'extraction
----------------------
-Les trois lisaient la même chose avec leur propre copie. ``_dict_items``
-existait en **deux signatures différentes** — trois éléments dans
-``theme`` et ``shape``, deux dans ``variant`` — et ``variant``
-réinscrivait la reconnaissance du nom ``Theme`` à la main. Ce n'était pas
-encore un bug : les trois disaient la même chose. C'était le motif qui
-précède un bug, le même que ``theme_vocabulary`` a fermé le 2026-08-16 —
-deux copies d'une boucle finissent par ne plus dire la même chose que le
-runtime, et c'est le lint qu'on aurait cru.
+Why the extraction
+------------------
+All three read the same thing with their own copy. ``_dict_items``
+existed in **two different signatures** — three elements in ``theme`` and
+``shape``, two in ``variant`` — and ``variant`` re-wrote the recognition
+of the ``Theme`` name by hand. It was not yet a bug: all three said the
+same thing. It was the pattern that precedes a bug, the same one
+``theme_vocabulary`` closed on 2026-08-16 — two copies of a loop end up
+no longer saying what the runtime says, and it is the lint one would have
+believed.
 
-Ce que ça NE donne pas aux règles
-----------------------------------
-Rien qu'elles n'aient déjà. Pas de corpus, pas de plancher, pas de code
-de sortie : uniquement de la lecture d'arbre, sur l'arbre qu'on lui
-passe. La pureté posée par le docstring du paquet tient.
+What it does NOT give the rules
+-------------------------------
+Nothing they do not already have. No corpus, no floor, no exit code: only
+tree reading, on the tree it is handed. The purity set out in the
+package's docstring holds.
 """
 
 from __future__ import annotations
@@ -30,15 +30,15 @@ from __future__ import annotations
 import ast
 from collections.abc import Iterator
 
-#: Le nom sous lequel un thème se construit. Reconnu en tant que NOM,
-#: appelé directement (``Theme(...)``) ou par attribut
-#: (``bretzel.Theme(...)``) : une règle statique ne résout pas les
-#: imports, et exiger une forme unique refuserait du code correct.
+#: The name a theme is built under. Recognised as a NAME, called
+#: directly (``Theme(...)``) or through an attribute
+#: (``bretzel.Theme(...)``): a static rule does not resolve imports, and
+#: requiring a single form would refuse correct code.
 THEME_CALLABLE = "Theme"
 
 
 def called_name(call: ast.Call) -> str | None:
-    """Le nom appelé, qu'il soit nu ou attribut — ``None`` sinon."""
+    """The name called, bare or as an attribute — ``None`` otherwise."""
     func = call.func
     if isinstance(func, ast.Name):
         return func.id
@@ -48,17 +48,16 @@ def called_name(call: ast.Call) -> str | None:
 
 
 def dict_items(node: ast.expr) -> list[tuple[str, ast.expr, ast.expr]]:
-    """Les entrées ``"littéral": valeur`` d'un dict littéral.
+    """The ``"literal": value`` entries of a literal dict.
 
-    Rend ``(clé, nœud de la clé, nœud de la valeur)`` : le nœud de la clé
-    porte le numéro de ligne, dont une règle a besoin pour situer son
-    constat. Un appelant qui n'en veut pas ignore l'élément du milieu —
-    c'est moins cher que deux signatures, qui est l'état d'où l'on vient.
+    Returns ``(key, the key's node, the value's node)``: the key's node
+    carries the line number, which a rule needs to locate its finding. A
+    caller that does not want it ignores the middle element — that is
+    cheaper than two signatures, which is the state we come from.
 
-    Tout le reste — un ``**spread``, une clé calculée, une variable à la
-    place du dict — est ignoré sans bruit : la règle est statique, et
-    signaler ce qu'elle ne peut pas lire produirait du bruit sur du code
-    correct.
+    Everything else — a ``**spread``, a computed key, a variable in place
+    of the dict — is ignored without noise: the rule is static, and
+    reporting what it cannot read would produce noise on correct code.
     """
     if not isinstance(node, ast.Dict):
         return []
@@ -70,10 +69,10 @@ def dict_items(node: ast.expr) -> list[tuple[str, ast.expr, ast.expr]]:
 
 
 def components_arg(call: ast.Call) -> ast.expr | None:
-    """Le ``components=`` d'un appel qui ressemble à ``Theme(...)``.
+    """The ``components=`` of a call that looks like ``Theme(...)``.
 
-    ``None`` si ce n'est pas un ``Theme``, ou s'il n'a pas ce
-    mot-clé — un thème peut ne surcharger que sa palette.
+    ``None`` when it is not a ``Theme``, or when it has no such keyword —
+    a theme may override only its palette.
     """
     if called_name(call) != THEME_CALLABLE:
         return None
@@ -84,11 +83,11 @@ def components_arg(call: ast.Call) -> ast.expr | None:
 
 
 def component_maps(tree: ast.Module) -> Iterator[ast.expr]:
-    """Chaque ``components={…}`` des ``Theme(...)`` de cet arbre.
+    """Every ``components={…}`` of this tree's ``Theme(...)``.
 
-    Un module peut en porter plusieurs — un thème par écran, un thème de
-    test à côté du vrai. Les rendre tous plutôt que le premier est ce qui
-    évite qu'une règle juge sur la moitié d'un fichier.
+    A module may carry several — one theme per screen, a test theme
+    beside the real one. Returning them all rather than the first is what
+    keeps a rule from judging on half a file.
     """
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):

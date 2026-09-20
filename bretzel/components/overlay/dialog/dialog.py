@@ -18,11 +18,11 @@ to a ``ClientState`` field ::
 Open / close — the framework's universal contract :
 
   ``open=`` accepts the same three shapes every reactive prop does :
-  a literal ``bool`` (auto-suffisant, dialog owns its own state via
+  a literal ``bool`` (self-sufficient, the dialog owns its own state via
   ``bz-data``), a server-resolved value (resolved once at render),
-  or a :class:`ClientBinding` (live two-way reactive — le panneau porte
-  ``bz-attr:data-open`` qui lit le chemin de la binding. The trigger and the
-  close button write to
+  or a :class:`ClientBinding` (live two-way reactive — the panel carries
+  ``bz-attr:data-open`` which reads the binding's path. The trigger and
+  the close button write to
   it via standard ``binding.set(value)`` / ``binding.toggle()``
   expressions). No dialog-specific helpers ; the same primitive that
   drives any other reactive prop drives this one ::
@@ -58,11 +58,11 @@ A11y :
 Notes :
 - Client wiring : ``bz-data`` (component-local scope, keyed by ``bz-id``,
   survives morphs) + ``bz-attr:data-open`` / ``bz-on:`` / ``bz-effect``.
-  L'élément reste **MONTÉ** : ``show_attrs`` pose ``data-open`` +
-  ``data-bz-overlay`` et l'anim est du CSS sur ``data-[open=…]``. Pas de
-  ``bz-show``, pas de prestamp ``display:none`` — le sélecteur
-  ``[data-bz-overlay][data-open="false"]`` de ``_ANTI_FLASH_STYLE`` fait le
-  travail anti-flash.
+  The element stays **MOUNTED**: ``show_attrs`` sets ``data-open`` +
+  ``data-bz-overlay`` and the animation is CSS on ``data-[open=…]``. No
+  ``bz-show``, no ``display:none`` prestamp — ``_ANTI_FLASH_STYLE``'s
+  ``[data-bz-overlay][data-open="false"]`` selector does the anti-flash
+  work.
 - Enter/leave animations are CSS-only — the theme owns them.
 - ``on_open=`` / ``on_close=`` : BOTH may be server callables on the same
   dialog. A root element hosts a single ``hx-post``, so ``on_open`` rides
@@ -115,7 +115,7 @@ class Dialog(Component):
         on_close: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             open=open,
             title=title,
@@ -126,10 +126,10 @@ class Dialog(Component):
             on_close=on_close,
             **kwargs,
         )
-        # API impérative write-only ``.open()`` / ``.close()`` /
-        # ``.toggle()`` — installée en attributs d'instance (shadow le
-        # descripteur ``open``) par le helper base, identique sur les 4
-        # overlays open-driven. Cf. `imperative-api.md`.
+        # Write-only imperative API ``.open()`` / ``.close()`` /
+        # ``.toggle()`` — installed as instance attributes (shadowing the
+        # ``open`` descriptor) by the base helper, identical on the 4
+        # open-driven overlays. Cf. `imperative-api.md`.
         install_open_close_toggle(self)
 
     # ── Render ─────────────────────────────────────────────────────────

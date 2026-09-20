@@ -27,20 +27,20 @@ from bretzel.server.navigation import redirect_response
 
 __all__ = ["OIDC", "OAuth2", "OAuthProfile", "OAuthError"]
 
-#: Durée de vie du cookie de transaction (``state`` + vérifieur PKCE).
-#: Dix minutes : le temps d'une saisie de mot de passe et d'un second
-#: facteur chez le fournisseur, pas celui d'un onglet oublié.
+#: Lifetime of the transaction cookie (``state`` + PKCE verifier). Ten
+#: minutes: the time to type a password and a second factor at the
+#: provider, not the time of a forgotten tab.
 _TRANSACTION_MAX_AGE = 600
 
 _HTTP_TIMEOUT = 10
 
 
 class OAuthError(RuntimeError):
-    """Une transaction OAuth qui n'aboutit pas, côté framework.
+    """An OAuth transaction that does not complete, framework-side.
 
-    Ne porte **jamais** le détail au navigateur : les causes (état
-    absent, code refusé, profil sans identifiant) sont du diagnostic
-    serveur. Le visiteur, lui, est renvoyé sur la page de connexion.
+    It **never** carries the detail to the browser: the causes (missing
+    state, refused code, profile with no identifier) are server
+    diagnostics. The visitor is sent back to the sign-in page.
     """
 
 
@@ -56,7 +56,7 @@ class OAuthProfile:
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# HTTP — stdlib, poussé dans un thread
+# HTTP — stdlib, pushed into a thread
 # ───────────────────────────────────────────────────────────────────────────
 
 
@@ -66,7 +66,7 @@ def _http_json(
     data: dict[str, str] | None = None,
     headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Un aller-retour HTTP qui rend du JSON. Bloquant — cf. :func:`_fetch`."""
+    """One HTTP round trip returning JSON. Blocking — cf. :func:`_fetch`."""
     body = urllib.parse.urlencode(data).encode() if data else None
     req = urllib.request.Request(url, data=body, method="POST" if data else "GET")
     req.add_header("Accept", "application/json")
@@ -76,33 +76,33 @@ def _http_json(
         with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp:
             payload = resp.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
-        # ⚠️ Un endpoint OAuth qui REFUSE répond 4xx **avec un corps JSON
-        # utile** (``{"error": "invalid_grant"}``) — c'est le protocole,
-        # pas une panne. ``urlopen`` lève pourtant sur tout non-2xx, et
-        # sans ce rattrapage l'exception traversait la porte : le
-        # visiteur recevait une 500 au lieu de revenir sur la connexion.
-        # Trouvé le 2026-08-24 en faussant le vérifieur PKCE contre un
-        # vrai fournisseur — la sonde ne rougissait pas, elle CASSAIT.
+        # ⚠️ An OAuth endpoint that REFUSES answers 4xx **with a useful
+        # JSON body** (``{"error": "invalid_grant"}``) — that is the
+        # protocol, not a failure. ``urlopen`` nonetheless raises on any
+        # non-2xx, and without this catch the exception crossed the door:
+        # the visitor got a 500 instead of coming back to the sign-in
+        # page. Found on 2026-08-24 by faking the PKCE verifier against a
+        # real provider — the probe did not turn red, it BROKE.
         try:
             payload = exc.read().decode("utf-8")
         except Exception:
-            # Large exprès : corps vide, tronqué, encodage exotique — la
-            # cause exacte n'a aucune valeur ici, il n'y a qu'une suite
-            # possible, refuser proprement.
+            # Deliberately broad: empty body, truncated, exotic
+            # encoding — the exact cause has no value here, there is only
+            # one possible continuation, refusing cleanly.
             raise OAuthError(f"{url} returned {exc.code} without a readable response body") from None
     except urllib.error.URLError as exc:
-        # Fournisseur injoignable, DNS, TLS. Un refus propre plutôt qu'une
-        # trace : le visiteur n'y peut rien.
+        # Provider unreachable, DNS, TLS. A clean refusal rather than a
+        # traceback: the visitor can do nothing about it.
         raise OAuthError(f"{url} injoignable : {exc.reason}") from None
     try:
         parsed = json.loads(payload)
     except json.JSONDecodeError:
-        # GitHub rend du form-urlencoded quand l'en-tête ``Accept`` n'est
-        # pas honoré — on le pose, mais un fournisseur peut l'ignorer, et
-        # un échec ici serait illisible.
+        # GitHub returns form-urlencoded when the ``Accept`` header is
+        # not honoured — we set it, but a provider may ignore it, and a
+        # failure here would be unreadable.
         parsed = {k: v[0] for k, v in urllib.parse.parse_qs(payload).items()}
     if not isinstance(parsed, dict):
-        raise OAuthError(f"{url} n'a pas rendu un objet JSON.")
+        raise OAuthError(f"{url} did not return a JSON object.")
     return parsed
 
 
@@ -112,17 +112,17 @@ async def _fetch(
     data: dict[str, str] | None = None,
     headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """:func:`_http_json`, hors de la boucle d'événements.
+    """:func:`_http_json`, off the event loop.
 
-    Même point de passage que le code d'app (``core/invoke``) : l'appel
-    HTTP d'ici est bloquant par nature — ``urllib`` — et le laisser sur
-    la boucle gèlerait le worker le temps de l'échange de code.
+    Same crossing point as app code (``core/invoke``): the HTTP call here
+    is blocking by nature — ``urllib`` — and leaving it on the loop would
+    freeze the worker for the duration of the code exchange.
     """
     return await call_without_blocking(_http_json, url, data=data, headers=headers)
 
 
 def _b64url_json(segment: str) -> dict[str, Any]:
-    """Décode un segment de JWT (base64url sans padding) en dict."""
+    """Decode one JWT segment (base64url without padding) into a dict."""
     padded = segment + "=" * (-len(segment) % 4)
     try:
         return json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
@@ -136,11 +136,11 @@ def _b64url_json(segment: str) -> dict[str, Any]:
 
 
 class _Door:
-    """Le tronc commun des deux protocoles : deux routes et une transaction.
+    """The common trunk of both protocols: two routes and a transaction.
 
-    Sous-classer n'est pas prévu hors de ce module — ce qui varie entre
-    les deux formes tient dans deux méthodes (:meth:`_endpoints`,
-    :meth:`_profile`), pas dans le déroulement.
+    Subclassing is not intended outside this module — what varies between
+    the two forms fits in two methods (:meth:`_endpoints`,
+    :meth:`_profile`), not in the sequence.
     """
 
     def __init__(
@@ -157,12 +157,13 @@ class _Door:
     ) -> None:
         if not name or not name.replace("_", "").replace("-", "").isalnum():
             raise ValueError(
-                f"oauth : name={name!r} doit être alphanumérique — il devient "
-                "un segment d'URL et distingue deux portes du même protocole."
+                f"oauth: name={name!r} must be alphanumeric — it becomes "
+                "a URL segment and distinguishes two doors of the same "
+                "protocol."
             )
         if not client_id or not client_secret:
             raise ValueError(
-                f"oauth {name!r} : client_id et client_secret sont requis."
+                f"oauth {name!r}: client_id and client_secret are required."
             )
         self.name = name
         self.client_id = client_id
@@ -173,7 +174,7 @@ class _Door:
         self.on_denied = on_denied
         self.on_success = on_success
 
-    # ── ce que l'app et la garde lisent ────────────────────────────────
+    # ── what the app and the guard read ────────────────────────────────
 
     @property
     def callback_path(self) -> str:
@@ -181,15 +182,15 @@ class _Door:
 
     @property
     def paths(self) -> tuple[str, str]:
-        """Les deux chemins, à laisser ouverts par toute garde d'auth.
+        """The two paths, to be left open by any auth guard.
 
-        Les DEUX : oublier la callback produit une boucle de redirection
-        dont le symptôme ne désigne rien. C'est pour ça qu'ils remontent
-        dans ``app.public_paths`` au lieu d'être recopiés par l'app.
+        BOTH: forgetting the callback produces a redirect loop whose
+        symptom points at nothing. That is why they surface in
+        ``app.public_paths`` instead of being copied by the app.
         """
         return (self.path, self.callback_path)
 
-    # ── à spécialiser ──────────────────────────────────────────────────
+    # ── to be specialised ──────────────────────────────────────────────
 
     async def _endpoints(self) -> dict[str, str]:
         raise NotImplementedError
@@ -197,28 +198,28 @@ class _Door:
     async def _profile(self, tokens: dict[str, Any], nonce: str) -> OAuthProfile:
         raise NotImplementedError
 
-    # ── le déroulement, commun ─────────────────────────────────────────
+    # ── the sequence, common ───────────────────────────────────────────
 
     def mount(self, app: Any, on_user: Any) -> None:
-        """Monte les deux routes sur le FastAPI sous-jacent.
+        """Mount the two routes on the underlying FastAPI.
 
-        Des routes brutes, pas des ``@page`` : une porte ne rend aucun
-        HTML — elle redirige, deux fois. Elles n'ont pas besoin d'un
-        contexte de rendu pour autant : ``RenderContextMiddleware``
-        enveloppe TOUTES les requêtes, donc ``auth.login()`` pose bien
-        son cookie depuis la callback (mesuré le 2026-08-23).
+        Raw routes, not ``@page``: a door renders no HTML — it redirects,
+        twice. They do not need a render context for all that:
+        ``RenderContextMiddleware`` wraps ALL requests, so
+        ``auth.login()`` does set its cookie from the callback (measured
+        on 2026-08-23).
 
-        ⚠️ Les trois redirections passent par :func:`redirect_response`
-        et **jamais** par un ``RedirectResponse`` nu. La raison est un
-        piège que rien ne signale : ``render/shell.py`` pose
-        ``hx-boost="true"`` au niveau du document dès qu'une page porte
-        un ``outlet``. Le lien « Continuer avec X » est un ``<a>``
-        interne, donc boosté — htmx suivrait la 302 en ``fetch``, vers
-        une AUTRE origine, et ça échoue en silence (CORS) ou swappe du
-        HTML étranger dans l'outlet. ``redirect_response`` répond alors
-        un ``HX-Redirect``, que le navigateur exécute en vraie
-        navigation. ``examples/auth`` y échappait par accident (sa
-        page de connexion n'a pas d'outlet), donc la sonde était verte.
+        ⚠️ The three redirects go through :func:`redirect_response` and
+        **never** through a bare ``RedirectResponse``. The reason is a
+        trap nothing signals: ``render/shell.py`` sets ``hx-boost="true"``
+        at document level as soon as a page carries an ``outlet``. The
+        "Continue with X" link is an internal ``<a>``, so boosted — htmx
+        would follow the 302 with ``fetch``, towards ANOTHER origin, and
+        that fails silently (CORS) or swaps foreign HTML into the outlet.
+        ``redirect_response`` then answers an ``HX-Redirect``, which the
+        browser executes as a real navigation. ``examples/auth`` escaped
+        it by accident (its sign-in page has no outlet), so the probe was
+        green.
         """
         async def start(request: Any) -> Any:
             endpoints = await self._endpoints()
@@ -255,8 +256,8 @@ class _Door:
                 code = request.query_params.get("code", "")
                 if not code:
                     raise OAuthError(
-                        "pas de code — le fournisseur a répondu "
-                        f"{request.query_params.get('error', 'sans rien dire')}."
+                        "no code — the provider answered "
+                        f"{request.query_params.get('error', 'saying nothing')}."
                     )
                 endpoints = await self._endpoints()
                 tokens = await _fetch(
@@ -272,14 +273,14 @@ class _Door:
                 )
                 if "access_token" not in tokens and "id_token" not in tokens:
                     raise OAuthError(
-                        f"le token endpoint a refusé : {tokens.get('error')}"
+                        f"the token endpoint refused: {tokens.get('error')}"
                     )
                 profile = await self._profile(tokens, nonce)
-                # ``@auth.door`` REFUSE une ``async def`` (cf.
-                # ``decorators/identity.py``), et son exemple canonique
-                # est un ``users.upsert(...)`` — donc une écriture en
-                # base, forcément synchrone, dans la callback. Délestée,
-                # sinon elle gèle la boucle à chaque connexion.
+                # ``@auth.door`` REFUSES an ``async def`` (cf.
+                # ``decorators/identity.py``), and its canonical example
+                # is a ``users.upsert(...)`` — so a database write,
+                # necessarily synchronous, in the callback. Offloaded,
+                # otherwise it freezes the loop on every sign-in.
                 user_id = await call_without_blocking(on_user, profile)
             except OAuthError:
                 return self._refuse(request)
@@ -307,11 +308,11 @@ class _Door:
         return f"Bretzel_oauth_{self.name}"
 
     def _refuse(self, request: Any) -> Any:
-        """Toute cause de refus sort par la même porte, sans détail.
+        """Every cause of refusal leaves through the same door, with no detail.
 
-        Un anonyme qui apprend *pourquoi* sa transaction a échoué apprend
-        quelque chose sur le compte visé. Le diagnostic reste côté
-        serveur, dans l'exception levée.
+        An anonymous visitor who learns *why* their transaction failed
+        learns something about the targeted account. The diagnosis stays
+        server-side, in the raised exception.
         """
         response = redirect_response(request, self.on_denied)
         response.delete_cookie(self._cookie_name)
@@ -332,13 +333,14 @@ class _Door:
     def _seal(
         self, request: Any, response: Any, state: str, verifier: str, nonce: str
     ) -> None:
-        """Pose ``state`` + vérifieur PKCE + ``nonce`` dans un cookie signé.
+        """Set ``state`` + PKCE verifier + ``nonce`` in a signed cookie.
 
-        Signé, et pas seulement posé : sans signature, un attaquant
-        choisit le ``state`` des deux côtés et la protection CSRF du flux
-        tombe. Dix minutes de vie, ``HttpOnly``, ``SameSite=lax`` — et
-        ``lax`` plutôt que ``strict``, sinon le navigateur ne le renvoie
-        pas au retour du fournisseur, qui est une navigation inter-site.
+        Signed, and not merely set: without a signature, an attacker
+        chooses the ``state`` on both sides and the flow's CSRF
+        protection falls. Ten minutes of life, ``HttpOnly``,
+        ``SameSite=lax`` — and ``lax`` rather than ``strict``, otherwise
+        the browser does not send it back on the return from the
+        provider, which is a cross-site navigation.
         """
         payload = f"{state}:{verifier}:{nonce}"
         signature = _crypto_sign(self._key(request), payload)
@@ -364,12 +366,12 @@ class _Door:
         return parts[0], parts[1], parts[2]
 
     def _redirect_uri(self, request: Any) -> str:
-        """L'URL absolue de la callback.
+        """The callback's absolute URL.
 
-        Déduite de la requête par défaut, surchargeable par
-        ``redirect_uri=`` : derrière un proxy qui termine le TLS,
-        ``base_url`` peut annoncer ``http`` alors que le fournisseur
-        exigera l'``https`` enregistré chez lui.
+        Derived from the request by default, overridable with
+        ``redirect_uri=``: behind a proxy terminating TLS, ``base_url``
+        may announce ``http`` while the provider will require the
+        ``https`` registered with it.
         """
         if self.redirect_uri:
             return self.redirect_uri
@@ -415,9 +417,9 @@ class OIDC(_Door):
                 }
             except KeyError as exc:
                 raise OAuthError(
-                    f"{self.issuer} ne publie pas de configuration OIDC complète "
-                    f"({exc}). Si le fournisseur n'est pas OIDC, utilise "
-                    "oauth.OAuth2 avec ses trois URL."
+                    f"{self.issuer} does not publish a complete OIDC "
+                    f"configuration ({exc}). If the provider is not OIDC, "
+                    "use oauth.OAuth2 with its three URLs."
                 ) from None
         return self._cache
 
@@ -427,10 +429,10 @@ class OIDC(_Door):
             raise OAuthError("OIDC response does not contain a usable id_token")
         claims = _b64url_json(raw_id.split(".")[1])
 
-        # Ce qu'on vérifie, et pourquoi pas la signature : le jeton arrive
-        # du token endpoint, par TLS, en réponse à NOTRE POST authentifié
-        # — OIDC Core § 3.1.3.7 le dit suffisant. Restent les quatre
-        # contrôles que le transport ne donne pas.
+        # What we verify, and why not the signature: the token comes
+        # from the token endpoint, over TLS, in reply to OUR
+        # authenticated POST — OIDC Core § 3.1.3.7 deems that sufficient.
+        # What remain are the four checks the transport does not give.
         if str(claims.get("iss", "")).rstrip("/") != self.issuer:
             raise OAuthError("id_token was issued by a different issuer")
         aud = claims.get("aud", "")
@@ -439,13 +441,13 @@ class OIDC(_Door):
             raise OAuthError("id_token was issued for a different client")
         if int(claims.get("exp", 0)) <= int(time.time()):
             raise OAuthError("id_token has expired")
-        # ⚠️ Le ``and claims.get("nonce")`` qui se trouvait ici rendait le
-        # contrôle FACULTATIF : un jeton SANS nonce passait, alors qu'on
-        # en avait envoyé un. C'est exactement la porte au rejeu que le
-        # nonce existe pour fermer, et OIDC Core l'exige dans l'autre
-        # sens (« si un nonce a été envoyé, sa présence ET sa valeur
-        # DOIVENT être vérifiées »). Trouvé le 2026-08-24 en mutant
-        # l'envoi du nonce : la sonde restait verte.
+        # ⚠️ The ``and claims.get("nonce")`` that used to be here made
+        # the check OPTIONAL: a token WITHOUT a nonce passed, although we
+        # had sent one. That is exactly the replay door the nonce exists
+        # to close, and OIDC Core requires it the other way round ("if a
+        # nonce was sent, its presence AND its value MUST be verified").
+        # Found on 2026-08-24 by mutating the nonce's emission: the probe
+        # stayed green.
         if nonce and not hmac.compare_digest(str(claims.get("nonce", "")), nonce):
             raise OAuthError("nonce absent ou non concordant — rejeu possible.")
 
@@ -510,8 +512,8 @@ class OAuth2(_Door):
         subject = str(raw.get(self.subject_field, "") or "")
         if not subject:
             raise OAuthError(
-                f"le profil ne porte pas {self.subject_field!r} — vérifie "
-                "subject= contre la doc du fournisseur."
+                f"the profile does not carry {self.subject_field!r} — "
+                "check subject= against the provider's documentation."
             )
         return OAuthProfile(
             subject=subject,

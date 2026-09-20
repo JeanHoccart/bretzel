@@ -1,6 +1,6 @@
-"""L'atelier — le framework se regarde travailler.
+"""The workshop — the framework watches itself work.
 
-Sa mécanique, en une phrase : **rendre visible comment une tâche a été
-menée**, pour qu'on puisse juger l'outil et la méthode sur des mesures et
-non sur une impression.
+Its mechanic, in one sentence: **make visible how a task was carried
+out**, so the tool and the method can be judged on measurements and not
+on an impression.
 """

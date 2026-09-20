@@ -1,13 +1,13 @@
-"""Le sous-terme JS commun aux générateurs de fenêtrage.
+"""The JS subterm shared by the windowing generators.
 
-``limit_each(limit=)`` et ``paginate_each(page=)`` acceptent le même
-shape — un entier littéral OU une :class:`ClientBinding` — et le rendent
-dans la même expression client. Les deux modules en portaient une copie
-privée identique (``_limit_ref`` / ``_page_ref``, audit F53) : deux
-helpers jumeaux dans la même famille, libres de diverger.
+``limit_each(limit=)`` and ``paginate_each(page=)`` accept the same
+shape — a literal integer OR a :class:`ClientBinding` — and render it in
+the same client expression. Both modules carried an identical private
+copy of it (``_limit_ref`` / ``_page_ref``, audit F53): two twin helpers
+in the same family, free to diverge.
 
-``Component.path_of`` ne couvrait pas le besoin : il ne connaît que la
-branche binding, pas le repli entier ni le parenthésage.
+``Component.path_of`` did not cover the need: it only knows the binding
+branch, not the integer fallback nor the parenthesising.
 """
 
 from __future__ import annotations
@@ -16,15 +16,16 @@ from bretzel.state.scopes.client import ClientBinding
 
 
 def window_ref(value: ClientBinding | int) -> str:
-    """``value`` en sous-expression JS parenthésée.
+    """``value`` as a parenthesised JS subexpression.
 
-    Parenthésée parce que le résultat est interpolé dans une expression
-    plus large (une comparaison d'index) : sans parenthèses, un binding
-    rendu en ``a || b`` changerait la précédence de l'expression hôte.
+    Parenthesised because the result is interpolated into a wider
+    expression (an index comparison): without parentheses, a binding
+    rendered as ``a || b`` would change the host expression's
+    precedence.
 
-    ``binding_path()`` est polymorphe — une ``ClientExpression`` porte
-    déjà son préfixe, une ``ClientBinding`` simple se le voit ajouter
-    (cf. ``filter_each._query_js``).
+    ``binding_path()`` is polymorphic — a ``ClientExpression`` already
+    carries its prefix, a plain ``ClientBinding`` gets it added (cf.
+    ``filter_each._query_js``).
     """
     if isinstance(value, ClientBinding):
         return f"({value.binding_path()})"

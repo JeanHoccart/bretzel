@@ -318,7 +318,7 @@ clés des groupes adressés par une valeur de prop (`variants`, `sizes`,
 du thème livré. Seul `slots` est fermé : un slot est composé par le code du
 composant, donc un nom qu'il ignore est mort par construction.
 
-La règle de lint `theme-vocabulaire-inconnu` applique **la même** table, en
+La règle de lint `unknown-theme-vocabulary` applique **la même** table, en
 statique — elle voit sans exécuter, donc elle attrape aussi le thème d'un
 module jamais importé. Le vocabulaire est dérivé une seule fois, dans
 `bretzel.introspect.theme_vocabulary()`, et consommé par les deux règles de

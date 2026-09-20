@@ -510,20 +510,20 @@ def page() -> None:
                     ui.text("Edge inputs and exotic combinations.",
                             color="muted", size="sm")
 
-                    ui.heading("dismissible=False — on ne SORT plus",
+                    ui.heading('dismissible=False — there is no way OUT any more',
                                level=3)
                     ui.text(
-                        "Ni Escape ni le clic sur le voile ne "
-                        "ferment : il ne reste que ce que la boîte "
-                        "offre elle-même. À réserver au choix qu'on "
-                        "ne peut pas repousser — une confirmation "
-                        "destructive — parce que c'est aussi la "
-                        "façon la plus sûre de piéger quelqu'un.",
+                        'Neither Escape nor a click on the veil closes '
+                            'it: all that is left is what the box offers '
+                            'itself. To be kept for the choice that cannot be'
+                            ' postponed — a destructive confirmation — '
+                            'because it is also the surest way to trap '
+                            'somebody.',
                         color="muted", size="xs",
                     )
                     with ui.dialog(title="Supprimer ce projet ?",
                                    dismissible=False) as locked_dlg:
-                        ui.text("Cette action est irréversible.")
+                        ui.text('This action cannot be undone.')
                         with ui.hstack(gap="sm"):
                             ui.button("Annuler", variant="outline",
                                       on_click=locked_dlg.close())
@@ -807,13 +807,12 @@ def page() -> None:
                         level=3,
                     )
                     ui.text(
-                        "Binding fournie ET on appelle ``.open()`` "
-                        "sur l'instance. Le framework détecte la "
-                        "binding et délègue à ``binding.set(True)`` "
-                        "— **le DOM dispatch n'est pas utilisé**, "
-                        "single source of truth préservée. La switch "
-                        "et les boutons imperatifs convergent sur "
-                        "le même flag.",
+                        'A binding supplied AND ``.open()`` called on the'
+                            ' instance. The framework detects the binding and'
+                            ' delegates to ``binding.set(True)`` — **the DOM '
+                            'dispatch is not used**, the single source of '
+                            'truth is preserved. The switch and the '
+                            'imperative buttons converge on the same flag.',
                         color="muted", size="sm",
                     )
                     both = DialogClient(key="both")

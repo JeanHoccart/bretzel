@@ -35,17 +35,17 @@ ICON_BUTTON_THEME: dict[str, Any] = {
             "text-(--bz-text) "
             "not-disabled:hover:bg-(--bz-bg)"
         ),
-        # Surface : le contrôle se lit comme un CHAMP — même boîte bordée
-        # que ``ui.input``. C'est ce qui manquait pour qu'une barre
-        # d'outils mêlant une recherche et des boutons se lise comme UNE
-        # famille : `soft` donne un lavis sans bordure, `outline` une
-        # bordure de 2 px accentuée, et aucun des deux ne ressemble au
-        # champ voisin (`bg-interface` + `border-text/10`).
+        # Surface: the control reads as a FIELD — the same bordered box
+        # as ``ui.input``. It is what was missing for a toolbar mixing a
+        # search and buttons to read as ONE family: `soft` gives a wash
+        # with no border, `outline` an accented 2 px border, and neither
+        # of the two resembles the neighbouring field (`bg-interface` +
+        # `border-text/10`).
         #
-        # La couleur reste un point d'accroche (`text-(--bz-text)`) pour
-        # que la règle « l'accent marque le pair ACTIF » continue de
-        # s'appliquer sans changer la boîte : au repos `current`, actif
-        # l'accent — la géométrie ne bouge pas.
+        # The colour stays a hook (`text-(--bz-text)`) so the "the accent
+        # marks the ACTIVE peer" rule goes on applying without changing
+        # the box: at rest `current`, active the accent — the geometry
+        # does not move.
         "surface": (
             "bg-interface border-(length:--bz-stroke) border-text/10 text-(--bz-text) "
             "not-disabled:hover:bg-text/5"

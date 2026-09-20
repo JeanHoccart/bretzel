@@ -1,44 +1,44 @@
-"""L'atelier — le framework se regarde travailler. ``py -m examples.atelier.main``.
+"""The workshop — the framework watches itself work.
+``py -m examples.atelier.main``.
 
-Sa mécanique, en une phrase : **rendre visible comment une tâche a été
-menée**. Pas ce qui a été produit — le dépôt le montre déjà — mais le
-GESTE : combien de lectures avant d'écrire, combien de fois la suite a
-été relancée, quelles commandes ont été rejouées à l'identique, quels
-outils ont échoué.
+Its mechanic, in one sentence: **make visible how a task was carried
+out**. Not what was produced — the repository already shows that — but
+the GESTURE: how many reads before writing, how many times the suite was
+re-run, which commands were replayed identically, which tools failed.
 
-Pourquoi elle existe
---------------------
-Demandée le 2026-09-12 : « je voudrais un moyen de constater les méthodes
-describe, lint… pour évaluer la performance de ce que tu utilises, où tu
-plantes, où tu es lent, pourquoi tu n'y arrives pas du premier coup ».
+Why it exists
+--------------
+Asked for on 2026-09-12: "I would like a way of seeing the describe,
+lint… methods to evaluate the performance of what you use, where you
+break, where you are slow, why you do not get it right first time".
 
-Une impression ne se discute pas. Une mesure, si. L'app lit les
-transcripts de session — ce que Claude Code écrit déjà, sans rien
-instrumenter — et en tire une lecture par TÂCHE : un message de
-l'utilisateur jusqu'à la réponse finale.
+An impression cannot be argued with. A measurement can. The app reads the
+session transcripts — what Claude Code already writes, with nothing
+instrumented — and draws one reading per TASK: a user message through to
+the final answer.
 
-La règle qu'elle mesure
-------------------------
-Posée le même jour : « tu lis, tu comprends, ensuite tu codes tout, tu
-fais le check, tu corriges, et un seul dernier — deux checks globaux, pas
-plus, pas d'aller-retour incessant ». C'est
-``core/phases.CYCLES_MAX``, et chaque tâche est jugée dessus.
+The rule it measures
+---------------------
+Set the same day: "you read, you understand, then you code everything,
+you run the check, you correct, and one last one — two global checks, no
+more, no endless back-and-forth". It is ``core/phases.CYCLES_MAX``, and
+every task is judged on it.
 
-Ce qu'elle exerce du framework
--------------------------------
-Une ``ui.datatable`` en mode callable sur 1 856 tâches et 34 000 appels,
-une page routée par paramètre qui se partage, un document gelé, et des
-états adressables. Comme ``crm``, elle sert deux fois : elle répond à une
-question ET elle met le socle sous contrainte.
+What it exercises of the framework
+-----------------------------------
+A ``ui.datatable`` in callable mode over 1 856 tasks and 34 000 calls, a
+parameter-routed page that shares, a frozen document, and addressable
+states. Like ``crm``, it serves twice: it answers a real question and it
+puts the framework under constraint.
 
-``main`` est le seul fichier à connaître l'instance : il ``include`` les
-features et sème la base au premier démarrage.
+``main`` is the only file that knows the instance: it ``include``s the
+features and seeds the database at first startup.
 """
 
 from __future__ import annotations
 
 from bretzel import Bretzel
-from examples.atelier.core import db, epoque, ingest, perimetre, phases
+from examples.atelier.core import db, era, ingest, phases, scope
 from examples.atelier.core.db import init_db, is_seeded
 from examples.atelier.core.theme import THEME
 
@@ -47,14 +47,14 @@ from examples.atelier.core.theme import THEME
 init_db()
 
 from examples.atelier.features import (
-    outils,
-    outils_data,
     phases_page,
     sessions,
     shell,
-    tache_detail,
-    taches,
-    taches_data,
+    task_detail,
+    tasks,
+    tasks_data,
+    tools,
+    tools_data,
 )
 
 app = Bretzel(
@@ -65,25 +65,26 @@ app = Bretzel(
 )
 
 app.include(
-    db,                       # infra — le fichier SQLite et ses portes
-    phases,                   # logic — le classement d'un appel
-    epoque,                   # logic — depuis quand une tâche compte
-    perimetre,                # logic — sur QUOI la tâche a travaillé
-    ingest,                   # job — l'aspiration des transcripts
-    shell,                    # layout — la coque et sa région
-    taches_data, outils_data,                       # data
-    taches, tache_detail, phases_page, outils, sessions,   # pages
+    db,                       # infra — the SQLite file and its doors
+    phases,                   # logic — a call's classification
+    era,                      # logic — since when a task counts
+    scope,                    # logic — WHAT the task worked on
+    ingest,                   # job — pulling in the transcripts
+    shell,                    # layout — the shell and its region
+    tasks_data, tools_data,                            # data
+    tasks, task_detail, phases_page, tools, sessions,  # pages
 )
 
 
 @app.startup
 async def prepare() -> None:
-    """Créer le schéma, et aspirer si la base est vide.
+    """Create the schema, and ingest if the database is empty.
 
-    ⚠️ On n'aspire QUE si rien n'est là. Relire 516 Mo à chaque démarrage
-    rendrait `reload=True` inutilisable, et la base ne périme pas : une
-    session déjà lue ne change plus. Pour rafraîchir après du travail,
-    c'est ``py -m examples.atelier.core.ingest``, explicitement.
+    ⚠️ We ingest ONLY if nothing is there. Re-reading 516 MB at every
+    startup would make `reload=True` unusable, and the database does not
+    go stale: a session already read never changes again. To refresh
+    after some work, it is ``py -m examples.atelier.core.ingest``,
+    explicitly.
     """
     init_db()
     if not is_seeded():

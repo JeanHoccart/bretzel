@@ -1,23 +1,20 @@
-"""Tout allumé, en UNE commande : ``py -m examples.auth.demo``.
+"""Everything switched on, in ONE command: ``py -m examples.auth.demo``.
 
-Démarre le fournisseur OIDC local dans un sous-process, pose les quatre
-variables qu'il faut, allume la lecture de l'en-tête de proxy, puis sert
-l'app. Les quatre façons d'entrer sont actives, et on ferme tout avec un
-seul Ctrl+C.
+Starts the local OIDC provider in a subprocess, sets the four variables
+it needs, turns on proxy-header reading, then serves the app. The four
+ways in are all live, and one Ctrl+C closes everything.
 
-Pourquoi ce fichier existe : la marche à suivre du README demande **deux
-terminaux et quatre variables**, et c'est une friction que la démo
-n'avait pas à imposer. Le premier essai réel s'est soldé par un
-``ERR_CONNECTION_REFUSED`` sur le port de l'app — le fournisseur seul
-tournait, ce qui est exactement ce qu'on avait demandé, et pas du tout ce
-qu'on voulait.
+Why this file exists: the README's walkthrough asks for **two terminals
+and four variables**, and that is friction the demo did not have to
+impose. The first real attempt ended in an ``ERR_CONNECTION_REFUSED`` on
+the app's port — the provider alone was running, which is exactly what
+had been asked for, and not at all what was wanted.
 
-``main.py`` reste la vraie app, sans rien de tout ça : c'est elle qu'on
-lit pour voir comment on branche une porte. Ce fichier n'est qu'un
-démarreur de démonstration.
+``main.py`` stays the real app, with none of this: it is the one you read
+to see how a door is wired. This file is only a demonstration launcher.
 
-Ports : ``BZ_APP_PORT`` (8012) et ``BZ_IDP_PORT`` (8954) si l'un des deux
-est déjà pris.
+Ports: ``BZ_APP_PORT`` (8012) and ``BZ_IDP_PORT`` (8954) if either is
+already taken.
 """
 
 from __future__ import annotations
@@ -29,9 +26,9 @@ import time
 import urllib.error
 import urllib.request
 
-#: ⚠️ Le jeton et l'en-tête viennent du domaine, ils ne sont PAS recopiés :
-#: les changer laissait la bannière donner une commande qui rend 302, et
-#: le lecteur accuse la démo.
+#: ⚠️ The token and the header come from the domain, they are NOT copied:
+#: changing them left the banner handing out a command that returns 302,
+#: and the reader blames the demo.
 from examples.auth.core.domain import API_TOKENS, PROXY_HEADER
 
 IDP_PORT = os.environ.get("BZ_IDP_PORT", "8954")
@@ -41,7 +38,7 @@ TOKEN = next(iter(API_TOKENS))
 
 
 def wait_for_idp(deadline: float = 20.0) -> bool:
-    """Attend que la découverte réponde — sinon la porte ne se monterait pas."""
+    """Wait until discovery answers — otherwise the door would not mount."""
     url = f"{ISSUER}/.well-known/openid-configuration"
     started = time.monotonic()
     while time.monotonic() - started < deadline:
@@ -62,16 +59,16 @@ def main() -> int:
     try:
         if not wait_for_idp():
             print(
-                f"Le fournisseur n'a pas démarré sur {ISSUER} — le port est "
-                "probablement pris. Relance avec BZ_IDP_PORT=8964.",
+                f"The provider did not start on {ISSUER} — the port "
+                "is probably taken. Retry with BZ_IDP_PORT=8964.",
                 flush=True,
             )
             return 1
 
-        # ⚠️ Les variables sont posées AVANT d'importer l'app : c'est au
-        # chargement de ``features/access.py`` que les portes sont
-        # construites. Un import plus haut dans ce fichier aurait tout
-        # figé sans porte, silencieusement.
+        # ⚠️ The variables are set BEFORE importing the app: the doors
+        # are built while ``features/access.py`` loads. An import higher
+        # up in this file would have frozen everything door-less, in
+        # silence.
         os.environ["BZ_OIDC_NAME"] = "testidp"
         os.environ["BZ_OIDC_ISSUER"] = ISSUER
         os.environ["BZ_OIDC_CLIENT_ID"] = "bretzel-test-client"
@@ -82,17 +79,17 @@ def main() -> int:
 
         print(
             "\n"
-            f"  Démo auth — les quatre façons sont actives\n"
-            f"  ouvre  http://127.0.0.1:{APP_PORT}\n\n"
-            "  1. mot de passe        jean@macorp.fr / demo\n"
-            "  2. porte OIDC          bouton « Continuer avec testidp »\n"
-            "\n  Les deux suivantes n'ont pas d'écran : colle la commande\n"
-            "  dans un AUTRE terminal, elle répond trois lignes.\n\n"
-            f'  3. jeton de machine    curl.exe -s -H "Authorization: Bearer '
-            f'{TOKEN}" http://127.0.0.1:{APP_PORT}/moi\n'
-            f'  4. en-tête de proxy    curl.exe -s -H "{PROXY_HEADER}: '
-            f'jean@macorp.fr" http://127.0.0.1:{APP_PORT}/moi\n\n'
-            "  Ctrl+C ferme les deux serveurs.\n",
+            f"  Auth demo — the four ways are live\n"
+            f"  open   http://127.0.0.1:{APP_PORT}\n\n"
+            "  1. password          jean@macorp.fr / demo\n"
+            "  2. OIDC door         “Continue with testidp” button\n"
+            "\n  The last two have no screen: paste the command in\n"
+            "  ANOTHER terminal, and it answers three lines.\n\n"
+            f'  3. machine token     curl.exe -s -H "Authorization: Bearer '
+            f'{TOKEN}" http://127.0.0.1:{APP_PORT}/me\n'
+            f'  4. proxy header      curl.exe -s -H "{PROXY_HEADER}: '
+            f'jean@macorp.fr" http://127.0.0.1:{APP_PORT}/me\n\n'
+            "  Ctrl+C closes both servers.\n",
             flush=True,
         )
         app.run(port=APP_PORT)

@@ -15,11 +15,11 @@ from typing import Any, Final
 # Body / attribute escaping
 # ───────────────────────────────────────────────────────────────────────────
 
-# Order matters : ``&`` first to avoid double-encoding.
+# Order matters: ``&`` first to avoid double-encoding.
 #
 # Do NOT add a "does this string need escaping at all ?" pre-scan in front
 # of the loop — measured slower, not faster, on real render values (cf.
-# ``traps.md`` § « le garde `faut-il échapper ?` est une PESSIMISATION »).
+# ``traps.md`` § "the `should we escape?` guard is a PESSIMISATION").
 _HTML_ESCAPES: tuple[tuple[str, str], ...] = (
     ("&", "&amp;"),
     ("<", "&lt;"),
@@ -42,18 +42,17 @@ def escape_html(text: str) -> str:
     return out
 
 
-# La table de :func:`escape_attr`. Elle N'EST PLUS dérivée de
-# ``_HTML_ESCAPES`` : une valeur d'attribut et un contenu de corps n'ont
-# pas les mêmes caractères dangereux, et les confondre coûtait 6 octets
-# par apostrophe sur des pages qui en portent des milliers (cf. la note
-# sous :func:`escape_attr`).
+# The table behind :func:`escape_attr`. It is NO LONGER derived from
+# ``_HTML_ESCAPES``: an attribute value and body content do not share the
+# same dangerous characters, and conflating them cost 6 bytes per
+# apostrophe on pages carrying thousands of them (cf. the note under
+# :func:`escape_attr`).
 #
-# Les trois octets de contrôle en queue ne terminent pas la valeur mais
-# sont silencieusement repliés dans une valeur quotée, ce qui perd de
-# l'information.
+# The three control bytes at the tail do not terminate the value but are
+# silently folded inside a quoted one, which loses information.
 #
-# ``'``, ``=`` et le backtick ont tous les trois été retirés d'ici — même
-# raison, mesurée deux fois. Voir :func:`escape_attr`.
+# ``'``, ``=`` and the backtick were all three removed from here — same
+# reason, measured twice. See :func:`escape_attr`.
 _ATTR_ESCAPES: tuple[tuple[str, str], ...] = (
     ("&", "&amp;"),
     ("<", "&lt;"),
@@ -65,12 +64,12 @@ _ATTR_ESCAPES: tuple[tuple[str, str], ...] = (
 )
 
 
-#: Le mémo de :func:`escape_attr`. Mesuré le 2026-08-27 sur le playground :
-#: une page appelle la fonction ~4 000 fois pour ~1 150 valeurs
-#: **distinctes**, et le corpus se stabilise à ~2 400 valeurs pour TOUT le
-#: site — donc 99 % de réutilisation d'une requête à l'autre. Une entrée
-#: pèse la valeur et son échappé ; 8 192 entrées de ~80 caractères tiennent
-#: dans ~1,5 Mo, plafond atteint et jamais dépassé.
+#: The memo behind :func:`escape_attr`. Measured on 2026-08-27 against the
+#: playground: one page calls the function ~4 000 times for ~1 150
+#: **distinct** values, and the corpus settles at ~2 400 values for the
+#: WHOLE site — so 99 % reuse from one request to the next. An entry weighs
+#: the value plus its escaped form; 8 192 entries of ~80 characters fit in
+#: ~1.5 MB, a ceiling that is reached and never exceeded.
 _ATTR_CACHE_SIZE: Final[int] = 8192
 
 
@@ -122,7 +121,7 @@ def escape_inline_json(payload: str) -> str:
     ``json.dumps`` output is valid JS but a literal ``</bz-envelope>``
     (or any ``</…``) inside a string value would close the host tag
     early during HTML parsing. ``<\\/`` is the standard JSON-safe
-    spelling : identical once parsed, inert for the HTML tokenizer.
+    spelling: identical once parsed, inert for the HTML tokenizer.
     Used by :mod:`bretzel.runtime.envelope` for the ``<bz-envelope>``
     and ``<bz-patch>`` payloads.
     """
@@ -139,30 +138,30 @@ class RawAttrValue(str):
 
     Used for attribute values whose content is a JS expression already
     composed by the framework (typically the ``bz-class`` / ``bz-attr:``
-    expressions emitted for the client runtime — il n'y a **pas** de
-    directive ``bz-bind``, ce nom figurait ici jusqu'au 2026-08-01). The payload is trusted
+    expressions emitted for the client runtime — there is **no** ``bz-bind``
+    directive, that name sat here until 2026-08-01). The payload is trusted
     to be syntactically valid for an HTML double-quoted attribute — it
     must not contain literal ``"`` chars or other attribute-breaking
     bytes. The framework controls the call site so this is a safe escape
-    hatch ; user code never reaches it.
+    hatch; user code never reaches it.
     """
 
     __slots__ = ()
 
 
-#: Attributs qui désignent une RESSOURCE À CHARGER, et pour lesquels une
-#: valeur vide n'est jamais une intention — c'est un bug.
+#: Attributes that name a RESOURCE TO LOAD, and for which an empty value
+#: is never an intention — it is a bug.
 #:
-#: Un attribut vide est résolu contre l'URL du document : ``<img src="">``
-#: fait retélécharger LA PAGE COURANTE en croyant charger une image, et
-#: ``<iframe src="">`` la met dans elle-même. Rien ne casse à l'écran, donc
-#: ça ne se voit que dans les logs du serveur — c'est comme ça que le bug a
-#: été trouvé le 2026-08-14, sur ``ui.video``, par l'utilisateur.
+#: An empty attribute resolves against the document URL: ``<img src="">``
+#: re-downloads THE CURRENT PAGE believing it loads an image, and
+#: ``<iframe src="">`` puts the page inside itself. Nothing breaks on
+#: screen, so it only shows in the server logs — that is how the bug was
+#: found on 2026-08-14, on ``ui.video``, by the user.
 #:
-#: ⚠️ ``href`` et ``action`` sont VOLONTAIREMENT absents : ``<a href="">``
-#: et ``<form action="">`` pointent sur la page courante, ce qui est un
-#: usage légitime et courant. La règle ne vaut que pour les attributs de
-#: *chargement*, pas de navigation.
+#: ⚠️ ``href`` and ``action`` are DELIBERATELY absent: ``<a href="">`` and
+#: ``<form action="">`` point at the current page, which is a legitimate
+#: and common use. The rule only covers *loading* attributes, not
+#: navigation ones.
 _EMPTY_IS_A_BUG: Final[frozenset[str]] = frozenset(
     {"src", "poster", "srcset", "background", "data", "cite"}
 )

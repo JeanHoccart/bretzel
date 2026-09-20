@@ -68,7 +68,7 @@ class Alert(Component):
         on_close: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             color=color, title=title, dismissible=dismissible,
             on_close=on_close,
@@ -183,22 +183,23 @@ class Alert(Component):
         )
 
         # ── Dismiss button : pure-client toggle + optional handler ─────
-        # ⚠️ ``emit_attrs()`` résolu ICI, avant la décision, pour PEEK le
-        # handler câblé (cf. Badge § « Peek at the wired close handler »).
-        # Sans ce peek, un ``on_close=`` sans bouton × serait un
-        # dead-letter : déclarer un handler DOIT faire apparaître
-        # l'affordance qui le déclenche.
+        # ⚠️ ``emit_attrs()`` resolved HERE, before the decision, to PEEK
+        # at the wired handler (cf. Badge § "Peek at the wired close
+        # handler"). Without that peek, an ``on_close=`` with no × button
+        # would be a dead letter: declaring a handler MUST bring out the
+        # affordance that fires it.
         attrs = self.emit_attrs()
         close_wired = close_handler_wired(attrs)
         show_dismiss = dismissible or close_wired
         if show_dismiss:
-            # Émission + detach + gating single-sourcés dans
-            # ``dismiss_button`` (famille feedback). Le look ghost du ×
-            # vit désormais dans le slot thème ``dismiss`` (résolu par
-            # ``compose_class``) au lieu d'un IconButton — une seule forme
-            # de × pour Alert/Badge/Banner. Le clic flippe le flag local
-            # ``open`` (root ``bz-show`` masque l'alert) ET redispatch
-            # ``close`` pour le ``on_close=`` serveur/client.
+            # Emission + detach + gating single-sourced in
+            # ``dismiss_button`` (the feedback family). The ×'s ghost look
+            # now lives in the ``dismiss`` theme slot (resolved by
+            # ``compose_class``) instead of an IconButton — a single
+            # shape of × for Alert/Badge/Banner. The click flips the
+            # local ``open`` flag (the root's ``bz-show`` hides the
+            # alert) AND re-dispatches ``close`` for the server/client
+            # ``on_close=``.
             children.append(dismiss_button(
                 button_class=self.compose_class(
                     "dismiss",

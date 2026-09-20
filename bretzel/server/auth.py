@@ -13,20 +13,20 @@ from bretzel.render.context import current_context
 from bretzel.server.crypto import sign as _crypto_sign
 from bretzel.server.crypto import verify as _crypto_verify
 
-# Les deux DÉCLARATIONS d'identité, ré-exportées ici pour que le sujet
-# entier tienne dans un seul import (``from bretzel import auth``). Elles
-# vivent dans ``decorators/identity.py`` parce qu'elles ne partagent
-# aucune plomberie avec le cookie — seulement le domaine.
+# The two identity DECLARATIONS, re-exported here so the whole subject
+# fits in one import (``from bretzel import auth``). They live in
+# ``decorators/identity.py`` because they share no plumbing with the
+# cookie — only the domain.
 from bretzel.server.decorators.identity import door, source
 
 if TYPE_CHECKING:
     from starlette.types import Scope
 
-#: **Ce que l'utilisateur écrit** — ce que ce docstring annonce.
+#: **What the user writes** — what this docstring announces.
 #:
-#: Les quatre VERBES agissent tout de suite ; les deux NOMS déclarent, et
-#: rien ne se produit avant ``app.include(...)``. La forme du mot dit
-#: laquelle des deux on lit — cf. le docstring de
+#: The four VERBS act immediately; the two NOUNS declare, and nothing
+#: happens before ``app.include(...)``. The word's shape says which of
+#: the two you are reading — cf. the docstring of
 #: :mod:`bretzel.server.decorators.identity`.
 __all__ = [
     "login",
@@ -37,28 +37,28 @@ __all__ = [
     "door",
 ]
 
-#: **Ré-exporté pour les autres couches, pas pour l'auteur d'une app.**
-#: ``middleware/auth.py`` vérifie le cookie, ``middleware/session.py`` le
-#: parse, ``config`` décide de son attribut ``Secure``.
+#: **Re-exported for the other layers, not for an app author.**
+#: ``middleware/auth.py`` verifies the cookie, ``middleware/session.py``
+#: parses it, ``config`` decides its ``Secure`` attribute.
 _INTERNAL = [
     "COOKIE_AUTH",
     "COOKIE_SESSION",
     "verify_auth_cookie",
-    # La chaîne d'identité, jouée sur une requête brute. ``AuthMiddleware``
-    # l'appelle à chaque requête et ``user_id(request)`` est sa porte
-    # publique — une app n'a donc jamais à la nommer.
+    # The identity chain, played on a raw request. ``AuthMiddleware``
+    # calls it on every request and ``user_id(request)`` is its public
+    # door — so an app never has to name it.
     "resolve_identity",
-    # La remontée requête → instance, partagée avec ``oauth.py``.
+    # The request → instance climb, shared with ``oauth.py``.
     "app_of",
     "parse_cookies_from_scope",
     "resolve_cookie_secure",
     "request_scheme",
-    # ``AuthUser`` est ce que ``middleware/auth.py`` pose sur
-    # ``request.state.user``. Une app ne le construit ni ne le lit :
-    # elle lit ``auth.user_id()`` et joint sur SA table utilisateur.
+    # ``AuthUser`` is what ``middleware/auth.py`` sets on
+    # ``request.state.user``. An app neither builds nor reads it: it
+    # reads ``auth.user_id()`` and joins on ITS user table.
     "AuthUser",
-    # Importé de ``render``, utilisé par les quatre fonctions publiques.
-    # Il apparaît ici par simple visibilité de module — pas un ré-export.
+    # Imported from ``render``, used by the four public functions. It
+    # appears here by plain module visibility — not a re-export.
     "current_context",
 ]
 
@@ -69,31 +69,30 @@ COOKIE_SESSION = "Bretzel_session"
 
 
 def resolve_cookie_secure(scheme: str | None, override: bool | None) -> bool:
-    """Faut-il poser l'attribut ``Secure`` sur les cookies ?
+    """Should the ``Secure`` attribute be set on the cookies?
 
-    C'est une question de **transport**, pas d'environnement : un cookie
-    ``Secure`` n'est tout simplement pas renvoyé par le navigateur sur une
-    origine ``http://``. On la déduit donc du scheme de la requête.
+    It is a question of **transport**, not of environment: a ``Secure``
+    cookie is simply not sent back by the browser on an ``http://``
+    origin. So it is derived from the request's scheme.
 
-    Ça remplace un ``secure=not debug`` qui liait la sécurité des cookies
-    au mode de l'application. Conséquence vécue, reproduite : un outil
-    interne en ``mode="prod"`` derrière un LAN sans TLS posait des cookies
-    ``Secure`` que le navigateur ne renvoyait jamais — session et auth
-    mortes, sans erreur ni log, le seul contournement étant de repasser en
-    ``mode="dev"``, ce qui exposait au passage les stack traces. Le piège
-    était invisible en local : les navigateurs traitent ``localhost`` et
-    ``127.0.0.1`` comme des origines de confiance et y acceptent les
-    cookies ``Secure``.
+    This replaces a ``secure=not debug`` that tied cookie security to the
+    application's mode. A lived, reproduced consequence: an internal tool
+    in ``mode="prod"`` behind a LAN without TLS set ``Secure`` cookies the
+    browser never sent back — session and auth dead, with no error and no
+    log, the only workaround being to go back to ``mode="dev"``, which
+    exposed stack traces along the way. The trap was invisible locally:
+    browsers treat ``localhost`` and ``127.0.0.1`` as trusted origins and
+    accept ``Secure`` cookies there.
 
-    ``override`` (``config.secure_cookies``) court-circuite la déduction.
-    Il est nécessaire derrière un proxy qui termine le TLS : uvicorn ne
-    réécrit ``scope["scheme"]`` depuis ``X-Forwarded-Proto`` que s'il a été
-    lancé avec ``proxy_headers=True``. Sans ça l'application voit ``http``
-    et sous-estimerait.
+    ``override`` (``config.secure_cookies``) short-circuits the
+    derivation. It is necessary behind a proxy terminating TLS: uvicorn
+    only rewrites ``scope["scheme"]`` from ``X-Forwarded-Proto`` when it
+    was started with ``proxy_headers=True``. Without that the application
+    sees ``http`` and would underestimate.
 
-    Scheme inconnu (contexte de rendu synthétique, tests) → ``False`` :
-    seul un ``https`` positif justifie de durcir, et se tromper dans
-    l'autre sens casserait la session au lieu de la protéger.
+    Unknown scheme (synthetic render context, tests) → ``False``: only a
+    positive ``https`` justifies hardening, and being wrong the other way
+    would break the session instead of protecting it.
     """
     if override is not None:
         return override
@@ -101,11 +100,10 @@ def resolve_cookie_secure(scheme: str | None, override: bool | None) -> bool:
 
 
 def request_scheme(request: Any) -> str:
-    """Le scheme d'une requête, en tolérant les objets duck-typés.
+    """A request's scheme, tolerating duck-typed objects.
 
-    ``RenderContext.request`` est typée ``Any`` — le socle de rendu ne
-    connaît pas Starlette — et vaut un simple sentinelle dans les
-    contextes de test.
+    ``RenderContext.request`` is typed ``Any`` — the render base layer
+    does not know Starlette — and is a plain sentinel in test contexts.
     """
     url = getattr(request, "url", None)
     scheme = getattr(url, "scheme", None) if url is not None else None
@@ -115,7 +113,7 @@ def request_scheme(request: Any) -> str:
 
 
 def _ctx_cookie_secure(ctx: Any) -> bool:
-    """``Secure`` pour les cookies posés depuis un contexte de rendu."""
+    """``Secure`` for the cookies set from a render context."""
     config = getattr(ctx.app, "config", None)
     override = getattr(config, "secure_cookies", None) if config else None
     return resolve_cookie_secure(request_scheme(ctx.request), override)
@@ -159,12 +157,12 @@ class AuthUser:
 def login(user_id: str) -> None:
     """Open a session for ``user_id`` — the proof already happened.
 
-    Cette fonction ne vérifie **rien** : le mot de passe, le code OAuth
-    ou l'assertion SSO ont été jugés avant, par l'app ou par une porte.
-    Ce qu'elle fait est du transport — poser de quoi reconnaître cette
-    identité à la requête suivante.
+    This function verifies **nothing**: the password, the OAuth code or
+    the SSO assertion were judged before, by the app or by a door. What
+    it does is transport — setting down what it takes to recognise this
+    identity on the next request.
 
-    Side-effects :
+    Side-effects:
 
     1. Rotate ``Bretzel_session`` (anti-fixation — a fresh session id
        prevents pre-login session-fixation attacks).
@@ -173,7 +171,7 @@ def login(user_id: str) -> None:
     3. Update ``request.state.user`` so the rest of the request
        already sees the authenticated identity.
 
-    The string requirement on ``user_id`` is intentional : whatever
+    The string requirement on ``user_id`` is intentional: whatever
     primary key the app uses (UUID, integer, email…) gets stringified
     upstream so we have one shape to sign and ship around.
     """
@@ -292,35 +290,36 @@ def verify_auth_cookie(cookie_value: str, auth_key: bytes) -> str | None:
 
 
 def resolve_identity(request: Any, bretzel: Any = None) -> str | None:
-    """La chaîne d'identité, jouée sur une requête brute.
+    """The identity chain, played on a raw request.
 
-    Les quatre autres lectures d'identité ne répondent pas à cet
-    endroit, et c'est structurel : un middleware utilisateur est le plus
-    EXTERNE (``lifecycle.py`` : « user middlewares last so they wrap
-    everything above »), donc à l'inbound il tourne AVANT ceux du
-    framework. :func:`user_id` sans argument lit le contexte de rendu,
-    qui n'est posé que pendant le rendu ; ``request.state.user`` est
-    écrit par ``AuthMiddleware``, plus interne que toi. Il ne reste que
-    la requête elle-même.
+    The four other identity reads do not answer in this place, and that
+    is structural: a user middleware is the OUTERMOST
+    (``lifecycle.py``: "user middlewares last so they wrap everything
+    above"), so on the inbound it runs BEFORE the framework's.
+    :func:`user_id` without an argument reads the render context, which
+    is only set during the render; ``request.state.user`` is written by
+    ``AuthMiddleware``, more inner than you. All that is left is the
+    request itself.
 
-    Le vérifier demande la clé **dérivée** — pas le ``secret_key`` brut.
-    Cette fonction récupère elle-même la clé dérivée sur l'application afin
-    que le middleware utilisateur n'accède pas à un attribut privé sensible.
+    Verifying it requires the **derived** key — not the raw
+    ``secret_key``. This function fetches the derived key from the
+    application itself so the user middleware never touches a sensitive
+    private attribute.
 
-    Rend ``None`` pour : pas de cookie, cookie malformé, expiré,
-    signature fausse, aucune source déclarée qui reconnaisse la requête,
-    ou app introuvable. **Un seul retour pour tous les refus**, parce
-    qu'un middleware de garde n'a qu'une décision à prendre — laisser
-    passer ou rediriger — et que distinguer les causes ici inviterait à
-    en dire trop à un anonyme ::
+    Returns ``None`` for: no cookie, malformed cookie, expired, bad
+    signature, no declared source recognising the request, or app not
+    found. **One single return for every refusal**, because a guard
+    middleware has only one decision to make — let through or redirect —
+    and distinguishing the causes here would invite saying too much to an
+    anonymous visitor ::
 
         from bretzel import auth
         from bretzel.server import action_path, redirect_response
 
-        # ``action_path`` n'est pas décoratif : le formulaire de connexion
-        # POSTe une action, qu'une garde en défaut-fermé bloque comme le
-        # reste. Le symptôme ne ressemble à rien — htmx suit la
-        # redirection en transparence et le bouton paraît mort.
+        # ``action_path`` is not decorative: the sign-in form POSTs an
+        # action, which a default-closed guard blocks like the rest. The
+        # symptom looks like nothing — htmx follows the redirect
+        # transparently and the button seems dead.
         PUBLIC = {"/login", action_path(sign_in), *app.public_paths}
 
         @app.middleware
@@ -329,40 +328,40 @@ def resolve_identity(request: Any, bretzel: Any = None) -> str | None:
                 return await call_next(request)
             return redirect_response(request, "/login")
 
-    Elle rend l'**identifiant**, pas un booléen : une garde qui veut
-    juste savoir « connecté ? » teste la vérité de la valeur, tandis
-    qu'une garde qui journalise ou qui autorise par rôle a besoin du
-    nom. Un booléen aurait forcé la seconde à refaire la lecture.
+    It returns the **identifier**, not a boolean: a guard that only wants
+    to know "signed in?" tests the value's truth, while a guard that logs
+    or authorises by role needs the name. A boolean would have forced the
+    second to do the read again.
 
-    **Une fois par requête.** Le résultat est gardé sur le ``scope``,
-    parce que la chaîne est jouée DEUX fois sur toute requête protégée :
-    la garde de l'app (le middleware le plus externe) demande
-    ``auth.user_id(request)``, puis ``AuthMiddleware``, plus interne,
-    redemande la même chose sans pouvoir voir la première réponse. C'est
-    la recette que la doc prescrit, donc ce n'est pas un mésusage — mais
-    sans mémo, **la fonction ``@auth.source`` de l'app tourne deux fois**,
-    alors qu'elle peut vérifier un JWT ou interroger une source distante.
+    **Once per request.** The result is kept on the ``scope``, because
+    the chain is played TWICE on any protected request: the app's guard
+    (the outermost middleware) asks ``auth.user_id(request)``, then
+    ``AuthMiddleware``, more inner, asks the same thing again without
+    being able to see the first answer. That is the recipe the
+    documentation prescribes, so it is not a misuse — but without a memo,
+    **the app's ``@auth.source`` function runs twice**, although it may
+    verify a JWT or query a remote source.
 
-    ``auth.login`` et ``auth.logout`` effacent le mémo — ils changent
-    l'identité au milieu de la requête.
+    ``auth.login`` and ``auth.logout`` clear the memo — they change the
+    identity in the middle of the request.
 
-    **L'ordre est le cookie d'abord, les sources ``@auth.source`` ensuite,
-    dans l'ordre d'écriture.** Le cookie en tête parce que c'est lui qui
-    porte les sessions de navigateur — la population de loin la plus
-    nombreuse — et parce qu'il est le seul que le framework ait signé
-    lui-même. Une exception levée par une source **remonte** : une
-    lecture d'identité qui casse est un incident, pas un anonyme, et
-    l'avaler ferait exactement ce que ce dépôt a passé un audit à
-    retirer (onze sites qui rattrapaient une construction en silence).
+    **The order is the cookie first, then the ``@auth.source`` sources,
+    in writing order.** The cookie leads because it is what carries
+    browser sessions — by far the largest population — and because it is
+    the only one the framework signed itself. An exception raised by a
+    source **surfaces**: an identity read that breaks is an incident, not
+    an anonymous visitor, and swallowing it would do exactly what this
+    repository spent an audit removing (eleven sites catching a
+    construction silently).
     """
     scope = getattr(request, "scope", None)
     if isinstance(scope, dict) and _MEMO in scope:
         return scope[_MEMO]
 
     if bretzel is None:
-        # Les appelants internes la passent en clair — ils l'ont déjà, et
-        # dépendre de la façon dont on est monté serait fragile sur ce
-        # chemin-là.
+        # Internal callers pass it explicitly — they already have it,
+        # and depending on how we are mounted would be fragile on that
+        # path.
         bretzel = app_of(request)
     found = _from_signed_cookie(request, bretzel)
     if not found:
@@ -378,35 +377,35 @@ def resolve_identity(request: Any, bretzel: Any = None) -> str | None:
     return found
 
 
-#: La clé sous laquelle une requête garde l'identité déjà résolue. Dans
-#: le ``scope`` ASGI et pas sur ``request.state`` : les deux couches qui
-#: la lisent construisent chacune leur ``Request``, mais partagent le
-#: scope — c'est le seul endroit qui les relie.
+#: The key a request keeps the already-resolved identity under. In the
+#: ASGI ``scope`` and not on ``request.state``: the two layers that read
+#: it each build their own ``Request``, but share the scope — it is the
+#: only place linking them.
 _MEMO = "_bz_identity"
 
 
 def app_of(request: Any) -> Any:
-    """L'instance :class:`Bretzel` atteignable depuis une requête brute.
+    """The :class:`Bretzel` instance reachable from a raw request.
 
-    ``request.app`` rend le FastAPI ; l'instance est posée sur son
-    ``state`` par le constructeur. Trois sites écrivaient cette même
-    remontée en ``getattr`` chaînés — ici, et deux fois dans ``oauth.py``
-    — donc trois endroits à trouver le jour où elle se pose ailleurs.
+    ``request.app`` returns the FastAPI; the instance is set on its
+    ``state`` by the constructor. Three sites wrote this same climb as
+    chained ``getattr`` — here, and twice in ``oauth.py`` — so three
+    places to find the day it is set somewhere else.
 
-    Tolérante par ``getattr`` : les stubs bas niveau des tests unitaires
-    n'ont ni ``app`` ni ``state``, et c'est la convention du module (cf.
-    :func:`request_scheme`).
+    Tolerant through ``getattr``: the unit tests' low-level stubs have
+    neither ``app`` nor ``state``, and that is the module's convention
+    (cf. :func:`request_scheme`).
     """
     return getattr(getattr(getattr(request, "app", None), "state", None), "bretzel", None)
 
 
 def _from_signed_cookie(request: Any, bretzel: Any) -> str | None:
-    """La source par défaut : le cookie ``Bretzel_auth`` que ``login`` pose.
+    """The default source: the ``Bretzel_auth`` cookie ``login`` sets.
 
-    Elle n'est pas déclarée par l'app et ne peut pas être retirée — le
-    reste du framework en dépend (``UserState``, la rotation de session,
-    l'écriture de ``request.state.user``). Les ``@auth.source`` s'ajoutent
-    derrière elle, ils ne la remplacent pas.
+    It is not declared by the app and cannot be removed — the rest of the
+    framework depends on it (``UserState``, session rotation, writing
+    ``request.state.user``). The ``@auth.source`` sources are added behind
+    it, they do not replace it.
     """
     key = getattr(getattr(bretzel, "config", None), "_auth_key", None)
     if not key:
@@ -414,8 +413,8 @@ def _from_signed_cookie(request: Any, bretzel: Any) -> str | None:
     state = getattr(request, "state", None)
     jar = getattr(state, "cookies", None)
     if not isinstance(jar, dict):
-        # Avant ``SessionMiddleware``, ou hors pile Bretzel : on relit
-        # l'en-tête nous-mêmes plutôt que de supposer.
+        # Before ``SessionMiddleware``, or outside the Bretzel stack: we
+        # read the header back ourselves rather than assume.
         jar = parse_cookies_from_scope(getattr(request, "scope", {}) or {})
     cookie = jar.get(COOKIE_AUTH, "")
     return verify_auth_cookie(cookie, key) if cookie else None
@@ -461,10 +460,10 @@ def _session_max_age_days(ctx: object) -> int:
 
 
 def _forget_identity(ctx: object) -> None:
-    """Oublie l'identité mémoïsée — l'identité vient de changer.
+    """Forget the memoised identity — the identity has just changed.
 
-    Sans ça, une lecture postérieure à ``login()`` dans la même requête
-    rendrait l'identité précédente.
+    Without it, a read after ``login()`` in the same request would return
+    the previous identity.
     """
     scope = getattr(getattr(ctx, "request", None), "scope", None)
     if isinstance(scope, dict):

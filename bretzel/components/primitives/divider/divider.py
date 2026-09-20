@@ -35,7 +35,7 @@ class Divider(Component):
         color: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(orientation=orientation, color=color, **kwargs)
         # ``adopt_slot`` + ``emit_text_slot`` go together : the 1st detaches a
         # Component (else rendered 2×), the 2nd RENDERS it (else it hits
@@ -50,13 +50,13 @@ class Divider(Component):
 
         # Root : base slot + orientation override + ``text-{color}`` so
         # the inner line inherits via ``bg-current``.
-        # ``classes=`` posé par le wrap métaclasse — pas ici (doublon).
+        # ``classes=`` set by the metaclass wrap — not here (duplicate).
         root_class = " ".join(
             p
             for p in (
                 theme.get("slots", {}).get("root", ""),
                 ovr.get("root", ""),
-                # Le PALIER : le pont de la racine porte la couleur.
+            # The STEP: the root's bridge carries the colour.
                 "text-(--bz-text)" if color else "",
             )
             if p

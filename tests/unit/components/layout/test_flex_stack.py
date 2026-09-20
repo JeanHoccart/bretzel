@@ -246,7 +246,7 @@ class TestFlexResponsive:
                 Flex(**{prop: {"base": "start", "md": "center"}})
         message = str(caught.value)
         assert f"Flex({prop}=" in message
-        assert "dict de paliers" in message
+        assert "does not take a step dict" in message
         assert "``direction``" in message and "``gap``" in message
 
     def test_unknown_breakpoint_is_refused(self) -> None:

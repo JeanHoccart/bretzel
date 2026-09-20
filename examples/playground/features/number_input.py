@@ -112,25 +112,27 @@ def parse_num(raw: str, default=None):
 
 
 def build_preview(state: NumberInputPlayground) -> dict:
-    # ⚠️ ``state.initial`` PASSE TEL QUEL, sans ``parse_num``.
+    # ⚠️ ``state.initial`` IS PASSED AS IS, with no ``parse_num``.
     #
-    # Une valeur lue sur un ``PageState`` porte un tampon (le nom du champ
-    # d'origine), et c'est la SEULE chose qui atteste « le serveur fait foi ».
-    # Toute transformation — ``int()``, ``float()``, ``parse_num()`` — rend
-    # un scalaire nu et déballe le tampon : le composant se croit alors
-    # client-owned, n'émet pas ``value`` dans ``_serverSync``, et son signal
-    # reste figé à sa valeur du premier montage. Symptôme exact : on change
-    # le contrôle, l'aperçu ne bouge pas tant qu'on n'a pas rechargé la page.
+    # A value read on a ``PageState`` carries a stamp (the original
+    # field's name), and it is the ONLY thing attesting "the server is
+    # authoritative". Any transformation — ``int()``, ``float()``,
+    # ``parse_num()`` — returns a bare scalar and unwraps the stamp: the
+    # component then believes itself client-owned, does not emit
+    # ``value`` in ``_serverSync``, and its signal stays frozen at its
+    # value from the first mount. The exact symptom: one changes the
+    # control, the preview does not move until the page is reloaded.
     #
-    # On peut se le permettre alors que ``initial`` est un ``str`` (le banc
-    # veut pouvoir taper du vide et du n'importe quoi) parce que NumberInput
-    # encaisse une chaîne tamponnée dans les trois cas — vérifié :
-    #   "42" → champ 42.0   |   "" → null   |   "abc" → null
-    # Le ``parse_num`` ne protégeait donc de rien que le composant ne sache
-    # déjà faire, et il coûtait la réactivité.
+    # We can afford it although ``initial`` is a ``str`` (the bench wants
+    # to be able to type emptiness and nonsense) because NumberInput
+    # takes a stamped string in all three cases — checked:
+    #   "42" → field 42.0   |   "" → null   |   "abc" → null
+    # So ``parse_num`` protected against nothing the component does not
+    # already do, and it cost the reactivity.
     #
-    # ``step`` garde le sien : c'est de la config, son re-sync ne dépend
-    # d'aucun tampon (cf. ``_serverSync`` inconditionnel côté composant).
+    # ``step`` keeps its own: it is config, its re-sync depends on no
+    # stamp (cf. the unconditional ``_serverSync`` on the component
+    # side).
     kwargs: dict = {
         "value": state.initial,
         "step": parse_num(state.step, 1.0),

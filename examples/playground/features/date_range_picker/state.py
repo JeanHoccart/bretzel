@@ -12,8 +12,8 @@ SIZES = ("xs", "sm", "md", "lg", "xl")
 
 WEEKDAYS_FR = ("Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa")
 MONTHS_FR = (
-    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+    "Janvier", 'February', "Mars", "Avril", "Mai", "Juin",
+    "Juillet", 'August', "Septembre", "Octobre", "Novembre", 'December',
 )
 
 

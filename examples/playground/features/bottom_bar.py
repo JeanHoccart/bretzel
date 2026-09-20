@@ -1,25 +1,25 @@
 """``BottomBar`` / ``BottomBarItem`` test bench.
 
-Nine cards : Reference / Slots / Edge cases / Composability / A11y /
+Nine cards: Reference / Slots / Edge cases / Composability / A11y /
 Server playground / Server events / Client playground / Client events.
 No §7 card — the family exposes no imperative API (nothing to open, set
-or toggle : the active tab is derived from the URL).
+or toggle: the active tab is derived from the URL).
 
-⚠️ **Chaque barre de démo est enveloppée dans un ``ui.vstack()``**, et ce
-n'est pas décoratif. Une bottom bar est TOUJOURS collée (il n'y a pas de
-prop ``sticky=`` — cf. le composant), or un élément ``sticky`` ne peut pas
-sortir de son bloc conteneur : lui donner un conteneur à sa propre hauteur
-l'immobilise. Sans ça, chaque barre de cette page viendrait se coller au
-bas de la fenêtre à tour de rôle pendant le scroll, en passant devant le
-contenu (mesuré : une seule à la fois, mais ça suffit à brouiller un
-banc). Le vrai comportement collant se regarde sur **la barre
-tout en bas de cette page**, elle seule montée sans enveloppe — descends, et
-elle reste au bord.
+⚠️ **Every demo bar is wrapped in a ``ui.vstack()``**, and it is not
+decorative. A bottom bar is ALWAYS stuck (there is no ``sticky=`` prop —
+cf. the component), and a ``sticky`` element cannot leave its containing
+block: giving it a container of its own height immobilises it. Without
+that, every bar on this page would come and stick to the bottom of the
+window in turn while scrolling, passing in front of the content
+(measured: only one at a time, but that is enough to muddle a bench). The
+real sticky behaviour is watched on **the bar right at the bottom of this
+page**, the only one mounted with no wrapper — scroll down, and it stays
+at the edge.
 
-⚠️ Les items portent de vrais ``href`` de playground : un clic NAVIGUE
-(partial-nav HTMX vers l'outlet du shell). C'est voulu — c'est le câblage
-qu'on veut voir marcher. Les cartes d'événements, elles, utilisent des items
-sans ``href`` pour que le handler parle sans quitter la page.
+⚠️ The items carry real playground ``href``: a click NAVIGATES (HTMX
+partial nav to the shell's outlet). It is intended — it is the wiring we
+want to see working. The event cards, for their part, use items with no
+``href`` so the handler speaks without leaving the page.
 """
 
 from bretzel import refreshable, ui
@@ -35,9 +35,9 @@ PATH = "/bottom-bar"
 COLORS = ["primary", "secondary", "success", "warning", "error", "info",
           "muted"]
 
-# De vrais chemins du playground : l'item qui pointe sur CETTE page ressort
-# actif tout seul (mode auto — comparaison à ``current_path``), ce qui est
-# précisément ce qu'on veut regarder.
+# Real playground paths: the item pointing at THIS page comes out active
+# on its own (auto mode — comparison with ``current_path``), which is
+# precisely what we want to look at.
 TABS = [
     ("Home",    "home",   "/"),
     ("Tabs",    "layers", "/tabs"),
@@ -47,9 +47,9 @@ TABS = [
 
 
 class BottomBarPlayground(PageState):
-    # Props de l'ITEM, appliquées à la tuile « Bottom » (celle qui pointe
-    # vers cette page, donc active) pour qu'elle voisine des tuiles au
-    # repos qui servent de témoins.
+    # ITEM props, applied to the "Bottom" tile (the one pointing at this
+    # page, hence active) so it sits beside tiles at rest serving as
+    # controls.
     item_color:   str = field(default="primary")
     item_badge:   str = field(default="")
     item_icon:    str = field(default="bell")
@@ -102,9 +102,9 @@ def clear_log() -> None:
 
 
 def server_changed(state: BottomBarPlayground) -> None:
-    # Param typé → le dispatcher hydrate la valeur du contrôle changé dans
-    # ``state`` (coercée + persistée). Le panneau déclare
-    # ``deps=[BottomBarPlayground]``, il se re-rend seul.
+    # A typed param → the dispatcher hydrates the changed control's
+    # value into ``state`` (coerced + persisted). The panel declares
+    # ``deps=[BottomBarPlayground]``, it re-renders on its own.
     pass
 
 
@@ -138,14 +138,14 @@ def build_preview(state: BottomBarPlayground):
     if state.visible == "off":
         kwargs["visible"] = False
 
-    # Les props d'item pilotées par les contrôles atterrissent sur la tuile
-    # qui pointe vers CETTE page — donc active par dérivation d'URL, ses
-    # voisines au repos servant de témoins.
+    # The item props driven by the controls land on the tile pointing at
+    # THIS page — hence active by URL derivation, its neighbours at rest
+    # serving as controls.
     #
-    # ⚠️ Ce choix n'est pas cosmétique : `color` ne peint QUE la tuile active
-    # (au repos, une tuile est `text-muted` — c'est l'idiome tab bar). En
-    # posant les contrôles sur une tuile inactive, le sélecteur de couleur
-    # avait l'air MORT alors que l'aller-retour serveur marchait.
+    # ⚠️ That choice is not cosmetic: `color` paints ONLY the active tile
+    # (at rest, a tile is `text-muted` — it is the tab-bar idiom). By
+    # putting the controls on an inactive tile, the colour selector
+    # looked DEAD although the server round trip worked.
     treated: dict = {
         "color": state.item_color,
         "disabled": state.item_disabled,
@@ -184,19 +184,19 @@ def server_panel() -> None:
                       on_change=server_changed)
         with control("item : icon (tuile active)"):
             ui.input(value=state.item_icon,
-                     placeholder="bell / heart / (vide = pas d'icône)",
+                     placeholder='bell / heart / (empty = no icon)',
                      on_change=server_changed)
         with control("item : badge (tuile active)"):
             ui.input(value=state.item_badge,
-                     placeholder="3 / 99+ / (vide = pas de pastille)",
+                     placeholder='3 / 99+ / (empty = no badge)',
                      on_change=server_changed)
         with control("item : disabled (tuile active)"):
             ui.switch(checked=state.item_disabled, on_change=server_changed)
-        with control("item : active — le mode de résolution"):
+        with control('item: active — the resolution mode'):
             ui.select(value=state.active_mode,
-                      options=[("auto", "None — dérivé de l'URL"),
-                               ("true", "True — forcé actif"),
-                               ("false", "False — forcé inactif")],
+                      options=[("auto", 'None — derived from the URL'),
+                               ("true", 'True — forced active'),
+                               ("false", 'False — forced inactive')],
                       on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes,
@@ -214,7 +214,7 @@ def server_panel() -> None:
             ui.input(value=state.style,
                      placeholder="border-top-width: 3px",
                      on_change=server_changed)
-        with control("extra_attrs (une par ligne, key=value)"):
+        with control('extra_attrs (one per line, key=value)'):
             ui.textarea(value=state.extra_attrs, rows=3,
                         placeholder="data-test=tabbar",
                         on_change=server_changed)
@@ -245,13 +245,13 @@ def events_panel() -> None:
     state = BottomBarEvents()
 
     ui.text(
-        "``BottomBarItem`` déclare ``EVENTS = ('click',)``. Ici les tuiles "
-        "n'ont PAS de ``href`` : le handler serveur parle sans que la page "
-        "navigue. Les trois sont câblées.",
+        "``BottomBarItem`` declares ``EVENTS = ('click',)``. Here the "
+            'tiles have NO ``href``: the server handler speaks without the '
+            'page navigating. All three are wired.',
         color="muted", size="sm",
     )
 
-    with ui.vstack():   # isole la barre — cf. l'en-tête
+    with ui.vstack():   # isolates the bar — cf. the header
         with ui.bottom_bar():
             ui.bottom_bar_item("Home", icon="home", on_click=log_home)
             ui.bottom_bar_item("Search", icon="search", on_click=log_search)
@@ -271,7 +271,7 @@ def events_panel() -> None:
                 ui.text(f"{i}. {evt}",
                         color="muted", size="sm", classes="font-mono")
     else:
-        ui.text("(aucun événement — clique une tuile ci-dessus)",
+        ui.text('(no events yet — click a tile above)',
                 color="muted", size="sm")
 
     ui.divider()
@@ -281,7 +281,7 @@ def events_panel() -> None:
     with representative:
         ui.bottom_bar_item("Home", icon="home", on_click=log_home)
     emitted_html_block(
-        "Emitted HTML (BottomBarItem avec un handler serveur)",
+        'Emitted HTML (BottomBarItem with a server handler)',
         serialize_html(representative),
     )
 
@@ -291,21 +291,22 @@ def page() -> None:
         with ui.vstack():
             ui.heading("BottomBar", level=1)
             ui.text(
-                "Tab bar bas d'écran — le pendant mobile de ``ui.navbar``. "
-                "Deux pièces : ``ui.bottom_bar`` (le ``<nav>`` collé au "
-                "bord) et ``ui.bottom_bar_item`` (un onglet : icône "
-                "au-dessus, label dessous, largeur égale). Le composant se "
-                "monte dans un ``if Screen().is_mobile:`` — le framework "
-                "n'impose aucune nav mobile, c'est le dev qui choisit.",
+                "A bottom-of-screen tab bar — ``ui.navbar``'s mobile "
+                    'counterpart. Two pieces: ``ui.bottom_bar`` (the '
+                    '``<nav>`` stuck to the edge) and ``ui.bottom_bar_item`` '
+                    '(a tab: icon on top, label underneath, equal width). The'
+                    ' component is mounted inside an ``if '
+                    'Screen().is_mobile:`` — the framework imposes no mobile '
+                    'nav, the developer chooses.',
                 color="muted",
             )
             ui.text(
-                "Deux choses à savoir pour lire cette page : une bottom bar "
-                "est toujours collée au bord (aucune prop pour ça), donc "
-                "chaque démo est enveloppée dans un conteneur à sa taille "
-                "qui l'immobilise — la seule barre libre de le montrer est "
-                "tout en bas de la page. Et leurs items portent de vrais "
-                "href de playground, donc un clic navigue pour de bon.",
+                'Two things to know to read this page: a bottom bar is '
+                    'always stuck to the edge (no prop for that), so every '
+                    'demo is wrapped in a container its own size that pins it'
+                    ' down — the only free bar showing it is right at the '
+                    'foot of the page. And their items carry real playground '
+                    'hrefs, so a click really navigates.',
                 color="muted", size="sm",
             )
 
@@ -318,8 +319,9 @@ def page() -> None:
 
                     ui.heading("Basic — 4 onglets", level=3)
                     ui.text(
-                        "L'onglet actif est dérivé de l'URL : « Bottom » "
-                        "pointe sur cette page, il ressort tout seul.",
+                        'The active tab is derived from the URL: “Bottom”'
+                            ' points at this page, so it stands out on its '
+                            'own.',
                         color="muted", size="xs",
                     )
                     with ui.vstack():
@@ -327,26 +329,26 @@ def page() -> None:
                             for label, icon, href in TABS:
                                 ui.bottom_bar_item(label, icon=icon, href=href)
 
-                    ui.heading("Pas de variant — et c'est délibéré",
+                    ui.heading('No variant — and that is deliberate',
                                level=3)
                     ui.text(
-                        "Une pilule arrondie détachée des bords a existé ici "
-                        "en `variant=\"floating\"`, puis a été coupée : une "
-                        "app n'a qu'UNE tab bar et ne choisit son look "
-                        "qu'une fois, donc c'est une décision de thème, pas "
-                        "un prop. `ui.bottom_bar(variant=…)` lève désormais, "
-                        "au lieu d'être absorbé en silence comme attribut "
-                        "HTML. Le look flottant s'obtient par override du "
-                        "slot `root` — voir le contrôle `classes` du Server "
-                        "playground pour l'essayer tout de suite.",
+                        'A rounded pill detached from the edges existed '
+                            'here as `variant="floating"`, then was cut: an '
+                            'app has only ONE tab bar and picks its look '
+                            'once, so it is a theme decision, not a prop. '
+                            '`ui.bottom_bar(variant=…)` now raises, instead '
+                            'of being silently absorbed as an HTML attribute.'
+                            ' The floating look is obtained by overriding the'
+                            " `root` slot — see the Server playground's "
+                            '`classes` control to try it right away.',
                         color="muted", size="xs",
                     )
 
                     ui.heading("item : color", level=3)
                     ui.text(
-                        "L'actif se signale par la COULEUR de l'icône et du "
-                        "label — pas par un fond plein comme la pilule d'une "
-                        "navbar.",
+                        'The active one signals itself through the COLOUR'
+                            ' of the icon and the label — not through a solid'
+                            " background like a navbar's pill.",
                         color="muted", size="xs",
                     )
                     for c in COLORS:
@@ -374,7 +376,7 @@ def page() -> None:
                                                disabled=True)
                             ui.bottom_bar_item("Profile", icon="user")
 
-                    ui.heading("item : active — explicite vs dérivé",
+                    ui.heading('item: active — explicit vs derived',
                                level=3)
                     with ui.vstack():
                         with ui.bottom_bar():
@@ -390,11 +392,11 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Slots", level=2)
                     ui.text(
-                        "``icon`` accepte un raccourci string ou un "
-                        "Component. Le raccourci est ré-emballé en "
-                        "``ui.icon(size=\"lg\")`` — 24px, la taille d'une "
-                        "cible tactile ; un Icon construit par l'appelant "
-                        "garde SA taille et SA couleur.",
+                        '``icon`` accepts a string shorthand or a '
+                            'Component. The shorthand is re-wrapped as '
+                            '``ui.icon(size="lg")`` — 24px, the size of a '
+                            'touch target; an Icon built by the caller keeps '
+                            'ITS size and ITS colour.',
                         color="muted", size="sm",
                     )
 
@@ -417,13 +419,13 @@ def page() -> None:
 
                     ui.heading("badge=Component", level=3)
                     ui.text(
-                        "Un scalaire est emballé dans un ``ui.badge`` "
-                        "``error`` / ``xs`` ; un Component le remplace en "
-                        "gardant l'ancrage. ⚠️ Cette phrase annonçait déjà "
-                        "la pastille rouge avant le 2026-08-16, alors que "
-                        "les trois familles de nav rendaient un scalaire en "
-                        "TEXTE NU : elle était vraie de la doc, fausse du "
-                        "code. C'est le code qui l'a rejointe.",
+                        'A scalar is wrapped in an ``error`` / ``xs`` '
+                            '``ui.badge``; a Component replaces it while '
+                            'keeping the anchoring. ⚠️ This sentence already '
+                            'announced the red badge before 2026-08-16, while'
+                            ' all three nav families rendered a scalar as '
+                            'BARE TEXT: it was true of the docs, false of the'
+                            ' code. It is the code that came round to it.',
                         color="muted", size="xs",
                     )
                     with ui.vstack():
@@ -438,7 +440,7 @@ def page() -> None:
             with ui.card():
                 with ui.vstack():
                     ui.heading("Edge cases", level=2)
-                    ui.text("Entrées limites.", color="muted", size="sm")
+                    ui.text('Edge-case inputs.', color="muted", size="sm")
 
                     ui.heading("2 onglets", level=3)
                     with ui.vstack():
@@ -446,44 +448,44 @@ def page() -> None:
                             ui.bottom_bar_item("Left", icon="arrow-left")
                             ui.bottom_bar_item("Right", icon="arrow-right")
 
-                    ui.heading("6 onglets (au-delà de la reco iOS)",
+                    ui.heading('6 tabs (beyond the iOS recommendation)',
                                level=3)
                     with ui.vstack():
                         with ui.bottom_bar():
                             for n in range(1, 7):
                                 ui.bottom_bar_item(f"Tab {n}", icon="circle")
 
-                    ui.heading("Labels très longs (truncate)", level=3)
+                    ui.heading('Very long labels (truncate)', level=3)
                     with ui.vstack():
                         with ui.bottom_bar():
                             ui.bottom_bar_item("Notifications et alertes",
                                                icon="bell")
-                            ui.bottom_bar_item("Paramètres du compte",
+                            ui.bottom_bar_item('Account settings',
                                                icon="settings")
                             ui.bottom_bar_item("Aide", icon="help-circle")
 
-                    ui.heading("Icône seule (pas de label)", level=3)
+                    ui.heading('Icon only (no label)', level=3)
                     with ui.vstack():
                         with ui.bottom_bar():
                             ui.bottom_bar_item(icon="home")
                             ui.bottom_bar_item(icon="search")
                             ui.bottom_bar_item(icon="user")
 
-                    ui.heading("Label seul (pas d'icône)", level=3)
+                    ui.heading('Label only (no icon)', level=3)
                     with ui.vstack():
                         with ui.bottom_bar():
                             ui.bottom_bar_item("Home")
                             ui.bottom_bar_item("Search")
                             ui.bottom_bar_item("Profile")
 
-                    ui.heading("Emoji + multi-écritures", level=3)
+                    ui.heading('Emoji + multiple scripts', level=3)
                     with ui.vstack():
                         with ui.bottom_bar():
                             ui.bottom_bar_item("🏠 Home", icon="home")
                             ui.bottom_bar_item("שלום", icon="globe")
                             ui.bottom_bar_item("中文", icon="languages")
 
-                    ui.heading("Label HTML-spécial (échappement)", level=3)
+                    ui.heading('HTML-special label (escaping)', level=3)
                     with ui.vstack():
                         with ui.bottom_bar():
                             ui.bottom_bar_item("<script>alert(1)</script>",
@@ -494,7 +496,7 @@ def page() -> None:
                     with ui.vstack():
                         ui.bottom_bar()
 
-                    ui.heading("href externe (nouvel onglet, pas de htmx)",
+                    ui.heading('an external href (new tab, no htmx)',
                                level=3)
                     with ui.vstack():
                         with ui.bottom_bar():
@@ -506,20 +508,19 @@ def page() -> None:
             with ui.card():
                 with ui.vstack():
                     ui.heading("Composability", level=2)
-                    ui.text("La barre dans ses contextes réels.",
+                    ui.text('The bar in its real contexts.',
                             color="muted", size="sm")
 
-                    ui.heading("La forme d'un shell mobile", level=3)
+                    ui.heading('The shape of a mobile shell', level=3)
                     ui.text(
-                        "Le contenu, puis la barre — c'est exactement ce "
-                        "qu'un ``if Screen().is_mobile:`` produit dans un "
-                        "layout.",
+                        'The content, then the bar — exactly what an ``if'
+                            ' Screen().is_mobile:`` produces in a layout.',
                         color="muted", size="xs",
                     )
                     with ui.card():
                         with ui.vstack():
                             ui.heading("Ma page", level=3)
-                            ui.text("Le corps de l'app vit ici.",
+                            ui.text("The app's body lives here.",
                                     color="muted")
                             with ui.vstack():
                                 with ui.bottom_bar():
@@ -527,13 +528,13 @@ def page() -> None:
                                         ui.bottom_bar_item(label, icon=icon,
                                                            href=href)
 
-                    ui.heading("Navbar + BottomBar sur la même page",
+                    ui.heading('Navbar + BottomBar on the same page',
                                level=3)
                     ui.text(
-                        "Les deux possèdent leur propre scope "
-                        "``current_path`` — la duplication est voulue, "
-                        "chacune doit marcher sans l'autre. Elles restent "
-                        "d'accord sur l'item actif.",
+                        'Both own their own ``current_path`` scope — the '
+                            'duplication is intended, each must work without '
+                            'the other. They stay in agreement about the '
+                            'active item.',
                         color="muted", size="xs",
                     )
                     with ui.navbar():
@@ -547,7 +548,7 @@ def page() -> None:
                             for label, icon, href in TABS:
                                 ui.bottom_bar_item(label, icon=icon, href=href)
 
-                    ui.heading("Onglet avec un badge vivant + une action",
+                    ui.heading('A tab with a live badge + an action',
                                level=3)
                     with ui.vstack():
                         with ui.bottom_bar():
@@ -562,14 +563,14 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("A11y", level=2)
                     ui.text(
-                        "La racine est un ``<nav>`` — un vrai repère de "
-                        "navigation. Aucun ``aria-label`` n'est imposé "
-                        "(mettre un libellé anglais en dur serait une "
-                        "erreur d'i18n) : passe-le via le contrôle "
-                        "``aria-label`` du Server playground, surtout si "
-                        "la page porte déjà une navbar (deux repères "
-                        "``nav`` sans nom, c'est illisible au lecteur "
-                        "d'écran).",
+                        'The root is a ``<nav>`` — a real navigation '
+                            'landmark. No ``aria-label`` is imposed (hard-'
+                            'coding an English label would be an i18n '
+                            'mistake): pass it through the Server '
+                            "playground's ``aria-label`` control, especially "
+                            'if the page already carries a navbar (two '
+                            'unnamed ``nav`` landmarks are unreadable to a '
+                            'screen reader).',
                         color="muted", size="sm",
                     )
                     with ui.vstack():
@@ -578,20 +579,20 @@ def page() -> None:
                             for label, icon, href in TABS:
                                 ui.bottom_bar_item(label, icon=icon, href=href)
 
-                    ui.heading("aria-current sur l'onglet courant", level=3)
+                    ui.heading('aria-current on the current tab', level=3)
                     ui.text(
-                        "L'onglet dérivé de l'URL émet "
-                        "``aria-current=\"page\"`` de façon réactive — le "
-                        "lecteur d'écran annonce où on est.",
+                        'The tab derived from the URL emits ``aria-'
+                            'current="page"`` reactively — the screen reader '
+                            'announces where you are.',
                         color="muted", size="sm",
                     )
 
                     ui.heading("Ordre de tabulation", level=3)
                     ui.text(
-                        "Les onglets à ``href`` sont des ``<a>`` natifs : "
-                        "Tab les traverse dans l'ordre, Entrée active. Un "
-                        "onglet ``disabled`` porte ``tabindex=-1`` ET perd "
-                        "tous ses canaux de clic — il est sauté.",
+                        '``href`` tabs are native ``<a>``s: Tab walks '
+                            'them in order, Enter activates. A ``disabled`` '
+                            'tab carries ``tabindex=-1`` AND loses all its '
+                            'click channels — it is skipped.',
                         color="muted", size="sm",
                     )
                     with ui.vstack():
@@ -607,22 +608,22 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Server playground", level=2)
                     ui.text(
-                        "Chaque prop ET chaque escape hatch est câblé à un "
-                        "contrôle ; l'aperçu ET le HTML émis se rafraîchis"
-                        "sent à chaque changement. Les props d'ITEM "
-                        "atterrissent sur la tuile « Bottom » — celle qui "
-                        "pointe vers cette page, donc active — ses voisines "
-                        "au repos servant de témoins.",
+                        'Every prop AND every escape hatch is wired to a '
+                            'control; the preview AND the emitted HTML both '
+                            'refresh on every change. The ITEM props land on '
+                            'the “Bottom” tile — the one pointing at this '
+                            'page, hence active — its resting neighbours '
+                            'serving as controls.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "À savoir pour lire le contrôle `color` : sur une tab "
-                        "bar, la couleur ne peint QUE l'onglet ACTIF — au "
-                        "repos un onglet est volontairement `muted`, c'est "
-                        "l'idiome iOS/Android. Passe `active` à `False` et la "
-                        "couleur disparaît : c'est le comportement, pas une "
-                        "panne. Au repos, `color` ne pilote plus que le halo "
-                        "de focus.",
+                        'Worth knowing to read the `color` control: on a '
+                            'tab bar, the colour paints ONLY the ACTIVE tab —'
+                            ' at rest a tab is deliberately `muted`, that is '
+                            'the iOS/Android idiom. Set `active` to `False` '
+                            'and the colour disappears: that is the '
+                            'behaviour, not a fault. At rest, `color` only '
+                            'drives the focus halo.',
                         color="muted", size="xs",
                     )
                     server_panel()
@@ -638,12 +639,12 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Client playground", level=2)
                     ui.text(
-                        "Miroir du contrat ``BottomBarItem."
-                        "BINDABLE_PROPS = ('active', 'badge', 'disabled')``."
-                        " Les trois sont liées à un ClientState et pilotées "
-                        "par des contrôles externes — zéro aller-retour. "
-                        "``BottomBar`` lui-même n'a AUCUNE prop bindable : "
-                        "la barre elle-même n'a AUCUNE prop.",
+                        'Mirror of the ``BottomBarItem.BINDABLE_PROPS = '
+                            "('active', 'badge', 'disabled')`` contract. All "
+                            'three are bound to a ClientState and driven by '
+                            'external controls — zero round trips. '
+                            '``BottomBar`` itself has NO bindable prop: the '
+                            'bar itself has NO prop at all.',
                         color="muted", size="sm",
                     )
                     client = BottomBarClient()
@@ -677,11 +678,11 @@ def page() -> None:
                                            badge=client.badge,
                                            disabled=client.disabled)
                     emitted_html_block(
-                        "Emitted HTML — ``bz-attr:data-active`` + "
-                        "``bz-class`` pour l'actif, ``bz-text`` + "
-                        "``bz-show`` pour le compteur (une pastille à 0 se "
-                        "replie), ``bz-attr:aria-disabled`` + "
-                        "``bz-attr:tabindex`` pour le verrou.",
+                        'Emitted HTML — ``bz-attr:data-active`` + ``bz-'
+                            'class`` for the active one, ``bz-text`` + ``bz-'
+                            'show`` for the counter (a badge at 0 folds '
+                            'away), ``bz-attr:aria-disabled`` + ``bz-'
+                            'attr:tabindex`` for the lock.',
                         serialize_html(preview),
                     )
 
@@ -690,9 +691,9 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Client events", level=2)
                     ui.text(
-                        "``click`` câblé à une expression client qui pousse "
-                        "le nom de l'onglet sur une liste ClientState. Zéro "
-                        "réseau.",
+                        '``click`` wired to a client expression that '
+                            "pushes the tab's name onto a ClientState list. "
+                            'Zero network.',
                         color="muted", size="sm",
                     )
                     cevents = BottomBarClientEvents()
@@ -733,16 +734,17 @@ def page() -> None:
                             "Home", icon="home",
                             on_click=cevents.log.push("Home"))
                     emitted_html_block(
-                        "Emitted HTML — ``bz-on:click`` porte l'expression "
-                        "client telle quelle, aucun ``hx-post``.",
+                        'Emitted HTML — ``bz-on:click`` carries the '
+                            'client expression as is, no ``hx-post`` at all.',
                         serialize_html(preview),
                     )
 
-        # ── La vraie barre, collante — hors des cards ────────────────
-        # La seule barre SANS enveloppe de la page — donc la seule libre de
-        # se coller. Son bloc conteneur est le container de la page, bien
-        # plus haut qu'elle : elle reste au bas du viewport pendant tout le
-        # scroll, puis se pose à sa place en fin de document.
+        # ── The real bar, sticky — outside the cards ─────────────────
+        # The page's only bar WITHOUT a wrapper — hence the only one free
+        # to stick. Its containing block is the page's container, much
+        # taller than it: it stays at the bottom of the viewport through
+        # the whole scroll, then settles into its place at the end of the
+        # document.
         with ui.bottom_bar():
             for label, icon, href in TABS:
                 ui.bottom_bar_item(label, icon=icon, href=href)

@@ -124,34 +124,34 @@ def form_value(
 # ───────────────────────────────────────────────────────────────────────────
 
 
-#: **Ce que l'utilisateur écrit.** Rien d'autre.
+#: **What the user writes.** Nothing else.
 #:
-#: Retirer un nom d'``__all__`` ne le dé-importe pas : les imports
-#: explicites existants continuent de marcher à l'identique. Ce qui change,
-#: c'est ce que voient l'autocomplétion, le ``import *`` et la doc.
+#: Removing a name from ``__all__`` does not un-import it: existing
+#: explicit imports keep working identically. What changes is what
+#: autocompletion, ``import *`` and the docs see.
 __all__ = [
-    # Les deux natures — la distinction porte une GARANTIE, pas un lieu.
-    "ServerState",   # jamais envoyé au navigateur
-    "ClientState",   # vit dans le navigateur, zéro aller-retour
-    # Bases pré-scopées côté serveur
+    # The two natures — the distinction carries a GUARANTEE, not a place.
+    "ServerState",   # never sent to the browser
+    "ClientState",   # lives in the browser, zero round trip
+    # Pre-scoped server-side bases
     "PageState",
     "SessionState",
     "UserState",
     "AppState",
-    # Déclarer un champ
+    # Declaring a field
     "field",
     "register_type",
     "computed",
     "validator",
-    "FormError",     # levé par un validator d'instance → erreur cross-champ
-    # Échappatoire : lire une valeur de formulaire sans la modéliser
+    "FormError",     # raised by an instance validator → cross-field error
+    # Escape hatch: read a form value without modelling it
     "form_value",
-    # Types de la réactivité client — ce qu'on annote et ce qu'on compose
+    # Client reactivity types — what you annotate and what you compose
     "ClientBinding",
     "ClientExpression",
-    # État client possédé par le framework (le runtime l'écrit)
+    # Client state owned by the framework (the runtime writes it)
     "LiveConnection",
-    # Les erreurs qu'un utilisateur peut vouloir attraper
+    # The errors a user may want to catch
     "AuthRequiredError",
     "LockTimeoutError",
     "ReactivityError",
@@ -159,17 +159,17 @@ __all__ = [
     "StateHydrationError",
 ]
 
-#: **Ré-exporté pour les AUTRES COUCHES, pas pour l'auteur d'une app.**
+#: **Re-exported for the OTHER LAYERS, not for an app author.**
 #:
-#: Une façade a deux publics et ils n'étaient pas distingués : ce que
-#: l'utilisateur écrit, et ce que les couches voisines consomment. Les deux
-#: vivaient dans ``__all__``, mélangés, donc l'autocomplétion proposait la
-#: plomberie au même rang que ``field`` ou ``Theme``.
+#: A facade has two audiences and they were not distinguished: what the
+#: user writes, and what neighbouring layers consume. Both lived in
+#: ``__all__``, mixed together, so autocompletion offered the plumbing at
+#: the same rank as ``field`` or ``Theme``.
 #:
-#: Chaque nom d'ici porte l'alias redondant ``X as X`` à l'import : c'est le
-#: marqueur PEP 484 du ré-export intentionnel. La liste est vérifiée par
-#: ``tests/consistency/test_public_surface_is_classified.py`` : rien n'entre
-#: dans une façade sans être classé d'un côté ou de l'autre.
+#: Every name here carries the redundant ``X as X`` alias at import: that
+#: is the PEP 484 marker of an intentional re-export. The list is checked
+#: by ``tests/consistency/test_public_surface_is_classified.py``: nothing
+#: enters a facade without being classified on one side or the other.
 _INTERNAL = [
     # Descripteurs rendus par field() / computed() / validator()
     "Field",
@@ -180,17 +180,17 @@ _INTERNAL = [
     "Backend",
     "MemoryBackend",
     "RedisBackend",
-    # Registre scopé à la requête
+    # Request-scoped registry
     "StateRegistry",
     "current_registry",
     "use_registry",
     "full_field_dict",
     "instance_key",
-    # Bascule de rendu (les lectures de ClientState rendent un binding)
+    # Render switch (ClientState reads return a binding)
     "rendering_scope",
-    # Alias de types des kwargs scope= / persist=
+    # Type aliases for the scope= / persist= kwargs
     "ServerScope",
     "ClientPersist",
-    # Ré-export : la classe canonique vit dans core, se tape sur bretzel
+    # Re-export: the canonical class lives in core, is typed on bretzel
     "BretzelError",
 ]

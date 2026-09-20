@@ -1,24 +1,23 @@
-"""Les surfaces publiques des modules du framework, classées par besoin.
+"""The public surfaces of the framework's modules, classified by need.
 
-**Un lecteur, N tables — pas N modules.** ``bretzel.state``,
+**One reader, N tables — not N modules.** ``bretzel.state``,
 ``bretzel.server``, ``bretzel.render``, ``bretzel.runtime``,
-``bretzel.core`` et ``bretzel.theme`` posent exactement la même question
-(« qu'est-ce qui existe ici, et à quoi ça sert ? ») ; en écrire un module
-chacun aurait produit six copies d'une boucle sur ``__all__``. Ce qui
-diffère d'un module à l'autre, ce n'est pas la lecture, c'est le
-**classement**.
+``bretzel.core`` and ``bretzel.theme`` ask exactly the same question
+("what exists here, and what is it for?"); writing a module each would
+have produced six copies of a loop over ``__all__``. What differs from
+one module to the next is not the reading, it is the **classification**.
 
-**Le classement par BESOIN, et non par type Python, est le point.** Savoir
-que ``refresh`` est une fonction n'aide personne ; savoir qu'elle vit dans
-« agir depuis un handler », à côté d'``abort`` et de ``redirect``, répond à
-la vraie question — « j'ai un handler, qu'est-ce que je peux appeler ? ».
+**Classifying by NEED, and not by Python type, is the point.** Knowing
+that ``refresh`` is a function helps nobody; knowing that it lives in
+"act from a handler", next to ``abort`` and ``redirect``, answers the
+real question — "I have a handler, what can I call?".
 
-**La population n'est jamais recopiée** : elle vient de l'``__all__`` du
-module. Seul le classement est écrit à la main, et c'est justement ce
-qu'on veut forcer à décider — un nom ajouté sans entrée ici tombe en
-:data:`CATEGORY_UNCLASSIFIED` et fait rougir
-``tests/consistency/test_module_surfaces_are_classified.py``. On n'élargit
-pas une surface publique sans dire à quoi elle sert.
+**The population is never copied**: it comes from the module's
+``__all__``. Only the classification is written by hand, and that is
+precisely what we want to force a decision on — a name added with no
+entry here falls into :data:`CATEGORY_UNCLASSIFIED` and makes
+``tests/consistency/test_module_surfaces_are_classified.py`` turn red. A
+public surface is not widened without saying what it is for.
 """
 
 from __future__ import annotations
@@ -35,8 +34,8 @@ from bretzel.introspect.model import (
     SurfaceSymbol,
 )
 
-#: Un décorateur se reconnaît à son usage, pas à sa signature — la liste
-#: est courte et stable, autant la nommer que la deviner mal.
+#: A decorator is recognised by its use, not by its signature — the list
+#: is short and stable, so naming it beats guessing it badly.
 _DECORATORS = frozenset(
     {
         "page",
@@ -53,62 +52,61 @@ _DECORATORS = frozenset(
 _ERROR = "handle an error"
 
 _TOPLEVEL: dict[str, str] = {
-    "Bretzel": "monter l'application",
-    "BretzelConfig": "monter l'application",
-    "Feature": "monter l'application",
-    # La PWA est de la CONFIGURATION d'app, pas un composant :
-    # elle se passe à ``Bretzel(pwa=…)`` et décrit l'app au
-    # système (nom, icône, fenêtre propre), pas au navigateur.
-    "PWA": "monter l'application",
-    "PWAIcon": "monter l'application",
+    "Bretzel": "mount the application",
+    "BretzelConfig": "mount the application",
+    "Feature": "mount the application",
+    # The PWA is app CONFIGURATION, not a component: it is passed to
+    # ``Bretzel(pwa=…)`` and describes the app to the system (name, icon,
+    # clean window), not to the browser.
+    "PWA": "mount the application",
+    "PWAIcon": "mount the application",
     "page": "declare a route",
     "layout": "declare a route",
     "error_page": "declare a route",
     "refreshable": "declare a route",
-    # Un ``@download`` EST un routable — le seul qui ne rende pas une
-    # page mais un fichier. Sa réponse ne peut pas passer par le
-    # pipeline d'action (le bridge l'avalerait en ``<bz-patch>``).
+    # A ``@download`` IS a routable — the only one that returns not a
+    # page but a file. Its response cannot go through the action pipeline
+    # (the bridge would swallow it as a ``<bz-patch>``).
     "download": "declare a route",
-    # Un point d'accès chacun, cf. test_handler_helpers_have_one_home.py
+    # One entry point each, cf. test_handler_helpers_have_one_home.py
     "abort": "act from a handler",
     "redirect": "act from a handler",
     "push_url": "act from a handler",
     "background": "act from a handler",
     "idempotent": "act from a handler",
     "refresh": "act from a handler",
-    # Elle fait REDEMANDER la page au navigateur — une action sur la
-    # réponse, pas un re-rendu de zone comme ``refresh`` juste au-dessus.
+    # It makes the browser ASK FOR the page again — an action on the
+    # response, not a zone re-render like ``refresh`` just above.
     "reload": "act from a handler",
-    # Les VERBES clients (2026-09-01). Un besoin à part, et le nommer
-    # est ce que la gate exige : ils n'agissent ni sur la réponse ni sur
-    # l'arbre, ils déclenchent une action du NAVIGATEUR. Leur place sur
-    # ``bretzel`` plutôt que sur ``ui`` est un arbitrage utilisateur du
-    # même jour — ce qui FAIT quelque chose est ici, ce qui EST quelque
-    # chose est sur ``ui``.
+    # The client VERBS (2026-09-01). A need of their own, and naming it
+    # is what the gate requires: they act neither on the response nor on
+    # the tree, they trigger a BROWSER action. Their place on ``bretzel``
+    # rather than on ``ui`` is a user arbitration of the same day — what
+    # DOES something is here, what IS something is on ``ui``.
     "copy": "act in the browser",
     "print_page": "act in the browser",
     "fullscreen": "act in the browser",
     "share": "act in the browser",
     "vibrate": "act in the browser",
-    "ui": "rendre",
+    "ui": "render",
     "state": "declare state",
-    # La langue résolue de CETTE requête — lue depuis un corps de rendu,
-    # comme ``Screen()`` juste en dessous.
-    "Language": "rendre",
-    "Screen": "rendre",
-    # La troisième lecture d'ambiance, avec ``Screen`` et ``Language`` :
-    # elles répondent toutes à « que sait-on de CE lecteur ? ». Elle vit
-    # dans ``theme`` (socle) et se ré-exporte ici pour que les trois
-    # s'importent du même endroit — jusqu'au 2026-08-29 il fallait
-    # connaître ``bretzel.theme`` pour lire le mode de couleur.
-    "ColorScheme": "rendre",
-    # Quatrième et dernière lecture d'ambiance. Elle vit dans ``state``
-    # parce que c'est un ``ClientState`` que le runtime écrit — mais elle
-    # se lit comme ses trois sœurs, et s'importe donc d'ici comme elles.
-    "LiveConnection": "rendre",
-    # L'identité ENTIÈRE tient dans ces deux modules depuis le
-    # 2026-08-29 : les verbes impératifs et les deux déclarations
-    # (``@auth.source`` / ``@auth.door``), qui étaient au top-level.
+    # The resolved language of THIS request — read from a render body,
+    # like ``Screen()`` just below.
+    "Language": "render",
+    "Screen": "render",
+    # The third ambient read, with ``Screen`` and ``Language``: they all
+    # answer "what do we know about THIS reader?". It lives in ``theme``
+    # (base layer) and is re-exported here so the three import from the
+    # same place — until 2026-08-29 one had to know ``bretzel.theme`` to
+    # read the colour mode.
+    "ColorScheme": "render",
+    # The fourth and last ambient read. It lives in ``state`` because it
+    # is a ``ClientState`` the runtime writes — but it reads like its
+    # three sisters, and is therefore imported from here like them.
+    "LiveConnection": "render",
+    # The WHOLE identity fits in these two modules since 2026-08-29:
+    # the imperative verbs and the two declarations (``@auth.source`` /
+    # ``@auth.door``), which used to be at top level.
     "auth": "identify the current user",
     "oauth": "identify the current user",
     "BretzelError": _ERROR,
@@ -118,13 +116,13 @@ _TOPLEVEL: dict[str, str] = {
 }
 
 _STATE: dict[str, str] = {
-    # Les quatre portées serveur — l'héritage EST la hiérarchie de durée.
+    # The four server scopes — inheritance IS the duration hierarchy.
     "ServerState": "declare server state",
     "PageState": "declare server state",
     "SessionState": "declare server state",
     "UserState": "declare server state",
     "AppState": "declare server state",
-    # Le cinquième scope, côté navigateur.
+    # The fifth scope, on the browser side.
     "ClientState": "declare client state",
     "LiveConnection": "declare client state",
     "field": "declare a field",
@@ -132,7 +130,7 @@ _STATE: dict[str, str] = {
     "computed": "declare a field",
     "validator": "declare a field",
     "form_value": "read state elsewhere",
-    # L'algèbre : ce qu'on compose pour un `bz-show` / un `visible=`.
+    # The algebra: what one composes for a `bz-show` / a `visible=`.
     "ClientBinding": "compose on the client",
     "ClientExpression": "compose on the client",
     "FormError": _ERROR,
@@ -144,24 +142,24 @@ _STATE: dict[str, str] = {
 }
 
 _SERVER: dict[str, str] = {
-    "Bretzel": "monter l'application",
-    "BretzelConfig": "monter l'application",
-    "Feature": "monter l'application",
-    # La PWA est de la CONFIGURATION d'app, pas un composant :
-    # elle se passe à ``Bretzel(pwa=…)`` et décrit l'app au
-    # système (nom, icône, fenêtre propre), pas au navigateur.
-    "PWA": "monter l'application",
-    "PWAIcon": "monter l'application",
-    # La carte d'app : contrat déclaré ↔ réalité dérivée. Pas un devtool —
-    # elle alimente le composant carte au runtime.
+    "Bretzel": "mount the application",
+    "BretzelConfig": "mount the application",
+    "Feature": "mount the application",
+    # The PWA is app CONFIGURATION, not a component: it is passed to
+    # ``Bretzel(pwa=…)`` and describes the app to the system (name, icon,
+    # clean window), not to the browser.
+    "PWA": "mount the application",
+    "PWAIcon": "mount the application",
+    # The app map: declared contract ↔ derived reality. Not a devtool —
+    # it feeds the map component at runtime.
     "describe_app": "inspect the app map",
     "AppGraph": "inspect the app map",
-    "abort": "agir depuis un handler",
-    "redirect": "agir depuis un handler",
-    "push_url": "agir depuis un handler",
-    "background": "agir depuis un handler",
-    "idempotent": "agir depuis un handler",
-    "reload": "agir depuis un handler",
+    "abort": "act from a handler",
+    "redirect": "act from a handler",
+    "push_url": "act from a handler",
+    "background": "act from a handler",
+    "idempotent": "act from a handler",
+    "reload": "act from a handler",
     "BretzelError": _ERROR,
     "AuthRequiredError": _ERROR,
     "ConfigError": _ERROR,
@@ -169,31 +167,31 @@ _SERVER: dict[str, str] = {
 }
 
 _RENDER: dict[str, str] = {
-    "page": "déclarer un routable",
-    "layout": "déclarer un routable",
-    "error_page": "déclarer un routable",
-    "refreshable": "déclarer un routable",
-    # Un ``@download`` EST un routable — le seul qui ne rende pas une
-    # page mais un fichier. Sa réponse ne peut pas passer par le
-    # pipeline d'action (le bridge l'avalerait en ``<bz-patch>``).
-    "download": "déclarer un routable",
-    "render_page": "rendre",
-    "render_partial": "rendre",
-    "default_shell": "rendre",
-    "shell_sources": "rendre",
-    "serialize_html": "rendre",
+    "page": "declare a route",
+    "layout": "declare a route",
+    "error_page": "declare a route",
+    "refreshable": "declare a route",
+    # A ``@download`` IS a routable — the only one that returns not a
+    # page but a file. Its response cannot go through the action pipeline
+    # (the bridge would swallow it as a ``<bz-patch>``).
+    "download": "declare a route",
+    "render_page": "render",
+    "render_partial": "render",
+    "default_shell": "render",
+    "shell_sources": "render",
+    "serialize_html": "render",
     "refresh": "refresh a region",
     "drain_refresh_queue": "refresh a region",
     "RefreshableHandle": "refresh a region",
     "zone_ids_watching": "refresh a region",
-    "text": "dire un mot du framework",
-    "plural": "dire un mot du framework",
-    "template": "dire un mot du framework",
-    "DEFAULT_TEXTS": "dire un mot du framework",
-    "resolve_texts": "dire un mot du framework",
-    # La LANGUE, pas les mots : ``Language().code`` est ce par quoi une
-    # app traduit SES chaînes, que le framework ne connaît pas ;
-    # ``Language.set`` est le sélecteur.
+    "text": "say a framework word",
+    "plural": "say a framework word",
+    "template": "say a framework word",
+    "DEFAULT_TEXTS": "say a framework word",
+    "resolve_texts": "say a framework word",
+    # The LANGUAGE, not the words: ``Language().code`` is what an app
+    # translates ITS strings with, which the framework does not know;
+    # ``Language.set`` is the selector.
     "Language": "choose the language",
     "negotiate_language": "choose the language",
     "resolve_language": "choose the language",
@@ -212,217 +210,217 @@ _RENDER: dict[str, str] = {
     "state_qualname": "route metadata",
     "fuse_or_wrap": "compose attributes",
     "FusionConflict": "compose attributes",
-    "DEFAULT_HTMX_URL": "constante",
-    # Les trois scripts tiers rapatriés en local. Publics parce que la
-    # couche serveur les sert (elle passe par l'API de `render`, pas par
-    # le sous-module) et qu'une garde d'auth doit pouvoir les nommer.
-    "ROUTE_VENDOR": "servir les scripts tiers en local",
-    "ROUTE_ICONS": "servir les scripts tiers en local",
-    "VendoredAsset": "servir les scripts tiers en local",
-    "cached_name": "servir les scripts tiers en local",
-    "ensure_vendored": "servir les scripts tiers en local",
-    "downloadable_assets": "servir les scripts tiers en local",
-    "icon_payload": "servir les scripts tiers en local",
-    "vendored_assets": "servir les scripts tiers en local",
-    "vendored_is_available": "servir les scripts tiers en local",
-    "vendored_local_path": "servir les scripts tiers en local",
+    "DEFAULT_HTMX_URL": "constant",
+    # The three third-party scripts vendored locally. Public because the
+    # server layer serves them (it goes through `render`'s API, not
+    # through the submodule) and because an auth guard must be able to
+    # name them.
+    "ROUTE_VENDOR": "serve third-party scripts locally",
+    "ROUTE_ICONS": "serve third-party scripts locally",
+    "VendoredAsset": "serve third-party scripts locally",
+    "cached_name": "serve third-party scripts locally",
+    "ensure_vendored": "serve third-party scripts locally",
+    "downloadable_assets": "serve third-party scripts locally",
+    "icon_payload": "serve third-party scripts locally",
+    "vendored_assets": "serve third-party scripts locally",
+    "vendored_is_available": "serve third-party scripts locally",
+    "vendored_local_path": "serve third-party scripts locally",
 }
 
 _RUNTIME: dict[str, str] = {
-    # Les VERBES clients (2026-09-01). Un besoin à part, et le nommer
-    # est ce que la gate exige : ils n'agissent ni sur la réponse ni sur
-    # l'arbre, ils déclenchent une action du NAVIGATEUR. Leur place sur
-    # ``bretzel`` plutôt que sur ``ui`` est un arbitrage utilisateur du
-    # même jour — ce qui FAIT quelque chose est ici, ce qui EST quelque
-    # chose est sur ``ui``.
-    "copy": "agir dans le navigateur",
-    "print_page": "agir dans le navigateur",
-    "fullscreen": "agir dans le navigateur",
-    "share": "agir dans le navigateur",
-    "vibrate": "agir dans le navigateur",
-    # Le vocabulaire `bz-*` — l'idiom du framework côté client. Un
-    # composant compose avec ceux-là ; il n'écrit ni `hx-` ni `fetch`.
-    "BZ_ON_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_MODEL_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_ATTR_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_CLASS_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_TEXT_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_SHOW_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_IF_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_FOR_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_DATA_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_INIT_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_EFFECT_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_REF_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_TELEPORT_PREFIX": "vocabulaire des directives bz-*",
-    "BZ_ID_ATTR": "attribut de transport",
-    "BZ_STATE_ATTR": "attribut de transport",
-    "DATA_BZ_SIG": "attribut de transport",
-    "DATA_BZ_TS": "attribut de transport",
-    "DATA_SUBSCRIBE_STATE": "attribut de transport",
-    "DATA_SUBSCRIBE_URL": "attribut de transport",
-    "SERVERSYNC_KEY": "attribut de transport",
-    "SINK_ELEMENT_ID": "attribut de transport",
-    "WIRE_ID_SEP": "attribut de transport",
-    "HEADER_PROTOCOL": "en-tête HTTP",
-    "HEADER_BZ_SIG": "en-tête HTTP",
-    "HEADER_BZ_TS": "en-tête HTTP",
-    "HEADER_PAGE_ID": "en-tête HTTP",
-    "HEADER_CSRF": "en-tête HTTP",
-    # Les URLs vivent ici et arrivent au client par l'enveloppe — le
-    # runtime.js n'en code aucune en dur (anti-règle 3).
-    "ROUTE_PREFIX": "route du runtime",
-    "ROUTE_RUNTIME_JS": "route du runtime",
-    "ROUTE_THEME_CSS": "route du runtime",
-    "ROUTE_STYLE_CSS": "route du runtime",
-    "ROUTE_ICONS": "route du runtime",
-    "ROUTE_VENDOR": "route du runtime",
-    "is_public_asset_path": "route du runtime",
-    "ROUTE_ACTION": "route du runtime",
-    "ROUTE_SSE": "route du runtime",
-    "ROUTE_REFETCH": "route du runtime",
-    # Le classement ouvert/fermé de ces routes, pour une garde
-    # d'auth d'app. Gaté par test_framework_routes_are_classified.
-    "PUBLIC_ASSET_ROUTES": "route du runtime",
-    "Envelope": "enveloppe et patch",
-    "Patch": "enveloppe et patch",
-    "build_envelope": "enveloppe et patch",
-    "build_patch": "enveloppe et patch",
-    "serialize_envelope": "enveloppe et patch",
-    "serialize_patch": "enveloppe et patch",
-    "parse_client_payload": "enveloppe et patch",
-    "default_endpoints": "enveloppe et patch",
-    "outlet_id_for": "enveloppe et patch",
-    "ENVELOPE_TAG_NAME": "enveloppe et patch",
-    "PATCH_TAG_NAME": "enveloppe et patch",
-    "PROTOCOL_VERSION": "version de protocole",
-    "check_compat": "version de protocole",
-    "check_protocol_compat": "version de protocole",
-    "parse_major": "version de protocole",
-    # Le SEUL événement SSE : « l'état X est sale ». Le serveur ne pousse
-    # jamais de HTML par ce canal, il pousse un signal.
-    "SSE_EVENT_STATE_DIRTY": "temps réel (SSE)",
+    # The client VERBS (2026-09-01). A need of their own, and naming it
+    # is what the gate requires: they act neither on the response nor on
+    # the tree, they trigger a BROWSER action. Their place on ``bretzel``
+    # rather than on ``ui`` is a user arbitration of the same day — what
+    # DOES something is here, what IS something is on ``ui``.
+    "copy": "act in the browser",
+    "print_page": "act in the browser",
+    "fullscreen": "act in the browser",
+    "share": "act in the browser",
+    "vibrate": "act in the browser",
+    # The `bz-*` vocabulary — the framework's client-side idiom. A
+    # component composes with those; it writes neither `hx-` nor `fetch`.
+    "BZ_ON_PREFIX": "bz-* directive vocabulary",
+    "BZ_MODEL_PREFIX": "bz-* directive vocabulary",
+    "BZ_ATTR_PREFIX": "bz-* directive vocabulary",
+    "BZ_CLASS_PREFIX": "bz-* directive vocabulary",
+    "BZ_TEXT_PREFIX": "bz-* directive vocabulary",
+    "BZ_SHOW_PREFIX": "bz-* directive vocabulary",
+    "BZ_IF_PREFIX": "bz-* directive vocabulary",
+    "BZ_FOR_PREFIX": "bz-* directive vocabulary",
+    "BZ_DATA_PREFIX": "bz-* directive vocabulary",
+    "BZ_INIT_PREFIX": "bz-* directive vocabulary",
+    "BZ_EFFECT_PREFIX": "bz-* directive vocabulary",
+    "BZ_REF_PREFIX": "bz-* directive vocabulary",
+    "BZ_TELEPORT_PREFIX": "bz-* directive vocabulary",
+    "BZ_ID_ATTR": "transport attribute",
+    "BZ_STATE_ATTR": "transport attribute",
+    "DATA_BZ_SIG": "transport attribute",
+    "DATA_BZ_TS": "transport attribute",
+    "DATA_SUBSCRIBE_STATE": "transport attribute",
+    "DATA_SUBSCRIBE_URL": "transport attribute",
+    "SERVERSYNC_KEY": "transport attribute",
+    "SINK_ELEMENT_ID": "transport attribute",
+    "WIRE_ID_SEP": "transport attribute",
+    "HEADER_PROTOCOL": "HTTP header",
+    "HEADER_BZ_SIG": "HTTP header",
+    "HEADER_BZ_TS": "HTTP header",
+    "HEADER_PAGE_ID": "HTTP header",
+    "HEADER_CSRF": "HTTP header",
+    # The URLs live here and reach the client through the envelope — the
+    # runtime.js hard-codes none of them (anti-rule 3).
+    "ROUTE_PREFIX": "runtime route",
+    "ROUTE_RUNTIME_JS": "runtime route",
+    "ROUTE_THEME_CSS": "runtime route",
+    "ROUTE_STYLE_CSS": "runtime route",
+    "ROUTE_ICONS": "runtime route",
+    "ROUTE_VENDOR": "runtime route",
+    "is_public_asset_path": "runtime route",
+    "ROUTE_ACTION": "runtime route",
+    "ROUTE_SSE": "runtime route",
+    "ROUTE_REFETCH": "runtime route",
+    # The open/closed classification of those routes, for an app's auth
+    # guard. Gated by test_framework_routes_are_classified.
+    "PUBLIC_ASSET_ROUTES": "runtime route",
+    "Envelope": "envelope and patch",
+    "Patch": "envelope and patch",
+    "build_envelope": "envelope and patch",
+    "build_patch": "envelope and patch",
+    "serialize_envelope": "envelope and patch",
+    "serialize_patch": "envelope and patch",
+    "parse_client_payload": "envelope and patch",
+    "default_endpoints": "envelope and patch",
+    "outlet_id_for": "envelope and patch",
+    "ENVELOPE_TAG_NAME": "envelope and patch",
+    "PATCH_TAG_NAME": "envelope and patch",
+    "PROTOCOL_VERSION": "protocol version",
+    "check_compat": "protocol version",
+    "check_protocol_compat": "protocol version",
+    "parse_major": "protocol version",
+    # The ONLY SSE event: "state X is dirty". The server never pushes
+    # HTML through that channel, it pushes a signal.
+    "SSE_EVENT_STATE_DIRTY": "real time (SSE)",
 }
 
 _CORE: dict[str, str] = {
-    "Node": "arbre de rendu",
-    "Element": "arbre de rendu",
-    # Suffixés ``Node`` le 2026-08-29 : ``Text``/``Html``/``Fragment``
-    # étaient les trois SEULS noms de toute la surface publique à
-    # désigner deux objets différents (un nœud d'arbre ici, un
-    # composant dans ``bretzel.components``). Le suffixe n'est pas
-    # une invention : les cinq fichiers qui devaient déjà lever
-    # l'ambiguïté aliasaient tous vers ces noms-là.
-    "TextNode": "arbre de rendu",
-    "HtmlNode": "arbre de rendu",
-    "FragmentNode": "arbre de rendu",
-    "VOID_ELEMENTS": "arbre de rendu",
-    "serialize": "arbre de rendu",
-    "serialize_attrs": "arbre de rendu",
-    "escape_html": "échapper",
-    "escape_attr": "échapper",
-    "escape_js": "échapper",
-    "IdGenerator": "identité d'un nœud",
-    "hash_segment": "identité d'un nœud",
-    # Ce qui rend « muter l'état re-rend le sous-arbre » possible.
-    "DependencyTracker": "suivre les dépendances",
-    "Observer": "suivre les dépendances",
-    "TRACKER": "suivre les dépendances",
-    "EventPayload": "transporter un événement",
+    "Node": "render tree",
+    "Element": "render tree",
+    # Suffixed ``Node`` on 2026-08-29: ``Text``/``Html``/``Fragment``
+    # were the three ONLY names of the whole public surface designating
+    # two different objects (a tree node here, a component in
+    # ``bretzel.components``). The suffix is not an invention: the five
+    # files that already had to lift the ambiguity all aliased to those
+    # very names.
+    "TextNode": "render tree",
+    "HtmlNode": "render tree",
+    "FragmentNode": "render tree",
+    "VOID_ELEMENTS": "render tree",
+    "serialize": "render tree",
+    "serialize_attrs": "render tree",
+    "escape_html": "escape",
+    "escape_attr": "escape",
+    "escape_js": "escape",
+    "IdGenerator": "node identity",
+    "hash_segment": "node identity",
+    # What makes "mutating state re-renders the subtree" possible.
+    "DependencyTracker": "track dependencies",
+    "Observer": "track dependencies",
+    "TRACKER": "track dependencies",
+    "EventPayload": "transport an event",
     "BretzelError": _ERROR,
     "CircularDependencyError": _ERROR,
-    # Le framework appelle du code d'APP depuis une coroutine — un ``def``
-    # y bloquerait la boucle, donc il est délesté sur le threadpool.
-    "call_without_blocking": "appeler du code d'application",
+    # The framework calls APP code from a coroutine — a ``def`` would
+    # block the loop there, so it is offloaded onto the threadpool.
+    "call_without_blocking": "call application code",
 }
 
 _THEME: dict[str, str] = {
-    "Theme": "déclarer un thème",
-    "ColorScheme": "déclarer un thème",
-    "IconConfig": "déclarer un thème",
-    "ScrollbarConfig": "déclarer un thème",
-    "SEMANTIC_COLOR_NAMES": "constante",
-    "DEFAULT_PALETTE_NAMES": "constante",
-    "FONT_SLOT_NAMES": "constante",
-    "SHAPE_SLOT_NAMES": "constante",
-    "TEXT_SLOT_NAMES": "constante",
-    "DEFAULT_SPACING_PX": "constante",
+    "Theme": "declare a theme",
+    "ColorScheme": "declare a theme",
+    "IconConfig": "declare a theme",
+    "ScrollbarConfig": "declare a theme",
+    "SEMANTIC_COLOR_NAMES": "constant",
+    "DEFAULT_PALETTE_NAMES": "constant",
+    "FONT_SLOT_NAMES": "constant",
+    "SHAPE_SLOT_NAMES": "constant",
+    "TEXT_SLOT_NAMES": "constant",
+    "DEFAULT_SPACING_PX": "constant",
     "ThemeError": _ERROR,
 }
 
-#: Ce que ``bretzel.components`` exporte SANS que ce soit le catalogue.
-#: Des objets-valeur qu'on nomme dans une signature (``Series``, ``Move``,
-#: ``GraphNode``), une constante, et deux fonctions. Ils voyagent avec un
-#: composant sans en être un, donc aucun mécanisme de composant ne les
-#: décrit — et l'exemption qui protégeait le catalogue les avalait avec
-#: lui. Les 102 classes de composant, elles, ne sont PAS ici : elles sont
-#: filtrées, pas oubliées (cf. :func:`describe_module`).
+#: What ``bretzel.components`` exports WITHOUT it being the catalogue.
+#: Value objects one names in a signature (``Series``, ``Move``,
+#: ``GraphNode``), a constant, and two functions. They travel with a
+#: component without being one, so no component mechanism describes them
+#: — and the exemption protecting the catalogue swallowed them with it.
+#: The 102 component classes, by contrast, are NOT here: they are
+#: filtered, not forgotten (cf. :func:`describe_module`).
 _COMPONENTS: dict[str, str] = {
-    "Column": "décrire un tableau",
-    "apply_query": "décrire un tableau",
-    "Series": "décrire un graphique",
-    "Reference": "décrire un graphique",
-    "GraphNode": "décrire un diagramme",
-    "GraphEdge": "décrire un diagramme",
-    "Track": "décrire une piste de média",
-    "Move": "réagir à un glisser-déposer",
-    # Ré-exportés — leur fiche vit AUSSI sous ``bretzel.state.datatable``,
-    # et ``SymbolDetail.exported_by`` le dit sur chacune. Le classement
-    # est le MÊME des deux côtés : deux besoins pour un objet unique se
-    # lirait comme deux objets.
-    "DatatableState": "déclarer un état serveur",
-    "Query": "recevoir la demande du lecteur",
-    "ui": "appeler un composant",
-    "dynamic_responsive_classes": "déclarer au compilateur CSS",
-    "SANDBOX_BASELINE": "constante",
+    "Column": "describe a table",
+    "apply_query": "describe a table",
+    "Series": "describe a chart",
+    "Reference": "describe a chart",
+    "GraphNode": "describe a diagram",
+    "GraphEdge": "describe a diagram",
+    "Track": "describe a media track",
+    "Move": "handle drag and drop",
+    # Re-exported — their card ALSO lives under
+    # ``bretzel.state.datatable``, and ``SymbolDetail.exported_by`` says
+    # so on each. The classification is the SAME on both sides: two needs
+    # for one object would read as two objects.
+    "DatatableState": "declare server state",
+    "Query": "receive a reader query",
+    "ui": "call a component",
+    "dynamic_responsive_classes": "declare to the CSS compiler",
+    "SANDBOX_BASELINE": "constant",
 }
 
-#: Les deux noms d'un tableau. Ils sortent par ``bretzel.components``,
-#: dont la surface EST le catalogue ``ui.*`` et qui est exempté à ce
-#: titre (``test_module_surfaces_are_classified``) — mais ces deux-là
-#: n'en font pas partie : ce sont un ÉTAT et un MESSAGE, décrits par
-#: aucun mécanisme de composant. L'exemption les avalait, et
-#: ``describe DatatableState`` répondait donc « n'est ni dans les
-#: composants ni les modules » sur la classe que toute table
-#: sous-classe. On classe leur module d'origine, pas leur porte : deux
-#: entrées, et pas 115.
+#: A table's two names. They come out through ``bretzel.components``,
+#: whose surface IS the ``ui.*`` catalogue and which is exempted on that
+#: ground (``test_module_surfaces_are_classified``) — but those two are
+#: not part of it: they are a STATE and a MESSAGE, described by no
+#: component mechanism. The exemption swallowed them, and
+#: ``describe DatatableState`` therefore answered "is neither in the
+#: components nor the modules" about the class every table subclasses.
+#: We classify their module of origin, not their door: two entries, not
+#: 115.
 _DATATABLE: dict[str, str] = {
-    "DatatableState": "déclarer un état serveur",
-    "Query": "recevoir la demande du lecteur",
+    "DatatableState": "declare server state",
+    "Query": "receive a reader query",
 }
 
-#: ``bretzel.probe`` — la couche 7 qui PILOTE l'app en marche.
+#: ``bretzel.probe`` — the layer-7 one that DRIVES the running app.
 #:
-#: ⚠️ **Absente jusqu'au 2026-09-12, et c'est un trou qu'on paie en
-#: greps.** ``describe probe`` répondait « n'est ni dans les composants
-#: ``ui.*`` ni les modules », en ajoutant honnêtement « il s'importe
-#: pourtant ». Résultat mesuré en montant ``examples/ecole`` : pour
-#: écrire un probe il a fallu ouvrir ``_probe.py`` — la signature de
-#: ``probe()`` (y a-t-il un ``strict=`` ? non ; un ``size=`` ? oui) et
-#: celle de ``Probe.requests``.
+#: ⚠️ **Absent until 2026-09-12, and it is a hole paid for in greps.**
+#: ``describe probe`` answered "is neither in the ``ui.*`` components nor
+#: the modules", honestly adding "it does import, though". The measured
+#: result while mounting ``examples/ecole``: writing a probe required
+#: opening ``_probe.py`` — ``probe()``'s signature (is there a
+#: ``strict=``? no; a ``size=``? yes) and ``Probe.requests``'s.
 #:
-#: Le motif d'exclusion de l'outillage — *« ``describe`` sert à écrire
-#: une app, pas à se lire lui-même »* — ne couvre pas ce paquet. On
-#: n'écrit pas un probe pour lire le framework : on l'écrit pour juger
-#: SON app, exactement comme on écrit une page. C'est d'ailleurs le
-#: moment où l'on a le moins envie d'ouvrir un fichier du framework.
+#: The tooling exclusion's rationale — *"``describe`` is for writing an
+#: app, not for reading itself"* — does not cover this package. One does
+#: not write a probe to read the framework: one writes it to judge ONE'S
+#: app, exactly as one writes a page. It is in fact the moment when one
+#: least wants to open a framework file.
 #:
-#: ``cli``, ``introspect`` et ``lint`` restent dehors, eux : on ne les
-#: appelle pas depuis le code d'une app.
+#: ``cli``, ``introspect`` and ``lint`` stay out: one does not call them
+#: from an app's code.
 _PROBE: dict[str, str] = {
-    "probe": "piloter l'app en marche",
-    "Probe": "piloter l'app en marche",
-    "Window": "piloter l'app en marche",
-    "Net": "piloter l'app en marche",
-    "Box": "piloter l'app en marche",
+    "probe": "drive the running app",
+    "Probe": "drive the running app",
+    "Window": "drive the running app",
+    "Net": "drive the running app",
+    "Box": "drive the running app",
     "ProbeFailedError": _ERROR,
     "ElementNotFoundError": _ERROR,
     "DropMissedError": _ERROR,
     "ScopeNotReadableError": _ERROR,
 }
 
-#: module → table de classement. L'ordre est l'ordre de lecture : on monte
-#: l'app, on déclare son état, on rend, puis on descend vers le transport.
+#: module → classification table. The order is the reading order: one
+#: mounts the app, declares its state, renders, then descends towards the
+#: transport.
 SECTIONS: dict[str, dict[str, str]] = {
     "bretzel": _TOPLEVEL,
     "bretzel.state": _STATE,
@@ -438,36 +436,35 @@ SECTIONS: dict[str, dict[str, str]] = {
 
 
 def module_names() -> tuple[str, ...]:
-    """Les modules qui ont une table de classement."""
+    """The modules that have a classification table."""
     return tuple(SECTIONS)
 
 
-#: Les paquets d'OUTILLAGE, hors du balayage ci-dessous. ``describe``
-#: sert à écrire une app, pas à se lire lui-même ; et importer
-#: ``bretzel.lint`` d'ici retirerait la garantie qui le rend arrachable
-#: (contrat ``lint-stays-extractable`` de ``.importlinter``).
+#: The TOOLING packages, outside the sweep below. ``describe`` is for
+#: writing an app, not for reading itself; and importing ``bretzel.lint``
+#: from here would remove the guarantee that makes it extractable (the
+#: ``lint-stays-extractable`` contract in ``.importlinter``).
 _TOOLING = frozenset({"cli", "introspect", "lint"})
 
 
 @cache
 def public_owners() -> MappingProxyType[str, str]:
-    """Nom public → le paquet qui l'exporte, sur toute la surface d'app.
+    """Public name → the package exporting it, over the whole app surface.
 
-    **Non filtrée** : les 102 classes du catalogue en font partie, alors
-    même qu'aucune section ne les liste. C'est la seule lecture qui
-    répond à « ce nom s'importe-t-il ? », et c'est cette question que le
-    message d'introuvable doit trancher — ``Button`` s'importe, quoi que
-    dise la table.
+    **Unfiltered**: the catalogue's 102 classes are part of it, even
+    though no section lists them. It is the only reading that answers
+    "does this name import?", and that is the question the not-found
+    message must settle — ``Button`` imports, whatever the table says.
 
-    ⚠️ Le filtrer sur ``SECTIONS`` a coûté une régression le jour même :
-    couvrir ``bretzel.components`` a sorti ses 102 classes de ce
-    balayage, et ``describe Button`` a cessé de renvoyer vers
-    ``describe button``. Une lecture « ce qui reste » se vide dès qu'on
-    répare ce qui manquait.
+    ⚠️ Filtering it on ``SECTIONS`` cost a regression the same day:
+    covering ``bretzel.components`` took its 102 classes out of this
+    sweep, and ``describe Button`` stopped pointing at
+    ``describe button``. A "what is left" reading empties itself as soon
+    as one repairs what was missing.
 
-    Découverte, pas écrite : une façade neuve y entre sans édition ici,
-    et ``test_a_public_name_is_never_reported_missing`` rougit si elle
-    en sort.
+    Discovered, not written: a new facade enters it with no edit here,
+    and ``test_a_public_name_is_never_reported_missing`` turns red if it
+    leaves.
     """
     import bretzel
 
@@ -482,13 +479,12 @@ def public_owners() -> MappingProxyType[str, str]:
 
 
 def uncovered_owners() -> MappingProxyType[str, str]:
-    """Ceux de :func:`public_owners` qu'aucune section ne classe.
+    """Those of :func:`public_owners` that no section classifies.
 
-    Ce que le message d'introuvable doit dire autrement : pas de fiche,
-    donc on nomme la porte d'import. Vide aujourd'hui — les treize noms
-    hors catalogue de ``bretzel.components`` sont classés depuis le
-    2026-09-06 — et gardée pour la façade suivante, qui arrivera sans
-    table.
+    What the not-found message must say differently: no card, so we name
+    the import door. Empty today — ``bretzel.components``'s thirteen
+    non-catalogue names have been classified since 2026-09-06 — and kept
+    for the next facade, which will arrive without a table.
     """
     return MappingProxyType({
         symbol: owner
@@ -498,29 +494,29 @@ def uncovered_owners() -> MappingProxyType[str, str]:
 
 
 def describe_module(name: str) -> ModuleSection:
-    """Lit l'``__all__`` d'un module et classe chaque nom par besoin.
+    """Read a module's ``__all__`` and classify every name by need.
 
-    **Une classe du CATALOGUE est retirée de la population**, et jamais
-    en silence : la fiche de ``Button`` est celle d'``ui.button``, avec
-    ses props, ses events, ses slots et son impératif. En faire aussi un
-    symbole de module produirait une seconde fiche, plus pauvre, sous un
-    nom qu'on peut taper.
+    **A CATALOGUE class is removed from the population**, and never
+    silently: ``Button``'s card is ``ui.button``'s, with its props, its
+    events, its slots and its imperative surface. Making it a module
+    symbol as well would produce a second, poorer card, under a name one
+    can type.
 
-    C'est la raison qui exemptait ``bretzel.components`` de tout
-    classement, et elle était vraie — pour ses 102 classes. Elle avalait
-    avec elles les treize noms qui ne sont PAS du catalogue : des
-    objets-valeur qu'on nomme dans une signature, une constante, deux
-    fonctions. Le filtre garde la raison et rend les treize.
+    That is the reason that exempted ``bretzel.components`` from any
+    classification, and it was true — for its 102 classes. It swallowed
+    with them the thirteen names that are NOT catalogue: value objects
+    one names in a signature, a constant, two functions. The filter keeps
+    the reason and returns the thirteen.
 
-    ⚠️ Un nom ré-exporté n'est PAS filtré : ``page`` sort de ``bretzel``
-    et de ``bretzel.render``, et les deux sections le listent — c'est
-    ``SymbolDetail.exported_by`` qui rend l'information (« Aussi dans »).
-    La version qui filtrait les ré-exports a vécu deux minutes et
-    supprimait 22 fiches, dont ``page`` : les deux moitiés se filtraient
-    l'une l'autre.
+    ⚠️ A re-exported name is NOT filtered: ``page`` comes out of
+    ``bretzel`` and of ``bretzel.render``, and both sections list it —
+    it is ``SymbolDetail.exported_by`` that carries the information
+    ("Also in"). The version that filtered re-exports lived two minutes
+    and removed 22 cards, including ``page``'s: the two halves filtered
+    each other.
 
-    Le filtre est DÉRIVÉ — identité sur le namespace ``ui`` — donc il ne
-    peut pas pourrir comme une liste écrite à la main.
+    The filter is DERIVED — identity on the ``ui`` namespace — so it
+    cannot rot like a hand-written list.
     """
     module = importlib.import_module(name)
     categories = SECTIONS.get(name, {})
@@ -550,11 +546,11 @@ def describe_module(name: str) -> ModuleSection:
 
 @cache
 def _catalogue_names(name: str) -> frozenset[str]:
-    """Les noms de ``name`` qui SONT une classe du catalogue ``ui.*``.
+    """The names of ``name`` that ARE a ``ui.*`` catalogue class.
 
-    Par identité, jamais par orthographe : ``AccordionItem`` est
-    ``ui.accordion_item``, et une comparaison de chaînes rate tout ce
-    qui porte un underscore — 37 noms sur 48, mesuré.
+    By identity, never by spelling: ``AccordionItem`` is
+    ``ui.accordion_item``, and a string comparison misses everything
+    carrying an underscore — 37 names out of 48, measured.
     """
     from bretzel.introspect.components import ui_name_of_class
 
@@ -569,17 +565,17 @@ def _catalogue_names(name: str) -> frozenset[str]:
 
 
 def _reading_order(categories: dict[str, str]):
-    """Trie par ORDRE DE LECTURE, pas par alphabet.
+    """Sort by READING ORDER, not alphabetically.
 
-    Les tables ci-dessus sont écrites dans l'ordre où on rencontre les
-    besoins — on monte l'app, on déclare son état, on agit, on rend, puis
-    on descend vers le transport. Cet ordre est une information, et le
-    perdre au profit de l'alphabet ferait ouvrir ``bretzel.state`` sur
-    « composer côté client » plutôt que sur les quatre portées serveur.
+    The tables above are written in the order one meets the needs — one
+    mounts the app, declares its state, acts, renders, then descends
+    towards the transport. That order is information, and losing it to
+    the alphabet would open ``bretzel.state`` on "compose on the client"
+    rather than on the four server scopes.
 
-    Le rang d'une catégorie est donc son rang de **première apparition**
-    dans la table : l'ordre n'a pas à être maintenu séparément, il est
-    déjà dans la façon dont la table est écrite.
+    A category's rank is therefore its rank of **first appearance** in
+    the table: the order does not have to be maintained separately, it is
+    already in the way the table is written.
     """
     ranks: dict[str, int] = {}
     for category in categories.values():
@@ -589,16 +585,16 @@ def _reading_order(categories: dict[str, str]):
 
 
 def describe_modules() -> tuple[ModuleSection, ...]:
-    """Toutes les sections couvertes, dans l'ordre de lecture."""
+    """Every covered section, in reading order."""
     return tuple(describe_module(name) for name in SECTIONS)
 
 
 def describe_toplevel_surface() -> tuple[SurfaceSymbol, ...]:
-    """``bretzel.__all__`` classé — la surface qu'on rencontre en premier.
+    """``bretzel.__all__`` classified — the surface one meets first.
 
-    Conservée comme entrée nommée parce que c'est la surface que la doc
-    vivante affiche en propre ; c'est un cas particulier de
-    :func:`describe_module`, pas un second moteur.
+    Kept as a named entry point because it is the surface the living
+    documentation displays in its own right; it is a special case of
+    :func:`describe_module`, not a second engine.
     """
     return describe_module("bretzel").symbols
 
@@ -607,10 +603,10 @@ def kind_of(value: object, name: str) -> str:
     if inspect.ismodule(value):
         return "module"
     if isinstance(value, type):
-        return "classe"
+        return "class"
     if callable(value):
-        return "décorateur" if name in _DECORATORS else "fonction"
-    return "valeur"
+        return "decorator" if name in _DECORATORS else "function"
+    return "value"
 
 
 def first_doc_line(value: object) -> str | None:
@@ -619,23 +615,22 @@ def first_doc_line(value: object) -> str | None:
 
 
 def value_summary(value: object) -> str | None:
-    """La valeur d'une constante — **son** résumé, pas celui de son type.
+    """A constant's value — **its** summary, not its type's.
 
-    ``inspect.getdoc`` sur une constante rend la docstring de sa CLASSE :
-    les 42 constantes ``str`` du framework s'affichaient toutes
-    ``str(object='') -> str``, et ``DEFAULT_TEXTS`` « dict() -> new empty
-    dictionary ». 46 lignes d'index qui ne disaient rien, là où la seule
-    chose qu'on veut savoir d'un ``ROUTE_ACTION`` est sa valeur.
+    ``inspect.getdoc`` on a constant returns its CLASS's docstring: the
+    framework's 42 ``str`` constants all displayed
+    ``str(object='') -> str``, and ``DEFAULT_TEXTS`` "dict() -> new empty
+    dictionary". 46 index lines saying nothing, where the only thing one
+    wants to know about a ``ROUTE_ACTION`` is its value.
 
-    Les ensembles sont **triés** avant d'être rendus : l'ordre
-    d'itération d'un ``frozenset`` de chaînes dépend de
-    ``PYTHONHASHSEED``, donc le laisser passer ferait bouger
-    ``bretzel describe`` d'un process à l'autre et clignoter sa gate de
-    fraîcheur.
+    Sets are **sorted** before being returned: a ``frozenset`` of
+    strings' iteration order depends on ``PYTHONHASHSEED``, so letting it
+    through would make ``bretzel describe`` move from one process to the
+    next and its freshness gate flicker.
 
-    ``None`` pour un objet quelconque (``TRACKER``, ``ui``) : là, la
-    docstring de sa classe **est** le bon résumé, et son ``repr`` porte
-    une adresse mémoire.
+    ``None`` for an arbitrary object (``TRACKER``, ``ui``): there, its
+    class's docstring **is** the right summary, and its ``repr`` carries
+    a memory address.
     """
     if isinstance(value, frozenset | set):
         body = ", ".join(repr(v) for v in sorted(value, key=repr))
@@ -646,6 +641,6 @@ def value_summary(value: object) -> str | None:
 
 
 def summarize(value: object) -> str | None:
-    """La ligne d'index d'un symbole : sa valeur si c'en est une, sinon la
-    première ligne de sa docstring."""
+    """A symbol's index line: its value when it is one, otherwise the
+    first line of its docstring."""
     return value_summary(value) or first_doc_line(value)

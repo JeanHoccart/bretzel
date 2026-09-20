@@ -12,13 +12,13 @@
  *
  * ``_options`` (option objects w/ haystack) stays per instance.
  *
- * ⚠️ Il y avait aussi un ``_labels: {valeur: libellé}``, retiré le
- * 2026-08-28 : chaque entrée d'``_options`` porte DÉJÀ son ``label``,
- * donc la carte redisait la moitié de la liste — 501 octets sur 22 586
- * pour vingt options. Son unique lecteur (le libellé affiché dans le
- * champ fermé, en mode simple) passe par ``_labelOf`` ci-dessous.
- * ``Select``, lui, le GARDE : son ``_options`` ne porte que des
- * valeurs, donc la carte n'y est pas redondante.
+ * ⚠️ There was also a ``_labels: {value: label}``, removed on
+ * 2026-08-28: each ``_options`` entry ALREADY carries its ``label``, so
+ * the map repeated half the list — 501 bytes of 22,586 for twenty
+ * options. Its only reader (the label shown in the closed field, in
+ * single mode) goes through ``_labelOf`` below. ``Select``, for its
+ * part, KEEPS it: its ``_options`` carries only values, so the map is
+ * not redundant there.
  *
  * Value access goes through ``this._read()`` / ``this._write(v)``
  * (local: a ``value`` field ; binding: ``$bz.state.<path>``, read raw +
@@ -39,53 +39,51 @@
   // just ``_write`` ; the effect observes the mutation and dispatches.
 
   $bz.combobox = {
-    /* ── Les options, peintes par le PANNEAU ────────────────────────
+    /* ── The options, painted by the PANEL ───────────────────────────
      *
-     * Avant le 2026-09-02, chaque option portait cinq directives :
-     * ``bz-class``, ``bz-attr:aria-selected``, ``bz-show`` et deux
-     * ``bz-on:``. Mesuré : 461 octets par option, dont 177 rien que
-     * pour ces directives, répétées à l'identique N fois.
+     * Before 2026-09-02, each option carried five directives:
+     * ``bz-class``, ``bz-attr:aria-selected``, ``bz-show`` and two
+     * ``bz-on:``. Measured: 461 bytes per option, of which 177 for
+     * those directives alone, repeated identically N times.
      *
-     * Trois d'entre elles deviennent UN effet et DEUX écouteurs
-     * délégués, sur le panneau. ``bz-show`` reste par option : c'est le
-     * filtre de recherche, et le runtime a sa propre machinerie de
-     * masquage.
+     * Three of them become ONE effect and TWO delegated listeners, on
+     * the panel. ``bz-show`` stays per option: it is the search filter,
+     * and the runtime has its own hiding machinery.
      *
-     * ⚠️ Pourquoi les options restent rendues par le SERVEUR — et
-     * pourquoi ce n'est pas la moitié d'un travail. La règle du dépôt
-     * (« qui écrit le ``for`` ? », gatée par
-     * ``test_collection_owner_decides_the_api``) lie l'endroit du rendu
-     * à la forme de l'API : un composant qui rend sa collection côté
-     * SERVEUR a droit à un rappel ``render=``, un composant dont le
-     * client crée les nœuds n'y a PAS droit — un callback Python ne
-     * tourne pas dans le navigateur. Peindre les options ici ferait
-     * donc perdre au combobox son ``render=``, ajouté le 2026-08-18
-     * précisément parce que la thèse d'agencement l'avait compté parmi
-     * les quatre collections SANS aucune sortie pour l'auteur. Le gain
-     * en octets ne vaut pas une échappatoire de contenu dans un
-     * framework qui en a neuf pour 498 slots de style.
+     * ⚠️ Why the options stay rendered by the SERVER — and why that is
+     * not half a job. The repository's rule ("who writes the ``for``?",
+     * gated by ``test_collection_owner_decides_the_api``) ties the place
+     * of the render to the API's shape: a component that renders its
+     * collection on the SERVER side is entitled to a ``render=``
+     * callback, a component whose client creates the nodes is NOT — a
+     * Python callback does not run in the browser. Painting the options
+     * here would therefore lose the combobox its ``render=``, added on
+     * 2026-08-18 precisely because the layout thesis had counted it
+     * among the four collections with NO way out for the author. The
+     * gain in bytes is not worth a content escape hatch in a framework
+     * that has nine for 498 style slots.
      */
     optionOf(ev) {
       const o = ev.target.closest('[role="option"]');
-      // Un bouton désactivé ne dispatche pas de clic, mais IL REÇOIT
-      // les survols — sans ce garde, passer la souris sur une option
-      // grisée la surlignerait comme si elle était choisissable.
+      // A disabled button does not dispatch a click, but IT DOES
+      // RECEIVE hovers — without that guard, moving the mouse over a
+      // greyed option would highlight it as if it were pickable.
       return o && !o.disabled ? o : null;
     },
 
-    /* Repeindre l'état de toutes les options : le surlignage (clavier
-     * et souris) et la sélection.
+    /* Repaint every option's state: the highlight (keyboard and mouse)
+     * and the selection.
      *
-     * Les deux chaînes de classe voyagent UNE fois, sur le panneau, au
-     * lieu d'être recopiées dans le ``bz-class`` de chaque option.
+     * The two class strings travel ONCE, on the panel, instead of being
+     * copied into each option's ``bz-class``.
      *
-     * ⚠️ On manipule ``classList`` directement plutôt que de garder un
-     * suivi sur le nœud. C'est délibéré et c'est la leçon de
-     * ``bz-class`` (traps.md) : un état gardé sur l'élément ne survit
-     * pas à un morph, donc la classe active n'était jamais ré-ajoutée
-     * au rescan. Ici l'effet REPEINT tout à chaque passage depuis la
-     * vérité (``_highlight`` et ``isPicked``), donc un morph qui
-     * remettrait la classe SSR est rattrapé au passage suivant.
+     * ⚠️ We manipulate ``classList`` directly rather than keeping
+     * tracking on the node. It is deliberate and it is ``bz-class``'s
+     * lesson (traps.md): a state kept on the element does not survive a
+     * morph, so the active class was never re-added at the rescan. Here
+     * the effect REPAINTS everything at every pass from the truth
+     * (``_highlight`` and ``isPicked``), so a morph that would put the
+     * SSR class back is caught at the next pass.
      */
     paintOptions(el, highlight, isPicked) {
       const actif = (el.getAttribute("data-bz-opt-active") || "").split(" ");
@@ -109,13 +107,13 @@
       // diacritics). Constant across instances.
       _norm: (s) => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, ""),
       _value() { return this._read(); },
-      // Le libellé d'une valeur, lu dans ``_options`` — qui le porte
-      // déjà. Remplace la carte ``_labels`` que chaque instance émettait
-      // en plus (cf. l'en-tête). Un seul lecteur : le champ FERMÉ en
-      // mode simple, donc un balayage linéaire sur une liste d'options
-      // ne coûte rien de mesurable, et il s'aligne sur ``_options``
-      // quand un refresh serveur la re-sème — ce qu'une carte figée dans
-      // un autre champ pouvait rater.
+      // A value's label, read in ``_options`` — which already carries
+      // it. Replaces the ``_labels`` map each instance emitted in
+      // addition (cf. the header). A single reader: the CLOSED field in
+      // single mode, so a linear scan over an options list costs nothing
+      // measurable, and it stays in step with ``_options`` when a server
+      // refresh re-seeds it — which a map frozen in another field could
+      // miss.
       _labelOf(v) {
         const s = String(v == null ? "" : v);
         if (!s) return "";
@@ -198,8 +196,8 @@
         const vis = this._visibleIndices();
         this._write(vis.map((i) => this._options[i].value));
       },
-      // Le mixin vide la sélection sans fermer ; Combobox AJOUTE le
-      // reset de la requête (Select n'a pas de champ de recherche).
+      // The mixin empties the selection without closing; Combobox ADDS
+      // the query reset (Select has no search field).
       _clearAll() { $bz.multiSelect._clearAll.call(this); this.query = ""; },
     },
   };

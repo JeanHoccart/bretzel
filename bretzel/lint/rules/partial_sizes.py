@@ -1,79 +1,80 @@
-"""Règle : un thème qui retaille UNE PARTIE des contrôles de formulaire.
+"""Rule: a theme that resizes PART of the form controls.
 
-Le silence qu'elle ferme
-------------------------
+The silence it closes
+---------------------
 
-Une table de tailles écrite à la main est une liste de composants qu'on a
-pensé à citer, et **rien ne dit qu'elle est complète** ::
+A hand-written size table is a list of the components one thought to
+name, and **nothing says it is complete** ::
 
     Theme(components={
         "input":    {"sizes": {"md": {"input": "h-8 px-3"}}},
         "select":   {"sizes": {"md": {"trigger": "h-8 px-3"}}},
         "combobox": {...},
-        # date_picker, number_input, time_picker… : absents
+        # date_picker, number_input, time_picker…: absent
     })
 
-Les composants cités descendent, les autres gardent le défaut. Mesuré sur
-``examples/ecole`` le 2026-09-12 : **quatre hauteurs de champ texte sur un
-même écran — 30, 32, 36 et 38 px**, et un formulaire de trois contrôles
-côte à côte en montrait trois. C'est un utilisateur qui l'a vu sur une
-capture d'écran ; rien d'autre ne pouvait le dire.
+The components named go down, the others keep the default. Measured on
+``examples/ecole`` on 2026-09-12: **four text-field heights on one screen
+— 30, 32, 36 and 38 px**, and a form of three controls side by side
+showed three of them. A user saw it on a screenshot; nothing else could
+have said so.
 
-Pourquoi les règles existantes ne l'attrapent pas
---------------------------------------------------
+Why the existing rules do not catch it
+--------------------------------------
 
-:mod:`bretzel.lint.rules.sizes` compare les ``size=`` **déclarés aux
-call-sites** : ici ils sont tous au défaut, et d'accord entre eux. C'est
-le THÈME qui les sépare, en aval. Et
-``tests/runtime_js/test_form_controls_share_one_height.py`` mesure la
-parité des hauteurs **avec le thème livré** — une app qui pose le sien
-sort de sa portée.
+:mod:`bretzel.lint.rules.sizes` compares the ``size=`` **declared at call
+sites**: here they are all at the default, and in agreement with each
+other. It is the THEME that separates them, downstream. And
+``tests/runtime_js/test_form_controls_share_one_height.py`` measures
+height parity **with the shipped theme** — an app that sets its own
+leaves its scope.
 
-L'invariant défendu est le même que celui de cette gate, et c'est lui qui
-rend ``size=`` utilisable : à palier égal, un contrôle de formulaire fait
-une hauteur. Une surcharge partielle le casse en silence.
+The invariant defended is the same as that gate's, and it is what makes
+``size=`` usable: at an equal step, a form control is one height. A
+partial override breaks that silently.
 
-Ce que la règle lit
---------------------
+What the rule reads
+-------------------
 
-Les clés d'un ``Theme(components={…})`` qui portent un ``sizes``, et la
-famille de contrôles **découverte** par
-:func:`~bretzel.introspect.describe_components` — jamais une table écrite
-ici. Un dix-neuvième champ entre donc tout seul dans la règle, comme il
-entre dans :mod:`bretzel.lint.rules.sizes`.
+The keys of a ``Theme(components={…})`` that carry a ``sizes``, and the
+control family **discovered** by
+:func:`~bretzel.introspect.describe_components` — never a table written
+here. A nineteenth field therefore enters the rule on its own, as it
+enters :mod:`bretzel.lint.rules.sizes`.
 
-⚠️ **Et les contrôles que le CORPUS utilise vraiment.** C'est ce qui
-sépare un constat actionnable d'un bruit : un thème n'a aucune raison de
-retailler un ``ui.otp_input`` qu'aucun écran n'affiche, et le lui
-reprocher ferait d'une règle utile une liste à rallonge. Le corpus du
-passage est lu par :func:`bretzel.lint.corpus.derived`, donc une seule
-fois quels que soient le nombre de modules.
+⚠️ **And the controls the CORPUS actually uses.** That is what separates
+an actionable finding from noise: a theme has no reason to resize a
+``ui.otp_input`` no screen displays, and holding it against the theme
+would turn a useful rule into an endless list. The pass's corpus is read
+by :func:`bretzel.lint.corpus.derived`, so once only whatever the number
+of modules.
 
-Mesuré sur ce dépôt : sans ce filtre, la règle réclame quatorze
-composants au preset du kanban ; avec, elle en nomme deux — et ce sont
-exactement les deux qu'il affiche.
+Measured on this repository: without that filter, the rule demands
+fourteen components of the kanban's preset; with it, it names two — and
+they are exactly the two it displays.
 
-Si le thème en retaille au moins un et en oublie au moins un que l'app
-montre, c'est un constat, qui NOMME les manquants.
+If the theme resizes at least one and forgets at least one the app shows,
+that is a finding, and it NAMES the missing ones.
 
-⚠️ Ce que la règle ne dit PAS
-------------------------------
+⚠️ What the rule does NOT say
+-----------------------------
 
-Qu'il faille retailler tout le monde. La sortie recommandée est l'INVERSE
-— ne nommer personne, et déplacer la BASE de l'échelle : toute l'échelle
-d'espacement de Tailwind dérive de ``--spacing``, que ``Theme(spacing=…)``
-porte depuis le 2026-09-13 (avant, il fallait passer par ``css=``, ce qui
-n'était pas ce à quoi cette porte sert). Un jeton au lieu de N tables,
-donc une couverture qui n'est plus une liste et ne peut plus être
-partielle. Et le défaut livré est DÉJÀ celui d'un outil : une table de
-tailles qui ne fait que resserrer n'a probablement plus lieu d'être.
+That everybody must be resized. The recommended way out is the OPPOSITE
+— name nobody, and move the scale's BASE: Tailwind's whole spacing scale
+derives from ``--spacing``, which ``Theme(spacing=…)`` has carried since
+2026-09-13 (before that, one had to go through ``css=``, which is not
+what that door is for). One token instead of N tables, hence a coverage
+that is no longer a list and can no longer be partial. And the shipped
+default is ALREADY a tool's: a size table that only tightens probably no
+longer has a reason to exist.
 
-Elle ne juge pas non plus une surcharge qui ne touche pas ``sizes``
-— couleurs, rayons, slots : celles-là ne déplacent aucune hauteur.
+Nor does it judge an override that does not touch ``sizes`` — colours,
+radii, slots: those move no height.
 
-Ni le cas d'un thème SANS corpus — une règle exercée sur un module seul
-n'a pas d'usage à lire, et juge alors la famille entière. C'est le sens
-sûr : hors ``run``, mieux vaut un constat de trop qu'un silence.
+Nor the case of a theme WITHOUT a corpus — a rule exercised on a single
+module has no usage to read, and then judges the whole family. That is
+the safe direction: outside ``run``, one finding too many beats a
+silence.
 """
 
 from __future__ import annotations
@@ -85,17 +86,17 @@ from bretzel.lint import corpus
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-#: Le nom de la règle, tel qu'il s'affiche dans un constat.
-RULE = "palier-de-taille-a-moitie-surcharge"
+#: The rule's name, as it appears in a finding.
+RULE = "half-overridden-size-step"
 
 
-def _famille() -> frozenset[str]:
-    """Les contrôles de formulaire qui doivent partager une hauteur.
+def _family() -> frozenset[str]:
+    """The form controls that must share one height.
 
-    Lue vivante par introspection : la famille ``inputs`` restreinte à ce
-    qui porte un vocabulaire de ``size``. C'est le même corpus que
-    :mod:`bretzel.lint.rules.sizes`, et pour la même raison — une table
-    recopiée dans un linter dérive du code qu'elle juge.
+    Read live through introspection: the ``inputs`` family restricted to
+    what carries a ``size`` vocabulary. It is the same corpus as
+    :mod:`bretzel.lint.rules.sizes`, and for the same reason — a table
+    copied into a linter drifts from the code it judges.
     """
     from bretzel.introspect import ComponentInfo, describe_components
 
@@ -121,14 +122,14 @@ def _theme_calls(tree: ast.AST) -> list[ast.Call]:
 
 
 def _module_dicts(tree: ast.AST) -> dict[str, ast.Dict]:
-    """Les constantes de module qui valent un littéral de dict.
+    """The module constants that are a literal dict.
 
-    ``Theme(components=COMPONENTS)`` est l'idiome de ce dépôt — les deux
-    presets d'``examples/`` l'écrivaient ainsi jusqu'au 2026-09-13, où
-    l'échelle est passée au framework et où ils ont été supprimés. Une
-    règle qui n'accepte que le dict EN LIGNE serait verte sur tout le
-    corpus réel, ce qui est la forme la plus coûteuse de faux négatif :
-    elle a l'air de marcher.
+    ``Theme(components=COMPONENTS)`` is this repository's idiom —
+    ``examples/``'s two presets wrote it that way until 2026-09-13, when
+    the scale moved to the framework and they were removed. A rule that
+    only accepts the INLINE dict would be green over the whole real
+    corpus, which is the most expensive form of false negative: it looks
+    like it works.
     """
     out: dict[str, ast.Dict] = {}
     for node in ast.walk(tree):
@@ -136,80 +137,80 @@ def _module_dicts(tree: ast.AST) -> dict[str, ast.Dict]:
             continue
         if not isinstance(node.value, ast.Dict):
             continue
-        cibles = node.targets if isinstance(node, ast.Assign) else [node.target]
-        for cible in cibles:
-            if isinstance(cible, ast.Name):
-                out[cible.id] = node.value
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name):
+                out[target.id] = node.value
     return out
 
 
-def _resized(call: ast.Call, connus: dict[str, ast.Dict]) -> tuple[set[str], int]:
-    """Les composants dont ce ``Theme`` redéfinit les ``sizes``."""
+def _resized(call: ast.Call, known: dict[str, ast.Dict]) -> tuple[set[str], int]:
+    """The components whose ``sizes`` this ``Theme`` redefines."""
     for kw in call.keywords:
         if kw.arg != "components":
             continue
-        valeur_kw = kw.value
-        if isinstance(valeur_kw, ast.Name):
-            valeur_kw = connus.get(valeur_kw.id)
-        if not isinstance(valeur_kw, ast.Dict):
+        value_kw = kw.value
+        if isinstance(value_kw, ast.Name):
+            value_kw = known.get(value_kw.id)
+        if not isinstance(value_kw, ast.Dict):
             continue
-        noms: set[str] = set()
-        for cle, valeur in zip(valeur_kw.keys, valeur_kw.values, strict=False):
-            if not (isinstance(cle, ast.Constant) and isinstance(cle.value, str)):
+        names: set[str] = set()
+        for key, value in zip(value_kw.keys, value_kw.values, strict=False):
+            if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
                 continue
-            if not isinstance(valeur, ast.Dict):
+            if not isinstance(value, ast.Dict):
                 continue
             if any(
                 isinstance(k, ast.Constant) and k.value == "sizes"
-                for k in valeur.keys
+                for k in value.keys
             ):
-                noms.add(cle.value)
-        return noms, call.lineno
+                names.add(key.value)
+        return names, call.lineno
     return set(), call.lineno
 
 
 def _app_root(theme: pathlib.Path) -> pathlib.Path | None:
-    """Le dossier d'app auquel ce thème appartient, ou ``None``.
+    """The app folder this theme belongs to, or ``None``.
 
-    Reconnu par la présence d'un ``main.py`` DANS LE CORPUS — pas sur le
-    disque : une règle statique ne doit rien découvrir que le passage
-    n'ait pas déjà lu. On remonte depuis le thème et on s'arrête au
-    premier dossier qui en porte un.
+    Recognised by the presence of a ``main.py`` IN THE CORPUS — not on
+    disk: a static rule must discover nothing the pass has not already
+    read. We climb from the theme and stop at the first folder carrying
+    one.
 
-    ⚠️ Sans ce découpage, la règle est inutile sur un dépôt à plusieurs
-    apps : balayer ``examples/`` d'un coup met le playground dans le même
-    sac, et le playground exerce TOUS les composants — donc tout thème
-    devrait tout retailler. Mesuré : 14 composants réclamés au preset du
-    kanban, contre 2 une fois l'app délimitée. La version large avait
-    l'air plus stricte et ne servait à rien.
+    ⚠️ Without that split, the rule is useless on a repository with
+    several apps: sweeping ``examples/`` in one go puts the playground in
+    the same bag, and the playground exercises EVERY component — so any
+    theme would have to resize everything. Measured: 14 components
+    demanded of the kanban's preset, against 2 once the app is
+    delimited. The broad version looked stricter and served nothing.
     """
-    dossiers = {
+    folders = {
         m.path.resolve().parent
         for m in corpus.current()
         if m.path.name == "main.py"
     }
     for parent in theme.resolve().parents:
-        if parent in dossiers:
+        if parent in folders:
             return parent
     return None
 
 
-def _utilises(theme: pathlib.Path) -> frozenset[str]:
-    """Les ``ui.<nom>`` appelés dans l'app à laquelle ce thème appartient.
+def _used_in_theme(theme: pathlib.Path) -> frozenset[str]:
+    """The ``ui.<name>`` called in the app this theme belongs to.
 
-    Dérivé une fois par app et par passage (cf.
-    :func:`bretzel.lint.corpus.derived`) : la règle tourne sur chaque
-    module, la question ne change pas.
+    Derived once per app and per pass (cf.
+    :func:`bretzel.lint.corpus.derived`): the rule runs on every module,
+    the question does not change.
     """
-    racine = _app_root(theme)
-    if racine is None:
+    root = _app_root(theme)
+    if root is None:
         return frozenset()
 
     def build() -> frozenset[str]:
         return frozenset(
             node.func.attr
             for m in corpus.current()
-            if racine in m.path.resolve().parents
+            if root in m.path.resolve().parents
             for node in ast.walk(m.tree)
             if isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -217,27 +218,27 @@ def _utilises(theme: pathlib.Path) -> frozenset[str]:
             and node.func.value.id == "ui"
         )
 
-    return corpus.derived(f"partial_sizes.ui_calls:{racine}", build)
+    return corpus.derived(f"partial_sizes.ui_calls:{root}", build)
 
 
 def check(module: Module) -> list[Finding]:
-    """Les thèmes qui retaillent une partie de la famille seulement."""
-    famille = _famille()
-    if not famille:  # pragma: no cover — l'introspection est gatée ailleurs
+    """The themes that resize only part of the family."""
+    family = _family()
+    if not family:  # pragma: no cover — introspection is gated elsewhere
         return []
-    montres = _utilises(module.path)
-    if montres:
-        famille = frozenset(famille & montres)
+    used = _used_in_theme(module.path)
+    if used:
+        family = frozenset(family & used)
 
     findings: list[Finding] = []
-    connus = _module_dicts(module.tree)
+    known = _module_dicts(module.tree)
     for call in _theme_calls(module.tree):
-        retailles, line = _resized(call, connus)
-        touches = retailles & famille
-        if not touches:
+        resized, line = _resized(call, known)
+        touched = resized & family
+        if not touched:
             continue
-        oublies = sorted(famille - retailles)
-        if not oublies:
+        forgotten = sorted(family - resized)
+        if not forgotten:
             continue
         findings.append(
             Finding(
@@ -245,23 +246,22 @@ def check(module: Module) -> list[Finding]:
                 path=module.path,
                 line=line,
                 message=(
-                    f"ce thème retaille {len(touches)} contrôle(s) de "
-                    f"formulaire et en laisse {len(oublies)} au défaut — "
-                    f"{', '.join(oublies[:4])}"
-                    + (" …" if len(oublies) > 4 else "")
+                    f"this theme resizes {len(touched)} form control(s) "
+                    f"and leaves {len(forgotten)} at the default — "
+                    f"{', '.join(forgotten[:4])}"
+                    + (" …" if len(forgotten) > 4 else "")
                     + "."
                 ),
                 hint=(
-                    "À palier égal, deux contrôles doivent faire une "
-                    "hauteur : c'est ce qui rend `size=` utilisable. Une "
-                    "table partielle casse l'invariant sans rien lever "
-                    "(mesuré : quatre hauteurs de champ sur un écran). "
-                    "Plutôt que d'allonger la liste, déplace la BASE de "
-                    'l\'échelle : Theme(spacing="0.1875rem"). Toute '
-                    "l'échelle Tailwind en dérive, donc rien ne peut être "
-                    "oublié — et le défaut livré est déjà celui d'un outil, "
-                    "donc une table qui ne fait que resserrer est peut-être "
-                    "devenue inutile."
+                    "At an equal step, two controls must be one height: "
+                    "that is what makes `size=` usable. A partial table "
+                    "breaks the invariant without raising anything "
+                    "(measured: four field heights on one screen). Rather "
+                    "than lengthening the list, move the scale's BASE: "
+                    'Theme(spacing="0.1875rem"). Tailwind\'s whole scale '
+                    "derives from it, so nothing can be forgotten — and "
+                    "the shipped default is already a tool's, so a table "
+                    "that only tightens may have become useless."
                 ),
             )
         )

@@ -35,11 +35,12 @@
  *                     surfaces instead of looping).
  *   otherwise / un-enveloped 4xx → generic error toast
  *
- *   (Il n'y a PAS de kind "redirect" : une redirection passe par l'en-tête
- *   HX-Redirect, qu'htmx traite nativement, et `bretzel.redirect()` la pose.
- *   Le kind est resté ici six mois sans que rien ne l'émette côté Python —
- *   et sans qu'il PUISSE l'être, error_envelope() ne sachant pas porter
- *   d'url. Gate : tests/consistency/test_bridge_error_kinds_are_emitted.py.)
+ *   (There is NO "redirect" kind: a redirection goes through the
+ *   HX-Redirect header, which htmx handles natively, and
+ *   `bretzel.redirect()` sets it. The kind stayed here for six months
+ *   with nothing emitting it on the Python side — and with nothing being
+ *   ABLE to, error_envelope() not knowing how to carry a url. Gate:
+ *   tests/consistency/test_bridge_error_kinds_are_emitted.py.)
  */
 (function () {
   "use strict";
@@ -74,20 +75,21 @@
 
   function applyPayload(payload) {
     if (!payload || !payload.patches) return;
-    // SEMER ou POUSSER — deux chemins, deux intentions.
+    // SEED or PUSH — two paths, two intents.
     //
-    //   seed   (nav partielle) : le serveur ré-émet toutes les instances
-    //          de la page, avec SES valeurs, qui sont les défauts. Il ne
-    //          peut pas connaître celles du navigateur. Elles ne doivent
-    //          donc servir qu'à créer ce qui manque.
-    //   push   (réponse d'action) : le serveur a délibérément muté un
-    //          champ. Il gagne.
+    //   seed   (partial nav): the server re-emits every instance of the
+    //          page, with ITS values, which are the defaults. It cannot
+    //          know the browser's. They must therefore only serve to
+    //          create what is missing.
+    //   push   (action response): the server deliberately mutated a
+    //          field. It wins.
     //
-    // `config` est le marqueur, et il n'est pas approximatif : côté
-    // Python, `build_patch` ne l'émet QUE sous `include_unchanged=True`,
-    // c'est-à-dire exactement le chemin de seed. Accord gaté par
-    // `tests/consistency/test_a_seed_patch_never_overwrites.py`, et le
-    // resultat par `tests/runtime_js/test_a_partial_nav_never_clobbers_client_state.py`.
+    // `config` is the marker, and it is not approximate: on the Python
+    // side, `build_patch` only emits it under `include_unchanged=True`,
+    // that is to say exactly the seed path. The agreement is gated by
+    // `tests/consistency/test_a_seed_patch_never_overwrites.py`, and the
+    // result by
+    // `tests/runtime_js/test_a_partial_nav_never_clobbers_client_state.py`.
     const isSeed = !!payload.config;
     for (const instancePath of Object.keys(payload.patches)) {
       const fields = payload.patches[instancePath];
@@ -107,10 +109,11 @@
         else $bz._store.set(path, fields[field]);
       }
     }
-    // Config de transport du seed de nav partielle — APRÈS les champs,
-    // parce que ``adoptConfig`` enregistre la persistance et que celle-ci
-    // superpose le snapshot stocké, qui doit gagner. Absente d'une réponse
-    // d'action ordinaire : le client a déjà la config de ces instances.
+    // The partial nav seed's transport config — AFTER the fields,
+    // because ``adoptConfig`` registers the persistence and that
+    // superimposes the stored snapshot, which must win. Absent from an
+    // ordinary action response: the client already has those instances'
+    // config.
     if (payload.config && $bz._adoptConfig) {
       for (const path of Object.keys(payload.config)) {
         $bz._adoptConfig(path, payload.config[path]);
@@ -131,29 +134,29 @@
     }
   }
 
-  // Une valeur COMPOSITE part en JSON, pas telle quelle.
+  // A COMPOSITE value leaves as JSON, not as is.
   //
-  // Un corps de formulaire ne transporte que des chaînes, et htmx traite un
-  // tableau à part : `formDataFromObject` fait `obj[key].forEach(v =>
-  // append(key, v))`. Deux conséquences, mesurées le 2026-08-19 :
+  // A form body only carries strings, and htmx treats an array
+  // separately: `formDataFromObject` does `obj[key].forEach(v =>
+  // append(key, v))`. Two consequences, measured on 2026-08-19:
   //
-  //   - `["a","b"]` part en DEUX champs de même nom, et le serveur garde le
-  //     dernier — donc `["a","b"]` arrive comme `"b"`, et `["change"]`
-  //     comme `"change"` ;
-  //   - `[]` n'ajoute RIEN, donc la clé est absente du corps. Comme
-  //     l'hydratation n'écrit que les champs présents, **une liste client
-  //     vidée ne pouvait plus jamais vider son champ serveur** — le jumeau
-  //     exact de la case décochée qui ne soumet rien, sur l'autre
-  //     transport.
+  //   - `["a","b"]` leaves as TWO fields of the same name, and the
+  //     server keeps the last — so `["a","b"]` arrives as `"b"`, and
+  //     `["change"]` as `"change"`;
+  //   - `[]` adds NOTHING, so the key is absent from the body. Since
+  //     hydration only writes the fields that are present, **an emptied
+  //     client list could never empty its server field again** — the
+  //     exact twin of the unticked box that submits nothing, on the
+  //     other transport.
   //
-  // `JSON.stringify` remet le magasin client sur la même convention que les
-  // sept porteurs cachés du catalogue (`toggle_group`, `select`,
-  // `combobox`, `date_range_picker`, `slider`, `resizable`, `accordion`),
-  // et c'est `_coerce_composite` qui le défait côté Python — un seul
-  // contrat de wire pour les deux chemins, au lieu de deux.
+  // `JSON.stringify` puts the client store back on the same convention
+  // as the catalogue's seven hidden carriers (`toggle_group`, `select`,
+  // `combobox`, `date_range_picker`, `slider`, `resizable`,
+  // `accordion`), and it is `_coerce_composite` that undoes it on the
+  // Python side — a single wire contract for both paths, instead of two.
   //
-  // Les scalaires ne sont PAS touchés : ils traversent déjà juste, et les
-  // encoder ferait arriver `'"texte"'` là où le champ attend `texte`.
+  // Scalars are NOT touched: they already travel correctly, and encoding
+  // them would make `'"text"'` arrive where the field expects `text`.
   function wireValue(value) {
     return value !== null && typeof value === "object"
       ? JSON.stringify(value)
@@ -171,12 +174,13 @@
       grouped.get(path)[field] = sig.peek();
     }
     for (const [path, fields] of grouped.entries()) {
-      // ``send_to_server: false`` (déclaré côté Python sur la classe) est
-      // le SEUL filtre ici, et il est tout-ou-rien. Un mode "delta" a vécu
-      // à cette place jusqu'au 2026-08-14 ; il était faux, pas seulement
-      // inutile — raison complète dans le docstring de ``ClientState``
-      // (bretzel/state/scopes/client.py § "Il n'y a PAS de mode delta").
-      // Ne pas le réintroduire sans lire ce paragraphe d'abord.
+      // ``send_to_server: false`` (declared on the Python side on the
+      // class) is the ONLY filter here, and it is all-or-nothing. A
+      // "delta" mode lived in this place until 2026-08-14; it was wrong,
+      // not merely useless — the full reason is in ``ClientState``'s
+      // docstring (bretzel/state/scopes/client.py § "There is NO delta
+      // mode"). Do not reintroduce it without reading that paragraph
+      // first.
       const cfg = config[path] || {};
       if (cfg.send_to_server === false) continue;
       for (const field of Object.keys(fields)) {
@@ -185,69 +189,69 @@
     }
   }
 
-  /* ── ``$bz.pending`` — « une action est-elle en vol ? » ──────────────
+  /* ── ``$bz.pending`` — "is an action in flight?" ─────────────────────
    *
-   * htmx SAIT qu'une requête est en cours (il pose ``.htmx-request`` sur
-   * l'élément déclencheur), mais cette information n'était lisible par
-   * personne : ni depuis une expression ``bz-*``, ni depuis Python. Un
-   * dev qui voulait un spinner pendant l'aller-retour devait donc tenir
-   * le booléen lui-même — et il ne POUVAIT pas le tenir côté serveur,
-   * puisqu'un état serveur arrive AVEC la réponse, c'est-à-dire quand
-   * l'attente est déjà finie.
+   * htmx KNOWS a request is in progress (it sets ``.htmx-request`` on
+   * the triggering element), but that information was readable by
+   * nobody: neither from a ``bz-*`` expression, nor from Python. A dev
+   * who wanted a spinner during the round trip therefore had to hold the
+   * boolean themselves — and they COULD not hold it on the server side,
+   * since server state arrives WITH the response, that is to say when
+   * the wait is already over.
    *
-   * Ce module possède déjà la frontière transport, donc c'est ici que
-   * l'information se publie, sous forme de signal : ``ui.pending()`` rend
-   * l'expression ``$bz.pending($el, 200)``, lue par n'importe quel
-   * ``bz-show`` / ``bz-attr`` comme n'importe quelle autre source.
+   * This module already owns the transport boundary, so it is here that
+   * the information is published, as a signal: ``ui.pending()`` returns
+   * the expression ``$bz.pending($el, 200)``, read by any ``bz-show`` /
+   * ``bz-attr`` like any other source.
    *
-   * DEUX ADRESSAGES, une seule fonction. ``$el`` (l'élément qui porte la
-   * prop est le déclencheur) remonte au porteur du ``hx-post`` via
-   * ``closest`` : indispensable, parce que le ``bz-show`` du spinner est
-   * posé sur le SPINNER, pas sur le bouton (cf. ``_cloak_show``). Une
-   * chaîne (l'``action_id``) adresse la même action depuis ailleurs dans
-   * la page — ``ui.pending(save)``.
+   * TWO ADDRESSINGS, a single function. ``$el`` (the element carrying
+   * the prop is the trigger) walks up to the ``hx-post``'s carrier
+   * through ``closest``: indispensable, because the spinner's
+   * ``bz-show`` is set on the SPINNER, not on the button (cf.
+   * ``_cloak_show``). A string (the ``action_id``) addresses the same
+   * action from elsewhere in the page — ``ui.pending(save)``.
    *
-   * LE DÉLAI EST LA RAISON D'ÊTRE DU MÉCANISME. Un spinner qui apparaît
-   * sous ~200 ms produit un flash, et l'interface est perçue comme PLUS
-   * lente qu'en ne montrant rien. Personne ne l'écrit à la main ; ici
-   * c'est le défaut. Le délai voyage dans l'expression, donc plusieurs
-   * délais peuvent coexister sur une même clé — d'où une ``Map`` de
-   * signaux par délai plutôt qu'un signal unique.
+   * THE DELAY IS THE MECHANISM'S REASON TO BE. A spinner that appears
+   * under ~200 ms produces a flash, and the interface is perceived as
+   * SLOWER than showing nothing. Nobody writes it by hand; here it is
+   * the default. The delay travels in the expression, so several delays
+   * can coexist on one key — hence a ``Map`` of signals per delay rather
+   * than a single signal.
    *
-   * Un compteur, pas un booléen : deux boutons qui partagent le même
-   * ``action_id`` peuvent être en vol en même temps, et le premier
-   * retour ne doit pas éteindre le second.
+   * A counter, not a boolean: two buttons sharing the same
+   * ``action_id`` can be in flight at the same time, and the first
+   * return must not extinguish the second.
    */
   const PENDING_BY_ELT = new WeakMap();
   const PENDING_BY_ID = new Map();
 
-  /* Deux magasins, et c'est forcé, pas incident : une ``WeakMap`` ne
-   * peut pas indexer une chaîne, et une ``Map`` indexée par éléments
-   * retiendrait chaque déclencheur pour la vie de la page. */
+  /* Two stores, and it is forced, not incidental: a ``WeakMap`` cannot
+   * index a string, and a ``Map`` indexed by elements would hold every
+   * trigger for the life of the page. */
   function pendingStore(key) {
     return typeof key === "string" ? PENDING_BY_ID : PENDING_BY_ELT;
   }
 
-  /* Les clés qu'une requête arme : l'élément déclencheur ET son
-   * ``action_id``. Celui-ci se lit dans ``hx-post``, dont le format est
-   * ``<ROUTE_ACTION>/<id>`` — et ``ROUTE_ACTION`` est SUBSTITUÉ ici
-   * depuis ``protocol.py`` au build, comme les balises d'enveloppe et
-   * de patch. Sans ça le JS redeviendrait tiers au format de fil : il
-   * le devinerait par découpage de chaîne, et un changement de route
-   * côté Python ne se verrait nulle part. */
+  /* The keys a request arms: the triggering element AND its
+   * ``action_id``. The latter reads from ``hx-post``, whose format is
+   * ``<ROUTE_ACTION>/<id>`` — and ``ROUTE_ACTION`` is SUBSTITUTED here
+   * from ``protocol.py`` at build time, like the envelope and patch
+   * tags. Without that the JS would become a stranger to the wire
+   * format again: it would guess it by string splitting, and a route
+   * change on the Python side would show up nowhere. */
   const ACTION_PREFIX = "__ROUTE_ACTION__/";
 
-  /* La TROISIEME cle, reservee : « une navigation est en vol ». La barre
-   * de shell (``render/shell.nav_progress_html``) n'est qu'un ``bz-show``
-   * dessus, donc elle n'a aucun mecanisme a elle — c'est le meme
-   * registre, la meme temporisation, le meme desarmement.
+  /* The THIRD key, reserved: "a navigation is in flight". The shell's
+   * bar (``render/shell.nav_progress_html``) is only a ``bz-show`` on
+   * it, so it has no mechanism of its own — it is the same registry, the
+   * same timing, the same disarm.
    *
-   * Deux formes de navigation dans ce depot, et il faut les deux :
-   * ``detail.boosted`` couvre les liens boostes par ``hx-boost`` (pose
-   * au niveau document par le shell), et ``hx-push-url`` couvre la nav
-   * partielle de la sidebar / navbar, qui n'est pas boostee mais un
-   * ``hx-get`` explicite (``navigation/_wiring.py``). Tester l'un sans
-   * l'autre laisserait la moitie des menus sans barre. */
+   * Two shapes of navigation in this repository, and both are needed:
+   * ``detail.boosted`` covers the links boosted by ``hx-boost`` (set at
+   * the document level by the shell), and ``hx-push-url`` covers the
+   * sidebar / navbar's partial nav, which is not boosted but an explicit
+   * ``hx-get`` (``navigation/_wiring.py``). Testing one without the
+   * other would leave half the menus with no bar. */
   const NAV_KEY = "__NAV_PENDING_KEY__";
 
   function pendingKeys(elt, detail) {
@@ -264,8 +268,8 @@
   }
 
   function armPending(key) {
-    // Pas d'entrée = personne ne lit cette clé. Rien à armer : on ne
-    // fabrique pas de signal pour un bouton sans ``ui.pending()``.
+    // No entry = nobody reads this key. Nothing to arm: we do not
+    // fabricate a signal for a button with no ``ui.pending()``.
     const entry = pendingStore(key).get(key);
     if (!entry || ++entry.count > 1) return;
     entry.byDelay.forEach(function (slot, delay) {
@@ -290,10 +294,10 @@
     });
   }
 
-  /* Défini au CHARGEMENT du module, pas dans ``_wireBridge`` : un
-   * ``bz-show`` peut s'évaluer avant que le bridge soit câblé, et une
-   * ``$bz.pending`` absente ferait planter l'expression au lieu de
-   * rendre ``false``. */
+  /* Defined at the module's LOAD, not in ``_wireBridge``: a
+   * ``bz-show`` can evaluate before the bridge is wired, and a missing
+   * ``$bz.pending`` would crash the expression instead of returning
+   * ``false``. */
   $bz.pending = function (key, delay) {
     if (key && key.nodeType === 1) key = key.closest("[hx-post]") || key;
     const store = pendingStore(key);
@@ -308,46 +312,46 @@
       slot = { sig: $bz.signal(false), timer: 0 };
       entry.byDelay.set(ms, slot);
     }
-    // Lecture DANS un effet = abonnement. C'est le seul point de
-    // contact avec le graphe réactif : la bascule passe ensuite par le
-    // flush microtask ordinaire, comme toute autre source.
+    // Reading INSIDE an effect = subscribing. It is the only point of
+    // contact with the reactive graph: the toggle then goes through the
+    // ordinary microtask flush, like any other source.
     return slot.sig.get();
   };
 
   $bz._wireBridge = function () {
     document.body.addEventListener("htmx:configRequest", function (e) {
-      // Un contrôle inerte ne poste RIEN. C'est le troisième garde de
-      // l'inertie (les deux autres — handlers `bz-on:` et navigation
-      // native — vivent dans 02_directives.js, qui possède la règle) et
-      // il est ici parce que c'est la frontière transport : ce module
-      // est « the ONLY module that wires HTMX events ».
+      // An inert control posts NOTHING. It is inertness's third guard
+      // (the other two — `bz-on:` handlers and native navigation — live
+      // in 02_directives.js, which owns the rule) and it is here because
+      // this is the transport boundary: this module is "the ONLY module
+      // that wires HTMX events".
       //
-      // MESURÉ avant d'être écrit, pas lu dans une doc : htmx 2.0.4 émet
-      // bien `configRequest` puis renonce à la requête sur
-      // `preventDefault` — le témoin non bloqué du probe, lui, part.
-      // Cf. `tests/audit/probe_configrequest_is_cancelable.py`.
+      // MEASURED before being written, not read in a doc: htmx 2.0.4
+      // does emit `configRequest` then gives the request up on
+      // `preventDefault` — the probe's unblocked witness, for its part,
+      // leaves. Cf. `tests/audit/probe_configrequest_is_cancelable.py`.
       if ($bz._inert(e.detail.elt)) {
         e.preventDefault();
         return;
       }
-      // Une navigation BOOSTÉE qui traverse le seuil mobile ne peut pas
-      // être un swap partiel. `Screen().is_mobile` est un `if` SERVEUR, et
-      // le layout qui le porte vit HORS de `[data-bz-outlet]` : échanger
-      // l'outlet laisserait la sidebar desktop en place sur un viewport
-      // téléphone, indéfiniment, jusqu'au prochain chargement dur. Le
-      // script de `<head>` ne rejoue pas non plus, donc le cookie reste
-      // périmé et même le serveur ne le sait pas.
+      // A BOOSTED navigation that crosses the mobile threshold cannot
+      // be a partial swap. `Screen().is_mobile` is a SERVER `if`, and
+      // the layout carrying it lives OUTSIDE `[data-bz-outlet]`:
+      // swapping the outlet would leave the desktop sidebar in place on
+      // a phone viewport, indefinitely, until the next hard load. The
+      // `<head>` script does not replay either, so the cookie stays
+      // stale and even the server does not know.
       //
-      // On resynchronise le cookie et on rend la navigation au navigateur :
-      // un chargement complet re-rend le shell depuis le cookie frais.
-      // Ce n'est PAS un retour du live-resize retiré le 2026-07-13 — rien
-      // ne se déclenche au redimensionnement, seulement sur une navigation
-      // que l'utilisateur a demandée, exactement comme un F5.
+      // We resync the cookie and give the navigation back to the
+      // browser: a full load re-renders the shell from the fresh cookie.
+      // It is NOT a return of the live resize removed on 2026-07-13 —
+      // nothing fires on a resize, only on a navigation the user asked
+      // for, exactly like an F5.
       //
-      // Restreint aux `<a>` : les GET des zones `@refreshable` et du
-      // refetch SSE passent aussi par ici et ne doivent jamais devenir une
-      // navigation. `$bzScreenSync` est défini par le script de `<head>`
-      // (`render/shell.py`) — absent d'un shell custom, on ne fait rien.
+      // Restricted to `<a>`: the GET of `@refreshable` zones and of the
+      // SSE refetch also come through here and must never become a
+      // navigation. `$bzScreenSync` is defined by the `<head>` script
+      // (`render/shell.py`) — absent from a custom shell, we do nothing.
       if (
         String(e.detail.verb).toLowerCase() === "get" &&
         e.detail.elt &&
@@ -372,35 +376,36 @@
       e.detail.headers["X-Bretzel-Protocol"] = $bz.version;
       if ($bz._csrf) e.detail.headers["X-Bretzel-CSRF"] = $bz._csrf;
       if ($bz._pageId) e.detail.headers["X-Bretzel-Page-ID"] = $bz._pageId;
-      // Qui écrit. Le serveur s'en sert pour ne PAS rediffuser à cet
-      // onglet ce qu'il vient de lui répondre — cf. `$bz._tabId`.
+      // Who writes. The server uses it so as NOT to re-broadcast to
+      // this tab what it has just answered it — cf. `$bz._tabId`.
       if ($bz._tabId) e.detail.headers["X-Bretzel-Tab"] = $bz._tabId;
-      // Dire au serveur quelles zones @refreshable ce document porte.
+      // Tell the server which @refreshable zones this document
+      // carries.
       //
-      // Sans ça il enfile TOUTES les zones declarees sur une classe
-      // d'etat changee — y compris celles d'autres pages — les rend,
-      // les envoie, et nous les jetons faute de cible. Mesure sur
-      // examples/mad : 8,4 ms de rendu serveur perdus contre 9,6 ms
-      // utiles, soit pres de la moitie du drain.
+      // Without it, it queues EVERY zone declared on a changed state
+      // class — including those of other pages — renders them, sends
+      // them, and we throw them away for want of a target. Measured on
+      // examples/mad: 8.4 ms of server render wasted against 9.6 ms
+      // useful, that is to say nearly half the drain.
       //
-      // Sur les POST d'action seulement : une nav GET (hx-boost) n'a
-      // pas de drain, et l'entete se retrouverait dans l'URL poussee.
+      // On action POSTs only: a GET nav (hx-boost) has no drain, and the
+      // header would end up in the pushed URL.
       //
-      // On lit le DOM a l'instant de la requete, pas une liste que le
-      // serveur nous aurait donnee au rendu : un swap OOB peut avoir
-      // introduit une zone depuis, et une liste figee la condamnerait
-      // a ne plus jamais se rafraichir.
+      // We read the DOM at the instant of the request, not a list the
+      // server would have given us at render: an OOB swap may have
+      // introduced a zone since, and a frozen list would condemn it
+      // never to refresh again.
       if (String(e.detail.verb).toLowerCase() === "post") {
         const zones = document.querySelectorAll("[data-bz-zone]");
         if (zones.length) {
           const ids = [];
           for (const z of zones) {
-            // ``id`` seul, ou ``id:empreinte`` quand on sait ce que
-            // la zone porte : le serveur s en sert pour TAIRE une
-            // zone dont le rendu neuf serait identique. L empreinte
-            // vient de LUI, elle n est jamais calculee ici — une
-            // empreinte absente ou perimee ne peut donc que faire
-            // re-expedier la zone, jamais la taire a tort.
+            // ``id`` alone, or ``id:fingerprint`` when we know what
+            // the zone carries: the server uses it to KEEP QUIET about a
+            // zone whose fresh render would be identical. The
+            // fingerprint comes from IT, it is never computed here — an
+            // absent or stale fingerprint can therefore only make the
+            // zone be re-sent, never wrongly suppressed.
             const zid = z.getAttribute("bz-id");
             const vu = $bz._zoneHashes && $bz._zoneHashes[zid];
             ids.push(vu ? zid + ":" + vu : zid);
@@ -409,27 +414,27 @@
         }
       }
       const carrier = e.detail.elt && e.detail.elt.closest("[data-bz-sig]");
-      // Un POST d'action SANS porteur de signature ne part pas.
+      // An action POST WITH NO signature carrier does not leave.
       //
-      // Il ne s'agit pas de prudence : la requête est déjà perdue. Côté
-      // Python, `action_attrs` est le SEUL endroit qui écrit un
-      // `hx-post`, et il y pose `data-bz-sig` dans le même dict — donc
-      // tout POST htmx est une action, et toute action naît signée. Ne
-      // pas trouver de porteur au moment du `configRequest` ne veut dire
-      // qu'une chose : l'élément a été DÉTACHÉ entre le déclenchement et
-      // maintenant, typiquement par le morph d'une zone `@refreshable`.
+      // It is not about caution: the request is already lost. On the
+      // Python side, `action_attrs` is the ONLY place that writes an
+      // `hx-post`, and it sets `data-bz-sig` in the same dict — so every
+      // htmx POST is an action, and every action is born signed. Not
+      // finding a carrier at `configRequest` time means one thing only:
+      // the element was DETACHED between the trigger and now, typically
+      // by the morph of a `@refreshable` zone.
       //
-      // La laisser partir coûte cher, et c'est mesuré. Le serveur refuse
-      // toute signature invalide par un `_error: reload`, que
-      // `handleError` exécute — donc une requête déjà obsolète fait
-      // RECHARGER LA PAGE ENTIÈRE. Reproduit sur `/carousel` le
-      // 2026-08-27 : un autoplay tique pendant qu'un flip re-rend le
-      // panneau, le nœud disparaît, le POST part nu, 403, rechargement.
-      // L'audit voyait « Execution context was destroyed » et le
-      // comptait comme un flake de concurrence ; c'était déterministe.
+      // Letting it leave costs, and it is measured. The server refuses
+      // any invalid signature with an `_error: reload`, which
+      // `handleError` executes — so an already obsolete request RELOADS
+      // THE WHOLE PAGE. Reproduced on `/carousel` on 2026-08-27: an
+      // autoplay ticks while a flip re-renders the panel, the node
+      // disappears, the POST leaves bare, 403, reload. The audit saw
+      // "Execution context was destroyed" and counted it as a
+      // concurrency flake; it was deterministic.
       //
-      // Restreint au POST : une nav boostée et le refetch d'une zone SSE
-      // sont des GET, ils n'ont jamais de signature et doivent passer.
+      // Restricted to POST: a boosted nav and an SSE zone's refetch are
+      // GETs, they never have a signature and must pass.
       if (!carrier && String(e.detail.verb).toLowerCase() === "post") {
         e.preventDefault();
         return;
@@ -477,27 +482,28 @@
       document.body.addEventListener(eventName, afterSwap);
     }
 
-    /* Le cycle de vie du témoin. ``htmx:afterRequest`` est le SEUL
-     * désarmement : htmx l'émet dans tous les cas de sortie — succès,
-     * 4xx/5xx, erreur réseau, timeout, abandon — donc écouter en plus
-     * ``sendError``/``timeout`` décrémenterait deux fois le compteur et
-     * éteindrait une seconde requête encore en vol sur la même clé. */
+    /* The witness's life cycle. ``htmx:afterRequest`` is the ONLY
+     * disarm: htmx emits it in every exit case — success, 4xx/5xx,
+     * network error, timeout, abort — so also listening to
+     * ``sendError``/``timeout`` would decrement the counter twice and
+     * would extinguish a second request still in flight on the same
+     * key. */
     document.body.addEventListener("htmx:beforeRequest", function (e) {
       pendingKeys(e.detail.elt, e.detail).forEach(armPending);
     });
     document.body.addEventListener("htmx:afterRequest", function (e) {
       pendingKeys(e.detail.elt, e.detail).forEach(disarmPending);
 
-      /* Les empreintes des zones que cette reponse vient d expedier.
-       * On les GARDE pour les representer a la requete suivante : le
-       * serveur peut alors taire une zone dont le rendu neuf serait
-       * identique a ce qu on affiche deja.
+      /* The fingerprints of the zones this response has just shipped.
+       * We KEEP them to present them again at the next request: the
+       * server can then keep quiet about a zone whose fresh render would
+       * be identical to what we are already showing.
        *
-       * Rien n est calcule ici, et c est ce qui rend le mecanisme sur :
-       * l empreinte est celle du HTML que le serveur a envoye. Si le
-       * DOM a change depuis pour une autre raison, l empreinte devient
-       * fausse dans le sens INOFFENSIF — le serveur trouvera une
-       * difference et re-expediera. */
+       * Nothing is computed here, and that is what makes the mechanism
+       * safe: the fingerprint is that of the HTML the server sent. If
+       * the DOM has changed since for another reason, the fingerprint
+       * becomes wrong in the HARMLESS direction — the server will find a
+       * difference and re-ship. */
       const xhr = e.detail && e.detail.xhr;
       if (!xhr || !xhr.getResponseHeader) return;
       const brut = xhr.getResponseHeader("X-Bretzel-Zone-Hashes");

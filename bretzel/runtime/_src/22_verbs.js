@@ -1,42 +1,41 @@
-/* 22_verbs.js — la moitié CLIENT des verbes de `bretzel.runtime.verbs`.
+/* 22_verbs.js — the CLIENT half of `bretzel.runtime.verbs`.
  *
- * Un verbe est une action du NAVIGATEUR déclenchée depuis un `on_*=` :
+ * A verb is a BROWSER action triggered from an `on_*=`:
  *
- *     ui.button("Copier", on_click=bretzel.copy(state.api_key))
+ *     ui.button("Copy", on_click=bretzel.copy(state.api_key))
  *
- * Il se branche dans le slot qui accepte déjà une CHAÎNE de source
- * client — le même que `dialog.open()` — donc il n'ajoute aucune
- * plomberie : ni requête, ni directive, ni scope.
+ * It plugs into the slot that already accepts a client-source STRING —
+ * the same as `dialog.open()` — so it adds no plumbing: no request, no
+ * directive, no scope.
  *
- * Seul `copy` a besoin de ce fichier. `print` et `fullscreen` tiennent
- * en une expression que Python écrit en toutes lettres ; les mettre ici
- * aurait ajouté une indirection sans rien garder de commun.
+ * Only `copy` needs this file. `print` and `fullscreen` fit in an
+ * expression Python writes out in full; putting them here would have
+ * added an indirection with nothing common kept.
  *
- * ⚠️ Pourquoi `copy` n'est PAS un `navigator.clipboard.writeText` nu
+ * ⚠️ Why `copy` is NOT a bare `navigator.clipboard.writeText`
  * ---------------------------------------------------------------------
- * L'API Presse-papiers exige un **contexte sécurisé**. `https://` et
- * `http://localhost` en sont ; `http://192.168.1.20:8000` n'en est PAS.
- * Or c'est très exactement la façon dont un outil interne se sert — le
- * public que Bretzel vise. Sur ce chemin-là `navigator.clipboard` vaut
- * `undefined`, et un appel nu lèverait un TypeError : le bouton ne
- * ferait rien, sans un mot.
+ * The Clipboard API requires a **secure context**. `https://` and
+ * `http://localhost` are; `http://192.168.1.20:8000` is NOT. Yet that is
+ * very exactly how an internal tool is used — the audience Bretzel aims
+ * at. On that path `navigator.clipboard` is `undefined`, and a bare call
+ * would raise a TypeError: the button would do nothing, without a word.
  *
- * D'où le repli sur `document.execCommand('copy')`. Il est déprécié et
- * il marche partout, y compris hors contexte sécurisé — c'est le seul
- * chemin qui existe là-bas, donc « déprécié » n'est pas un argument
- * contre lui, c'est un argument pour ne pas s'en servir en premier.
+ * Hence the fallback on `document.execCommand('copy')`. It is deprecated
+ * and it works everywhere, including outside a secure context — it is
+ * the only path that exists over there, so "deprecated" is not an
+ * argument against it, it is an argument for not using it first.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  /* Le repli hors contexte sécurisé.
+  /* The fallback outside a secure context.
    *
-   * Le `<textarea>` est posé hors écran plutôt que `display:none` : un
-   * élément non rendu n'est pas sélectionnable, donc la copie échouerait
-   * silencieusement. `readOnly` empêche le clavier virtuel de s'ouvrir
-   * sur mobile, et `position:fixed` évite de faire défiler la page vers
-   * un champ que personne ne doit voir.
+   * The `<textarea>` is placed off screen rather than `display:none`: an
+   * unrendered element is not selectable, so the copy would fail
+   * silently. `readOnly` stops the virtual keyboard opening on mobile,
+   * and `position:fixed` avoids scrolling the page to a field nobody
+   * should see.
    */
   function viaTextarea(text) {
     const ta = document.createElement("textarea");
@@ -55,8 +54,8 @@
       ok = false;
     }
     document.body.removeChild(ta);
-    // Rendre la sélection de l'utilisateur : `select()` l'a écrasée, et
-    // perdre son surlignage parce qu'on a copié autre chose se voit.
+    // Give the user's selection back: `select()` overwrote it, and
+    // losing your highlight because something else was copied shows.
     if (previous && selection) {
       selection.removeAllRanges();
       selection.addRange(previous);
@@ -65,27 +64,28 @@
   }
 
   $bz.verbs = {
-    /* Partager — la feuille native, ou le presse-papiers.
+    /* Share — the native sheet, or the clipboard.
      *
-     * ⚠️ `navigator.share` est **undefined** sur le Chromium de bureau
-     * (mesuré le 2026-09-02 : `typeof navigator.share === "undefined"`).
-     * L'absence n'est donc pas un cas limite, c'est le cas NORMAL sur la
-     * machine où les utilisateurs de Bretzel développent.
+     * ⚠️ `navigator.share` is **undefined** on desktop Chromium
+     * (measured on 2026-09-02: `typeof navigator.share === "undefined"`).
+     * Its absence is therefore not an edge case, it is the NORMAL case
+     * on the machine where Bretzel's users develop.
      *
-     * Ne rien faire là-dedans donnerait un bouton « Partager » inerte
-     * pour la majorité — exactement ce que ce dépôt refuse ailleurs (cf.
-     * le refus de `tracks=` sur `ui.audio`, qui aurait promis des
-     * sous-titres et livré un attribut). Le repli COPIE donc l'URL : le
-     * bouton fait toujours quelque chose d'utile, et c'est un contrat,
-     * pas un accident.
+     * Doing nothing in there would give an inert "Share" button to the
+     * majority — exactly what this repository refuses elsewhere (cf. the
+     * refusal of `tracks=` on `ui.audio`, which would have promised
+     * subtitles and delivered an attribute). The fallback therefore
+     * COPIES the URL: the button always does something useful, and it is
+     * a contract, not an accident.
      */
     share(data) {
       const charge = data || {};
       if (!charge.url) charge.url = window.location.href;
       if (navigator.share) {
-        // Un refus de l'utilisateur (il ferme la feuille) rejette la
-        // promesse. Ce n'est pas une erreur de l'app : on ne retombe PAS
-        // sur la copie, sinon annuler un partage copierait dans son dos.
+        // A refusal by the user (they close the sheet) rejects the
+        // promise. It is not an app error: we do NOT fall back on the
+        // copy, otherwise cancelling a share would copy behind their
+        // back.
         return navigator.share(charge).then(
           function () { return "shared"; },
           function () { return "cancelled"; }
@@ -96,27 +96,27 @@
       });
     },
 
-    /* Vibrer. `navigator.vibrate` EXISTE partout (mesuré : `function`
-     * sur le Chromium de bureau) et ne fait rien sans matériel — il n'y a
-     * donc aucune absence à gérer, contrairement à `share`.
+    /* Vibrate. `navigator.vibrate` EXISTS everywhere (measured:
+     * `function` on desktop Chromium) and does nothing with no hardware
+     * — so there is no absence to handle, unlike `share`.
      */
     vibrate(motif) {
       return navigator.vibrate ? navigator.vibrate(motif) : false;
     },
 
-    /* Copier `value` dans le presse-papiers. Rend une promesse de
-     * booléen — jamais une exception : un verbe est appelé depuis un
-     * `on_*=`, où personne n'attrape rien, donc une rejection
-     * remonterait en `unhandledrejection` dans la console de l'app.
+    /* Copy `value` to the clipboard. Returns a promise of a boolean —
+     * never an exception: a verb is called from an `on_*=`, where nobody
+     * catches anything, so a rejection would surface as an
+     * `unhandledrejection` in the app's console.
      */
     copy(value) {
       const text = value === null || value === undefined ? "" : String(value);
       if (window.isSecureContext && navigator.clipboard) {
         return navigator.clipboard.writeText(text).then(
           function () { return true; },
-          // Un refus reste possible EN contexte sécurisé (permission
-          // révoquée, document sans focus). Le repli est alors la
-          // dernière chance, pas un chemin mort.
+          // A refusal stays possible IN a secure context (permission
+          // revoked, document without focus). The fallback is then the
+          // last chance, not a dead path.
           function () { return viaTextarea(text); }
         );
       }

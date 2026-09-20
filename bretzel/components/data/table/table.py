@@ -92,9 +92,10 @@ _ROW_CLICK_GUARD = " && ".join(
 
 # Keyboard activation for a focusable clickable row : Enter / Space fire
 # a synthetic click (caught by the row's own ``hx-trigger="click[…]"``).
-# Le garde de cible + les trois noms de touche vivent dans
-# ``_wiring.activate_keydown`` — Table était le seul des trois sites à
-# porter la garde, et le seul à ignorer le legacy ``Spacebar``.
+# The target guard + the three key names live in
+# ``_wiring.activate_keydown`` — Table was the only one of the three
+# sites to carry the guard, and the only one to ignore the legacy
+# ``Spacebar``.
 _ROW_CLICK_KEYDOWN = activate_keydown("$el.click();")
 
 
@@ -195,25 +196,25 @@ class Table(Component):
 
     THEME: ClassVar[dict[str, Any]] = TABLE_THEME
     THEME_KEY: ClassVar[str] = "table"
-    #: L'event est DÉCLARÉ, et ce n'est pas de la métadonnée.
+    #: The event is DECLARED, and it is not metadata.
     #:
-    #: Tant qu'il ne l'était pas, `on_item_click=` n'acceptait qu'un callable :
-    #: la forme « chaîne d'expression cliente », que tout `on_*` du
-    #: framework accepte, y levait un `TypeError` remonté nu de
-    #: `functools.partial`, sans nommer le composant ni la prop. Mesuré
-    #: le 2026-09-06 sur trois composants livrés
+    #: As long as it was not, `on_item_click=` accepted only a callable:
+    #: the "client expression string" shape, which every framework `on_*`
+    #: accepts, raised a `TypeError` surfaced bare from
+    #: `functools.partial`, naming neither the component nor the prop.
+    #: Measured on 2026-09-06 on three shipped components
     #: (`.claude/work/audit-declaration-2026-09-06.md`).
     #:
-    #: Le routage reste MANUEL — le socle pose l'`hx-post` d'un event
-    #: déclaré sur la RACINE, or ici c'est chaque LIGNE qui porte le sien,
-    #: avec sa donnée. D'où `item_action_attrs`, le routeur partagé des
-    #: quatre composants dans ce cas.
+    #: The routing stays MANUAL — the base layer sets a declared event's
+    #: `hx-post` on the ROOT, yet here it is each ROW that carries its
+    #: own, with its data. Hence `item_action_attrs`, the shared router
+    #: of the four components in that case.
     EVENTS: ClassVar[tuple[str, ...]] = ("item_click",)
-    #: Le composant possède la boucle : il reçoit ``rows`` puis les
-    #: parcourt lui-même, et ``Datatable`` y ajoute recherche, tri et
-    #: pagination. L'auteur n'a donc AUCUN endroit où écrire son
-    #: balisage — d'où ``ui.column(render=)``, seul point d'entrée
-    #: possible. Cf. ``Component.COLLECTION_OWNER``.
+    #: The component owns the loop: it receives ``rows`` then walks
+    #: them itself, and ``Datatable`` adds search, sort and pagination to
+    #: it. The author therefore has NOWHERE to write their markup —
+    #: hence ``ui.column(render=)``, the only possible entry point. Cf.
+    #: ``Component.COLLECTION_OWNER``.
     COLLECTION_OWNER: ClassVar[str | None] = "component"
     # The TRUE root is the scroll-container ``<div>`` (a ``<table>`` can't
     # scroll its own overflow) ; the ``<table>`` is a structural inner
@@ -247,7 +248,7 @@ class Table(Component):
         head_render: Callable[[Column], Any] | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(size=size, color=color, **kwargs)
         self._columns = list(columns)
         self._head_render = head_render
@@ -299,22 +300,22 @@ class Table(Component):
         no positional bookkeeping.
         """
         raw_key = self._row_identity(row, index)
-        # Les trois formes d'un `on_*`, par le routeur partagé. Ce site
-        # n'acceptait qu'un callable : une chaîne d'expression cliente y
-        # levait un `TypeError` remonté nu de `functools.partial`.
+        # The three shapes of an `on_*`, through the shared router.
+        # This site accepted only a callable: a client expression string
+        # raised a `TypeError` surfaced bare from `functools.partial`.
         attrs = item_action_attrs(
             self._item_click,
             event="item_click",
             bind=lambda fn: functools.partial(fn, raw_key),
             owner_id=self.id,
             ctx=current_context(),
-            # L'event DÉCLARÉ est `item_click`, celui du DOM est `click` :
-            # sans le dire, la part cliente écouterait un event que rien
-            # ne dispatche.
+            # The DECLARED event is `item_click`, the DOM's is `click`:
+            # without saying so, the client part would listen for an
+            # event nothing dispatches.
             dom_event="click",
             guard=_ROW_CLICK_GUARD,
-            # `debounce=` / `throttle=` : le socle ne les
-            # applique qu'à l'action de la RACINE.
+            # `debounce=` / `throttle=`: the base layer applies them
+            # only to the ROOT's action.
             modifier=self._trigger_modifier,
         )
         attrs["role"] = "button"
@@ -416,10 +417,10 @@ class Table(Component):
                     children=children,
                 )
             )
-        # Teinte d'en-tête : le palier de fond. Le ``<thead>`` descend
-        # de la racine, donc il hérite du pont que le socle y a posé —
-        # rien à redire ici. (C'était ``bg-<color>/5`` ; le palier vaut
-        # 10 %, cf. le collapse voulu de la phase 3.)
+        # Header tint: the background step. The ``<thead>`` descends
+        # from the root, so it inherits the bridge the base layer set
+        # there — nothing to say here. (It was ``bg-<color>/5``; the step
+        # is 10 %, cf. phase 3's intended collapse.)
         head_class = " ".join(
             p for p in (slots.get("head", ""), "bg-(--bz-bg)") if p
         )
@@ -447,22 +448,20 @@ class Table(Component):
                 if self._has_natural_key()
                 else self._rows
             )
-            # ...et la table pousse SA propre identité au-dessus de celle
-            # des lignes. Sans ce segment, un composant né dans un
-            # ``render=`` de cellule n'a AUCUN parent sur la pile (il est
-            # construit pendant le rendu, hors de tout ``with``), donc son
-            # id vaut ``root_<kind>_<clé de ligne>`` — et deux tables
-            # montrant les mêmes lignes répètent exactement la même suite.
-            # Mesuré sur ``/datatable`` du playground : NEUF éléments
-            # portaient ``root_dropdown_100``, un par tableau affichant la
-            # ligne d'id 100.
+            # …and the table pushes ITS own identity above the rows'.
+            # Without that segment, a component born in a cell's
+            # ``render=`` has NO parent on the stack (it is built during
+            # the render, outside any ``with``), so its id is
+            # ``root_<kind>_<row key>`` — and two tables showing the same
+            # rows repeat exactly the same sequence. Measured on the
+            # playground's ``/datatable``: NINE elements carried
+            # ``root_dropdown_100``, one per table showing row id 100.
             #
-            # ``bz-id`` est la clé de DEUX mécanismes — celle par laquelle
-            # idiomorph apparie les nœuds après un swap, et celle par
-            # laquelle ``scope.absorb`` retrouve un scope client. Neuf
-            # candidats pour une cible, c'est un menu qui s'ouvre à la
-            # place d'un autre et un sous-arbre remplacé au lieu d'être
-            # fusionné. Gardé par ``test_no_duplicate_bz_id.py``.
+            # ``bz-id`` is the key of TWO mechanisms — the one idiomorph
+            # pairs nodes by after a swap, and the one ``scope.absorb``
+            # finds a client scope by. Nine candidates for one target is
+            # a menu that opens instead of another and a subtree replaced
+            # instead of merged. Guarded by ``test_no_duplicate_bz_id.py``.
             with key_segment(self.id):
                 for index, row in enumerate(row_iter):
                     cells: list[Node] = []
@@ -556,16 +555,16 @@ class Table(Component):
         when given, else an auto :class:`EmptyState` from the
         ``empty_text`` / ``empty_icon`` / ``empty_description`` props.
 
-        Les deux branches passent par ``coerce_children`` — c'est la MÊME
-        normalisation que celle des cellules, et elle était recopiée ici.
-        Deux effets, mesurés le 2026-08-18 :
+        Both branches go through ``coerce_children`` — it is the SAME
+        normalisation as the cells', and it was copied here. Two effects,
+        measured on 2026-08-18:
 
-        - un ``empty=`` qui rend ``None`` donnait la chaîne ``"None"``
-          dans la cellule (la copie tombait dans son ``str(result)``) ;
-          il donne maintenant une cellule vide ;
-        - le détachement avait deux propriétaires, donc la gate
-          ``test_render_hatch_universal`` restait verte sur ``empty=``
-          quand on débranchait celui du socle."""
+        - an ``empty=`` that returns ``None`` gave the string ``"None"``
+          in the cell (the copy fell into its ``str(result)``); it now
+          gives an empty cell;
+        - the detachment had two owners, so the
+          ``test_render_hatch_universal`` gate stayed green on ``empty=``
+          when the base layer's was unplugged."""
         if self._empty is not None:
             return coerce_children(self._empty())
         return coerce_children(

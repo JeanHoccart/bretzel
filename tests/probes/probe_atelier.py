@@ -40,8 +40,8 @@ def le_rythme(p: Probe, a: Window) -> None:
     print("\n① Le rythme")
     a.goto("/")
 
-    p.check("le titre est rendu", a.has("text=Le rythme"))
-    p.check("la règle des cycles est dite", a.has("text=cycles de vérification"))
+    p.check("le titre est rendu", a.has("text=The rhythm"))
+    p.check("la règle des cycles est dite", a.has("text=verification cycles"))
 
     # Les quatre compteurs du haut. Une app branchée sur une base vide
     # rendrait la même page avec des zéros : on exige du non-nul.
@@ -61,7 +61,7 @@ def le_rythme(p: Probe, a: Window) -> None:
 
     # ⚠️ La frise n'est plus UN texte : c'est une lettre par élément,
     # chacune peinte par sa phase. Le constat vise donc la structure — un
-    # `text=/[LÉVC] [LÉVC]/` marchait quand les lettres étaient collées
+    # `text=/[RWVD] [RWVD]/` marchait quand les lettres étaient collées
     # dans une chaîne, et il est devenu faux le jour où la couleur est
     # arrivée, sans que l'app ait rien perdu.
     lettres = a.page.evaluate(
@@ -69,7 +69,7 @@ def le_rythme(p: Probe, a: Window) -> None:
         r" return c ? c.innerText.replace(/\s+/g, '') : ''; }"
     )
     p.check("la frise rend ses lettres",
-            bool(lettres) and all(ch in "LÉVC·…" for ch in lettres), lettres)
+            bool(lettres) and all(ch in "RWVD·…" for ch in lettres), lettres)
 
     couleurs = a.page.evaluate(
         "() => new Set([...document.querySelectorAll("
@@ -79,7 +79,7 @@ def le_rythme(p: Probe, a: Window) -> None:
     p.check("et elles sont PEINTES par leur phase", couleurs >= 2, couleurs)
 
     p.check("la légende de la frise est sur CET écran",
-            a.has("text=lire et comprendre"))
+            a.has("text=read and understand"))
 
 
 def la_table_trie(p: Probe, a: Window) -> None:
@@ -94,13 +94,17 @@ def la_table_trie(p: Probe, a: Window) -> None:
     avant = a.text("tbody tr")
 
     with p.requests() as net:
-        a.click("th:has-text('Appels')")
+        a.click("th:has-text('Calls')")
 
     apres = a.text("tbody tr")
     p.check("le tri atteint le serveur", net.total >= 1, net.urls)
     p.check("et la première ligne a changé", avant != apres,
             f"{avant[:40]!r} inchangée")
-    p.check("l'adresse porte le tri", "tri=" in a.page.url, a.page.url)
+    # ``sort`` et pas ``tri`` : le nom du paramètre est celui que le
+    # FRAMEWORK déclare (``DatatableState.sort_key``, ``url="sort"``), pas
+    # une traduction. Le constat visait ``tri=`` et ne pouvait donc que
+    # rougir — il l'a fait en silence jusqu'au 2026-09-20.
+    p.check("l'adresse porte le tri", "sort=" in a.page.url, a.page.url)
 
 
 def la_frise(p: Probe, a: Window) -> None:
@@ -108,7 +112,7 @@ def la_frise(p: Probe, a: Window) -> None:
     print("\n③ La frise d'une tâche")
     # ⚠️ On CLIQUE la première ligne, on ne fabrique pas ``/tache/1``.
     # Deux raisons, et les deux ont mordu le 2026-09-12 : les écrans ne
-    # lisent que les tâches de l'époque (`core/epoque`), donc l'id 1 rend
+    # lisent que les tâches de l'époque (`core/era`), donc l'id 1 rend
     # « n'existe pas » ; et un probe qui tape l'adresse n'emprunte pas le
     # chemin de l'utilisateur — c'est ce qui a laissé passer un clic de
     # ligne qui rendait 500, puis une navigation qui repeignait tout.
@@ -120,8 +124,8 @@ def la_frise(p: Probe, a: Window) -> None:
         a.click("tbody tr:first-child a")
     p.settle()
 
-    p.check("la tâche existe et se rend", not a.has("text=n'existe pas"))
-    p.check("le clic a bien ouvert une fiche", "/tache/" in a.page.url,
+    p.check("la tâche existe et se rend", not a.has("text=does not exist"))
+    p.check("le clic a bien ouvert une fiche", "/task/" in a.page.url,
             a.page.url)
     # ⚠️ LE test de la coque. Sans lui, le défaut est invisible : la
     # bonne page s'affiche, à la bonne adresse — simplement la barre
@@ -130,19 +134,19 @@ def la_frise(p: Probe, a: Window) -> None:
     p.check("la coque a survécu — pas de rechargement complet",
             a.page.evaluate("window.__coque === 1"))
     p.check("une navigation = une requête", net.total == 1, net.urls)
-    p.check("la légende des phases est là", a.has("text=lire et comprendre"))
-    appels = a.count("text=/^(lecture|ecriture|verification|livraison|autre)$/")
+    p.check("la légende des phases est là", a.has("text=read and understand"))
+    appels = a.count("text=/^(reading|writing|verifying|delivering|other)$/")
     p.check("les appels sont listés avec leur phase", appels > 0, appels)
 
-    a.goto("/tache/999999")
+    a.goto("/task/999999")
     p.check("une tâche absente le DIT au lieu de rendre du vide",
-            a.has("text=n'existe pas"))
+            a.has("text=does not exist"))
 
 
 def les_outils(p: Probe, a: Window) -> None:
     """④ La couche 7 : est-ce qu'elle sert ?"""
     print("\n④ Les outils")
-    a.goto("/outils")
+    a.goto("/tools")
 
     for nom in ("describe", "check", "probe"):
         p.check(f"`{nom}` a sa carte", a.has(f"text={nom}"))
@@ -156,7 +160,7 @@ def les_phases(p: Probe, a: Window) -> None:
 
     barres = a.count("[role=progressbar], progress")
     p.check("chaque phase a sa barre", barres >= 4, barres)
-    p.check("la part non classée est montrée", a.has("text=autre"))
+    p.check("la part non classée est montrée", a.has("text=other"))
 
 
 #: ⚠️ UN probe PAR scénario, et pas une boucle dans un seul.

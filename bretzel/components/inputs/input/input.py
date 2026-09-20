@@ -152,7 +152,7 @@ class Input(Component):
                     f"{sorted(self.ALLOWED_TYPES)!r}."
                 )
 
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             type=type, name=name, placeholder=placeholder,
             value=value, disabled=disabled, readonly=readonly,
@@ -177,17 +177,16 @@ class Input(Component):
         self._suffix = Component.adopt_slot(suffix)
         self._icon_left = Component.adopt_slot(icon_left, icon_shortcut=True)
         self._icon_right = Component.adopt_slot(icon_right, icon_shortcut=True)
-        # Design-time, donc un attribut d'instance et pas un
-        # ``reactive_prop`` : rien côté client ne bascule un champ entre
-        # effaçable et non-effaçable.
+        # Design-time, so an instance attribute and not a
+        # ``reactive_prop``: nothing on the client side switches a field
+        # between clearable and not clearable.
         #
-        # Défaut ``False``, à REBOURS des cinq pickers qui l'ont à
-        # ``True``. Ce n'est pas une incohérence : la valeur d'un picker
-        # est formatée (``2026-08-07``, ``09:30``) et pénible à effacer à
-        # la main, alors qu'un champ de texte libre se vide au clavier.
-        # Mettre une croix sur CHAQUE input de chaque application serait
-        # un changement global pour un gain qui n'existe que sur les
-        # champs de recherche.
+        # Default ``False``, the OPPOSITE of the five pickers, which have
+        # it at ``True``. It is not an inconsistency: a picker's value is
+        # formatted (``2026-08-07``, ``09:30``) and tedious to clear by
+        # hand, whereas a free-text field empties from the keyboard.
+        # Putting a cross on EVERY input of every application would be a
+        # global change for a gain that only exists on search fields.
         self._clearable = bool(clearable)
 
     # ── Imperative write-only API ─────────────────────────────────────
@@ -232,28 +231,28 @@ class Input(Component):
         return self._render_simple(size_map, has_icon)
 
     def _clear_button(self, size_map: dict[str, str]) -> Element:
-        """Le ``×`` — visible seulement quand il y a quelque chose à effacer.
+        """The ``×`` — visible only when there is something to clear.
 
-        **Sa visibilité est du CSS pur** (``peer-placeholder-shown:hidden``
-        dans le slot), pas un ``bz-show``. C'est ce qui permet d'ajouter
-        l'affordance sans toucher au scope de valeur : celui-ci vit sur
-        l'``<input>`` (cf. ``add_local_value_scope``), où il porte le
-        ``bz-id`` stable qui fait survivre le texte tapé à un morph — et
-        un frère de l'``<input>`` ne peut de toute façon pas le lire.
+        **Its visibility is pure CSS** (``peer-placeholder-shown:hidden``
+        in the slot), not a ``bz-show``. It is what allows adding the
+        affordance without touching the value scope: that lives on the
+        ``<input>`` (cf. ``add_local_value_scope``), where it carries the
+        stable ``bz-id`` that makes the typed text survive a morph — and
+        a sibling of the ``<input>`` cannot read it anyway.
 
-        **Le clic passe par les mêmes ÉVÉNEMENTS qu'une frappe humaine.**
-        Écrire ``.value = ''`` ne suffit pas : ``bz-model`` s'abonne à
-        ``input`` (cf. ``02_directives.js``), donc sans ce dispatch le
-        signal garderait l'ancien texte et le réécrirait au prochain
-        tick ; et un handler serveur écoute ``change``, que le DOM
-        n'émet pas non plus pour une écriture programmée. Les deux
-        événements partent donc, dans cet ordre, et tout suit — binding,
-        scope local, ou input nu.
+        **The click goes through the same EVENTS as a human keystroke.**
+        Writing ``.value = ''`` is not enough: ``bz-model`` subscribes to
+        ``input`` (cf. ``02_directives.js``), so without this dispatch
+        the signal would keep the old text and rewrite it at the next
+        tick; and a server handler listens for ``change``, which the DOM
+        does not emit either for a programmatic write. Both events
+        therefore fire, in that order, and everything follows — binding,
+        local scope, or bare input.
 
-        La traversée est locale (``$el.parentElement``) plutôt qu'un
-        ``bz-ref`` : une ref s'enregistre dans le scope le plus proche,
-        et un input sans scope irait polluer le ``rootScope`` partagé où
-        deux champs de la même page s'écraseraient.
+        The traversal is local (``$el.parentElement``) rather than a
+        ``bz-ref``: a ref registers in the nearest scope, and an input
+        with no scope would go and pollute the shared ``rootScope`` where
+        two fields of the same page would overwrite each other.
         """
         return icon_button(
             icon="x",
@@ -297,10 +296,10 @@ class Input(Component):
                 size_map.get("icon_pad_right", "")
                 if (self._icon_right is not None or self._clearable)
                 else "",
-                # ``peer`` : c'est LUI que le ``×`` interroge via
-                # ``peer-placeholder-shown``. Sans le marqueur sur
-                # l'input, le sélecteur du bouton ne trouve rien et la
-                # croix reste visible sur un champ vide.
+                # ``peer``: it is IT the ``×`` interrogates through
+                # ``peer-placeholder-shown``. Without the marker on the
+                # input, the button's selector finds nothing and the
+                # cross stays visible on an empty field.
                 "peer" if self._clearable else "",
             )
             if p
@@ -308,10 +307,11 @@ class Input(Component):
 
         input_attrs = self.emit_attrs()
         input_attrs["class"] = input_class
-        # ``:placeholder-shown`` ne matche QUE si l'attribut existe : sans
-        # placeholder, le sélecteur du ``×`` ne trouve jamais rien et la
-        # croix resterait affichée sur un champ vide — l'inverse exact de
-        # ce qu'elle promet. Une espace suffit et ne peint rien.
+        # ``:placeholder-shown`` only matches if the attribute exists:
+        # with no placeholder, the ``×``'s selector never finds anything
+        # and the cross would stay shown on an empty field — the exact
+        # opposite of what it promises. A single space is enough and
+        # paints nothing.
         if self._clearable and not input_attrs.get("placeholder"):
             input_attrs["placeholder"] = " "
         self._bind_x_model(input_attrs)
@@ -338,7 +338,7 @@ class Input(Component):
         children.append(input_el)
         if self._icon_right is not None:
             children.append(self._slot_element("icon_right", self._icon_right))
-        # APRÈS l'input : ``peer-*`` ne regarde qu'un frère PRÉCÉDENT.
+        # AFTER the input: ``peer-*`` only looks at a PRECEDING sibling.
         if self._clearable:
             children.append(self._clear_button(size_map))
 
@@ -374,10 +374,11 @@ class Input(Component):
 
         input_attrs = self.emit_attrs()
         input_attrs["class"] = input_inner_class
-        # ``:placeholder-shown`` ne matche QUE si l'attribut existe : sans
-        # placeholder, le sélecteur du ``×`` ne trouve jamais rien et la
-        # croix resterait affichée sur un champ vide — l'inverse exact de
-        # ce qu'elle promet. Une espace suffit et ne peint rien.
+        # ``:placeholder-shown`` only matches if the attribute exists:
+        # with no placeholder, the ``×``'s selector never finds anything
+        # and the cross would stay shown on an empty field — the exact
+        # opposite of what it promises. A single space is enough and
+        # paints nothing.
         if self._clearable and not input_attrs.get("placeholder"):
             input_attrs["placeholder"] = " "
         self._bind_x_model(input_attrs)
@@ -397,11 +398,11 @@ class Input(Component):
         children.append(input_el)
         if self._suffix is not None:
             children.append(self._slot_element("suffix", self._suffix))
-        # APRÈS l'input : ``peer-*`` ne regarde qu'un frère PRÉCÉDENT.
-        # Ici le cadre vit sur l'enveloppe (pas sur l'input), donc le
-        # ``×`` s'y positionne de la même façon — ``absolute right-3``
-        # sur un parent qui n'est pas ``relative`` retomberait sur le
-        # premier ancêtre positionné.
+        # AFTER the input: ``peer-*`` only looks at a PRECEDING sibling.
+        # Here the frame lives on the wrapper (not on the input), so the
+        # ``×`` positions itself there the same way — ``absolute
+        # right-3`` on a parent that is not ``relative`` would fall back
+        # on the first positioned ancestor.
         if self._clearable:
             children.append(self._clear_button(size_map))
 

@@ -2,34 +2,33 @@
 
 The broker is the single point through which ``_publish_broadcast`` → ``broker.publish``
 fans out a "state X is dirty" signal to every browser tab currently
-viewing a zone that subscribed to X. Two responsibilities :
+viewing a zone that subscribed to X. Two responsibilities:
 
 1. **Subscription bookkeeping** — at page render time, each
    ``@refreshable(deps=[State], broadcast=[State])`` zone records itself
    against the request's session_id +
    ``State.__module__::State.__qualname__`` identifier. Re-renders
-   refresh the bookkeeping ; idle sessions age out via TTL.
+   refresh the bookkeeping; idle sessions age out via TTL.
 
-   ⚠️ Cette ligne annonçait un décorateur ``@app.subscribe(State)``
-   jusqu'au 2026-08-15, avec une cross-ref vers
-   ``bretzel.render.decorators.subscribe`` — **un module supprimé en
-   Phase 6**. Il n'y a **qu'une** façon de s'abonner : ``broadcast=[State]``
-   sur une zone refreshable. Le coût de l'écart n'était pas la ligne
-   fausse, c'est qu'elle faisait croire à deux APIs concurrentes pour un
-   seul mécanisme, dans un dépôt dont le principe 4 est « une seule
-   manière de faire chaque chose ».
+   ⚠️ This line announced an ``@app.subscribe(State)`` decorator until
+   2026-08-15, with a cross-reference to
+   ``bretzel.render.decorators.subscribe`` — **a module deleted in Phase
+   6**. There is **only one** way to subscribe: ``broadcast=[State]`` on
+   a refreshable zone. The cost of the gap was not the false line, it is
+   that it suggested two competing APIs for one mechanism, in a
+   repository whose principle 4 is "one single way to do each thing".
 
 2. **Event dispatch** — :meth:`publish` walks the subscribers for the
    target State and pushes a tiny ``state-dirty`` SSE event onto each
    one's queue. The HTTP route ``/_bretzel/sse`` drains the queue and
    formats it into the wire format the browser's ``EventSource``
-   expects. The **payload is empty** : the runtime, on receiving the
+   expects. The **payload is empty**: the runtime, on receiving the
    event, fires an HTTP GET against ``/_bretzel/realtime/<state>/<zone>``
    to re-render the zone in the **client's own RenderContext** — auth
    cookies and everything else come along naturally. No data ever
    travels through the SSE pipe except the State identifier.
 
-**Scaling.** Two implementations behind the :class:`SSEBroker` protocol :
+**Scaling.** Two implementations behind the :class:`SSEBroker` protocol:
 the in-process :class:`MemoryBroker` (single process — subscriber state
 lives on the worker that rendered the page) and the :class:`RedisBroker`,
 which fans the ``state-dirty`` signal across workers over a Redis Pub/Sub
@@ -43,7 +42,7 @@ when ``workers>1``).
 **Backpressure.** Each connection's queue is bounded
 (:data:`_MAX_QUEUE_CHUNKS`, drop-oldest) and each session is capped to
 :data:`_MAX_CONNS_PER_SESSION` tabs (oldest evicted) so a slow consumer
-or a tab-spamming client can't pin unbounded memory. NOT yet bounded :
+or a tab-spamming client can't pin unbounded memory. NOT yet bounded:
 the GLOBAL connection/session count — a genuine flood still needs a
 front-door limit (tracked separately).
 
@@ -123,11 +122,11 @@ class SSEBroker(Protocol):
 
     def publish(self, state_qualname: str, *, except_tab: str = "") -> None:
         """Push a ``state-dirty`` signal to every CONNECTION subscribed
-        to ``state_qualname`` (one per open tab). Returns immediately ;
+        to ``state_qualname`` (one per open tab). Returns immediately;
         delivery is async via per-connection queues.
 
-        ``except_tab`` saute l'onglet qui vient d'écrire — il a déjà reçu
-        ses zones dans la réponse de son action.
+        ``except_tab`` skips the tab that has just written — it already
+        received its zones in its action's response.
         """
         ...
 
@@ -165,9 +164,9 @@ class MemoryBroker:
         # other down on reconnect. ``asyncio.Queue`` (not ``deque``) lets
         # the connect-loop await new items without a polling sleep.
         self._queues: dict[int, asyncio.Queue[str]] = {}
-        # connection_id → l'identité d'ONGLET annoncée à l'ouverture du
-        # flux. Sert uniquement à s'exclure soi-même d'une diffusion
-        # (cf. ``publish``). Absente = onglet muet, aucune exclusion.
+        # connection_id → the TAB identity announced when the stream
+        # opened. It serves only to exclude oneself from a broadcast
+        # (cf. ``publish``). Absent = a mute tab, no exclusion.
         self._conn_tabs: dict[int, str] = {}
         # session_id → the live connection ids opened by that session's
         # tabs. ``publish`` fans a session's signal to every one of them.
@@ -191,10 +190,10 @@ class MemoryBroker:
         """Open a stream for one tab of ``session_id`` and yield
         wire-format events as they arrive on this connection's queue.
 
-        ``tab_id`` est l'identité que le navigateur tire par chargement de
-        page. Elle sert à :meth:`publish` pour EXCLURE l'onglet qui vient
-        d'écrire : il a déjà reçu ses zones dans la réponse de son action.
-        Vide = pas d'exclusion possible, comportement d'avant.
+        ``tab_id`` is the identity the browser draws per page load. It
+        serves :meth:`publish` to EXCLUDE the tab that has just written:
+        it already received its zones in its action's response. Empty =
+        no exclusion possible, the previous behaviour.
 
         First yields a small comment line so the browser's EventSource
         transitions from CONNECTING to OPEN before the first publish —
@@ -374,15 +373,15 @@ class MemoryBroker:
         re-fetches the affected zone over HTTP so the re-render runs in
         the right per-client context.
 
-        ``except_tab`` saute l'onglet qui vient d'écrire. Il a déjà reçu
-        ses zones dans la réponse de son action, donc sa re-lecture
-        renvoie exactement ce qu'il affiche : un aller-retour PAR ZONE
-        pour un rendu identique. Mesuré sur ``examples/kanban`` avant
-        l'exclusion — cocher une sous-tâche coûtait cinq requêtes et
-        354 Ko, dont 177 Ko de re-lectures.
+        ``except_tab`` skips the tab that has just written. It already
+        received its zones in its action's response, so its re-read
+        returns exactly what it is displaying: one round trip PER ZONE
+        for an identical render. Measured on ``examples/kanban`` before
+        the exclusion — ticking a subtask cost five requests and 354 KB,
+        of which 177 KB were re-reads.
 
-        ⚠️ On exclut l'ONGLET, pas la session. Deux onglets de la même
-        personne doivent continuer à se voir.
+        ⚠️ We exclude the TAB, not the session. Two tabs of the same
+        person must keep seeing each other.
         """
         if not state_qualname:
             return
@@ -414,7 +413,7 @@ class RedisBroker:
     load balancer) the mutation that dirties a State often lands on a
     *different* worker than the one streaming to a given tab. The
     in-process :class:`MemoryBroker` never sees it. This broker closes the
-    gap : each worker keeps its OWN subscriber/queue bookkeeping (a private
+    gap: each worker keeps its OWN subscriber/queue bookkeeping (a private
     ``MemoryBroker``) and only the tiny ``state_qualname`` string crosses
     workers, over one shared Redis Pub/Sub channel.
 
@@ -431,7 +430,7 @@ class RedisBroker:
     direct-local shortcut is what keeps the publishing worker from
     double-delivering to its own tabs.
 
-    **Loss model.** Pub/Sub is fire-and-forget : a worker not connected at
+    **Loss model.** Pub/Sub is fire-and-forget: a worker not connected at
     the instant of a publish misses the signal. That's acceptable here —
     ``state-dirty`` is idempotent (the tab refetches its zone), and a
     freshly (re)connected tab re-renders from scratch anyway, so no state
@@ -482,7 +481,7 @@ class RedisBroker:
     # ── Publish : cross-worker via Redis Pub/Sub ──────────────────────
 
     def publish(self, state_qualname: str, *, except_tab: str = "") -> None:
-        """PUBLISH the signal to the shared channel. Returns immediately ;
+        """PUBLISH the signal to the shared channel. Returns immediately;
         every worker's listener (this one included) does the local fanout.
 
         Must be called from within the running event loop — the framework
@@ -490,11 +489,11 @@ class RedisBroker:
         fired as a background task so this stays non-blocking, matching the
         :class:`SSEBroker` contract.
 
-        ``except_tab`` voyage AVEC le signal, séparé par une tabulation :
-        l'onglet à exclure peut tenir sa connexion sur un autre worker que
-        celui qui publie, donc l'exclusion ne peut pas être appliquée
-        ici. Une tabulation ne peut pas apparaître dans un qualname Python
-        ni dans un identifiant d'onglet, qui est hexadécimal.
+        ``except_tab`` travels WITH the signal, separated by a tab
+        character: the tab to exclude may hold its connection on a
+        different worker from the publishing one, so the exclusion cannot
+        be applied here. A tab character cannot appear in a Python
+        qualname nor in a tab identifier, which is hexadecimal.
         """
         if not state_qualname:
             return

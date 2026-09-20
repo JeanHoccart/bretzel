@@ -1,46 +1,46 @@
-"""``ColorPicker`` — champ de couleur avec panneau de pastilles.
+"""``ColorPicker`` — colour field with a swatch panel.
 
 Usage ::
 
     ui.color_picker(value=state.brand)
 
-**La valeur est une chaîne hexadécimale** — ``"#2f5fd0"``. C'est ce
-qu'attend un ``Theme(semantic=…)``, ce qu'une form data transporte tel
-quel, et ce qui se relit dans le champ. Une chaîne vide veut dire « pas
-de couleur », comme partout ailleurs dans la famille input.
+**The value is a hexadecimal string** — ``"#2f5fd0"``. It is what a
+``Theme(semantic=…)`` expects, what a form data carries as is, and what
+reads back in the field. An empty string means "no colour", as
+everywhere else in the input family.
 
-Pourquoi pas ``<input type="color">``
---------------------------------------
+Why not ``<input type="color">``
+---------------------------------
 
-``ui.input`` le REFUSE, et ce composant est ce que son message
-recommande. Un sélecteur natif n'est pas thématisable et change d'allure
-entre Chrome, Safari et Android — c'est la même leçon que la scrollbar
-du Carousel et que ``<input type="time">``. S'y ajoute ici une raison
-propre à Bretzel : le natif ne peut pas proposer **la palette du thème**,
-qui est précisément ce qu'on veut choisir neuf fois sur dix.
+``ui.input`` REFUSES it, and this component is what its message
+recommends. A native picker is not themable and changes look between
+Chrome, Safari and Android — it is the same lesson as the Carousel's
+scrollbar and ``<input type="time">``. Here there is an added reason
+specific to Bretzel: the native one cannot offer **the theme's
+palette**, which is precisely what one wants to choose nine times out of
+ten.
 
-Ce que le panneau propose
---------------------------
+What the panel offers
+----------------------
 
-Les couleurs NOMMÉES du thème actif, résolues en hexadécimal (les 31 de
-la palette livrée par défaut). Pas les onze slots sémantiques : eux sont
-la structure qu'on est en train d'éditer, les proposer comme valeur
-serait circulaire.
+The active theme's NAMED colours, resolved to hexadecimal (the 31 of the
+palette shipped by default). Not the eleven semantic slots: those are
+the structure being edited, offering them as a value would be circular.
 
-⚠️ **Il n'y a pas de ``swatches=``**, et c'est délibéré. Une app qui veut
-sa charte la déclare une fois — ``Theme(palette={"brand": "#..."})`` — et
-TOUS ses pickers la proposent. Un paramètre par instance serait une
-seconde manière de faire la même chose, et il ferait diverger deux
-pickers de la même app sans que rien ne le dise. Il rendrait aussi ce
-composant « propriétaire d'une collection » sans avoir de balisage à
-déléguer, ce qui n'est aucun des trois cas de ``COLLECTION_OWNER``.
+⚠️ **There is no ``swatches=``**, and it is deliberate. An app that
+wants its brand declares it once — ``Theme(palette={"brand": "#..."})``
+— and ALL its pickers offer it. A per-instance parameter would be a
+second way of doing the same thing, and it would make two pickers of the
+same app diverge with nothing saying so. It would also make this
+component "owner of a collection" without having markup to delegate,
+which is none of ``COLLECTION_OWNER``'s three cases.
 
-Le champ reste libre : n'importe quel hexadécimal se tape à la main, et
-c'est ce qui évite qu'une grille de pastilles devienne une prison.
+The field stays free: any hexadecimal can be typed by hand, and that is
+what stops a grid of swatches becoming a prison.
 
-Form integration : ``names_field=True`` sur ``value`` dérive le ``name``
-HTML ; un ``<input type="hidden">`` porte la couleur dans la form data.
-Idiome partagé avec DatePicker / TimePicker / Calendar.
+Form integration : ``names_field=True`` on ``value`` derives the HTML
+``name``; an ``<input type="hidden">`` carries the colour in the form
+data. Idiom shared with DatePicker / TimePicker / Calendar.
 """
 
 from __future__ import annotations
@@ -72,9 +72,9 @@ from bretzel.core.escape import RawAttrValue
 from bretzel.core.tree import Element, Node
 from bretzel.render import text
 
-#: Le repli quand aucun contexte de rendu n'est actif (un banc, un test
-#: unitaire) : on ne peut pas lire la palette de l'app, et un panneau vide
-#: serait pire qu'une liste courte.
+#: The fallback when no render context is active (a bench, a unit
+#: test): we cannot read the app's palette, and an empty panel would be
+#: worse than a short list.
 _FALLBACK_SWATCHES: tuple[str, ...] = (
     "#8b8d98", "#e54d2e", "#e5484d", "#e93d82", "#d6409f",
     "#8e4ec6", "#6e56cf", "#3e63dd", "#0090ff", "#00a2c7",
@@ -84,19 +84,19 @@ _FALLBACK_SWATCHES: tuple[str, ...] = (
 
 
 def hex_or_empty(value: Any, *, owner: str = "ColorPicker") -> str:
-    """Coercer une valeur de couleur vers ``"#rrggbb"`` ou ``""``.
+    """Coerce a colour value to ``"#rrggbb"`` or ``""``.
 
-    ``None`` → ``""`` (champ vide) ; une chaîne passe. Tout le reste est
-    une erreur d'usage, levée avec ``owner`` dans le message pour que
-    l'auteur voie QUI a refusé — **même contrat que ``time_to_hhmm`` et
-    ``date_to_iso``**, délibérément.
+    ``None`` → ``""`` (empty field); a string passes. Everything else is
+    a usage error, raised with ``owner`` in the message so the author
+    sees WHO refused — **same contract as ``time_to_hhmm`` and
+    ``date_to_iso``**, deliberately.
 
-    ⚠️ Une chaîne non hexadécimale n'est PAS refusée, et c'est un choix.
-    Le champ est éditable : l'utilisateur tape forcément des états
-    intermédiaires (``"#2f"``), et la graine SSR d'un appelant peut être
-    n'importe quoi. Refuser à la construction déplacerait l'erreur au
-    mauvais endroit — c'est le rendu qui montre une pastille vide, et ça
-    se lit. Les trois pickers de date raisonnent pareil.
+    ⚠️ A non-hexadecimal string is NOT refused, and it is a choice. The
+    field is editable: the user necessarily types intermediate states
+    (``"#2f"``), and a caller's SSR seed can be anything. Refusing at
+    construction would move the error to the wrong place — it is the
+    render that shows an empty swatch, and that reads. The three date
+    pickers reason alike.
     """
     from bretzel.components.base.attrs import ComponentDefinitionError
 
@@ -105,8 +105,8 @@ def hex_or_empty(value: Any, *, owner: str = "ColorPicker") -> str:
     if isinstance(value, str):
         return value
     raise ComponentDefinitionError(
-        f"{owner}(value={value!r}) : type {type(value).__name__} non "
-        "supporté. Attendu une chaîne hexadécimale ou None."
+        f"{owner}(value={value!r}): type {type(value).__name__} not "
+        "supported. Expected a hexadecimal string or None."
     )
 
 
@@ -117,10 +117,10 @@ class ColorPicker(Component):
     THEME_KEY: ClassVar[str] = "color_picker"
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
-    #: Un picker est les DEUX natures à la fois : un panneau ancré
-    #: (comme `dialog`) et un champ qui porte une valeur (comme
-    #: `input`). Sa surface est donc l'union des deux vocabulaires
-    #: déjà fixés par ses voisins — rien d'inventé ici.
+    #: A picker is BOTH natures at once: an anchored panel (like
+    #: `dialog`) and a field carrying a value (like `input`). Its surface
+    #: is therefore the union of the two vocabularies already fixed by
+    #: its neighbours — nothing invented here.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
@@ -130,10 +130,10 @@ class ColorPicker(Component):
     value: Any = reactive_prop(
         default=None, writes=True, names_field=True
     )
-    # ``emit_attr=False`` : la racine est un ``<div>`` wrapper, où
-    # ``disabled`` ne fait RIEN. Le binding est forwardé à la main sur les
-    # trois porteurs réels (champ, ×, déclencheur) — même raison et même
-    # gate que TimePicker (``test_binding_lands_on_carrier``).
+    # ``emit_attr=False``: the root is a wrapper ``<div>``, where
+    # ``disabled`` does NOTHING. The binding is forwarded by hand onto
+    # the three real carriers (field, ×, trigger) — same reason and same
+    # gate as TimePicker (``test_binding_lands_on_carrier``).
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -163,24 +163,24 @@ class ColorPicker(Component):
             on_change=on_change, on_focus=on_focus, on_blur=on_blur,
             **kwargs,
         )
-        # APRÈS `super().__init__` : les deux installeurs lisent
-        # `_binding_metadata`, qui n'est peuplé qu'à ce moment-là.
+        # AFTER `super().__init__`: both installers read
+        # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ PAS `"input"` : le premier `<input>` d'un picker est le
-        # porteur CACHÉ (`hidden_carrier`), qui ne prend pas le
-        # focus. Mesuré — `.focus()` ne faisait rien sur les six.
+        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
+        # carrier (`hidden_carrier`), which does not take focus.
+        # Measured — `.focus()` did nothing on all six.
         install_value_commands(
             self, focus_selector="input:not([type=hidden])"
         )
 
-    # ── Les deux formes de l'expression de valeur ────────────────────
+    # ── The two shapes of the value expression ───────────────────────
 
     def _palette_swatches(self) -> tuple[str, ...]:
-        """Les couleurs proposées — celles du THÈME, et rien d'autre.
+        """The offered colours — the THEME's, and nothing else.
 
-        Hors contexte de rendu on ne peut pas lire la palette : on rend le
-        repli plutôt qu'un panneau vide. Un banc qui construit le composant
-        nu voit donc quand même des pastilles.
+        Outside a render context we cannot read the palette: we return
+        the fallback rather than an empty panel. A bench that builds the
+        component bare therefore still sees swatches.
         """
         from bretzel.render.context import maybe_current_context
         from bretzel.theme.tokens import SEMANTIC_COLOR_NAMES
@@ -222,17 +222,17 @@ class ColorPicker(Component):
         )
         name = detach_wrapper_carriers(self, root_attrs)
         root_attrs["class"] = self.compose_class("root")
-        # ``_serverSync`` : sans lui, une mutation serveur suivie d'un
-        # rafraîchissement ne changerait RIEN à l'écran — idiomorph
-        # préserve le signal client, donc l'ancienne valeur gagne. Le
-        # marqueur dit au runtime de ré-adopter la valeur rendue.
-        # ⚠️ ``server_sync_marker`` rend un fragment qui commence par une
-        # ESPACE et finit par une VIRGULE : il est fait pour se glisser
-        # ENTRE deux champs, donc la virgule qui le précède est à la
-        # charge de l'appelant. L'oublier produit
-        # ``val: "#2f5fd0" _serverSync: [...]`` — une erreur de syntaxe
-        # qui tue le SCAN du runtime pour la page entière (28 scopes, 0
-        # initialisé) sans un mot dans la console. Mesuré ici même.
+        # ``_serverSync``: without it, a server mutation followed by a
+        # refresh would change NOTHING on screen — idiomorph preserves
+        # the client signal, so the old value wins. The marker tells the
+        # runtime to re-adopt the rendered value.
+        # ⚠️ ``server_sync_marker`` returns a fragment that starts with a
+        # SPACE and ends with a COMMA: it is made to slip BETWEEN two
+        # fields, so the comma before it is the caller's responsibility.
+        # Forgetting it produces ``val: "#2f5fd0" _serverSync: [...]`` —
+        # a syntax error that kills the runtime's SCAN for the whole page
+        # (28 scopes, 0 initialised) with not a word in the console.
+        # Measured right here.
         local = ""
         if self._binding_metadata.get("value") is None:
             (key,) = self._scope_keys("value")
@@ -241,12 +241,12 @@ class ColorPicker(Component):
             )
             local = f",{key}: {json.dumps(initial)},{sync}"
         root_attrs["bz-data"] = "{open: false" + local + "}"
-        # ── Les récepteurs de l'API impérative ───────────────────
+        # ── The receivers of the imperative API ──────────────────
         #
-        # En mode LIÉ, `.open()` / `.set()` écrivent directement dans le
-        # store et ces écouteurs ne se déclenchent jamais ; on les pose
-        # quand même pour que le contrat soit le même dans les deux
-        # modes — le choix déjà fait par Sidebar, Dialog et Select.
+        # In BOUND mode, `.open()` / `.set()` write straight into the
+        # store and these listeners never fire; we set them anyway so the
+        # contract is the same in both modes — the choice already made by
+        # Sidebar, Dialog and Select.
         for _ev, _handler in imperative_listeners("open").items():
             root_attrs.setdefault(_ev, _handler)
         root_attrs.setdefault(
@@ -259,18 +259,18 @@ class ColorPicker(Component):
             required=required, extra=hidden_extra,
         )
 
-        # ── La pastille de tête ──────────────────────────────────────
-        # Le damier du thème transparaît quand la valeur est vide : une
-        # pastille blanche et une pastille SANS couleur se confondraient.
+        # ── The head swatch ──────────────────────────────────────────
+        # The theme's checkerboard shows through when the value is empty:
+        # a white swatch and a swatch WITH NO colour would look alike.
         swatch = Element(
             tag="span",
             attrs={
                 "class": sized("swatch"),
                 "aria-hidden": "true",
-                # ``background-color`` et pas ``background`` : la classe
-                # pose le gris de repos, et un raccourci ``background``
-                # l'effacerait même vide. Ici, valeur absente = pas de
-                # style inline = le gris se voit.
+                # ``background-color`` and not ``background``: the
+                # class sets the resting grey, and a ``background``
+                # shorthand would erase it even when empty. Here, absent
+                # value = no inline style = the grey shows.
                 "bz-attr:style": RawAttrValue(
                     f"{val} ? 'background-color:' + {val} : ''"
                 ),
@@ -363,11 +363,11 @@ class ColorPicker(Component):
     def _cell(
         self, hexa: str, val: str, initial: str, disabled: bool
     ) -> Element:
-        """Une pastille du panneau.
+        """One swatch of the panel.
 
-        Le clic écrit la valeur ET referme : contrairement au TimePicker,
-        où l'heure précède la minute, il n'y a rien à choisir après une
-        couleur.
+        The click writes the value AND closes: unlike the TimePicker,
+        where the hour precedes the minute, there is nothing to choose
+        after a colour.
         """
         attrs: dict[str, Any] = {
             "type": "button",
@@ -375,24 +375,25 @@ class ColorPicker(Component):
             "style": f"background:{hexa}",
             "title": hexa,
             "aria-label": hexa,
-            # ``bool_attr`` et pas un ternaire à la main : ``bz-attr``
-            # traite un booléen comme HTML le veut (attribut vide, ou
-            # retiré), or ``data-[selected=true]:`` matche le LITTÉRAL.
-            # Oublier le ternaire ne casse rien de visible — le style ne
-            # s'applique pas, en silence.
+            # ``bool_attr`` and not a hand-written ternary: ``bz-attr``
+            # treats a boolean the way HTML wants (empty attribute, or
+            # removed), yet ``data-[selected=true]:`` matches the
+            # LITERAL. Forgetting the ternary breaks nothing visible —
+            # the style does not apply, in silence.
             "data-selected": (
                 "true" if initial.lower() == hexa.lower() else "false"
             ),
             "bz-attr:data-selected": RawAttrValue(
                 bool_attr(f"({val} || '').toLowerCase() === '{hexa.lower()}'")
             ),
-            # ⚠️ ``value`` et ``open`` NUS, pas ``this.value`` : un
-            # ``bz-on:`` est une DIRECTIVE, évaluée dans un
-            # ``with($scope)`` — l'identifiant nu y résout, ``this`` non.
-            # C'est ``this`` qu'il faut dans un CORPS DE MÉTHODE du
-            # ``bz-data``, l'exact inverse. Écrit à l'envers ici, la
-            # levée tuait le scan du runtime pour la PAGE ENTIÈRE : plus
-            # aucun scope initialisé, et aucune erreur visible.
+            # ⚠️ ``value`` and ``open`` BARE, not ``this.value``: a
+            # ``bz-on:`` is a DIRECTIVE, evaluated in a ``with($scope)``
+            # — the bare identifier resolves there, ``this`` does not.
+            # It is ``this`` that is needed in a METHOD BODY of the
+            # ``bz-data``, the exact opposite. Written the wrong way
+            # round here, the raise killed the runtime's scan for the
+            # WHOLE PAGE: no scope initialised any more, and no visible
+            # error.
             "bz-on:click": RawAttrValue(
                 f"{val} = '{hexa}'; open = false"
             ),

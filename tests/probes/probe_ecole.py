@@ -63,7 +63,7 @@ APP = "examples.ecole.main:app"
 #: GRANDIR. Il valait 8 px le matin même (30, 32, 36 et 38 sur un seul
 #: écran), parce que le thème de l'app retaillait onze composants et en
 #: oubliait deux — ça, c'est réparé, et gaté côté framework par la règle
-#: ``palier-de-taille-a-moitie-surcharge``.
+#: ``half-overridden-size-step``.
 #:
 #: **Le nombre ne peut que DESCENDRE.**
 RESIDU = 2

@@ -1,17 +1,17 @@
-"""Le catalogue ``ui.*`` — lu vivant, jamais recopié.
+"""The ``ui.*`` catalogue — read live, never copied.
 
-C'est la colonne anti-rouille du catalogue : ajouter une prop, câbler un
-event, livrer une méthode impérative se reflète ici au prochain appel,
-sans une édition. Un catalogue d'API recopié à la main double la sortie de
-``bretzel describe``, donc il dérive plus vite qu'il ne sert
-— c'est la leçon du skill ``bretzel-api``, supprimé le 2026-08-01 pour
-avoir nommé deux composants inexistants et en avoir omis six livrés.
+It is the catalogue's anti-rust column: adding a prop, wiring an event,
+shipping an imperative method is reflected here on the next call, with no
+edit. A hand-copied API catalogue doubles ``bretzel describe``'s output,
+so it drifts faster than it serves — that is the lesson of the
+``bretzel-api`` skill, deleted on 2026-08-01 for naming two non-existent
+components and omitting six shipped ones.
 
-⚠️ **La source de vérité d'un composant est ``__reactive_props__`` moins
-``SEALED_PROPS``, jamais ``inspect.signature(__init__)``.** Voir
-:func:`_component_params` : les deux fautes possibles — cacher une prop
-qui marche, annoncer une prop qui lève — envoient le même lecteur dans le
-mur, et ce module les a commises toutes les deux le même jour.
+⚠️ **A component's source of truth is ``__reactive_props__`` minus
+``SEALED_PROPS``, never ``inspect.signature(__init__)``.** See
+:func:`_component_params`: the two possible faults — hiding a prop that
+works, announcing a prop that raises — send the same reader into the
+wall, and this module committed both of them on the same day.
 """
 
 from __future__ import annotations
@@ -34,24 +34,24 @@ from bretzel.introspect.model import (
     ParamInfo,
 )
 
-# ``RESERVED_KWARGS`` est un RÉ-EXPORT, pas une copie. Cette liste a existé
-# en cinq exemplaires jusqu'au 2026-08-16 et deux avaient dérivé ; la
-# source est désormais unique, dans le socle. Les kwargs universels sont
-# volontairement absents des fiches — les répéter sur 104 entrées serait du
-# bruit, et la règle est « pas de kwargs universels dans la signature
-# d'API » (memory ``feedback_no_universal_kwargs_in_signature``).
-# L'émetteur texte les annonce **une fois**, en tête d'index.
+# ``RESERVED_KWARGS`` is a RE-EXPORT, not a copy. This list existed in
+# five copies until 2026-08-16 and two had drifted; the source is now
+# single, in the base layer. The universal kwargs are deliberately absent
+# from the cards — repeating them on 104 entries would be noise, and the
+# rule is "no universal kwargs in an API signature" (the
+# ``feedback_no_universal_kwargs_in_signature`` memory). The text emitter
+# announces them **once**, at the head of the index.
 __all__ = ("RESERVED_KWARGS",)
 
-# La nature d'un symbole ``ui.*`` qui n'est PAS un composant.
+# The nature of a ``ui.*`` symbol that is NOT a component.
 #
-# ⚠️ C'était une table de 8 noms recopiée à la main jusqu'au 2026-08-16, et
-# elle avait DÉJÀ dérivé à la naissance : ``drag_each`` manquait (classé
-# « helper » alors qu'il est dans la même famille que les cinq listés) et
-# ``abort`` était une clé morte (il n'y a pas d'``ui.abort`` — ``abort``
-# vit dans ``bretzel.server.errors``). Dans le module dont la docstring
-# cite le skill supprimé pour « deux noms inexistants, six omis ». La
-# famille d'itération se DÉRIVE désormais de son ``__all__``.
+# ⚠️ It was a hand-copied table of 8 names until 2026-08-16, and it had
+# ALREADY drifted at birth: ``drag_each`` was missing (classified as a
+# "helper" although it is in the same family as the five listed) and
+# ``abort`` was a dead key (there is no ``ui.abort`` — ``abort`` lives in
+# ``bretzel.server.errors``). In the module whose docstring cites the
+# skill deleted for "two non-existent names, six omitted". The iteration
+# family is now DERIVED from its ``__all__``.
 _ITERATION_KIND = "iteration"
 
 _DECLARED_HELPER_KINDS: dict[str, str] = {
@@ -63,7 +63,7 @@ HELPER_FALLBACK_KIND = "helper"
 
 
 def helper_kind(ui_name: str) -> str:
-    """La nature d'un symbole ``ui.*`` qui n'est pas un composant."""
+    """The nature of a ``ui.*`` symbol that is not a component."""
     from bretzel.components.meta import iteration
 
     if ui_name in iteration.__all__:
@@ -72,7 +72,7 @@ def helper_kind(ui_name: str) -> str:
 
 
 def ui_symbol_names() -> tuple[str, ...]:
-    """Tout symbole ``ui.<name>`` public, en ordre de déclaration."""
+    """Every public ``ui.<name>`` symbol, in declaration order."""
     from bretzel.components import ui
 
     return tuple(n for n in vars(type(ui)) if not n.startswith("_"))
@@ -80,16 +80,15 @@ def ui_symbol_names() -> tuple[str, ...]:
 
 @cache
 def ui_name_of_class() -> dict[type, str]:
-    """Classe de composant → son nom d'appel ``ui.*``.
+    """Component class → its ``ui.*`` call name.
 
-    Lue sur le namespace ``ui`` lui-même, donc par IDENTITÉ. La version
-    par orthographe (``cls.__name__.lower() == ui_name``) a vécu une
-    heure et ratait **37 noms sur 48** : elle reconnaissait ``Button`` →
-    ``button`` et manquait ``AccordionItem`` → ``accordion_item``,
-    ``DatePicker`` → ``date_picker``, tout ce qui porte un underscore.
-    Une carte qui ne couvre que les noms d'un seul mot est pire qu'une
-    absence de carte : elle se vérifie très bien sur l'exemple qu'on a
-    en tête.
+    Read from the ``ui`` namespace itself, so by IDENTITY. The
+    spelling-based version (``cls.__name__.lower() == ui_name``) lived an
+    hour and missed **37 names out of 48**: it recognised ``Button`` →
+    ``button`` and missed ``AccordionItem`` → ``accordion_item``,
+    ``DatePicker`` → ``date_picker``, everything carrying an underscore.
+    A map covering only single-word names is worse than no map: it
+    verifies perfectly on the example one has in mind.
     """
     from bretzel.components import ui
 
@@ -102,15 +101,15 @@ def ui_name_of_class() -> dict[type, str]:
 
 
 def _reactive_param(descriptor: object) -> ParamInfo:
-    """Traduit un ``ReactivePropDescriptor`` en paramètre d'appel.
+    """Translate a ``ReactivePropDescriptor`` into a call parameter.
 
-    ``kind="keyword-only"`` est exact et non approximatif : la prop arrive
-    par ``**kwargs`` puis est routée par ``split_kwargs`` vers le seau des
-    props réactives — elle n'est jamais positionnelle.
+    ``kind="keyword-only"`` is exact and not approximate: the prop
+    arrives through ``**kwargs`` then is routed by ``split_kwargs`` into
+    the reactive-props bucket — it is never positional.
 
-    Le défaut n'est PAS lu via ``resolve_default()`` : celui-ci *appelle*
-    la factory, et une fiche n'a pas à exécuter du code applicatif pour
-    s'afficher. Les trois cas restent donc explicites.
+    The default is NOT read through ``resolve_default()``: that one
+    *calls* the factory, and a card has no business running application
+    code to display itself. The three cases therefore stay explicit.
     """
     from bretzel.components.base.reactive_prop import MISSING
 
@@ -131,32 +130,32 @@ def _reactive_param(descriptor: object) -> ParamInfo:
 
 
 def _component_params(cls: type) -> tuple[ParamInfo, ...]:
-    """Tout ce qu'on peut passer à l'appel, moins les kwargs universels.
+    """Everything passable at the call site, minus the universal kwargs.
 
-    Deux sources, dans cet ordre :
+    Two sources, in this order:
 
-    1. les paramètres **explicites** de l'``__init__`` — ils portent
-       l'annotation et le défaut choisis par l'auteur, donc ils gagnent ;
-    2. les **props réactives** de la classe, moins ses ``SEALED_PROPS``.
+    1. the ``__init__``'s **explicit** parameters — they carry the
+       annotation and the default the author chose, so they win;
+    2. the class's **reactive props**, minus its ``SEALED_PROPS``.
 
-    (2) n'est pas un filet de sécurité, c'est le cœur du correctif.
-    ``HStack`` retire ``justify``/``wrap`` de son ``__init__`` pour offrir
-    une API réduite **mais les hérite de ``Flex`` comme props réactives** —
-    donc ``ui.hstack(justify="between")`` marche. Lire le seul ``__init__``
-    le déclarait indisponible, et un lecteur se rabattait sur
-    ``classes="justify-between"`` : un contournement, exactement ce que ce
-    module existe pour empêcher.
+    (2) is not a safety net, it is the heart of the fix. ``HStack``
+    removes ``justify``/``wrap`` from its ``__init__`` to offer a reduced
+    API **but inherits them from ``Flex`` as reactive props** — so
+    ``ui.hstack(justify="between")`` works. Reading only the ``__init__``
+    declared it unavailable, and a reader fell back on
+    ``classes="justify-between"``: a workaround, exactly what this module
+    exists to prevent.
 
-    ⚠️ **La soustraction de ``SEALED_PROPS`` est aussi load-bearing que
-    l'union.** La première version de ce correctif n'avait que l'union et
-    commettait la faute au signe opposé : elle annonçait
-    ``ui.hstack(direction="col")``, qui **lève** (l'axe est l'identité du
-    raccourci). Une fiche qui promet un paramètre refusé est aussi fausse
-    qu'une fiche qui en cache un qui marche. Les deux sens sont gardés par
-    ``tests/consistency/test_introspect_sees_inherited_props.py``, qui
-    vérifie **en plus** qu'une prop scellée est vraiment refusée — sinon
-    ``SEALED_PROPS`` deviendrait le moyen le plus court de faire taire la
-    gate.
+    ⚠️ **Subtracting ``SEALED_PROPS`` is as load-bearing as the union.**
+    The first version of this fix had only the union and committed the
+    fault with the opposite sign: it announced
+    ``ui.hstack(direction="col")``, which **raises** (the axis is the
+    shortcut's identity). A card promising a refused parameter is as
+    false as a card hiding one that works. Both directions are guarded by
+    ``tests/consistency/test_introspect_sees_inherited_props.py``, which
+    **additionally** checks that a sealed prop is really refused —
+    otherwise ``SEALED_PROPS`` would become the shortest way of silencing
+    the gate.
     """
     try:
         info = describe_callable(cls.__init__)
@@ -177,14 +176,14 @@ def _component_params(cls: type) -> tuple[ParamInfo, ...]:
 
 
 def _handler_kwargs(params: tuple[ParamInfo, ...], events: tuple[str, ...]) -> tuple[str, ...]:
-    """Les ``on_<event>=`` réellement acceptés — cf. ``ComponentInfo``.
+    """The ``on_<event>=`` actually accepted — cf. ``ComponentInfo``.
 
-    L'union est écrite dans CE sens (params d'abord) parce que
-    ``cross_check_events`` garantit déjà ``events`` ⊆ params, à la
-    définition de classe : la seconde moitié ne devrait jamais rien
-    ajouter. On la garde quand même — elle coûte une ligne, et elle est ce
-    qui fera remonter le jour où le socle perdrait cette garantie, plutôt
-    que de perdre des events en silence.
+    The union is written in THIS direction (params first) because
+    ``cross_check_events`` already guarantees ``events`` ⊆ params, at
+    class-definition time: the second half should never add anything. We
+    keep it anyway — it costs one line, and it is what will surface the
+    day the base layer loses that guarantee, rather than losing events
+    silently.
     """
     from_params = [p.name for p in params if p.name.startswith("on_")]
     return tuple(dict.fromkeys(from_params + [f"on_{e}" for e in events]))
@@ -192,55 +191,53 @@ def _handler_kwargs(params: tuple[ParamInfo, ...], events: tuple[str, ...]) -> t
 
 @cache
 def _theme_vocabulary(cls: type) -> tuple[tuple[str, tuple[str, ...]], ...]:
-    """Les noms que ``Theme(components={<clé>: …})`` accepte pour ``cls``.
+    """The names ``Theme(components={<key>: …})`` accepts for ``cls``.
 
-    Le **cinquième** contrat introspectable, et le dernier arrivé : les
-    quatre autres (``BINDABLE_PROPS``, ``EVENTS``, ``NAMED_SLOTS``,
-    ``IMPERATIVE``) étaient lus ici depuis le début, le thème non — d'où
-    l'impossibilité, jusqu'au 2026-08-16, d'écrire la moindre règle disant
-    « ``crad`` n'est pas un composant » ou « ``rooot`` n'est pas un slot ».
+    The **fifth** introspectable contract, and the last to arrive: the
+    other four (``BINDABLE_PROPS``, ``EVENTS``, ``NAMED_SLOTS``,
+    ``IMPERATIVE``) had been read here from the start, the theme had not
+    — hence the impossibility, until 2026-08-16, of writing any rule
+    saying "``crad`` is not a component" or "``rooot`` is not a slot".
 
-    Un groupe dont la valeur n'est pas un dict est **scalaire** (16 cas
-    mesurés) : il est listé avec zéro clé, ce qui le distingue d'une table
-    vide et évite de chercher des clés là où il n'y en a pas.
+    A group whose value is not a dict is **scalar** (16 measured cases):
+    it is listed with zero keys, which distinguishes it from an empty
+    table and avoids looking for keys where there are none.
     """
     theme = getattr(cls, "THEME", None)
     if not isinstance(theme, dict):
         return ()
     return tuple(
-        # ``str(k)`` et non ``k`` : une clé de groupe n'est pas toujours une
-        # chaîne. ``Heading.THEME["level_sizes"]`` est indexé par les
-        # ENTIERS 1..6 (``level=`` est un int, cf. ``bretzel describe`` :
-        # « accepte int, PAS string »). Sans la coercition, ce champ
-        # annonçait ``tuple[str, ...]`` en portant des ints, et
-        # ``bretzel describe heading`` levait un ``TypeError`` au
-        # ``", ".join`` — livré cassé le 2026-08-16, rattrapé le jour même
-        # par la gate qui rend les 104 fiches.
+        # ``str(k)`` and not ``k``: a group key is not always a string.
+        # ``Heading.THEME["level_sizes"]`` is indexed by the INTEGERS
+        # 1..6 (``level=`` is an int, cf. ``bretzel describe``: "accepts
+        # int, NOT string"). Without the coercion, this field announced
+        # ``tuple[str, ...]`` while carrying ints, and
+        # ``bretzel describe heading`` raised a ``TypeError`` at the
+        # ``", ".join`` — shipped broken on 2026-08-16, caught the same
+        # day by the gate that renders all 104 cards.
         (group, tuple(sorted(map(str, value))) if isinstance(value, dict) else ())
         for group, value in sorted(theme.items())
     )
 
 
-#: Les props que le SOCLE résout par leur valeur, dans une table du thème
-#: (``compose_class``). Deux, pas plus : les 24 autres groupes-tables sont
-#: lus par le ``render`` de chaque composant, avec sa propre
-#: correspondance prop → groupe, qu'aucune règle générale ne recompose.
+#: The props the BASE LAYER resolves by their value, in a theme table
+#: (``compose_class``). Two, no more: the other 24 table groups are read
+#: by each component's ``render``, with its own prop → group
+#: correspondence, which no general rule recomposes.
 _VALUE_ADDRESSED: tuple[str, ...] = ("variant", "size")
 
 
 def prop_vocabulary() -> dict[str, dict[str, frozenset[str]]]:
-    """``THEME_KEY`` → ``variant`` / ``size`` → valeurs acceptées.
+    """``THEME_KEY`` → ``variant`` / ``size`` → accepted values.
 
-    Le pendant de :func:`theme_vocabulary`, mais indexé par **prop** et non
-    par groupe de thème — parce que les deux ne coïncident pas :
-    ``variant`` lit bien les clés de ``variants``, tandis que ``size``
-    demande la résolution des deux imbrications (cf.
-    :attr:`ComponentInfo.size_values`).
+    The counterpart of :func:`theme_vocabulary`, but indexed by **prop**
+    and not by theme group — because the two do not coincide: ``variant``
+    does read the keys of ``variants``, whereas ``size`` requires
+    resolving both nestings (cf. :attr:`ComponentInfo.size_values`).
 
-    Un ensemble vide veut dire « pas de table, on ne juge pas » — trois
-    composants acceptent ``variant=`` sans table (``bar_chart``,
-    ``file_upload``, ``pie_chart``) et ``radio_group`` fait de même pour
-    ``size=``.
+    An empty set means "no table, we do not judge" — three components
+    accept ``variant=`` with no table (``bar_chart``, ``file_upload``,
+    ``pie_chart``) and ``radio_group`` does the same for ``size=``.
     """
     out: dict[str, dict[str, frozenset[str]]] = {}
     for info in describe_components():
@@ -254,20 +251,20 @@ def prop_vocabulary() -> dict[str, dict[str, frozenset[str]]]:
 
 
 def theme_vocabulary() -> dict[str, dict[str, frozenset[str]]]:
-    """``THEME_KEY`` → ``groupe`` → clés — ce que ``Theme(components={…})``
-    peut nommer.
+    """``THEME_KEY`` → ``group`` → keys — what ``Theme(components={…})``
+    can name.
 
-    Trois consommateurs, une seule dérivation : la règle de lint qui juge
-    le vocabulaire, celle qui juge les valeurs de ``variant=``, et la
-    validation au démarrage qui LÈVE. Les deux règles la construisaient
-    chacune de son côté avant le 2026-08-16 — deux copies de la même
-    boucle, donc deux façons de finir par ne plus dire la même chose que
-    le runtime, et c'est le lint qu'on aurait cru.
+    Three consumers, one single derivation: the lint rule judging the
+    vocabulary, the one judging ``variant=``'s values, and the startup
+    validation that RAISES. The two rules each built it on their own side
+    before 2026-08-16 — two copies of the same loop, hence two ways of
+    ending up no longer saying what the runtime says, and it is the lint
+    one would have believed.
 
-    Indexé par ``THEME_KEY`` et non par le nom ``ui.*`` : huit composants
-    diffèrent, et trois écrivent sous la clé d'un AUTRE
-    (``sidebar_section`` → ``sidebar``). Les classes qui partagent une clé
-    partagent le même objet ``THEME``, donc l'union est sans ambiguïté.
+    Indexed by ``THEME_KEY`` and not by the ``ui.*`` name: eight
+    components differ, and three write under ANOTHER's key
+    (``sidebar_section`` → ``sidebar``). The classes sharing a key share
+    the same ``THEME`` object, so the union is unambiguous.
     """
     out: dict[str, dict[str, frozenset[str]]] = {}
     for info in describe_components():
@@ -280,33 +277,33 @@ def theme_vocabulary() -> dict[str, dict[str, frozenset[str]]]:
 
 
 def theme_shapes() -> dict[str, dict[str, dict[str, str]]]:
-    """``THEME_KEY`` → groupe → clé → ``"str"`` ou ``"dict"`` — la FORME
-    que le thème LIVRÉ donne à chaque entrée.
+    """``THEME_KEY`` → group → key → ``"str"`` or ``"dict"`` — the SHAPE
+    the SHIPPED theme gives each entry.
 
-    Le pendant de :func:`theme_vocabulary`, qui rend les *noms* : ici on
-    rend ce que ces noms valent, réduit à ce qui est décidable
-    statiquement. Une surcharge qui garde le nom et change la forme
-    n'est pas une extension du thème, c'est une faute — et c'est
-    exactement le trou par lequel elle passe aujourd'hui, puisque
-    ``theme-vocabulaire-inconnu`` exempte volontairement les groupes
-    adressés par une valeur (y ajouter une clé est la façon supportée de
-    déclarer sa propre variante).
+    The counterpart of :func:`theme_vocabulary`, which returns the
+    *names*: here we return what those names are worth, reduced to what
+    is statically decidable. An override that keeps the name and changes
+    the shape is not a theme extension, it is a fault — and it is exactly
+    the hole it goes through today, since ``unknown-theme-vocabulary``
+    deliberately exempts the groups addressed by a value (adding a key
+    there is the supported way of declaring one's own variant).
 
-    Ce que la forme décide, mesuré le 2026-09-10 sur ``ui.button`` :
+    What the shape decides, measured on 2026-09-10 on ``ui.button``:
 
-    - écrire un **dict** là où le thème livre une **chaîne** fait
-      disparaître TOUS les jetons du palier (``h-10 px-4 text-sm gap-2``
-      → rien). Le composant rend nu, en 200, avec du HTML valide ;
-    - écrire une **chaîne** là où il livre un **dict** lève
-      ``AttributeError: 'str' object has no attribute 'get'`` au rendu —
-      une levée qui ne nomme ni le thème, ni le composant, ni la clé.
+    - writing a **dict** where the theme ships a **string** makes ALL the
+      step's tokens disappear (``h-10 px-4 text-sm gap-2`` → nothing).
+      The component renders bare, in 200, with valid HTML;
+    - writing a **string** where it ships a **dict** raises
+      ``AttributeError: 'str' object has no attribute 'get'`` at render
+      time — a raise that names neither the theme, nor the component, nor
+      the key.
 
-    Seuls les groupes qui SONT des tables sont décrits : un groupe
-    scalaire (16 cas, cf. :func:`_theme_vocabulary`) n'a pas d'entrées,
-    donc pas de forme à comparer, et il est absent plutôt que vide.
+    Only the groups that ARE tables are described: a scalar group (16
+    cases, cf. :func:`_theme_vocabulary`) has no entries, hence no shape
+    to compare, and it is absent rather than empty.
 
-    ⚠️ ``str(k)`` sur les clés, pour la même raison qu'en face :
-    ``Heading.THEME["level_sizes"]`` est indexé par les ENTIERS 1..6.
+    ⚠️ ``str(k)`` on the keys, for the same reason as opposite:
+    ``Heading.THEME["level_sizes"]`` is indexed by the INTEGERS 1..6.
     """
     from bretzel.components import ui
 
@@ -330,10 +327,10 @@ def theme_shapes() -> dict[str, dict[str, dict[str, str]]]:
 
 
 def describe_component(ui_name: str, cls: type) -> ComponentInfo:
-    """Lit une sous-classe de ``Component`` : famille, tag, paramètres, et
-    les CINQ contrats introspectables (``BINDABLE_PROPS`` / ``EVENTS`` /
-    ``NAMED_SLOTS`` / ``IMPERATIVE`` / le vocabulaire de ``THEME``) plus
-    ``AUTONAME_FROM`` et ``THEME_KEY``."""
+    """Read a ``Component`` subclass: family, tag, parameters, and the
+    FIVE introspectable contracts (``BINDABLE_PROPS`` / ``EVENTS`` /
+    ``NAMED_SLOTS`` / ``IMPERATIVE`` / ``THEME``'s vocabulary) plus
+    ``AUTONAME_FROM`` and ``THEME_KEY``."""
     module = getattr(cls, "__module__", "") or ""
     parts = module.split(".")
     family = parts[2] if len(parts) > 2 and parts[1] == "components" else "?"
@@ -365,10 +362,10 @@ def describe_component(ui_name: str, cls: type) -> ComponentInfo:
 
 
 def describe_ui_symbol(ui_name: str) -> ComponentInfo | HelperInfo:
-    """Classe un symbole ``ui.<name>`` et le lit vivant.
+    """Classify a ``ui.<name>`` symbol and read it live.
 
-    Les composants reçoivent la fiche de contrat complète ; les helpers
-    (each / notification / column…) une fiche signature + docstring.
+    The components get the complete contract card; the helpers
+    (each / notification / column…) a signature + docstring card.
     """
     from bretzel.components import ui
     from bretzel.components.base.component import Component
@@ -391,5 +388,5 @@ def describe_ui_symbol(ui_name: str) -> ComponentInfo | HelperInfo:
 
 
 def describe_components() -> tuple[ComponentInfo | HelperInfo, ...]:
-    """Tout le catalogue ``ui.*``, trié par nom."""
+    """The whole ``ui.*`` catalogue, sorted by name."""
     return tuple(describe_ui_symbol(n) for n in sorted(ui_symbol_names()))

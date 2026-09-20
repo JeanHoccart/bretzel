@@ -31,7 +31,7 @@ class Container(Component):
         width: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope ``width=None`` (garde le défaut).
+        # Direct forward: the base layer drops ``width=None`` (keeps the default).
         super().__init__(width=width, **kwargs)
 
     def render(self) -> Element:
@@ -45,8 +45,8 @@ class Container(Component):
         width_class = theme.get("widths", {}).get(width)
         if width_class:
             parts.append(width_class)
-        # Classes user posées par le wrap ``_apply_universal_modifiers`` —
-        # ne pas ré-append ici (doublon). Gardé par
+        # User classes set by the ``_apply_universal_modifiers`` wrap —
+        # do not re-append here (duplicate). Guarded by
         # test_no_manual_user_class_append.py.
 
         attrs = self.emit_attrs()

@@ -121,17 +121,17 @@ class Draggable(Component):
             attrs["data-bz-group"] = self._group
         if disabled:
             attrs["data-bz-disabled"] = "true"
-            # ``data-bz-disabled`` pilote le RUNTIME ; il ne dit rien à un
-            # lecteur d'écran. La racine est un ``<div>``, donc rien n'est
-            # annoncé gratuitement — sans cette ligne, une carte
-            # verrouillée se présente comme n'importe quelle autre. C'est
-            # l'invariant de ``test_disabled_affordance``, dont la liste de
-            # cas est écrite à la main et ne m'incluait pas.
+            # ``data-bz-disabled`` drives the RUNTIME; it says nothing
+            # to a screen reader. The root is a ``<div>``, so nothing is
+            # announced for free — without this line, a locked card
+            # presents itself like any other. It is
+            # ``test_disabled_affordance``'s invariant, whose list of
+            # cases is written by hand and did not include me.
             attrs["aria-disabled"] = "true"
 
-        # Par le COMPOSEUR (cf. le commentaire jumeau dans dropzone.py) :
-        # un ``theme["slots"][…]`` lu à la main droppe silencieusement un
-        # ``slots=`` de l'appelant.
+        # Through the COMPOSER (cf. the twin comment in dropzone.py): a
+        # ``theme["slots"][…]`` read by hand silently drops a caller's
+        # ``slots=``.
         parts = [
             self.compose_class("root", ),
             self.slot_class("dragging"),

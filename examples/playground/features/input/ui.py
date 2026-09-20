@@ -360,25 +360,25 @@ def page() -> None:
                                  icon_left="search",
                                  icon_right="arrow-right")
 
-                    ui.heading("clearable (tape, puis la croix)", level=3)
+                    ui.heading('clearable (type, then the cross)', level=3)
                     ui.text(
-                        "La croix n'apparaît que lorsqu'il y a quelque "
-                        "chose à effacer — c'est du CSS pur "
-                        "(`peer-placeholder-shown`), aucun signal n'est "
-                        "impliqué. Le clic vide le champ ET rejoue les "
-                        "événements d'une frappe (`input` puis `change`), "
-                        "donc un binding, un scope local ou un handler "
-                        "serveur suivent tous les trois. Défaut à False : "
-                        "un champ libre se vide déjà au clavier.",
+                        'The cross only appears when there is something '
+                            'to clear — it is pure CSS (`peer-placeholder-'
+                            'shown`), no signal is involved. The click '
+                            "empties the field AND replays a keystroke's "
+                            'events (`input` then `change`), so a binding, a '
+                            'local scope or a server handler all three '
+                            'follow. Defaults to False: a free field already '
+                            'clears from the keyboard.',
                         size="sm", color="muted",
                     )
                     with ui.vstack(gap="sm"):
                         ui.input(placeholder="tape quelque chose…",
                                  clearable=True)
-                        ui.input(value="déjà rempli", clearable=True,
+                        ui.input(value='already filled', clearable=True,
                                  icon_left="search")
                         ui.input(prefix="@", clearable=True,
-                                 placeholder="avec un préfixe")
+                                 placeholder='with a prefix')
 
                     ui.heading("Prefix / suffix", level=3)
                     with ui.vstack(gap="sm"):
@@ -732,14 +732,14 @@ def page() -> None:
                         level=3,
                     )
                     ui.text(
-                        "Binding fournie ET on appelle ``.set(...)`` / "
-                        "``.clear()`` sur l'instance. Le framework "
-                        "détecte la binding et délègue à "
-                        "``binding.set(value)`` — **le DOM dispatch "
-                        "n'est pas utilisé**, single source of truth "
-                        "préservée. L'observer (longueur, à droite) "
-                        "voit les écritures imperatives ET le typing "
-                        "manuel via le même store.",
+                        'A binding supplied AND ``.set(...)`` / '
+                            '``.clear()`` called on the instance. The '
+                            'framework detects the binding and delegates to '
+                            '``binding.set(value)`` — **the DOM dispatch is '
+                            'not used**, single source of truth preserved. '
+                            'The observer (length, on the right) sees the '
+                            'imperative writes AND the manual typing through '
+                            'the same store.',
                         color="muted", size="sm",
                     )
                     both = InputClient(key="both")

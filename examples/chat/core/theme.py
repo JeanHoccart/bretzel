@@ -1,9 +1,10 @@
-"""Le seul vrai global : le thème.
+"""The only real global: the theme.
 
-L'échelle vient du framework — contrôles à 30 px, texte médian à 14 px,
-c'est le DÉFAUT livré depuis le 2026-09-13. Une messagerie instantanée est une liste dense qui défile.
+The scale comes from the framework — controls at 30 px, median text at
+14 px, the DEFAULT shipped since 2026-09-13. An instant messenger is a
+dense list that scrolls.
 
-Ne reste ici que ce que le framework ne peut pas décider : la teinte.
+All that stays here is what the framework cannot decide: the hue.
 """
 
 from bretzel.theme import Theme

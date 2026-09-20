@@ -74,12 +74,12 @@ DEFAULT_ICONIFY_URL = (
 # the DOM for utility classes, generates CSS at runtime. Slow for
 # prod, perfect for the dev loop.
 #
-# ⚠️ **Version EXACTE, et c'est ce qui a changé le 2026-09-13.** L'URL
-# était ``@4`` tout court, donc un intervalle : unpkg résolvait vers la
-# dernière 4.x du jour, et le compilateur de dev pouvait changer sous les
-# pieds sans qu'une ligne du dépôt bouge. Une empreinte n'a aucun sens
-# sur un intervalle, donc ce script était le seul des quatre à ne pas
-# pouvoir être vérifié ni rapatrié (cf. :mod:`bretzel.render.vendor`).
+# ⚠️ **EXACT version, and that is what changed on 2026-09-13.** The URL
+# was plain ``@4``, so a range: unpkg resolved to the latest 4.x of the
+# day, and the dev compiler could change under our feet without a line of
+# the repository moving. A fingerprint means nothing on a range, so this
+# script was the only one of the four that could be neither verified nor
+# vendored (cf. :mod:`bretzel.render.vendor`).
 DEFAULT_TAILWIND_BROWSER_URL = (
     "https://unpkg.com/@tailwindcss/browser@4.3.3/dist/index.global.js"
 )
@@ -242,56 +242,55 @@ def _screen_boot_script() -> str:
 # ``00_index.js`` adds ``.bz-ready`` on <html> (10-30ms, invisible).
 # ``<bz-envelope>`` / ``<bz-patch>`` are data tags, never displayed.
 _ANTI_FLASH_STYLE = (
-    # ⚠️ Portée ``html:not(.bz-ready)`` — c'est UNE règle, pas une paire.
-    # Elle en était une : ``[bz-data]{visibility:hidden}`` global, puis
-    # ``html.bz-ready [bz-data]{visibility:visible}`` pour le relever.
-    # Écrire ``visible`` explicitement sur chaque scope l'affranchit de
-    # TOUT ancêtre masqué, or ``visibility`` est justement la propriété
-    # qu'un descendant peut reprendre. Un ``ui.dialog`` fermé se cache en
-    # ``visibility:hidden`` (``data-[open=false]:invisible``) : le premier
-    # composant à état client qu'il contient redevenait donc visible —
-    # invisible à l'œil, il n'occupe pas de place et rien ne le peint,
-    # mais FOCUSABLE. Mesuré le 2026-09-07 sur ``examples/messagerie`` :
-    # la 2ᵉ tabulation de la page atterrissait dans le ``ui.file_upload``
-    # d'un dialogue fermé, puis rejoué sur banc le 2026-09-10.
+    # ⚠️ Scoped to ``html:not(.bz-ready)`` — that is ONE rule, not a
+    # pair. It used to be a pair: a global ``[bz-data]{visibility:hidden}``,
+    # then ``html.bz-ready [bz-data]{visibility:visible}`` to lift it.
+    # Writing ``visible`` explicitly on every scope frees it from EVERY
+    # hidden ancestor, and ``visibility`` is precisely the property a
+    # descendant can take back. A closed ``ui.dialog`` hides itself with
+    # ``visibility:hidden`` (``data-[open=false]:invisible``): the first
+    # client-state component it contains therefore became visible again —
+    # invisible to the eye, it takes no space and nothing paints it, but
+    # FOCUSABLE. Measured on 2026-09-07 on ``examples/messagerie``: the
+    # page's 2nd tab landed in the ``ui.file_upload`` of a closed dialog,
+    # then replayed on a bench on 2026-09-10.
     #
-    # Une seule règle bornée au pré-boot dit la même chose sans jamais
-    # relever quoi que ce soit : après ``.bz-ready`` plus aucune
-    # déclaration ne vise ces éléments, donc l'héritage reprend. Les
-    # sous-arbres insérés APRÈS le boot (morph de nav partielle) sont
-    # visibles dans les deux versions — la paire les relevait, celle-ci
-    # ne les masque pas.
+    # A single rule bounded to pre-boot says the same thing without ever
+    # lifting anything: after ``.bz-ready`` no declaration targets those
+    # elements any more, so inheritance takes over. Subtrees inserted
+    # AFTER boot (partial-nav morph) are visible in both versions — the
+    # pair lifted them, this one does not hide them.
     "html:not(.bz-ready) [bz-data]{visibility:hidden}"
     "bz-envelope,bz-patch{display:none}"
-    # Etat fermé des overlays (dialog / drawer), déclaré AVANT le premier
-    # paint. Sans ça, le décor Tailwind du backdrop (``fixed inset-0
-    # bg-black/50 backdrop-blur-sm``) arrive après le premier paint et
-    # ``opacity`` / ``visibility``, qui sont dans un ``transition``,
-    # animent depuis leur valeur non-stylée (1 / visible) : un voile
-    # flouté plein écran s'efface en 200 ms sur toute page portant un
-    # overlay. En le déclarant ici, la valeur ne bouge plus à l'arrivée
-    # de la feuille, donc aucune transition ne démarre.
+    # Closed state of overlays (dialog / drawer), declared BEFORE the
+    # first paint. Without it, the backdrop's Tailwind decoration
+    # (``fixed inset-0 bg-black/50 backdrop-blur-sm``) arrives after the
+    # first paint and ``opacity`` / ``visibility``, which are inside a
+    # ``transition``, animate from their unstyled value (1 / visible): a
+    # full-screen blurred veil fades out over 200 ms on every page
+    # carrying an overlay. Declaring it here means the value no longer
+    # moves when the sheet arrives, so no transition starts.
     #
-    # La règle ne peut pas rouler sur Tailwind (elle doit être là au
-    # premier paint, avant lui) et ne peut pas viser ``[data-open=false]``
-    # nu : sidebar (rail replié) et accordion portent le même attribut et
-    # se feraient masquer. D'où le marqueur ``data-bz-overlay``, posé par
+    # The rule cannot ride on Tailwind (it must be there at the first
+    # paint, before it) and cannot target bare ``[data-open=false]``:
+    # sidebar (collapsed rail) and accordion carry the same attribute and
+    # would be hidden. Hence the ``data-bz-overlay`` marker, set by
     # ``components.base._wiring.show_attrs``.
     #
-    # ⚠️ Portée ``html:not(.bz-ready)`` — la règle ne vit QUE avant le
-    # boot, ce pour quoi elle existe. Elle était globale, et le
-    # raisonnement d'origine (« pas de ``!important``, l'utilitaire
-    # Tailwind reprend la main ») ne vaut que pour le FOND assombri, qui
-    # porte bien un ``data-[open=false]:opacity-0``. Le PANNEAU d'un
-    # drawer n'a aucun utilitaire d'opacité — il ne doit que glisser
-    # (``transition-[translate,visibility]``). Rien ne reprenait donc la
-    # main, et cette règle lui imposait ``opacity:0`` SANS transition.
+    # ⚠️ Scoped to ``html:not(.bz-ready)`` — the rule lives ONLY before
+    # boot, which is what it exists for. It used to be global, and the
+    # original reasoning ("no ``!important``, the Tailwind utility takes
+    # over") only holds for the darkened BACKDROP, which does carry a
+    # ``data-[open=false]:opacity-0``. A drawer's PANEL has no opacity
+    # utility — it must only slide
+    # (``transition-[translate,visibility]``). Nothing took over,
+    # therefore, and this rule forced ``opacity:0`` on it WITHOUT a
+    # transition.
     #
-    # Mesuré image par image le 2026-08-18, à la fermeture : opacité 1 →
-    # 0 en moins de 145 ms pendant que le ``translate`` courait jusqu'à
-    # 400 ms. Le panneau finissait sa glissade invisible — on voyait un
-    # fondu sec, jamais le glissement. Signalé à l'œil : « ça fait un
-    # fade et pas un slide de fermeture ».
+    # Measured frame by frame on 2026-08-18, on close: opacity 1 → 0 in
+    # under 145 ms while the ``translate`` ran to 400 ms. The panel
+    # finished its slide invisibly — one saw an abrupt fade, never the
+    # slide. Reported by eye: "it fades instead of sliding closed".
     'html:not(.bz-ready) [data-bz-overlay][data-open="false"]'
     "{opacity:0;visibility:hidden}"
 )
@@ -406,12 +405,12 @@ _NOTIFICATION_ANIM_STYLE = """
 }
 """
 
-#: La bande qui glisse pendant une navigation. Une keyframe de shell,
-#: comme les deux du toast juste au-dessus, et pour la même raison :
-#: Tailwind n'a pas de glissement intégré, et une classe ASSEMBLÉE
-#: n'existerait qu'en dev. Le repli sans mouvement n'est pas décoratif —
-#: hors ``no-preference`` la bande reste pleine largeur et immobile,
-#: donc elle dit toujours « ça travaille » sans bouger.
+#: The strip that slides during a navigation. A shell keyframe, like
+#: the toast's two just above, and for the same reason: Tailwind has no
+#: built-in slide, and an ASSEMBLED class would exist only in dev. The
+#: motionless fallback is not decorative — outside ``no-preference`` the
+#: strip stays full width and still, so it still says "working" without
+#: moving.
 _NAV_PROGRESS_ANIM_STYLE = """
 #bz-nav-progress > div { width: 100%; }
 @media (prefers-reduced-motion: no-preference) {
@@ -428,34 +427,34 @@ _NAV_PROGRESS_ANIM_STYLE = """
 
 
 def nav_progress_html() -> str:
-    """La barre de navigation, injectée une fois par page.
+    """The navigation bar, injected once per page.
 
-    **Elle n'a aucun mécanisme à elle.** C'est le signal de
-    ``ui.pending()`` lu sur une clé RÉSERVÉE : le bridge arme ``@nav``
-    quand la requête en vol est une navigation (boostée, ou portant
-    ``hx-push-url``), et cette bande n'est qu'un ``bz-show`` de plus.
-    Un ``action_id`` vaut ``module::qualname`` et ne peut donc jamais
-    commencer par ``@`` — la clé est à l'abri d'une collision.
+    **It has no mechanism of its own.** It is ``ui.pending()``'s signal
+    read on a RESERVED key: the bridge arms ``@nav`` when the in-flight
+    request is a navigation (boosted, or carrying ``hx-push-url``), and
+    this strip is nothing but one more ``bz-show``. An ``action_id`` is
+    ``module::qualname`` and can therefore never start with ``@`` — the
+    key is safe from a collision.
 
-    Le seuil de 200 ms est celui de ``ui.pending()``, et il compte
-    davantage ici : une navigation partielle rapide est la norme, donc
-    sans lui chaque clic de menu ferait clignoter une barre.
+    The 200 ms threshold is ``ui.pending()``'s, and it matters more here:
+    a fast partial navigation is the norm, so without it every menu click
+    would flash a bar.
 
-    Ce n'est **pas** un ``ui.progress`` : aucune progression n'est
-    connue (le serveur ne dit pas où il en est du rendu), et une
-    fraction inventée serait un mensonge. C'est un témoin d'activité,
-    donc une bande indéterminée. Sa couleur est littérale (``bg-primary``)
-    — le chrome de l'app suit l'accent, et une classe composée depuis
-    une variable ne survivrait pas au compilateur de prod.
+    This is **not** a ``ui.progress``: no progress is known (the server
+    does not say how far along its render is), and an invented fraction
+    would be a lie. It is an activity indicator, therefore an
+    indeterminate strip. Its colour is literal (``bg-primary``) — the
+    app's chrome follows the accent, and a class composed from a variable
+    would not survive the production compiler.
 
-    ``z-50`` est le HAUT de l'échelle de la maison (le toaster et le
-    dialogue y sont) — pas un cran neuf au-dessus. Une barre de 2 px en
-    bord d'écran n'a rien à disputer à une modale, et inventer un
-    échelon pour elle seule ferait dériver l'échelle.
+    ``z-50`` is the TOP of the house scale (the toaster and the dialog
+    are there) — not a new rung above. A 2 px bar at the screen edge has
+    nothing to dispute with a modal, and inventing a rung for it alone
+    would make the scale drift.
 
-    ``style="display:none"`` est pré-posé : rien ne peut être en vol au
-    moment où le serveur rend, donc la barre ne doit pas clignoter au
-    chargement — même garde que le ``ssr_value=False`` côté Python.
+    ``style="display:none"`` is pre-set: nothing can be in flight at the
+    moment the server renders, so the bar must not flash on load — same
+    guard as ``ssr_value=False`` on the Python side.
     """
     return (
         '<div id="bz-nav-progress" role="presentation" '
@@ -488,8 +487,8 @@ def default_shell(
     meta_tags: Iterable[Mapping[str, str]] = (),
     favicon: str | bool | None = None,
     cache_bust: str | None = None,
-    # Le pipeline CSS effectif, pas le mode : c'est la seule chose qui
-    # décidait du RENDU depuis un booléen d'environnement. Cf.
+    # The effective CSS pipeline, not the mode: it is the only thing
+    # that decided the RENDER from an environment boolean. Cf.
     # ``config.css_pipeline``.
     browser_css: bool = False,
     theme_css_content: str = "",
@@ -502,8 +501,8 @@ def default_shell(
     if css_urls is not None:
         css_list = list(css_urls)
     elif browser_css:
-        # Compilateur navigateur : aucun ``<link>``, il lit le bloc
-        # ``<style type="text/tailwindcss">`` inline plus bas.
+        # Browser compiler: no ``<link>``, it reads the inline
+        # ``<style type="text/tailwindcss">`` block below.
         css_list = []
     else:
         css_list = _default_css(cache_bust)
@@ -553,19 +552,20 @@ def _default_css(cache_bust: str | None) -> list[str]:
 
 
 def _default_js(cache_bust: str | None) -> list[str]:
-    # Order matters with ``defer`` scripts :
-    # 1. HTMX must load first ; the runtime bridge wires its events.
+    # Order matters with ``defer`` scripts:
+    # 1. HTMX must load first; the runtime bridge wires its events.
     # 2. Idiomorph (htmx-2 extension) must load AFTER htmx so its
     #    ``htmx.defineExtension('morph', ...)`` can register before
     #    the first swap.
     # 3. ``runtime.js`` last — its bootstrap runs at DOMContentLoaded
     #    and expects ``window.htmx`` to exist. No Alpine in V3.
     #
-    # Les trois premiers sortent du CDN **tant qu'ils n'ont pas été
-    # rapatriés**. Mesuré le 2026-08-27 en prod, cache froid : 593 / 592 /
-    # 489 ms contre 20-40 ms pour une ressource servie par l'app. Un
-    # ``python -m bretzel.render.vendor`` les met dans ``.bretzel/vendor/``
-    # et cette liste bascule d'elle-même (cf. ``vendor.url_for``).
+    # The first three come from the CDN **as long as they have not been
+    # vendored**. Measured on 2026-08-27 in prod, cold cache: 593 / 592 /
+    # 489 ms against 20-40 ms for a resource served by the app. A
+    # ``python -m bretzel.render.vendor`` puts them in
+    # ``.bretzel/vendor/`` and this list switches over by itself (cf.
+    # ``vendor.url_for``).
     from bretzel.render import vendor  # casse un cycle : vendor lit d'ici
 
     return [
@@ -600,17 +600,17 @@ def _theme_payload_js() -> str:
     """Build the inline JS that exposes the framework theme to the
     runtime as ``window.$bz_theme``.
 
-    Currently carries the notification toaster theme ; future
+    Currently carries the notification toaster theme; future
     runtime-managed components add their entries here. Single-quoted
     JSON inside ``</script>`` is safe because the keys + class
     strings never contain ``</script>``.
 
-    ⚠️ **Ce n'est PAS ``json.dumps`` qui protège** : il n'échappe ni
-    ``<`` ni ``>`` (``json.dumps('<a>')`` rend ``"<a>"``). La phrase le
-    prétendait jusqu'au 2026-08-01. La sûreté ici repose sur le fait que
-    le payload est construit par le framework à partir de la palette du
-    thème — pas sur un échappement. Un payload user-influençable devrait
-    passer par ``escape_inline_json``, comme ``serialize_envelope``.
+    ⚠️ **It is NOT ``json.dumps`` that protects**: it escapes neither
+    ``<`` nor ``>`` (``json.dumps('<a>')`` returns ``"<a>"``). This
+    sentence claimed otherwise until 2026-08-01. Safety here rests on the
+    payload being built by the framework from the theme's palette — not
+    on an escape. A user-influenceable payload would have to go through
+    ``escape_inline_json``, like ``serialize_envelope``.
     """
     import json
 
@@ -629,10 +629,10 @@ def _theme_payload_js() -> str:
     return f"window.$bz_theme={encoded};"
 
 
-#: Les types MIME que le navigateur veut voir sur un ``rel="icon"``.
-#: Un ``type=`` juste laisse Chrome préférer le SVG sans télécharger le
-#: reste ; un ``type=`` faux le lui fait ignorer. On ne le pose donc que
-#: sur les extensions qu'on reconnaît, et on se tait sur les autres.
+#: The MIME types the browser wants to see on a ``rel="icon"``. A
+#: correct ``type=`` lets Chrome prefer the SVG without downloading the
+#: rest; a wrong ``type=`` makes it ignore it. So we only set it on the
+#: extensions we recognise, and stay silent about the others.
 _ICON_TYPES: Final[dict[str, str]] = {
     ".svg": "image/svg+xml",
     ".png": "image/png",
@@ -646,81 +646,82 @@ _ICON_TYPES: Final[dict[str, str]] = {
 
 @functools.cache
 def _inline_scripts(mobile_breakpoint: int) -> tuple[tuple[str, str], ...]:
-    """Les CORPS des ``<script>`` inline que la coque émet, nommés.
+    """The BODIES of the inline ``<script>`` the shell emits, named.
 
-    Source unique, et c'est tout son intérêt : la politique de sécurité
-    (:mod:`bretzel.server.security`) publie le ``sha256`` de chacun de
-    ces corps dans ``script-src``, et ``_build_head`` émet ces mêmes
-    corps. Un quatrième script inline ajouté ici est haché sans qu'on y
-    pense ; ajouté ailleurs, il ne l'est pas et la page casse sous CSP.
-    C'est la raison d'être de cette fonction, et
+    A single source, and that is its whole point: the security policy
+    (:mod:`bretzel.server.security`) publishes the ``sha256`` of each of
+    those bodies in ``script-src``, and ``_build_head`` emits those same
+    bodies. A fourth inline script added here is hashed without anyone
+    thinking about it; added elsewhere, it is not, and the page breaks
+    under CSP. That is this function's reason to exist, and
     ``tests/consistency/test_every_inline_script_is_in_the_policy.py``
-    est ce qui l'empêche d'être contournée.
+    is what keeps it from being bypassed.
 
-    Les trois corps sont **déterministes** — ils ne dépendent que du
-    thème et de ``mobile_breakpoint``, jamais de la requête. Mesuré le
-    2026-09-05 : 3 empreintes distinctes sur 77 pages × 2 requêtes.
-    C'est ce qui autorise des hashes plutôt qu'un ``nonce``, lequel
-    aurait imposé une valeur par réponse (donc une page non cachable)
-    et un paramètre de plus à toute coque personnalisée.
+    The three bodies are **deterministic** — they depend only on the
+    theme and on ``mobile_breakpoint``, never on the request. Measured on
+    2026-09-05: 3 distinct fingerprints across 77 pages × 2 requests.
+    That is what allows hashes rather than a ``nonce``, which would have
+    forced one value per response (hence an uncacheable page) and one
+    more parameter on every custom shell.
     """
     return (
-        # Avant toute feuille de style : la classe ``.dark`` doit être
-        # sur <html> au moment où les styles se calculent.
+        # Before any stylesheet: the ``.dark`` class must be on <html>
+        # by the time styles are computed.
         ("fouc", _FOUC_SCRIPT),
-        # Même créneau. La fonction de synchro d'abord (elle écrit
-        # ``bz_screen`` depuis matchMedia pour que le rendu suivant le
-        # lise côté serveur), puis l'amorce qui dépense le rechargement
-        # correctif si cette peinture est périmée.
+        # Same slot. The sync function first (it writes ``bz_screen``
+        # from matchMedia so the next render reads it server-side), then
+        # the bootstrap that spends the corrective reload if this paint
+        # is stale.
         (
             "screen",
             f"{_screen_sync_script(mobile_breakpoint)}{_screen_boot_script()}",
         ),
-        # Le thème du framework exposé au runtime en ``window.$bz_theme``.
+        # The framework theme exposed to the runtime as ``window.$bz_theme``.
         ("theme", _theme_payload_js()),
-        # Où le composant iconify doit chercher ses GLYPHES. Sans ce
-        # réglage il interroge trois hôtes tiers ; avec, il passe par
-        # notre route, qui relaie une fois puis sert de son cache.
+        # Where the iconify component must look for its GLYPHS. Without
+        # this setting it queries three third-party hosts; with it, it
+        # goes through our route, which relays once then serves from its
+        # cache.
         ("icons", _icon_provider_script()),
     )
 
 
 def _icon_provider_script() -> str:
-    """``window.IconifyProviders`` — la route locale plutôt que trois CDN.
+    """``window.IconifyProviders`` — the local route rather than three CDNs.
 
-    Le composant web iconify lit ce global à son initialisation. Rapatrier
-    le composant (cf. :mod:`bretzel.render.vendor`) ne rapatrie QUE lui :
-    ses glyphes partent à l'exécution chez ``api.iconify.design`` et deux
-    hôtes de secours. Mesuré le 2026-09-13, les trois coupés : **0 glyphe
-    sur 25**.
+    The iconify web component reads this global at initialisation.
+    Vendoring the component (cf. :mod:`bretzel.render.vendor`) vendors
+    ONLY the component: its glyphs go out at runtime to
+    ``api.iconify.design`` and two fallback hosts. Measured on
+    2026-09-13, with all three cut off: **0 glyphs out of 25**.
 
-    ⚠️ Il doit s'exécuter AVANT le script du composant, donc sans
-    ``defer`` — posé après, le réglage arrive quand les glyphes sont déjà
-    partis.
+    ⚠️ It must run BEFORE the component's script, so without ``defer`` —
+    placed after, the setting arrives when the glyphs have already gone
+    out.
     """
     return f'window.IconifyProviders={{"":{{resources:["{ROUTE_ICONS}"]}}}};'
 
 
 def inline_scripts(mobile_breakpoint: int) -> dict[str, str]:
-    """Les corps inline, nommés. Cf. :func:`_inline_scripts`.
+    """The inline bodies, named. Cf. :func:`_inline_scripts`.
 
-    Le calcul est mémorisé (le tuple hashable d'à côté) et cette
-    enveloppe rend un dict NEUF : mémoriser un dict le rendrait
-    mutable par ses appelants. Mesuré le 2026-09-06 :
-    ``_theme_payload_js()`` coûtait 26 µs à CHAQUE rendu de page pour
-    resérialiser la même palette — sa propre docstring disait déjà que
-    les trois corps sont déterministes.
+    The computation is memoised (the hashable tuple next door) and this
+    wrapper returns a FRESH dict: memoising a dict would make it mutable
+    by its callers. Measured on 2026-09-06: ``_theme_payload_js()`` cost
+    26 µs on EVERY page render to re-serialise the same palette — its own
+    docstring already said the three bodies are deterministic.
     """
     return dict(_inline_scripts(mobile_breakpoint))
 
 
 @dataclass(frozen=True, slots=True)
 class ShellSources:
-    """Tout ce que la coque charge ou exécute — la surface qu'une CSP couvre.
+    """Everything the shell loads or runs — the surface a CSP covers.
 
-    ``scripts`` et ``styles`` sont séparés parce qu'une origine de script
-    n'a rien à faire dans ``style-src``. ``inline`` porte les corps que
-    :func:`inline_scripts` déclare, dont la politique publie l'empreinte.
+    ``scripts`` and ``styles`` are separate because a script origin has
+    no business in ``style-src``. ``inline`` carries the bodies
+    :func:`inline_scripts` declares, whose fingerprint the policy
+    publishes.
     """
 
     scripts: tuple[str, ...]
@@ -745,20 +746,20 @@ def shell_sources(
 
 
 def _icon_links(favicon: str | bool | None, cache_bust: str | None) -> list[str]:
-    """Les ``<link>`` d'icône du document. Il y en a TOUJOURS au moins un.
+    """The document's icon ``<link>``. There is ALWAYS at least one.
 
-    C'est le point de la fonction : sans aucun ``<link rel="icon">``, un
-    navigateur demande ``/favicon.ico`` de sa propre initiative, et une
-    app Bretzel n'a pas cette route — donc un 404 par page, invisible
-    partout sauf dans les logs. Retirer la marque ne doit pas coûter ça,
-    d'où le ``href="data:,"`` du cas ``False`` : une URL vide et valide,
-    qui satisfait le navigateur sans rien télécharger.
+    That is the function's point: with no ``<link rel="icon">`` at all, a
+    browser requests ``/favicon.ico`` on its own initiative, and a
+    Bretzel app does not have that route — so a 404 per page, invisible
+    everywhere but in the logs. Removing the mark must not cost that,
+    hence the ``href="data:,"`` of the ``False`` case: an empty, valid
+    URL that satisfies the browser without downloading anything.
 
-    Trois cas :
+    Three cases:
 
-    - ``None`` → la marque du framework, SVG + l'icône tactile iOS ;
-    - une chaîne → l'URL de l'app, avec son type MIME s'il se devine ;
-    - ``False`` → le ``<link>`` vide décrit ci-dessus.
+    - ``None`` → the framework's mark, SVG + the iOS touch icon;
+    - a string → the app's URL, with its MIME type if it can be guessed;
+    - ``False`` → the empty ``<link>`` described above.
     """
     if favicon is False:
         return ['<link rel="icon" href="data:,"/>']
@@ -809,11 +810,11 @@ def _build_head(
             f'<meta name="description" content="{escape_attr(description)}"/>'
         )
     # ── PWA ──────────────────────────────────────────────────────────
-    # Le ``<link rel="manifest">`` est ce qui RATTACHE le manifeste au
-    # document : servir le fichier ne suffit pas, aucun navigateur ne le
-    # cherche de lui-même. Et il vient AVANT les icônes de favicon, qui
-    # sont une autre affaire — le favicon habille l'onglet, le manifeste
-    # habille l'app installée.
+    # The ``<link rel="manifest">`` is what ATTACHES the manifest to the
+    # document: serving the file is not enough, no browser looks for it
+    # on its own. And it comes BEFORE the favicon icons, which are
+    # another matter — the favicon dresses the tab, the manifest dresses
+    # the installed app.
     if manifest_url:
         parts.append(f'<link rel="manifest" href="{escape_attr(manifest_url)}"/>')
     if theme_color:
@@ -828,17 +829,17 @@ def _build_head(
         )
         parts.append(f"<meta {attrs}/>")
 
-    # Les corps viennent de ``inline_scripts`` — la MÊME source que les
-    # empreintes publiées dans ``script-src``. Cf. sa docstring.
+    # The bodies come from ``inline_scripts`` — the SAME source as the
+    # fingerprints published in ``script-src``. Cf. its docstring.
     _inline = inline_scripts(mobile_breakpoint)
     parts.append(f"<script>{_inline['fouc']}</script>")
     parts.append(f"<script>{_inline['screen']}</script>")
-    # Anti-flash style — même idée, pour les éléments encore non
-    # hydratés : ``[bz-data]`` reste invisible jusqu'à
-    # ``html.bz-ready``, et un overlay ``data-open="false"`` ne
-    # flashe pas. (La V3 n'a plus de ``x-cloak`` : c'est ce
-    # sélecteur-là qui fait le travail.) Voir la docstring de la
-    # constante pour pourquoi ça ne peut pas passer par Tailwind.
+    # Anti-flash style — same idea, for the elements not yet
+    # hydrated: ``[bz-data]`` stays invisible until
+    # ``html.bz-ready``, and an overlay with ``data-open="false"``
+    # does not flash. (V3 no longer has ``x-cloak``: that selector
+    # does the work.) See the constant's docstring for why this
+    # cannot go through Tailwind.
     parts.append(f"<style>{_ANTI_FLASH_STYLE}</style>")
     # Pygments .bz-code rules — coloured spans inside ui.code blocks.
     parts.append(f"<style>{_PYGMENTS_STYLE}</style>")
@@ -865,8 +866,8 @@ def _build_head(
     if browser_css:
         from bretzel.render import vendor  # casse un cycle : vendor lit d'ici
 
-        compilateur = vendor.url_for(vendor.browser_css_asset())
-        parts.append(f'<script src="{escape_attr(compilateur)}"></script>')
+        compiler = vendor.url_for(vendor.browser_css_asset())
+        parts.append(f'<script src="{escape_attr(compiler)}"></script>')
         if theme_css_content:
             inline_css = _strip_tailwind_import(theme_css_content)
             parts.append(
@@ -890,17 +891,17 @@ def _build_head(
     # JS never carries its own copy of the class strings.
     parts.append(f"<script>{_inline['theme']}</script>")
 
-    # ⚠️ **Avant les scripts, et sans ``defer``.** Le composant web
-    # iconify lit ``window.IconifyProviders`` à son initialisation ; posé
-    # après lui, le réglage arrive trop tard et les glyphes sont déjà
-    # partis chez le tiers.
+    # ⚠️ **Before the scripts, and without ``defer``.** The iconify web
+    # component reads ``window.IconifyProviders`` at initialisation;
+    # placed after it, the setting arrives too late and the glyphs have
+    # already gone out to the third party.
     #
-    # Ce que ça change : le navigateur du visiteur ne parle plus à
-    # ``api.iconify.design`` (ni à ses deux secours) — c'est l'app qui
-    # relaie, une fois, puis sert de son cache de projet. Mesuré le
-    # 2026-09-13 : les trois hôtes coupés rendaient **0 glyphe sur 25**,
-    # et rapatrier le composant n'y changeait rien, parce que c'est la
-    # DONNÉE qui vient de chez eux.
+    # What it changes: the visitor's browser no longer talks to
+    # ``api.iconify.design`` (nor to its two fallbacks) — the app relays,
+    # once, then serves from its project cache. Measured on 2026-09-13:
+    # the three hosts cut off returned **0 glyphs out of 25**, and
+    # vendoring the component changed nothing, because it is the DATA
+    # that comes from them.
     parts.append(f"<script>{_inline['icons']}</script>")
 
     # Framework JS — defer so the body can render before they execute.
@@ -939,18 +940,18 @@ def _build_body(body_html: str, page_uuid: str, *, nav_progress: bool = True) ->
     """
     safe_uuid = escape_attr(page_uuid)
     wrapper_id = f"bz-page-{safe_uuid}"
-    # ``hx-headers`` était le SEUL attribut du dépôt émis entre simples
-    # quotes — parce que sa valeur est du JSON, donc pleine de ``"``. Ça
-    # tenait tant qu'``escape_attr`` échappait aussi ``'`` ; ce n'est plus
-    # le cas (mesuré : 6 octets par apostrophe, ~4 % de chaque page, et
-    # les expressions ``bz-*`` en sont truffées). On repasse donc en
-    # doubles quotes et on laisse ``escape_attr`` plier les ``"``
-    # intérieurs en ``&quot;`` — le parseur HTML les rend à htmx tels
-    # quels, et il lit du JSON valide. Quatre entités par page, une fois.
+    # ``hx-headers`` was the ONLY attribute in the repository emitted
+    # between single quotes — because its value is JSON, hence full of
+    # ``"``. That held as long as ``escape_attr`` also escaped ``'``;
+    # that is no longer the case (measured: 6 bytes per apostrophe, ~4 %
+    # of every page, and the ``bz-*`` expressions are riddled with them).
+    # So we go back to double quotes and let ``escape_attr`` fold the
+    # inner ``"`` into ``&quot;`` — the HTML parser hands them back to
+    # htmx as-is, and it reads valid JSON. Four entities per page, once.
     #
-    # ⚠️ Ne réintroduis pas de simple quote ici : la précondition
-    # d'``escape_attr`` est désormais « valeur entre DOUBLES quotes »,
-    # et ``test_escape_attr_result_is_quoted`` la fait respecter.
+    # ⚠️ Do not reintroduce a single quote here: ``escape_attr``'s
+    # precondition is now "value between DOUBLE quotes", and
+    # ``test_escape_attr_result_is_quoted`` enforces it.
     hx_headers = escape_attr(f'{{"{HEADER_PAGE_ID}": "{page_uuid}"}}')
     # Notification toaster skeleton — six empty position stacks with
     # all Tailwind classes + transitions as literal attribute values.

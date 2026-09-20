@@ -121,7 +121,7 @@ class Slider(Component):
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, value=value,
             min=min, max=max, step=step,
@@ -237,10 +237,10 @@ class Slider(Component):
         # force-overwrite ``hx-trigger`` to ``"change"`` unconditionally
         # — so the handler silently fired on ``change`` instead. Cf.
         # traps.md § "Slider on_focus/on_blur callable misrouted".
-        # Le routage vit au socle. Il épingle aussi ``hx-trigger="change"``
-        # sur le porteur de valeur — un ``<input type=hidden>`` ne fire
-        # jamais ``change`` nativement, c'est ``change_emit_effect`` qui le
-        # dispatche.
+        # The routing lives in the base layer. It also pins
+        # ``hx-trigger="change"`` on the value carrier — an
+        # ``<input type=hidden>`` never fires ``change`` natively, it is
+        # ``change_emit_effect`` that dispatches it.
         relocate_server_action(
             root_attrs,
             value_carrier=relocated_to_hidden,
@@ -279,13 +279,14 @@ class Slider(Component):
             else:
                 initial_str = str(initial_value)
                 value_directive = f"String({value_expr})"
-            # ``dispatch=None`` : Slider est le seul contrôle à tirer son
-            # ``change`` depuis une MÉTHODE DE SCOPE (``_emitChange``, qui
-            # défère par ``queueMicrotask`` après la fin du geste) plutôt
-            # que d'un ``bz-effect`` sur la valeur — un drag écrit la
-            # valeur en continu, et un dispatch par tick POSTerait à chaque
-            # pixel. Le refus est écrit ICI, au site de construction, au
-            # lieu de se déduire d'un `bz-effect` absent.
+            # ``dispatch=None``: Slider is the only control to pull its
+            # ``change`` from a SCOPE METHOD (``_emitChange``, which
+            # defers through ``queueMicrotask`` after the gesture ends)
+            # rather than from a ``bz-effect`` on the value — a drag
+            # writes the value continuously, and one dispatch per tick
+            # would POST at every pixel. The refusal is written HERE, at
+            # the construction site, instead of being inferred from an
+            # absent `bz-effect`.
             hidden_attrs: dict[str, Any] = dict(
                 hidden_carrier_attrs(
                     value_directive, initial=initial_str, dispatch=None
@@ -596,10 +597,10 @@ class Slider(Component):
         Two read shapes :
         - **Local mode** (no binding) : ``value`` field carries the
           scalar (single) or ``[start, end]`` array (range).
-        - **Binding mode** : ``_read()`` / ``_write()`` lisent et écrivent
-          ``$bz.state.<path>``. ⚠️ PAS un ``get value()`` — le commentaire
-          25 lignes plus bas explique justement que ``scope.absorb`` gèle les
-          getters (cette ligne annonçait le contraire jusqu'au 2026-08-01).
+        - **Binding mode** : ``_read()`` / ``_write()`` read and write
+          ``$bz.state.<path>``. ⚠️ NOT a ``get value()`` — the comment
+          25 lines below explains precisely that ``scope.absorb`` freezes
+          getters (this line announced the opposite until 2026-08-01).
 
         Methods (mode-aware) :
         - ``_picked()`` → scalar (single) or ``[start, end]`` (range)
@@ -634,22 +635,22 @@ class Slider(Component):
         else:
             initial_js = json.dumps(float(initial_value))
 
-        # La CONFIG est server-owned : le client ne l'écrit jamais, donc elle
-        # se re-sème sans condition. ``absorb`` ne réécrit jamais un signal
-        # existant (``03_scope.js``) — sans ces clés, un ``min=`` / ``max=`` /
-        # ``step=`` changé côté serveur restait figé à sa valeur du premier
-        # montage. Même racine que ``_total`` de Pagination et ``_step`` de
-        # NumberInput.
+        # The CONFIG is server-owned: the client never writes it, so it
+        # re-seeds unconditionally. ``absorb`` never rewrites an existing
+        # signal (``03_scope.js``) — without these keys, a ``min=`` /
+        # ``max=`` / ``step=`` changed server-side stayed frozen at its
+        # first mount's value. Same root as Pagination's ``_total`` and
+        # NumberInput's ``_step``.
         #
-        # ⚠️ PAS ``_dragging`` / ``_hovered`` / ``_focused`` / ``_track`` /
-        # ``_carrier`` / ``_precCache`` : état d'interaction CLIENT. Les
-        # re-semer couperait un drag en cours.
+        # ⚠️ NOT ``_dragging`` / ``_hovered`` / ``_focused`` / ``_track``
+        # / ``_carrier`` / ``_precCache``: CLIENT interaction state.
+        # Re-seeding them would cut a drag in progress.
         config_sync = ["_range", "_min", "_max", "_step"]
 
         if value_binding is None:
-            # ``value`` reste GATÉE, elle : re-semée seulement si le serveur
-            # en est propriétaire — un slider littéral garde la position que
-            # le client vient de faire glisser.
+            # ``value`` stays GATED: re-seeded only if the server owns
+            # it — a literal slider keeps the position the client has
+            # just dragged it to.
             keys = ["value", *config_sync] if server_backed else config_sync
             sync_marker = server_sync_marker(*keys, enabled=True)
             value_field = f"value: {initial_js},{sync_marker}"
@@ -658,8 +659,8 @@ class Slider(Component):
                 "_write(v) { this.value = v; },"
             )
         else:
-            # Store client propriétaire de la valeur ; la config reste au
-            # serveur.
+            # A client store owns the value; the config stays with the
+            # server.
             value_field = server_sync_marker(
                 *config_sync, enabled=True
             ).lstrip()

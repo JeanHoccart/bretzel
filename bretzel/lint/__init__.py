@@ -1,24 +1,25 @@
-"""Couche 7 — le framework juge le code écrit contre lui.
+"""Layer 7 — the framework judges the code written against it.
 
-Pendant de :mod:`bretzel.introspect` : celui-là **décrit**, celui-ci
-**constate**. La distinction n'est pas cosmétique — elle décide de ce qui
-peut être extrait. ``describe`` reflète le code installé, donc il doit
-voyager à sa version exacte, sinon il ment ; ``lint`` porte des *règles*,
-un savoir qui ne dépend d'aucune version, et c'est la moitié qu'on peut
-sortir du dépôt public un jour. Le contrat ``lint-stays-extractable`` du
-fichier ``.importlinter`` en fait une garantie mécanique plutôt qu'une
-intention : aucun module du framework hors ``cli`` n'a le droit d'importer
-ce paquet.
+The counterpart of :mod:`bretzel.introspect`: that one **describes**,
+this one **reports**. The distinction is not cosmetic — it decides what
+can be extracted. ``describe`` reflects the installed code, so it must
+travel at its exact version, otherwise it lies; ``lint`` carries *rules*,
+knowledge that depends on no version, and it is the half that can leave
+the public repository one day. The ``lint-stays-extractable`` contract in
+the ``.importlinter`` file makes that a mechanical guarantee rather than
+an intention: no framework module outside ``cli`` may import this
+package.
 
-**Deux étages, par sûreté et non par confort** :
+**Two tiers, by safety and not by convenience**:
 
-- :func:`run` — statique. AST seul, **rien de l'app n'est exécuté**. C'est
-  le défaut, et c'est ce qui permet de le lancer sur le code d'un tiers.
-- :func:`run_deep` — importe l'application pour interroger sa carte
-  (routables non déclarés, dérive de contrat). Bien plus puissant, mais
-  ça **exécute le code de l'utilisateur** : ça ne peut pas être le
-  défaut, et ça ne prend pas des chemins mais une cible ``module:attribut``
-  — les questions qu'il pose n'ont pas de réponse dans un fichier isolé.
+- :func:`run` — static. AST only, **nothing of the app is executed**. It
+  is the default, and it is what makes it safe to run over a third
+  party's code.
+- :func:`run_deep` — imports the application to query its map
+  (undeclared routables, contract drift). Far more powerful, but it
+  **runs the user's code**: it cannot be the default, and it takes not
+  paths but a ``module:attribute`` target — the questions it asks have
+  no answer in an isolated file.
 """
 
 from __future__ import annotations
@@ -46,29 +47,28 @@ __all__ = (
 
 
 def available_rules() -> tuple[str, ...]:
-    """Ce que l'outil sait vérifier. Énumérable à dessein : un `check` qui
-    ne peut pas dire ce qu'il couvre ne se laisse pas juger."""
+    """What the tool can verify. Enumerable by design: a `check` that
+    cannot say what it covers cannot be judged."""
     return tuple(sorted(STATIC))
 
 
 @cache
 def rule_summaries() -> MappingProxyType[str, str]:
-    """Ce que chaque règle refuse, en une phrase — la SIENNE.
+    """What each rule refuses, in one sentence — ITS OWN.
 
-    Le pendant lisible d':func:`available_rules` : celui-là dit ce qui
-    est couvert, celui-ci dit contre quoi. Ajouté le 2026-09-06 pour la
-    doc vivante, qui listait douze noms nus faute de pouvoir atteindre
-    la phrase.
+    The readable counterpart of :func:`available_rules`: that one says
+    what is covered, this one says what against. Added on 2026-09-06 for
+    the living documentation, which listed twelve bare names for want of
+    being able to reach the sentence.
 
-    **Lue sur le module qui porte la règle, jamais recopiée ici.** Un
-    résumé écrit à la main dérive plus vite qu'il ne sert — ce dépôt a
-    supprimé un skill entier pour cette raison — et il n'y a aucune
-    raison d'entretenir une deuxième version d'une phrase qui existe
-    déjà en tête du fichier.
+    **Read from the module carrying the rule, never copied here.** A
+    hand-written summary drifts faster than it serves — this repository
+    deleted a whole skill for that reason — and there is no reason to
+    maintain a second version of a sentence that already exists at the
+    head of the file.
 
-    Le préfixe ``Règle :`` tombe : c'est une convention d'en-tête de
-    module, pas une partie du sens. Ce qui reste se lit derrière « elle
-    refuse … ».
+    The ``Rule:`` prefix is dropped: it is a module-header convention,
+    not part of the meaning. What remains reads after "it refuses …".
     """
     return MappingProxyType({
         slug: _stated_by(fn) for slug, fn in sorted(STATIC.items())
@@ -76,18 +76,18 @@ def rule_summaries() -> MappingProxyType[str, str]:
 
 
 def _stated_by(check: object) -> str:
-    """La première ligne non vide du module d'une règle, nettoyée.
+    """The first non-empty line of a rule's module, cleaned up.
 
-    Le balisage reStructuredText tombe aussi. Une phrase publique est
-    faite pour être AFFICHÉE — dans un terminal, dans une page — et
-    ``des ``doubles backticks`` et des **étoiles**`` s'y lisent tels
-    quels. Le double backtick devient simple, qui est la convention de
-    l'interface ; les étoiles disparaissent.
+    The reStructuredText markup is dropped too. A public sentence is
+    meant to be DISPLAYED — in a terminal, in a page — and ``some
+    ``double backticks`` and **stars**`` read there as-is. The double
+    backtick becomes a single one, which is the interface's convention;
+    the stars disappear.
     """
     doc = (inspect.getdoc(inspect.getmodule(check)) or "").strip()
-    ligne = next((li for li in doc.splitlines() if li.strip()), "")
-    ligne = ligne.strip().removeprefix("Règle :").strip().rstrip(".")
-    return ligne.replace("``", "`").replace("**", "")
+    line = next((li for li in doc.splitlines() if li.strip()), "")
+    line = line.strip().removeprefix("Rule:").strip().rstrip(".")
+    return line.replace("``", "`").replace("**", "")
 
 
 def run(
@@ -95,27 +95,27 @@ def run(
     *,
     rules: tuple[str, ...] | None = None,
 ) -> Report:
-    """Passe les règles statiques sur les fichiers Python sous ``paths``.
+    """Run the static rules over the Python files under ``paths``.
 
-    ``rules`` restreint le passage à un sous-ensemble nommé. C'est ce
-    dont une gate a besoin : elle possède **une** interdiction et son
-    corpus, et n'a pas à rougir parce qu'une règle voisine a trouvé
-    autre chose. Un nom inconnu lève plutôt que d'être ignoré — une
-    sélection qui se vide en silence rendrait un rapport vert.
+    ``rules`` narrows the pass to a named subset. That is what a gate
+    needs: it owns **one** prohibition and its corpus, and has no
+    business turning red because a neighbouring rule found something
+    else. An unknown name raises rather than being ignored — a selection
+    that empties itself silently would return a green report.
     """
     if rules is not None:
         unknown = sorted(set(rules) - set(STATIC))
         if unknown:
             raise KeyError(
-                f"règle(s) inconnue(s) : {unknown}. Disponibles : {list(available_rules())}."
+                f"unknown rule(s): {unknown}. Available: {list(available_rules())}."
             )
     selected = {name: check for name, check in STATIC.items() if rules is None or name in rules}
     found = modules(paths)
     report = Report(files_scanned=len(found), rules_run=tuple(sorted(selected)))
-    # Le corpus est exposé pour la durée du passage : une règle qui constate
-    # sur un module peut avoir besoin de savoir ce qu'un AUTRE fichier
-    # déclare (cf. ``corpus.bound``). Lié ici et nulle part ailleurs, donc
-    # la portée est exactement celle de l'appel.
+    # The corpus is exposed for the duration of the pass: a rule
+    # reporting on one module may need to know what ANOTHER file
+    # declares (cf. ``corpus.bound``). Bound here and nowhere else, so
+    # the scope is exactly the call's.
     with corpus_bound(found):
         for module in found:
             for check in selected.values():

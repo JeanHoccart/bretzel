@@ -1,14 +1,14 @@
-"""features/classes_data — data : les lectures de classes et d'élèves.
+"""features/classes_data — data: the class and pupil reads.
 
-``kind="data"`` : aucune page, aucun rendu. Elle traduit les questions de
-l'accueil en SQL et rend des dicts. Les écrans ne touchent jamais
+``kind="data"``: no page, no rendering. It translates the home page's
+questions into SQL and returns dicts. The screens never touch
 ``core.db``.
 
-**Toute lecture prend son ``annee_id`` en paramètre**, comme le CRM fait
-prendre son ``owner`` : le cadrage doit se voir dans la signature qu'on
-relit. Une fonction qui appellerait ``annee_regardee()`` toute seule
-rendrait le cadrage invisible au call-site, et un chemin oublié le
-resterait.
+**Every read takes its ``annee_id`` as a parameter**, the way the CRM
+makes them take their ``owner``: the scoping must show in the signature
+one re-reads. A function calling ``annee_regardee()`` on its own would
+make the scoping invisible at the call site, and a forgotten path would
+stay so.
 """
 
 from __future__ import annotations
@@ -18,20 +18,20 @@ from examples.ecole.core.db import query, scalar
 
 
 def classes_de(annee_id: int) -> list[dict]:
-    """Les classes d'une année, avec leur effectif et ce qui reste à voir.
+    """A year's classes, with their size and what is left to review.
 
-    Une seule requête pour les trois informations de la tuile (EF-C1) —
-    code, effectif, marque « à voir ». En trois requêtes par classe, un
-    accueil à seize tuiles en ferait quarante-huit.
+    A single query for the tile's three pieces of information (EF-C1) —
+    code, size, "to review" mark. At three queries per class, a home page
+    with sixteen tiles would make forty-eight.
 
-    ⚠️ ``COUNT(DISTINCT …)`` et pas ``COUNT(…)`` : joindre DEUX tables
-    un-à-plusieurs multiplie les lignes entre elles. Une classe de trente
-    élèves avec quatre vérifications en attente rendrait un effectif de
-    120, et le total de l'accueil serait faux de la même façon — sans
-    aucune erreur, juste un nombre crédible.
+    ⚠️ ``COUNT(DISTINCT …)`` and not ``COUNT(…)``: joining TWO
+    one-to-many tables multiplies the rows by each other. A class of
+    thirty pupils with four pending checks would return a size of 120,
+    and the home page's total would be wrong the same way — with no
+    error, just a plausible number.
 
-    ``i.fin IS NULL`` : seuls les élèves EN COURS d'inscription comptent.
-    Un élève sorti garde sa ligne (RT-2) et sort des listes.
+    ``i.fin IS NULL``: only pupils with a CURRENT enrolment count. A
+    pupil who has left keeps their row (RT-2) and leaves the lists.
     """
     return query(
         """
@@ -52,12 +52,12 @@ def classes_de(annee_id: int) -> list[dict]:
 
 
 def total_eleves(annee_id: int) -> int:
-    """Le nombre d'élèves en service sur l'année (EF-C1).
+    """The number of pupils enrolled over the year (EF-C1).
 
-    Recompté en SQL plutôt que sommé depuis :func:`classes_de` : les deux
-    répondraient pareil aujourd'hui, et le jour où un élève sera inscrit
-    dans deux classes de la même année — un redoublant réaffecté en cours
-    d'année — la somme des effectifs le compterait deux fois.
+    Recounted in SQL rather than summed from :func:`classes_de`: both
+    would answer the same today, and the day a pupil is enrolled in two
+    classes of the same year — a repeater reassigned mid-year — the sum
+    of the sizes would count them twice.
     """
     return scalar(
         """

@@ -1,20 +1,18 @@
-"""``Audio`` test bench — court, parce que le composant l'est.
+"""``Audio`` test bench — short, because the component is.
 
-Six cartes. Ce banc en a longtemps eu quatre, en plaidant que « le
-gabarit est un guide, pas un quota » — et l'argument avait l'air bon
-jusqu'à ce qu'on regarde CE QUI manquait : *Edge cases* et *A11y*, sur un
-composant dont le seul vrai sujet est justement l'accessibilité (des
-contrôles atteignables, une transcription que le composant ne fournit
-pas). Ce n'était pas de la retenue, c'étaient les deux cartes les plus
-dues. La gate ``test_a_component_page_carries_its_cards`` les exige
-maintenant.
+Six cards. This bench long had four, pleading that "the template is a
+guide, not a quota" — and the argument looked good until one looked at
+WHAT was missing: *Edge cases* and *A11y*, on a component whose only real
+subject is precisely accessibility (reachable controls, a transcript the
+component does not provide). It was not restraint, it was the two most
+owed cards. The gate ``test_a_component_page_carries_its_cards`` now
+requires them.
 
-Ce qui compte, ici, tient dans la carte 2 : **la garde autoplay de
-``ui.video`` ne se transporte PAS à l'audio**, et c'est une décision, pas
-un oubli.
+What counts, here, is in card 2: **``ui.video``'s autoplay guard does NOT
+carry over to audio**, and it is a decision, not an oversight.
 
-⚠️ Hors ligne. La source est un WAV silencieux généré en ``data:`` —
-le lecteur est fonctionnel, il n'y a juste rien à entendre.
+⚠️ Offline. The source is a silent WAV generated as a ``data:`` — the
+player works, there is simply nothing to hear.
 """
 
 import base64
@@ -31,14 +29,14 @@ PATH = "/audio"
 
 
 def silent_wav(seconds: float = 0.25, rate: int = 8000) -> str:
-    """Un WAV silencieux en ``data:`` — une source audio hors ligne.
+    """A silent WAV in a ``data:`` — an offline audio source.
 
-    Généré plutôt que collé : 2,7 ko de base64 en dur seraient illisibles
-    au diff, et personne ne saurait ce qu'ils contiennent. Ici on voit que
-    c'est du silence.
+    Generated rather than pasted: 2.7 kB of hard-coded base64 would be
+    unreadable in a diff, and nobody would know what it contains. Here
+    one sees it is silence.
     """
     n = int(rate * seconds)
-    # 0x80 = le point milieu du PCM 8 bits non signé, donc du silence.
+    # 0x80 = the midpoint of unsigned 8-bit PCM, hence silence.
     body = bytes([0x80]) * n
     header = (
         b"RIFF" + struct.pack("<I", 36 + n) + b"WAVEfmt "
@@ -52,7 +50,7 @@ SILENT = silent_wav()
 
 
 class AudioPlayground(PageState):
-    """État du banc serveur — un champ par prop + par échappatoire."""
+    """The server bench's state — one field per prop + per escape hatch."""
 
     controls: str = field(default="on")
     autoplay: str = field(default="off")
@@ -101,7 +99,7 @@ def server_panel() -> None:
         with control("controls"):
             ui.select(value=state.controls, options=ON_OFF,
                       on_change=server_changed)
-        with control("autoplay (ne force PAS muted)"):
+        with control('autoplay (does NOT force muted)'):
             ui.select(value=state.autoplay, options=ON_OFF,
                       on_change=server_changed)
         with control("muted"):
@@ -118,8 +116,8 @@ def server_panel() -> None:
                      on_change=server_changed)
         with control("visible"):
             ui.select(value=state.visible,
-                      options=[("on", "True (défaut)"),
-                               ("off", "False (pas de rendu)")],
+                      options=[("on", 'True (default)'),
+                               ("off", 'False (nothing rendered)')],
                       on_change=server_changed)
 
     ui.divider()
@@ -140,17 +138,17 @@ def page() -> None:
         with ui.vstack():
             ui.heading("Audio", level=1)
             ui.text(
-                "Le plus mince de la famille média, et il l'assume : pas "
-                "de ratio (un lecteur audio a une hauteur fixe, donc aucun "
-                "saut de page à éviter), pas de poster, pas de thème — la "
-                "barre est dessinée par le navigateur. Il existe pour la "
-                "symétrie de la famille, et pour un défaut qui compte : "
-                "controls=True.",
+                'The thinnest of the media family, and it owns that: no '
+                    'ratio (an audio player has a fixed height, so there is '
+                    'no page jump to avoid), no poster, no theme — the bar is'
+                    " drawn by the browser. It exists for the family's "
+                    'symmetry, and for one default that matters: '
+                    'controls=True.',
                 color="muted",
             )
             ui.text(
-                "La source de cette page est un WAV silencieux généré en "
-                "data: — hors ligne, et le lecteur est fonctionnel.",
+                "This page's source is a silent WAV generated as a data: "
+                    'URI — offline, and the player works.',
                 color="muted", size="sm",
             )
 
@@ -159,44 +157,43 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Reference", level=2)
 
-                    ui.heading("Avec contrôles (le défaut)", level=3)
+                    ui.heading('With controls (the default)', level=3)
                     ui.text(
-                        "Sans eux, un élément audio est invisible ET "
-                        "inaudible. Le défaut de la plateforme (pas de "
-                        "contrôles) est un piège pour tout le monde sauf "
-                        "celui qui pilote la lecture en JS.",
+                        'Without them, an audio element is invisible AND '
+                            "inaudible. The platform's default (no controls) "
+                            'is a trap for everybody except whoever drives '
+                            'playback from JS.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-sm"):
                         ui.audio(src=SILENT, controls=True)
 
-                    ui.heading("Chaque paramètre, en appel littéral",
+                    ui.heading('Every parameter, as a literal call',
                                level=3)
                     with ui.vstack(classes="max-w-sm"):
                         ui.audio(src=SILENT, controls=True, loop=True,
                                  muted=True, autoplay=False)
 
-            # ── Carte 2 — La garde qui ne se transporte pas ─────────
+            # ── Card 2 — The guard that does not carry over ─────────
             with ui.card():
                 with ui.vstack():
-                    ui.heading("La garde qui ne se transporte pas",
+                    ui.heading('The guard that does not travel',
                                level=2)
                     ui.text(
-                        "ui.video force muted dès qu'on demande autoplay, "
-                        "parce que les navigateurs bloquent la lecture "
-                        "automatique sonore. Forcer le silence y SAUVE la "
-                        "lecture : l'image reste, et c'était l'essentiel.",
+                        'ui.video forces muted as soon as autoplay is '
+                            'asked for, because browsers block autoplay with '
+                            'sound. Forcing silence SAVES the playback there:'
+                            ' the picture stays, and that was the point.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "ui.audio ne le fait pas, et ce n'est pas un "
-                        "oubli. Sur du son, le silence supprime tout ce "
-                        "que la lecture apportait — on livrerait un "
-                        "lecteur qui tourne pour rien. La lecture "
-                        "automatique reste de toute façon bloquée tant "
-                        "que l'utilisateur n'a pas interagi avec la "
-                        "page ; aucun attribut ne contourne cette "
-                        "politique navigateur.",
+                        'ui.audio does not do it, and that is not an '
+                            'oversight. On sound, silence removes everything '
+                            'playing brought — you would ship a player '
+                            'running for nothing. Autoplay stays blocked '
+                            'anyway until the user has interacted with the '
+                            'page; no attribute works round that browser '
+                            'policy.',
                         color="muted", size="sm",
                     )
                     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
@@ -222,14 +219,14 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Edge cases", level=2)
 
-                    ui.heading("controls=False — l'élément DISPARAÎT",
+                    ui.heading('controls=False — the element DISAPPEARS',
                                level=3)
                     ui.text(
-                        "Ce n'est pas « un lecteur sans boutons » : un "
-                        "<audio> sans contrôles a une hauteur nulle, "
-                        "donc la ligne ci-dessous est vide. La "
-                        "combinaison reste légitime — une piste pilotée "
-                        "en JS — mais elle ne se voit qu'ici.",
+                        'This is not "a player without buttons": an '
+                            '<audio> with no controls has zero height, so the'
+                            ' line below is empty. The combination stays '
+                            'legitimate — a track driven from JS — but it can'
+                            ' only be seen here.',
                         color="muted", size="xs",
                     )
                     with ui.container(
@@ -239,9 +236,9 @@ def page() -> None:
 
                     ui.heading("Source absente", level=3)
                     ui.text(
-                        "Le lecteur se dessine quand même, avec sa durée "
-                        "à zéro. Le composant ne remplace pas une source "
-                        "manquante — il n'a rien à mettre à la place.",
+                        'The player still draws itself, with a duration '
+                            'of zero. The component does not stand in for a '
+                            'missing source — it has nothing to put there.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-sm"):
@@ -249,9 +246,9 @@ def page() -> None:
 
                     ui.heading("Source illisible", level=3)
                     ui.text(
-                        "Un data: tronqué : le navigateur rend un "
-                        "lecteur inerte. Aucune erreur ne remonte au "
-                        "serveur — c'est un échec purement client.",
+                        'A truncated data: URI: the browser renders an '
+                            'inert player. No error comes back to the server '
+                            '— it is a purely client-side failure.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-sm"):
@@ -260,9 +257,9 @@ def page() -> None:
                     ui.heading("autoplay + loop + muted ensemble",
                                level=3)
                     ui.text(
-                        "Les trois cohabitent sans que le composant "
-                        "n'arbitre. Le HTML émis le montre : ni garde, "
-                        "ni réécriture.",
+                        'All three coexist without the component '
+                            'arbitrating. The emitted HTML shows it: no '
+                            'guard, no rewriting.',
                         color="muted", size="xs",
                     )
                     ui.code(
@@ -278,19 +275,19 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Composability", level=2)
 
-                    ui.heading("Dans une carte — un épisode", level=3)
+                    ui.heading('In a card — one episode', level=3)
                     with ui.card():
                         with ui.vstack(gap="sm"):
-                            ui.heading("Épisode 12", level=4)
+                            ui.heading('Episode 12', level=4)
                             ui.audio(src=SILENT)
                             ui.text("34 min", color="muted", size="sm")
 
-                    ui.heading("Dans une cellule de grille contrainte",
+                    ui.heading('Inside a constrained grid cell',
                                level=3)
                     ui.text(
-                        "Le lecteur natif prend sinon une largeur "
-                        "arbitraire ; le slot racine pose w-full pour "
-                        "qu'il s'accorde à sa colonne.",
+                        'The native player otherwise takes an arbitrary '
+                            'width; the root slot sets w-full so it matches '
+                            'its column.',
                         color="muted", size="xs",
                     )
                     with ui.grid(cols={"base": 2}, gap="sm"):
@@ -302,42 +299,41 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("A11y", level=2)
                     ui.text(
-                        "controls=True par défaut EST la décision "
-                        "d'accessibilité de ce composant, et sa seule "
-                        "raison d'exister à côté de la balise native. "
-                        "Sans contrôles, il n'y a rien à tabuler et rien "
-                        "à annoncer : l'élément est là et personne ne "
-                        "peut le jouer.",
+                        "controls=True by default IS this component's "
+                            'accessibility decision, and its only reason to '
+                            'exist beside the native tag. With no controls '
+                            'there is nothing to tab to and nothing to '
+                            'announce: the element is there and nobody can '
+                            'play it.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "Les contrôles rendus sont ceux du navigateur — "
-                        "déjà étiquetés, déjà au clavier, déjà annoncés "
-                        "dans la langue du système. C'est aussi la "
-                        "raison de ne pas les redessiner : une barre "
-                        "maison devrait réimplémenter tout ça, clavier "
-                        "compris, pour gagner un arrondi.",
+                        "The controls rendered are the browser's — "
+                            'already labelled, already keyboard-driven, '
+                            "already announced in the system's language. That"
+                            ' is also the reason not to redraw them: a home-'
+                            'made bar would have to reimplement all of that, '
+                            'keyboard included, to gain a rounded corner.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("Ce que le composant ne fournit PAS",
+                    ui.heading('What the component does NOT provide',
                                level=3)
                     ui.text(
-                        "Pas de transcription, et aucun moyen d'en "
-                        "attacher une : ui.audio est une feuille, il "
-                        "n'accepte aucun enfant, donc aucun "
-                        "<track kind=\"captions\"> ne peut y entrer. Un "
-                        "<audio> seul est inaccessible à qui n'entend "
-                        "pas — la transcription se pose À CÔTÉ, en "
-                        "texte réel. C'est une limite déclarée, "
-                        "consignée dans .claude/work/todo.md.",
+                        'No transcript, and no way to attach one: '
+                            'ui.audio is a leaf, it accepts no children, so '
+                            'no <track kind="captions"> can get in. An '
+                            '<audio> on its own is inaccessible to anyone who'
+                            ' cannot hear — the transcript goes BESIDE it, as'
+                            ' real text. It is a declared limit, recorded in '
+                            '.claude/work/todo.md.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(gap="sm", classes="max-w-sm"):
                         ui.audio(src=SILENT)
                         ui.text(
-                            "Transcription — « Bienvenue dans "
-                            "l'épisode 12. Aujourd'hui, l'état typé. »",
+                            'Transcript — “Welcome to episode 12. Today, '
+                                'typed state.”',
                             color="muted", size="sm",
                         )
 
@@ -346,9 +342,9 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Server playground", level=2)
                     ui.text(
-                        "Mettez autoplay à True et vérifiez dans le HTML "
-                        "émis que muted n'apparaît PAS — c'est la "
-                        "différence avec ui.video.",
+                        'Set autoplay to True and check in the emitted '
+                            'HTML that muted does NOT appear — that is the '
+                            'difference from ui.video.',
                         color="muted", size="sm",
                     )
                     server_panel()

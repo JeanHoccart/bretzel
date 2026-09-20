@@ -3,10 +3,10 @@
 Same visual identity as :class:`Button` but the size axis controls
 ``h × w`` together (``size="md"`` → ``h-10 w-10``). The icon is positional
 (``ui.icon_button("trash-2", on_click=…)``) and accepts a string Iconify
-name (auto-wrapped in :class:`Icon`). Le contenu visible étant une icône
-sans texte de repli, le bouton a besoin d'un **nom accessible** —
-``aria_label="…"`` le donne, et à défaut le ``tooltip=`` le fournit
-(cf. :meth:`IconButton.render`).
+name (auto-wrapped in :class:`Icon`). The visible content being an icon
+with no fallback text, the button needs an **accessible name** —
+``aria_label="…"`` gives it, and failing that the ``tooltip=`` supplies
+it (cf. :meth:`IconButton.render`).
 """
 
 from __future__ import annotations
@@ -65,8 +65,8 @@ class IconButton(Component):
         on_mouseleave: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive ``None`` (garde
-        # le défaut).
+        # Direct forward: the base layer drops reactive ``None`` kwargs
+        # (keeps the default).
         super().__init__(
             variant=variant,
             size=size,
@@ -100,21 +100,22 @@ class IconButton(Component):
         attrs = self.emit_attrs()
         self.apply_class_attrs(attrs)
 
-        # Un bouton-icône sans texte n'a AUCUN nom accessible : un lecteur
-        # d'écran annonce « bouton », et un test ne peut pas le trouver par
-        # rôle+nom. Le ``tooltip=`` dit déjà en toutes lettres à quoi sert le
-        # bouton — il enveloppe le composant dans un :class:`Tooltip`, qui
-        # est un survol, pas une étiquette. On le recopie donc en
-        # ``aria-label`` quand l'appelant n'en a pas posé un.
+        # An icon button with no text has NO accessible name: a screen
+        # reader announces "button", and a test cannot find it by
+        # role+name. The ``tooltip=`` already says in full what the
+        # button is for — it wraps the component in a :class:`Tooltip`,
+        # which is a hover, not a label. So we copy it into
+        # ``aria-label`` when the caller has not set one.
         #
-        # Mesuré le 2026-08-19 : le hamburger du CRM portait un ``tooltip``
-        # et restait anonyme. La datatable du framework, elle, écrit les deux
-        # à la main (``tooltip=`` ET ``aria_label=`` sur son « Clear
-        # filters ») — la connaissance existait, elle n'était pas partagée.
+        # Measured on 2026-08-19: the CRM's hamburger carried a
+        # ``tooltip`` and stayed anonymous. The framework's datatable,
+        # for its part, writes both by hand (``tooltip=`` AND
+        # ``aria_label=`` on its "Clear filters") — the knowledge
+        # existed, it was not shared.
         #
-        # Seulement une chaîne : un ``tooltip=ui.text(...)`` est du contenu
-        # riche, et aplatir un arbre en étiquette produirait une phrase que
-        # personne n'a écrite.
+        # Only a string: a ``tooltip=ui.text(...)`` is rich content, and
+        # flattening a tree into a label would produce a sentence nobody
+        # wrote.
         if "aria-label" not in attrs and isinstance(self._tooltip, str):
             label = self._tooltip.strip()
             if label:
@@ -128,8 +129,8 @@ class IconButton(Component):
         children: list[Node] = []
         icon_comp = self._icon
 
-        # Réactif : ``disabled`` suit ``(loading || disabled)`` pour que le
-        # bouton reste incliquable pendant la fenêtre asynchrone.
+        # Reactive: ``disabled`` follows ``(loading || disabled)`` so
+        # the button stays unclickable during the async window.
         if loading_binding is not None:
             apply_loading_disabled(
                 self, attrs, self.path_of(loading_binding),

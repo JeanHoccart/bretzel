@@ -108,28 +108,29 @@ class Select(Component):
 
     THEME: ClassVar[dict[str, Any]] = SELECT_THEME
     THEME_KEY: ClassVar[str] = "select"
-    #: C'est le COMPOSANT qui possède la boucle : il itère ``options=``
-    #: et rend un ``<button role="option">`` par entrée, côté SERVEUR.
-    #: L'auteur n'écrit pas cette boucle, donc il n'a aucun endroit où
-    #: poser son balisage — d'où ``render=``, son seul point d'entrée.
+    #: It is the COMPONENT that owns the loop: it iterates ``options=``
+    #: and renders one ``<button role="option">`` per entry, on the
+    #: SERVER side. The author does not write that loop, so they have
+    #: nowhere to put their markup — hence ``render=``, their only entry
+    #: point.
     #:
-    #: ⚠️ Déclaré ``"client"`` par erreur le 2026-08-18, sur une lecture
-    #: TRONQUÉE d'un commentaire de ``combobox.py`` (« built once
-    #: server-side so the JS filter only does a… »), lu comme « le client
-    #: possède la liste » alors qu'il dit l'inverse. Le filtre JS est un
-    #: ``bz-show`` : il MASQUE des boutons déjà rendus, il n'en crée
-    #: aucun. La distinction se lit en un mot de vocabulaire —
-    #: ``bz-for`` clone (c'est ``file_upload``), ``bz-show`` masque.
+    #: ⚠️ Declared ``"client"`` by mistake on 2026-08-18, on a TRUNCATED
+    #: reading of a ``combobox.py`` comment ("built once server-side so
+    #: the JS filter only does a…"), read as "the client owns the list"
+    #: while it says the opposite. The JS filter is a ``bz-show``: it
+    #: HIDES already rendered buttons, it creates none. The distinction
+    #: reads in one word of vocabulary — ``bz-for`` clones (that is
+    #: ``file_upload``), ``bz-show`` hides.
     #: Cf. ``Component.COLLECTION_OWNER``.
     COLLECTION_OWNER: ClassVar[str | None] = "component"
     IS_CONTAINER: ClassVar[bool] = False
     # Curated reactive surface — selected value + lock flag.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
-    #: ⚠️ ``open`` / ``close`` / ``toggle`` ajoutés le 2026-09-03, en
-    #: dernier des NEUF composants de cette forme. Select est un
-    #: panneau ancré qui porte une valeur — comme les six pickers et
-    #: comme Combobox — et il n'avait que la moitié champ. La forme
-    #: est désormais UNIFORME : même nature, même surface.
+    #: ⚠️ ``open`` / ``close`` / ``toggle`` added on 2026-09-03, last of
+    #: the NINE components of this shape. Select is an anchored panel
+    #: carrying a value — like the six pickers and like Combobox — and it
+    #: had only the field half. The shape is now UNIFORM: same nature,
+    #: same surface.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle",
         "set", "clear", "focus", "blur",
@@ -176,7 +177,7 @@ class Select(Component):
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, value=value, placeholder=placeholder,
             multiple=multiple, bulk_actions=bulk_actions,
@@ -189,7 +190,7 @@ class Select(Component):
         )
         self._options = list(options)
         self._render = render
-        # APRÈS `super().__init__` : l'installeur lit `_binding_metadata`.
+        # AFTER `super().__init__`: the installer reads `_binding_metadata`.
         install_open_close_toggle(self)
 
     # ── Imperative write-only API ─────────────────────────────────────
@@ -285,17 +286,19 @@ class Select(Component):
         # @refreshable swap — desirable ONLY when the value is backed by
         # SERVER state (``value=server_state.field``, a stamp carrying a
         # ``field_name``) : there the server is authoritative, a
-        # re-render should win (cf. traps.md § value lié-serveur). For an
-        # UNBOUND select (no ``value=``, or a plain literal) the value is
-        # purely client-side ; re-adopting the static SSR initial on every
-        # swap would WIPE the user's pick whenever an unrelated handler
-        # refreshes the surrounding section. Gate on the stamp so the
-        # client keeps its pick. (Binding mode never emits ``_serverSync``
-        # — value lives in ``$bz._store``, patched by the envelope.)
-        # ⚠️ PAS ``derived_name`` : l'autoname repond « d'ou vient mon
-        # name= HTML », pas « d'ou vient ma valeur ». L'emprunt perdait
-        # le cas ``[state.champ]`` (un multi nourri par un pick serveur
-        # scalaire) et couplait le server-sync au form-naming.
+        # re-render should win (cf. traps.md § a server-bound value). For
+        # an UNBOUND select (no ``value=``, or a plain literal) the value
+        # is purely client-side ; re-adopting the static SSR initial on
+        # every swap would WIPE the user's pick whenever an unrelated
+        # handler refreshes the surrounding section. Gate on the stamp so
+        # the client keeps its pick. (Binding mode never emits
+        # ``_serverSync`` — value lives in ``$bz._store``, patched by the
+        # envelope.)
+        # ⚠️ NOT ``derived_name``: the autoname answers "where does my
+        # HTML name= come from", not "where does my value come from".
+        # Borrowing it lost the ``[state.field]`` case (a multi fed by a
+        # scalar server pick) and coupled the server-sync to form
+        # naming.
         value_server_backed = self._value_server_backed("value")
 
         # ── Normalise options + build the value→label map ────────────
@@ -329,11 +332,11 @@ class Select(Component):
         # map. ``bz-text`` so the label updates whenever the bound value
         # changes (or the placeholder shows when nothing is picked).
         #
-        # ⚠️ Les deux expressions ci-dessous INLINAIENT la carte entière
-        # — deux exemplaires de plus, en plus de celui du ``bz-data`` et
-        # de celui du gabarit de pastille. Sur un select de 20 options
-        # c'était quatre fois la même table dans un seul composant. La
-        # méthode de scope les remplace toutes (2026-08-28).
+        # ⚠️ The two expressions below INLINED the whole map — two more
+        # copies, on top of the ``bz-data``'s and the pill template's. On
+        # a 20-option select that was four times the same table in a
+        # single component. The scope method replaces them all
+        # (2026-08-28).
         labels_js = json.dumps(value_label_map, ensure_ascii=False)
         ph_js = json.dumps(placeholder or "", ensure_ascii=False)
         label_bz_text = f"_labelOf({value_expr}) || {ph_js}"
@@ -344,12 +347,12 @@ class Select(Component):
             f"!_labelOf({value_expr}) ? '{placeholder_class}' : ''"
         )
 
-        # ``with_slot_class`` : cloner un enfant rendu pour lui PRÉFIXER la
-        # classe du slot, sans écraser celle qu'il s'est composée. Ce
-        # clone-et-fusionne vivait inline ici et dans combobox — les deux
-        # call-sites que l'audit F56 avait manqués. ``bz-class`` MERGE la
-        # rotation sur les classes statiques (``bz-attr:class`` les
-        # REMPLACERAIT).
+        # ``with_slot_class``: clone a rendered child to PREPEND the
+        # slot's class to it, without overwriting the one it composed for
+        # itself. This clone-and-merge lived inline here and in combobox
+        # — the two call sites audit F56 had missed. ``bz-class`` MERGES
+        # the rotation onto the static classes (``bz-attr:class`` would
+        # REPLACE them).
         chevron = Icon(
             "chevron-down", size=size_map.get("chevron_size", "sm"),
         )
@@ -385,9 +388,10 @@ class Select(Component):
         # keeping its native trigger.
         if "bz-on:change" in root_attrs:
             relocated_to_hidden["bz-on:change"] = root_attrs.pop("bz-on:change")
-        # Le routage lui-même vit au socle : ``relocate_server_action`` lit
-        # ``hx-trigger`` et choisit le porteur. Ce bloc était le SEUL du
-        # dépôt à le faire correctement — d'où son extraction.
+        # The routing itself lives in the base layer:
+        # ``relocate_server_action`` reads ``hx-trigger`` and chooses the
+        # carrier. This block was the ONLY one in the repository to do it
+        # correctly — hence its extraction.
         relocate_server_action(
             root_attrs,
             value_carrier=relocated_to_hidden,
@@ -646,10 +650,10 @@ class Select(Component):
             }
             if opt_disabled:
                 opt_attrs["disabled"] = True
-            # Multi : la coche à droite. Miroir exact de Combobox — les
-            # deux thèmes promettent de se lire comme une famille, et
-            # c'est l'affordance qui dit « pris » quand l'accent seul ne
-            # se distingue plus du survol.
+            # Multi: the tick on the right. Exact mirror of Combobox —
+            # both themes promise to read as a family, and it is the
+            # affordance that says "picked" when the accent alone can no
+            # longer be told from the hover.
             opt_children: tuple[Any, ...] = option_body(self._render,
                 opt_value, opt_label
             )
@@ -835,8 +839,8 @@ class Select(Component):
         # is value-bearing (``bz-set`` below ; ``.clear()`` sends ``bz-set``
         # with ``""`` / ``[]``), wired directly. ``change`` is dispatched by
         # the hidden input's ``_change_emit_effect``, not by a scope method.
-        # Les récepteurs open/close/toggle — sans eux, `.open()`
-        # dispatcherait un événement que personne n'écoute.
+        # The open/close/toggle receivers — without them, `.open()` would
+        # dispatch an event nobody listens to.
         for _ev, _handler in imperative_listeners("open").items():
             root_attrs.setdefault(_ev, _handler)
         root_attrs["bz-effect"] = dispatch_root_effect("open")
@@ -885,9 +889,9 @@ class Select(Component):
         total_options: int,
         initial_value: Any,
     ) -> Element:
-        """Le header partagé. Select ne le construit qu'en multi (d'où
-        ``is_multi=True``) et compare aux options TOTALES : il n'a pas de
-        requête, donc rien n'est jamais masqué."""
+        """The shared header. Select only builds it in multi (hence
+        ``is_multi=True``) and compares against the TOTAL options: it has
+        no query, so nothing is ever hidden."""
         return build_header_bar(
             slots=slots, size_map=size_map, resolve=resolve,
             badge_theme=self._resolved_theme("badge", BADGE_THEME),
@@ -948,18 +952,18 @@ class Select(Component):
             # (``value=server_state.field``). An unbound / literal select
             # owns its value client-side : re-adopting the SSR initial on
             # every swap would wipe the user's pick (cf. render()).
-            # La liste d'options est de la CONFIG server-owned : le
-            # client ne l'écrit jamais, et elle change en vrai (un select
-            # rechargé depuis la base à chaque refresh). Re-semée SANS
-            # condition — sinon elle reste figée à celle du premier
-            # montage, à vie. La VALEUR, elle, reste gatée.
-            # ``_labels`` voyage AVEC ``_options`` — même propriétaire,
-            # même raison. Elle a rejoint le scope le 2026-08-28, quand
-            # les deux expressions du déclencheur ont cessé d'inliner la
-            # carte ENTIÈRE chacune de leur côté. La synchroniser n'est
-            # pas un détail : une carte non re-semée laisserait le
-            # libellé périmé après un refresh qui change les options,
-            # alors que l'attribut inliné, lui, se re-rendait.
+            # The options list is server-owned CONFIG: the client never
+            # writes it, and it does change for real (a select reloaded
+            # from the database at every refresh). Re-seeded
+            # UNCONDITIONALLY — otherwise it stays frozen at the first
+            # mount's, for life. The VALUE, for its part, stays gated.
+            # ``_labels`` travels WITH ``_options`` — same owner, same
+            # reason. It joined the scope on 2026-08-28, when the
+            # trigger's two expressions stopped inlining the WHOLE map
+            # each on their own. Syncing it is not a detail: a
+            # non-reseeded map would leave the label stale after a
+            # refresh that changes the options, while the inlined
+            # attribute did re-render.
             _keys = (["value", "_options", "_labels"] if server_backed
                      else ["_options", "_labels"])
             sync_marker = server_sync_marker(*_keys, enabled=True)
@@ -1016,18 +1020,18 @@ class Select(Component):
             # ``_serverSync`` adopts ``value`` from the server on a
             # @refreshable swap — ONLY when server-backed (same rule as
             # single mode ; an unbound multi keeps its client picks).
-            # La liste d'options est de la CONFIG server-owned : le
-            # client ne l'écrit jamais, et elle change en vrai (un select
-            # rechargé depuis la base à chaque refresh). Re-semée SANS
-            # condition — sinon elle reste figée à celle du premier
-            # montage, à vie. La VALEUR, elle, reste gatée.
-            # ``_labels`` voyage AVEC ``_options`` — même propriétaire,
-            # même raison. Elle a rejoint le scope le 2026-08-28, quand
-            # les deux expressions du déclencheur ont cessé d'inliner la
-            # carte ENTIÈRE chacune de leur côté. La synchroniser n'est
-            # pas un détail : une carte non re-semée laisserait le
-            # libellé périmé après un refresh qui change les options,
-            # alors que l'attribut inliné, lui, se re-rendait.
+            # The options list is server-owned CONFIG: the client never
+            # writes it, and it does change for real (a select reloaded
+            # from the database at every refresh). Re-seeded
+            # UNCONDITIONALLY — otherwise it stays frozen at the first
+            # mount's, for life. The VALUE, for its part, stays gated.
+            # ``_labels`` travels WITH ``_options`` — same owner, same
+            # reason. It joined the scope on 2026-08-28, when the
+            # trigger's two expressions stopped inlining the WHOLE map
+            # each on their own. Syncing it is not a detail: a
+            # non-reseeded map would leave the label stale after a
+            # refresh that changes the options, while the inlined
+            # attribute did re-render.
             _keys = (["value", "_options", "_labels"] if server_backed
                      else ["_options", "_labels"])
             sync_marker = server_sync_marker(*_keys, enabled=True)

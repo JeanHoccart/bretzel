@@ -6,9 +6,9 @@ Slot inventory :
   panel pattern carries over if a chart wants it (scatter v1 ships
   the floating tooltip, not the panel).
 - ``svg``        : the chart SVG.
-- ``dot``        : a single data point. Son ``fill`` est à ``70 %``
-  pour que deux points superposés se voient — c'est l'intérêt d'un
-  nuage. Le survol le rend PLEIN (``hover:fill-(--bz-solid)``).
+- ``dot``        : a single data point. Its ``fill`` is at ``70 %`` so
+  two overlapping points are both visible — that is the point of a
+  scatter. Hovering makes it SOLID (``hover:fill-(--bz-solid)``).
 - ``axis``       : axis line stroke + per-tick line strokes.
 - ``axis_label`` : tick text fill + sizing.
 - ``gridline``   : faint horizontal helpers behind the data.
@@ -17,7 +17,7 @@ Slot inventory :
   : multi-series legend (clickable toggle, same pattern as LineChart).
 - ``empty``      : centered "no data" text.
 
-``sizes`` per palier carries ``(h, dot_r, axis_font)``. Scatter dots
+``sizes`` per step carries ``(h, dot_r, axis_font)``. Scatter dots
 are slightly larger than line dots since they're the entire visual ;
 no line to anchor on.
 """
@@ -30,25 +30,24 @@ SCATTER_CHART_THEME: dict[str, Any] = {
     "slots": {
         "wrapper":      "relative flex flex-col gap-3 w-fit max-w-full",
         "svg":          "block max-w-full overflow-visible",
-        # ``cursor-pointer`` because every dot is a hover target ; le
-        # survol rend le point PLEIN, et c'est la seule façon de le
-        # faire ici.
+        # ``cursor-pointer`` because every dot is a hover target ; the
+        # hover makes the point SOLID, and that is the only way to do it
+        # here.
         #
-        # ⚠️ Ce bloc a porté ``transition-opacity`` + ``hover:!opacity-100``
-        # du 2026-06-?? au 2026-09-01, avec un commentaire annonçant un
-        # « hover-pop effect ». Il n'y en avait aucun : la translucidité
-        # du point est sur le ``fill`` (``/70``), pas sur ``opacity``, et
-        # un point au repos rend ``opacity: 1`` (mesuré au navigateur).
-        # ``hover:!opacity-100`` remettait donc à 1 une valeur déjà à 1,
-        # et ``transition-opacity`` animait une propriété qui ne bouge
-        # jamais. Deux classes qui décrivaient une intention au lieu de
-        # la produire.
+        # ⚠️ This block carried ``transition-opacity`` +
+        # ``hover:!opacity-100`` from 2026-06-?? to 2026-09-01, with a
+        # comment announcing a "hover-pop effect". There was none: the
+        # point's translucency is on the ``fill`` (``/70``), not on
+        # ``opacity``, and a point at rest renders ``opacity: 1``
+        # (measured in the browser). ``hover:!opacity-100`` therefore put
+        # back to 1 a value already at 1, and ``transition-opacity``
+        # animated a property that never moves. Two classes that
+        # described an intent instead of producing it.
         #
-        # ``transition-colors`` et pas ``transition-[fill]`` : la liste
-        # de v4 couvre ``fill`` et ``stroke``, donc c'est un utilitaire
-        # STANDARD là où la forme entre crochets est une variante
-        # arbitraire — invisible en dev, cf. la memory
-        # ``tailwind_browser_breaks_transitions``.
+        # ``transition-colors`` and not ``transition-[fill]``: v4's list
+        # covers ``fill`` and ``stroke``, so it is a STANDARD utility
+        # where the bracketed form is an arbitrary variant — invisible in
+        # dev, cf. the memory ``tailwind_browser_breaks_transitions``.
         "dot": (
             "fill-(--bz-solid)/70 cursor-pointer "
             "transition-colors duration-150 ease-out "

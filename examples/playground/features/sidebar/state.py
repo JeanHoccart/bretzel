@@ -1,14 +1,13 @@
-"""État et constantes du banc ``Sidebar``.
+"""The ``Sidebar`` bench's state and constants.
 
-Les axes (couleurs, largeurs, modes de repli), les quatre ``State``
-et les deux constantes que le reste du paquet lit — ``FIT``, le
-contournement du ``h-screen`` du thème, et ``NAV``, les entrées de
-démonstration.
+The axes (colours, widths, collapse modes), the four ``State`` and the
+two constants the rest of the package reads — ``FIT``, the workaround for
+the theme's ``h-screen``, and ``NAV``, the demonstration entries.
 
-``PATH`` vit ICI et non dans ``__init__`` — contrairement aux autres
-pages découpées — parce que ``NAV`` le CITE : l'entrée qui pointe sur
-cette page ressort active toute seule, et c'est précisément ce qu'on
-vient regarder. Le poser deux fois en ferait deux sources.
+``PATH`` lives HERE and not in ``__init__`` — unlike the other split
+pages — because ``NAV`` QUOTES it: the entry pointing at this page comes
+out active on its own, and it is precisely what one comes to look at.
+Setting it twice would make two sources.
 """
 
 from bretzel.state import ClientState, PageState, field
@@ -19,19 +18,19 @@ PATH = "/sidebar"
 COLORS = ["primary", "secondary", "success", "warning", "error", "info",
           "muted"]
 WIDTHS = ["sm", "md", "lg"]
-# Les quatre modes de repli — l'axe UNIQUE depuis la fusion de
-# ``variant=`` et ``collapsible=``. ``overlay`` n'est pas gaté ``md:`` :
-# c'est le mode qu'on monte sur un téléphone.
+# The four collapse modes — the SINGLE axis since ``variant=`` and
+# ``collapsible=`` merged. ``overlay`` is not gated on ``md:``: it is the
+# mode one mounts on a phone.
 MODES = ["rail", "offcanvas", "overlay", "none"]
 
-# Le contournement de ``h-screen`` — cf. l'en-tête du module. Constante
-# plutôt qu'un littéral recopié 15 fois : quand le thème sera corrigé,
-# c'est une seule ligne à supprimer et un grep pour retrouver les usages.
+# The ``h-screen`` workaround — cf. the module's header. A constant
+# rather than a literal copied 15 times: when the theme is fixed, it is
+# one line to delete and a grep to find the uses.
 FIT = {"root": "h-full!"}
 
-# De vrais chemins du playground : l'entrée qui pointe sur CETTE page
-# ressort active toute seule (mode auto — comparaison à ``current_path``),
-# ce qui est précisément ce qu'on veut regarder.
+# Real playground paths: the entry pointing at THIS page comes out
+# active on its own (auto mode — comparison with ``current_path``), which
+# is precisely what we want to look at.
 NAV = [
     ("Home",     "home",       "/"),
     ("App map",  "network",    "/app-map"),
@@ -40,13 +39,13 @@ NAV = [
 ]
 
 class SidebarPlayground(PageState):
-    # Props du conteneur.
+    # Container props.
     width:       str = field(default="md")
     collapsible: str = field(default="rail")
     open:        bool = field(default=True)
-    # Props de l'ITEM, appliquées à l'entrée « Sidebar » (celle qui pointe
-    # vers cette page, donc active), ses voisines au repos servant de
-    # témoins.
+    # ITEM props, applied to the "Sidebar" entry (the one pointing at
+    # this page, hence active), its neighbours at rest serving as
+    # controls.
     item_color:    str = field(default="primary")
     item_icon:     str = field(default="panel-left")
     item_badge:    str = field(default="")

@@ -1,36 +1,36 @@
-"""Couche 7 — le framework se décrit lui-même, et ne peut pas mentir.
+"""Layer 7 — the framework describes itself, and cannot lie.
 
-Ce module lit le code **installé** au moment où on l'interroge. C'est ce
-qui le distingue d'un catalogue d'API : il n'y a rien à maintenir, donc
-rien à faire dériver. C'est aussi pourquoi il est livré DANS le framework
-et ne peut pas vivre dans un paquet séparé — un décalage de version entre
-le descripteur et le décrit le ferait mentir, ce qui est précisément la
-maladie qu'il soigne.
+This module reads the **installed** code at the moment it is queried.
+That is what distinguishes it from an API catalogue: there is nothing to
+maintain, so nothing to let drift. It is also why it ships INSIDE the
+framework and cannot live in a separate package — a version gap between
+the describer and the described would make it lie, which is precisely the
+illness it cures.
 
-Trois entrées de haut niveau :
+Three high-level entry points:
 
-- :func:`index` — une ligne par symbole ``ui.*``, toute la surface.
-- :func:`describe` — la fiche complète d'un symbole, en texte, à la demande.
-- :func:`resolve` — la MÊME résolution, rendue en dataclass. C'est elle
-  qu'un consommateur appelle : le CLI en tire son ``--json``, et l'ordre
-  des étages (module → composant → symbole) n'est écrit que là.
+- :func:`index` — one line per ``ui.*`` symbol, the whole surface.
+- :func:`describe` — a symbol's complete card, as text, on demand.
+- :func:`resolve` — the SAME resolution, returned as a dataclass. It is
+  the one a consumer calls: the CLI draws its ``--json`` from it, and the
+  order of the tiers (module → component → symbol) is written only there.
 
-⚠️ **La sortie des émetteurs est en UTF-8**, arrows et guillemets
-compris. Un consommateur qui l'écrit sur un flux possède son encodage —
-sur une console Windows (cp1252) un ``print`` nu lève. Le CLI le fait
-pour lui (``bretzel.cli.main``) ; un script maison doit le faire aussi.
+⚠️ **The emitters' output is UTF-8**, arrows and quotation marks
+included. A consumer writing it to a stream owns its encoding — on a
+Windows console (cp1252) a bare ``print`` raises. The CLI does it for
+them (``bretzel.cli.main``); a home-made script must do it too.
 
-Et les lecteurs par section, pour un consommateur qui compose lui-même :
+And the per-section readers, for a consumer composing their own:
 :func:`describe_state`, :func:`describe_client_algebra`,
 :func:`describe_toplevel_surface`, :func:`describe_method_surface`,
 :func:`describe_callable`.
 
-Le contrat pour un consommateur tiers (doc vivante, générateur, serveur
-MCP) est :mod:`bretzel.introspect.model` : on importe les dataclasses **en
-process**, on ne parse pas la sortie texte.
+The contract for a third-party consumer (living documentation, generator,
+MCP server) is :mod:`bretzel.introspect.model`: the dataclasses are
+imported **in process**, the text output is not parsed.
 
-L'absence d'une section spécialisée dans la sortie textuelle ne signifie
-pas que le symbole est absent de la résolution générale.
+The absence of a specialised section in the textual output does not mean
+the symbol is absent from the general resolution.
 """
 
 from __future__ import annotations
@@ -165,51 +165,50 @@ __all__ = (
 
 
 def index() -> str:
-    """Toute la surface ``ui.*``, une ligne par symbole."""
+    """The whole ``ui.*`` surface, one line per symbol."""
     return render_index()
 
 
 def resolve(name: str) -> ModuleSection | ComponentInfo | HelperInfo | SymbolDetail:
-    """Le symbole désigné par ``name``, sous sa forme dataclass.
+    """The symbol designated by ``name``, in its dataclass form.
 
-    **L'ordre des étages vit ICI et nulle part ailleurs.** Il était écrit
-    trois fois — dans ``describe``, dans le CLI pour ``--json``, et dans
-    le message d'erreur — et les trois avaient déjà divergé : ``--json``
-    ignorait l'étage module, donc ``describe bretzel.core --json`` levait
-    et ``describe bretzel.state --json`` répondait la fiche d'un AUTRE
-    symbole (``state``, ré-exporté par ``bretzel``). C'est exactement la
-    divergence que ce chantier venait fermer, réintroduite par une copie.
+    **The order of the tiers lives HERE and nowhere else.** It was
+    written three times — in ``describe``, in the CLI for ``--json``, and
+    in the error message — and all three had already diverged:
+    ``--json`` ignored the module tier, so ``describe bretzel.core
+    --json`` raised and ``describe bretzel.state --json`` answered ANOTHER
+    symbol's card (``state``, re-exported by ``bretzel``). That is exactly
+    the divergence this project came to close, reintroduced by a copy.
 
-    Trois natures de nom :
+    Three natures of name:
 
-    - un module couvert (``bretzel.state``) → sa surface classée ;
-    - **tout autre PAQUET** (``bretzel.components.inputs``) → son arbre
-      et les docstrings que les dossiers portent déjà. Ajouté le
-      2026-09-02 : il y a 117 paquets sous ``bretzel/`` et sept étaient
-      décrits, parce que la table est écrite à la main. L'arbre, lui, se
-      lit ;
-    - un composant (``button`` ou ``ui.button`` — le site d'appel réel
-      porte le préfixe, l'exiger serait une friction gratuite) ;
-    - **tout autre symbole public** (``page``, ``PageState``,
-      ``ClientBinding``, ``ROUTE_ACTION``), nu ou qualifié.
+    - a covered module (``bretzel.state``) → its classified surface;
+    - **any other PACKAGE** (``bretzel.components.inputs``) → its tree
+      and the docstrings the folders already carry. Added on 2026-09-02:
+      there are 117 packages under ``bretzel/`` and seven were described,
+      because the table is written by hand. The tree, by contrast, reads
+      itself;
+    - a component (``button`` or ``ui.button`` — the real call site
+      carries the prefix, requiring it would be needless friction);
+    - **any other public symbol** (``page``, ``PageState``,
+      ``ClientBinding``, ``ROUTE_ACTION``), bare or qualified.
 
-    Le préfixe ``ui.`` force la deuxième famille : c'est la seule façon
-    de demander le composant quand un nom est porté par les deux
-    surfaces.
+    The ``ui.`` prefix forces the second family: it is the only way to
+    ask for the component when a name is carried by both surfaces.
     """
     if name in module_names():
         return describe_module(name)
 
-    # Un paquet NON classé — testé après la table, qui est plus précise
-    # quand elle existe (elle groupe par besoin, l'arbre non).
+    # An UNCLASSIFIED package — tested after the table, which is more
+    # precise when it exists (it groups by need, the tree does not).
     #
-    # ⚠️ Ce test APRÈS la table a un effet qu'il faut connaître :
-    # ``describe bretzel`` rend la SURFACE (45 lignes), pas l'arbre
-    # (117). Les deux existent, la table gagne, et c'est voulu — on
-    # demande « bretzel » pour savoir ce qu'on écrit, pas comment les
-    # dossiers sont rangés. ``render_module`` ajoute donc une ligne qui
-    # dit où trouver l'autre, sans quoi l'arbre serait masqué en
-    # silence pour les sept modules classés.
+    # ⚠️ This test AFTER the table has an effect worth knowing:
+    # ``describe bretzel`` returns the SURFACE (45 lines), not the tree
+    # (117). Both exist, the table wins, and that is intended — one asks
+    # for "bretzel" to know what to write, not how the folders are laid
+    # out. ``render_module`` therefore adds a line saying where to find
+    # the other, without which the tree would be silently hidden for the
+    # seven classified modules.
     if name.startswith("bretzel.") or name == "bretzel":
         with contextlib.suppress(ValueError):
             return describe_package(name)
@@ -224,33 +223,33 @@ def resolve(name: str) -> ModuleSection | ComponentInfo | HelperInfo | SymbolDet
 
 
 def describe(name: str) -> str:
-    """La fiche complète d'un symbole du framework, en texte.
+    """A framework symbol's complete card, as text.
 
-    Un rendu de ce que :func:`resolve` a trouvé — la résolution n'est pas
-    refaite ici.
+    A rendering of what :func:`resolve` found — the resolution is not
+    redone here.
 
-    ⚠️ **Une seule exception, et elle est délibérée** : ``capabilities``
-    ne passe PAS par :func:`resolve`, parce que ce n'est pas un symbole.
-    C'est la seule réponse du module qui ne se déduit d'aucune lecture
-    du code — une capacité traverse cinq dossiers, donc ni l'arbre, ni
-    la table par besoin, ni le catalogue ``ui.*`` ne peuvent la former.
-    Elle est écrite à la main et ANCRÉE : cf.
+    ⚠️ **One single exception, and it is deliberate**: ``capabilities``
+    does NOT go through :func:`resolve`, because it is not a symbol. It
+    is the module's only answer that derives from no reading of the code
+    — a capability crosses five folders, so neither the tree, nor the
+    per-need table, nor the ``ui.*`` catalogue can form it. It is written
+    by hand and ANCHORED: cf.
     :mod:`bretzel.introspect.capabilities`.
     """
     if name == "capabilities":
         return render_capabilities()
     found = resolve(name)
     if isinstance(found, ModuleSection):
-        rendu = render_module(found)
-        # Le renvoi vers l'arbre — cf. l'avertissement de ``resolve``.
+        rendered = render_module(found)
+        # The pointer to the tree — cf. ``resolve``'s warning.
         with contextlib.suppress(ValueError):
-            noeud = describe_package(name)
-            if noeud.children:
-                rendu += (
-                    f"\n  ({len(walk(noeud))} packages below — "
+            node = describe_package(name)
+            if node.children:
+                rendered += (
+                    f"\n  ({len(walk(node))} packages below — "
                     f"use ``describe {name}.<folder>`` to inspect the tree)\n"
                 )
-        return rendu
+        return rendered
     if isinstance(found, SymbolDetail):
         return render_symbol(found)
     if isinstance(found, PackageNode):
@@ -259,17 +258,17 @@ def describe(name: str) -> str:
 
 
 def _homonym_note(ui_name: str) -> str:
-    """Signale qu'un nom de composant désigne AUSSI un symbole de module.
+    """Report that a component name ALSO designates a module symbol.
 
-    Un seul cas aujourd'hui, et il est piégeur : ``text`` est le composant
-    ``ui.text`` **et** ``bretzel.render.text``, le mot du framework rendu
-    dans la langue de l'app. Le nom nu résout vers le composant — c'est
-    l'usage dominant — mais s'arrêter là ferait de l'autre un symbole
-    qu'on ne peut trouver qu'en sachant déjà qu'il existe.
+    One case today, and it is a trap: ``text`` is the ``ui.text``
+    component **and** ``bretzel.render.text``, the framework's word
+    rendered in the app's language. The bare name resolves to the
+    component — that is the dominant use — but stopping there would make
+    the other a symbol one can only find by already knowing it exists.
 
-    Le sens inverse est porté par
-    :attr:`~bretzel.introspect.model.SymbolDetail.also_known_as`, donc la
-    fiche du symbole nomme le composant sans passer par ici.
+    The reverse direction is carried by
+    :attr:`~bretzel.introspect.model.SymbolDetail.also_known_as`, so the
+    symbol's card names the component without going through here.
     """
     owners = symbol_owners().get(ui_name, ())
     if not owners:
@@ -279,11 +278,11 @@ def _homonym_note(ui_name: str) -> str:
 
 
 def _unknown_message(name: str) -> str:
-    """Le message d'un nom introuvable — il doit dire OÙ on a cherché.
+    """The message for a name not found — it must say WHERE we looked.
 
-    L'ancien répondait « ``ui.page`` n'existe pas » pour ``page``, ce qui
-    est vrai et trompeur : le symbole existe, ailleurs. Un lecteur en
-    concluait que le décorateur n'existait pas.
+    The old one answered "``ui.page`` does not exist" for ``page``, which
+    is true and misleading: the symbol exists, elsewhere. A reader
+    concluded that the decorator did not exist.
     """
     forced_ui = name.startswith("ui.")
     symbol = name.removeprefix("ui.")
@@ -302,22 +301,23 @@ def _unknown_message(name: str) -> str:
 
 
 def _where_it_lives(symbol: str) -> str:
-    """Où le nom vit, quand il vit quelque part que la table ignore.
+    """Where the name lives, when it lives somewhere the table ignores.
 
-    Deux façons d'exister sans avoir de fiche, et les deux se sont
-    présentées le 2026-09-06 :
+    Two ways of existing without having a card, and both came up on
+    2026-09-06:
 
-    - le CATALOGUE — ``Button`` est la classe de ``ui.button``, et
-      ``AccordionItem`` celle d'``ui.accordion_item``. Le voisinage par
-      sous-chaîne ne les trouve pas (il compare à la casse), donc le
-      message renvoyait « n'existe pas » sur un nom qu'on peut importer.
-      La correspondance se lit par IDENTITÉ sur le namespace ``ui`` —
-      pas sur l'orthographe, qui rate tout ce qui porte un underscore ;
-    - la PORTE — ``DatatableState`` s'exporte par ``bretzel.components``,
-      un paquet sans table de classement.
+    - the CATALOGUE — ``Button`` is ``ui.button``'s class, and
+      ``AccordionItem`` ``ui.accordion_item``'s. Substring neighbourhood
+      does not find them (it compares case-sensitively), so the message
+      answered "does not exist" about a name one can import. The
+      correspondence is read by IDENTITY on the ``ui`` namespace — not by
+      spelling, which misses everything carrying an underscore;
+    - the DOOR — ``DatatableState`` is exported by ``bretzel.components``,
+      a package with no classification table.
 
-    Dire « n'existe pas » d'un nom importable est la faute la plus chère
-    du lot : elle est CRÉDIBLE, et elle fait renoncer.
+    Saying "does not exist" about an importable name is the most
+    expensive fault of the lot: it is CREDIBLE, and it makes people give
+    up.
     """
     owner = public_owners().get(symbol)
     if owner is None:

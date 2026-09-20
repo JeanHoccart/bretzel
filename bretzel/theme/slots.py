@@ -8,29 +8,27 @@ Component themes are plain dicts of the shape ::
         "sizes":    {"sm": "...", "md": "..."},
     }
 
-Les valeurs sont des chaînes de classes Tailwind **complètes**. Elles
-l'ont été à partir du 2026-08-30 : jusque-là elles portaient des trous
-``{bg_color}`` / ``{fg_color}``, comblés au rendu contre le ``color=``
-du composant. Ce mécanisme a été déposé avec la phase 5 du chantier des
-jetons de couleur — les thèmes lisent maintenant des PALIERS
-(``bg-(--bz-bg)``), et c'est la classe-pont posée sur la racine qui dit
-de quelle couleur il s'agit (cf. :mod:`bretzel.theme.bridges`).
+The values are **complete** Tailwind class strings. They have been since
+2026-08-30: until then they carried ``{bg_color}`` / ``{fg_color}``
+holes, filled at render time against the component's ``color=``. That
+mechanism was dropped with phase 5 of the colour-token project — themes
+now read STEPS (``bg-(--bz-bg)``), and it is the bridge class set on the
+root that says which colour it is (cf. :mod:`bretzel.theme.bridges`).
 
-Ce que la dépose a supprimé, et pourquoi c'était le bon moment :
-``resolve_slot``, ``resolve_slot_or_keyword``, ``PLACEHOLDER_NAMES`` et
-``SHAPE_TOKEN_RE``. Un trou n'est **pas une classe** : le compilateur ne
-peut pas le voir, donc il fallait en calculer la CLÔTURE — chaque forme
-× chaque couleur, 3 791 classes, 80 % du ``style.css``. Un palier est une
-classe complète.
+What the removal deleted, and why it was the right moment:
+``resolve_slot``, ``resolve_slot_or_keyword``, ``PLACEHOLDER_NAMES`` and
+``SHAPE_TOKEN_RE``. A hole is **not a class**: the compiler cannot see
+it, so its CLOSURE had to be computed — every shape × every colour,
+3 791 classes, 80 % of ``style.css``. A step is a complete class.
 
-Ce module expose désormais :
+This module now exposes:
 
-- :func:`merge_component_themes` : fusion profonde non mutante des
-  surcharges de l'utilisateur sur un thème de base.
-- :func:`validate_component_overrides` : le refus d'une clé inconnue.
+- :func:`merge_component_themes`: non-mutating deep merge of the user's
+  overrides onto a base theme.
+- :func:`validate_component_overrides`: the refusal of an unknown key.
 
-Les deux sont pures (pas d'E/S, pas de contextvars), donc mesurables et
-raisonnables en isolation.
+Both are pure (no I/O, no contextvars), so they can be measured and
+reasoned about in isolation.
 """
 
 from __future__ import annotations
@@ -40,22 +38,22 @@ from typing import Any
 
 from bretzel.theme.palette import Palette, ThemeError
 
-#: Les noms de couleur qui ne sont NI un slot sémantique NI une entrée de
-#: palette, et qu'on accepte quand même parce qu'ils désignent une vraie
-#: couleur CSS. Aujourd'hui un seul : ``current`` → ``currentColor``.
+#: The colour names that are NEITHER a semantic slot NOR a palette
+#: entry, and which we accept anyway because they name a real CSS
+#: colour. Today there is one: ``current`` → ``currentColor``.
 #:
-#: Cet ensemble est lu à DEUX endroits qui doivent s'accorder — le
-#: générateur de PONTS (``theme/bridges.py``, qui décide quelles
-#: classes-ponts existent dans le CSS) et le refus du socle
-#: (``components/base/_wiring._refuse_unknown_color``, qui décide quels
-#: noms le rendu a le droit d'émettre). Les faire lire la MÊME constante
-#: est ce qui interdit à une couleur d'être émise sans pont : ce qui n'a
-#: pas de règle ici est refusé là.
+#: This set is read in TWO places that must agree — the BRIDGE generator
+#: (``theme/bridges.py``, which decides which bridge classes exist in the
+#: CSS) and the base layer's refusal
+#: (``components/base/_wiring._refuse_unknown_color``, which decides
+#: which names the render may emit). Making them read the SAME constant
+#: is what forbids a colour from being emitted without a bridge: what
+#: has no rule here is refused there.
 #:
-#: ⚠️ N'ajoute un nom ici que s'il désigne une couleur CSS valide, sur
-#: laquelle les douze formules de palier peuvent partir. Une couleur de
-#: MARQUE va dans la palette (``Theme(palette={...})``), pas ici — elle y
-#: reçoit son pont toute seule.
+#: ⚠️ Only add a name here if it designates a valid CSS colour that the
+#: twelve step formulas can start from. A BRAND colour goes in the
+#: palette (``Theme(palette={...})``), not here — it gets its bridge
+#: there on its own.
 COLOR_KEYWORDS: frozenset[str] = frozenset({"current"})
 
 
@@ -129,16 +127,16 @@ def _deep_copy(value: Any) -> Any:
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# Validation des surcharges de composant
+# Validation of component overrides
 # ───────────────────────────────────────────────────────────────────────────
 
 
-#: Le seul groupe dont on ferme les CLÉS. Ailleurs — ``variants``,
-#: ``sizes``, ``paddings``… — une clé neuve ÉTEND le thème, et c'est le
-#: chemin recommandé pour dévier du thème livré : la fermer condamnerait
-#: la seule sortie propre. Un slot, lui, est composé par le code du
-#: composant (``compose_class("root")``) : un nom qu'il ignore est mort par
-#: construction, rien ne peut le réveiller depuis l'app.
+#: The only group whose KEYS are closed. Elsewhere — ``variants``,
+#: ``sizes``, ``paddings``… — a new key EXTENDS the theme, and that is
+#: the recommended path for deviating from the shipped theme: closing it
+#: would condemn the only clean way out. A slot, by contrast, is composed
+#: by the component's code (``compose_class("root")``): a name it does
+#: not know is dead by construction, and nothing in the app can wake it.
 CLOSED_GROUP: str = "slots"
 
 
@@ -146,36 +144,36 @@ def validate_component_overrides(
     components: Mapping[str, Any],
     vocabulary: Mapping[str, Mapping[str, frozenset[str]]],
 ) -> None:
-    """Lève si une surcharge nomme quelque chose que rien ne lira.
+    """Raise when an override names something nothing will read.
 
-    ``vocabulary`` est **injecté** : la couche ``theme`` n'a pas le droit
-    d'importer ``components`` (contrat ``base-independent-of-app`` de
-    ``.importlinter``), donc elle ne peut pas se le procurer elle-même.
-    Même dispositif que ``color_shapes`` dans ``generate_theme_css_full``,
-    et même raison.
+    ``vocabulary`` is **injected**: the ``theme`` layer may not import
+    ``components`` (the ``base-independent-of-app`` contract in
+    ``.importlinter``), so it cannot obtain it itself. Same arrangement
+    as ``color_shapes`` in ``generate_theme_css_full``, and for the same
+    reason.
 
-    Conséquence assumée, à connaître : ``Theme(components={"crad": …})``
-    ne lève **pas** à la construction — un ``Theme`` reste constructible
-    sans la couche composants, ce qui est ce qui le rend testable seul. La
-    levée arrive au **démarrage de l'app**, appelée depuis
-    ``server.lifecycle``, avant que quoi que ce soit d'autre ne soit
-    monté. ``Theme(semantic=…)`` lève, lui, immédiatement : ses 11 slots
-    vivent dans la même couche.
+    An accepted consequence, worth knowing:
+    ``Theme(components={"crad": …})`` does **not** raise at construction
+    — a ``Theme`` stays constructible without the components layer, which
+    is what makes it testable on its own. The raise happens at **app
+    startup**, called from ``server.lifecycle``, before anything else is
+    mounted. ``Theme(semantic=…)``, on the other hand, raises
+    immediately: its 11 slots live in the same layer.
 
-    Ce qu'on refuse, dans l'ordre où on le rencontre :
+    What is refused, in the order it is met:
 
-    1. une **clé de composant** qu'aucun ``THEME_KEY`` ne porte ;
-    2. un **groupe** que ce composant n'a pas ;
-    3. une clé de ``slots`` que ce composant ne compose jamais.
+    1. a **component key** no ``THEME_KEY`` carries;
+    2. a **group** that component does not have;
+    3. a ``slots`` key that component never composes.
     """
     for name, override in components.items():
         groups = vocabulary.get(name)
         if groups is None:
             raise ThemeError(
-                f"Theme(components={{{name!r}: …}}) : aucun composant n'a "
-                f"cette clé de thème. La clé est `THEME_KEY`, pas toujours "
-                f"le nom `ui.*` — `sidebar_section` s'écrit sous "
-                f"`'sidebar'`. `bretzel describe <nom>` la donne."
+                f"Theme(components={{{name!r}: …}}): no component has "
+                f"this theme key. The key is `THEME_KEY`, not always the "
+                f"`ui.*` name — `sidebar_section` is written under "
+                f"`'sidebar'`. `bretzel describe <name>` gives it."
             )
         if not isinstance(override, Mapping):
             continue
@@ -183,7 +181,7 @@ def validate_component_overrides(
             if group not in groups:
                 raise ThemeError(
                     f"Theme(components={{{name!r}: {{{group!r}: …}}}}) : "
-                    f"`{name}` n'a pas de groupe `{group}`. Ses groupes : "
+                    f"`{name}` has no `{group}` group. Its groups: "
                     f"{', '.join(sorted(groups)) or '(aucun)'}."
                 )
             if group != CLOSED_GROUP or not isinstance(entries, Mapping):
@@ -193,8 +191,8 @@ def validate_component_overrides(
                 raise ThemeError(
                     f"Theme(components={{{name!r}: {{'slots': …}}}}) : "
                     f"`{name}` ne compose aucun slot {unknown}. Ses slots : "
-                    f"{', '.join(sorted(groups[group])) or '(aucun)'}. Un "
-                    f"slot est composé par le code du composant, donc un "
-                    f"nom qu'il ignore est mort : rien ne peut le réveiller "
-                    f"depuis l'app."
+                    f"{', '.join(sorted(groups[group])) or '(none)'}. A "
+                    f"slot is composed by the component's code, so a name "
+                    f"it does not know is dead: nothing in the app can "
+                    f"wake it."
                 )

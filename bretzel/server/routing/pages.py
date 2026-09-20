@@ -67,7 +67,7 @@ def _register_one(
         # We walk the target page's layout chain (innermost → outermost
         # via the ``parent=`` decorator chain) looking for the layout
         # whose outlet matches ``HX-Target``. A match means the request
-        # is a partial swap targeting THAT layout's outlet ; the
+        # is a partial swap targeting THAT layout's outlet; the
         # pipeline will render the layouts *inside* the match plus the
         # page, but skip everything outside (already mounted in the
         # browser). Initial loads / F5 / non-htmx clients miss the

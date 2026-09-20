@@ -1,27 +1,27 @@
-"""``Video`` — un ``<video>`` habillé, pas un lecteur.
+"""``Video`` — a dressed ``<video>``, not a player.
 
-Périmètre tranché au cadrage (2026-08-14) : **les contrôles restent ceux
-du navigateur**. Ce composant ne dessine pas de barre de progression, de
-volume ni de vitesse — le jour où ça devient un besoin, c'est un AUTRE
-composant, pas une prop de plus ici.
+Scope settled at framing time (2026-08-14): **the controls stay the
+browser's**. This component draws no progress bar, no volume and no
+speed — the day that becomes a need, it is ANOTHER component, not one
+more prop here.
 
-Ce qu'il apporte au-delà de la balise nue, et qui justifie qu'il existe
-plutôt que de laisser faire ``ui.html`` :
+What it brings beyond the bare tag, and what justifies its existing
+rather than leaving it to ``ui.html``:
 
-- **``ratio=``** réserve la place. Une vidéo est le pire cas du saut de
-  page : le navigateur ne connaît ses dimensions qu'après un aller-retour
-  réseau, donc sans ratio tout ce qui suit se décale une seconde après
-  l'affichage.
-- **``autoplay=True`` force ``muted``.** Tous les navigateurs bloquent la
-  lecture automatique avec du son ; sans la garde, la vidéo ne démarre
-  simplement pas, sans erreur ni log. C'est LE piège que ce composant
-  existe pour absorber.
-- **``playsinline`` est toujours émis**, et ce n'est pas une prop. Sans
-  lui, iOS sort la vidéo du flux et la passe en plein écran dès la
-  lecture — jamais ce qu'on veut dans une application. Un réglage dont la
-  bonne valeur est toujours la même n'est pas un choix à exposer.
-- **``poster=``** évite le rectangle noir avant lecture.
-- **``tracks=``** porte les sous-titres, livré le 2026-08-31 ::
+- **``ratio=``** reserves the room. A video is the worst case of page
+  jump: the browser only knows its dimensions after a network round
+  trip, so without a ratio everything that follows shifts a second after
+  display.
+- **``autoplay=True`` forces ``muted``.** Every browser blocks automatic
+  playback with sound; without the guard, the video simply does not
+  start, with no error and no log. It is THE trap this component exists
+  to absorb.
+- **``playsinline`` is always emitted**, and it is not a prop. Without
+  it, iOS takes the video out of the flow and goes full screen as soon
+  as it plays — never what one wants in an application. A setting whose
+  right value is always the same is not a choice to expose.
+- **``poster=``** avoids the black rectangle before playback.
+- **``tracks=``** carries the subtitles, shipped on 2026-08-31 ::
 
       ui.video(
           "demo.mp4",
@@ -29,18 +29,18 @@ plutôt que de laisser faire ``ui.html`` :
                            default=True)],
       )
 
-  Un ``<track>`` correct veut trois attributs (``src`` + ``srclang`` +
-  ``label``) : une prop d'une seule chaîne aurait eu l'air complète sans
-  l'être, d'où un descripteur typé qui exige les trois. Le composant
-  reste une FEUILLE — les pistes sont des données, pas des enfants. Cf.
+  A correct ``<track>`` wants three attributes (``src`` + ``srclang`` +
+  ``label``): a single-string prop would have looked complete without
+  being so, hence a typed descriptor that requires all three. The
+  component stays a LEAF — the tracks are data, not children. Cf.
   :mod:`bretzel.components.primitives.video.track`.
 
-Ce qu'il n'a **pas**, et pourquoi :
+What it does **not** have, and why:
 
-- pas de sources multiples (``<source>`` par format) : un seul ``src``.
-  Quand le besoin remonte, il remonte avec sa forme — et ce sera un
-  ``sources=`` sur le modèle de ``tracks=``, pas l'ouverture du
-  composant aux enfants.
+- no multiple sources (``<source>`` per format): a single ``src``. When
+  the need comes up, it comes up with its shape — and it will be a
+  ``sources=`` on the model of ``tracks=``, not opening the component to
+  children.
 """
 
 from __future__ import annotations
@@ -65,16 +65,16 @@ class Video(Component):
     THEME_KEY: ClassVar[str] = "video"
     DEFAULT_TAG: ClassVar[str] = "video"
     IS_CONTAINER: ClassVar[bool] = False
-    #: Le composant parcourt ``tracks=`` lui-même, et l'auteur n'a rien à
-    #: y ajouter : une piste est faite d'ATTRIBUTS, elle ne porte aucun
-    #: balisage. Ni des enfants ni un rappel de contenu n'auraient de
-    #: destinataire — d'où ``"data"`` plutôt que ``"component"``. Cf.
+    #: The component walks ``tracks=`` itself, and the author has
+    #: nothing to add to it: a track is made of ATTRIBUTES, it carries no
+    #: markup. Neither children nor a content callback would have a
+    #: recipient — hence ``"data"`` rather than ``"component"``. Cf.
     #: ``Component.COLLECTION_OWNER``.
     COLLECTION_OWNER: ClassVar[str | None] = "data"
 
-    # Aucune surface bindable, même raison que ``image`` : une source
-    # média change quand les données du serveur changent (re-rendu d'un
-    # ``@refreshable``), jamais sous un driver client.
+    # No bindable surface, same reason as ``image``: a media source
+    # changes when the server's data changes (a ``@refreshable``
+    # re-render), never under a client driver.
     src: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
     poster: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
     ratio: str | None = reactive_prop(default=None, emit_attr=False)
@@ -98,7 +98,7 @@ class Video(Component):
         tracks: Iterable[Track] = (),
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             src=src, poster=poster, ratio=ratio, fit=fit,
             controls=controls, autoplay=autoplay, loop=loop, muted=muted,
@@ -108,32 +108,31 @@ class Video(Component):
         self._reject_ambiguous_default()
 
     def _reject_ambiguous_default(self) -> None:
-        """Deux pistes ``default=True`` du même ``kind`` : on lève.
+        """Two ``default=True`` tracks of the same ``kind``: we raise.
 
-        Le HTML n'en autorise qu'une par ``kind``. Au-delà, le document
-        est invalide et le navigateur en garde une **sans dire
-        laquelle** : l'auteur croit avoir choisi la piste affichée par
-        défaut, et n'a rien choisi. Même raison d'être que
-        ``Table._reject_datatable_columns`` — un réglage ignoré en
-        silence coûte plus cher qu'un refus.
+        HTML only allows one per ``kind``. Beyond that, the document is
+        invalid and the browser keeps one **without saying which**: the
+        author believes they chose the track shown by default, and chose
+        nothing. Same reason to be as
+        ``Table._reject_datatable_columns`` — a setting ignored in
+        silence costs more than a refusal.
         """
         for kind in TRACK_KINDS:
             clashing = [t for t in self._tracks if t.kind == kind and t.default]
             if len(clashing) > 1:
                 names = ", ".join(t.label for t in clashing)
                 raise ComponentUsageError(
-                    f"ui.video: {len(clashing)} pistes ``{kind}`` sont "
-                    f"marquées default=True ({names}). Le HTML n'en "
-                    f"autorise qu'une par kind ; le navigateur en "
-                    f"choisirait une sans le dire. Garde default=True sur "
-                    f"celle que tu veux voir activée."
+                    f"ui.video: {len(clashing)} ``{kind}`` tracks are "
+                    f"marked default=True ({names}). HTML only allows one "
+                    f"per kind; the browser would pick one without saying "
+                    f"so. Keep default=True on the one you want active."
                 )
 
     def render(self) -> Element:
         theme = self._resolved_theme()
         values = self._reactive_values
 
-        # ``classes=`` est posé par le wrap métaclasse — pas ici (doublon).
+        # ``classes=`` is set by the metaclass wrap — not here (duplicate).
         root_class = self.slot_class(
             "root",
             theme.get("ratios", {}).get(values.get("ratio"), ""),
@@ -142,12 +141,12 @@ class Video(Component):
 
         attrs = self.emit_attrs()
         attrs["class"] = root_class
-        # ``src`` OMIS quand il n'y a pas de source, jamais ``src=""``.
-        # La spec HTML exige « a valid non-empty URL » ; un attribut vide
-        # est résolu contre l'URL du document, donc le navigateur
-        # télécharge LA PAGE COURANTE comme média — une requête inutile
-        # par élément, invisible sauf à lire les logs du serveur. C'est
-        # exactement comme ça qu'on l'a trouvé.
+        # ``src`` OMITTED when there is no source, never ``src=""``.
+        # The HTML spec requires "a valid non-empty URL"; an empty
+        # attribute is resolved against the document's URL, so the
+        # browser downloads THE CURRENT PAGE as media — one useless
+        # request per element, invisible unless you read the server's
+        # logs. That is exactly how we found it.
         if values.get("src"):
             attrs["src"] = values["src"]
         if values.get("poster"):
@@ -159,31 +158,32 @@ class Video(Component):
             attrs["controls"] = True
         if autoplay:
             attrs["autoplay"] = True
-        # LA garde. Un ``autoplay`` non muet est bloqué par tous les
-        # navigateurs : la vidéo ne démarre pas, et rien ne le dit — ni
-        # erreur, ni log, ni indice visuel. On force plutôt que d'émettre
-        # un attribut inerte.
+        # THE guard. An unmuted ``autoplay`` is blocked by every
+        # browser: the video does not start, and nothing says so —
+        # neither error, nor log, nor visual clue. We force rather than
+        # emit an inert attribute.
         if values.get("muted") or autoplay:
             attrs["muted"] = True
         if values.get("loop"):
             attrs["loop"] = True
-        # Toujours, jamais une prop : sans lui iOS sort la vidéo du flux
-        # et la passe en plein écran dès la lecture. Un réglage dont la
-        # bonne valeur est toujours la même n'est pas un choix à exposer.
+        # Always, never a prop: without it iOS takes the video out of
+        # the flow and goes full screen as soon as it plays. A setting
+        # whose right value is always the same is not a choice to
+        # expose.
         attrs["playsinline"] = True
         return Element(tag=self._tag, attrs=attrs, children=self._track_nodes())
 
     def _track_nodes(self) -> tuple[Element, ...]:
-        """Les ``<track>``, dans l'ordre déclaré.
+        """The ``<track>``, in declaration order.
 
-        Le composant reste une feuille : ces enfants-là sont les SIENS,
-        pas ceux d'un ``with`` — ``IS_CONTAINER`` garde la porte de
-        l'auteur fermée (cf. ``Component.add_child``).
+        The component stays a leaf: those children are ITS OWN, not a
+        ``with``'s — ``IS_CONTAINER`` keeps the author's door shut (cf.
+        ``Component.add_child``).
 
-        ``default`` n'est émis que s'il est vrai : la spec HTML en fait
-        un booléen, donc ``default="false"`` ACTIVE la piste. C'est le
-        piège classique de l'attribut booléen, et il se voit à l'écran
-        seulement chez qui n'attendait pas de sous-titres.
+        ``default`` is only emitted if true: the HTML spec makes it a
+        boolean, so ``default="false"`` ENABLES the track. It is the
+        classic boolean-attribute trap, and it only shows on screen for
+        somebody who was not expecting subtitles.
         """
         nodes: list[Element] = []
         for t in self._tracks:

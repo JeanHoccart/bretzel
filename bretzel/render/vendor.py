@@ -1,14 +1,14 @@
-"""Les trois scripts tiers, servis depuis chez toi plutôt que depuis un CDN.
+"""The three third-party scripts, served from your own host, not a CDN.
 
-Ce que ça règle
----------------
+What it fixes
+-------------
 
-Une page Bretzel charge trois scripts qui ne viennent pas de nous : htmx,
-l'extension idiomorph, et le composant web iconify. Mesuré le 2026-08-27
-sur une app en mode ``prod``, cache froid, page minimale :
+A Bretzel page loads three scripts that do not come from us: htmx, the
+idiomorph extension, and the iconify web component. Measured on
+2026-08-27 on an app in ``prod`` mode, cold cache, minimal page:
 
 ===============================  ==========
-ressource                          durée
+resource                         duration
 ===============================  ==========
 ``unpkg.com/htmx``                  593 ms
 ``unpkg.com/idiomorph-ext``         592 ms
@@ -17,44 +17,43 @@ ressource                          durée
 ``/_bretzel/style.css`` (local)      21 ms
 ===============================  ==========
 
-Le ``DOMContentLoaded`` de cette page tombe à **644 ms** : il est
-intégralement tenu par les trois premières lignes. Les deux ressources
-servies par l'app, elles, arrivent en 20-40 ms — même connexion, déjà
-ouverte, déjà chiffrée. Trois origines tierces, c'est trois résolutions
-DNS, trois poignées de main TLS et trois disponibilités qui ne dépendent
-pas de nous.
+That page's ``DOMContentLoaded`` lands at **644 ms**: it is held
+entirely by the first three lines. The two resources served by the app
+arrive in 20-40 ms — same connection, already open, already encrypted.
+Three third-party origins means three DNS resolutions, three TLS
+handshakes and three availabilities that do not depend on us.
 
-Le patron est celui du binaire Tailwind
-----------------------------------------
+The pattern is the Tailwind binary's
+------------------------------------
 
-Rien de tiers n'entre dans le dépôt. Les fichiers sont **téléchargés à la
-demande** dans ``./.bretzel/vendor/``, exactement comme
-:func:`bretzel.theme.build.download_binary` met le compilateur Tailwind
-dans ``./.bretzel/bin/``. Le dossier est un cache de projet, pas une
-source — il n'a pas à être committé.
+Nothing third-party enters the repository. The files are **downloaded on
+demand** into ``./.bretzel/vendor/``, exactly as
+:func:`bretzel.theme.build.download_binary` puts the Tailwind compiler in
+``./.bretzel/bin/``. The folder is a project cache, not a source — it
+does not have to be committed.
 
-Conséquence : le repli est la règle, pas l'exception. Tant que le
-téléchargement n'a pas eu lieu, le shell pointe sur le CDN et tout marche
-comme avant. C'est un choix, pas un accident : une app qui n'a jamais
-lancé la commande ne doit pas cesser de démarrer.
+Consequence: the fallback is the rule, not the exception. As long as the
+download has not happened, the shell points at the CDN and everything
+works as before. That is a choice, not an accident: an app that has never
+run the command must not stop starting.
 
     python -m bretzel.render.vendor
 
-⚠️ **En DEV, l'app le fait d'elle-même depuis le 2026-09-13**
-(:func:`ensure_vendored`, appelée au premier appel ASGI). La commande
-n'était connue que de qui l'avait lue, donc le repli CDN était la règle
-pour presque tout le monde — et une suite de 84 probes, qui tourne en
-dev, en dépendait sans le savoir. En production rien ne change : sortir
-du réseau au démarrage d'un serveur est une décision d'exploitant, et la
-commande reste le chemin explicite.
+⚠️ **In DEV, the app does it by itself since 2026-09-13**
+(:func:`ensure_vendored`, called on the first ASGI call). The command was
+only known to whoever had read it, so the CDN fallback was the rule for
+nearly everyone — and a suite of 84 probes, which runs in dev, depended
+on it without knowing. In production nothing changes: going out to the
+network when a server starts is an operator's decision, and the command
+stays the explicit path.
 
-L'empreinte est vérifiée
--------------------------
+The fingerprint is verified
+---------------------------
 
-Chaque fichier porte son SHA-256 attendu. Un octet qui ne correspond pas
-et le téléchargement est refusé, le fichier effacé : servir depuis notre
-propre origine un script qu'on n'a pas vérifié serait strictement pire
-que de laisser le CDN le servir, puisqu'on lui prêterait notre nom.
+Each file carries its expected SHA-256. One byte that does not match and
+the download is refused, the file erased: serving from our own origin a
+script we have not verified would be strictly worse than letting the CDN
+serve it, since we would be lending it our name.
 """
 
 from __future__ import annotations
@@ -66,9 +65,9 @@ from typing import Final, NamedTuple
 
 from bretzel.runtime.protocol import ROUTE_ICONS, ROUTE_VENDOR
 
-#: Ré-exporté : le chemin est un mot du protocole, il vit donc dans
-#: ``protocol.py`` avec les autres routes — c'est aussi ce qui permet à
-#: ``PUBLIC_ASSET_ROUTES`` de le classer sans remonter la pile.
+#: Re-exported: the path is a word of the protocol, so it lives in
+#: ``protocol.py`` with the other routes — that is also what lets
+#: ``PUBLIC_ASSET_ROUTES`` classify it without reaching up the stack.
 __all__ = (
     "ROUTE_ICONS",
     "ensure_vendored",
@@ -86,7 +85,7 @@ __all__ = (
 
 
 class VendoredAsset(NamedTuple):
-    """Un script tiers : son nom de fichier, sa source, son empreinte."""
+    """A third-party script: its file name, its source, its fingerprint."""
 
     filename: str
     url: str
@@ -94,18 +93,18 @@ class VendoredAsset(NamedTuple):
 
 
 def vendor_dir() -> Path:
-    """``./.bretzel/vendor/`` — le cache de projet, à côté du cwd.
+    """``./.bretzel/vendor/`` — the project cache, next to the cwd.
 
-    Même racine que le binaire Tailwind, pour la même raison : un cache
-    par projet, jamais partagé entre deux checkouts, jamais committé.
+    Same root as the Tailwind binary, for the same reason: one cache per
+    project, never shared between two checkouts, never committed.
     """
     return Path.cwd() / ".bretzel" / "vendor"
 
 
 def cached_name(asset: VendoredAsset) -> str:
     """Return the cache filename containing the expected content fingerprint."""
-    tige, _, extension = asset.filename.rpartition(".")
-    return f"{tige}.{asset.sha256[:8]}.{extension}"
+    stem, _, extension = asset.filename.rpartition(".")
+    return f"{stem}.{asset.sha256[:8]}.{extension}"
 
 
 def vendored_local_path(asset: VendoredAsset) -> Path:
@@ -123,24 +122,24 @@ def route_for(asset: VendoredAsset) -> str:
 
 
 def url_for(asset: VendoredAsset) -> str:
-    """L'URL à mettre dans le ``<script>`` : locale si présente, CDN sinon.
+    """The URL to put in the ``<script>``: local if present, CDN otherwise.
 
-    Le choix est fait au RENDU et pas au démarrage, à un ``stat`` près :
-    lancer la commande de téléchargement pendant qu'un serveur de dev
-    tourne doit suffire à basculer au rechargement suivant, sans
-    redémarrage. En prod le fichier est là ou il n'y est pas — le
-    ``stat`` porte alors sur une entrée que le système garde en cache.
+    The choice is made at RENDER time and not at startup, at the cost of
+    a ``stat``: running the download command while a dev server is up
+    must be enough to switch over on the next reload, with no restart. In
+    production the file is there or it is not — the ``stat`` then hits an
+    entry the system keeps in cache.
     """
     return route_for(asset) if vendored_is_available(asset) else asset.url
 
 
 def download(asset: VendoredAsset, *, force: bool = False) -> Path:
-    """Télécharge ``asset`` dans le cache, empreinte vérifiée.
+    """Download ``asset`` into the cache, fingerprint verified.
 
-    Le fichier n'est écrit à sa place définitive qu'APRÈS vérification :
-    un téléchargement interrompu ne doit pas laisser derrière lui un
-    fichier tronqué que :func:`vendored_is_available` déclarerait bon, et que
-    l'app servirait ensuite à la place du CDN.
+    The file is only written to its final place AFTER verification: an
+    interrupted download must not leave behind a truncated file that
+    :func:`vendored_is_available` would declare good, and that the app
+    would then serve instead of the CDN.
     """
     target = vendored_local_path(asset)
     if target.is_file() and not force:
@@ -148,9 +147,9 @@ def download(asset: VendoredAsset, *, force: bool = False) -> Path:
 
     target.parent.mkdir(parents=True, exist_ok=True)
     print(f"[bretzel] Downloading {asset.filename} from {asset.url}")
-    # ``User-Agent`` explicite : ``code.iconify.design`` répond **403** à
-    # l'en-tête par défaut d'``urllib`` (mesuré le 2026-08-27). unpkg s'en
-    # moque ; le poser pour les trois évite d'avoir deux chemins.
+    # Explicit ``User-Agent``: ``code.iconify.design`` answers **403** to
+    # ``urllib``'s default header (measured on 2026-08-27). unpkg does not
+    # care; setting it for all three avoids having two paths.
     request = urllib.request.Request(
         asset.url, headers={"User-Agent": "bretzel-vendor/1.0"}
     )
@@ -160,12 +159,12 @@ def download(asset: VendoredAsset, *, force: bool = False) -> Path:
     digest = hashlib.sha256(payload).hexdigest()
     if digest != asset.sha256:
         raise RuntimeError(
-            f"{asset.filename} : empreinte inattendue.\n"
-            f"  attendue : {asset.sha256}\n"
-            f"  obtenue  : {digest}\n"
-            "Le fichier n'a PAS été installé. Si la version amont a bougé, "
-            "mettre à jour l'empreinte dans bretzel/render/vendor.py — "
-            "jamais l'inverse."
+            f"{asset.filename}: unexpected digest.\n"
+            f"  expected : {asset.sha256}\n"
+            f"  got      : {digest}\n"
+            "The file was NOT installed. If the upstream version has "
+            "moved, update the fingerprint in bretzel/render/vendor.py — "
+            "never the other way round."
         )
 
     target.write_bytes(payload)
@@ -174,27 +173,26 @@ def download(asset: VendoredAsset, *, force: bool = False) -> Path:
 
 
 def download_all(*, force: bool = False) -> list[Path]:
-    """Tout ce qui est rapatriable, dans le cache du projet."""
+    """Everything that can be brought in-house, in the project cache."""
     return [download(asset, force=force) for asset in downloadable_assets()]
 
 
 def browser_css_asset() -> VendoredAsset:
-    """Le compilateur Tailwind navigateur — le QUATRIÈME tiers.
+    """The browser Tailwind compiler — the FOURTH third party.
 
-    Il vit à part de :func:`vendored_assets` parce qu'il ne se charge pas
-    sur toutes les pages : seulement quand le pipeline CSS est
-    ``browser``, c'est-à-dire en dev. Le mettre dans la liste commune le
-    ferait émettre en prod, où la feuille est déjà compilée.
+    It lives apart from :func:`vendored_assets` because it does not load
+    on every page: only when the CSS pipeline is ``browser``, that is to
+    say in dev. Putting it in the common list would make it emit in
+    production, where the sheet is already compiled.
 
-    ⚠️ **C'est le plus lourd des quatre — 276 Ko — et c'était le seul qui
-    n'était ni vérifiable ni rapatriable**, parce que son URL était un
-    INTERVALLE (``@4``). Conséquence mesurée le 2026-09-13 : chaque page
-    de dev faisait deux allers-retours chez unpkg (un 302, puis le
-    bundle), et quand ce tiers bronchait, *aucune* feuille n'était
-    produite — l'encre d'un bouton passait de ``oklab(…)`` à ``rgb(0, 0,
-    0)``. Une suite entière de probes tourne en dev : sa fiabilité tenait
-    à un site tiers, et sa rouge se déplaçait d'un probe à l'autre sans
-    jamais parler du code.
+    ⚠️ **It is the heaviest of the four — 276 KB — and it was the only
+    one that was neither verifiable nor vendorable**, because its URL was
+    a RANGE (``@4``). Consequence measured on 2026-09-13: every dev page
+    made two round trips to unpkg (a 302, then the bundle), and when that
+    third party faltered, *no* sheet was produced — a button's ink went
+    from ``oklab(…)`` to ``rgb(0, 0, 0)``. A whole suite of probes runs
+    in dev: its reliability hung on a third-party site, and its red moved
+    from one probe to another without ever speaking about the code.
     """
     from bretzel.render.shell import (  # casse un cycle : shell → vendor
         DEFAULT_TAILWIND_BROWSER_URL,
@@ -214,14 +212,14 @@ def downloadable_assets() -> tuple[VendoredAsset, ...]:
 
 def ensure_vendored() -> bool:
     """Download missing third-party assets without making startup fatal."""
-    manquants = [a for a in downloadable_assets() if not vendored_is_available(a)]
-    for asset in manquants:
+    missing = [a for a in downloadable_assets() if not vendored_is_available(a)]
+    for asset in missing:
         try:
             download(asset)
-        except Exception as exc:  # réseau, HTTP, empreinte — jamais fatal
+        except Exception as exc:  # network, HTTP, digest — never fatal
             print(
-                f"[bretzel] {asset.filename} non rapatrié ({exc}) — la page "
-                f"le demandera à {asset.url}"
+                f"[bretzel] {asset.filename} not vendored ({exc}) — the "
+                f"page will request it from {asset.url}"
             )
     return all(vendored_is_available(a) for a in downloadable_assets())
 
@@ -253,28 +251,28 @@ def vendored_assets() -> tuple[VendoredAsset, ...]:
     )
 
 
-if __name__ == "__main__":  # pragma: no cover — point d'entrée manuel
+if __name__ == "__main__":  # pragma: no cover — manual entry point
     download_all()
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# Les DONNÉES d'icône — relayées par le serveur et mises en cache
+# Icon DATA — relayed by the server and cached
 # ───────────────────────────────────────────────────────────────────────────
 #
-# Rapatrier ``iconify-icon.min.js`` ne rapatrie que le composant. La coque
-# configure le composant pour appeler ``/_bretzel/icons`` ; cette route lit
-# d'abord le cache local, puis interroge les API Iconify depuis le serveur.
-# Le navigateur du visiteur ne contacte donc aucun de ces hôtes.
+# Vendoring ``iconify-icon.min.js`` only vendors the component. The shell
+# configures the component to call ``/_bretzel/icons``; that route reads
+# the local cache first, then queries the Iconify APIs from the server.
+# The visitor's browser therefore contacts none of those hosts.
 #
-# La géométrie, elle, ne bouge pas — une icône absente garde sa boîte, que
-# le CSS dimensionne en ``1em``. C'est pourquoi ce tiers-ci ne fabriquait
-# pas les rouges mouvantes de ``-m probes`` (c'était le compilateur CSS),
-# et pourquoi il se voit seulement sur une capture. Il reste une
-# dépendance réseau lors du premier accès à un glyphe absent du cache.
+# The geometry does not move — a missing icon keeps its box, which the
+# CSS sizes at ``1em``. That is why this third party did not produce the
+# moving reds of ``-m probes`` (that was the CSS compiler), and why it
+# only shows on a screenshot. It remains a network dependency on the
+# first access to a glyph absent from the cache.
 
 ICON_CACHE_DIRNAME = "icons"
 
-#: L'amont, et ses deux secours — l'ordre est celui d'Iconify.
+#: Upstream, and its two fallbacks — the order is Iconify's.
 ICON_API_HOSTS: Final[tuple[str, ...]] = (
     "https://api.iconify.design",
     "https://api.simplesvg.com",
@@ -283,45 +281,46 @@ ICON_API_HOSTS: Final[tuple[str, ...]] = (
 
 
 def icon_cache_dir() -> Path:
-    """``./.bretzel/vendor/icons/`` — créé à la demande."""
+    """``./.bretzel/vendor/icons/`` — created on demand."""
     d = vendor_dir() / ICON_CACHE_DIRNAME
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _icon_cache_file(chemin: str) -> Path:
-    """Le fichier de cache d'une requête, nommé par son EMPREINTE.
+def _icon_cache_file(path: str) -> Path:
+    """A request's cache file, named by its FINGERPRINT.
 
-    Le chemin d'une requête Iconify porte une liste d'icônes en query
-    (``lucide.json?icons=check,x``), donc il contient des caractères
-    qu'un nom de fichier n'accepte pas, et il peut dépasser la longueur
-    maximale d'un chemin Windows. Une empreinte règle les deux.
+    An Iconify request's path carries a list of icons in the query
+    (``lucide.json?icons=check,x``), so it contains characters a file
+    name does not accept, and it can exceed the maximum length of a
+    Windows path. A fingerprint settles both.
     """
-    empreinte = hashlib.sha256(chemin.encode("utf-8")).hexdigest()[:32]
-    return icon_cache_dir() / f"{empreinte}.json"
+    digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:32]
+    return icon_cache_dir() / f"{digest}.json"
 
 
-def icon_payload(chemin: str, *, allow_download: bool = True) -> bytes | None:
+def icon_payload(path: str, *, allow_download: bool = True) -> bytes | None:
     """Return an Iconify API response body from cache or upstream."""
-    fichier = _icon_cache_file(chemin)
-    if fichier.is_file():
-        return fichier.read_bytes()
+    cached = _icon_cache_file(path)
+    if cached.is_file():
+        return cached.read_bytes()
     if not allow_download:
         return None
-    for hote in ICON_API_HOSTS:
-        requete = urllib.request.Request(
-            hote + chemin,
-            # ⚠️ Un ``User-Agent`` explicite, et ce n'est pas cosmétique :
-            # sans lui, l'API rend **403** (mesuré le 2026-09-13), et le
-            # diagnostic arrive sous la forme d'icônes absentes.
+    for host in ICON_API_HOSTS:
+        req = urllib.request.Request(
+            host + path,
+            # ⚠️ An explicit ``User-Agent``, and it is not cosmetic:
+            # without it, the API returns **403** (measured on
+            # 2026-09-13), and the diagnosis arrives in the form of
+            # missing icons.
             headers={"User-Agent": "bretzel/vendor"},
         )
         try:
-            with urllib.request.urlopen(requete, timeout=10) as reponse:
-                corps = reponse.read()
-        except Exception:  # réseau, HTTP, DNS — on essaie le suivant
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                body = resp.read()
+        except Exception:  # network, HTTP, DNS — we try the next one
             continue
-        if corps:
-            fichier.write_bytes(corps)
-            return corps
+        if body:
+            cached.write_bytes(body)
+            return body
     return None

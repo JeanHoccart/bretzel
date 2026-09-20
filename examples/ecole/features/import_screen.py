@@ -1,27 +1,28 @@
-"""features/import_screen — page : l'import en deux temps, et les archives.
+"""features/import_screen — page: the two-step import, and the archives.
 
-EF-J1 à EF-J8, EF-N1 à EF-N3.
+EF-J1 to EF-J8, EF-N1 to EF-N3.
 
-**Deux temps, et c'est voulu : on analyse, PUIS on valide.**
-*« Rien n'entre en base avant que le professeur ait vu la liste — un
-import est la seule opération qui crée trois cents élèves d'un coup. »*
-L'écran est donc en deux moitiés, et la seconde n'existe pas tant que la
-première n'a pas tourné.
+**Two steps, and it is intended: one analyses, THEN one validates.**
+*"Nothing enters the database before the teacher has seen the list — an
+import is the only operation that creates three hundred pupils at
+once."* So the screen is in two halves, and the second does not exist
+until the first has run.
 
-**Deux boutons SÉPARÉS**, et c'est EF-J4 : « Ajouter les élèves » et
-« Remplacer les photos ». *« On ne veut surtout pas créer trente doublons
-en croyant rafraîchir des photos. »* Les fondre en un bouton « importer »
-qui devinerait l'intention est exactement l'erreur que le cahier nomme.
+**Two SEPARATE buttons**, and it is EF-J4: "Ajouter les élèves" and
+"Remplacer les photos". *"We above all do not want to create thirty
+duplicates while thinking we are refreshing photos."* Merging them into
+one "import" button that would guess the intent is exactly the error the
+specification names.
 
-⚠️ Le dépôt est un CSV collé, pas un ``ui.file_upload``
---------------------------------------------------------
-EF-J2 demande de déposer le fichier DANS la page, et ``ui.file_upload``
-existe. Il n'est pas utilisé ici, et c'est un choix qui se discute :
-l'app aurait besoin de LIRE le contenu du fichier côté serveur, ce qui
-demande un ``upload_url`` et une route qui le reçoive — de la plomberie
-d'entrée-sortie que le § 3.2 du cahier met explicitement hors périmètre
-(*« mesure la bibliothèque, pas le framework »*). Le collage garde le
-geste en deux temps, qui est ce qui compte.
+⚠️ The drop is a pasted CSV, not a ``ui.file_upload``
+-------------------------------------------------------
+EF-J2 asks for the file to be dropped IN the page, and ``ui.file_upload``
+exists. It is not used here, and it is a debatable choice: the app would
+need to READ the file's content server side, which requires an
+``upload_url`` and a route to receive it — input/output plumbing that
+§ 3.2 of the specification explicitly puts out of scope (*"it measures
+the library, not the framework"*). Pasting keeps the two-step gesture,
+which is what counts.
 """
 
 from __future__ import annotations
@@ -46,17 +47,17 @@ from examples.ecole.features.shell import shell
 
 PATH = "/import"
 
-#: L'exemple collé dans le champ vide : deux lignes suffisent à montrer
-#: le format, et elles évitent une doc de format à côté.
+#: The example pasted into the empty field: two lines are enough to show
+#: the format, and they avoid a format doc beside it.
 EXEMPLE = "COURTY;Léane\nVALLOIS;Malo"
 
 
 class ImportDraft(PageState):
-    """Ce qu'on a déposé, et ce que l'analyse en a dit.
+    """What was dropped, and what the analysis said about it.
 
-    ``analyse_faite`` est ce qui fait exister la SECONDE moitié de
-    l'écran : sans elle, les deux boutons d'écriture n'apparaissent pas.
-    C'est EF-J1 rendu structurel plutôt que demandé poliment.
+    ``analyse_faite`` is what makes the screen's SECOND half exist:
+    without it, the two write buttons do not appear. It is EF-J1 made
+    structural rather than politely requested.
     """
 
     code: str = field(default="")
@@ -65,7 +66,8 @@ class ImportDraft(PageState):
 
 
 def analyser_le_depot(draft: ImportDraft) -> None:
-    """Le PREMIER temps. Il n'écrit rien — c'est toute sa raison d'être."""
+    """The FIRST step. It writes nothing — that is its whole reason to
+    exist."""
     draft.analyse_faite = True
 
 
@@ -75,7 +77,7 @@ def vider(draft: ImportDraft) -> None:
 
 
 def ajouter_les_eleves(draft: ImportDraft) -> None:
-    """EF-J1, second temps. **Le seul bouton qui CRÉE des élèves.**"""
+    """EF-J1, second step. **The only button that CREATES pupils.**"""
     annee = annee_regardee()
     resultat = analyser(annee["id"], str(draft.code), str(draft.texte))
     if resultat["refus"]:
@@ -89,11 +91,11 @@ def ajouter_les_eleves(draft: ImportDraft) -> None:
 
 
 def remplacer_les_photos(draft: ImportDraft) -> None:
-    """EF-J4 — **le bouton séparé.**
+    """EF-J4 — **the separate button.**
 
-    Il ne touche ni à la composition de la classe, ni aux notes, ni aux
-    appréciations : il apparie par NOM (EF-J5) et pose les images. Les
-    noms qu'il ne trouve pas sont DITS (EF-J7).
+    It touches neither the class's composition, nor the marks, nor the
+    comments: it matches by NAME (EF-J5) and sets the images. The names
+    it does not find are SAID (EF-J7).
     """
     annee = annee_regardee()
     resultat = analyser(annee["id"], str(draft.code), str(draft.texte))
@@ -157,7 +159,7 @@ def panneau_import() -> None:
 
 
 def panneau_analyse(analyse: dict, fige: bool) -> None:
-    """Le second temps — et il ne s'affiche qu'après le premier."""
+    """The second step — and it only shows after the first."""
     with ui.card(padding="lg"), ui.vstack(gap="md"):
         ui.heading("2 · On valide", level=2, size="lg")
         if analyse["refus"]:
@@ -173,15 +175,15 @@ def panneau_analyse(analyse: dict, fige: bool) -> None:
                 ui.text(f"{ligne['nom'].upper()} {ligne['prenom']}"
                         if ligne["nom"] else ligne["brut"])
                 if ligne["erreur"]:
-                    # EF-J7 : ce qu'on ne reconnaît pas est DIT, pas
-                    # deviné — c'est le professeur qui décide.
+                    # EF-J7: what is not recognised is SAID, not
+                    # guessed — it is the teacher who decides.
                     ui.badge(label=ligne["erreur"], color="error",
                              variant="soft", size="xl")
                 elif ligne.get("connu"):
                     ui.badge(label=f"déjà en {ligne['connu']}", color="warning",
                              variant="soft", size="xl")
         with ui.hstack(gap="md", justify="end", wrap=True):
-            # EF-J4 : DEUX boutons, et ils ne font pas la même chose.
+            # EF-J4: TWO buttons, and they do not do the same thing.
             ui.button(
                 "Remplacer les photos", variant="outline",
                 icon_left="image", disabled=fige or bool(analyse["refus"]),
@@ -194,26 +196,27 @@ def panneau_analyse(analyse: dict, fige: bool) -> None:
                 on_click=ajouter_les_eleves)
 
 
-# ── Les archives (EF-N) ──────────────────────────────────────────────
+# ── The archives (EF-N) ──────────────────────────────────────────────
 
 class VueArchive(PageState, addressable=True):
-    """La classe archivée — l'adresse la retient, pour l'imprimer."""
+    """The class archived — the address keeps it, to print it."""
 
     classe_id: int = field(default=0, url="classe")
 
 
 def choisir_archive(vue: VueArchive) -> None:
-    """Vide : la mutation seule re-rend la zone ``deps=[VueArchive]``."""
+    """Empty: the mutation alone re-renders the ``deps=[VueArchive]``
+    zone."""
 
 
 @refreshable(deps=[AnneeVue, VueArchive])
 def panneau_archives() -> None:
-    """EF-N1, EF-N2 — *« une archive, pas un bulletin »*.
+    """EF-N1, EF-N2 — *"an archive, not a report card"*.
 
-    *« Elle doit se relire dans dix ans sans le programme qui l'a
-    produite. Imprimable et complète. »* D'où la date de fabrication en
-    tête, et tout le contenu sur UNE page — trois onglets seraient plus
-    propres à l'écran et perdraient à l'impression.
+    *"It must be re-readable in ten years without the program that
+    produced it. Printable and complete."* Hence the production date at
+    the head, and all the content on ONE page — three tabs would be
+    cleaner on screen and would lose at printing time.
     """
     annee = annee_regardee()
     vue = VueArchive()

@@ -61,7 +61,7 @@ class RadioClient(ClientState, persist="memory"):
 # Drives the server-events RadioGroup demo. ``value=state.value``
 # binding → AUTONAME_FROM="value" derives ``name="value"`` from
 # field_name → handler ``log_change(value=...)`` matches. No manual
-# ``name=`` (CLAUDE.md règle 4).
+# ``name=`` (CLAUDE.md rule 4).
 class RadioServerEvents(ClientState, persist="memory"):
     value: str = field(default="a")
 
@@ -270,15 +270,15 @@ def events_panel() -> None:
 
     ui.divider()
 
-    # Les événements PAR ITEM. Le texte ci-dessus les annonçait déjà sans
-    # qu'aucun ne soit démontré — seul le ``change`` du groupe l'était.
-    # Une instance par event : un composant ne porte qu'un ``hx-post``.
+    # The PER-ITEM events. The text above already announced them with
+    # none demonstrated — only the group's ``change`` was. One instance
+    # per event: a component carries only one ``hx-post``.
     #
-    # ``focus`` / ``blur`` atterrissent sur l'``<input type="radio">``, pas
-    # sur le ``<label>`` racine. L'input est ``sr-only`` — visuellement
-    # masqué mais TOUJOURS focusable, c'est justement l'intérêt de cette
-    # technique par rapport à ``display:none``. Au clavier : Tab pour
-    # entrer dans le groupe, flèches pour circuler.
+    # ``focus`` / ``blur`` land on the ``<input type="radio">``, not on
+    # the root ``<label>``. The input is ``sr-only`` — visually hidden
+    # but STILL focusable, which is precisely this technique's point over
+    # ``display:none``. From the keyboard: Tab to enter the group, arrows
+    # to move around.
     ui.text(
         "Per-item events — Tab into the group to fire focus, Tab out "
         "for blur.",
@@ -688,13 +688,12 @@ def page() -> None:
                         level=3,
                     )
                     ui.text(
-                        "Binding fournie ET on appelle ``.set()`` "
-                        "sur l'instance. Le framework détecte la "
-                        "binding et délègue à ``binding.set(...)`` — "
-                        "**le DOM dispatch n'est pas utilisé**, single "
-                        "source of truth préservée. Les boutons "
-                        "impératifs et le sibling miroir convergent "
-                        "sur le même champ.",
+                        'A binding supplied AND ``.set()`` called on the '
+                            'instance. The framework detects the binding and '
+                            'delegates to ``binding.set(...)`` — **the DOM '
+                            'dispatch is not used**, single source of truth '
+                            'preserved. The imperative buttons and the '
+                            'sibling mirror converge on the same field.',
                         color="muted", size="sm",
                     )
                     both = RadioClient(key="both")

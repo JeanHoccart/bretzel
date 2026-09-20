@@ -1,21 +1,19 @@
-"""La surface d'appelables d'un ESPACE DE NOMS — la primitive générique.
+"""A NAMESPACE's callable surface — the generic primitive.
 
-Certaines APIs **sont** leur surface de méthodes : le DSL d'opérateurs de
-``ClientBinding``, un registre de décorateurs, tout builder fluent. Cette
-primitive la lit vivante — nom, signature, retour, docstring — sans rien
-savoir de ce qu'elle lit. Les couches spécialisées l'enrichissent
-(cf. :mod:`bretzel.introspect.algebra`).
+Some APIs **are** their method surface: ``ClientBinding``'s operator DSL,
+a decorator registry, any fluent builder. This primitive reads it live —
+name, signature, return, docstring — knowing nothing about what it reads.
+The specialised layers enrich it (cf.
+:mod:`bretzel.introspect.algebra`).
 
-**Un espace de noms, pas une classe.** Le sujet réel est « un porteur
-d'attributs + une liste de noms » : ``auth`` et ``oauth`` sont des
-*modules* exportés au premier étage, et leur surface se lit exactement
-comme celle d'une classe. Écrire la boucle une seconde fois pour eux
-aurait donné deux sites de construction de :class:`MethodInfo` à tenir
-synchronisés — c'est ce que la première version de
-:mod:`bretzel.introspect.symbols` faisait.
+**A namespace, not a class.** The real subject is "an attribute holder +
+a list of names": ``auth`` and ``oauth`` are *modules* exported at the
+first tier, and their surface reads exactly like a class's. Writing the
+loop a second time for them would have given two :class:`MethodInfo`
+construction sites to keep in sync — which is what the first version of
+:mod:`bretzel.introspect.symbols` did.
 
-**La réutiliser avant de relister à la main les appelables de quoi que ce
-soit.**
+**Reuse it before re-listing anything's callables by hand.**
 """
 
 from __future__ import annotations
@@ -34,17 +32,17 @@ def describe_method_surface(
     skip: frozenset[str] = frozenset(),
     inherited: bool = False,
 ) -> tuple[MethodInfo, ...]:
-    """Tout ce qu'on peut appeler sur ``cls`` comme API publique.
+    """Everything callable on ``cls`` as a public API.
 
-    Par défaut, lit ``cls.__dict__`` — les méthodes PROPRES, pas la
-    plomberie héritée d'``object``.
+    By default it reads ``cls.__dict__`` — the OWN methods, not the
+    plumbing inherited from ``object``.
 
-    ``inherited=True`` remonte la MRO (``object`` exclu) et rend la
-    surface **effective** : ce qu'un appelant obtient réellement par
-    ``getattr``, la définition la plus dérivée gagnant. Sans ce mode,
-    ``ClientExpression`` — qui hérite trente-deux opérateurs et n'en
-    redéfinit que six — avait une surface de six méthodes, ce qui n'est
-    la réponse à aucune question qu'on lui pose.
+    ``inherited=True`` walks the MRO (``object`` excluded) and returns
+    the **effective** surface: what a caller really gets through
+    ``getattr``, the most derived definition winning. Without that mode,
+    ``ClientExpression`` — which inherits thirty-two operators and
+    redefines only six — had a surface of six methods, which is the
+    answer to no question anyone asks it.
     """
     return describe_namespace_surface(
         cls,
@@ -61,13 +59,13 @@ def describe_namespace_surface(
     include_dunders: frozenset[str] = frozenset(),
     skip: frozenset[str] = frozenset(),
 ) -> tuple[MethodInfo, ...]:
-    """Les appelables de ``names`` lus sur ``owner``, dans cet ordre.
+    """The callables of ``names`` read on ``owner``, in that order.
 
-    Garde les noms sans underscore, plus tout dunder explicitement nommé
-    dans ``include_dunders`` (un DSL d'opérateurs veut ``__gt__`` dans sa
-    surface), et écarte ce qui est dans ``skip``. Les signatures sont lues
-    via :func:`describe_callable`, donc un paramètre renommé suit sans
-    édition.
+    Keeps the names without an underscore, plus any dunder explicitly
+    named in ``include_dunders`` (an operator DSL wants ``__gt__`` in its
+    surface), and drops what is in ``skip``. The signatures are read
+    through :func:`describe_callable`, so a renamed parameter follows
+    with no edit.
     """
     out: list[MethodInfo] = []
     for name in names:
@@ -98,12 +96,11 @@ def _is_wanted(name: str, include_dunders: frozenset[str]) -> bool:
 
 
 def _public_names(cls: type, *, inherited: bool) -> tuple[str, ...]:
-    """Les noms à lire sur ``cls``, dédupliqués, la MRO dans l'ordre.
+    """The names to read on ``cls``, de-duplicated, MRO in order.
 
-    ``dict.fromkeys`` plutôt qu'un ``set`` : l'ordre de déclaration est
-    l'ordre d'affichage de la fiche, et la première occurrence en
-    remontant la MRO est la définition qui gagne — la même que celle que
-    ``getattr`` rendra.
+    ``dict.fromkeys`` rather than a ``set``: declaration order is the
+    card's display order, and the first occurrence walking up the MRO is
+    the definition that wins — the same one ``getattr`` will return.
     """
     if not inherited:
         return tuple(vars(cls))

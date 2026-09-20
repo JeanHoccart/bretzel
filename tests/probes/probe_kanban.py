@@ -567,6 +567,30 @@ def les_deux_themes(page) -> None:
               "document.documentElement.classList.contains('dark')"))
 
 
+def l_anglais_est_le_defaut(browser, taille) -> None:
+    """Un visiteur sans cookie reçoit l'ANGLAIS — chrome ET cartes.
+
+    Un contexte NEUF, donc une session neuve : c'est la seule façon de
+    voir la graine dans l'autre langue, puisqu'elle est tirée une fois
+    par session (``donnees.graine``).
+    """
+    print("\n⓪ L'anglais est le défaut, cartes comprises")
+    ctx = browser.new_context(viewport=taille)
+    page = ctx.new_page()
+    page.goto(BASE + "/")
+    pret(page)
+    check("le bandeau est en anglais",
+          page.get_by_text("Client portal rework").count() >= 1)
+    check("les colonnes aussi",
+          page.get_by_text("To do", exact=True).count() >= 1)
+    check("et les cartes semées — c'est ce qu'un dict de traduction "
+          "posé trop tard raterait",
+          page.get_by_text("Sign-in screen: forgotten password").count() >= 1)
+    check("le sélecteur de langue est là",
+          page.get_by_role("button", name="Language").count() >= 1)
+    ctx.close()
+
+
 def main() -> int:
     (HERE / "_shots").mkdir(exist_ok=True)
     server = subprocess.Popen(
@@ -589,7 +613,24 @@ def main() -> int:
             # partageraient l'identité et ne prouveraient pas grand-chose.
             ctx_a = browser.new_context(viewport=taille)
             ctx_b = browser.new_context(viewport=taille)
+            # ⚠️ Les deux contextes sont mis en FRANÇAIS avant le
+            # premier rendu. L'app est bilingue depuis le 2026-09-20 et
+            # sert l'ANGLAIS par défaut ; ce probe, lui, est écrit en
+            # français — ses six cents lignes de sélecteurs citent les
+            # libellés et les titres de cartes. Le cookie est posé avant
+            # le premier ``goto`` parce que la graine du tableau est
+            # tirée au PREMIER rendu de la session : arrivée trop tard,
+            # elle traduirait le chrome et laisserait les cartes en
+            # anglais. La langue par défaut a sa propre vérification,
+            # ``l_anglais_est_le_defaut``.
+            for ctx in (ctx_a, ctx_b):
+                ctx.add_cookies([{
+                    "name": "bz_lang", "value": "fr",
+                    "url": BASE,
+                }])
             page_a, page_b = ctx_a.new_page(), ctx_b.new_page()
+
+            l_anglais_est_le_defaut(browser, taille)
 
             le_tableau_est_partage(page_a, page_b)
             ctx_b.close()

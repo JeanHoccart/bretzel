@@ -2,13 +2,13 @@
 
 Slots :
 
-- ``root``     : the grabbable wrapper. ``touch-action`` y laisse le
-                 PAN (``touch-pan-x touch-pan-y``) : la carte occupe
-                 toute la surface d'une colonne de kanban, donc lui
-                 interdire le geste de défilement revient à interdire de
-                 défiler tout court. C'est le geste ATTRAPÉ qui reprend
-                 la main, pas la CSS — cf. le ``touchmove`` non passif de
-                 ``19_dnd.js``, et le § ci-dessous.
+- ``root``     : the grabbable wrapper. ``touch-action`` leaves the PAN
+                 there (``touch-pan-x touch-pan-y``): the card takes up
+                 the whole surface of a kanban column, so forbidding it
+                 the scroll gesture amounts to forbidding scrolling at
+                 all. It is the CAUGHT gesture that takes over, not the
+                 CSS — cf. the non-passive ``touchmove`` of
+                 ``19_dnd.js``, and the § below.
 - ``dragging`` : composed over ``root`` while this item is in flight.
 - ``handle``   : the opt-in grip. Sized ≥ 24×24 px (WCAG 2.2 target
                  size) because a 16 px grip is unusable with a finger, and
@@ -30,58 +30,56 @@ DRAGGABLE_THEME: dict[str, Any] = {
         # it a long-press on touch starts a text selection that fights the
         # drag and leaves the page with a blue smear.
         #
-        # ⚠️ ``touch-pan-x touch-pan-y`` et surtout PAS ``touch-none``,
-        # qui a vécu ici jusqu'au 2026-08-21. ``touch-action: none``
-        # retire au navigateur le geste de défilement sur toute la
-        # surface de la carte : dans une colonne pleine de cartes, le
-        # doigt ne pouvait plus rien faire défiler dès qu'il se posait —
-        # « le tactile ne marche pas, je ne peux pas scroller en
-        # sélectionnant les cards ». Le comble : ``19_dnd.js`` porte un
-        # seuil commenté « c'est elle qui PRÉSERVE LE SCROLL », qui
-        # marchait très bien — au-dessus d'une CSS qui rendait le
-        # défilement impossible.
+        # ⚠️ ``touch-pan-x touch-pan-y`` and most certainly NOT
+        # ``touch-none``, which lived here until 2026-08-21.
+        # ``touch-action: none`` takes the scroll gesture away from the
+        # browser over the card's whole surface: in a column full of
+        # cards, the finger could no longer scroll anything as soon as it
+        # landed — "touch does not work, I cannot scroll while selecting
+        # the cards". The irony: ``19_dnd.js`` carries a threshold
+        # commented "this is what PRESERVES THE SCROLL", which worked
+        # very well — above a CSS that made scrolling impossible.
         #
-        # Le pan seul NE SUFFIT PAS, et c'est mesuré : il rend le
-        # défilement et **perd l'attrape**, le navigateur emportant le
-        # geste. La seconde moitié est le ``touchmove`` non passif de
-        # ``19_dnd.js``, qui reprend la main quand l'appui long aboutit —
-        # à cet instant le doigt n'a pas bougé, donc rien n'est en cours.
-        # Les deux moitiés sont gatées séparément par
+        # The pan alone is NOT ENOUGH, and it is measured: it gives back
+        # the scroll and **loses the grab**, the browser taking the
+        # gesture away. The second half is the non-passive ``touchmove``
+        # of ``19_dnd.js``, which takes over when the long press
+        # succeeds — at that instant the finger has not moved, so nothing
+        # is in progress. Both halves are gated separately by
         # ``tests/runtime_js/test_a_draggable_card_still_lets_the_finger_scroll.py``.
         "grab_all": "touch-pan-x touch-pan-y select-none",
-        # Avec une poignée, la racine devient une RANGÉE : sinon le
-        # grip est un enfant bloc et prend sa propre ligne au-dessus
-        # du contenu. Invisible à tous les tests — le DOM et les
-        # attributs sont identiques dans les deux cas ; ça ne se voit
-        # qu'à la capture d'écran.
+        # With a handle, the root becomes a ROW: otherwise the grip is
+        # a block child and takes its own line above the content.
+        # Invisible to every test — the DOM and the attributes are
+        # identical in both cases; it only shows on a screenshot.
         "with_handle": "flex items-center gap-2",
-        # ``min-w-0`` : sans lui, un enfant flex refuse de rétrécir
-        # sous sa largeur de contenu et déborde la colonne.
+        # ``min-w-0``: without it, a flex child refuses to shrink below
+        # its content width and overflows the column.
         "handle_body": "min-w-0 grow",
-        # Pendant le geste, l'original devient un EMPLACEMENT, pas une
-        # carte en double : c'est le clone (`.bz-drag-preview`, un hook
-        # dans theme/css.py) qui porte le relief et suit le pointeur.
-        # Lui laisser une ombre ferait deux cartes soulevées à la fois.
-        # ⚠️ **La carte GARDE sa taille, et c'est un choix** — tranché le
-        # 2026-09-13 après l'avoir essayée dans les deux sens.
+        # During the gesture, the original becomes a PLACEHOLDER, not a
+        # duplicate card: it is the clone (`.bz-drag-preview`, a hook in
+        # theme/css.py) that carries the lift and follows the pointer.
+        # Leaving it a shadow would make two lifted cards at once.
+        # ⚠️ **The card KEEPS its size, and it is a choice** — settled on
+        # 2026-09-13 after trying it both ways.
         #
-        # Pendant le geste, l'original pâlit et reste à sa place : la zone
-        # d'arrivée s'ouvre de la hauteur d'une carte, et les voisins vont
-        # d'un coup à leur nouvelle position. C'est lisible parce que ce
-        # qu'on voit est ce qu'on va obtenir, à l'échelle où on l'obtiendra.
+        # During the gesture, the original fades and stays in place: the
+        # landing zone opens by the height of a card, and the neighbours
+        # go at once to their new position. It reads because what you see
+        # is what you will get, at the scale you will get it.
         #
-        # L'autre voie — réduire la carte à un emplacement en pointillés,
-        # comme react-beautiful-dnd — a été écrite, mesurée (50 px au repos
-        # contre 9 en vol) puis RETIRÉE du défaut : elle demande à l'œil de
-        # relier un trait fin à une carte qui flotte ailleurs, et sur une
-        # liste courte ça coûte plus que ça ne rend.
+        # The other route — shrinking the card to a dashed placeholder,
+        # like react-beautiful-dnd — was written, measured (50 px at rest
+        # against 9 in flight) then REMOVED from the default: it asks the
+        # eye to link a thin line to a card floating elsewhere, and on a
+        # short list it costs more than it gives.
         #
-        # ⚠️ **Elle reste atteignable, et c'est le sujet de ce commentaire.**
-        # Le runtime publie ``data-bz-drag-axis`` sur l'élément en vol
-        # (``y`` pour une liste verticale, ``x`` pour une rangée) — pour une
-        # zone qui INSÈRE seulement ; une zone ``holds="one"`` n'insère rien
-        # et n'en reçoit pas. Une app qui veut l'emplacement surcharge ce
-        # slot, une fois, pour toute l'app ::
+        # ⚠️ **It stays reachable, and that is this comment's subject.**
+        # The runtime publishes ``data-bz-drag-axis`` on the element in
+        # flight (``y`` for a vertical list, ``x`` for a row) — for a
+        # zone that only INSERTS; a ``holds="one"`` zone inserts nothing
+        # and does not get one. An app that wants the placeholder
+        # overrides this slot, once, for the whole app ::
         #
         #     Theme(components={"draggable": {"slots": {"dragging": (
         #         "data-[bz-dragging=true]:opacity-30 "
@@ -95,32 +93,32 @@ DRAGGABLE_THEME: dict[str, Any] = {
         #         "transition-[height,width] duration-150 ease-out"
         #     )}}})
         #
-        # Pas de prop pour ça, et c'est délibéré : ``holds=`` décrit un
-        # FAIT de la zone — combien d'éléments elle tient, ce dont le
-        # serveur se sert — tandis que « la carte doit-elle rétrécir » est
-        # un goût. Les faits vivent sur le composant, les goûts dans le
-        # thème. Une prop de plus ferait trancher chaque auteur, sur chaque
-        # zone, une question sur laquelle il n'a pas d'avis — et ``check``
-        # n'en pourrait rien dire, faute de mauvaise réponse.
+        # No prop for that, and it is deliberate: ``holds=`` describes a
+        # FACT about the zone — how many items it holds, which the server
+        # uses — whereas "should the card shrink" is a taste. Facts live
+        # on the component, tastes in the theme. One more prop would make
+        # every author decide, on every zone, a question they have no
+        # opinion about — and ``check`` could say nothing about it, for
+        # want of a wrong answer.
         "dragging": (
             "data-[bz-dragging=true]:opacity-30 "
             "data-[bz-dragging=true]:grayscale"
         ),
-        # ⚠️ **PAS de ``pointer-events-none``.** Le mettre sur le même
-        # élément que ``cursor-not-allowed`` ANNULE le curseur : un
-        # élément qui ne reçoit aucun événement de pointeur n'en peint
-        # jamais. C'est le piège exact que
-        # ``test_disabled_affordance`` documente (le Tree l'avait shippé),
-        # et l'inertie est de toute façon déjà obtenue côté runtime, qui
-        # ignore un ``data-bz-disabled`` au ``pointerdown``.
+        # ⚠️ **NO ``pointer-events-none``.** Putting it on the same
+        # element as ``cursor-not-allowed`` CANCELS the cursor: an
+        # element that receives no pointer event never paints one. It is
+        # the exact trap ``test_disabled_affordance`` documents (the Tree
+        # had shipped it), and the inertness is obtained anyway on the
+        # runtime side, which ignores a ``data-bz-disabled`` at
+        # ``pointerdown``.
         "disabled": "opacity-50 cursor-not-allowed",
         # 24px floor = WCAG 2.2 § 2.5.8. iOS HIG asks 44, Material 48 —
         # this is the accessible minimum, not a comfortable target, and a
         # touch-first app should pass a bigger one via ``classes=``.
-        # ⚠️ ``touch-none`` reste JUSTE ici, et pour la raison inverse :
-        # la poignée est une cible de 24 px dédiée au geste, pas une
-        # surface de lecture. Personne ne pose le doigt dessus pour faire
-        # défiler, et l'y autoriser rendrait le geste hésitant.
+        # ⚠️ ``touch-none`` is still RIGHT here, and for the opposite
+        # reason: the handle is a 24 px target dedicated to the gesture,
+        # not a reading surface. Nobody puts a finger on it to scroll,
+        # and allowing it there would make the gesture hesitant.
         "handle": (
             "inline-flex items-center justify-center "
             "min-w-6 min-h-6 shrink-0 touch-none select-none "

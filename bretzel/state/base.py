@@ -15,12 +15,13 @@ The metaclass is the magic that lets users write idiomatic Python ::
             return v.strip().upper()
 
 …and have it transparently turned into a typed, tracked, serialisable
-state class. La métaclasse parcourt le corps de classe, REFUSE toute
-déclaration qui ne passe pas par :func:`~bretzel.state.fields.descriptor.field`
-— une seule forme, décidé le 2026-09-05 — et collecte les
-:class:`~bretzel.state.fields.computed.ComputedProperty` et
-:class:`~bretzel.state.fields.validator.Validator` dans des registres de
-classe que les couches descripteur et registre relisent.
+state class. The metaclass walks the class body, REFUSES any declaration
+that does not go through
+:func:`~bretzel.state.fields.descriptor.field` — one single form, decided
+on 2026-09-05 — and collects the
+:class:`~bretzel.state.fields.computed.ComputedProperty` and
+:class:`~bretzel.state.fields.validator.Validator` into class registries
+the descriptor and registry layers read back.
 
 Concrete scopes (``ServerState`` / ``ClientState``) live in
 ``bretzel.state.scopes`` and add the persistence-side configuration on
@@ -43,15 +44,15 @@ from bretzel.state.types import is_storable
 # from "entry is ``None``" (a valid default).
 _NOT_PROVIDED: Final[Any] = object()
 
-#: ``ClassVar[…]`` en tête d'annotation, avec ou sans préfixe de module.
-#: Les annotations arrivent en TEXTE, d'où la reconnaissance textuelle.
+#: ``ClassVar[…]`` at the head of an annotation, with or without a module
+#: prefix. Annotations arrive as TEXT, hence the textual recognition.
 _CLASS_VAR_RE: Final[re.Pattern[str]] = re.compile(
     r"^\s*(?:\w+\.)?ClassVar\b"
 )
 
-#: Les types qu'un champ ``merge="add"`` peut porter. Le magasin
-#: additionne des NOMBRES : ``HINCRBY`` sur une chaîne rend
-#: « hash value is not an integer », donc au déploiement.
+#: The types a ``merge="add"`` field may carry. The store sums NUMBERS:
+#: ``HINCRBY`` on a string returns "hash value is not an integer", so at
+#: deployment time.
 _ADDABLE_TYPES: Final[tuple[type, ...]] = (int, float)
 
 
@@ -61,154 +62,150 @@ _ADDABLE_TYPES: Final[tuple[type, ...]] = (int, float)
 
 
 def _is_class_var(annotation: Any) -> bool:
-    """L'annotation dit-elle ``ClassVar`` ?
+    """Does the annotation say ``ClassVar``?
 
-    Elle arrive en TEXTE la plupart du temps (le ``__future__``, ou le
-    format demandé à PEP 649), donc la reconnaissance est textuelle — avec
-    le préfixe de module optionnel, ``typing.ClassVar`` étant aussi
-    courant que ``ClassVar``. Sur 3.12/3.13 sans le ``__future__``, elle
-    arrive en objet, d'où le second test.
+    It arrives as TEXT most of the time (the ``__future__``, or the
+    format requested from PEP 649), so the recognition is textual — with
+    the module prefix optional, ``typing.ClassVar`` being as common as
+    ``ClassVar``. On 3.12/3.13 without the ``__future__`` it arrives as an
+    object, hence the second test.
     """
     if isinstance(annotation, str):
         return _CLASS_VAR_RE.match(annotation) is not None
     return annotation is ClassVar or typing.get_origin(annotation) is ClassVar
 
 
-def _refuse_a_bare_declaration(cls_name: str, attr_name: str, valeur: Any) -> None:
-    """Un champ se déclare par ``field(...)``, et par rien d'autre.
+def _refuse_a_bare_declaration(cls_name: str, attr_name: str, value: Any) -> None:
+    """A field is declared with ``field(...)``, and with nothing else.
 
-    **Une seule façon d'écrire une chose.** Une option de champ
-    n'a nulle part où se poser sur la forme courte, donc chaque
-    déclaration nouvelle devait s'inventer un TYPE (``Counter``,
-    ``Amount``…) et grossir la surface publique. Avec un appel, elles
-    s'ajoutent en paramètres.
+    **One single way to write one thing.** A field option has nowhere to
+    land on the short form, so every new declaration had to invent a TYPE
+    (``Counter``, ``Amount``…) and grow the public surface. With a call,
+    they are added as parameters.
 
-    L'annotation, elle, reste obligatoire : c'est la seule position où
-    Python lit une *expression* de type, donc la seule qui sache dire
-    ``int | None``.
+    The annotation stays mandatory: it is the only position where Python
+    reads a type *expression*, so the only one able to say ``int | None``.
     """
-    if isinstance(valeur, list | dict | set):
-        # Le cas le plus piégeux garde son message : un littéral mutable
-        # partagé entre instances est une faute en soi, pas seulement une
-        # question d'orthographe.
+    if isinstance(value, list | dict | set):
+        # The trickiest case keeps its own message: a mutable literal
+        # shared between instances is a fault in itself, not merely a
+        # matter of spelling.
         raise TypeError(
-            f"Mutable default for {attr_name!r} on {cls_name!r} : "
+            f"Mutable default for {attr_name!r} on {cls_name!r}: "
             "use 'field(default_factory=...)' instead of a "
             "literal list/dict/set."
         )
-    if valeur is _NOT_PROVIDED:
-        écrire = "field()"
-        constat = "n'a pas de valeur"
+    if value is _NOT_PROVIDED:
+        write_as = "field()"
+        finding = "has no value"
     else:
-        écrire = f"field(default={valeur!r})"
-        constat = f"vaut {valeur!r}"
+        write_as = f"field(default={value!r})"
+        finding = f"is {value!r}"
     raise TypeError(
-        f"{cls_name}.{attr_name} {constat} : écris "
-        f"`{attr_name}: … = {écrire}`. "
-        f"Un champ se déclare par UN appel, et c'est là que vivent "
-        f"`default_factory`, `url` et `merge` — il n'y a pas de seconde "
-        f"façon de le faire. L'annotation de type, elle, reste : c'est "
-        f"elle qui donne le type."
+        f"{cls_name}.{attr_name} {finding}: write "
+        f"`{attr_name}: … = {write_as}`. "
+        f"A field is declared by ONE call, and that is where "
+        f"`default_factory`, `url` and `merge` live — there is no second "
+        f"way to do it. The type annotation stays: it is what gives the "
+        f"type."
     )
 
 
 def _refuse_an_unstorable_type(cls_name: str, attr_name: str, fld: Field) -> None:
-    """Un champ doit pouvoir ARRIVER jusqu'au magasin, et on le dit tôt.
+    """A field must be able to REACH the store, and we say so early.
 
-    Sans ce refus, ``jour: date`` était accepté, le magasin mémoire
-    gardait l'objet Python tel quel, et la faute attendait le
-    branchement de Redis : ça marchait en dev et cassait au déploiement.
-    Lever à l'import déplace la panne là où elle se voit — au démarrage,
-    sur la machine de celui qui écrit le champ.
+    Without this refusal, ``day: date`` was accepted, the memory store
+    kept the Python object as-is, and the fault waited for Redis to be
+    plugged in: it worked in dev and broke at deployment. Raising at
+    import moves the failure to where it is seen — at startup, on the
+    machine of whoever writes the field.
 
-    Même geste que les deux refus voisins : on interdit la forme
-    ambiguë plutôt que de la laisser mordre plus tard.
+    Same gesture as the two neighbouring refusals: the ambiguous form is
+    forbidden rather than left to bite later.
     """
     if is_storable(fld.type_):
         return
-    # ⚠️ Une référence AVANT non résolue reste une chaîne (cf. le
-    # ``except (NameError, TypeError)`` de la métaclasse, qui laisse
-    # ``type_`` tel quel). On ne peut pas juger ce qu'on n'a pas su
-    # résoudre : refuser ici casserait un motif que le framework
-    # tolère exprès. C'est alors le magasin qui refusera à l'écriture,
-    # en nommant le champ.
+    # ⚠️ An unresolved FORWARD reference stays a string (cf. the
+    # ``except (NameError, TypeError)`` in the metaclass, which leaves
+    # ``type_`` as-is). We cannot judge what we could not resolve:
+    # refusing here would break a pattern the framework tolerates on
+    # purpose. It is then the store that will refuse at write time, and
+    # name the field.
     if isinstance(fld.type_, str):
         return
-    nom = getattr(fld.type_, "__name__", None) or repr(fld.type_)
+    type_name = getattr(fld.type_, "__name__", None) or repr(fld.type_)
     raise TypeError(
-        f"{cls_name}.{attr_name} est déclaré {nom!r}, que le magasin ne "
-        f"sait pas écrire. Un état se persiste en JSON — Bretzel ne "
-        f"retombe PAS sur pickle (risque d'exécution de code).\n"
-        f"  • si c'est une de tes classes : "
-        f"`register_type({nom}, encode=…, decode=…)` une fois, au "
-        f"chargement de l'app, et l'annotation suffit ensuite ;\n"
-        f"  • si tu sais ce que tu fais : annote `Any`, et c'est le "
-        f"magasin qui refusera à l'écriture, en nommant le champ.\n"
-        f"Sont connus d'origine : str, int, float, bool, list, dict, "
-        f"date, datetime, time, Decimal, UUID et toute énumération."
+        f"{cls_name}.{attr_name} is declared {type_name!r}, which the "
+        f"store does not know how to write. State persists as JSON — "
+        f"Bretzel does NOT fall back on pickle (code-execution risk).\n"
+        f"  • if it is one of your classes: "
+        f"`register_type({type_name}, encode=…, decode=…)` once, when the "
+        f"app loads, and the annotation is enough afterwards;\n"
+        f"  • if you know what you are doing: annotate `Any`, and it is "
+        f"the store that will refuse at write time, naming the field.\n"
+        f"Known out of the box: str, int, float, bool, list, dict, date, "
+        f"datetime, time, Decimal, UUID and any enumeration."
     )
 
 
 def _refuse_an_impossible_sum(cls_name: str, attr_name: str, fld: Field) -> None:
-    """``merge="add"`` demande un nombre, et un nombre qui part de zéro.
+    """``merge="add"`` asks for a number, and a number starting at zero.
 
-    Les deux refus viennent du magasin, pas d'un goût :
+    Both refusals come from the store, not from taste:
 
-    - ``HINCRBY`` sur une valeur non numérique rend « hash value is not
-      an integer ». Sans ce contrôle, la faute attendrait la première
-      écriture EN PRODUCTION — le dev tourne en mémoire, où additionner
-      deux chaînes lève ailleurs et autrement ;
-    - ``HINCRBY`` sur un champ ABSENT compte à partir de 0. Un compteur
-      dont le défaut serait 10 verrait donc son premier « ajoute 1 »
-      écrire 1 là où l'app affiche 11, et l'écart ne se rattraperait
-      jamais. Le rattraper au commit demanderait au backend de connaître
-      les défauts de chaque état.
+    - ``HINCRBY`` on a non-numeric value returns "hash value is not an
+      integer". Without this check, the fault would wait for the first
+      write IN PRODUCTION — the dev runs in memory, where summing two
+      strings raises elsewhere and differently;
+    - ``HINCRBY`` on an ABSENT field counts from 0. A counter whose
+      default were 10 would therefore see its first "add 1" write 1 where
+      the app displays 11, and the gap would never be made up. Making it
+      up at commit time would require the backend to know every state's
+      defaults.
 
-    Un total qui commence ailleurs qu'à zéro n'est de toute façon pas un
-    total : c'est une valeur de départ, donc un choix.
+    A total that starts anywhere but zero is not a total anyway: it is a
+    starting value, therefore a choice.
     """
     if fld.type_ is not None and fld.type_ not in _ADDABLE_TYPES:
         raise TypeError(
-            f"{cls_name}.{attr_name} est déclaré `merge=\"add\"` mais son "
-            f"type est {getattr(fld.type_, '__name__', fld.type_)!r}. "
-            f"Le magasin ADDITIONNE : seuls `int` et `float` peuvent "
-            f"l'être. Pour une liste, il n'y a pas encore d'opération — "
-            f"il te faut ton propre verrou."
+            f"{cls_name}.{attr_name} is declared `merge=\"add\"` but its "
+            f"type is {getattr(fld.type_, '__name__', fld.type_)!r}. "
+            f"The store SUMS: only `int` and `float` can be summed. For a "
+            f"list there is no operation yet — you need your own lock."
         )
-    depart = fld.default if fld.default is not MISSING else 0
-    if depart:
+    start = fld.default if fld.default is not MISSING else 0
+    if start:
         raise TypeError(
-            f"{cls_name}.{attr_name} est déclaré `merge=\"add\"` et vaut "
-            f"{depart!r} par défaut. Un total part de zéro : le magasin "
-            f"compte à partir de 0 quand la ligne n'existe pas encore, "
-            f"donc un autre défaut se perdrait au premier incrément. Mets "
-            f"0, ou retire `merge` si cette valeur est un point de départ "
-            f"et non un total."
+            f"{cls_name}.{attr_name} is declared `merge=\"add\"` and is "
+            f"{start!r} by default. A total starts at zero: the store "
+            f"counts from 0 when the row does not exist yet, so another "
+            f"default would be lost on the first increment. Put 0, or drop "
+            f"`merge` if this value is a starting point and not a total."
         )
 
 
 def _body_annotations(namespace: dict[str, Any]) -> dict[str, Any]:
-    """Les annotations du corps de classe, où que Python les ait rangées.
+    """The class body's annotations, wherever Python stored them.
 
-    Deux endroits, selon la version et selon le module :
+    Two places, depending on the version and on the module:
 
-    - ``__annotations__`` dans le namespace — sur Python 3.12/3.13, et
-      partout où le module porte ``from __future__ import annotations`` ;
-    - une FONCTION, ``__annotate_func__`` — sur Python 3.14 sans ce
-      ``__future__``, où PEP 649 ne matérialise plus les annotations à la
-      création de la classe.
+    - ``__annotations__`` in the namespace — on Python 3.12/3.13, and
+      everywhere the module carries ``from __future__ import annotations``;
+    - a FUNCTION, ``__annotate_func__`` — on Python 3.14 without that
+      ``__future__``, where PEP 649 no longer materialises annotations
+      when the class is created.
 
-    Ne lire que le premier ne levait pas : ça rendait un dict vide, donc
-    une classe d'état **sans aucun champ**. Les lectures marchaient encore
-    (des attributs ordinaires), rien n'était jamais persisté, et aucune
-    erreur nulle part — l'action répondait 204 et l'écran ne bougeait pas.
-    C'est ce qui obligeait toute app à écrire ``from __future__ import
-    annotations`` en tête de chaque module déclarant un état, sous peine
-    de panne muette. Cette fonction supprime l'exigence.
+    Reading only the first did not raise: it returned an empty dict, so a
+    state class **with no field at all**. Reads still worked (plain
+    attributes), nothing was ever persisted, and no error anywhere — the
+    action answered 204 and the screen did not move. That is what forced
+    every app to write ``from __future__ import annotations`` at the head
+    of each module declaring a state, on pain of a mute failure. This
+    function removes the requirement.
 
-    ``Format.STRING`` rend du texte, exactement comme le ``__future__`` :
-    l'étape 5 de la métaclasse résout tout en vrais types, et une
-    référence avant ne doit surtout pas lever ici.
+    ``Format.STRING`` returns text, exactly like the ``__future__``: step
+    5 of the metaclass resolves everything into real types, and a forward
+    reference must on no account raise here.
     """
     annotations = namespace.get("__annotations__")
     if annotations is not None:
@@ -216,8 +213,8 @@ def _body_annotations(namespace: dict[str, Any]) -> dict[str, Any]:
     annotate = namespace.get("__annotate_func__")
     if annotate is None:
         return {}
-    # Import local : ``annotationlib`` n'existe qu'à partir de 3.14, et on
-    # n'arrive ici que sur 3.14 — ``__annotate_func__`` n'existe pas avant.
+    # Local import: ``annotationlib`` only exists from 3.14 on, and we
+    # only get here on 3.14 — ``__annotate_func__`` does not exist before.
     import annotationlib
 
     return annotationlib.call_annotate_function(
@@ -228,14 +225,14 @@ def _body_annotations(namespace: dict[str, Any]) -> dict[str, Any]:
 class _StateMeta(type):
     """Metaclass for :class:`State`.
 
-    Responsibilities :
+    Responsibilities:
 
-    1. **Refuser une déclaration nue.** ``count: int = 0`` lève, avec la
-       phrase qui dit d'écrire ``field(default=0)``. Une seule forme :
-       c'est le seul endroit où une option de champ peut se poser.
-    2. **Laisser passer ce qui n'est pas un champ** : un nom préfixé
-       ``_``, et une annotation ``ClassVar`` — qui est précisément la
-       façon standard de dire « ceci n'est pas un champ d'instance ».
+    1. **Refuse a bare declaration.** ``count: int = 0`` raises, with the
+       sentence that says to write ``field(default=0)``. One single form:
+       it is the only place a field option can land.
+    2. **Let through what is not a field**: a name prefixed with ``_``,
+       and a ``ClassVar`` annotation — which is precisely the standard way
+       of saying "this is not an instance field".
     3. **Aggregate validators and computed declarations.** Class-body
        declarations are merged with what the parents already exposed, so
        inheritance composes correctly.
@@ -275,15 +272,15 @@ class _StateMeta(type):
                 # Capture the annotation but don't replace the descriptor.
                 if existing.type_ is None:
                     existing.type_ = ann_type
-                # ── Ce que le champ PARENT disait de lui ────────────
+                # ── What the PARENT field said about itself ─────────
                 #
-                # Redéclarer un champ pour en changer le DÉFAUT ne doit
-                # pas lui faire perdre ce qu'il est par ailleurs. Le cas
-                # mesuré (2026-08-29) : ``DatatableState.sort_key`` porte
-                # ``url="tri"``, une app la redéclare pour trier par nom
-                # au départ — et son URL cessait silencieusement de
-                # porter le tri. Une surcharge de valeur n'est pas une
-                # renonciation au vocabulaire.
+                # Redeclaring a field to change its DEFAULT must not make
+                # it lose what it otherwise is. The measured case
+                # (2026-08-29): ``DatatableState.sort_key`` carries
+                # ``url="sort"``, an app redeclares it to sort by name
+                # initially — and its URL silently stopped carrying the
+                # sort. Overriding a value is not a renunciation of the
+                # vocabulary.
                 if existing.url is None:
                     for base in bases:
                         parent = getattr(base, attr_name, None)
@@ -296,10 +293,10 @@ class _StateMeta(type):
                 continue
 
             if _is_class_var(ann_type):
-                # Une constante de classe n'est PAS un champ, et le dire
-                # est le rôle de ``ClassVar``. Avant ce test, elle était
-                # promue comme les autres : persistée, diffée, et envoyée
-                # au navigateur sur un ``ClientState``.
+                # A class constant is NOT a field, and saying so is
+                # ``ClassVar``'s job. Before this test it was promoted
+                # like the others: persisted, diffed, and sent to the
+                # browser on a ``ClientState``.
                 continue
 
             _refuse_a_bare_declaration(name, attr_name, existing)
@@ -344,10 +341,11 @@ class _StateMeta(type):
                 attr.type_ = resolved[attr_name]
             if attr.merge == "add":
                 _refuse_an_impossible_sum(name, attr_name, attr)
-            # HORS du `if` : tout champ doit pouvoir arriver au magasin,
-            # additif ou non. Ce contrôle a vécu dedans le temps d'une
-            # écriture, où il ne voyait que les compteurs — c'est-à-dire
-            # les seuls champs dont le type était DÉJÀ garanti numérique.
+            # OUTSIDE the `if`: every field must be able to reach the
+            # store, additive or not. This check lived inside it for the
+            # time of one commit, where it only saw counters — that is to
+            # say the only fields whose type was ALREADY guaranteed
+            # numeric.
             _refuse_an_unstorable_type(name, attr_name, attr)
 
         return cls
@@ -388,17 +386,17 @@ class _StateMeta(type):
         if cached is not None:
             return cached
 
-        # ServerState : hydrate from the backend, whatever it is. Le
-        # backend mémoire se lit directement (``load_sync``) ; un
-        # backend qui ne lit qu'en ``await`` (Redis) est atteint par le
-        # pont thread → boucle du registre. ``None`` ici veut donc dire
-        # « rien de stocké », plus « pas hydratable » : on tombe alors
-        # sur les valeurs par défaut, ce qui est la bonne réponse.
+        # ServerState: hydrate from the backend, whatever it is. The
+        # memory backend reads directly (``load_sync``); a backend that
+        # only reads with ``await`` (Redis) is reached through the
+        # registry's thread → loop bridge. ``None`` here therefore means
+        # "nothing stored", no longer "not hydratable": we then fall back
+        # on the default values, which is the right answer.
         #
-        # ⚠️ Depuis un corps d'app ``async def`` — donc sur la boucle,
-        # où le pont ne peut pas attendre — ``try_sync_resolve`` LÈVE
-        # au lieu de rendre des défauts que le commit écraserait
-        # ensuite. Le geste à écrire là-bas est ``await MonEtat.load()``.
+        # ⚠️ From an ``async def`` app body — so on the loop, where the
+        # bridge cannot wait — ``try_sync_resolve`` RAISES instead of
+        # returning defaults the commit would then overwrite. The gesture
+        # to write there is ``await MyState.load()``.
         from bretzel.state.scopes.client import ClientState
         from bretzel.state.scopes.server import ServerState
 
@@ -546,12 +544,12 @@ class State(metaclass=_StateMeta):
         Unknown keys are silently ignored — letting an old persisted payload
         survive a removed field. Each assignment goes through
         ``Field.__set__`` (coercion + validators). The single source for the
-        "hydrate from a dict" loop, partagé par les chemins de résolution
-        du registre et celui du magasin client ; l'appelant fait ensuite
-        sa propre remise à zéro de ``_dirty`` et son inscription.
+        "hydrate from a dict" loop, shared by the registry's resolution
+        paths and the client store's; the caller then does its own
+        ``_dirty`` reset and its registration.
 
-        C'est le point d'entrée interne unique pour hydrater une instance
-        existante depuis un dictionnaire.
+        It is the single internal entry point for hydrating an existing
+        instance from a dictionary.
         """
         fields = type(self)._all_fields()
         for name, value in data.items():

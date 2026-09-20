@@ -1,12 +1,12 @@
-"""features/account_detail — écran 5 : la fiche d'un compte.
+"""features/account_detail — screen 5: an account's sheet.
 
-Ce que cet écran met sous contrainte : des **sous-tables** et de
-l'**imbrication de conteneurs**. Une fiche compte n'est pas une page à plat —
-c'est un en-tête, puis deux `ui.table` dans deux `ui.card` dans une
-`ui.grid`, chacune avec sa propre densité et son propre vide.
+What this screen puts under constraint: **sub-tables** and **container
+nesting**. An account sheet is not a flat page — it is a header, then two
+`ui.table` inside two `ui.card` inside a `ui.grid`, each with its own
+density and its own emptiness.
 
-C'est le premier écran du dépôt qui pose une table DANS une carte DANS une
-grille : les 17 apps montent leurs tables au premier niveau de la page.
+It is the repository's first screen to put a table INSIDE a card INSIDE a
+grid: the 17 apps mount their tables at the page's first level.
 """
 
 from __future__ import annotations
@@ -47,8 +47,8 @@ def contact_link_cell(_value, row):
 CONTACT_COLUMNS = [
     ui.column("avatar", label="", width="3rem", render=contact_avatar_cell),
     ui.column("last_name", label="Contact", render=contact_link_cell),
-    ui.column("title", label="Fonction"),
-    ui.column("status", label="Statut", render=contact_status_cell),
+    ui.column("title", label="Job title"),
+    ui.column("status", label="Status", render=contact_status_cell),
 ]
 
 
@@ -63,11 +63,11 @@ def deal_amount_cell(value, _row):
 
 
 DEAL_COLUMNS = [
-    ui.column("name", label="Affaire"),
-    ui.column("stage", label="Étape", render=deal_stage_cell),
-    ui.column("amount", label="Montant", align="right",
+    ui.column("name", label="Deal"),
+    ui.column("stage", label="Stage", render=deal_stage_cell),
+    ui.column("amount", label="Amount", align="right",
               render=deal_amount_cell),
-    ui.column("close_date", label="Échéance"),
+    ui.column("close_date", label="Close date"),
 ]
 
 
@@ -75,18 +75,18 @@ def totals_row(account: dict, totals: dict) -> None:
     with ui.grid(cols={"base": 2, "md": 4}, gap="md"):
         kpi("ARR", euros(account["arr"]), "banknote", "primary")
         kpi("Contacts", str(totals["contacts"]), "users", "info")
-        kpi("Pipeline ouvert", euros(totals["ouvert"]), "trending-up",
+        kpi("Open pipeline", euros(totals["open"]), "trending-up",
             "warning")
-        kpi("Gagné", euros(totals["gagne"]), "circle-check", "success")
+        kpi("Won", euros(totals["won"]), "circle-check", "success")
 
 
 def sub_table(title: str, total: int, columns, rows, empty: str,
               empty_icon: str) -> None:
-    """Une sous-table : carte + en-tête + ``ui.table``, rendue deux fois.
+    """A sub-table: card + header + ``ui.table``, rendered twice.
 
-    ``total`` est le compte RÉEL, pas ``len(rows)`` : les deux lectures sont
-    plafonnées à 25 lignes, donc au-delà le badge dirait « 25 » à côté d'une
-    carte KPI qui dit la vérité, à quarante pixels de distance.
+    ``total`` is the REAL count, not ``len(rows)``: both reads are capped
+    at 25 rows, so beyond that the badge would say "25" beside a KPI card
+    telling the truth, forty pixels away.
     """
     with ui.card(padding="md"):
         with ui.vstack(gap="sm"):
@@ -97,11 +97,11 @@ def sub_table(title: str, total: int, columns, rows, empty: str,
                      empty_text=empty, empty_icon=empty_icon)
 
 
-@page("/comptes/{account_id}", layout=shell, title="Fiche compte")
+@page("/accounts/{account_id}", layout=shell, title="Account sheet")
 def account_sheet_page(account_id: int) -> None:
-    # Hors portefeuille → 404, pas 403 : dire « interdit » confirmerait
-    # que le compte existe. Le cadrage est dans ``get_account``, donc les
-    # deux cas arrivent ici indiscernables — c'est voulu.
+    # Outside the portfolio → 404, not 403: saying "forbidden" would
+    # confirm the account exists. The scoping is in ``get_account``, so
+    # both cases arrive here indistinguishable — that is intended.
     account = get_account(int(account_id), visible_owner())
     if account is None:
         abort(404)
@@ -111,7 +111,7 @@ def account_sheet_page(account_id: int) -> None:
 
     with ui.vstack(gap="lg"):
         with ui.breadcrumb():
-            ui.breadcrumb_item(label="Comptes", href="/comptes",
+            ui.breadcrumb_item(label="Accounts", href="/accounts",
                                icon="building-2")
             ui.breadcrumb_item(label=account["name"])
 
@@ -125,11 +125,11 @@ def account_sheet_page(account_id: int) -> None:
 
         totals_row(account, totals)
 
-        # Deux sous-tables côte à côte : c'est l'imbrication que l'écran met
-        # sous contrainte — table dans carte dans grille.
+        # Two sub-tables side by side: it is the nesting the screen puts
+        # under constraint — table in card in grid.
         with ui.grid(cols={"base": 1, "xl": 2}, gap="lg"):
             sub_table("Contacts", totals["contacts"], CONTACT_COLUMNS,
-                      contacts, "Aucun contact rattaché", "user-x")
+                      contacts, "No contact attached", "user-x")
             sub_table("Affaires", totals["deals"], DEAL_COLUMNS, deals,
                       "Aucune affaire", "folder-open")
 

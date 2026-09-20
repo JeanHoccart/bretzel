@@ -12,12 +12,14 @@ A ``compute_range`` Python function ports the same algorithm —
 useful for unit tests, server-side pre-renders, and any caller that
 wants to mirror the visible window without parsing JS.
 
-Form integration : ne PAS déclarer ``AUTONAME_FROM`` : il est **dérivé** de ``names_field=True`` sur la prop, et une déclaration explicite lève désormais (cf. le garde de la métaclasse) so a bound
-``value=state.page`` produces ``name="page"`` automatically. A hidden
+Form integration : do NOT declare ``AUTONAME_FROM``: it is **derived**
+from ``names_field=True`` on the prop, and an explicit declaration now
+raises (cf. the metaclass's guard) so a bound ``value=state.page``
+produces ``name="page"`` automatically. A hidden
 ``<input type="hidden">`` rides the page number into form data, with
 the change handler relocated onto it so the dispatcher reads ``name``
 + ``value`` off the input (the root ``<nav>`` has neither — cf.
-``traps.md`` § "bz-event:change sur un div"). The relocated handler is
+``traps.md`` § "bz-event:change on a div"). The relocated handler is
 either the native HTMX action set (``hx-post`` + ``hx-trigger`` + …,
 for a callable ``on_change``) or ``bz-on:change`` (for a string
 ``on_change``).
@@ -110,52 +112,50 @@ def _build_bz_data(
     disabled_expr: str,
     server_synced: bool,
 ) -> str:
-    """Le ``bz-data`` de l'instance : **des données, pas du code**.
+    """The instance's ``bz-data``: **data, not code**.
 
-    L'algorithme (``range`` / ``current`` / ``setActive`` / …) vit une
-    seule fois dans ``$bz.pagination.scope``
-    (``bretzel/runtime/_src/15_pagination.js``). Ici on n'émet que l'état
-    et la configuration.
+    The algorithm (``range`` / ``current`` / ``setActive`` / …) lives
+    once in ``$bz.pagination.scope``
+    (``bretzel/runtime/_src/15_pagination.js``). Here we emit only the
+    state and the configuration.
 
-    Avant cette bascule, ce builder sérialisait le portage JS complet de
-    ``compute_range`` dans CHAQUE instance — 957 octets, le plus gros
-    ``bz-data`` du dépôt — avec la config **cuite dans les corps de
-    méthode** (``totalPages() {{ return Math.max(1, +(10) || 1); }}``).
-    C'est précisément ce qui rendait la factorisation impossible : deux
-    paginations de tailles différentes produisaient deux CODES différents
-    au lieu de deux états.
+    Before that switch, this builder serialised the full JS port of
+    ``compute_range`` into EVERY instance — 957 bytes, the repository's
+    biggest ``bz-data`` — with the config **baked into the method
+    bodies** (``totalPages() {{ return Math.max(1, +(10) || 1); }}``).
+    That is precisely what made factoring impossible: two paginations of
+    different sizes produced two different CODES instead of two states.
 
-    ``_read`` / ``_write`` couvrent les deux modes avec les mêmes méthodes
-    de scope — champ local ``value`` ou cellule du store. Pas de
-    ``get value()`` : ``scope.absorb`` invoque chaque clé à
-    l'enregistrement et figerait le getter (cf. traps.md).
+    ``_read`` / ``_write`` cover both modes with the same scope methods —
+    the local ``value`` field or the store cell. No ``get value()``:
+    ``scope.absorb`` invokes each key at registration and would freeze
+    the getter (cf. traps.md).
 
-    ⚠️ ``disabled`` part en **surcharge de méthode**, pas en champ. Le
-    passage « config en données » (112fb527) l'avait converti en
-    ``_disabled: <expression>`` — or un champ est évalué une seule fois,
-    hors effet, et ``absorb`` en emballe le snapshot dans un signal
-    découplé du store : le binding était mort au montage. Seuls les
-    littéraux supportent la forme champ ; une expression liée doit vivre
-    dans un corps de méthode (même mécanique que ``_disabledState`` du
-    Slider).
+    ⚠️ ``disabled`` leaves as a **method override**, not as a field. The
+    "config as data" move (112fb527) had converted it to ``_disabled:
+    <expression>`` — yet a field is evaluated once, outside any effect,
+    and ``absorb`` wraps its snapshot in a signal decoupled from the
+    store: the binding was dead at mount. Only literals support the
+    field shape; a bound expression must live in a method body (same
+    mechanics as the Slider's ``_disabledState``).
 
-    ⚠️ ``_total`` / ``_maxVisible`` sont des champs ET doivent être
-    **re-semés**. C'est là que le premier correctif s'était arrêté trop
-    tôt : « ce sont toujours des littéraux server-side, donc de vraies
-    données » confond LITTÉRAL et CONSTANT. Ce sont des littéraux qui
-    changent à chaque rendu serveur — et ``absorb`` ne réécrit JAMAIS un
-    signal existant (``03_scope.js``, « NEVER reset existing values »).
-    Sans les déclarer dans ``_serverSync``, le nombre de pages et la
-    largeur de fenêtre restaient figés à leur valeur du premier montage,
-    à vie : le serveur renvoyait 16, le scope répondait 20.
+    ⚠️ ``_total`` / ``_maxVisible`` are fields AND must be **re-seeded**.
+    That is where the first fix stopped too early: "they are always
+    server-side literals, so real data" confuses LITERAL and CONSTANT.
+    They are literals that change at every server render — and
+    ``absorb`` NEVER rewrites an existing signal (``03_scope.js``,
+    "NEVER reset existing values"). Without declaring them in
+    ``_serverSync``, the page count and the window width stayed frozen
+    at their first mount's value, for life: the server returned 16, the
+    scope answered 20.
 
-    Contraste avec ``value`` : lui n'est re-semé QUE si le serveur en est
-    propriétaire, sinon un refresh voisin effacerait le clic du client.
-    Le serveur est toujours propriétaire de la configuration ; il ne l'est
-    de la valeur que si elle vient d'un state.
+    Contrast with ``value``: that one is re-seeded ONLY if the server
+    owns it, otherwise a neighbouring refresh would erase the client's
+    click. The server always owns the configuration; it only owns the
+    value if it comes from a state.
     """
-    # La config est TOUJOURS re-semable ; la valeur seulement quand le
-    # serveur en est la source.
+    # The config is ALWAYS re-seedable; the value only when the server
+    # is its source.
     sync_keys = ["_total", "_maxVisible"]
     if has_local_value and server_synced:
         sync_keys.insert(0, scope_key)
@@ -175,9 +175,9 @@ def _build_bz_data(
             f"_write(v) {{ {binding_path} = v; }},"
         )
 
-    # Surcharge la constante ``isDisabled() { return false; }`` du slab
-    # uniquement quand le verrou existe — un littéral ``false`` n'a rien à
-    # dire de plus que le défaut.
+    # Overrides the slab's ``isDisabled() { return false; }`` constant
+    # only when the lock exists — a ``false`` literal has nothing more to
+    # say than the default.
     disabled_override = (
         f"isDisabled() {{ return !!({disabled_expr}); }},"
         if disabled_expr != "false"
@@ -212,12 +212,12 @@ class Pagination(Component):
     # ``total_pages`` only changes when the server's result count changes
     # → ``@refreshable`` re-renders it, no client driver, so it stays
     # static per the bindable-surface rule (cf.
-    # ``.claude/bretzel/client-reactive-surface.md`` § La règle).
+    # ``.claude/bretzel/client-reactive-surface.md`` § The rule).
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
-    # Même coupe que Stepper et Carousel — un index borné se pilote par
-    # ``set`` + les deux directions. Pas de ``first`` / ``last`` :
-    # ``set(1)`` et ``set(total_pages)`` les disent déjà, et une prop (ou
-    # une méthode) doit payer sa place.
+    # Same cut as Stepper and Carousel — a bounded index is driven by
+    # ``set`` + the two directions. No ``first`` / ``last``: ``set(1)``
+    # and ``set(total_pages)`` already say them, and a prop (or a method)
+    # must earn its place.
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "next", "prev")
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
 
@@ -249,7 +249,7 @@ class Pagination(Component):
         on_change: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             value=value,
             total_pages=total_pages,
@@ -262,23 +262,23 @@ class Pagination(Component):
             **kwargs,
         )
 
-    # ── API impérative ─────────────────────────────────────────────────
+    # ── Imperative API ─────────────────────────────────────────────────
     #
-    # Des méthodes de CLASSE ordinaires : aucun de ces trois noms ne
-    # shadow une ``reactive_prop``, et la gate
-    # ``test_imperative_classvar_is_complete`` ne lit que les méthodes
-    # publiques d'une ClassDef — des attributs assignés en ``__init__``
-    # lui seraient invisibles (cf. la même note dans ``stepper.py``).
+    # Ordinary CLASS methods: none of these three names shadows a
+    # ``reactive_prop``, and the ``test_imperative_classvar_is_complete``
+    # gate only reads a ClassDef's public methods — attributes assigned
+    # in ``__init__`` would be invisible to it (cf. the same note in
+    # ``stepper.py``).
 
     def set(self, page: int) -> str:
-        """Aller à la page ``page``. Write-through s'il y a un binding."""
+        """Go to page ``page``. Write-through if there is a binding."""
         return self._value_command(coerce_index(page, default=1))
 
     def next(self) -> str:
-        # Toujours le dispatch, binding ou pas : « la page suivante » se
-        # calcule depuis la valeur VIVANTE et se borne à ``totalPages()``.
-        # Le serveur ne connaît ni l'une ni l'autre au rendu — un
-        # write-through devrait cuire ``page + 1`` et déborderait.
+        # Always the dispatch, binding or not: "the next page" is
+        # computed from the LIVE value and bounded by ``totalPages()``.
+        # The server knows neither at render — a write-through would have
+        # to bake ``page + 1`` and would overrun.
         return self._dispatch_command("bz-next")
 
     def prev(self) -> str:
@@ -316,12 +316,12 @@ class Pagination(Component):
         # Runtime expressions — the binding path when bound, a
         # literal otherwise. ``value_binding_path`` is consumed by
         # ``_build_bz_data`` to wire the active read / write target ;
-        # ⚠️ Les autres valeurs partent en DONNÉES (``_total`` /
-        # ``_maxVisible`` / ``_disabled``) ; les méthodes vivent une seule
-        # fois dans ``$bz.pagination.scope`` et lisent ``this._total``. Ce
-        # commentaire annonçait l'expression cuite DANS le corps de méthode
-        # jusqu'au 2026-08-01 — c'est précisément l'ancienne forme que
-        # ``_build_bz_data`` décrit comme révolue juste au-dessus.
+        # ⚠️ The other values leave as DATA (``_total`` /
+        # ``_maxVisible`` / ``_disabled``); the methods live once in
+        # ``$bz.pagination.scope`` and read ``this._total``. This comment
+        # announced the expression baked INTO the method body until
+        # 2026-08-01 — that is precisely the old shape ``_build_bz_data``
+        # describes as gone, just above.
         value_binding_path = (
             self.path_of(value_binding) if value_binding is not None else None
         )
@@ -330,9 +330,9 @@ class Pagination(Component):
             if total_pages_binding is not None
             else str(initial_total)
         )
-        # ``max_visible`` n'est PAS dans BINDABLE_PROPS — le constructeur
-        # rejette tout binding dessus, donc ``max_visible_binding`` est
-        # toujours None (pas de branche réactive).
+        # ``max_visible`` is NOT in BINDABLE_PROPS — the constructor
+        # rejects any binding on it, so ``max_visible_binding`` is always
+        # None (no reactive branch).
         max_visible_expr = str(initial_max_visible)
         disabled_expr = (
             self.path_of(disabled_binding)
@@ -426,29 +426,27 @@ class Pagination(Component):
         # loop-clone churn — these slots are bound once and just swap
         # their content.
         #
-        # ⚠️ N vaut ``min(slots, total_pages)``, PAS ``slots``. La fenêtre
-        # ne peut pas grandir côté client : ``total_pages`` n'est pas dans
-        # ``BINDABLE_PROPS`` (le constructeur refuse un binding dessus),
-        # donc ``_total`` est une constante cuite au rendu — et
-        # ``compute_range`` rend TOUJOURS exactement ``min(slots,
-        # total_pages)`` entrées, quelle que soit la page active, y
-        # compris hors bornes. Vérifié exhaustivement sur
-        # max_visible ∈ [0,15] × total_pages ∈ [1,79] × active ∈
-        # [-2, tp+2], et la gate ``test_pagination_emits_no_dead_slot``
-        # rejoue cette égalité.
+        # ⚠️ N is ``min(slots, total_pages)``, NOT ``slots``. The window
+        # cannot grow on the client side: ``total_pages`` is not in
+        # ``BINDABLE_PROPS`` (the constructor refuses a binding on it),
+        # so ``_total`` is a constant baked at render — and
+        # ``compute_range`` ALWAYS returns exactly ``min(slots,
+        # total_pages)`` entries, whatever the active page, including out
+        # of bounds. Checked exhaustively on max_visible ∈ [0,15] ×
+        # total_pages ∈ [1,79] × active ∈ [-2, tp+2], and the
+        # ``test_pagination_emits_no_dead_slot`` gate replays that
+        # equality.
         #
-        # Ce qui partait avant : jusqu'à trois boutons de plus, chacun
-        # 1 069 o de classes et de directives, pour rester invisibles À
-        # VIE — le runtime les liait quand même à chaque scan. Et comme
-        # la longueur est exactement N, aucun slot émis ne peut être
-        # ``undefined`` : le ``bz-show="range()[i] !== undefined"`` qui
-        # gardait le surplus n'a plus rien à garder, donc il tombe avec
-        # eux.
-        # ``max(0, …)`` et pas ``max(1, …)`` : un ``total_pages=0`` (ou
-        # négatif — ``coerce_index`` ne pose pas de plancher) doit rendre
-        # ZÉRO slot. Un plancher à 1 y laissait un bouton vide et
-        # VISIBLE, puisque le ``bz-show`` qui le cachait est parti avec
-        # le surplus.
+        # What left before: up to three extra buttons, each 1,069 B of
+        # classes and directives, to stay invisible FOR LIFE — the
+        # runtime bound them at every scan all the same. And since the
+        # length is exactly N, no emitted slot can be ``undefined``: the
+        # ``bz-show="range()[i] !== undefined"`` that guarded the surplus
+        # has nothing left to guard, so it goes with them.
+        # ``max(0, …)`` and not ``max(1, …)``: a ``total_pages=0`` (or
+        # negative — ``coerce_index`` sets no floor) must render ZERO
+        # slots. A floor of 1 left an empty and VISIBLE button there,
+        # since the ``bz-show`` that hid it went away with the surplus.
         n_slots = min(max(5, initial_max_visible), max(0, initial_total))
         item_nodes: list[Element] = []
         # The bz-class binding layers active / ellipsis on top of the
@@ -459,19 +457,21 @@ class Pagination(Component):
         active_js = json.dumps(active_class)
         ellipsis_js = json.dumps(ellipsis_class)
 
-        # Le serveur CONNAÎT la fenêtre — il a ``compute_range``, testée et
-        # mirroir-testée contre le portage JS. Il ne s'en servait pas : les
-        # slots partaient VIDES et les numéros n'apparaissaient qu'une fois
-        # le JS passé (mesuré : ``['', '', '', '', '', '', '']``). D'où un
-        # premier paint blanc, et rien du tout sans JS, sur le seul
-        # composant du dépôt dont le JS décide quels contrôles existent.
+        # The server KNOWS the window — it has ``compute_range``,
+        # tested and mirror-tested against the JS port. It did not use
+        # it: the slots left EMPTY and the numbers only appeared once the
+        # JS had run (measured: ``['', '', '', '', '', '', '']``). Hence
+        # a blank first paint, and nothing at all without JS, on the
+        # repository's only component whose JS decides which controls
+        # exist.
         #
-        # On sème donc le TEXTE côté serveur. Le texte seulement : ``bz-text``
-        # écrase le contenu en entier, donc semer et recalculer donnent le
-        # même résultat. Les classes ``active`` / ``ellipsis``, elles, restent
-        # exclusivement dynamiques — ``bz-class`` ne peut plus retirer un
-        # token présent dans le ``class=`` statique (baseline protégée), donc
-        # une pastille active semée en SSR resterait collée sur sa page.
+        # So we seed the TEXT on the server side. The text only:
+        # ``bz-text`` overwrites the content entirely, so seeding and
+        # recomputing give the same result. The ``active`` / ``ellipsis``
+        # classes, for their part, stay exclusively dynamic —
+        # ``bz-class`` can no longer remove a token present in the static
+        # ``class=`` (a protected baseline), so an active chip seeded in
+        # SSR would stay stuck on its page.
         ssr_range = compute_range(
             initial_value, initial_total, initial_max_visible
         )
@@ -554,10 +554,10 @@ class Pagination(Component):
             "root", apply_variant_size_modifiers=False
         )
         root_attrs["bz-data"] = bz_data
-        # Réception des commandes impératives émises par un trigger
-        # externe (``pager.next()`` sur un bouton ailleurs dans la page).
-        # Le clamp et le verrou sont dans ``setActive``, donc les trois
-        # entrées sont gardées par construction.
+        # Reception of the imperative commands issued by an external
+        # trigger (``pager.next()`` on a button elsewhere in the page).
+        # The clamp and the lock are in ``setActive``, so all three
+        # entries are guarded by construction.
         root_attrs["bz-on:bz-set"] = "setActive($event.detail.value)"
         root_attrs["bz-on:bz-next"] = "next()"
         root_attrs["bz-on:bz-prev"] = "prev()"

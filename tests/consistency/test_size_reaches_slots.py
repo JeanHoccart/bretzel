@@ -46,7 +46,7 @@ Cinq invariants, un par test :
    en `xl` et la barre d'outils au défaut ; l'ajouter à `Datatable`
    seulement enverrait `size="xl"` à une table qui n'a pas l'entrée, et
    le padding des cellules DISPARAÎTRAIT (le composeur ignore un manque).
-   ⚠️ `bretzel check` ne peut pas voir ça : sa règle `valeur-hors-table`
+   ⚠️ `bretzel check` ne peut pas voir ça : sa règle `value-outside-the-table`
    juge des littéraux dans du code d'APPLICATION, et ici la valeur est
    une variable, à l'intérieur du framework.
 

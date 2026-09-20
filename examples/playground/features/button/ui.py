@@ -336,21 +336,20 @@ def page() -> None:
                         ui.button("Submit", type="submit")
                         ui.button("Reset", type="reset")
 
-                    ui.heading("href — l'habillage d'un bouton, "
-                               "la sémantique d'un lien", level=3)
+                    ui.heading("href — a button's clothing, a link's semantics", level=3)
                     ui.text(
-                        "Un href rend un <a> : clic-milieu, « ouvrir dans "
-                        "un nouvel onglet », et rôle « lien » pour un "
-                        "lecteur d'écran. Le type=\"button\" est laissé "
-                        "tomber — sur une ancre il désignerait un type "
-                        "MIME. Désactivé, la destination est retirée et "
-                        "l'état passe par aria-disabled : la pseudo-classe "
-                        ":disabled ne matche jamais un <a>.",
+                        'An href renders an <a>: middle click, “open in a'
+                            ' new tab”, and the “link” role for a screen '
+                            'reader. The type="button" is dropped — on an '
+                            'anchor it would name a MIME type. Disabled, the '
+                            'destination is removed and the state travels '
+                            'through aria-disabled: the :disabled pseudo-'
+                            'class never matches an <a>.',
                         color="muted", size="sm",
                     )
                     with ui.hstack():
-                        ui.button("Voir la doc", href="/link")
-                        ui.button("Nouvel onglet", href="https://bretzel.dev",
+                        ui.button('See the docs', href="/link")
+                        ui.button("Nouvel onglet", href="https://bretzel-py.dev",
                                   external=True, variant="outline")
                         ui.button("Indisponible", href="/link", disabled=True,
                                   variant="soft")

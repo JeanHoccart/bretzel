@@ -85,15 +85,14 @@ from bretzel.state.datatable import DatatableState, Query
 # the export guard.
 _MAX_FILTER_VALUES = 50
 
-#: Le nom de champ du carrier de filtre — suffixé par la clé de colonne.
-#: Porté par l'input caché du combobox, lu par :func:`apply_filter`.
+#: The field name of the filter carrier — suffixed by the column key.
+#: Carried by the combobox's hidden input, read by :func:`apply_filter`.
 _FILTER_FIELD = "bz_dt_filter"
 
-#: L'invite du champ de recherche DANS un panneau de filtre. Distincte de
-#: ``search_placeholder=``, qui décrit la recherche globale : passer
-#: « Search issues… » à la table le recopiait dans chaque panneau, où il
-#: nomme la mauvaise liste — on y cherche des VALEURS de colonne, pas des
-#: lignes.
+#: The prompt of the search field INSIDE a filter panel. Distinct from
+#: ``search_placeholder=``, which describes the global search: passing
+#: "Search issues…" to the table copied it into every panel, where it
+#: names the wrong list — there you search column VALUES, not rows.
 
 _PAGE_FIELD = "bz_dt_page"
 _SEARCH_FIELD = "bz_dt_search"
@@ -171,7 +170,7 @@ def _resolve_state(ref: str) -> DatatableState:
     Deferred import : ``server`` sits ABOVE ``components`` in the load
     DAG, so this may not be a module-level import. It runs at request
     time, inside a handler, which is exactly what the charter's
-    "imports différés" escape hatch is for. Reused rather than
+    "deferred imports" escape hatch is for. Reused rather than
     re-implemented — ``resolve_handler`` already is the framework's one
     ``sys.modules`` walk, and a State subclass is callable, which is all
     it requires of its target.
@@ -394,24 +393,24 @@ class Datatable(Component):
 
     THEME: ClassVar[dict[str, Any]] = DATATABLE_THEME
     THEME_KEY: ClassVar[str] = "datatable"
-    #: Comme ``Table``, en plus marqué : le pipeline de requête cherche,
-    #: filtre, trie et pagine avant que quoi que ce soit ne soit rendu.
+    #: Like ``Table``, more markedly so: the query pipeline searches,
+    #: filters, sorts and paginates before anything at all is rendered.
     #: Cf. ``Component.COLLECTION_OWNER``.
     COLLECTION_OWNER: ClassVar[str | None] = "component"
     IS_CONTAINER: ClassVar[bool] = False
-    #: ``item_click`` est DÉCLARÉ, même si ce composant ne le câble pas
-    #: lui-même : il passe ``on_item_click=`` à la ``Table`` qu'il rend,
-    #: qui le route par ``item_action_attrs``. Les trois formes d'un
-    #: ``on_*`` marchent donc ici comme là — un callable serveur, une
-    #: chaîne d'expression cliente, ou une liste des deux.
+    #: ``item_click`` is DECLARED, even though this component does not
+    #: wire it itself: it passes ``on_item_click=`` to the ``Table`` it
+    #: renders, which routes it through ``item_action_attrs``. The three
+    #: shapes of an ``on_*`` therefore work here as there — a server
+    #: callable, a client expression string, or a list of both.
     #:
-    #: ⚠️ Il était le dernier des quatre à accepter un clic sans le
-    #: déclarer (2026-09-07). Ne PAS déclarer ne rendait rien inerte, ça
-    #: rendait la surface introspectée FAUSSE : ``bretzel describe
-    #: datatable`` lit ``EVENTS``, et disait « aucun event » d'un
-    #: composant qui en accepte un. Le socle, lui, ne voit jamais passer
-    #: ce handler — c'est un paramètre nommé de l'``__init__``, pas un
-    #: ``**kwargs`` — donc la déclaration ne recâble rien sur la racine.
+    #: ⚠️ It was the last of the four to accept a click without declaring
+    #: it (2026-09-07). NOT declaring it made nothing inert, it made the
+    #: introspected surface WRONG: ``bretzel describe datatable`` reads
+    #: ``EVENTS``, and said "no event" of a component that accepts one.
+    #: The base layer, for its part, never sees this handler go by — it
+    #: is a named parameter of the ``__init__``, not a ``**kwargs`` — so
+    #: the declaration re-wires nothing on the root.
     EVENTS: ClassVar[tuple[str, ...]] = ("item_click",)
     # Every axis is server-driven : a click mutates the state, the
     # enclosing @refreshable re-renders with the new query baked in.
@@ -442,7 +441,7 @@ class Datatable(Component):
         empty: Callable[[], Any] | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(size=size, color=color, **kwargs)
         self._state_cls = _check_state(state)
         self._columns = list(columns)
@@ -610,12 +609,12 @@ class Datatable(Component):
             # header row read half accent-blue, half muted grey, with the
             # split following nothing the eye can interpret. The accent is
             # spent on the ACTIVE column only, where it means something.
-            # ⚠️ Ce n'est PAS la convention « couleur d'un sous-composant
-            # embedded » que ce commentaire citait jusqu'au 2026-08-07 :
-            # celle-là parle d'un composant subordonné qui hérite de
-            # l'encre de son parent, et elle range justement Button parmi
-            # les exceptions. La règle appliquée ici est
-            # ``components.md`` § « l'accent marque le pair ACTIF ».
+            # ⚠️ It is NOT the "colour of an embedded subcomponent"
+            # convention this comment cited until 2026-08-07: that one
+            # speaks of a subordinate component inheriting its parent's
+            # ink, and it precisely files Button among the exceptions.
+            # The rule applied here is ``components.md`` § "the accent
+            # marks the ACTIVE peer".
             color=(self._reactive_values.get("color") or "primary")
             if active else "current",
             # Constant on purpose, and baselined in
@@ -686,28 +685,28 @@ class Datatable(Component):
             size=sizes.get("toolbar", "sm"),
             trigger=Button(
                 f"{label} · {len(picked)}/{len(domain)}" if narrowed else label,
-                # ``soft`` DANS LES DEUX ÉTATS, et c'est la COULEUR qui
-                # dit lequel.
+                # ``soft`` IN BOTH STATES, and it is the COLOUR that
+                # says which.
                 #
-                # Pas ``ghost`` : sa boîte n'existe que sous
-                # ``not-disabled:hover:``, donc au repos c'est du texte, et
-                # une barre d'outils est un endroit où l'on doit VOIR ce
-                # qui est pressable avant de le presser. C'est la règle
-                # que ``theme/tailwind.py`` écrit noir sur blanc au bout
-                # de sa note sur ``@custom-variant hover`` : « ``hover:``
-                # must still never CARRY an affordance ». Elle vaut
-                # partout, pas seulement au doigt — la boîte d'un ghost
-                # EST son affordance. (Un ``ui.button(variant="ghost")``
-                # reste juste DANS un conteneur qui dessine déjà la
-                # boîte : cf. ``_head_title``, où le ``<th>`` la porte.)
+                # Not ``ghost``: its box only exists under
+                # ``not-disabled:hover:``, so at rest it is text, and a
+                # toolbar is a place where you must SEE what is pressable
+                # before pressing it. It is the rule
+                # ``theme/tailwind.py`` writes in black and white at the
+                # end of its note on ``@custom-variant hover``:
+                # "``hover:`` must still never CARRY an affordance". It
+                # holds everywhere, not only for the finger — a ghost's
+                # box IS its affordance. (A ``ui.button(variant="ghost")``
+                # is still right INSIDE a container that already draws
+                # the box: cf. ``_head_title``, where the ``<th>``
+                # carries it.)
                 #
-                # Et une SEULE variante pour les deux états parce que
-                # changer de variante change la boîte : la barre sautait
-                # au premier filtre posé. Le ton change, la géométrie
-                # non.
+                # And a SINGLE variant for both states because changing
+                # variant changes the box: the bar jumped at the first
+                # filter set. The tone changes, the geometry does not.
                 variant="surface",
-                # Convention « l'accent marque le pair ACTIF » —
-                # cf. ``components.md`` § du même nom.
+                # The "the accent marks the ACTIVE peer" convention —
+                # cf. ``components.md`` § of the same name.
                 color=colour if narrowed else "current",
                 size=sizes.get("toolbar", "sm"),
                 icon_left="list-filter",
@@ -785,54 +784,54 @@ class Datatable(Component):
         rows, total = result
         return list(rows), int(total)
 
-    # ── Ce que la barre d'outils AFFICHE, colonne par colonne ─────────
+    # ── What the toolbar DISPLAYS, column by column ───────────────────
     #
-    # C'est ce qui décide de ``_toolbar_blind_to()``, donc de ce qu'on a
-    # le droit de préserver :
+    # It is what decides ``_toolbar_blind_to()``, so what we are allowed
+    # to preserve:
     #
-    # - la recherche rend ``state.search`` ;
-    # - le bouton « Clear filters » n'existe que si ``state.filters`` ;
-    # - chaque filtre de colonne coche depuis ``state.filters`` ;
-    # - l'export — S'IL Y EN A UN — sérialise ``to_query(for_export=True)``,
-    #   qui normalise ``page`` à 1 mais garde le tri, la taille de page,
-    #   la recherche et les filtres.
+    # - the search renders ``state.search``;
+    # - the "Clear filters" button only exists if ``state.filters``;
+    # - each column filter ticks from ``state.filters``;
+    # - the export — IF THERE IS ONE — serialises
+    #   ``to_query(for_export=True)``, which normalises ``page`` to 1 but
+    #   keeps the sort, the page size, the search and the filters.
     #
-    # Rien d'autre. Et sans bouton d'export, la dernière ligne disparaît
-    # avec lui : c'est toute la différence entre les deux ensembles.
+    # Nothing else. And with no export button, the last line disappears
+    # with it: that is the whole difference between the two sets.
 
-    #: Les six champs de :class:`DatatableState`. Un champ ajouté par une
-    #: sous-classe applicative n'y figure pas, et c'est voulu : la barre
-    #: ne peut rien affirmer sur ce qu'elle ne connaît pas, donc un champ
-    #: inconnu qui bouge fait rendre la barre.
+    #: The six fields of :class:`DatatableState`. A field added by an app
+    #: subclass is not in it, and that is intended: the bar can assert
+    #: nothing about what it does not know, so an unknown field that
+    #: moves makes the bar render.
     _STATE_FIELDS: ClassVar[frozenset[str]] = frozenset(
         {"sort_key", "sort_dir", "page", "per_page", "search", "filters"}
     )
-    #: Ce que la barre PEINT : la valeur du champ de recherche, et les
-    #: étiquettes « N/total » des filtres (plus le bouton « effacer »,
-    #: qui n'apparaît que si un filtre est posé).
+    #: What the bar PAINTS: the search field's value, and the "N/total"
+    #: labels of the filters (plus the "clear" button, which only appears
+    #: if a filter is set).
     _TOOLBAR_READS: ClassVar[frozenset[str]] = frozenset({"search", "filters"})
-    #: Ce que l'URL SIGNÉE du bouton CSV embarque en plus. ``page`` n'y
-    #: est pas : ``to_query(for_export=True)`` la normalise à 1 — c'est
-    #: précisément ce qui rendait la barre préservable au changement de
-    #: page (cf. le commentaire dans ``state.py``).
+    #: What the CSV button's SIGNED URL carries in addition. ``page`` is
+    #: not in it: ``to_query(for_export=True)`` normalises it to 1 — and
+    #: that is precisely what made the bar preservable on a page change
+    #: (cf. the comment in ``state.py``).
     _EXPORT_READS: ClassVar[frozenset[str]] = frozenset(
         {"sort_key", "sort_dir", "per_page", "search", "filters"}
     )
 
     def _toolbar_blind_to(self) -> frozenset[str]:
-        """Les champs dont un changement laisse la barre à l'octet près.
+        """The fields whose change leaves the bar byte-identical.
 
-        C'était une constante — ``{"page"}`` — et elle était juste pour
-        une table EXPORTABLE seulement. Sans bouton CSV, la barre ne lit
-        ni le tri ni la taille de page : elle repartait entière à chaque
-        clic d'en-tête, 12 Ko sur les 28 d'une table de quatre colonnes,
-        pour des octets rigoureusement identiques. Et ``exportable``
-        vaut ``False`` par défaut, donc c'était le cas courant.
+        It used to be a constant — ``{"page"}`` — and it was right for an
+        EXPORTABLE table only. With no CSV button, the bar reads neither
+        the sort nor the page size: it left whole on every header click,
+        12 kB of the 28 of a four-column table, for rigorously identical
+        bytes. And ``exportable`` is ``False`` by default, so that was
+        the common case.
 
-        La forme constante ne pouvait pas dire ça : la réponse dépend de
-        ce que CETTE table rend. D'où un ensemble dérivé de ce que la
-        barre lit vraiment — et une gate qui mute chaque champ et compare
-        les octets, plutôt qu'une liste tenue à jour à la main.
+        The constant shape could not say that: the answer depends on what
+        THIS table renders. Hence a set derived from what the bar really
+        reads — and a gate that mutates each field and compares the
+        bytes, rather than a list kept up to date by hand.
         """
         reads = self._TOOLBAR_READS
         if self._exportable:
@@ -840,33 +839,32 @@ class Datatable(Component):
         return self._STATE_FIELDS - reads
 
     def _toolbar_can_be_preserved(self) -> bool:
-        """La barre est-elle démontrablement inchangée par cette requête ?
+        """Is the bar demonstrably unchanged by this request?
 
-        Elle pèse **44 %** de la zone (35 Ko sur 79, mesuré sur un
-        datatable de 5 lignes avec trois filtres) et se re-rendait à
-        chaque clic de pagination alors qu'aucun de ses octets ne bouge.
+        It weighs **44 %** of the zone (35 kB of 79, measured on a
+        datatable of 5 rows with three filters) and re-rendered on every
+        pagination click although none of its bytes move.
 
-        Trois conditions, toutes nécessaires :
+        Three conditions, all necessary:
 
-        1. **Rendu partiel.** Sur une page complète la barre n'est pas
-           encore dans le DOM : la préserver la ferait disparaître.
-        2. **On SAIT ce qui a changé.** ``ctx.changed_fields`` vide veut
-           dire « on ne sait pas » (page complète, refetch SSE), pas
-           « rien » — donc on rend tout.
-        3. **Le changement porte sur cet état-ci, et seulement sur des
-           champs auxquels la barre est aveugle** — ``_toolbar_blind_to()``,
-           qui est plus large quand la table n'exporte pas. Une autre
-           table qui bouge, un état applicatif qui bouge : on ne conclut
-           rien et on rend tout.
+        1. **Partial render.** On a full page the bar is not yet in the
+           DOM: preserving it would make it disappear.
+        2. **We KNOW what changed.** An empty ``ctx.changed_fields``
+           means "we do not know" (full page, SSE refetch), not
+           "nothing" — so we render everything.
+        3. **The change concerns this state, and only fields the bar is
+           blind to** — ``_toolbar_blind_to()``, which is wider when the
+           table does not export. Another table that moves, an app state
+           that moves: we conclude nothing and render everything.
 
-        Plus un garde de sécurité : une barre préservée garde la
-        **signature d'origine** de ses actions, timestamp compris. Sous
-        ``action_max_age``, elle finirait par expirer sans jamais être
-        rafraîchie — l'utilisateur pagine une heure, clique un filtre, et
-        se prend un 403. Le défaut est ``None`` (valide indéfiniment),
-        donc ce garde ne coûte rien à personne aujourd'hui ; il évite que
-        l'anti-rejeu et cette optimisation se découvrent incompatibles
-        des mois plus tard, en production, chez quelqu'un d'autre.
+        Plus a safety guard: a preserved bar keeps the **original
+        signature** of its actions, timestamp included. Under
+        ``action_max_age``, it would eventually expire without ever being
+        refreshed — the user paginates for an hour, clicks a filter, and
+        takes a 403. The default is ``None`` (valid indefinitely), so
+        this guard costs nobody anything today; it stops the anti-replay
+        and this optimisation from discovering they are incompatible
+        months later, in production, at somebody else's.
         """
         ctx = current_context()
         if not getattr(ctx, "is_partial", False):
@@ -880,9 +878,9 @@ class Datatable(Component):
         mine = changed.get(self._state_cls)
         if not mine:
             return False
-        # Un AUTRE état a bougé dans la même requête : son handler a pu
-        # écrire dans le nôtre par un chemin qu'on ne voit pas. On ne
-        # spécule pas.
+        # ANOTHER state moved in the same request: its handler may have
+        # written into ours by a path we cannot see. We do not
+        # speculate.
         if set(changed) != {self._state_cls}:
             return False
         return mine <= self._toolbar_blind_to()
@@ -890,38 +888,37 @@ class Datatable(Component):
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        """Tout ce que la table bâtit naît sous l'identité de son ÉTAT.
+        """Everything the table builds is born under its STATE's identity.
 
-        Sans ça, le pager, la recherche et les boutons de la barre se
-        construisent pendant ``render()`` — donc sans parent sur la pile —
-        et reçoivent un id **positionnel et global à la page** :
-        ``root_pagination_0`` pour la première table, ``root_pagination_1``
-        pour la deuxième. Or une zone se re-rend SEULE : le générateur
-        repart de zéro et la deuxième table renvoie ``root_pagination_0``,
-        c'est-à-dire l'id de la PREMIÈRE.
+        Without that, the pager, the search and the bar's buttons are
+        built during ``render()`` — so with no parent on the stack — and
+        get a **positional, page-global** id: ``root_pagination_0`` for
+        the first table, ``root_pagination_1`` for the second. Yet a zone
+        re-renders ALONE: the generator starts from zero and the second
+        table returns ``root_pagination_0``, that is to say the FIRST
+        one's id.
 
-        Mesuré le 2026-08-07, deux tables sur une page ::
+        Measured on 2026-08-07, two tables on one page ::
 
-            avant le clic : ['root_pagination_0', 'root_pagination_1']
-            clic page 5 sur B
-            après le clic : ['root_pagination_0', 'root_pagination_0']
+            before the click: ['root_pagination_0', 'root_pagination_1']
+            click page 5 on B
+            after the click:  ['root_pagination_0', 'root_pagination_0']
 
-        Et le symptôme que ça produit est exactement celui rapporté :
-        ``bz-id`` étant la clé d'appariement d'idiomorph ET celle de
-        ``scope.absorb``, le pager de B adopte le scope de A — donc son
-        ``_total`` — et affiche 7 pages au lieu de 5 ; puis l'entrée
-        cachée de A voit sa valeur changer et POSTe à son tour. **Un clic,
-        deux requêtes**, et la mauvaise table qui navigue.
+        And the symptom that produces is exactly the one reported:
+        ``bz-id`` being idiomorph's pairing key AND ``scope.absorb``'s,
+        B's pager adopts A's scope — so its ``_total`` — and shows 7
+        pages instead of 5; then A's hidden input sees its value change
+        and POSTs in its turn. **One click, two requests**, and the wrong
+        table navigating.
 
-        La clé est le nom de la classe d'état, pas ``self.id`` : l'id de
-        la table est lui aussi positionnel, donc instable entre un rendu
-        complet et un rendu de zone. Le nom de l'état, lui, est le même
-        des deux côtés — c'est déjà l'identité que ``_field()`` et
-        ``bzf_<État>_<colonne>`` utilisent. Deux tables statiques qui
-        partagent une classe restent départagées par le compteur de
-        frères d'``IdGenerator`` (``…_1``, ``…_2``), ce qui leur rend leur
-        ancien comportement positionnel — elles ne se re-rendent jamais
-        partiellement, donc c'est correct.
+        The key is the state class's name, not ``self.id``: the table's
+        id is positional too, so unstable between a full render and a
+        zone render. The state's name, for its part, is the same on both
+        sides — it is already the identity ``_field()`` and
+        ``bzf_<State>_<column>`` use. Two static tables sharing a class
+        are still told apart by ``IdGenerator``'s sibling counter
+        (``…_1``, ``…_2``), which gives them back their old positional
+        behaviour — they never re-render partially, so that is correct.
         """
         with key_segment(self._state_cls.__name__):
             return self._render_tree()
@@ -944,32 +941,32 @@ class Datatable(Component):
         children: list[Node] = []
 
         # ── Toolbar ─────────────────────────────────────────────────
-        # ``hx-preserve`` : HTMX garde le nœud VIVANT et ignore celui qui
-        # arrive. On envoie donc une coquille vide quand la barre ne peut
-        # pas avoir changé — et les 35 Ko de filtres ne repartent pas sur
-        # le fil à chaque clic de pagination. Vérifié au navigateur : le
-        # sous-arbre préservé survit à un morph OOB de zone.
-        # ``_has_toolbar`` garde les DEUX branches, et c'est la seule
-        # forme correcte : une coquille ``hx-preserve`` n'a de sens que
-        # s'il existe un nœud de même ``id`` à préserver. Émise pour une
-        # table qui n'a aucun contrôle, elle insérerait une div morte
-        # portant l'id de la barre — et le jour où quelqu'un ajoute un
-        # filtre à cette table, il ne le verrait jamais apparaître : la
-        # barre fraîche serait préservée à l'état vide. Les deux branches
-        # doivent donc répondre à la MÊME question, d'où un prédicat
-        # partagé plutôt que deux conditions à garder d'accord.
+        # ``hx-preserve``: HTMX keeps the node ALIVE and ignores the one
+        # that arrives. So we send an empty shell when the bar cannot
+        # have changed — and the 35 kB of filters do not go back over the
+        # wire on every pagination click. Checked in the browser: the
+        # preserved subtree survives an OOB zone morph.
+        # ``_has_toolbar`` guards BOTH branches, and it is the only
+        # correct shape: an ``hx-preserve`` shell only makes sense if
+        # there is a node of the same ``id`` to preserve. Emitted for a
+        # table with no control at all, it would insert a dead div
+        # carrying the bar's id — and the day somebody adds a filter to
+        # that table, they would never see it appear: the fresh bar would
+        # be preserved in its empty state. Both branches must therefore
+        # answer the SAME question, hence a shared predicate rather than
+        # two conditions to keep in agreement.
         toolbar_id = f"bzdt_{self._state_cls.__name__}_toolbar"
         if not self._has_toolbar(state):
             pass
         elif self._toolbar_can_be_preserved():
-            # La coquille : même ``id``, ``hx-preserve``, aucun enfant.
-            # HTMX garde le nœud vivant et jette celui-ci — donc les 35 Ko
-            # de filtres ne repartent pas sur le fil.
+            # The shell: same ``id``, ``hx-preserve``, no children.
+            # HTMX keeps the live node and throws this one away — so the
+            # 35 kB of filters do not go back over the wire.
             #
-            # Sortie SÈCHE, plutôt qu'un drapeau ``preserve`` re-testé
-            # devant chacun des quatre contrôles (dont un DANS la boucle
-            # sur les colonnes) : quatre gardes qui disent toutes la même
-            # chose, pour construire une liste qu'on jette ensuite.
+            # A DRY exit, rather than a ``preserve`` flag re-tested in
+            # front of each of the four controls (one of them INSIDE the
+            # loop over the columns): four guards all saying the same
+            # thing, to build a list we then throw away.
             children.append(Element(
                 tag="div",
                 attrs={"id": toolbar_id, "hx-preserve": "true"},
@@ -1002,13 +999,13 @@ class Datatable(Component):
             classes=table_classes,
             style=f"max-height: {self._max_height}" if self._max_height else None,
         )
-        # `debounce=` / `throttle=` posés sur le datatable valent pour le
-        # clic de LIGNE, qui est rendu par la Table interne. Le socle les
-        # a déjà traduits en modificateur de trigger sur CETTE instance ;
-        # les milliseconds brutes, elles, ont été consommées. On transmet
-        # donc le modificateur, pas le kwarg — sans quoi le délai est
-        # accepté puis perdu, ce qu'a mesuré
-        # `test_trigger_modifiers_survive` le 2026-09-07.
+        # `debounce=` / `throttle=` set on the datatable apply to the
+        # ROW click, which is rendered by the inner Table. The base layer
+        # has already translated them into a trigger modifier on THIS
+        # instance; the raw milliseconds, for their part, have been
+        # consumed. So we forward the modifier, not the kwarg — otherwise
+        # the delay is accepted then lost, which
+        # `test_trigger_modifiers_survive` measured on 2026-09-07.
         table._trigger_modifier = self._trigger_modifier
         children.append(Component.render_detached(table))
 
@@ -1054,19 +1051,19 @@ class Datatable(Component):
         return Element(tag=self._tag, attrs=attrs, children=tuple(children))
 
     def _has_toolbar(self, state: DatatableState) -> bool:
-        """Cette table a-t-elle une barre d'outils, du tout ?
+        """Does this table have a toolbar at all?
 
-        Le pendant structurel de :meth:`_toolbar_can_be_preserved` — qui
-        répond « la barre a-t-elle pu changer ? », une question qui n'a
-        de sens que s'il y a une barre. Les quatre termes sont exactement
-        ceux que :meth:`_toolbar_node` sait rendre, et c'est pour cette
-        raison qu'ils vivent ici plutôt que recopiés à deux endroits :
-        les deux doivent répondre pareil ou l'invariant ``coquille ⇔
-        nœud vivant`` se rompt.
+        The structural counterpart of :meth:`_toolbar_can_be_preserved` —
+        which answers "could the bar have changed?", a question that only
+        makes sense if there is a bar. The four terms are exactly those
+        :meth:`_toolbar_node` knows how to render, and it is for that
+        reason that they live here rather than copied in two places: the
+        two must answer alike or the ``shell ⇔ live node`` invariant
+        breaks.
 
-        ``state.filters`` en fait partie parce que le bouton « Clear
-        filters » n'existe QUE quand quelque chose filtre — une table
-        sans autre contrôle gagne donc une barre au premier filtre posé.
+        ``state.filters`` is one of them because the "Clear filters"
+        button only exists when something filters — a table with no other
+        control therefore gains a bar at the first filter set.
         """
         return bool(
             self._search
@@ -1079,11 +1076,11 @@ class Datatable(Component):
         self, *, toolbar_id: str, state: DatatableState, ref: str,
         color: str, slots: dict[str, str], sizes: dict[str, str],
     ) -> Node:
-        """La barre d'outils complète.
+        """The full toolbar.
 
-        Appelée uniquement quand :meth:`_has_toolbar` est vrai et que la
-        barre ne peut PAS être préservée — donc elle n'a à reconnaître
-        aucun de ces deux cas.
+        Called only when :meth:`_has_toolbar` is true and the bar can NOT
+        be preserved — so it has neither of those two cases to
+        recognise.
         """
         tools: list[Node] = []
         if self._search:
@@ -1092,10 +1089,10 @@ class Datatable(Component):
                 name=_field(_SEARCH_FIELD, self._state_cls),
                 placeholder=self._search_placeholder,
                 icon_left="search",
-                # Vider la recherche au clavier demande un select-all
-                # suivi d'un effacement ; la croix le fait en un geste et
-                # repart avec le `change`, donc le serveur laisse tomber
-                # la recherche sans qu'on ait rien à recâbler ici.
+                # Clearing the search from the keyboard asks for a
+                # select-all followed by a delete; the cross does it in
+                # one gesture and leaves with the `change`, so the server
+                # drops the search without anything to re-wire here.
                 clearable=True,
                 size=sizes.get("toolbar", "sm"),
                 classes=" ".join(p for p in (
@@ -1108,20 +1105,20 @@ class Datatable(Component):
         if state.filters:
             tools.append(Component.render_detached(IconButton(
                 "filter-x",
-                # Une ICÔNE, pas « Clear filters » en toutes lettres :
-                # ce contrôle n'apparaît QUE lorsque quelque chose filtre,
-                # donc il ajoute une largeur pile au moment où la barre
-                # est la plus chargée — c'est lui qui poussait l'export à
-                # la ligne. L'icône rend ~78 px à la ligne.
+                # An ICON, not "Clear filters" spelled out: this
+                # control only appears WHEN something filters, so it adds
+                # width exactly when the bar is at its fullest — it is
+                # what pushed the export onto the next line. The icon
+                # renders ~78 px onto the line.
                 #
-                # `error` et pas l'encre ambiante : c'est le seul contrôle
-                # de la barre qui DÉFAIT quelque chose, et une icône n'a
-                # pas de texte pour le dire à sa place. Même intention que
-                # le « Clear » du panneau de filtre, dont le thème vire à
-                # l'error (`header_btn_muted`). Pas `primary` : l'accent
-                # est réservé au filtre ACTIF (cf. `components.md` §
-                # « l'accent marque le pair ACTIF »), et une remise à zéro
-                # n'est pas un état à signaler.
+                # `error` and not the ambient ink: it is the bar's only
+                # control that UNDOES something, and an icon has no text
+                # to say it in its place. Same intent as the filter
+                # panel's "Clear", whose theme turns to error
+                # (`header_btn_muted`). Not `primary`: the accent is
+                # reserved for the ACTIVE filter (cf. `components.md`
+                # § "the accent marks the ACTIVE peer"), and a reset is
+                # not a state to signal.
                 variant="surface", color="error",
                 size=sizes.get("toolbar", "sm"),
                 tooltip=text("datatable.clear_filters"),
@@ -1142,15 +1139,15 @@ class Datatable(Component):
         return Element(
             tag="div",
             attrs={
-                # ``id`` OUI — c'est la cible que la coquille vise.
-                # ``hx-preserve`` NON, et c'est tout le contraire d'un
-                # détail : HTMX lit l'attribut sur le nœud QUI ARRIVE
-                # et, s'il le trouve, garde l'ANCIEN. Le porter ici
-                # ferait ignorer la barre fraîche — le bouton « Clear
-                # filters » n'apparaîtrait jamais et le filtre actif
-                # ne se colorerait pas. Constaté au navigateur : 27
-                # résultats affichés, et aucun bouton pour défaire le
-                # filtre qui les avait produits.
+                # ``id`` YES — it is the target the shell aims at.
+                # ``hx-preserve`` NO, and it is the very opposite of a
+                # detail: HTMX reads the attribute on the node THAT
+                # ARRIVES and, if it finds it, keeps the OLD one.
+                # Carrying it here would make the fresh bar be ignored —
+                # the "Clear filters" button would never appear and the
+                # active filter would not colour. Seen in the browser: 27
+                # results displayed, and no button to undo the filter
+                # that had produced them.
                 "id": toolbar_id,
                 "class": slots.get("toolbar", ""),
             },

@@ -1,15 +1,15 @@
 """``IFrame`` test bench.
 
-Sept cartes : le sandbox / title & ratio / Reference / Composability /
-Edge cases / A11y / Server playground. ``BINDABLE_PROPS = ()`` et
-``EVENTS = ()`` donc aucune carte Client ni événement.
+Seven cards: the sandbox / title & ratio / Reference / Composability /
+Edge cases / A11y / Server playground. ``BINDABLE_PROPS = ()`` and
+``EVENTS = ()`` so no Client card and no event.
 
-La seule vraie question du composant est son **sandbox par défaut** : la
-carte 1 lui est entièrement consacrée.
+The component's only real question is its **default sandbox**: card 1 is
+entirely devoted to it.
 
-⚠️ Hors ligne intégralement — les cadres utilisent ``srcdoc`` (document
-inline, zéro requête réseau). C'est la leçon du banc vidéo : un chemin
-bidon n'est pas « rester hors ligne », c'est un 404 par élément.
+⚠️ Entirely offline — the frames use ``srcdoc`` (an inline document, zero
+network requests). It is the video bench's lesson: a dummy path is not
+"staying offline", it is one 404 per element.
 """
 
 from bretzel import refreshable, ui
@@ -26,7 +26,7 @@ RATIOS = ["square", "video", "portrait", "wide"]
 
 
 def doc(body: str, bg: str = "#f8fafc") -> str:
-    """Un document inline pour ``srcdoc`` — aucune requête réseau."""
+    """An inline document for ``srcdoc`` — no network request."""
     return (
         f"<body style=\"margin:0;background:{bg};font-family:sans-serif;"
         f"display:flex;align-items:center;justify-content:center;"
@@ -34,17 +34,17 @@ def doc(body: str, bg: str = "#f8fafc") -> str:
     )
 
 
-DOC_MAP = doc("<strong>Une carte irait ici</strong>", "#e0f2fe")
-DOC_FORM = doc("<em>Un widget de paiement irait ici</em>", "#fef3c7")
-DOC_PLAIN = doc("Document embarqué")
+DOC_MAP = doc('<strong>A map would go here</strong>', "#e0f2fe")
+DOC_FORM = doc('<em>A payment widget would go here</em>', "#fef3c7")
+DOC_PLAIN = doc('Embedded document')
 
 
 class EmbedPlayground(PageState):
-    """État du banc serveur — iframe uniquement (l'audio n'a pas assez de
-    surface pour mériter un panneau)."""
+    """The server bench's state — iframe only (audio has not enough
+    surface to deserve a panel)."""
 
     ratio: str = field(default="video")
-    title: str = field(default="Document de démonstration")
+    title: str = field(default='Demonstration document')
     sandbox_mode: str = field(default="baseline")
     custom_sandbox: str = field(default="allow-scripts")
     classes: str = field(default="")
@@ -88,7 +88,7 @@ def server_panel() -> None:
 
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
         with control("title (obligatoire)"):
-            ui.input(value=state.title, placeholder="Décris le cadre",
+            ui.input(value=state.title, placeholder='Describe the frame',
                      on_change=server_changed)
         with control("ratio"):
             ui.select(value=state.ratio,
@@ -96,9 +96,9 @@ def server_panel() -> None:
                       on_change=server_changed)
         with control("sandbox"):
             ui.select(value=state.sandbox_mode,
-                      options=[("baseline", "défaut (base Bretzel)"),
+                      options=[("baseline", 'default (Bretzel base)'),
                                ("custom", "liste explicite"),
-                               ("maximal", 'sandbox="" — tout refusé'),
+                               ("maximal", 'sandbox="" — everything refused'),
                                ("none", "None — aucune restriction")],
                       on_change=server_changed)
         with control("liste explicite (si sandbox=liste)"):
@@ -113,8 +113,8 @@ def server_panel() -> None:
                      on_change=server_changed)
         with control("visible"):
             ui.select(value=state.visible,
-                      options=[("on", "True (défaut)"),
-                               ("off", "False (pas de rendu)")],
+                      options=[("on", 'True (default)'),
+                               ("off", 'False (nothing rendered)')],
                       on_change=server_changed)
 
     ui.divider()
@@ -135,54 +135,47 @@ def page() -> None:
         with ui.vstack():
             ui.heading("IFrame", level=1)
             ui.text(
-                "Un document tiers, borné par défaut. La seule vraie "
-                "question du composant est son sandbox — Bretzel en pose "
-                "un même quand vous n'en demandez pas, et la carte "
-                "ci-dessous explique lequel et pourquoi.",
+                'A third-party document, bounded by default. The '
+                    "component's only real question is its sandbox — Bretzel "
+                    'sets one even when you do not ask, and the card below '
+                    'explains which and why.',
                 color="muted",
             )
             ui.text(
-                "Page entièrement hors ligne : les cadres utilisent "
-                "srcdoc, un document inline, donc zéro requête réseau.",
+                'A fully offline page: the frames use srcdoc, an inline '
+                    'document, hence zero network requests.',
                 color="muted", size="sm",
             )
 
             # ── Carte 1 — IFrame : le sandbox ───────────────────────
             with ui.card():
                 with ui.vstack():
-                    ui.heading("Le sandbox par défaut", level=2)
+                    ui.heading('The default sandbox', level=2)
                     ui.text(
-                        "Bretzel pose un sandbox même quand vous n'en "
-                        "demandez pas. Le point n'est pas ce que la liste "
-                        "autorise, c'est ce qu'elle TAIT : dès qu'un "
-                        "attribut sandbox existe, la navigation du haut "
-                        "de page et les téléchargements sont refusés tant "
-                        "qu'on ne les réclame pas. Ce sont les deux "
-                        "vecteurs qui transforment un embed en "
-                        "hameçonnage.",
+                        'Bretzel sets a sandbox even when you do not ask '
+                            'for one. The point is not what the list allows, '
+                            'it is what it LEAVES OUT: as soon as a sandbox '
+                            'attribute exists, top-level navigation and '
+                            'downloads are refused until they are asked for. '
+                            'Those are the two vectors that turn an embed '
+                            'into phishing.',
                         color="muted", size="sm",
                     )
                     ui.code(SANDBOX_BASELINE, lang="text")
                     ui.text(
-                        "Les quatre permissions accordées sont celles "
-                        "sans lesquelles une carte, un lecteur ou un "
-                        "widget de paiement ne marchent pas du tout. Un "
-                        "défaut que tout le monde désactive au premier "
-                        "essai n'apprendrait qu'une chose : à le "
-                        "désactiver.",
+                        'The four permissions granted are the ones '
+                            'without which a map, a player or a payment '
+                            'widget do not work at all. A default everybody '
+                            'turns off at the first attempt would teach '
+                            'exactly one thing: how to turn it off.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("Les trois sorties, toutes explicites",
+                    ui.heading('The three outputs, all explicit',
                                level=3)
                     with ui.vstack(gap="sm"):
                         ui.code(
-                            'ui.iframe(src, title="…", '
-                            'sandbox="allow-scripts")  # votre liste\n'
-                            'ui.iframe(src, title="…", '
-                            'sandbox="")               # tout refusé\n'
-                            'ui.iframe(src, title="…", '
-                            'sandbox=None)             # aucune restriction',
+                            'ui.iframe(src, title="…", sandbox="allow-scripts")  # your own list\nui.iframe(src, title="…", sandbox="")               # everything refused\nui.iframe(src, title="…", sandbox=None)             # no restriction at all',
                             lang="python",
                         )
 
@@ -191,30 +184,30 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("title et ratio", level=2)
                     ui.text(
-                        "title est obligatoire : un lecteur d'écran "
-                        "annonce les cadres par leur titre, et sans lui "
-                        "l'utilisateur entend « cadre » sans savoir si "
-                        "c'est une carte ou un formulaire de paiement. "
-                        "Même raison que l'alt d'ui.image — l'oubli est "
-                        "invisible à l'écran.",
+                        'title is mandatory: a screen reader announces '
+                            'frames by their title, and without it the user '
+                            'hears “frame” without knowing whether it is a '
+                            'map or a payment form. The same reason as '
+                            "ui.image's alt — the omission is invisible on "
+                            'screen.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "ratio réserve la hauteur. Un embed est la "
-                        "première cause de saut de page, et un iframe "
-                        "sans dimensions retombe sur un 300×150 hérité "
-                        "des années 90.",
+                        'ratio reserves the height. An embed is the '
+                            'leading cause of page jump, and an iframe with '
+                            'no dimensions falls back to a 300×150 inherited '
+                            'from the nineties.',
                         color="muted", size="sm",
                     )
                     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
                         with ui.vstack(gap="xs"):
                             ui.text("ratio=video", size="xs", color="muted")
-                            ui.iframe(title="Carte de démonstration",
+                            ui.iframe(title='Demonstration card',
                                       ratio="video",
                                       attrs={"srcdoc": DOC_MAP})
                         with ui.vstack(gap="xs"):
                             ui.text("ratio=square", size="xs", color="muted")
-                            ui.iframe(title="Paiement de démonstration",
+                            ui.iframe(title='Demonstration payment',
                                       ratio="square",
                                       attrs={"srcdoc": DOC_FORM})
 
@@ -223,22 +216,22 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Reference", level=2)
                     ui.text(
-                        "Chaque paramètre du composant, en appel "
-                        "littéral — c'est ce que la gate "
-                        "test_playground_demos_the_api vérifie.",
+                        'Every parameter of the component, as a literal '
+                            'call — that is what the '
+                            'test_playground_demos_the_api gate checks.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("ui.iframe — tous les paramètres", level=3)
+                    ui.heading('ui.iframe — every parameter', level=3)
                     with ui.vstack(classes="max-w-md", gap="sm"):
                         ui.iframe(
                             src="data:text/html,<p>src explicite</p>",
-                            title="Cadre avec src, ratio et sandbox",
+                            title='A frame with src, ratio and sandbox',
                             ratio="wide",
                             sandbox="allow-scripts",
                         )
 
-                    ui.heading("Les quatre ratios", level=3)
+                    ui.heading('The four ratios', level=3)
                     with ui.grid(cols={"base": 2, "md": 4}, gap="md"):
                         for name in RATIOS:
                             with ui.vstack(gap="xs"):
@@ -253,40 +246,40 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Edge cases", level=2)
 
-                    ui.heading("Sans ratio — le 300×150 des années 90",
+                    ui.heading('With no ratio — the 300×150 of the nineties',
                                level=3)
                     ui.text(
-                        "C'est le défaut natif, et il ne dépend ni du "
-                        "contenu ni du conteneur. Il est ici pour être "
-                        "reconnu : une hauteur qui ne ressemble à rien "
-                        "de ce qu'on a demandé, c'est un ratio oublié.",
+                        'This is the native default, and it depends '
+                            'neither on the content nor on the container. It '
+                            'is here to be recognised: a height that looks '
+                            'like nothing you asked for is a forgotten ratio.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-md"):
-                        ui.iframe(title="Cadre sans ratio",
+                        ui.iframe(title='A frame with no ratio',
                                   attrs={"srcdoc": DOC_PLAIN})
 
-                    ui.heading("Les trois sorties du sandbox, rendues",
+                    ui.heading("The sandbox's three outputs, rendered",
                                level=3)
                     ui.text(
-                        "sandbox=\"\" refuse TOUT : un document statique "
-                        "s'affiche encore, un script n'y tournerait "
-                        "plus. sandbox=None retire l'attribut, donc "
-                        "toute restriction avec lui — le cadre redevient "
-                        "un pair de la page.",
+                        'sandbox="" refuses EVERYTHING: a static document'
+                            ' still displays, a script would no longer run in'
+                            ' it. sandbox=None removes the attribute, and '
+                            'every restriction with it — the frame becomes a '
+                            'peer of the page again.',
                         color="muted", size="xs",
                     )
                     with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
                         with ui.vstack(gap="xs"):
-                            ui.text("défaut (base Bretzel)", size="xs",
+                            ui.text('default (Bretzel base)', size="xs",
                                     color="muted")
-                            ui.iframe(title="Cadre par défaut",
+                            ui.iframe(title='Default frame',
                                       ratio="square",
                                       attrs={"srcdoc": DOC_PLAIN})
                         with ui.vstack(gap="xs"):
-                            ui.text('sandbox="" — tout refusé', size="xs",
+                            ui.text('sandbox="" — everything refused', size="xs",
                                     color="muted")
-                            ui.iframe(title="Cadre verrouillé",
+                            ui.iframe(title='A locked frame',
                                       ratio="square", sandbox="",
                                       attrs={"srcdoc": DOC_PLAIN})
                         with ui.vstack(gap="xs"):
@@ -298,31 +291,30 @@ def page() -> None:
 
                     ui.heading("Source injoignable", level=3)
                     ui.text(
-                        "Le cadre reste vide, mais il GARDE sa boîte : "
-                        "c'est tout l'intérêt du ratio, la page ne "
-                        "sautera pas quand la source arrivera — ou "
-                        "n'arrivera pas.",
+                        'The frame stays empty, but it KEEPS its box: '
+                            'that is the whole point of the ratio, the page '
+                            'will not jump when the source arrives — or fails'
+                            ' to.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-md"):
-                        ui.iframe(src="/cette-route-n-existe-pas",
-                                  title="Cadre dont la source échoue",
+                        ui.iframe(src='/this-route-does-not-exist',
+                                  title='A frame whose source fails',
                                   ratio="video")
 
-                    ui.heading("Titre très long", level=3)
+                    ui.heading('A very long title', level=3)
                     ui.text(
-                        "Le titre n'est pas rendu à l'écran : il peut "
-                        "être long sans rien déplacer. C'est aussi "
-                        "pourquoi son absence est invisible.",
+                        'The title is not rendered on screen: it can be '
+                            'long without moving anything. That is also why '
+                            'its absence is invisible.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-md"):
                         ui.iframe(
                             title=(
-                                "Tableau de bord des ventes du "
-                                "quatrième trimestre, filtré sur la "
-                                "région Grand Est, mis à jour toutes "
-                                "les quinze minutes"
+                                'Fourth-quarter sales dashboard, filtered'
+                                    ' on the North East region, updated every'
+                                    ' fifteen minutes'
                             ),
                             ratio="video",
                             attrs={"srcdoc": DOC_MAP},
@@ -333,7 +325,7 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Composability", level=2)
 
-                    ui.heading("Dans une cellule de grille contrainte",
+                    ui.heading('Inside a constrained grid cell',
                                level=3)
                     with ui.grid(cols={"base": 3}, gap="sm"):
                         for name in ("square", "video", "portrait"):
@@ -345,23 +337,21 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("A11y", level=2)
                     ui.text(
-                        "title est le SEUL paramètre obligatoire du "
-                        "composant, et c'est une décision "
-                        "d'accessibilité : un lecteur d'écran annonce "
-                        "les cadres par leur titre, donc sans lui "
-                        "l'utilisateur entend « cadre » sans savoir si "
-                        "c'est une carte ou un formulaire de paiement. "
-                        "Comme l'alt d'une image, l'oubli ne se voit "
-                        "pas à l'écran — d'où le refus au construct "
-                        "plutôt qu'un défaut vide.",
+                        "title is the component's ONLY mandatory "
+                            'parameter, and it is an accessibility decision: '
+                            'a screen reader announces frames by their title,'
+                            ' so without it the user hears “frame” without '
+                            'knowing whether it is a map or a payment form. '
+                            "Like an image's alt, the omission does not show "
+                            'on screen — hence the refusal at construct time '
+                            'rather than an empty default.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "Un titre n'est utile que s'il DISTINGUE. "
-                        "« Cadre » ou « Contenu embarqué » satisfont le "
-                        "constructeur et n'apprennent rien : la question "
-                        "à laquelle il répond est « dois-je entrer "
-                        "là-dedans ? ».",
+                        'A title is only useful if it DISTINGUISHES. '
+                            '“Frame” or “Embedded content” satisfy the '
+                            'constructor and teach nothing: the question it '
+                            'answers is “should I go in there?”.',
                         color="muted", size="sm",
                     )
                     with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
@@ -380,23 +370,22 @@ def page() -> None:
                                 attrs={"srcdoc": DOC_FORM},
                             )
 
-                    ui.heading("Le cadre est un DOCUMENT, pas un widget",
+                    ui.heading('The frame is a DOCUMENT, not a widget',
                                level=3)
                     ui.text(
-                        "Le focus y entre au Tab et continue à "
-                        "l'intérieur : ce qui s'y trouve échappe "
-                        "entièrement au thème, aux directives et aux "
-                        "gates de Bretzel. Un embed tiers peut piéger "
-                        "le clavier sans que rien ici ne le sache — "
-                        "c'est aussi ce que le sandbox par défaut "
-                        "limite.",
+                        'Focus enters it with Tab and carries on inside: '
+                            "what is in there escapes Bretzel's theme, "
+                            'directives and gates entirely. A third-party '
+                            'embed can trap the keyboard without anything '
+                            'here knowing — which is also what the default '
+                            'sandbox limits.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "ratio a lui aussi sa part : un cadre qui "
-                        "grandit après coup décale ce qu'on visait. "
-                        "Pour qui pointe difficilement, un bouton qui "
-                        "bouge n'est pas un défaut d'esthétique.",
+                        'ratio plays its part too: a frame that grows '
+                            'after the fact shifts what you were aiming at. '
+                            'For anyone who points with difficulty, a button '
+                            'that moves is not an aesthetic defect.',
                         color="muted", size="sm",
                     )
 
@@ -405,9 +394,8 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Server playground", level=2)
                     ui.text(
-                        "Changez le mode sandbox et regardez l'attribut "
-                        "apparaître, changer, ou disparaître dans le HTML "
-                        "émis.",
+                        'Change the sandbox mode and watch the attribute '
+                            'appear, change, or vanish in the emitted HTML.',
                         color="muted", size="sm",
                     )
                     server_panel()

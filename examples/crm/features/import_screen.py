@@ -1,28 +1,30 @@
-"""features/import_screen — écran 9 : l'import, un vrai enchaînement.
+"""features/import_screen — screen 9: the import, a real sequence.
 
-Ce que cet écran met sous contrainte : ``ui.stepper`` + un aperçu en
-``ui.datatable``, **enchaînés**. Les 17 apps montent chacun de ces composants
-seul ; ici l'état d'un pas décide de ce que le suivant peut faire, et l'écran
-ne se lit que dans l'ordre.
+What this screen puts under constraint: ``ui.stepper`` + a preview as a
+``ui.datatable``, **chained**. The 17 apps mount each of these components
+alone; here one step's state decides what the next can do, and the screen
+only reads in order.
 
-⚠️ **``ui.file_upload`` en mode formulaire ne transmet RIEN au serveur**, et
-c'est mesuré, pas supposé. Le composant pose bien un ``<input type="file"
-name="fichier">`` dans le ``<form>`` parent, mais htmx ne construit un corps
-``FormData`` que si le formulaire porte ``hx-encoding="multipart/form-data"``
-(ou l'``enctype`` équivalent) — et ``grep -rn "hx-encoding" bretzel/`` rend
-**zéro** résultat : ``ui.form`` n'a aucune prop pour le dire et n'émet jamais
-l'attribut. Le corps part donc en URL-encodé, où un ``File`` ne survit pas ;
-le handler reçoit une chaîne vide. Vérifié au navigateur : déposer un CSV
-puis cliquer « Vérifier » affiche « Dépose un fichier ou colle un CSV ».
+⚠️ **``ui.file_upload`` in form mode transmits NOTHING to the server**,
+and that is measured, not assumed. The component does place an
+``<input type="file" name="fichier">`` in the parent ``<form>``, but htmx
+only builds a ``FormData`` body if the form carries
+``hx-encoding="multipart/form-data"`` (or the equivalent ``enctype``) —
+and ``grep -rn "hx-encoding" bretzel/`` returns **zero** results:
+``ui.form`` has no prop to say it and never emits the attribute. So the
+body goes out URL-encoded, where a ``File`` does not survive; the handler
+receives an empty string. Verified in the browser: dropping a CSV then
+clicking "Check" shows "Drop a file or paste a CSV".
 
-L'écran ne contourne pas : le collage est le chemin réel, et le dépôt reste
-là **désactivé**, avec la raison écrite à côté. C'est le finding 15 du
-chantier.
+The screen does not work around it: pasting is the real path, and the
+drop stays there **disabled**, with the reason written beside it. It is
+the work's finding 15.
 
-Ce que l'écran fait, en revanche, et qu'aucune app n'avait : **la datatable
-en tier LISTE**. L'écran 2 la monte en tier callable sur 50 000 lignes ; ici
-les lignes sont en mémoire et le composant filtre, trie et pagine tout seul.
-Les deux tiers du même composant, dans la même app, sur deux écrans.
+What the screen does do, on the other hand, and that no app had: **the
+datatable in LIST tier**. Screen 2 mounts it in callable tier over 50 000
+rows; here the rows are in memory and the component filters, sorts and
+paginates on its own. Both tiers of the same component, in the same app,
+on two screens.
 """
 
 from __future__ import annotations
@@ -39,85 +41,86 @@ from examples.crm.features.access import visible_owner
 from examples.crm.features.import_data import commit_rows, judge, parse_csv
 from examples.crm.features.shell import shell
 
-#: Les trois pas.
+#: The three steps.
 STEPS: tuple[tuple[str, str, str], ...] = (
-    ("Déposer", "Un CSV de comptes, sept colonnes", "upload"),
-    ("Vérifier", "Chaque ligne est jugée avant d'écrire", "list-checks"),
-    ("Importer", "Tout ou rien, en une transaction", "database"),
+    ("Drop", "An accounts CSV, seven columns", "upload"),
+    ("Check", "Every row is judged before anything is written", "list-checks"),
+    ("Import", "All or nothing, in one transaction", "database"),
 )
 
 
 class ImportDraft(SessionState):
-    """Le brouillon d'import.
+    """The import draft.
 
-    ``SessionState`` et non ``PageState`` : un import se poursuit après un
-    rechargement. ``colle`` en fait partie — le texte collé doit SURVIVRE au
-    re-rendu que déclenche une erreur d'en-tête, sinon l'utilisateur lit le
-    reproche au-dessus d'une zone vidée et doit tout recoller.
+    ``SessionState`` and not ``PageState``: an import continues after a
+    reload. ``pasted`` is part of it — the pasted text must SURVIVE the
+    re-render a header error triggers, otherwise the user reads the
+    reproach above an emptied area and has to paste everything again.
     """
 
-    etape: int = field(default=0)
-    colle: str = field(default='')
-    nom_fichier: str = field(default='')
-    erreur: str = field(default='')
-    lignes: list = field(default_factory=list)
-    importees: int = field(default=0)
+    step: int = field(default=0)
+    pasted: str = field(default='')
+    file_name: str = field(default='')
+    error: str = field(default='')
+    rows: list = field(default_factory=list)
+    imported: int = field(default=0)
 
 
 class ImportPreview(DatatableState):
-    """La requête de l'aperçu. Tier LISTE — le composant détient les lignes."""
+    """The preview's query. LIST tier — the component holds the rows."""
 
     per_page: int = field(default=10)
 
 
 async def start_import(form: ImportDraft, fichier=None) -> None:
-    """Lit le CSV — déposé ou collé — et passe au pas de vérification.
+    """Read the CSV — dropped or pasted — and move to the check step.
 
-    ``async`` parce que ``UploadFile.read()`` l'est ; les handlers sont bien
-    awaités par le socle, contrairement aux zones ``@refreshable`` qui ne le
-    sont pas (finding 1 du chantier, lui toujours ouvert).
+    ``async`` because ``UploadFile.read()`` is; the handlers are indeed
+    awaited by the base layer, unlike the ``@refreshable`` zones which
+    are not (the work's finding 1, still open).
 
-    ``fichier`` n'est pas déclaré comme un champ d'état : c'est le ``name=``
-    du ``ui.file_upload``, et l'injection de signature passe une valeur de
-    formulaire au paramètre qui porte son nom. Le fichier l'emporte sur le
-    collage — on a déposé quelque chose, c'est ça qu'on veut importer.
+    ``fichier`` is not declared as a state field: it is the
+    ``ui.file_upload``'s ``name=``, and the signature injection passes a
+    form value to the parameter bearing its name. The file wins over the
+    paste — something has been dropped, that is what is meant to be
+    imported.
     """
-    raw, source = str(form.colle), "(collé)"
+    raw, source = str(form.pasted), "(pasted)"
     if fichier is not None and hasattr(fichier, "read"):
         raw = (await fichier.read()).decode("utf-8", errors="replace")
-        source = getattr(fichier, "filename", "") or "(sans nom)"
+        source = getattr(fichier, "filename", "") or "(unnamed)"
     if not raw.strip():
-        form.erreur = "Dépose un fichier ou colle un CSV."
+        form.error = "Drop a file or paste a CSV."
         return
     rows, header_error = parse_csv(raw)
-    form.nom_fichier = source
-    form.erreur = header_error
-    form.lignes = judge(rows, visible_owner()) if not header_error else []
-    form.importees = 0
+    form.file_name = source
+    form.error = header_error
+    form.rows = judge(rows, visible_owner()) if not header_error else []
+    form.imported = 0
     if not header_error:
-        form.etape = 1
+        form.step = 1
 
 
 def apply_import() -> None:
     draft = ImportDraft()
-    rows = list(draft.lignes)
-    bad = [r for r in rows if r["_erreur"]]
+    rows = list(draft.rows)
+    bad = [r for r in rows if r["_error"]]
     if bad:
         ui.notification(
-            f"{len(bad)} ligne(s) en erreur — rien n'a été écrit.",
+            f"{len(bad)} row(s) in error — nothing has been written.",
             variant="error", duration_ms=3500,
         )
         return
-    draft.importees = commit_rows(rows, visible_owner())
-    draft.etape = 2
-    ui.notification(f"{draft.importees} compte(s) importé(s)",
+    draft.imported = commit_rows(rows, visible_owner())
+    draft.step = 2
+    ui.notification(f"{draft.imported} account(s) imported",
                     variant="success", duration_ms=2500)
 
 
 def restart() -> None:
     draft = ImportDraft()
-    draft.etape, draft.nom_fichier, draft.erreur, draft.colle = 0, "", "", ""
-    draft.lignes, draft.importees = [], 0
+    draft.step, draft.file_name, draft.error, draft.pasted = 0, "", "", ""
+    draft.rows, draft.imported = [], 0
 
 
 def line_cell(value, _row):
@@ -130,15 +133,14 @@ def verdict_cell(value, _row):
     return ui.text(value, color="error", size="xs")
 
 
-#: Pas de ``filter=`` sur le verdict : un filtre de colonne compare par
-#: ÉGALITÉ de chaîne (``Query.matches_filters``), et les verdicts sont des
-#: phrases construites ligne par ligne. Une option « erreur » n'aurait
-#: jamais rien matché — un filtre qui vide toujours le tableau est pire
-#: qu'un filtre absent.
+#: No ``filter=`` on the verdict: a column filter compares by string
+#: EQUALITY (``Query.matches_filters``), and the verdicts are sentences
+#: built row by row. An "error" option would never have matched anything
+#: — a filter that always empties the table is worse than no filter.
 PREVIEW_COLUMNS = [
-    ui.column("_ligne", label="Ligne", width="4rem", render=line_cell),
+    ui.column("_ligne", label="Row", width="4rem", render=line_cell),
     *[ui.column(key, label=key, sortable=True) for key in IMPORT_COLUMNS],
-    ui.column("_erreur", label="Verdict", render=verdict_cell),
+    ui.column("_error", label="Verdict", render=verdict_cell),
 ]
 
 
@@ -147,59 +149,60 @@ def step_drop(draft: ImportDraft) -> None:
         with ui.vstack(gap="md"):
             with ui.grid(cols={"base": 1, "lg": 2}, gap="lg"):
                 with ui.vstack(gap="sm"):
-                    ui.heading("Coller le contenu", level=3, size="sm")
-                    ui.textarea(value=draft.colle, rows=8,
+                    ui.heading("Paste the content", level=3, size="sm")
+                    ui.textarea(value=draft.pasted, rows=8,
                                 placeholder=IMPORT_EXAMPLE_CSV)
                 with ui.vstack(gap="sm"):
-                    ui.heading("Déposer un fichier", level=3, size="sm")
-                    # Aucun ``upload_url=`` : le mode formulaire suffit. Le
-                    # ``<form>`` voit le fichier et s'encode en multipart
-                    # tout seul, et ``start_import`` le reçoit par son
-                    # ``name=``.
+                    ui.heading("Drop a file", level=3, size="sm")
+                    # No ``upload_url=``: form mode is enough. The
+                    # ``<form>`` sees the file and encodes itself as
+                    # multipart on its own, and ``start_import`` receives
+                    # it by its ``name=``.
                     ui.file_upload(
                         variant="dropzone", list="chips", accept=[".csv"],
                         max_files=1, max_size_mb=2, name="fichier",
-                        label="Un CSV de comptes",
+                        label="An accounts CSV",
                     )
                     ui.text(
-                        "Le fichier l'emporte sur le texte collé.",
+                        "The file wins over the pasted text.",
                         color="muted", size="xs",
                     )
-            if draft.erreur:
-                ui.alert(draft.erreur, color="error", icon="triangle-alert")
+            if draft.error:
+                ui.alert(draft.error, color="error", icon="triangle-alert")
             with ui.hstack(justify="between", align="center"):
-                ui.text(f"Sept colonnes, {IMPORT_MAX_ROWS} lignes au plus : "
+                ui.text(f"Seven columns, {IMPORT_MAX_ROWS} rows at most: "
                         f"{', '.join(IMPORT_COLUMNS)}", color="muted",
                         size="xs")
-                ui.button("Vérifier", type="submit", color="primary",
+                ui.button("Check", type="submit", color="primary",
                           icon_left="arrow-right")
 
 
 def step_check(draft: ImportDraft) -> None:
-    rows = list(draft.lignes)
-    bad = [r for r in rows if r["_erreur"]]
+    rows = list(draft.rows)
+    bad = [r for r in rows if r["_error"]]
     with ui.vstack(gap="md"):
         with ui.hstack(justify="between", align="center", wrap=True):
             with ui.hstack(gap="sm", align="center"):
-                ui.text(draft.nom_fichier, weight="medium", size="sm")
-                ui.badge(f"{len(rows)} lignes", variant="soft", color="muted",
+                ui.text(draft.file_name, weight="medium", size="sm")
+                ui.badge(f"{len(rows)} rows", variant="soft", color="muted",
                          size="xs")
                 if bad:
-                    ui.badge(f"{len(bad)} en erreur", variant="soft",
+                    ui.badge(f"{len(bad)} in error", variant="soft",
                              color="error", size="xs")
             with ui.hstack(gap="sm"):
-                ui.button("Recommencer", variant="ghost",
+                ui.button("Start again", variant="ghost",
                           icon_left="rotate-ccw", on_click=restart)
-                ui.button("Importer", color="primary", icon_left="database",
+                ui.button("Import", color="primary", icon_left="database",
                           disabled=bool(bad) or not rows,
                           on_click=apply_import)
         if rows:
-            # Tier LISTE : le composant détient les lignes et fait tout en
-            # Python. C'est l'inverse exact de l'écran 2, où il ne détient
-            # rien et traduit chaque geste en SQL.
+            # LIST tier: the component holds the rows and does
+            # everything in Python. It is the exact opposite of screen 2,
+            # where it holds nothing and translates every gesture into
+            # SQL.
             ui.datatable(state=ImportPreview, columns=PREVIEW_COLUMNS,
                          rows=rows, row_key="_ligne", size="sm",
-                         search_placeholder="Chercher dans l'aperçu…")
+                         search_placeholder="Search the preview…")
         else:
             ui.empty_state("Aucune ligne lisible", icon="file-x")
 
@@ -207,39 +210,39 @@ def step_check(draft: ImportDraft) -> None:
 def step_done(draft: ImportDraft) -> None:
     with ui.vstack(gap="md"):
         ui.empty_state(
-            f"{draft.importees} compte(s) importé(s)",
+            f"{draft.imported} account(s) imported",
             icon="circle-check",
-            description="Ils sont dans la table Comptes, avec la date du "
-                        "jour comme date de création.",
+            description="They are in the Accounts table, with today's "
+                        "date as their creation date.",
         )
         with ui.hstack(justify="center", gap="sm"):
-            ui.link("Voir les comptes", href="/comptes", variant="underline",
+            ui.link("See the accounts", href="/accounts", variant="underline",
                     color="primary")
-            ui.button("Nouvel import", variant="soft", icon_left="upload",
+            ui.button("New import", variant="soft", icon_left="upload",
                       on_click=restart)
 
 
 @refreshable(deps=[ImportDraft, ImportPreview])
 def wizard() -> None:
-    """UNE seule zone pour les trois pas.
+    """ONE single zone for the three steps.
 
-    Trois zones imbriquées dans une quatrième, toutes dépendant du même état,
-    faisaient partir CHAQUE panneau deux fois : une fois rendu par le parent,
-    une fois en fragment hors-bande. Mesuré sur un collage de 200 lignes —
-    118 Ko de réponse, l'aperçu sérialisé deux fois, la moitié jetée par le
+    Three zones nested in a fourth, all depending on the same state, made
+    EVERY panel go out twice: once rendered by the parent, once as an
+    out-of-band fragment. Measured on a 200-row paste — 118 kB of
+    response, the preview serialised twice, half thrown away by the
     morph.
     """
     draft = ImportDraft()
-    # ``draft.etape`` NU, sans ``int()`` : le cast rend un entier Python
-    # ordinaire, donc le composant ne peut plus voir que la valeur vient
-    # du serveur — et il n'émet pas ``_serverSync``. Le panneau affiché
-    # se fige alors sur son PREMIER rendu : mesuré, il fallait un F5 pour
-    # que le stepper suive, et « Recommencer » laissait l'écran sur le
-    # dernier pas pendant que l'état était revenu à zéro.
-    with ui.stepper(value=draft.etape, clickable=False):
+    # ``draft.step`` BARE, with no ``int()``: the cast returns an
+    # ordinary Python integer, so the component can no longer see the
+    # value comes from the server — and it does not emit ``_serverSync``.
+    # The panel shown then freezes on its FIRST render: measured, an F5
+    # was needed for the stepper to follow, and "Start again" left the
+    # screen on the last step while the state had gone back to zero.
+    with ui.stepper(value=draft.step, clickable=False):
         for index, (label, description, icon) in enumerate(STEPS):
             ui.step(label=label, description=description, icon=icon,
-                    status="complete" if index < int(draft.etape) else None)
+                    status="complete" if index < int(draft.step) else None)
         with ui.step_panel():
             step_drop(draft)
         with ui.step_panel():
@@ -251,7 +254,7 @@ def wizard() -> None:
 @page("/import", layout=shell, title="Import")
 def import_page() -> None:
     with ui.vstack(gap="lg"):
-        ui.heading("Import de comptes", level=1, size="2xl")
+        ui.heading("Account import", level=1, size="2xl")
         with ui.card(padding="md"):
             wizard()
 

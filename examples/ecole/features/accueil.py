@@ -1,18 +1,18 @@
-"""features/accueil — page : une tuile par classe (EF-C1).
+"""features/accueil — page: one tile per class (EF-C1).
 
-*« Sur le pas de la porte, 20 secondes »* est le premier des quatre
-moments d'usage du cahier. Cet écran est celui-là : toutes les classes,
-leur effectif, et **ce qui reste à voir**, sans un clic.
+*"On the doorstep, 20 seconds"* is the first of the specification's four
+moments of use. This screen is that one: every class, its size, and
+**what is left to review**, without a click.
 
-La marque « à voir » est le seul élément qui ne soit pas une donnée
-d'identité. Elle existe *« pour qu'on le voie sans ouvrir chaque fiche »*
-(EF-H4) — une tuile qui ne la porterait pas obligerait à traverser trente
-élèves pour découvrir qu'il n'y avait rien.
+The "to review" mark is the only element that is not identity data. It
+exists *"so it is seen without opening every sheet"* (EF-H4) — a tile not
+carrying it would force one to go through thirty pupils to discover there
+was nothing.
 
-⚠️ **Il a tenu la racine au lot 1, il est descendu au lot 3.** Le cahier
-donne l'ouverture à l'emploi du temps (§ 8) ; tant que la grille
-n'existait pas, une racine en 404 aurait été pire. Le déplacement était
-annoncé dans cette docstring, et il a coûté une ligne.
+⚠️ **It held the root in batch 1, it moved down in batch 3.** The
+specification gives the opening to the timetable (§ 8); as long as the
+grid did not exist, a root returning 404 would have been worse. The move
+was announced in this docstring, and it cost one line.
 """
 
 from __future__ import annotations
@@ -26,15 +26,15 @@ from examples.ecole.features.suivi import bandeau_des_rappels
 
 
 def tuile(classe: dict) -> None:
-    """Une classe : son code, son effectif, ce qui reste à voir.
+    """A class: its code, its size, what is left to review.
 
-    Le code est en grand et le libellé de l'établissement en dessous :
-    c'est « 4e1 » que le professeur cherche des yeux, pas « Quatrième 1 ».
+    The code is large and the school's label below it: it is "4e1" the
+    teacher looks for, not "Quatrième 1".
 
-    Le ``href=`` est arrivé au lot 4, avec l'écran qu'il ouvre — pas
-    avant. Une tuile cliquable vers une route inexistante est le piège
-    n° 14 du cahier, *« écrire un écran avant ses routes »*, et il coûte
-    une recherche de bug là où il n'y en a pas.
+    The ``href=`` arrived in batch 4, with the screen it opens — not
+    before. A tile clickable to a route that does not exist is the
+    specification's trap no. 14, *"writing a screen before its routes"*,
+    and it costs a bug hunt where there is no bug.
     """
     with (
         ui.card(padding="md", href=f"/classe/{classe['id']}"),
@@ -43,14 +43,13 @@ def tuile(classe: dict) -> None:
         with ui.hstack(justify="between", align="center"):
             ui.heading(classe["code"], level=2, size="xl")
             if classe["a_voir"]:
-                # ``xl`` et pas le défaut : les cinq tailles de
-                # ``ui.badge`` s'étalent en dessous de la taille du
-                # texte courant, et seule la dernière l'atteint. Le
-                # plancher de 19 px d'EF-U3 qui avait fait choisir
-                # celle-ci est parti le 2026-09-12 ; le choix reste,
-                # pour la raison qui lui survit — une marque « à
-                # voir » ne peut pas être le plus petit mot de la
-                # carte. Cf. F1 du chantier.
+                # ``xl`` and not the default: ``ui.badge``'s five sizes
+                # spread below the current text size, and only the last
+                # reaches it. EF-U3's 19 px floor that had made this one
+                # the choice went away on 2026-09-12; the choice stays,
+                # for the reason that outlives it — a "to review" mark
+                # cannot be the smallest word on the card. Cf. F1 of the
+                # work.
                 ui.badge(
                     label="à voir",
                     color="warning",
@@ -68,11 +67,11 @@ def tuile(classe: dict) -> None:
 
 @refreshable(deps=[AnneeVue])
 def grille_des_classes() -> None:
-    """Toutes les classes de l'année REGARDÉE.
+    """Every class of the year being LOOKED AT.
 
-    Zone et non rendu direct : changer d'année dans la barre latérale
-    doit changer ce qui est ici, et une page rendue une fois ne bougerait
-    plus. ``deps=[AnneeVue]`` est le seul câble entre les deux.
+    A zone and not a direct render: changing year in the sidebar must
+    change what is here, and a page rendered once would no longer move.
+    ``deps=[AnneeVue]`` is the only wire between the two.
     """
     annee = annee_regardee()
     classes = classes_de(annee["id"])
@@ -102,9 +101,9 @@ PATH = "/classes"
 @page(PATH, layout=shell, title="Mes classes")
 def accueil_page() -> None:
     with ui.vstack(gap="lg"):
-        # EF-I : les deux rappels, CALCULÉS à la demande. Ils sont en
-        # haut de l'accueil parce que c'est l'écran du soir, et ils ne
-        # s'affichent pas du tout quand il n'y a rien à dire.
+        # EF-I: the two reminders, COMPUTED on demand. They are at the
+        # top of the home page because it is the evening screen, and they
+        # do not show at all when there is nothing to say.
         bandeau_des_rappels()
         grille_des_classes()
 

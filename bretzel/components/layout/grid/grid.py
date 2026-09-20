@@ -12,11 +12,11 @@ API :
   applies at all sizes and gets no prefix.
 - ``cols=str`` — escape hatch : ``"none"`` / ``"auto"`` / any literal
   Tailwind class (``"grid-cols-[200px_1fr]"``) flows through verbatim.
-- ``min_col=`` — **la grille compte ses colonnes elle-même**. Au lieu de
-  déclarer combien de colonnes à quelle largeur d'écran, on déclare la
-  largeur MINIMALE d'une colonne : ``ui.grid(min_col="16rem")``. Exclusif
-  avec ``cols=``.
-- ``gap=`` — same 5-palier scale as :class:`Flex` / :class:`VStack`
+- ``min_col=`` — **the grid counts its columns itself**. Instead of
+  declaring how many columns at which screen width, you declare a
+  column's MINIMUM width: ``ui.grid(min_col="16rem")``. Exclusive with
+  ``cols=``.
+- ``gap=`` — same 5-step scale as :class:`Flex` / :class:`VStack`
   (``none / xs / sm / md / lg / xl``), and it takes the SAME responsive
   dict as ``cols`` : ``gap={"base": "sm", "md": "lg"}``.
 """
@@ -61,22 +61,22 @@ class Grid(Component):
     THEME: ClassVar[dict[str, Any]] = GRID_THEME
     THEME_KEY: ClassVar[str] = "grid"
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
-    # ``cols`` ne passe pas par une table : ``_cols_class`` l'assemble en
-    # f-string, et son domaine est clôturé par ``_LAYOUT_CLASSES``.
+    # ``cols`` does not go through a table: ``_cols_class`` assembles it
+    # as an f-string, and its domain is closed by ``_LAYOUT_CLASSES``.
     RESPONSIVE_THEME_KEYS: ClassVar[tuple[str, ...]] = ("gaps",)
     RESPONSIVE_PROPS: ClassVar[frozenset[str]] = frozenset({"cols", "gap"})
 
     cols: Any = reactive_prop(default=None, emit_attr=False)
-    #: La largeur MINIMALE d'une colonne. La grille en met alors autant
-    #: qu'elle peut et replie le reste — ``repeat(auto-fit, minmax(X,
-    #: 1fr))``, l'idiome CSS canonique, le ``minChildWidth`` de Chakra.
+    #: A column's MINIMUM width. The grid then fits as many as it can
+    #: and wraps the rest — ``repeat(auto-fit, minmax(X, 1fr))``, the
+    #: canonical CSS idiom, Chakra's ``minChildWidth``.
     #:
-    #: Pourquoi il existe alors que ``cols=`` est déjà responsive : un
-    #: préfixe ``xl:`` lit la largeur de la FENÊTRE, pas celle de la
-    #: grille. Sous une coque à barre latérale, les deux divergent de la
-    #: largeur de la barre — mesuré sur le CRM, 4 colonnes de 244 px là où
-    #: le contenu n'a que 1024 px, donc un ``ui.toggle_group`` de 256 px
-    #: dehors. ``auto-fit`` lit la place réelle.
+    #: Why it exists when ``cols=`` is already responsive: an ``xl:``
+    #: prefix reads the WINDOW's width, not the grid's. Under a shell
+    #: with a side bar, the two diverge by the bar's width — measured on
+    #: the CRM, 4 columns of 244 px where the content only has 1024 px,
+    #: so a 256 px ``ui.toggle_group`` outside. ``auto-fit`` reads the
+    #: real room.
     min_col: Any = reactive_prop(default=None, emit_attr=False)
     # ``Any``, not ``str`` : both graded props take a breakpoint dict.
     gap: Any = reactive_prop(default="md", emit_attr=False)
@@ -89,55 +89,57 @@ class Grid(Component):
         gap: str | dict | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive ``None``
-        # (garde le défaut) — plus de garde ``if x is not None`` à re-taper.
+        # Direct forward: the base layer drops reactive ``None`` kwargs
+        # (keeps the default) — no more ``if x is not None`` guard to
+        # retype.
         super().__init__(cols=cols, min_col=min_col, gap=gap, **kwargs)
-        # Les deux décident du nombre de colonnes. Les accepter ensemble
-        # laisserait l'ordre de la feuille trancher — donc un résultat qui
-        # ne se lit dans aucun des deux appels. Refus à la CONSTRUCTION,
-        # où la pile porte encore la ligne de l'appelant.
+        # Both decide the number of columns. Accepting them together
+        # would let the sheet's order decide — so a result that reads in
+        # neither of the two calls. Refused at CONSTRUCTION, where the
+        # stack still carries the caller's line.
         if cols is not None and min_col is not None:
             raise ComponentUsageError(
-                "ui.grid(cols=…, min_col=…) : les deux décident du nombre "
-                "de colonnes, et les deux posent `grid-template-columns` — "
-                "le vainqueur dépendrait de l'ordre de la feuille Tailwind, "
-                "pas du tien.\n"
-                "  cols=      tu déclares combien de colonnes, par palier "
-                "de FENÊTRE ;\n"
-                "  min_col=   tu déclares la largeur minimale d'une "
-                "colonne, et la grille compte elle-même, sur sa place RÉELLE."
+                "ui.grid(cols=…, min_col=…): both decide the number of "
+                "columns, and both set `grid-template-columns` — the "
+                "winner would depend on the Tailwind sheet's order, not "
+                "on yours.\n"
+                "  cols=      you declare how many columns, per WINDOW "
+                "step;\n"
+                "  min_col=   you declare a column's minimum width, and "
+                "the grid counts by itself, on its REAL room."
             )
-        # Validée ICI et pas au rendu : une levée depuis ``render``
-        # remonte une pile sans aucune frame de l'appelant, donc elle nomme
-        # les valeurs acceptées sans dire lequel des N ``ui.grid`` de la
-        # page est fautif. Même arbitrage que ``Flex.grow``.
+        # Validated HERE and not at render: a raise from ``render``
+        # gives a stack with no frame of the caller, so it names the
+        # accepted values without saying which of the page's N
+        # ``ui.grid`` is at fault. Same trade-off as ``Flex.grow``.
         if min_col is not None:
             self._min_col_class(min_col, self._min_col_table())
 
     def _min_col_table(self) -> dict[str, str]:
-        """La table ``min_cols`` de ce composant, override utilisateur
-        compris. Une méthode et pas deux lectures : ``__init__`` valide et
-        ``render`` résout, et les deux doivent regarder la MÊME table —
-        sinon un ``Theme(components=…)`` ferait passer la validation et
-        rendre autre chose."""
+        """This component's ``min_cols`` table, user override included.
+        One method and not two reads: ``__init__`` validates and
+        ``render`` resolves, and the two must look at the SAME table —
+        otherwise a ``Theme(components=…)`` would make validation pass
+        and render something else."""
         return self._resolved_theme().get("min_cols", {})
 
     @staticmethod
     def _min_col_class(min_col: Any, table: dict[str, str]) -> str:
-        """La classe de ``min_col=``, ou une levée qui NOMME les valeurs.
+        """``min_col=``'s class, or a raise that NAMES the values.
 
-        Une largeur hors table rendrait la chaîne vide : la grille
-        retomberait sur une seule colonne, sans erreur et sans rien dire.
+        A width outside the table would render the empty string: the grid
+        would fall back on a single column, with no error and saying
+        nothing.
         """
         entry = table.get(min_col)
         if entry is None:
             accepted = ", ".join(repr(k) for k in table)
             raise ComponentUsageError(
-                f"min_col={min_col!r} n'est pas une largeur connue. Valeurs "
-                f"acceptées : {accepted}. La table est fermée pour que "
-                f"chaque classe soit ENTIÈRE, donc visible au compilateur "
-                f"Tailwind de prod ; pour une autre largeur, écris-la à "
-                f"l'appel avec cols='grid-cols-[…]'."
+                f"min_col={min_col!r} is not a known width. Accepted "
+                f"values: {accepted}. The table is closed so that every "
+                f"class is WHOLE, hence visible to the production Tailwind "
+                f"compiler; for another width, write it at the call site "
+                f"with cols='grid-cols-[…]'."
             )
         return entry
 
@@ -152,7 +154,8 @@ class Grid(Component):
             parts.append(root)
         min_col = self._reactive_values.get("min_col")
         if min_col:
-            # Ne peut plus lever : ``__init__`` a déjà refusé l'inconnu.
+            # Can no longer raise: ``__init__`` has already refused the
+            # unknown.
             parts.append(self._min_col_class(min_col, self._min_col_table()))
         else:
             cols_cls = responsive_classes(cols, _cols_class)
@@ -162,8 +165,8 @@ class Grid(Component):
         gap_cls = responsive_classes(gap, lambda v: gaps.get(v, ""))
         if gap_cls:
             parts.append(gap_cls)
-        # Classes user posées par le wrap ``_apply_universal_modifiers`` —
-        # ne pas ré-append ici (doublon). Gardé par
+        # User classes set by the ``_apply_universal_modifiers`` wrap —
+        # do not re-append here (duplicate). Guarded by
         # test_no_manual_user_class_append.py.
 
         attrs = self.emit_attrs()

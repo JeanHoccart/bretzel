@@ -1,121 +1,119 @@
-# Chat — le streaming serveur → navigateur, et ce qu'il coûte
+# Chat — server → browser streaming, and what it costs
 
 ```bash
 py -m examples.chat.main
 ```
 
-Un texte qui se remplit progressivement est le cas qui **oblige à choisir**
-entre les deux façons qu'a Bretzel de changer le DOM. Cet exemple les met
-côte à côte sur une seule page.
+Text that fills in progressively is the case that **forces a choice**
+between the two ways Bretzel has of changing the DOM. This example puts
+them side by side on a single page.
 
-## Les deux moitiés, et pourquoi elles ne se recouvrent pas
+## The two halves, and why they do not overlap
 
-| ce qui change | mécanisme | dans cet exemple |
+| what changes | mechanism | in this example |
 |---|---|---|
-| **Structure** — un nœud apparaît | `@refreshable` → re-rendu + morph | le journal des messages (`message_log`) |
-| **Valeur** — un nœud déjà lié change | `ClientState` → patch → signal | la bulle en cours (`streaming_bubble`) |
+| **Structure** — a node appears | `@refreshable` → re-render + morph | the message log (`message_log`) |
+| **Value** — an already-bound node changes | `ClientState` → patch → signal | the bubble in progress (`streaming_bubble`) |
 
-Ce ne sont pas deux solutions au même problème. Un message **de plus** est
-une structure : seul un re-rendu serveur peut le faire apparaître. Le
-**texte** de ce message qui grandit est une valeur : le serveur réassigne
-un champ, il redescend dans un patch JSON, et le navigateur écrit dans un
-nœud de texte — aucun HTML analysé, aucun morphing.
+These are not two solutions to the same problem. One message **more** is
+structure: only a server re-render can make it appear. The **text** of
+that message growing is a value: the server reassigns a field, it comes
+back down in a JSON patch, and the browser writes into a text node — no
+HTML parsed, no morphing.
 
-## Deux états, deux directions
+## Two states, two directions
 
-C'est le découpage qui porte tout le reste :
+This split carries everything else:
 
 ```python
-class Draft(ClientState, send_to_server=False):   # serveur → client
-    answer: str = ""          # le texte affiché pendant la génération
-    streaming: bool = False   # le gate du ui.interval
+class Draft(ClientState, send_to_server=False):   # server → client
+    answer: str = ""          # the text shown while generating
+    streaming: bool = False   # the ui.interval's gate
 
-class Prompt(ClientState):                        # client → serveur
-    text: str = ""            # ce que l'utilisateur tape
+class Prompt(ClientState):                        # client → server
+    text: str = ""            # what the user types
 ```
 
-`Draft` ne remonte **jamais** : sans ce réglage, le texte en cours
-d'écriture repartirait vers le serveur à chaque tick, pour des données que
-le client vient de recevoir. Le corollaire surprend et se lit dans
-`logic.py` : `Draft().answer` vaut `""` dans un handler, donc on
-**réassigne** `full[:cursor]` au lieu d'accumuler avec `+=`.
+`Draft` **never** travels back up: without that setting, the text being
+written would go back to the server on every tick, for data the client
+has only just received. The corollary is surprising and reads in
+`logic.py`: `Draft().answer` is `""` inside a handler, so we **reassign**
+`full[:cursor]` instead of accumulating with `+=`.
 
-`Prompt` remonte, parce que sa valeur naît dans le navigateur. Le socle
-refuse d'ailleurs de lier une prop two-way (`ui.input(value=…)`) à un état
-descendant-seul — la faute est attrapée à la construction, pas découverte
-en production.
+`Prompt` does travel up, because its value is born in the browser. The
+base layer refuses, incidentally, to bind a two-way prop
+(`ui.input(value=…)`) to a downward-only state — the mistake is caught at
+construction, not discovered in production.
 
-## La cadence est tirée par le client, et c'est le point
+## The cadence is pulled by the client, and that is the point
 
 ```python
 ui.interval(on_tick=pull_chunk, seconds=0.12, active=Draft().streaming)
 ```
 
-`active=` est un `ClientBinding` : le serveur le bascule à `False` et le
-timer s'arrête **au même instant**. C'est ce qui rend le bouton *Stop*
-honnête.
+`active=` is a `ClientBinding`: the server flips it to `False` and the
+timer stops **at the same instant**. That is what makes the *Stop* button
+honest.
 
-Une boucle serveur (`@app.background`) ne saurait pas faire : elle est
-sans contexte de requête, donc incapable de relire l'état qui lui dirait
-de s'arrêter. Elle continuerait à produire des requêtes après le clic.
-C'est écrit dans `.claude/bretzel/handlers.md` § *background*, et le
-stepper du playground a fait ce chemin en sens inverse pour la même
-raison.
+A server loop (`@app.background`) could not do it: it has no request
+context, hence no way to re-read the state that would tell it to stop. It
+would carry on producing requests after the click. It is written in
+`.claude/bretzel/handlers.md` § *background*, and the playground's
+stepper walked that road in reverse for the same reason.
 
-## Ce que ça coûte — mesuré, puis modélisé
+## What it costs — measured, then modelled
 
-Chaque tick renvoie la tranche **entière**, pas le delta. Le total
-descendu suit donc :
+Every tick resends the **whole** slice, not the delta. The total sent
+down therefore follows:
 
 ```
-total = n · (k + 1) / 2        n = taille finale, k = nombre de tranches
+total = n · (k + 1) / 2        n = final size, k = number of slices
 ```
 
-Modèle **validé contre le navigateur** : à `n = 337` et `k = 57`, il
-prédit 9 773 octets et `tests/runtime_js/test_chat_example_streams.py` en
-mesure 9 754 — 0,2 % d'écart. Une simulation hors navigateur de la même
-boucle retombe sur le chiffre exact.
+A model **validated against the browser**: at `n = 337` and `k = 57`, it
+predicts 9 773 bytes and `tests/runtime_js/test_chat_example_streams.py`
+measures 9 754 — a 0.2 % gap. An out-of-browser simulation of the same
+loop lands on the exact figure.
 
-Ce qui compte, c'est que **`k` est un choix d'application**, pas une
-limite du framework. Il divise le coût ET le nombre de requêtes,
-linéairement. Extrapolé à une réponse de 2 000 tokens (~8 Ko) :
+What matters is that **`k` is an application choice**, not a framework
+limit. It divides the cost AND the number of requests, linearly.
+Extrapolated to a 2 000-token answer (~8 KB):
 
-| mots / tranche | requêtes | descendu |
+| words / slice | requests | sent down |
 |---:|---:|---:|
-| 1 | 400 | 1 566 Ko |
-| 3 *(défaut ici)* | 133 | 525 Ko |
-| 5 | 80 | 316 Ko |
-| 20 | 20 | **82 Ko** |
-| 50 | 8 | 35 Ko |
+| 1 | 400 | 1 566 KB |
+| 3 *(the default here)* | 133 | 525 KB |
+| 5 | 80 | 316 KB |
+| 20 | 20 | **82 KB** |
+| 50 | 8 | 35 KB |
 
-**Conclusion, et elle est négative** : à une taille de tranche
-raisonnable, le transport actuel suffit. 20 requêtes et 82 Ko pour une
-réponse complète ne justifient pas de faire porter au canal SSE un patch
-d'ajout, ni d'inventer un mécanisme de plus. Le coût spectaculaire du
-premier relevé venait d'un réglage de l'exemple, pas du framework.
+**The conclusion, and it is a negative one**: at a reasonable slice size,
+the current transport is enough. 20 requests and 82 KB for a complete
+answer do not justify making the SSE channel carry an append patch, nor
+inventing one more mechanism. The spectacular cost of the first reading
+came from a setting of the example, not from the framework.
 
-Le chantier redeviendrait justifié à **une condition précise** : vouloir
-l'effet « machine à écrire » mot à mot ET une réponse longue — c'est-à-dire
-`k` grand par exigence de UX. Mais même là, la bonne réponse est
-probablement de dissocier la cadence de transport de la cadence
-d'affichage (récupérer par blocs, révéler progressivement côté client)
-plutôt que d'ajouter un canal.
+The work would become justified again under **one precise condition**:
+wanting the word-by-word "typewriter" effect AND a long answer — that is,
+a large `k` demanded by UX. But even there, the right answer is probably
+to decouple the transport cadence from the display cadence (fetch in
+blocks, reveal progressively on the client) rather than to add a channel.
 
-Le panneau de mesure de la page affiche tout ça en direct, sans le
-maquiller : un exemple qui cache le coût de ce qu'il démontre n'apprend
-rien.
+The page's measurement panel shows all of this live, without dressing it
+up: an example that hides the cost of what it demonstrates teaches
+nothing.
 
-## Le générateur est simulé
+## The generator is simulated
 
-Aucun appel LLM, aucune clé d'API. Le sujet est le **transport** ; brancher
-un vrai modèle ne changerait que `features/generator.py` § `answer_for`, et
-ne dirait rien de plus sur ce que cet exemple démontre.
+No LLM call, no API key. The subject is the **transport**; wiring a real
+model would change only `features/generator.py` § `answer_for`, and would
+say nothing more about what this example demonstrates.
 
-## Détail qui n'en est pas un
+## A detail that is not one
 
-Pendant la génération, la bulle affiche du **texte brut** ; à la
-validation, le message passe par `ui.markdown`. `ui.markdown` refuse un
-`ClientBinding` au constructeur — un chemin de binding réduirait toute la
-structure (titres, listes, code) à du texte plat et mentirait en silence.
-La plupart des UI de chat font pareil, pour une raison voisine : un
-markdown à moitié écrit n'est pas du markdown valide.
+While generating, the bubble shows **raw text**; on commit, the message
+goes through `ui.markdown`. `ui.markdown` refuses a `ClientBinding` at the
+constructor — a binding path would flatten the whole structure (headings,
+lists, code) into plain text and lie in silence. Most chat UIs do the
+same, for a neighbouring reason: half-written markdown is not valid
+markdown.

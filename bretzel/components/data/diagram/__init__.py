@@ -1,4 +1,4 @@
-"""Diagram — un graphe orienté placé en couches, rendu côté serveur."""
+"""Diagram — a directed graph laid out in layers, rendered server-side."""
 
 from bretzel.components.data.diagram.diagram import (
     Diagram,

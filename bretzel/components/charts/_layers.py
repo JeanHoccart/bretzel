@@ -1,17 +1,16 @@
-"""Couches SVG partagées par les charts — les morceaux qui construisent
-des ``Element``.
+"""SVG layers shared by the charts — the pieces that build ``Element``.
 
-Distinct de :mod:`._svg`, qui est volontairement I/O-free (maths pures,
-aucun import Bretzel, aucune construction d'``Element``). Ici on assemble
-des nœuds, donc ça ne pouvait pas y aller.
+Distinct from :mod:`._svg`, which is deliberately I/O-free (pure maths,
+no Bretzel import, no ``Element`` construction). Here we assemble nodes,
+so it could not go there.
 
-Trois couches, chacune était recopiée d'un chart à l'autre (audit F10,
-F43, F45) :
+Three layers, each copied from one chart to the next (audit F10, F43,
+F45):
 
-- :func:`render_empty_state` — l'état vide, un ``ui.empty_state`` dans
-  une boîte à la taille du tracé ;
-- :func:`render_axis_layer` — l'axe vertical + gridlines + labels ;
-- :func:`render_static_legend` — la légende non-interactive.
+- :func:`render_empty_state` — the empty state, a ``ui.empty_state`` in
+  a box the size of the plot;
+- :func:`render_axis_layer` — the vertical axis + gridlines + labels;
+- :func:`render_static_legend` — the non-interactive legend.
 """
 
 from __future__ import annotations
@@ -26,36 +25,37 @@ from bretzel.core.tree import TextNode as TextNode
 
 
 def reject_empty_text_component(value: Any, *, owner: str) -> None:
-    """``empty_text=`` n'est pas un slot — les quatre charts le refusent.
+    """``empty_text=`` is not a slot — the four charts refuse it.
 
-    La raison est structurelle et se lit dans :func:`render_empty_state`
-    juste dessous : le texte part à DEUX endroits, le titre de
-    l'``EmptyState`` **et** l'``aria-label`` de la boîte. Un attribut
-    HTML ne porte qu'une string, donc un Component y serait sérialisé en
-    son ``repr`` Python pour le lecteur d'écran — c'est mot pour mot
-    l'argument par lequel ``file_upload.label`` refuse déjà.
+    The reason is structural and reads in :func:`render_empty_state`
+    just below: the text goes to TWO places, the ``EmptyState``'s title
+    **and** the box's ``aria-label``. An HTML attribute only carries a
+    string, so a Component would be serialised there as its Python
+    ``repr`` for the screen reader — it is word for word the argument by
+    which ``file_upload.label`` already refuses.
 
-    ⚠️ La raison a survécu au changement de rendu (SVG → ``EmptyState``,
-    2026-09-07) parce qu'elle porte sur le DOUBLE emploi du texte, pas
-    sur la balise. Elle disait « un ``<text>`` SVG et l'``aria-label`` du
-    ``<svg>`` » ; les deux destinations existent toujours.
+    ⚠️ The reason survived the render change (SVG → ``EmptyState``,
+    2026-09-07) because it bears on the DOUBLE use of the text, not on
+    the tag. It said "an SVG ``<text>`` and the ``<svg>``'s
+    ``aria-label``"; both destinations still exist.
 
-    Écrit une fois ici plutôt que quatre fois dans les charts : la raison
-    est la même pour les quatre, et une raison recopiée quatre fois
-    dérive (audit F10/F43/F45, le motif de ce module).
+    Written once here rather than four times in the charts: the reason
+    is the same for all four, and a reason copied four times drifts
+    (audit F10/F43/F45, this module's pattern).
     """
     reject_component(
         value,
         owner=owner,
         prop="empty_text",
         because=(
-            "ce texte part AUSSI dans l'``aria-label`` de la boîte, et un "
-            "attribut HTML ne peut porter qu'une string (le Component y "
-            "serait annoncé au lecteur d'écran sous son repr Python)."
+            "this text ALSO goes into the box's ``aria-label``, and an "
+            "HTML attribute can only carry a string (the Component would "
+            "be announced there to the screen reader under its Python "
+            "repr)."
         ),
         instead=(
-            "Pour un état vide composé, c'est ``empty=`` : "
-            "``ui.bar_chart(data, empty=lambda: ui.button('Importer'))``."
+            "For a composed empty state, that is ``empty=``: "
+            "``ui.bar_chart(data, empty=lambda: ui.button('Import'))``."
         ),
     )
 
@@ -72,31 +72,31 @@ def render_empty_state(
     escape: Callable[[], Any] | None,
     size_key: str,
 ) -> Element:
-    """L'état vide d'un chart : un ``ui.empty_state`` dans une boîte à la
-    taille du tracé, ou l'échappatoire que l'auteur a posée.
+    """A chart's empty state: a ``ui.empty_state`` in a box the size of
+    the plot, or the escape hatch the author placed.
 
 
-    **Pourquoi ce n'est plus un ``<text>`` SVG centré.** Les quatre
-    charts n'offraient que ``empty_text``, quand ``table``,
-    ``datatable`` et ``diagram`` offrent les quatre — trois profondeurs
-    pour un même besoin (audit du 2026-09-06, § 1.3). Un graphique vide
-    disait « No data » et rien d'autre : ni pourquoi, ni quoi faire.
-    Composer :class:`EmptyState`, comme le fait ``diagram``, aligne les
-    quatre sur le reste du catalogue et leur donne l'icône, la
-    hiérarchie de titre et l'espacement du thème sans les réécrire.
+    **Why it is no longer a centred SVG ``<text>``.** The four charts
+    offered only ``empty_text``, when ``table``, ``datatable`` and
+    ``diagram`` offer all four — three depths for one need (audit of
+    2026-09-06, § 1.3). An empty chart said "No data" and nothing else:
+    neither why, nor what to do. Composing :class:`EmptyState`, as
+    ``diagram`` does, aligns the four with the rest of the catalogue and
+    gives them the theme's icon, title hierarchy and spacing without
+    rewriting them.
 
-    ⚠️ **``role="img"`` + ``aria-label`` sur la BOÎTE**, pas sur le
-    contenu, et c'est ce qui préserve le correctif F24 : un scatter vide
-    s'annonçait « Line chart » quand l'helper était privé à line_chart.
-    ``kind`` reste donc obligatoire, et ``role="img"`` rend les
-    descendants présentationnels — exactement la sémantique qu'avait le
-    ``<svg role="img">``, sans quoi le lecteur d'écran perdrait
-    l'identité du composant en gagnant le message.
+    ⚠️ **``role="img"`` + ``aria-label`` on the BOX**, not on the
+    content, and that is what preserves fix F24: an empty scatter
+    announced itself as "Line chart" when the helper was private to
+    line_chart. ``kind`` therefore stays mandatory, and ``role="img"``
+    makes the descendants presentational — exactly the semantics the
+    ``<svg role="img">`` had, without which the screen reader would lose
+    the component's identity while gaining the message.
 
-    ⚠️ **``_detach_from_parent`` AVANT ``render()``.** Un Component bâti
-    dans un ``render()`` s'auto-enregistre au parent ACTIF et fuit —
-    piège « Icon construit dans render() sans detach » de traps.md, payé
-    par ``diagram`` avant nous.
+    ⚠️ **``_detach_from_parent`` BEFORE ``render()``.** A Component built
+    in a ``render()`` registers itself with the ACTIVE parent and leaks
+    — traps.md's "Icon built in render() without detach" trap, paid for
+    by ``diagram`` before us.
     """
     from bretzel.components.base import coerce_children
     from bretzel.components.base.component import Component
@@ -116,9 +116,10 @@ def render_empty_state(
         message,
         icon=icon,
         description=description,
-        # L'état vide suit le palier du chart : sans ça un ``size=`` ne
-        # changerait RIEN sur un graphique vide — le kwarg mort que ce
-        # dépôt traque. Même raison, même ligne que ``diagram``.
+        # The empty state follows the chart's step: without that a
+        # ``size=`` would change NOTHING on an empty chart — the dead
+        # kwarg this repository hunts. Same reason, same line as
+        # ``diagram``.
         size=size_key,
     )
     Component._detach_from_parent(empty)
@@ -139,18 +140,18 @@ def render_axis_layer(
     *,
     group_class: str,
 ) -> Element:
-    """L'axe vertical : la ligne d'axe, les gridlines horizontales, les
-    labels de graduation.
+    """The vertical axis: the axis line, the horizontal gridlines, the
+    tick labels.
 
-    ``group_class`` est la classe du ``<g>`` conteneur. Elle est
-    paramétrée — et non unifiée — parce que line et bar émettent des noms
-    différents (``bz-line-axes`` / ``bz-bar-axes``) qu'aucun CSS ni JS du
-    framework ne lit : les fusionner ne gagnerait rien et casserait un
-    éventuel sélecteur applicatif. Les unifier reste possible, ce sera un
-    geste conscient.
+    ``group_class`` is the container ``<g>``'s class. It is parameterised
+    — and not unified — because line and bar emit different names
+    (``bz-line-axes`` / ``bz-bar-axes``) that no framework CSS or JS
+    reads: merging them would gain nothing and would break a possible
+    application selector. Unifying them stays possible, it will be a
+    conscious gesture.
 
-    (BarChart en portait une copie identique au caractère près, modulo
-    ce nom de classe et le retour à la ligne — audit F10.)
+    (BarChart carried a copy identical to the character, modulo that
+    class name and the line break — audit F10.)
     """
     gridline_cls = slot("gridline")
     axis_cls = slot("axis")
@@ -187,13 +188,13 @@ def render_static_legend(
     slot: Callable[..., str],
     entries: Sequence[tuple[str | None, str]],
 ) -> Element:
-    """La légende non-interactive : une pastille + un libellé par entrée.
+    """The non-interactive legend: one dot + one label per entry.
 
-    ``entries`` est une séquence de ``(couleur, libellé)`` — les charts à
-    séries passent ``(s.color, s.name)``, le camembert passe
-    ``(palette[i], label)``. C'est la seule chose qui différait entre les
-    deux copies (audit F45) ; la version interactive (line / scatter,
-    avec toggle de série) reste distincte, elle a un vrai comportement.
+    ``entries`` is a sequence of ``(colour, label)`` — the series charts
+    pass ``(s.color, s.name)``, the pie passes ``(palette[i], label)``.
+    It is the only thing that differed between the two copies (audit
+    F45); the interactive version (line / scatter, with series toggle)
+    stays separate, it has a real behaviour.
     """
     label_cls = slot("legend_label")
     children: list[Element] = []

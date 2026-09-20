@@ -91,7 +91,7 @@ class Tree(Component):
         on_change: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             value=value,
             selectable=selectable,
@@ -128,22 +128,22 @@ class Tree(Component):
         # stale ``value`` signal) ; a literal stays client-owned. ``open``
         # (disclosure) is pure client UI, never synced. Same gate as Tabs.
         sel_server_backed = self._value_server_backed("value")
-        # La clé de scope vient de ``reactive_prop(scope_keys=)`` — elle
-        # était recopiée en littéral à trois endroits (le seed, l'expr,
-        # le marker) et un rename devait toucher les trois (audit F47).
+        # The scope key comes from ``reactive_prop(scope_keys=)`` — it
+        # was copied as a literal in three places (the seed, the expr,
+        # the marker) and a rename had to touch all three (audit F47).
         (sel_key,) = self._scope_keys("value")
         sel_expr = f"this.{sel_key}"
-        # ── bz-data : des DONNÉES, les méthodes vivent au runtime ──────
-        # ``isOpen`` / ``toggle`` / ``isSel`` / ``select`` sortent une
-        # seule fois de ``$bz.tree.scope``
-        # (``bretzel/runtime/_src/16_accordion.js``). Ce builder les
-        # sérialisait dans CHAQUE instance — 293 octets — alors qu'ils sont
-        # rigoureusement identiques d'un arbre à l'autre.
+        # ── bz-data: DATA, the methods live in the runtime ────────────
+        # ``isOpen`` / ``toggle`` / ``isSel`` / ``select`` come out once
+        # from ``$bz.tree.scope``
+        # (``bretzel/runtime/_src/16_accordion.js``). This builder
+        # serialised them into EVERY instance — 293 bytes — although they
+        # are rigorously identical from one tree to the next.
         #
-        # ``_read``/``_write`` (nœuds dépliés) et ``_readSel``/``_writeSel``
-        # (sélection) portent l'indirection : les mêmes méthodes servent le
-        # champ local et la cellule du store. Pas de getter — ``absorb``
-        # invoque chaque clé une fois et le figerait.
+        # ``_read``/``_write`` (expanded nodes) and
+        # ``_readSel``/``_writeSel`` (selection) carry the indirection:
+        # the same methods serve the local field and the store cell. No
+        # getter — ``absorb`` invokes each key once and would freeze it.
         parts: list[str] = [
             f"open: {json.dumps(self._expanded)}",
             "_read() { return this.open; }",
@@ -199,11 +199,11 @@ class Tree(Component):
             spacer_span=spacer_span,
         )
 
-        # ``unwrap_transparent`` : un nœud ENVELOPPÉ — zone
-        # ``@refreshable``, ``ui.fragment`` — n'est pas une instance de
-        # ``TreeNode``, donc il DISPARAISSAIT de l'arbre. Mesuré le
-        # 2026-08-23 : 2 211 → 1 249 caractères, sans une erreur.
-        # ``rewrap`` rend son ``bz-id`` à la zone.
+        # ``unwrap_transparent``: a WRAPPED node — a ``@refreshable``
+        # zone, a ``ui.fragment`` — is not an instance of ``TreeNode``,
+        # so it DISAPPEARED from the tree. Measured on 2026-08-23: 2,211
+        # → 1,249 characters, with no error. ``rewrap`` gives its
+        # ``bz-id`` back to the zone.
         top_nodes = [unwrap_transparent(c) for c in self._children]
         node_els = [
             rewrap(self._render_node(n, 0, ctx))
@@ -244,8 +244,8 @@ class Tree(Component):
         node_id = str(node._reactive_values.get("value") or "")
         id_js = json.dumps(node_id)
         disabled = bool(node._reactive_values.get("disabled"))
-        # Les enfants d'un nœud se déballent comme ceux de la racine : un
-        # sous-arbre rafraîchissable est un cas d'usage tout aussi normal.
+        # A node's children unwrap like the root's: a refreshable
+        # subtree is just as normal a use case.
         kids = [
             child
             for child, _ in (unwrap_transparent(c) for c in node._children)
@@ -345,8 +345,8 @@ class Tree(Component):
             attrs: dict[str, Any] = {"bz-show": expr}
             if not show:
                 attrs["style"] = "display:none"
-            # render_detached : un Icon construit pendant render() fuit à
-            # la racine quand le Tree est détaché (cf. banner/badge).
+            # render_detached: an Icon built during render() leaks to
+            # the root when the Tree is detached (cf. banner/badge).
             return Component.render_detached(Icon(
                 name, size=ctx.chevron_size, classes=ctx.chevron_glyph,
                 attrs=attrs,
@@ -377,9 +377,10 @@ class Tree(Component):
     def _node_label(node: TreeNode, ctx: _RenderCtx) -> Element:
         label = node._reactive_values.get("label")
         attrs = {"class": ctx.label_class}
-        # Pas de branche ClientBinding : ``label`` n'est pas bindable et un
-        # binding vit dans ``_binding_metadata``, jamais ``_reactive_values``
-        # — cf. traps.md § « Lire un binding via _reactive_values + isinstance ».
+        # No ClientBinding branch: ``label`` is not bindable and a
+        # binding lives in ``_binding_metadata``, never
+        # ``_reactive_values`` — cf. traps.md § "Reading a binding
+        # through _reactive_values + isinstance".
         if isinstance(label, Component):
             return Element(tag="span", attrs=attrs, children=(label.render(),))
         # Empty / omitted label → fall back to the node id (a labelless
@@ -457,19 +458,19 @@ class TreeNode(Component):
             owner="TreeNode",
             prop="value",
             because=(
-                "``value`` est l'IDENTIFIANT du nœud — c'est lui que le "
-                "Tree compare pour la sélection et le pliage, et il part "
-                "dans le littéral de scope lu par le runtime. Un Component "
-                "y était stringifié en son repr Python, donc l'identifiant "
-                "changeait à chaque rendu."
+                "``value`` is the node's IDENTIFIER — it is what the "
+                "Tree compares for selection and folding, and it goes into "
+                "the scope literal the runtime reads. A Component was "
+                "stringified there as its Python repr, so the identifier "
+                "changed at every render."
             ),
-            instead="Le contenu affiché, c'est ``label=`` — il accepte un Component.",
+            instead="The displayed content is ``label=`` — it accepts a Component.",
         )
         # ``label`` is a ``reactive_prop`` — the base ``Component.__init__``
         # already auto-detaches any Component value landing in a
         # reactive_prop (cf. component.py's generic reactive-props loop),
         # so no manual adopt_slot/detach is needed here.
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             value=value,
             label=label,

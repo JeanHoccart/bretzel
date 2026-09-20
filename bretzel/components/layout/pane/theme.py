@@ -1,50 +1,46 @@
-"""Thème par défaut de :class:`Pane` — la région qui défile.
+"""Default theme for :class:`Pane` — the region that scrolls.
 
-Le slot ``root`` porte cinq utilitaires, et **deux d'entre eux ne se
-devinent pas**. C'est la raison d'être du composant : chacun a coûté une
-mesure et une entrée de ``traps.md`` avant d'être écrit ici.
+The ``root`` slot carries five utilities, and **two of them cannot be
+guessed**. That is the component's reason to be: each cost a measurement
+and a ``traps.md`` entry before being written here.
 
-``flex-1`` **et** ``h-full``
-    Les deux, parce que le parent peut avoir deux formes et que le
-    composant ne sait pas laquelle. Dans un parent ``flex-col``,
-    ``flex-basis: 0%`` remplace la taille principale et ``height: 100%``
-    est ignoré ; dans un parent bloc à hauteur définie (un
-    ``ui.resizable_panel``, par exemple), ``flex-1`` est inerte et c'est
-    ``h-full`` qui rend. Mesuré en Chromium sur les trois formes de
-    parent — colonne flex, bloc, panneau : la combinaison des deux
-    défile dans les trois, ``flex-1`` seul échoue dans deux (600 px de
-    haut, aucun défilement), ``h-full`` seul rate la place restante en
-    colonne flex.
+``flex-1`` **and** ``h-full``
+    Both, because the parent can have two shapes and the component does
+    not know which. In a ``flex-col`` parent, ``flex-basis: 0%``
+    replaces the main size and ``height: 100%`` is ignored; in a block
+    parent with a defined height (a ``ui.resizable_panel``, for
+    instance), ``flex-1`` is inert and it is ``h-full`` that renders.
+    Measured in Chromium on all three parent shapes — flex column,
+    block, panel: the combination of both scrolls in all three,
+    ``flex-1`` alone fails in two (600 px tall, no scrolling),
+    ``h-full`` alone misses the remaining space in a flex column.
 
 ``min-h-0``
-    Load-bearing. Sans lui, la hauteur minimale automatique d'un item
-    flex vaut la taille de son contenu : la boîte GRANDIT au lieu de
-    défiler, et rien ne le signale. Déjà dans ``traps.md`` § *sidebar
-    scroll*.
+    Load-bearing. Without it, a flex item's automatic minimum height is
+    its content's size: the box GROWS instead of scrolling, and nothing
+    reports it. Already in ``traps.md`` § *sidebar scroll*.
 
 ``[&>*]:shrink-0``
-    Load-bearing aussi, et encore moins devinable. La racine de
-    ``ui.card`` porte ``overflow-hidden``, donc sa hauteur minimale
-    automatique vaut ZÉRO : dès que la liste remplit la colonne, les
-    cartes se compriment sous leur contenu. Mesuré sur
-    ``examples/crm`` : 73 px libre contre 34 px contraint, **39 px
-    coupés** — et invisible sur la dernière page, qui n'a pas assez de
-    lignes pour remplir. ``traps.md`` § *Une colonne qui défile ÉCRASE
-    ses items*.
+    Load-bearing too, and even less guessable. ``ui.card``'s root
+    carries ``overflow-hidden``, so its automatic minimum height is
+    ZERO: as soon as the list fills the column, the cards compress below
+    their content. Measured on ``examples/crm``: 73 px free against
+    34 px constrained, **39 px cut off** — and invisible on the last
+    page, which has too few rows to fill. ``traps.md`` § *A column that
+    scrolls CRUSHES its items*.
 
-Ce qui n'est **pas** ici, et pourquoi
---------------------------------------
-``pr-1`` — la gouttière qui écarte le contenu de la barre de défilement.
-Trois sites sur dix-sept l'écrivent, et surtout elle se bat avec
-``padding=`` : ``p-8`` et ``pr-1`` posent tous deux ``padding-right``, et
-le vainqueur dépend de l'ordre de la feuille Tailwind, pas de l'ordre des
-classes. Un réglage par instance qui casse une prop reste dans
-``classes=``.
+What is **not** here, and why
+------------------------------
+``pr-1`` — the gutter that keeps the content away from the scrollbar.
+Three sites out of seventeen write it, and above all it fights with
+``padding=``: ``p-8`` and ``pr-1`` both set ``padding-right``, and the
+winner depends on the Tailwind sheet's order, not on the classes'
+order. A per-instance setting that breaks a prop stays in ``classes=``.
 
-Les tables ``directions`` / ``alignments`` / ``justifies`` / ``gaps`` sont
-recopiées de :data:`FLEX_THEME` plutôt que partagées : la convention du
-dépôt est qu'un thème est auto-suffisant, pour qu'un override n'ait
-jamais à deviner d'où vient une valeur.
+The ``directions`` / ``alignments`` / ``justifies`` / ``gaps`` tables are
+copied from :data:`FLEX_THEME` rather than shared: the repository's
+convention is that a theme is self-sufficient, so an override never has
+to guess where a value comes from.
 """
 
 from __future__ import annotations
@@ -53,8 +49,8 @@ from typing import Any
 
 PANE_THEME: dict[str, Any] = {
     "slots": {
-        # ``flex`` seul : la direction arrive de la table ci-dessous
-        # (``col`` par défaut, scellé — un pane est une colonne).
+        # ``flex`` alone: the direction comes from the table below
+        # (``col`` by default, sealed — a pane is a column).
         "root": "flex flex-1 h-full min-h-0 overflow-y-auto [&>*]:shrink-0",
     },
     "directions": {
@@ -63,24 +59,23 @@ PANE_THEME: dict[str, Any] = {
         "row-reverse": "flex-row-reverse",
         "col-reverse": "flex-col-reverse",
     },
-    # ⚠️ Les deux CENTRAGES portent le mot-clé CSS ``safe``, et c'est le
-    # seul endroit du catalogue où il compte : un pane DÉFILE
-    # (``overflow-y-auto``). Centrer un contenu plus haut que le cadre le
-    # fait déborder des DEUX côtés, or le défilement ne remonte jamais
-    # au-dessus de son origine — la partie haute devient donc
-    # **inatteignable**, définitivement. ``safe`` dit au navigateur de
-    # retomber sur ``start`` quand ça déborde, ce qui est exactement le
-    # cas où le centrage nuit.
+    # ⚠️ Both CENTRINGS carry the CSS keyword ``safe``, and it is the
+    # only place in the catalogue where it counts: a pane SCROLLS
+    # (``overflow-y-auto``). Centring content taller than the frame makes
+    # it overflow on BOTH sides, yet scrolling never goes back above its
+    # origin — so the top part becomes **unreachable**, for good.
+    # ``safe`` tells the browser to fall back on ``start`` when it
+    # overflows, which is exactly the case where centring harms.
     #
-    # Mesuré le 2026-08-24 sur la page de connexion d'``auth`` en
-    # 1280×600 : contenu de 732 px, cadre de 600, et **108 px coupés en
-    # haut** que rien ne permettait d'atteindre. Le symptôme ne désigne
-    # rien — la page a l'air simplement tronquée, pas cassée.
+    # Measured on 2026-08-24 on ``auth``'s sign-in page at 1280×600:
+    # 732 px of content, a 600 px frame, and **108 px cut off at the
+    # top** that nothing allowed you to reach. The symptom designates
+    # nothing — the page simply looks truncated, not broken.
     #
-    # Forme entre crochets plutôt que ``justify-center-safe`` : cet
-    # utilitaire n'existe que depuis Tailwind 4.1, et le compilateur
-    # navigateur du mode dev peut être plus ancien. La propriété
-    # arbitraire, elle, marche depuis la v3.
+    # The bracketed form rather than ``justify-center-safe``: that
+    # utility only exists since Tailwind 4.1, and the dev mode's browser
+    # compiler may be older. The arbitrary property, for its part, has
+    # worked since v3.
     "alignments": {
         "start": "items-start",
         "center": "[align-items:safe_center]",
@@ -104,9 +99,9 @@ PANE_THEME: dict[str, Any] = {
         "lg": "gap-6",
         "xl": "gap-8",
     },
-    # Même échelle que ``ui.card`` — la respiration d'une région de
-    # contenu et celle d'une carte se comparent à l'œil dans la même vue,
-    # donc deux échelles concurrentes se verraient.
+    # Same scale as ``ui.card`` — the breathing room of a content region
+    # and a card's are compared by eye in the same view, so two competing
+    # scales would show.
     "paddings": {
         "none": "",
         "xs": "p-2 sm:p-3",
@@ -115,13 +110,13 @@ PANE_THEME: dict[str, Any] = {
         "lg": "p-6 sm:p-8",
         "xl": "p-8 sm:p-10",
     },
-    # Pas de clé ``wrap`` : la prop est SCELLÉE sur le composant, donc la
-    # table serait du thème mort — et elle ressortait dans
-    # ``bretzel describe pane``, ce qui rendait visible une prop refusée
-    # à l'appel. Exactement ce que ``SEALED_PROPS`` existe pour éviter.
-    # Recopiée de :data:`FLEX_THEME` comme les tables voisines — un thème
-    # est auto-suffisant dans ce dépôt. Les trois copies sont tenues
-    # identiques par ``test_a_flex_family_declares_every_table``.
+    # No ``wrap`` key: the prop is SEALED on the component, so the table
+    # would be dead theme — and it came out in ``bretzel describe pane``,
+    # which made visible a prop refused at the call. Exactly what
+    # ``SEALED_PROPS`` exists to avoid.
+    # Copied from :data:`FLEX_THEME` like the neighbouring tables — a
+    # theme is self-sufficient in this repository. The three copies are
+    # kept identical by ``test_a_flex_family_declares_every_table``.
     "grows": {
         "equal": "*:grow *:basis-0",
         "12rem": "*:grow *:basis-48",

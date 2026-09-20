@@ -1,17 +1,17 @@
 """Default :class:`ColorPicker` theme.
 
-Silhouette de la famille picker — un cadre bordé qui porte la hauteur du
-palier, un champ éditable dedans, un bouton déclencheur à droite, un
-panneau ancré. La seule différence est le contenu du panneau : une
-grille de pastilles au lieu d'une grille de jours.
+The picker family's silhouette — a bordered frame carrying the step's
+height, an editable field inside, a trigger button on the right, an
+anchored panel. The only difference is the panel's content: a grid of
+swatches instead of a grid of days.
 
-⚠️ **La hauteur du palier est sur le CADRE**, qui porte la bordure. La
-poser sur l'``<input>`` intérieur rend 2 px de plus (``box-sizing:
-border-box`` compte la bordure), et l'écart ne se voit qu'à l'écran —
-cf. ``traps.md`` § *Hauteur de palier sur l'ENFANT*.
+⚠️ **The step's height is on the FRAME**, which carries the border.
+Setting it on the inner ``<input>`` renders 2 px more (``box-sizing:
+border-box`` counts the border), and the gap only shows on screen — cf.
+``traps.md`` § *A step's height on the CHILD*.
 
-La pastille de tête n'est pas décorative : c'est le seul endroit où la
-valeur se lit **comme une couleur**. Un hexadécimal ne se relit pas.
+The head swatch is not decorative: it is the only place where the value
+reads **as a colour**. A hexadecimal does not read back.
 """
 
 from __future__ import annotations
@@ -29,17 +29,17 @@ COLOR_PICKER_THEME: dict[str, Any] = {
             "focus-within:ring-offset-2 focus-within:ring-offset-background "
             "has-[:disabled]:opacity-50 has-[:disabled]:cursor-not-allowed"
         ),
-        # La pastille de tête — elle REND la valeur courante.
+        # The head swatch — it RENDERS the current value.
         #
-        # ⚠️ ``bg-text/5`` et pas un damier : la première écriture était
-        # un ``repeating-conic-gradient`` coupé en DEUX littéraux Python
-        # pour tenir dans la ligne, et le compilateur Tailwind scanne les
-        # sources — il n'aurait vu ni l'une ni l'autre moitié. Classe
-        # inexistante en prod, damier correct en dev. Attrapé par
-        # ``test_emitted_classes_exist_in_source`` avant de partir.
+        # ⚠️ ``bg-text/5`` and not a checkerboard: the first writing was a
+        # ``repeating-conic-gradient`` split into TWO Python literals to
+        # fit on the line, and the Tailwind compiler scans the sources —
+        # it would have seen neither half. A class non-existent in prod,
+        # a correct checkerboard in dev. Caught by
+        # ``test_emitted_classes_exist_in_source`` before it shipped.
         #
-        # Le gris de repos joue le même rôle : une pastille SANS couleur
-        # ne se confond pas avec une pastille blanche.
+        # The resting grey plays the same role: a swatch WITH NO colour
+        # is not confused with a white swatch.
         "swatch": (
             "shrink-0 rounded-selector border-(length:--bz-stroke) border-text/15 bg-text/5"
         ),
@@ -66,16 +66,17 @@ COLOR_PICKER_THEME: dict[str, Any] = {
         "panel": (
             "absolute z-50 mt-1 rounded-box border-(length:--bz-stroke) border-text/10 "
             "bg-surface shadow-lg p-3 w-max max-w-[min(20rem,100vw-2rem)] "
-            # Le fondu entrant, cadence des CHAMPS (75 ms, moitié de
-            # celle des menus). Mécanisme des trois classes : un seul
-            # exemplaire, dans ``overlay/dropdown/theme.py``.
+            # The enter fade, FIELD cadence (75 ms, half the menus').
+            # Mechanism of the three classes: a single copy, in
+            # ``overlay/dropdown/theme.py``.
             "transition-[opacity,display] transition-discrete duration-75 "
             "starting:opacity-0"
         ),
         "grid": "grid grid-cols-8 gap-1.5",
-        # Une pastille du panneau. ``data-selected`` marque celle qui vaut
-        # la valeur courante — l'anneau la désigne sans changer sa taille,
-        # donc la grille ne bouge pas quand la sélection change.
+        # One swatch of the panel. ``data-selected`` marks the one that
+        # equals the current value — the ring designates it without
+        # changing its size, so the grid does not move when the selection
+        # changes.
         "swatch_cell": (
             "h-6 w-6 rounded-selector border-(length:--bz-stroke) border-text/15 cursor-pointer "
             "transition-transform hover:scale-110 "
@@ -89,14 +90,14 @@ COLOR_PICKER_THEME: dict[str, Any] = {
         ),
         "panel_label": "text-xs text-muted mb-2 font-medium",
     },
-    # ``sizes[<palier>][<slot>]`` — la forme CANONIQUE. Les trois
-    # pickers de date l'écrivent inversée et sont des exceptions
-    # déclarées ; un composant neuf n'a aucune raison de les imiter là.
+    # ``sizes[<step>][<slot>]`` — the CANONICAL shape. The three date
+    # pickers write it inverted and are declared exceptions; a new
+    # component has no reason to imitate them there.
     #
-    # L'échelle est celle des contrôles — ``h-7/h-8/h-10/h-12/h-14``, la
-    # même qu'Input et Select. Un palier manquant ne lève pas : le render
-    # retombe sur ``md``, donc le champ sort plus petit que son voisin au
-    # même palier, et ça ne se voit qu'à l'écran.
+    # The scale is the controls' — ``h-7/h-8/h-10/h-12/h-14``, the same
+    # as Input's and Select's. A missing step does not raise: the render
+    # falls back on ``md``, so the field comes out smaller than its
+    # neighbour at the same step, and that only shows on screen.
     "sizes": {
         "xs": {
             "input_frame": "h-7 px-1.5", "swatch": "h-4 w-4",

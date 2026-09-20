@@ -126,8 +126,8 @@ from bretzel.components.primitives.code import Code
 from bretzel.components.primitives.divider import Divider
 from bretzel.components.primitives.heading import Heading
 
-# ``Html`` le COMPOSANT, à ne pas confondre avec ``core.tree.Html``, le
-# nœud d'arbre qu'il enveloppe. Le nœud n'est jamais exposé sur ``ui``.
+# ``Html`` the COMPONENT, not to be confused with ``core.tree.Html``,
+# the tree node it wraps. The node is never exposed on ``ui``.
 from bretzel.components.primitives.html import Html
 from bretzel.components.primitives.icon import Icon
 from bretzel.components.primitives.iframe import SANDBOX_BASELINE, Iframe
@@ -174,9 +174,9 @@ class _UI:
     grid = Grid
     resizable = Resizable
     resizable_panel = ResizablePanel
-    # Le modèle « document gelé » : le cadre et ses régions qui
-    # défilent. Explicite — le défaut de Bretzel reste le document
-    # qui défile (cf. la docstring de Viewport).
+    # The "frozen document" model: the frame and its scrolling regions.
+    # Explicit — Bretzel's default is still the document that scrolls
+    # (cf. Viewport's docstring).
     viewport = Viewport
     pane = Pane
 
@@ -229,8 +229,8 @@ class _UI:
     tree = Tree
     tree_node = TreeNode
     diagram = Diagram
-    # Descripteurs du graphe — même sucre que ``column`` : l'auteur ne
-    # va pas importer deux dataclasses pour décrire trois nœuds.
+    # Graph descriptors — the same sugar as ``column``: the author is
+    # not going to import two dataclasses to describe three nodes.
     node = staticmethod(_node)
     edge = staticmethod(_edge)
 
@@ -285,11 +285,11 @@ class _UI:
     # (V1 idiom — no container to mount on the page) renders it.
     notification = staticmethod(_notification)
 
-    # ``ui.pending(...)`` n'est pas un composant : c'est une SOURCE
-    # réactive (une ``ClientExpression``) qui dit « une action est en
-    # vol ». Elle se binde sur ``loading=`` / ``disabled=`` / ``visible=``
-    # comme un champ de ``ClientState`` — le framework publie le
-    # booléen, l'app décide quoi en afficher.
+    # ``ui.pending(...)`` is not a component: it is a reactive SOURCE
+    # (a ``ClientExpression``) saying "an action is in flight". It binds
+    # onto ``loading=`` / ``disabled=`` / ``visible=`` like a
+    # ``ClientState`` field — the framework publishes the boolean, the
+    # app decides what to show for it.
     pending = staticmethod(_pending)
 
     # Iteration helper (not a component — the spec calls it out as a
@@ -350,8 +350,8 @@ __all__ = [
     "Heading",
     "Html",
     "Iframe",
-    # La valeur par DÉFAUT de ``ui.iframe(sandbox=)`` : une app qui
-    # veut l'étendre doit pouvoir la nommer.
+    # The DEFAULT value of ``ui.iframe(sandbox=)``: an app that wants to
+    # extend it must be able to name it.
     "SANDBOX_BASELINE",
     "Icon",
     "IconButton",
@@ -424,10 +424,10 @@ __all__ = [
     "Viewport",
     # The namespace
     "ui",
-    # Le pipeline datatable : le type qu'un handler NOMME, et le
-    # helper qui l'applique a une liste Python.
+    # The datatable pipeline: the type a handler NAMES, and the helper
+    # that applies it to a Python list.
     "apply_query",
-    # Introspection — ce que la safelist prod doit couvrir et que le
-    # scanner Tailwind ne voit pas : gabarits couleur, tokens gradués.
+    # Introspection — what the production safelist must cover and the
+    # Tailwind scanner does not see: colour templates, graded tokens.
     "dynamic_responsive_classes",
 ]

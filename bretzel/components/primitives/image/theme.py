@@ -1,29 +1,31 @@
 """Default :class:`Image` theme.
 
-Un seul slot, parce que le composant est un seul élément : la racine
-**est** l'``<img>``. Il n'y a pas de wrapper, et c'est le point de design
-central — un ``<img>`` porte lui-même ``aspect-ratio``, ``object-fit`` et
-un fond, donc la « boîte » du chargement est son propre background.
+A single slot, because the component is a single element: the root **is**
+the ``<img>``. There is no wrapper, and that is the central design point
+— an ``<img>`` carries ``aspect-ratio``, ``object-fit`` and a background
+itself, so the loading "box" is its own background.
 
-Ce que ça donne gratuitement, sans une ligne de JS :
+What that gives for free, with no line of JS:
 
-- **avant le chargement** — la boîte au ratio déclaré occupe déjà sa
-  place, en ``bg-muted/30``. C'est le skeleton, et c'est le même gris que
-  ``ui.skeleton`` (voisin sémantique le plus proche : les deux disent
-  « il y aura quelque chose ici ») ;
-- **si l'URL casse** — la même boîte reste. Le navigateur pose son icône
-  cassée et le texte ``alt`` par-dessus, mais la mise en page ne bouge
-  pas.
+- **before loading** — the box at the declared ratio already takes its
+  place, in ``bg-muted/30``. It is the skeleton, and it is the same grey
+  as ``ui.skeleton`` (the nearest semantic neighbour: both say "there
+  will be something here");
+- **if the URL breaks** — the same box stays. The browser puts its
+  broken icon and the ``alt`` text over it, but the layout does not
+  move.
 
-C'est pour ça qu'il n'y a ni prop ``skeleton`` ni prop ``fallback`` :
-les deux états sont le même objet, et cet objet est le fond de l'image.
+That is why there is neither a ``skeleton`` prop nor a ``fallback``
+prop: both states are the same object, and that object is the image's
+background.
 
-⚠️ **Les ratios sont une table FERMÉE, écrits en entier.** Une f-string
-qui composerait ``aspect-[{w}/{h}]`` produirait une classe que le
-compilateur Tailwind ne voit jamais — elle marcherait en dev (compilateur
-navigateur) et disparaîtrait en prod, avec un HTML identique des deux
-côtés. Un ratio hors table se demande côté app en ``classes="aspect-[5/2]"``,
-où Tailwind le scanne. Cf. la memory ``assembled_tailwind_class_dev_only``.
+⚠️ **The ratios are a CLOSED table, written out in full.** An f-string
+composing ``aspect-[{w}/{h}]`` would produce a class the Tailwind
+compiler never sees — it would work in dev (browser compiler) and
+disappear in prod, with identical HTML on both sides. A ratio outside
+the table is asked for on the app side as ``classes="aspect-[5/2]"``,
+where Tailwind scans it. Cf. the memory
+``assembled_tailwind_class_dev_only``.
 """
 
 from __future__ import annotations
@@ -32,26 +34,28 @@ from typing import Any
 
 IMAGE_THEME: dict[str, Any] = {
     "slots": {
-        # ``block`` : une image est ``inline`` par défaut, ce qui lui colle
-        # l'espace de la ligne de base sous le ventre — un liseré fantôme
-        # de quelques pixels dans toute carte qui l'entoure.
-        # ``max-w-full`` : jamais de débordement horizontal du parent.
-        # ``bg-muted/30`` : LE fond qui sert de skeleton ET de fallback.
+        # ``block``: an image is ``inline`` by default, which sticks the
+        # baseline's space under its belly — a ghost sliver of a few
+        # pixels in every card that surrounds it.
+        # ``max-w-full``: never a horizontal overflow of the parent.
+        # ``bg-muted/30``: THE background that serves as skeleton AND as
+        # fallback.
         "root": "block max-w-full bg-muted/30",
     },
-    # Table fermée — cf. l'avertissement du docstring.
-    # ``w-full`` accompagne chaque ratio : ``aspect-ratio`` a besoin d'UNE
-    # dimension pour dériver l'autre. Sans ratio, l'image garde sa taille
-    # naturelle et ne reçoit aucune de ces classes.
+    # A closed table — cf. the docstring's warning.
+    # ``w-full`` accompanies every ratio: ``aspect-ratio`` needs ONE
+    # dimension to derive the other. With no ratio, the image keeps its
+    # natural size and gets none of these classes.
     "ratios": {
         "square": "aspect-square w-full",
         "video": "aspect-video w-full",
         "portrait": "aspect-[3/4] w-full",
         "wide": "aspect-[21/9] w-full",
     },
-    # Comment l'image remplit le ratio. Sans ``object-*``, une image dont
-    # le ratio naturel diffère du ratio déclaré est ÉTIRÉE — c'est pour ça
-    # que ``fit`` a une valeur par défaut plutôt que d'être optionnel.
+    # How the image fills the ratio. With no ``object-*``, an image
+    # whose natural ratio differs from the declared one is STRETCHED —
+    # that is why ``fit`` has a default value rather than being
+    # optional.
     "fits": {
         "cover": "object-cover",
         "contain": "object-contain",

@@ -25,10 +25,10 @@ wiring (``base/_wiring.py``) : backdrop click to dismiss, escape
 key, focus trap, scroll lock, imperative receivers are identical —
 only the per-side layout (container alignment, panel border) differs.
 
-L'élément reste MONTÉ : ``show_attrs`` pose ``data-open`` +
-  ``data-bz-overlay``, et l'anti-flash vient du sélecteur
-  ``[data-bz-overlay][data-open="false"]`` du shell — pas d'un prestamp
-  ``display:none`` ;
+The element stays MOUNTED: ``show_attrs`` sets ``data-open`` +
+  ``data-bz-overlay``, and the anti-flash comes from the shell's
+  ``[data-bz-overlay][data-open="false"]`` selector — not from a
+  ``display:none`` prestamp;
 slide-in animations are CSS-only — the theme owns them.
 """
 
@@ -81,7 +81,7 @@ class Drawer(Component):
         on_close: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             open=open,
             title=title,
@@ -93,10 +93,10 @@ class Drawer(Component):
             on_close=on_close,
             **kwargs,
         )
-        # API impérative write-only ``.open()`` / ``.close()`` /
-        # ``.toggle()`` — installée en attributs d'instance (shadow le
-        # descripteur ``open``) par le helper base, identique sur les 4
-        # overlays open-driven. Cf. `imperative-api.md`.
+        # Write-only imperative API ``.open()`` / ``.close()`` /
+        # ``.toggle()`` — installed as instance attributes (shadowing the
+        # ``open`` descriptor) by the base helper, identical on the 4
+        # open-driven overlays. Cf. `imperative-api.md`.
         install_open_close_toggle(self)
 
 
@@ -111,21 +111,21 @@ class Drawer(Component):
         width = self._reactive_values.get("width") or "md"
         side_cfg = sides.get(side, sides.get("right", {}))
 
-        # ``width`` borne la dimension PERPENDICULAIRE au côté : la table
-        # horizontale pour un tiroir left/right (borne la largeur), la
-        # verticale pour top/bottom (borne la hauteur).
+        # ``width`` bounds the dimension PERPENDICULAR to the side: the
+        # horizontal table for a left/right drawer (bounds the width),
+        # the vertical one for top/bottom (bounds the height).
         width_axis = "horizontal" if side in ("left", "right") else "vertical"
 
         return render_modal_overlay(
             self,
             slots=theme.get("slots", {}),
 
-            # ``closed`` fait glisser le panneau hors de son bord quand il
-            # est fermé ; ouvert = pas de translation. C'est le CSS qui
-            # anime la propriété ``translate`` (cf. thème), le runtime ne
-            # fait que basculer ``data-open``. La classe est DÉJÀ complète
-            # dans le thème (``data-[open=false]:…``) — elle ne peut pas
-            # être assemblée ici.
+            # ``closed`` slides the panel off its edge when it is
+            # closed; open = no translation. It is the CSS that animates
+            # the ``translate`` property (cf. the theme), the runtime
+            # only toggles ``data-open``. The class is ALREADY complete
+            # in the theme (``data-[open=false]:…``) — it cannot be
+            # assembled here.
             panel_extra=(
                 side_cfg.get("panel", ""),
                 widths.get(width_axis, {}).get(width, ""),

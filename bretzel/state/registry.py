@@ -148,18 +148,17 @@ class StateRegistry:
         # uuid across actions on the same page → state continuity ;
         # F5 / navigate → fresh uuid → fresh PageState.
         self._page_id = page_id
-        #: Les paramètres de l'URL COURANTE, par valeur. La couche
-        #: ``state`` est sous ``render`` et ``server`` dans le DAG : elle
-        #: ne peut pas remonter lire la requête, donc l'appelant les lui
-        #: passe — exactement comme ``page_id`` et ``session_id``.
+        #: The parameters of the CURRENT URL, by value. The ``state``
+        #: layer sits below ``render`` and ``server`` in the DAG: it
+        #: cannot reach back up to read the request, so the caller passes
+        #: them in — exactly like ``page_id`` and ``session_id``.
         self._url_params: dict[str, str] = dict(url_params or {})
         self._ttls = {**DEFAULT_TTLS, **(ttls or {})}
         self._instances: dict[tuple[type[State], str], State] = {}
-        #: ``{classe: {champs modifies}}``, rempli par
-        #: :meth:`diff_and_notify`. Vide tant qu'aucun diff n'a tourne —
-        #: donc vide sur un rendu de page complet, ce qui est la bonne
-        #: valeur par defaut : « on ne sait pas ce qui a change » doit
-        #: faire tout re-rendre.
+        #: ``{class: {modified fields}}``, filled by
+        #: :meth:`diff_and_notify`. Empty as long as no diff has run — so
+        #: empty on a full page render, which is the right default: "we
+        #: do not know what changed" must re-render everything.
         self.changed_fields: dict[type[State], set[str]] = {}
 
     # ── Cache primitives — used by the metaclass on every State() call ──
@@ -170,32 +169,32 @@ class StateRegistry:
     def register(self, instance: State, key: str = "default") -> None:
         self._instances[(type(instance), key)] = instance
         if isinstance(instance, ServerState):
-            # ── DEUX photos, et le semis d'URL passe ENTRE les deux ──
+            # ── TWO snapshots, and the URL seeding goes BETWEEN them ──
             #
-            # ``deepcopy`` des deux côtés : ``_field_values`` rend des
-            # références vivantes, donc une copie de surface aliaserait
-            # une mutation en place et le diff ne verrait rien.
+            # ``deepcopy`` on both sides: ``_field_values`` returns live
+            # references, so a shallow copy would alias an in-place
+            # mutation and the diff would see nothing.
 
-            # ① ce qui vient DU STOCKAGE. Le commit s'en sert pour
-            # n'écrire que les champs modifiés, donc ne pas écraser ce
-            # qu'une requête concurrente a mis dans les autres. Prise
-            # AVANT le semis : sinon un ``?tri=nom`` se lit comme « déjà
-            # stocké », n'est jamais écrit, et l'action suivante — dont
-            # l'URL ne porte aucune query — retrouve l'ancien tri.
-            # Mesuré : le tri revenait à son défaut au premier clic.
+            # ① what comes FROM STORAGE. The commit uses it to write
+            # only the modified fields, and therefore not to overwrite
+            # what a concurrent request put in the others. Taken BEFORE
+            # the seeding: otherwise a ``?sort=name`` reads as "already
+            # stored", is never written, and the next action — whose URL
+            # carries no query — finds the old sort again. Measured: the
+            # sort went back to its default on the first click.
             instance._bz_stored = copy.deepcopy(instance._field_values())
 
-            # « Absent = on ne touche à rien » : c'est ce qui fait que la
-            # mécanique marche aussi sur une action, dont l'URL ne porte
-            # aucune query — l'état garde ce qu'il avait.
+            # "Absent = nothing is touched": that is what makes the
+            # mechanism work on an action too, whose URL carries no
+            # query — the state keeps what it had.
             apply_url_params(instance, self._url_params)
 
-            # ② la référence des MUTATIONS, prise APRÈS le semis : avant,
-            # le semis se lirait comme une mutation, l'état partirait
-            # ``dirty``, et la première page rendue pousserait une URL
-            # alors que rien n'a bougé. ``diff_and_notify`` la re-prend à
-            # chaque action — c'est pour ça qu'elle ne peut pas servir au
-            # commit, qui a besoin d'un point fixe.
+            # ② the MUTATION reference, taken AFTER the seeding:
+            # before, the seeding would read as a mutation, the state
+            # would leave ``dirty``, and the first rendered page would
+            # push a URL when nothing had moved. ``diff_and_notify``
+            # takes it again on every action — that is why it cannot
+            # serve the commit, which needs a fixed point.
             instance._bz_baseline = copy.deepcopy(instance._field_values())
 
     # ── Sync-load fast path (called from the State metaclass) ──────────
@@ -208,20 +207,20 @@ class StateRegistry:
         """Hydrate a ``ServerState`` from the backend synchronously.
 
         Used by :meth:`bretzel.state.base._StateMeta.__call__` to keep
-        ``MyState()`` synchronous whatever the backend. Deux chemins,
-        et le second est la raison d'être de ce commentaire :
+        ``MyState()`` synchronous whatever the backend. Two paths, and
+        the second one is the reason this comment exists:
 
-        - le backend expose ``load_sync`` (mémoire) → lecture directe ;
-        - il ne l'expose pas (Redis) → :meth:`_load_via_loop` fait
-          exécuter le ``load`` async PAR la boucle et attend son
-          résultat depuis le thread du pool.
+        - the backend exposes ``load_sync`` (memory) → direct read;
+        - it does not (Redis) → :meth:`_load_via_loop` has the async
+          ``load`` executed BY the loop and awaits its result from the
+          pool thread.
 
-        ⚠️ Le second chemin n'existait pas avant le 2026-09-04, et il
-        n'était pas écrivable : c'est le délestage du code d'app sur le
-        threadpool (``core/invoke.py``) qui donne un thread où l'on a le
-        DROIT d'attendre. Jusque-là on rendait ``None`` ici, donc les
-        valeurs par défaut, donc — le commit ne regardant que le drapeau
-        ``_dirty`` — la première mutation écrasait ce qui était stocké.
+        ⚠️ The second path did not exist before 2026-09-04, and it was
+        not writable: it is the offload of app code onto the threadpool
+        (``core/invoke.py``) that gives a thread where waiting is
+        ALLOWED. Until then we returned ``None`` here, so the default
+        values, so — the commit only looking at the ``_dirty`` flag — the
+        first mutation overwrote what was stored.
 
         Returns the hydrated instance (already registered in the
         cache) or ``None`` when the backend holds no entry for it.
@@ -256,25 +255,25 @@ class StateRegistry:
         key: str,
         raw: dict[str, Any] | None,
     ) -> State:
-        """Construire l'instance hydratée et l'inscrire au cache.
+        """Build the hydrated instance and register it in the cache.
 
-        ⚠️ ``type.__call__`` et non ``cls(...)`` : la métaclasse
-        intercepte la seconde forme et RELANCE une hydratation, donc un
-        appel depuis :meth:`resolve` — qui vient justement de lire le
-        backend — retomberait dans :meth:`try_sync_resolve`. Sur la
-        boucle, cette rentrée lève au lieu de rendre l'objet qu'on tient
-        déjà : mesuré le 2026-09-04, ``await MonEtat.load()`` échouait
-        avec l'erreur qui recommande… ``await MonEtat.load()``.
+        ⚠️ ``type.__call__`` and not ``cls(...)``: the metaclass
+        intercepts the second form and RESTARTS a hydration, so a call
+        from :meth:`resolve` — which has just read the backend — would
+        fall back into :meth:`try_sync_resolve`. On the loop, that
+        re-entry raises instead of returning the object we already hold:
+        measured on 2026-09-04, ``await MyState.load()`` failed with the
+        error recommending… ``await MyState.load()``.
 
-        Le même geste sert les deux chemins de lecture, sync et async :
-        deux constructions concurrentes finiraient par diverger, et la
-        version qui restait dans ``resolve`` (``cls.from_dict``) passait
-        elle aussi par la métaclasse.
+        The same gesture serves both read paths, sync and async: two
+        concurrent constructions would end up diverging, and the version
+        that stayed in ``resolve`` (``cls.from_dict``) also went through
+        the metaclass.
         """
         instance = type.__call__(cls, key=key)
         if raw is not None:
             instance._apply_fields(raw)
-            # On vient de LIRE : ce n'est pas une mutation d'utilisateur.
+            # We have just READ: this is not a user mutation.
             instance._dirty = False
         self.register(instance, key)
         return instance
@@ -285,36 +284,36 @@ class StateRegistry:
         scope: str,
         storage_key: str,
     ) -> dict[str, Any] | None:
-        """Faire lire le backend async-only PAR la boucle, et attendre.
+        """Have the async-only backend read BY the loop, and wait.
 
-        Appelé depuis un thread du pool — c'est là que tourne tout code
-        d'app ``def`` depuis le délestage. Bloquer ce thread ne gèle
-        rien : la boucle, elle, continue de servir les autres requêtes,
-        et c'est même elle qui exécute le ``load``.
+        Called from a pool thread — that is where all ``def`` app code
+        runs since the offload. Blocking that thread freezes nothing: the
+        loop keeps serving the other requests, and it is even the loop
+        that executes the ``load``.
 
-        C'est l'INVERSE exact de :func:`bretzel.core.call_without_blocking`,
-        et c'est pourquoi il n'y a pas de discriminant écrit à la main
-        ici : ``anyio.from_thread.run`` ne marche QUE depuis un thread
-        que ``anyio.to_thread.run_sync`` a ouvert, et il le dit avec une
-        exception à lui. Un appel resté sur la boucle — du code d'app
-        ``async def`` — tombe donc dans le ``except``, là où bloquer
-        aurait gelé le worker.
+        It is the exact INVERSE of
+        :func:`bretzel.core.call_without_blocking`, and that is why there
+        is no hand-written discriminant here: ``anyio.from_thread.run``
+        works ONLY from a thread ``anyio.to_thread.run_sync`` opened, and
+        it says so with an exception of its own. A call left on the loop
+        — ``async def`` app code — therefore falls into the ``except``,
+        where blocking would have frozen the worker.
 
-        Lever est délibérément plus brutal que l'ancien ``return None``,
-        qui rendait des défauts que le commit réécrivait ensuite
-        par-dessus la valeur stockée.
+        Raising is deliberately harsher than the old ``return None``,
+        which returned defaults the commit then rewrote over the stored
+        value.
         """
         try:
             return anyio.from_thread.run(self._backend.load, scope, storage_key)
         except anyio.from_thread.NoEventLoopError:
             raise StateHydrationError(
-                f"{cls.__name__}() ne peut pas s'hydrater ici : le backend "
-                f"{type(self._backend).__name__} lit de façon asynchrone, et "
-                f"ce code tourne sur la boucle — y attendre la gèlerait pour "
-                f"tout le monde. Écris "
-                f"`etat = await {cls.__name__}.load()`, ou passe ce corps en "
-                f"`def` (le framework le délestera sur un thread, où "
-                f"`{cls.__name__}()` marche tel quel)."
+                f"{cls.__name__}() cannot hydrate here: the "
+                f"{type(self._backend).__name__} backend reads "
+                f"asynchronously, and this code runs on the loop — waiting "
+                f"there would freeze it for everyone. Write "
+                f"`state = await {cls.__name__}.load()`, or put this body "
+                f"back to `def` (the framework will offload it to a thread, "
+                f"where `{cls.__name__}()` works as-is)."
             ) from None
 
     # ── Server-side resolution ──────────────────────────────────────────
@@ -364,20 +363,19 @@ class StateRegistry:
         instance._dirty = False
 
     async def reload(self, cls: type[State], key: str = "default") -> State:
-        """Relire cet état DEPUIS le magasin, et rafraîchir l'instance.
+        """Re-read this state FROM the store, and refresh the instance.
 
-        Muter l'instance en place plutôt que d'en poser une neuve : une
-        variable prise avant le bloc (``store = Kanban()``) doit voir les
-        valeurs fraîches elle aussi, sinon le verrou protégerait un objet
-        que l'appelant n'utilise pas.
+        Mutate the instance in place rather than setting down a fresh
+        one: a variable taken before the block (``store = Kanban()``)
+        must see the fresh values too, otherwise the lock would protect
+        an object the caller does not use.
 
-        Les champs ABSENTS du magasin retrouvent leur défaut — une ligne
-        supprimée doit se lire comme supprimée, pas comme ce qu'on avait
-        en mémoire.
+        The fields ABSENT from the store go back to their default — a
+        deleted row must read as deleted, not as what we had in memory.
 
-        Les deux photos sont reprises : ce qu'on vient de lire EST l'état
-        du magasin, donc l'écriture de sortie ne doit envoyer que ce que
-        le bloc aura changé.
+        Both snapshots are retaken: what we have just read IS the store's
+        state, so the write on exit must send only what the block will
+        have changed.
         """
         scope = cls.__scope__  # type: ignore[attr-defined]
         storage_key = self._compose_storage_key(scope, cls.__name__, key)
@@ -387,11 +385,11 @@ class StateRegistry:
         if instance is None:
             return self._build(cls, key, raw)
 
-        for nom, fld in type(instance)._all_fields().items():
-            if raw is not None and nom in raw:
+        for name, fld in type(instance)._all_fields().items():
+            if raw is not None and name in raw:
                 continue
-            # Pas dans le magasin : retirer la valeur posée fait
-            # réapparaître le défaut déclaré.
+            # Not in the store: removing the value we set makes the
+            # declared default reappear.
             instance.__dict__.pop(fld._storage_key, None)
         if raw:
             instance._apply_fields(raw)
@@ -409,7 +407,7 @@ class StateRegistry:
         ttl: int | None = None,
         timeout: float | None = None,
     ) -> StateLock:
-        """Le gestionnaire de contexte de ``MonEtat.lock()``."""
+        """The context manager behind ``MyState.lock()``."""
         from bretzel.state.locking import (
             DEFAULT_LOCK_TIMEOUT,
             DEFAULT_LOCK_TTL,
@@ -434,59 +432,56 @@ class StateRegistry:
         (``session`` / ``user`` / ``app`` / ``page``) flows through
         ``_compose_storage_key`` and gets its own row.
 
-        **On écrit les CHAMPS modifiés, pas le document.** Réécrire le
-        document entier effaçait ce qu'une requête concurrente venait
-        d'écrire dans les autres champs : deux onglets, la requête A
-        change le filtre, la requête B le panier, et la dernière à
-        commiter rendait l'autre changement invisible — sans erreur,
-        sans trace. Le registre connaît les champs touchés (la photo
-        prise à la lecture) et le backend applique la fusion
-        atomiquement, donc B ne peut plus effacer A.
+        **We write the modified FIELDS, not the document.** Rewriting the
+        whole document erased what a concurrent request had just written
+        into the other fields: two tabs, request A changes the filter,
+        request B the cart, and the last to commit made the other change
+        invisible — with no error, no trace. The registry knows the
+        touched fields (the snapshot taken at read time) and the backend
+        applies the merge atomically, so B can no longer erase A.
 
-        ⚠️ Deux requêtes qui modifient LE MÊME champ perdent toujours
-        une écriture, et c'est un test qui tient cette limite plutôt
-        qu'une phrase :
+        ⚠️ Two requests modifying THE SAME field still lose one write,
+        and it is a test that holds that limit rather than a sentence:
         ``tests/unit/state/test_a_commit_keeps_a_concurrent_field.py``.
 
-        ⚠️ L'atomicité est **par ligne, pas par requête** : une requête
-        qui touche trois états fait trois écritures atomiques
-        indépendantes, et un échec en laisse une partie persistée. Vrai
-        avant le groupage, vrai après — mais le groupage change QUELLE
-        partie, et en mieux : cf. plus bas.
+        ⚠️ Atomicity is **per row, not per request**: a request touching
+        three states makes three independent atomic writes, and a failure
+        leaves part of it persisted. True before the grouping, true
+        after — but the grouping changes WHICH part, and for the better:
+        cf. below.
 
-        Un état marqué sale dont aucun champ n'a bougé n'écrit RIEN :
-        le cas se produit quand une mutation revient à sa valeur
-        d'origine dans la même requête.
+        A state marked dirty whose fields have not moved writes NOTHING:
+        that happens when a mutation comes back to its original value
+        within the same request.
 
-        **Les écritures partent ENSEMBLE.** Une boucle ``await`` payait
-        un aller-retour réseau par état, en série : mesuré le
-        2026-09-05, le pic de simultanéité valait 1 et la durée était
-        N fenêtres de RTT, contre une seule une fois groupées (8 états :
-        224 ms → 25 ms à 20 ms de RTT simulé ; le gain est
-        ``(N-1) × RTT`` par construction, soit ~3 ms sur 4 états à 1 ms
-        de RTT Redis). Le nombre d'appels ne change pas — c'est leur
-        chevauchement qui change.
+        **The writes go out TOGETHER.** An ``await`` loop paid one network
+        round trip per state, in series: measured on 2026-09-05, peak
+        concurrency was 1 and the duration was N RTT windows, against a
+        single one once grouped (8 states: 224 ms → 25 ms at 20 ms of
+        simulated RTT; the gain is ``(N-1) × RTT`` by construction, so
+        ~3 ms on 4 states at 1 ms of Redis RTT). The number of calls does
+        not change — what changes is their overlap.
 
-        ⚠️ ``asyncio.gather`` et **pas** un groupe de tâches anyio, et
-        c'est le mode d'échec qui tranche, pas le style. Un groupe de
-        tâches annule ses frères dès la première erreur, donc il
-        persisterait MOINS que la boucle séquentielle qu'il remplace.
-        ``gather`` laisse les écritures déjà en vol aboutir : sur un
-        échec, les N-1 autres états sont quand même enregistrés, et
-        c'est strictement mieux que l'ancien comportement où tout ce qui
-        suivait l'erreur était perdu. L'exception, elle, remonte pareil.
+        ⚠️ ``asyncio.gather`` and **not** an anyio task group, and it is
+        the failure mode that settles it, not the style. A task group
+        cancels its siblings on the first error, so it would persist LESS
+        than the sequential loop it replaces. ``gather`` lets the writes
+        already in flight complete: on a failure, the other N-1 states are
+        still recorded, and that is strictly better than the old
+        behaviour where everything after the error was lost. The
+        exception surfaces just the same.
 
-        Chaque ``write_one`` ne touche que SON instance (son écart, sa
-        photo) ; rien n'est partagé entre les coroutines, hors le
-        backend qui est prévu pour.
+        Each ``write_one`` touches only ITS instance (its delta, its
+        snapshot); nothing is shared between the coroutines, apart from
+        the backend, which is built for it.
         """
-        # ``gather`` accepte zéro et une coroutine : un raccourci pour ces
-        # deux cas a existé le temps d'une relecture, et il coûtait un
-        # SECOND site d'appel de ``write_one`` à tenir d'accord avec le
-        # premier — dans la méthode dont la docstring dit justement qu'un
-        # calcul dupliqué « aurait divergé au premier changement ». Ce
-        # qu'il économisait, une ``Task`` (~µs), est trois ordres de
-        # grandeur sous le RTT que ce groupage sert à masquer.
+        # ``gather`` accepts zero and one coroutine: a shortcut for
+        # those two cases lived for the length of one re-read, and it cost
+        # a SECOND call site of ``write_one`` to keep in agreement with
+        # the first — in the method whose docstring says precisely that a
+        # duplicated computation "would have diverged at the first
+        # change". What it saved, one ``Task`` (~µs), is three orders of
+        # magnitude below the RTT this grouping exists to hide.
         await asyncio.gather(
             *(
                 self.write_one(cls, key, instance)
@@ -498,12 +493,13 @@ class StateRegistry:
     async def write_one(
         self, cls: type[State], key: str, instance: ServerState
     ) -> None:
-        """Écrire UN état : les champs modifiés depuis sa photo.
+        """Write ONE state: the fields modified since its snapshot.
 
-        Extrait de :meth:`commit` pour que le verrou (:meth:`lock`) écrive
-        exactement de la même façon en sortant de son bloc. Deux calculs
-        d'écart séparés auraient divergé au premier changement — et c'est
-        le calcul qui porte toute la correction de la mise à jour perdue.
+        Extracted from :meth:`commit` so that the lock (:meth:`lock`)
+        writes in exactly the same way when leaving its block. Two
+        separate delta computations would have diverged at the first
+        change — and it is the computation that carries the whole
+        lost-update fix.
         """
         scope = cls.__scope__  # type: ignore[attr-defined]
         try:
@@ -516,36 +512,36 @@ class StateRegistry:
         ttl = self._ttls.get(scope)
         current = instance.to_dict()
         stored = instance._bz_stored
-        # On parcourt ``current``, PAS l'union des deux : la photo
-        # porte les valeurs effectives (défauts compris) et
-        # ``to_dict`` seulement les champs posés, donc une clé
-        # présente d'un côté et pas de l'autre est normale, et n'est
-        # pas un changement. ``diff_and_notify``, qui compare deux
-        # photos de MÊME forme, prend l'union — chacune a raison
-        # pour sa question.
+        # We walk ``current``, NOT the union of the two: the snapshot
+        # carries the effective values (defaults included) and
+        # ``to_dict`` only the fields that were set, so a key present
+        # on one side and not the other is normal, and is not a
+        # change. ``diff_and_notify``, which compares two snapshots of
+        # the SAME shape, takes the union — each is right for its own
+        # question.
         fields = type(instance)._all_fields()
         changes: dict[str, Any] = {}
         deltas: dict[str, Any] = {}
         for name, value in current.items():
-            lue = stored.get(name, _ABSENT)
-            if lue == value:
+            stored_value = stored.get(name, _ABSENT)
+            if stored_value == value:
                 continue
             fld = fields.get(name)
-            if fld is not None and fld.merge == "add" and lue is not _ABSENT:
-                # Un champ additif s'écrit en ÉCART, pas en valeur : le
-                # magasin l'applique sans lire, donc deux requêtes qui
-                # ont lu le même nombre comptent toutes les deux. Un
-                # écart nul n'écrit rien.
-                ecart = value - lue
-                if ecart:
-                    deltas[name] = ecart
+            if fld is not None and fld.merge == "add" and stored_value is not _ABSENT:
+                # An additive field is written as a DELTA, not as a
+                # value: the store applies it without reading, so two
+                # requests that read the same number both count. A zero
+                # delta writes nothing.
+                delta = value - stored_value
+                if delta:
+                    deltas[name] = delta
             else:
                 changes[name] = value
         if changes or deltas:
-            # Encodé ICI, et pas dans les backends : c'est ce qui empêche
-            # la mémoire et Redis de diverger. Avant, la mémoire gardait
-            # l'objet Python vivant, donc un champ ``date`` marchait en
-            # dev et levait le jour du branchement Redis.
+            # Encoded HERE, and not in the backends: that is what keeps
+            # memory and Redis from diverging. Before, memory kept the
+            # live Python object, so a ``date`` field worked in dev and
+            # raised the day Redis was plugged in.
             await self._backend.merge(
                 scope,
                 storage_key,
@@ -553,20 +549,20 @@ class StateRegistry:
                 add=deltas,
                 ttl=ttl,
             )
-            # La photo suit ce qu'on vient de poser — les champs
-            # écrits seulement, pas tout l'état : un second commit
-            # dans la même requête ne doit pas les ré-écrire, et
-            # deepcopier l'état entier coûterait 1,6 ms sur mille
-            # lignes pour un champ qui bouge.
+            # The snapshot follows what we have just set down — the
+            # written fields only, not the whole state: a second commit
+            # in the same request must not rewrite them, and
+            # deep-copying the whole state would cost 1.6 ms on a
+            # thousand rows for one field that moves.
             #
-            # Pour un additif, la photo prend la valeur LOCALE et non
-            # le total vrai : le magasin a peut-être compté les
-            # contributions d'autres requêtes, qu'on ne relit pas.
-            # C'est assumé — la page affiche ce que cette requête a
-            # calculé, et le rafraîchissement suivant montrera le
+            # For an additive field, the snapshot takes the LOCAL value
+            # and not the true total: the store may have counted the
+            # contributions of other requests, which we do not read
+            # back. That is accepted — the page displays what this
+            # request computed, and the next refresh will show the
             # total.
-            pose = {**changes, **{n: current[n] for n in deltas}}
-            instance._bz_stored = {**stored, **copy.deepcopy(pose)}
+            applied = {**changes, **{n: current[n] for n in deltas}}
+            instance._bz_stored = {**stored, **copy.deepcopy(applied)}
         instance._dirty = False
 
     # ── End-of-action change detection ───────────────────────────────────
@@ -591,13 +587,13 @@ class StateRegistry:
         the ``<bz-patch>`` delta, not this diff.
         """
         changed_classes: set[type[State]] = set()
-        # Les NOMS des champs, par classe. La boucle les connait deja ;
-        # ne rendre que les classes jetait l'information la plus utile —
-        # « quoi a change », pas seulement « qui ». Un rendu partiel peut
-        # s'en servir pour ne pas re-emettre ce qui ne peut pas avoir
-        # bouge (cf. la barre d'outils du datatable, 44 % de sa zone).
-        # Attribut plutot que valeur de retour : trois appelants lisent
-        # deja le set de classes.
+        # The NAMES of the fields, by class. The loop already knows
+        # them; returning only the classes threw away the most useful
+        # information — "what changed", not just "who". A partial render
+        # can use it to avoid re-emitting what cannot have moved (cf. the
+        # datatable's toolbar, 44 % of its zone). An attribute rather
+        # than a return value: three callers already read the set of
+        # classes.
         self.changed_fields = {}
         for instance in list(self._instances.values()):
             if not isinstance(instance, ServerState):
@@ -619,34 +615,33 @@ class StateRegistry:
                 instance._bz_baseline = copy.deepcopy(current)
         return changed_classes
 
-    # ── L'état adressable ───────────────────────────────────────────────
+    # ── Addressable state ───────────────────────────────────────────────
 
     def addressable_params(self) -> dict[str, str]:
-        """``{paramètre: valeur}`` pour tout champ déclaré ``URL`` cette requête.
+        """``{parameter: value}`` for every ``URL``-declared field this request.
 
-        Ne lit que les états DÉJÀ résolus : ceux que la page a vraiment
-        montés. Un état jamais construit n'a rien à dire sur l'URL, et
-        deviner sa valeur ferait apparaître un paramètre pour une vue
-        qui n'existe pas à l'écran.
+        Reads only the ALREADY-resolved states: the ones the page really
+        mounted. A state that was never built has nothing to say about
+        the URL, and guessing its value would make a parameter appear for
+        a view that is not on screen.
         """
         return collect_url_params(list(self._instances.values()))
 
     def addressable_param_names(self) -> set[str]:
-        """TOUS les noms de paramètres déclarés, valeur par défaut ou non.
+        """ALL the declared parameter names, at their default value or not.
 
-        ``addressable_params`` ne rend que ce qui n'est PAS au défaut —
-        c'est ce qui garde l'URL lisible. Mais recomposer une adresse
-        demande aussi de savoir ce qu'il faut RETIRER : un champ revenu à
-        son défaut disparaît de la première liste, et sans celle-ci il
-        resterait périmé dans l'URL.
+        ``addressable_params`` returns only what is NOT at its default —
+        that is what keeps the URL readable. But recomposing an address
+        also requires knowing what to REMOVE: a field back at its default
+        disappears from the first list, and without this one it would
+        stay stale in the URL.
 
-        Le bug que ça répare (2026-08-29, rapporté par l'utilisateur) :
-        trier « Secteur » puis re-trier « Compte » laissait
-        ``?tri=secteur`` en place. L'URL faisant foi à l'action suivante,
-        elle re-semait ``sort_key=secteur`` et écrasait le clic — donc
-        « je ne peux plus trier en décroissant », et « avec un filtre
-        actif plus rien ne bouge ». Une adresse périmée ne se contente
-        pas de mentir : elle PILOTE.
+        The bug it repairs (2026-08-29, reported by the user): sorting by
+        "Sector" then re-sorting by "Account" left ``?sort=sector`` in
+        place. The URL being authoritative on the next action, it
+        re-seeded ``sort_key=sector`` and overwrote the click — hence "I
+        can no longer sort descending", and "with a filter active nothing
+        moves any more". A stale address does not merely lie: it DRIVES.
         """
         from bretzel.state.url import addressable_fields
 
@@ -656,13 +651,13 @@ class StateRegistry:
         return out
 
     def addressable_changed(self, changed: dict[type[State], set[str]]) -> bool:
-        """Un champ ADRESSABLE a-t-il bougé dans ce diff ?
+        """Has an ADDRESSABLE field moved in this diff?
 
-        C'est la question qui décide de pousser une URL, et elle est plus
-        étroite que « l'état a changé » : paginer une table dont seul le
-        tri est déclaré ne doit rien pousser. Sinon chaque action
-        empilerait une entrée d'historique identique à la précédente, et
-        le bouton retour demanderait dix clics pour sortir d'une page.
+        That is the question deciding whether to push a URL, and it is
+        narrower than "the state changed": paginating a table whose sort
+        alone is declared must push nothing. Otherwise every action would
+        stack a history entry identical to the previous one, and the back
+        button would need ten clicks to leave a page.
         """
         from bretzel.state.url import addressable_fields
 

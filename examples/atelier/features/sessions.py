@@ -1,44 +1,44 @@
-"""features/sessions — page : une fenêtre de travail, vue de haut.
+"""features/sessions — page: a working window, seen from above.
 
-L'écran des tâches répond « comment s'est passée celle-là ». Celui-ci
-répond « est-ce que ça progresse », qui est l'autre moitié de la question
-posée — et la seule qui demande d'avoir tout l'historique sous la main.
+The tasks screen answers "how did that one go". This one answers "is this
+improving", which is the other half of the question asked — and the only
+one that needs the whole history at hand.
 """
 
 from __future__ import annotations
 
 from bretzel import Feature, page, ui
 from examples.atelier.features.phases_page import (
-    COLONNES_SESSION,
-    lignes_session,
+    SESSION_COLUMNS,
+    session_rows,
 )
 from examples.atelier.features.shell import shell
 
 
 @page("/sessions", title="Sessions", layout=shell)
 def sessions_page() -> None:
-    """Toutes les sessions, la plus récente en tête."""
-    lignes = lignes_session()
+    """Every session, the most recent first."""
+    rows = session_rows()
 
     with ui.vstack(gap="lg", classes="h-full min-h-0"):
-        ui.heading("Les sessions", level=1)
+        ui.heading("The sessions", level=1)
         ui.text(
-            "Une ligne par fenêtre de travail. La colonne qui compte est "
-            "« cycles moyens » : c'est elle qui dit si la méthode tient "
-            "dans le temps ou si elle se dégrade quand la tâche grossit.",
+            "One row per working window. The column that counts is "
+            "“mean cycles”: it is the one that says whether the "
+            "method holds over time or degrades as the task grows.",
             color="muted",
         )
 
-        if not lignes:
+        if not rows:
             ui.alert(
-                "La base est vide. Lance "
-                "`py -m examples.atelier.core.ingest` pour aspirer les "
+                "The database is empty. Run "
+                "`py -m examples.atelier.core.ingest` to pull in the "
                 "transcripts.",
                 color="info",
             )
             return
 
-        ui.table(columns=COLONNES_SESSION, rows=lignes, row_key="id")
+        ui.table(columns=SESSION_COLUMNS, rows=rows, row_key="id")
 
 
 feature = Feature(

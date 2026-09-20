@@ -82,18 +82,18 @@ class Textarea(Component):
             owner="Textarea",
             prop="value",
             because=(
-                "``value`` est la VALEUR du champ — celle que le formulaire "
-                "poste et que le runtime écrit dans la propriété IDL "
-                "``.value`` du ``<textarea>``, qui ne connaît que des "
-                "strings. Un Component y était stringifié en son repr "
-                "Python, donc c'est ce repr qui aurait été soumis."
+                "``value`` is the field's VALUE — the one the form posts "
+                "and the one the runtime writes into the ``<textarea>``'s "
+                "``.value`` IDL property, which only knows strings. A "
+                "Component was stringified there as its Python repr, so "
+                "it is that repr that would have been submitted."
             ),
             instead=(
-                "Pour une valeur qui change côté client, passe un "
-                "ClientBinding : ``value=state.draft``."
+                "For a value that changes on the client side, pass a "
+                "ClientBinding: ``value=state.draft``."
             ),
         )
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, placeholder=placeholder, value=value,
             rows=rows, disabled=disabled, readonly=readonly,

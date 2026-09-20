@@ -70,7 +70,7 @@ def test_an_override_wins_and_the_rest_survives() -> None:
 
 
 def test_an_unknown_key_raises_rather_than_being_ignored() -> None:
-    with pytest.raises(TextsError, match="inconnue"):
+    with pytest.raises(TextsError, match="unknown"):
         resolve_texts({"alert.dismis": "Fermer"})
 
 
@@ -86,12 +86,12 @@ def test_a_renamed_hole_raises_too() -> None:
     Sans ça, l'app démarre et c'est la PAGE qui lève, en ``KeyError``
     nu — la panne exacte que la validation des clés existe pour éviter.
     """
-    with pytest.raises(TextsError, match="trous"):
+    with pytest.raises(TextsError, match="holes"):
         resolve_texts({"file_upload.max_size": "Taille max : {taille}"})
 
 
 def test_a_dropped_hole_raises() -> None:
-    with pytest.raises(TextsError, match="trous"):
+    with pytest.raises(TextsError, match="holes"):
         resolve_texts({"datatable.results_one": "un résultat"})
 
 
@@ -121,7 +121,7 @@ def test_text_fills_its_holes() -> None:
 
 
 def test_a_missing_hole_raises_rather_than_printing_a_brace() -> None:
-    with pytest.raises(TextsError, match="trou"):
+    with pytest.raises(TextsError, match="hole"):
         text("carousel.go_to_slide")
 
 
@@ -269,10 +269,10 @@ class TestTablesByLanguage:
         """Un dict qui contient une phrase ET une table n'a pas de
         lecture juste : deviner rangerait la moitié des clés dans une
         langue nommée « alert.dismiss »."""
-        with pytest.raises(TextsError, match="mélange"):
+        with pytest.raises(TextsError, match="mixes"):
             self._resolve({"alert.dismiss": "Fermer", "fr": {"x": "y"}})
 
     def test_overriding_an_undeclared_language_raises(self) -> None:
         """Une table que rien ne peut sélectionner est du travail perdu."""
-        with pytest.raises(TextsError, match="non déclarées"):
+        with pytest.raises(TextsError, match="undeclared"):
             self._resolve({"de": {"alert.dismiss": "Schliessen"}})

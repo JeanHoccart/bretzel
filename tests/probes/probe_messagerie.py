@@ -61,7 +61,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 APP = "examples.messagerie.main:app"
 
 #: Le corps du formulaire de rédaction — nommé une fois, lu trois.
-CORPS = 'textarea[placeholder="Ton message…"]'
+CORPS = 'textarea[placeholder="Your message…"]'
 
 #: La recherche est un ``ui.filter_each`` client : les lignes restent
 #: dans le DOM et se cachent, donc c'est le compte de VISIBLES qui bouge.
@@ -136,18 +136,18 @@ def adresse_est_la_vue(p: Probe, a: Window) -> None:
     )
     p.check(
         "au départ, aucune conversation dans l'adresse",
-        "fil" not in params(a),
+        "thread" not in params(a),
         a.page.url,
     )
-    p.check("l'état vide est affiché", a.has("text=Aucune conversation ouverte"))
+    p.check("l'état vide est affiché", a.has("text=No conversation open"))
 
     # L'identifiant n'est PAS écrit en dur : le seed peut être renuméroté
     # (il l'a été, pour que « id croissant » veuille dire « plus récent »)
     # et un probe qui épingle une clé en dur rougirait pour une raison
     # qui n'a rien à voir avec ce qu'il mesure.
-    a.click("text=Les plans du hangar 3")
-    ecrit = devient_vrai(a, "new URL(location.href).searchParams.has('fil')")
-    premier = params(a).get("fil", "")
+    a.click("text=The shed 3 drawings")
+    ecrit = devient_vrai(a, "new URL(location.href).searchParams.has('thread')")
+    premier = params(a).get("thread", "")
     p.check(
         "ouvrir une conversation écrit sa clé dans l'adresse",
         ecrit and bool(premier) and " " not in premier,
@@ -155,16 +155,16 @@ def adresse_est_la_vue(p: Probe, a: Window) -> None:
     )
     p.check(
         "le corps du message est affiché",
-        a.has("text=Peux-tu me confirmer que la dalle"),
+        a.has("text=Can you confirm the slab"),
     )
 
     # ⚠️ Le point que seul un navigateur peut mesurer : l'adresse a changé
     # SANS rechargement. Un marqueur posé sur ``window`` avant le clic
     # survit à un pushState et meurt à un rechargement.
     a.page.evaluate("window.__temoin = 42")
-    a.click("text=Créneau de livraison mardi")
+    a.click("text=Delivery slot on Tuesday")
     devient_vrai(
-        a, f"new URL(location.href).searchParams.get('fil') !== {premier!r}"
+        a, f"new URL(location.href).searchParams.get('thread') !== {premier!r}"
     )
     p.check(
         "passer d'un message à l'autre ne recharge pas la page",
@@ -178,21 +178,21 @@ def adresse_est_la_vue(p: Probe, a: Window) -> None:
     # réponse et rend un faux rouge. C'est ce qui est arrivé ici la
     # première fois — l'app était juste, la mesure non.
     a.page.go_back()
-    revenu = apparait(a, "text=Peux-tu me confirmer que la dalle", timeout=8000)
+    revenu = apparait(a, "text=Can you confirm the slab", timeout=8000)
     p.check(
         "la flèche retour ramène au message précédent",
-        revenu and params(a).get("fil") == premier,
+        revenu and params(a).get("thread") == premier,
         a.page.url,
     )
     p.check(
         "et le contenu suit l'adresse",
-        a.has("text=Peux-tu me confirmer que la dalle"),
+        a.has("text=Can you confirm the slab"),
     )
 
-    a.goto("/?dossier=archives")
+    a.goto("/?folder=archive")
     p.check(
         "une adresse tapée à la main ouvre le bon dossier",
-        a.has("text=Permis de construire"),
+        a.has("text=Planning permission"),
     )
 
 
@@ -205,7 +205,7 @@ def document_gele(p: Probe, a: Window) -> None:
     délègue le défilement à trois régions.
     """
     print("\n② Le document est gelé, les régions défilent")
-    a.goto("/?dossier=recus&fil=les-plans-du-hangar-3")
+    a.goto("/?folder=inbox&thread=the-shed-3-drawings")
 
     # Le VERTICAL seulement : le balayage asserte déjà l'horizontal, à
     # deux tailles. Le remesurer ici donnerait deux rouges pour une faute.
@@ -243,17 +243,17 @@ def couleurs_et_tailles(p: Probe, a: Window) -> None:
     quatre dossiers, deux lignes, rien d'inerte — restent donc ici.
     """
     print("\n③ Couleurs, tailles, tabulation")
-    a.goto("/?dossier=recus")
+    a.goto("/?folder=inbox")
 
     fond = a.page.evaluate(
         """
         (function () {
             const liens = Array.from(
-                document.querySelectorAll('a[href*="dossier="]'));
+                document.querySelectorAll('a[href*="folder="]'));
             const actif = liens.find(
-                a => a.getAttribute('href').includes('recus'));
+                a => a.getAttribute('href').includes('inbox'));
             const autre = liens.find(
-                a => a.getAttribute('href').includes('archives'));
+                a => a.getAttribute('href').includes('archive'));
             return {actif: getComputedStyle(actif).backgroundColor,
                     autre: getComputedStyle(autre).backgroundColor};
         })()
@@ -282,7 +282,7 @@ def couleurs_et_tailles(p: Probe, a: Window) -> None:
     # familles d'overlay.
     # ⚠️ Le filtre « hors dialogue » qui vivait ici est parti le
     # 2026-09-11 : cette app ne rend AUCUN ``role=dialog`` — son panneau
-    # de rédaction n'est pas un ``ui.dialog`` (``features/boite.py``) —
+    # de rédaction n'est pas un ``ui.dialog`` (``features/inbox.py``) —
     # donc il ne retirait jamais rien. Il aurait en plus absorbé une
     # vraie fuite pendant que le balayage, lui, rougissait.
     arrets = []
@@ -309,7 +309,7 @@ def couleurs_et_tailles(p: Probe, a: Window) -> None:
 def glisser_vers_un_dossier(p: Probe, a: Window) -> None:
     """④ Le verbe principal d'une messagerie : ranger."""
     print("\n④ Glisser un message vers un dossier")
-    a.goto("/?dossier=recus")
+    a.goto("/?folder=inbox")
 
     avant = a.count("[data-bz-draggable]")
     # Le point d'atterrissage n'est plus vérifié ici : ``Window.drag``
@@ -319,8 +319,8 @@ def glisser_vers_un_dossier(p: Probe, a: Window) -> None:
     # tombait alors sur l'app, deux constats plus bas.
     with p.requests() as net:
         a.drag(
-            "text=Autorisation de voirie",
-            '[data-bz-dropzone="dossier-archives"]',
+            "text=Highway permit",
+            '[data-bz-dropzone="folder-archive"]',
         )
 
     apres = a.count("[data-bz-draggable]")
@@ -331,10 +331,10 @@ def glisser_vers_un_dossier(p: Probe, a: Window) -> None:
     )
     p.check("un rangement coûte UNE écriture", net.total == 1, net.urls)
 
-    a.goto("/?dossier=archives")
+    a.goto("/?folder=archive")
     p.check(
         "et il est arrivé dans les archives",
-        a.has("text=Autorisation de voirie"),
+        a.has("text=Highway permit"),
     )
 
 
@@ -350,21 +350,21 @@ def les_trois_defauts_signales(p: Probe, a: Window) -> None:
     # ① « Pourquoi quand je clique sur un mail il apparaît tout en bas ? »
     #    Le tri mettait les non-lus en tête : ouvrir un message le marquait
     #    lu, donc il changeait de groupe et descendait sous le curseur.
-    a.goto("/?dossier=recus")
+    a.goto("/?folder=inbox")
 
     # ⚠️ Il FAUT un message non lu pour que la mesure morde. Les scénarios
     # précédents ont ouvert la boîte, donc tout y est lu — et un tri fautif
     # « non-lus d'abord » ne déplacerait alors rien du tout. Vérifié par
     # mutation : sans cette remise à non-lu, restaurer le vieux tri
     # laissait la mesure VERTE.
-    a.click("text=Compte rendu de la réunion")
-    a.click(bouton("Marquer non lu"))
+    a.click("text=Minutes of the site meeting")
+    a.click(bouton("Mark unread"))
     remis = apparait(a, "[data-bz-draggable] .bg-primary")
-    a.click(bouton("Retour à la liste"))
+    a.click(bouton("Back to the list"))
 
     avant = a.page.evaluate(ORDRE_JS)
-    a.click("text=Compte rendu de la réunion")
-    ouvert = apparait(a, bouton("Répondre"))
+    a.click("text=Minutes of the site meeting")
+    ouvert = apparait(a, bouton("Reply"))
     apres = a.page.evaluate(ORDRE_JS)
     p.check(
         "ouvrir un message non lu ne change PAS sa place dans la liste",
@@ -375,11 +375,11 @@ def les_trois_defauts_signales(p: Probe, a: Window) -> None:
     # ② « Aucun filtre. » La recherche filtre sur expéditeur, sujet, corps.
     #    Elle est CLIENTE, et c'est le compte de REQUÊTES qui le prouve —
     #    l'ancien probe ne pouvait que l'inférer du nombre de nœuds.
-    a.goto("/?dossier=recus")
+    a.goto("/?folder=inbox")
     dans_le_dom = a.count("[data-bz-draggable]")
-    recherche = 'input[placeholder="Rechercher dans les messages"]'
+    recherche = 'input[placeholder="Search the messages"]'
     with p.requests() as net:
-        a.type(recherche, "hangar")
+        a.type(recherche, "shed 3")
     restants, encore_la = a.count(VISIBLES), a.count("[data-bz-draggable]")
     p.check(
         "la recherche réduit la liste",
@@ -393,13 +393,13 @@ def les_trois_defauts_signales(p: Probe, a: Window) -> None:
         f"{dans_le_dom} → {encore_la}",
     )
 
-    # ⚠️ ``fill`` et pas ``a.type`` : le champ porte déjà « hangar », et
+    # ⚠️ ``fill`` et pas ``a.type`` : le champ porte déjà « shed 3 », et
     # ``type`` frappe SANS effacer. Le harnais n'a pas de verbe pour vider
     # un champ — le seul trou que ce portage ait rencontré.
     a.page.fill(recherche, "zzzz")
     p.check(
         "et l'état vide de la recherche est client, lui aussi",
-        apparait(a, "text=Aucun résultat"),
+        apparait(a, "text=No result"),
         "« Aucun résultat » n'est jamais venu",
     )
     a.page.fill(recherche, "")
@@ -410,39 +410,39 @@ def les_trois_defauts_signales(p: Probe, a: Window) -> None:
     # reçus qui l'ont provoqué — et « marquer non lu » y a du sens. Seul
     # un message envoyé resté sans réponse exerce la règle. Le seed en
     # porte un exprès (``relance_sans_reponse``).
-    a.goto("/?dossier=envoyes&fil=disponibilite-de-la-pompe-a-beton")
+    a.goto("/?folder=sent&thread=is-the-concrete-pump-free")
     p.check(
         "une conversation purement sortante n'offre pas « marquer non lu »",
-        apparait(a, bouton("Répondre")) and a.count(bouton("Marquer non lu")) == 0,
+        apparait(a, bouton("Reply")) and a.count(bouton("Mark unread")) == 0,
     )
-    a.goto("/?dossier=recus")
-    a.click("text=Créneau de livraison mardi")
+    a.goto("/?folder=inbox")
+    a.click("text=Delivery slot on Tuesday")
     p.check(
         "un message reçu, lui, l'offre",
-        apparait(a, bouton("Répondre")) and a.count(bouton("Marquer non lu")) == 1,
+        apparait(a, bouton("Reply")) and a.count(bouton("Mark unread")) == 1,
     )
 
 
 def la_redaction(p: Probe, a: Window) -> None:
     """⑥ Écrire : l'envoi, la validation d'adresse, les trois tailles."""
     print("\n⑥ La rédaction")
-    a.goto("/?dossier=recus")
+    a.goto("/?folder=inbox")
 
     # ① Une adresse invalide ne part pas — et le DIT.
-    a.click(bouton("Nouveau message"))
-    a.type('input[placeholder="À"]', "pas-une-adresse")
-    a.type('input[placeholder="Objet"]', "Refusé")
-    a.click(bouton("Envoyer"))
+    a.click(bouton("New message"))
+    a.type('input[placeholder="To"]', "pas-une-adresse")
+    a.type('input[placeholder="Subject"]', "Refusé")
+    a.click(bouton("Send"))
     p.check(
         "une adresse invalide est refusée, avec le motif",
-        apparait(a, "text=adresse valide"),
+        apparait(a, "text=valid address"),
         "aucun motif affiché",
     )
 
     # ② Les trois tailles changent VRAIMENT la boîte du panneau.
     panneau = "[data-bz-zone]:has(input[type=email])"
     normal = a.box(panneau)
-    a.click(bouton("Plein écran"))
+    a.click(bouton("Full screen"))
     p.check(
         "« plein écran » agrandit le panneau",
         devient_vrai(
@@ -454,23 +454,23 @@ def la_redaction(p: Probe, a: Window) -> None:
         f"le panneau est resté à {int(normal.width)} px",
     )
 
-    a.click(bouton("Quitter le plein écran"))
-    a.click(bouton("Réduire"))
+    a.click(bouton("Leave full screen"))
+    a.click(bouton("Shrink"))
     p.check(
         "« réduire » retire le corps du formulaire",
         devient_vrai(a, f"!document.querySelector({CORPS!r})"),
         "le corps est encore rendu",
     )
-    a.click(bouton("Agrandir"))
+    a.click(bouton("Enlarge"))
 
     # ③ Un envoi valide arrive dans « Envoyés » — et s'y AFFICHE.
     #    ⚠️ Ce trajet manquait, et c'est là qu'un `KeyError: 'court'` est
     #    passé en production : le message créé par le handler ne portait
     #    pas un champ que le seed avait, et la liste d'« Envoyés » levait.
-    a.page.fill('input[placeholder="À"]', "moi@atelier-nord.fr")
-    a.page.fill('input[placeholder="Objet"]', "Message de contrôle")
+    a.page.fill('input[placeholder="To"]', "me@northgate-works.com")
+    a.page.fill('input[placeholder="Subject"]', "Control message")
     a.type(CORPS, "Corps du message.")
-    a.click(bouton("Envoyer"))
+    a.click(bouton("Send"))
     p.check(
         "un envoi valide referme le panneau",
         devient_vrai(
@@ -483,10 +483,10 @@ def la_redaction(p: Probe, a: Window) -> None:
     # 2026-09-11 : un rendu qui lève est un 5xx, et le balayage asserte
     # « aucune requête en échec » pour toute la fenêtre. Le TRAJET, lui,
     # reste — c'est lui qui manquait le jour du `KeyError`.
-    a.goto("/?dossier=envoyes")
+    a.goto("/?folder=sent")
     p.check(
         "et le message s'affiche dans « Envoyés »",
-        a.count("text=Message de contrôle") >= 1,
+        a.count("text=Control message") >= 1,
     )
 
 
@@ -502,13 +502,13 @@ def les_deux_themes(p: Probe, a: Window) -> None:
     balayage du harnais les prend pour toute app, à la sortie du ``with``.
     """
     print("\n⑦ Les deux thèmes")
-    a.goto("/?fil=les-plans-du-hangar-3")
+    a.goto("/?thread=the-shed-3-drawings")
 
     sombre = "document.documentElement.classList.contains('dark')"
     depart = a.page.evaluate(sombre)
     teinte_depart = a.css("h1", "color")
 
-    a.click(bouton("Passer en clair" if depart else "Passer en sombre"))
+    a.click(bouton("Switch to light" if depart else "Switch to dark"))
     p.check(
         "le bascule change bien de thème",
         devient_vrai(a, f"{sombre} === {str(not depart).lower()}"),

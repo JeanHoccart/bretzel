@@ -1,25 +1,24 @@
 """Redis storage backend for production deployments.
 
-Strict rules :
+Strict rules:
 
-- **Un HASH par état, un champ Redis par champ d'état.** C'est la forme
-  que Redis propose pour un objet, et c'est elle qui rend l'écriture
-  partielle native : ``HSET clé filtre "rouge"`` ne lit rien, n'écrase
-  rien d'autre, et tient en un aller-retour. Le document JSON en bloc
-  qu'on stockait avant obligeait à relire, fusionner et tout réécrire
-  sous un verrou optimiste — trois allers-retours et une boucle de
-  reprise pour changer un champ.
+- **One HASH per state, one Redis field per state field.** That is the
+  shape Redis offers for an object, and it is what makes partial writes
+  native: ``HSET key filter "red"`` reads nothing, overwrites nothing
+  else, and fits in one round trip. The whole-document JSON we used to
+  store forced a re-read, a merge and a full rewrite under an optimistic
+  lock — three round trips and a retry loop to change one field.
 
-- **Toute attente est BORNÉE, et c'est le backend qui la borne.** Une
-  lecture d'état part depuis un thread du pool (cf.
-  ``StateRegistry._load_via_loop``), et ce thread reste bloqué tant que
-  la réponse n'arrive pas. Sans délai côté client, un Redis qui ne
-  répond plus — pas refusé, pas coupé : silencieux — gare le thread
-  pour toujours, sans exception, sans log et sans reprise. Quarante
-  ainsi garés (le défaut ``anyio``, cf. ``core/invoke.py``) et plus
-  aucun code d'app synchrone ne tourne. D'où ``socket_timeout`` et
-  ``socket_connect_timeout`` posés par défaut ici : redis-py les laisse
-  tous les deux à ``None``, c'est-à-dire sans fin (mesuré).
+- **Every wait is BOUNDED, and the backend is what bounds it.** A state
+  read starts from a pool thread (cf. ``StateRegistry._load_via_loop``),
+  and that thread stays blocked until the answer arrives. Without a
+  client-side timeout, a Redis that stops answering — not refused, not
+  cut: silent — parks the thread forever, with no exception, no log and
+  no recovery. Forty parked that way (the ``anyio`` default, cf.
+  ``core/invoke.py``) and no synchronous app code runs at all any more.
+  Hence ``socket_timeout`` and ``socket_connect_timeout`` set by default
+  here: redis-py leaves both at ``None``, that is to say endless
+  (measured).
 
 - **JSON-only serialisation.** Bretzel never falls back to ``pickle`` —
   pickle deserialisation is a documented RCE vector when an attacker
@@ -33,25 +32,24 @@ Strict rules :
   see ``.claude/bretzel/state.md``) and embedding the State class name + instance
   key into the logical key.
 
-- **TTL.** ``save(..., ttl=N)`` pose ``EXPIRE N`` ; ``ttl=None`` ne laisse
-  aucune expiration (la clé vient d'être supprimée). ``merge`` renouvelle
-  l'expiration quand on lui en donne une, et ne touche pas à celle en
-  place quand ``ttl`` vaut ``None`` — cf. sa docstring.
+- **TTL.** ``save(..., ttl=N)`` sets ``EXPIRE N``; ``ttl=None`` leaves no
+  expiration at all (the key has just been deleted). ``merge`` renews the
+  expiration when given one, and leaves the one in place alone when
+  ``ttl`` is ``None`` — cf. its docstring.
 
-⚠️ **Ce que le hash coûte, mesuré le 2026-09-04** — l'écrire ici parce
-que la moitié qui gagne est déjà écrite plus haut :
+⚠️ **What the hash costs, measured on 2026-09-04** — written here because
+the winning half is already written above:
 
-- la LECTURE décode champ par champ, donc N appels ``json.loads`` au lieu
-  d'un : **18,3 µs contre 3,7** pour vingt champs, 63 contre 13,7 pour
-  cinquante. À comparer aux millisecondes d'un aller-retour réseau, mais
-  ce n'est pas gratuit ;
-- un seul champ dont le JSON dépasse 64 octets fait basculer TOUT le hash
-  hors du codage compact de Redis (``hash-max-listpack-value``), ce qui
-  coûte quelques dizaines d'octets par champ au lieu d'une cinquantaine
-  pour la ligne entière.
+- the READ decodes field by field, so N ``json.loads`` calls instead of
+  one: **18.3 µs against 3.7** for twenty fields, 63 against 13.7 for
+  fifty. To be compared with the milliseconds of a network round trip,
+  but it is not free;
+- a single field whose JSON exceeds 64 bytes tips the WHOLE hash out of
+  Redis's compact encoding (``hash-max-listpack-value``), which costs a
+  few dozen bytes per field instead of about fifty for the whole row.
 
-Le troc est assumé : ces deux coûts se paient en microsecondes et en
-kilo-octets, la mise à jour perdue se payait en données effacées.
+The trade is accepted: those two costs are paid in microseconds and
+kilobytes, the lost update was paid in erased data.
 """
 
 from __future__ import annotations
@@ -71,36 +69,35 @@ from redis import exceptions as redis_exceptions
 # Re-exported so ``redis.BretzelError`` keeps resolving.
 from bretzel.core.errors import BretzelError
 
-#: Le plafond d'une opération et celui d'une connexion, en secondes.
+#: The ceiling of an operation and that of a connection, in seconds.
 #:
-#: **Cinq**, parce que les deux erreurs coûtent cher dans des sens
-#: opposés : trop court, une pointe de charge fait échouer des requêtes
-#: qui auraient abouti ; trop long, chaque requête bloquée retient un
-#: thread du pool, et il y en a quarante. Cinq secondes est déjà une
-#: éternité pour une UI — c'est un plafond de PANNE, pas un budget de
-#: latence.
+#: **Five**, because both errors are expensive in opposite directions:
+#: too short, a load spike fails requests that would have completed; too
+#: long, every blocked request holds a pool thread, and there are forty
+#: of them. Five seconds is already an eternity for a UI — it is a
+#: FAILURE ceiling, not a latency budget.
 #:
-#: Se change par l'URL (``redis://hôte?socket_timeout=2``), qui l'emporte
-#: sur ce défaut : redis-py applique les options de l'URL APRÈS les
-#: kwargs (vérifié le 2026-09-04 — un ``socket_timeout=9`` en kwarg
-#: perdait contre le ``1.5`` de l'URL). C'est bien le sens qu'on veut :
-#: la valeur du framework est un défaut, celle de l'exploitant gagne.
+#: Changed through the URL (``redis://host?socket_timeout=2``), which
+#: wins over this default: redis-py applies the URL options AFTER the
+#: kwargs (verified on 2026-09-04 — a ``socket_timeout=9`` kwarg lost
+#: against the URL's ``1.5``). That is indeed the direction we want: the
+#: framework's value is a default, the operator's wins.
 _DEFAULT_TIMEOUT_SECONDS = 5.0
 
 def _bounded[T](
     method: Callable[..., Awaitable[T]],
 ) -> Callable[..., Awaitable[T]]:
-    """Traduire une panne de TRANSPORT en :class:`BretzelError` lisible.
+    """Translate a TRANSPORT failure into a readable :class:`BretzelError`.
 
-    Sans ça, un Redis muet remonte un ``redis.exceptions.TimeoutError``
-    nu : une 500 sans phrase, dans une trace où rien ne dit que
-    l'attente était bornée exprès ni comment la desserrer. Le refus est
-    une aide — c'est la norme du dépôt.
+    Without it, a mute Redis surfaces a bare
+    ``redis.exceptions.TimeoutError``: a 500 with no sentence, in a trace
+    where nothing says the wait was bounded on purpose nor how to loosen
+    it. The refusal is a help — that is this repository's norm.
 
-    Ne couvre QUE le transport. Un ``ResponseError`` (WRONGTYPE, script
-    refusé…) parle du contenu et doit continuer de remonter tel quel :
-    :meth:`RedisBackend.load` en traite un lui-même, et l'avaler ici
-    casserait sa reprise.
+    Covers the transport ONLY. A ``ResponseError`` (WRONGTYPE, refused
+    script…) speaks about the content and must keep surfacing as-is:
+    :meth:`RedisBackend.load` handles one itself, and swallowing it here
+    would break its recovery.
     """
 
     @functools.wraps(method)
@@ -109,17 +106,17 @@ def _bounded[T](
             return await method(self, *args, **kwargs)
         except redis_exceptions.TimeoutError as exc:
             raise BretzelError(
-                f"Redis n'a pas répondu à {method.__name__!r} dans le délai "
-                f"imparti ({exc}). L'attente est bornée EXPRÈS : la lecture "
-                f"d'un état part depuis un thread du pool, et une attente "
-                f"sans fin le garderait pour toujours. Si ton instance est "
-                f"légitimement lente, desserre le plafond dans l'URL "
+                f"Redis did not answer {method.__name__!r} within the "
+                f"allotted time ({exc}). The wait is bounded ON PURPOSE: a "
+                f"state read starts from a pool thread, and an endless "
+                f"wait would keep it forever. If your instance is "
+                f"legitimately slow, loosen the ceiling in the URL "
                 f"(`redis://…?socket_timeout=15`)."
             ) from exc
         except redis_exceptions.ConnectionError as exc:
             raise BretzelError(
-                f"Redis est injoignable pendant {method.__name__!r} ({exc}). "
-                f"L'état de cette requête n'a pas pu être lu ou écrit."
+                f"Redis is unreachable during {method.__name__!r} ({exc}). "
+                f"This request's state could not be read or written."
             ) from exc
 
     return wrapper
@@ -128,10 +125,10 @@ def _bounded[T](
 class RedisBackend:
     """:class:`Backend` implementation backed by ``redis.asyncio``.
 
-    Un état est un **hash** dont chaque champ porte la valeur JSON d'un
-    champ d'état. La clé sur le fil est ``f"{prefix}:{scope}:{key}"``, où
-    ``prefix`` vaut ``"bretzel"`` par défaut — deux apps Bretzel peuvent
-    donc partager une instance Redis avec des préfixes distincts.
+    A state is a **hash** whose every field carries the JSON value of one
+    state field. The key on the wire is ``f"{prefix}:{scope}:{key}"``,
+    where ``prefix`` is ``"bretzel"`` by default — so two Bretzel apps can
+    share one Redis instance under distinct prefixes.
     """
 
     def __init__(
@@ -155,16 +152,16 @@ class RedisBackend:
     ) -> RedisBackend:
         """Build a backend from a ``redis://`` / ``rediss://`` URL."""
         # ``decode_responses=True`` makes ``hgetall`` / ``scan_iter``
-        # return ``str`` instead of ``bytes`` — noms de champs comme
-        # valeurs, et on n'y stocke que du JSON de toute façon.
+        # return ``str`` instead of ``bytes`` — field names as well as
+        # values, and we only store JSON in there anyway.
         client_kwargs.setdefault("decode_responses", True)
-        # Les deux plafonds, et il en faut DEUX : ``socket_timeout`` borne
-        # une opération sur une connexion déjà ouverte, jamais son
-        # ouverture. Un hôte qui avale les paquets sans répondre — DNS
-        # qui résout vers le vide, groupe de sécurité fermé — ne
-        # rencontre que le second, et c'est celui-là qui pendait au
-        # DÉMARRAGE : ``lifecycle._check_state_backend`` attend un
-        # ``health()``, donc le boot lui-même ne finissait jamais.
+        # Both ceilings, and TWO are needed: ``socket_timeout`` bounds
+        # an operation on an already-open connection, never its opening.
+        # A host that swallows packets without answering — DNS resolving
+        # into the void, a closed security group — only meets the second,
+        # and that is the one that hung at STARTUP:
+        # ``lifecycle._check_state_backend`` awaits a ``health()``, so the
+        # boot itself never finished.
         client_kwargs.setdefault("socket_timeout", _DEFAULT_TIMEOUT_SECONDS)
         client_kwargs.setdefault(
             "socket_connect_timeout", _DEFAULT_TIMEOUT_SECONDS
@@ -187,11 +184,11 @@ class RedisBackend:
     # ── Read / write ────────────────────────────────────────────────────
 
     def _decode(self, raw: Any, scope: str, key: str, field: str) -> Any:
-        """La valeur d'UN champ, ou l'erreur qui dit pourquoi elle ne l'est pas.
+        """The value of ONE field, or the error saying why it is not one.
 
-        Redis ne regarde jamais DANS une valeur : le JSON reste du
-        ``json`` Python de bout en bout, donc rien ne peut confondre une
-        liste vide avec un objet vide.
+        Redis never looks INSIDE a value: the JSON stays Python ``json``
+        end to end, so nothing can confuse an empty list with an empty
+        object.
         """
         try:
             return json.loads(raw)
@@ -217,11 +214,10 @@ class RedisBackend:
     def _mapping(
         self, data: dict[str, Any], scope: str, key: str
     ) -> dict[str, str]:
-        """``{champ: valeur JSON}`` prêt pour ``HSET``.
+        """``{field: JSON value}`` ready for ``HSET``.
 
-        Encode TOUT avant d'écrire quoi que ce soit : un champ
-        non-sérialisable doit faire échouer l'écriture entière, pas la
-        laisser à moitié posée.
+        Encodes EVERYTHING before writing anything: a non-serialisable
+        field must fail the whole write, not leave it half laid down.
         """
         return {
             field: self._encode(value, scope, key, field)
@@ -236,13 +232,13 @@ class RedisBackend:
         except redis_exceptions.ResponseError as exc:
             if "WRONGTYPE" not in str(exc).upper():
                 raise
-            # Une ligne écrite par la version d'AVANT (un document JSON
-            # en bloc, pas un hash). Elle est illisible ici, et pire :
-            # elle ferait échouer toute écriture ultérieure sur la même
-            # clé. On la retire et on rend « absent », ce qui redonne les
-            # défauts — une fois, puis la ligne se reconstruit au format
-            # courant. Le paquet est en alpha : il n'y a pas d'état
-            # ancien à préserver, seulement à ne pas faire planter.
+            # A row written by the PREVIOUS version (a whole-document
+            # JSON, not a hash). It is unreadable here, and worse: it
+            # would fail every later write on the same key. We remove it
+            # and return "absent", which gives the defaults back — once,
+            # and then the row rebuilds itself in the current format. The
+            # package is in alpha: there is no old state to preserve,
+            # only some not to crash on.
             await self.delete(scope, key)
             return None
         if not raw:
@@ -261,21 +257,21 @@ class RedisBackend:
         *,
         ttl: int | None = None,
     ) -> None:
-        """Remplacer le document entier.
+        """Replace the whole document.
 
-        Plus aucun appelant dans le framework : le commit passe par
-        :meth:`merge`. Reste l'amorçage, les tests et l'outillage, où
-        « pose exactement ceci » est ce qu'on veut dire.
+        No caller left in the framework: the commit goes through
+        :meth:`merge`. What remains is seeding, tests and tooling, where
+        "lay down exactly this" is what we mean.
 
-        Le remplacement est une transaction ``DEL`` + ``HSET`` : sans le
-        ``DEL``, un champ retiré du document survivrait dans le hash. Pas
-        de ``PERSIST`` quand ``ttl`` vaut ``None`` — la clé vient d'être
-        supprimée, elle ne peut porter aucune expiration.
+        The replacement is a ``DEL`` + ``HSET`` transaction: without the
+        ``DEL``, a field removed from the document would survive in the
+        hash. No ``PERSIST`` when ``ttl`` is ``None`` — the key has just
+        been deleted, it can carry no expiration.
 
-        Un document VIDE ne laisse donc que le ``DEL`` : la ligne est
-        absente, et non présente-mais-vide. Un hash Redis ne peut pas
-        exister sans champ, et le registre lit « absent » et « vide » de
-        la même façon — les deux rendent les défauts.
+        An EMPTY document therefore leaves only the ``DEL``: the row is
+        absent, and not present-but-empty. A Redis hash cannot exist
+        without a field, and the registry reads "absent" and "empty" the
+        same way — both return the defaults.
         """
         mapping = self._mapping(data, scope, key)
         composed = self._compose(scope, key)
@@ -297,48 +293,46 @@ class RedisBackend:
         add: dict[str, Any] | None = None,
         ttl: int | None = None,
     ) -> None:
-        """Écrire les champs de ``changes``, et EUX SEULS.
+        """Write the fields of ``changes``, and THOSE ALONE.
 
-        **Une seule commande, et aucune lecture.** ``HSET`` est atomique
-        par champ côté Redis : deux requêtes qui écrivent des champs
-        différents de la même clé ne peuvent pas s'effacer, sans verrou,
-        sans transaction optimiste et sans boucle de reprise.
+        **One single command, and no read.** ``HSET`` is atomic per field
+        on the Redis side: two requests writing different fields of the
+        same key cannot erase each other, with no lock, no optimistic
+        transaction and no retry loop.
 
-        ``add`` part en ``HINCRBY`` — ou ``HINCRBYFLOAT`` si l'écart est
-        décimal, Redis ayant deux commandes là où Python a un nombre.
-        C'est REDIS qui additionne, donc deux requêtes ayant lu le même
-        total comptent toutes les deux. Le résultat reste du JSON
-        valide : ``json.dumps(5)`` s'écrit ``5``, ce que ces commandes
-        savent lire, et ce qu'elles rendent se relit pareil (vérifié).
+        ``add`` goes out as ``HINCRBY`` — or ``HINCRBYFLOAT`` if the delta
+        is decimal, Redis having two commands where Python has one
+        number. It is REDIS that sums, so two requests that read the same
+        total both count. The result stays valid JSON: ``json.dumps(5)``
+        writes ``5``, which those commands know how to read, and what
+        they return reads back the same (verified).
 
-        Avec un ``ttl``, la valeur et l'expiration partent dans la MÊME
-        transaction : séparées, l'``EXPIRE`` d'une requête pourrait
-        tomber après celui d'une autre et laisser une durée qui n'est
-        plus la bonne.
+        With a ``ttl``, the value and the expiration go out in the SAME
+        transaction: separated, one request's ``EXPIRE`` could land after
+        another's and leave a duration that is no longer the right one.
 
-        ``ttl=None`` ne touche PAS à l'expiration existante — à la
-        différence de :meth:`save`, qui remplace tout. Une écriture
-        partielle n'a pas à décider du sort d'une durée qu'elle n'a pas
-        posée, et les deux scopes concernés (``user``, ``app``) n'en ont
-        de toute façon jamais.
+        ``ttl=None`` does NOT touch the existing expiration — unlike
+        :meth:`save`, which replaces everything. A partial write has no
+        business deciding the fate of a duration it did not set, and the
+        two scopes concerned (``user``, ``app``) never have one anyway.
         """
         if not changes and not add:
             return
         composed = self._compose(scope, key)
         mapping = self._mapping(changes, scope, key) if changes else {}
-        # Une seule commande reste une seule commande : pas de pipeline
-        # quand il n'y a rien à y mettre d'autre.
+        # One command stays one command: no pipeline when there is
+        # nothing else to put in it.
         if mapping and not add and ttl is None:
             await self._client.hset(composed, mapping=mapping)
             return
         async with self._client.pipeline(transaction=True) as pipe:
             if mapping:
                 pipe.hset(composed, mapping=mapping)
-            for champ, ecart in (add or {}).items():
-                if isinstance(ecart, int):
-                    pipe.hincrby(composed, champ, ecart)
+            for field, delta in (add or {}).items():
+                if isinstance(delta, int):
+                    pipe.hincrby(composed, field, delta)
                 else:
-                    pipe.hincrbyfloat(composed, champ, ecart)
+                    pipe.hincrbyfloat(composed, field, delta)
             if ttl is not None:
                 pipe.expire(composed, ttl)
             await pipe.execute()
@@ -349,56 +343,56 @@ class RedisBackend:
     async def acquire(
         self, scope: str, key: str, token: str, *, ttl: int
     ) -> bool:
-        """``SET clé jeton NX EX ttl`` — la prise atomique de Redis.
+        """``SET key token NX EX ttl`` — Redis's atomic take.
 
-        ``NX`` ne réussit que si la clé n'existe pas : c'est exactement
-        « prendre le verrou si personne ne le tient », sans lecture
-        préalable et sans course entre les deux.
+        ``NX`` only succeeds if the key does not exist: that is exactly
+        "take the lock if nobody holds it", with no prior read and no
+        race between the two.
         """
-        pris = await self._client.set(
+        taken = await self._client.set(
             self._lock_key(scope, key), token, nx=True, ex=ttl
         )
-        return bool(pris)
+        return bool(taken)
 
     @_bounded
     async def release(self, scope: str, key: str, token: str) -> None:
-        """Relâcher SI le jeton est le nôtre, sans fenêtre entre les deux.
+        """Release IF the token is ours, with no window in between.
 
-        ``GET`` puis ``DEL`` séparés laisseraient la place à une
-        expiration au milieu : on effacerait alors le verrou d'un
-        successeur, qui se croirait seul. ``WATCH`` ferme cette fenêtre —
-        si la clé bouge entre la lecture et le ``EXEC``, la transaction
-        échoue et on ne touche à rien, ce qui est exactement la bonne
-        conduite : notre verrou avait déjà expiré.
+        A separate ``GET`` then ``DEL`` would leave room for an
+        expiration in the middle: we would then erase a successor's lock,
+        who would believe itself alone. ``WATCH`` closes that window — if
+        the key moves between the read and the ``EXEC``, the transaction
+        fails and we touch nothing, which is exactly the right behaviour:
+        our lock had already expired.
 
-        Pas de reprise. Un échec ici veut dire « ce n'est plus le nôtre »,
-        pas « réessaie ».
+        No retry. A failure here means "it is no longer ours", not "try
+        again".
 
-        (Un script Lua ferait la même chose en un aller-retour, mais
-        ``fakeredis`` ne l'exécute pas sans un moteur Lua en plus — et
-        une garantie qu'aucun test ne peut exercer n'en est pas une.)
+        (A Lua script would do the same in one round trip, but
+        ``fakeredis`` does not run it without an extra Lua engine — and a
+        guarantee no test can exercise is not one.)
         """
-        cle = self._lock_key(scope, key)
+        key = self._lock_key(scope, key)
         async with self._client.pipeline(transaction=True) as pipe:
-            await pipe.watch(cle)
-            if await pipe.get(cle) != token:
+            await pipe.watch(key)
+            if await pipe.get(key) != token:
                 await pipe.reset()
                 return
             pipe.multi()
-            pipe.delete(cle)
+            pipe.delete(key)
             try:
                 await pipe.execute()
             except redis_exceptions.WatchError:
-                # Quelqu'un a touché la clé pendant qu'on regardait : notre
-                # verrou n'était donc plus le nôtre. Ne rien faire.
+                # Somebody touched the key while we were looking: our
+                # lock was therefore no longer ours. Do nothing.
                 return
 
     def _lock_key(self, scope: str, key: str) -> str:
-        """Un espace de noms SÉPARÉ de celui des états.
+        """A namespace SEPARATE from the states'.
 
-        Le verrou et la ligne qu'il protège ne doivent pas partager une
-        clé : un ``clear_scope`` balaierait les deux, et un verrou tenu
-        disparaîtrait sous son porteur.
+        The lock and the row it protects must not share a key: a
+        ``clear_scope`` would sweep both, and a held lock would vanish
+        from under its holder.
         """
         return f"{self._prefix}:lock:{scope}:{key}"
 

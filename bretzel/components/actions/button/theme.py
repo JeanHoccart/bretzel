@@ -28,23 +28,23 @@ BUTTON_THEME: dict[str, Any] = {
             # ``loading=True`` also flips the HTML ``disabled`` attr (render())
             # so this one variant covers both states.
             "disabled:opacity-50 disabled:cursor-not-allowed "
-            # ── Le même état, quand la balise est un ``<a>`` ──────────
-            # ``ui.button(href=…)`` rend un ancre, et ``:disabled`` ne
-            # matche JAMAIS un ``<a>`` : sans ces jumeaux, un lien-bouton
-            # désactivé s'affichait à pleine opacité, curseur normal, et
-            # s'éclaircissait encore au survol. Le ``render`` pose
-            # ``aria-disabled`` + ``tabindex=-1`` et retire la
-            # destination — donc il ne navigue pas ; ce qui manquait
-            # était de le MONTRER.
+            # ── The same state, when the tag is an ``<a>`` ────────────
+            # ``ui.button(href=…)`` renders an anchor, and ``:disabled``
+            # NEVER matches an ``<a>``: without these twins, a disabled
+            # link-button showed at full opacity, normal cursor, and
+            # lightened further on hover. The ``render`` sets
+            # ``aria-disabled`` + ``tabindex=-1`` and removes the
+            # destination — so it does not navigate; what was missing was
+            # SHOWING it.
             #
-            # ⚠️ Le ``!`` est load-bearing, et pour une raison mesurable
-            # qui ne vaut PAS chez ``ui.link``. Là-bas les variantes
-            # survolent en ``hover:*`` nu (0,2,0), donc un
-            # ``aria-disabled:hover:*`` (0,3,0) les bat par simple
-            # spécificité et le thème s'en explique. Ici les variantes
-            # écrivent ``not-disabled:hover:*``, qui pèse **aussi**
-            # 0,3,0 : à égalité, c'est l'ordre dans la feuille qui
-            # tranche, et cet ordre appartient au compilateur.
+            # ⚠️ The ``!`` is load-bearing, and for a measurable reason
+            # that does NOT hold at ``ui.link``. There the variants hover
+            # in bare ``hover:*`` (0,2,0), so an
+            # ``aria-disabled:hover:*`` (0,3,0) beats them by plain
+            # specificity and the theme explains itself. Here the
+            # variants write ``not-disabled:hover:*``, which **also**
+            # weighs 0,3,0: at equality, it is the order in the sheet
+            # that decides, and that order belongs to the compiler.
             "aria-disabled:opacity-50 aria-disabled:cursor-not-allowed "
             "aria-disabled:hover:brightness-100! "
             "aria-disabled:hover:shadow-none! "
@@ -66,44 +66,44 @@ BUTTON_THEME: dict[str, Any] = {
         # hover. That is a deliberate emphasis level, not a lighter
         # ``soft``, and it constrains WHERE it belongs :
         #
-        #   ghost va DANS un conteneur qui dessine déjà la boîte.
+        #   ghost goes INSIDE a container that already draws the box.
         #
-        # Une rangée de menu, une cellule d'en-tête teintée, un pied de
-        # dialogue à côté d'un ``solid`` : le contenant porte la limite,
-        # le bouton n'apporte que la zone de clic et les affordances.
-        # Un contrôle AUTONOME — une barre d'outils, un bouton seul en
-        # fin de liste — n'a pas ce contenant : au repos il ne se
-        # distingue plus du texte, et ``hover:`` ne peut pas rattraper
-        # ça. C'est la règle que ``theme/tailwind.py`` pose au bout de sa
-        # note sur ``@custom-variant hover`` : « ``hover:`` must still
-        # never CARRY an affordance ». Elle ne parle pas que du tactile —
-        # avant le survol, personne ne voit rien, souris ou pas.
+        # A menu row, a tinted header cell, a dialog footer next to a
+        # ``solid``: the container carries the boundary, the button only
+        # brings the click area and the affordances. A STANDALONE
+        # control — a toolbar, a lone button at the end of a list — does
+        # not have that container: at rest it no longer stands apart from
+        # the text, and ``hover:`` cannot make up for that. It is the
+        # rule ``theme/tailwind.py`` states at the end of its note on
+        # ``@custom-variant hover``: "``hover:`` must still never CARRY
+        # an affordance". It does not speak only of touch — before the
+        # hover, nobody sees anything, mouse or not.
         #
-        # Pour un contrôle autonome discret : ``soft`` (boîte lavée) ou
-        # ``outline`` (boîte bordée). Donner une boîte au repos à
-        # ``ghost`` le ferait fondre dans ``soft`` et lui retirerait sa
-        # raison d'être — c'est la doctrine qui manquait, pas le CSS.
+        # For a discreet standalone control: ``soft`` (washed box) or
+        # ``outline`` (bordered box). Giving ``ghost`` a box at rest
+        # would melt it into ``soft`` and remove its reason to be — it is
+        # the doctrine that was missing, not the CSS.
         #
-        # ⚠️ Non gaté, et c'est mesuré : interdire « une boîte seulement
-        # sous hover » dans les thèmes donne 24 occurrences dont 22
-        # légitimes (sidebar, dropdown, calendrier, pagination — un
-        # ``hover:`` qui enrichit une rangée dans une liste bornée est le
-        # motif dominant ET correct). La dérive ici est « quelle variante
-        # à ce call-site, vu ce qui l'entoure », et ça ne se décide pas
-        # statiquement : on ne voit pas dans la source si le parent
-        # dessine une boîte. D'où de la doctrine, et pas un test.
+        # ⚠️ Not gated, and it is measured: forbidding "a box only under
+        # hover" in the themes gives 24 occurrences of which 22
+        # legitimate (sidebar, dropdown, calendar, pagination — a
+        # ``hover:`` that enriches a row in a bounded list is the
+        # dominant AND correct pattern). The drift here is "which variant
+        # at this call site, given what surrounds it", and that cannot be
+        # decided statically: you cannot see in the source whether the
+        # parent draws a box. Hence doctrine, and not a test.
         "ghost": ("text-(--bz-text) not-disabled:hover:bg-(--bz-bg)"),
-        # Surface : le contrôle se lit comme un CHAMP — même boîte bordée
-        # que ``ui.input``. C'est ce qui manquait pour qu'une barre
-        # d'outils mêlant une recherche et des boutons se lise comme UNE
-        # famille : `soft` donne un lavis sans bordure, `outline` une
-        # bordure de 2 px accentuée, et aucun des deux ne ressemble au
-        # champ voisin (`bg-interface` + `border-text/10`).
+        # Surface: the control reads as a FIELD — the same bordered box
+        # as ``ui.input``. It is what was missing for a toolbar mixing a
+        # search and buttons to read as ONE family: `soft` gives a wash
+        # with no border, `outline` an accented 2 px border, and neither
+        # of the two resembles the neighbouring field (`bg-interface` +
+        # `border-text/10`).
         #
-        # La couleur reste un point d'accroche (`text-(--bz-text)`) pour
-        # que la règle « l'accent marque le pair ACTIF » continue de
-        # s'appliquer sans changer la boîte : au repos `current`, actif
-        # l'accent — la géométrie ne bouge pas.
+        # The colour stays a hook (`text-(--bz-text)`) so the "the accent
+        # marks the ACTIVE peer" rule goes on applying without changing
+        # the box: at rest `current`, active the accent — the geometry
+        # does not move.
         "surface": (
             "bg-interface border-(length:--bz-stroke) border-text/10 text-(--bz-text) "
             "not-disabled:hover:bg-text/5"

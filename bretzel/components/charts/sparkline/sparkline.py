@@ -97,7 +97,7 @@ class Sparkline(Component):
         # are server-resolved lists, not bindable scalars. Stash it on
         # the instance so ``render()`` can read it.
         self._data = data or []
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             color=color, size=size, smooth=smooth,
             area_fill=area_fill, show_last_dot=show_last_dot,

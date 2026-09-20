@@ -1,30 +1,29 @@
-"""Thème par défaut de :class:`Viewport` — le cadre plein écran.
+"""Default theme for :class:`Viewport` — the full-screen frame.
 
-``fixed inset-0 w-full overflow-hidden``, et le ``fixed`` est le seul
-utilitaire qui compte vraiment.
+``fixed inset-0 w-full overflow-hidden``, and the ``fixed`` is the only
+utility that really counts.
 
-Pourquoi ``fixed inset-0`` et surtout PAS ``h-screen``
--------------------------------------------------------
-``h-screen`` laisse le cadre DANS le flux du document. Un descendant qui
-défile gonfle alors ``html.scrollHeight`` au-delà de ``clientHeight``, et
-le navigateur rend une **seconde barre de défilement** au niveau du
-viewport. Mesuré deux fois dans ce dépôt : ``html.scrollHeight = 7 657``
-pour un ``clientHeight = 800`` sur une page longue. ``position: fixed``
-sort le cadre du flux — ``html.scrollHeight`` retombe à
-``clientHeight``, et il ne reste que la barre voulue, celle du
-:class:`~bretzel.components.layout.pane.Pane`.
+Why ``fixed inset-0`` and most certainly NOT ``h-screen``
+-----------------------------------------------------------
+``h-screen`` leaves the frame IN the document's flow. A descendant that
+scrolls then inflates ``html.scrollHeight`` beyond ``clientHeight``, and
+the browser renders a **second scrollbar** at the viewport level.
+Measured twice in this repository: ``html.scrollHeight = 7,657`` for a
+``clientHeight = 800`` on a long page. ``position: fixed`` takes the
+frame out of the flow — ``html.scrollHeight`` falls back to
+``clientHeight``, and only the intended bar remains, the
+:class:`~bretzel.components.layout.pane.Pane`'s.
 
-⚠️ Le correctif a été **reverté une fois** (2026-07-18) avec un
-commentaire affirmant que « ``overflow-hidden`` + ``min-h-0``
-suffisent ». C'est faux, et le piège de cette croyance est qu'elle est
-vraie sur les pages COURTES : l'inflation vaut zéro tant que le contenu
-tient dans l'écran, d'où le sentiment que ``h-screen`` marche. Ne pas
-re-reverter. ``traps.md`` § *Shell layout h-screen produit un double
-scrollbar viewport*.
+⚠️ The fix was **reverted once** (2026-07-18) with a comment claiming
+that "``overflow-hidden`` + ``min-h-0`` are enough". That is false, and
+the trap of that belief is that it is true on SHORT pages: the inflation
+is zero as long as the content fits on screen, hence the feeling that
+``h-screen`` works. Do not re-revert. ``traps.md`` § *A shell layout
+h-screen produces a double viewport scrollbar*.
 
-Les tables de flex sont recopiées de :data:`FLEX_THEME` plutôt que
-partagées — un thème du dépôt est auto-suffisant, pour qu'un override
-n'ait jamais à deviner d'où vient une valeur.
+The flex tables are copied from :data:`FLEX_THEME` rather than shared —
+a theme in this repository is self-sufficient, so an override never has
+to guess where a value comes from.
 """
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ from typing import Any
 
 VIEWPORT_THEME: dict[str, Any] = {
     "slots": {
-        # ``flex`` seul : la direction arrive de la table ci-dessous.
+        # ``flex`` alone: the direction comes from the table below.
         "root": "flex fixed inset-0 w-full overflow-hidden",
     },
     "directions": {
@@ -42,13 +41,13 @@ VIEWPORT_THEME: dict[str, Any] = {
         "row-reverse": "flex-row-reverse",
         "col-reverse": "flex-col-reverse",
     },
-    # ⚠️ Les deux centrages portent ``safe``, comme dans ``ui.pane`` et
-    # pour une raison PIRE : le cadre est ``overflow-hidden``, donc un
-    # contenu centré plus haut que l'écran est coupé aux deux bouts et
-    # **rien ne défile** pour aller le chercher. ``safe`` retombe sur
-    # ``start`` quand ça déborde, et ne change rien le reste du temps.
-    # Trois call-sites concernés dans tout le dépôt (mesuré le
-    # 2026-08-24) : le geste est petit, le mode de panne ne l'est pas.
+    # ⚠️ Both centrings carry ``safe``, as in ``ui.pane`` and for a
+    # WORSE reason: the frame is ``overflow-hidden``, so content centred
+    # taller than the screen is cut off at both ends and **nothing
+    # scrolls** to go and get it. ``safe`` falls back on ``start`` when
+    # it overflows, and changes nothing the rest of the time. Three call
+    # sites concerned in the whole repository (measured on 2026-08-24):
+    # the gesture is small, the failure mode is not.
     "alignments": {
         "start": "items-start",
         "center": "[align-items:safe_center]",
@@ -73,9 +72,9 @@ VIEWPORT_THEME: dict[str, Any] = {
         "xl": "gap-8",
     },
     "wrap": "flex-wrap",
-    # Recopiée de :data:`FLEX_THEME` comme les tables voisines — un thème
-    # est auto-suffisant dans ce dépôt. Les trois copies sont tenues
-    # identiques par ``test_a_flex_family_declares_every_table``.
+    # Copied from :data:`FLEX_THEME` like the neighbouring tables — a
+    # theme is self-sufficient in this repository. The three copies are
+    # kept identical by ``test_a_flex_family_declares_every_table``.
     "grows": {
         "equal": "*:grow *:basis-0",
         "12rem": "*:grow *:basis-48",

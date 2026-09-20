@@ -3,10 +3,10 @@
 One discoverable home for the ``*_each`` generators, even though they
 straddle two layers by necessity :
 
-- ``each`` est défini **ICI** (``each.py``). Le module
-  :mod:`bretzel.render.iteration` ne porte que le key-stack
-  (``_KEY_STACK`` / ``current_iteration_key`` / ``_extract_key``), et ne
-  définit ni ne ré-exporte ``each``.
+- ``each`` is defined **HERE** (``each.py``). The
+  :mod:`bretzel.render.iteration` module only carries the key stack
+  (``_KEY_STACK`` / ``current_iteration_key`` / ``_extract_key``), and
+  neither defines nor re-exports ``each``.
 - ``filter_each`` / ``paginate_each`` build *on* ``each`` by wrapping each
   item's body in a component (a ``bz-show`` window), so they are
   **component-layer** and live here.

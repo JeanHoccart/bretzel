@@ -1,25 +1,25 @@
-"""Renderer partagé de la carte d'app — v4, sur le modèle acté
-(``.claude/bretzel/app-map-model.md``). Réutilisé par flat, mad, …
+"""Shared renderer of the app map — v4, on the agreed model
+(``.claude/bretzel/app-map-model.md``). Reused by flat, mad, …
 
-Trois rôles, chacun SA représentation :
+Three roles, each with ITS representation:
 
-- **ANCRE** (shell/layout/page/error — se rend) : l'arbre de rendu pur.
-  Une page n'est jamais un dossier ; les erreurs vivent dans un micro-groupe
-  « erreurs » sous leur layout.
-- **SOCLE** (data/state/logic/facade/infra — se consomme) : groupes accrochés
-  aux **layouts uniquement** (Option A actée). Le privé-à-une-page remonte au
-  layout parent avec un badge « privé à <page> ».
-- **ENTRÉE** (job — se déclenche) : groupe « entrées » à la racine.
+- **ANCHOR** (shell/layout/page/error — renders): the pure render tree. A
+  page is never a folder; the errors live in a micro-group "erreurs"
+  under their layout.
+- **BASE** (data/state/logic/facade/infra — is consumed): groups attached
+  to **layouts only** (Option A agreed). What is private to one page goes
+  up to the parent layout with a "private to <page>" badge.
+- **ENTRY** (job — is triggered): an "entry points" group at the root.
 
-Visuel volontairement générique : UN seul style de ligne guide (la
-contenance) ; la couleur vit dans les icônes ; un groupe = un simple
-titre (eyebrow), pas de bordure propre.
+The visuals are deliberately generic: ONE single guide-line style
+(containment); the colour lives in the icons; a group is a plain title
+(eyebrow), with no border of its own.
 
-Grammaire de clic : clic ligne = TOUJOURS la sélection/détail ; le chevron
-est une cible séparée (layouts seulement). Survol : ce que la feature
-consomme s'éclaire — direct en fort, transitif en atténué. Le détail montre
-la chaîne de consommation (« geo ← planning_engine ← planning · tournées »)
-et le fichier de chaque symbole. Le badge routes est cliquable → la table.
+Click grammar: a click on a row is ALWAYS selection/detail; the chevron
+is a separate target (layouts only). Hover: what the feature consumes
+lights up — direct in full, transitive dimmed. The detail shows the
+consumption chain ("geo ← planning_engine ← planning · rounds") and
+each symbol's file. The routes badge is clickable → the table.
 """
 
 from __future__ import annotations
@@ -29,7 +29,8 @@ from bretzel.render import maybe_current_context
 from bretzel.server import AppGraph, describe_app
 from bretzel.state import ClientState, PageState, field
 
-# La couleur vit dans l'icône (le nom reste neutre). Un glyphe par rang.
+# The colour lives in the icon (the name stays neutral). One glyph per
+# rank.
 _KIND_ICON = {
     "shell": "layout", "layout": "layout-template", "page": "file-text",
     "data": "database", "state": "box",
@@ -48,11 +49,11 @@ _KIND_SORT = {
 }
 _BRANCH_KINDS = ("shell", "layout")
 
-#: Le poids du rang, en classes ENTIÈRES. Surtout pas `f"font-{weight}"` :
-#: une classe assemblée n'existe que sous le compilateur de dev, qui scanne
-#: le DOM déjà résolu ; en prod le binaire Tailwind ne balaie que les
-#: sources et ne verra jamais `font-medium`. Le HTML est identique des deux
-#: côtés, donc rien ne le dirait.
+#: The rank's weight, in WHOLE classes. Above all not `f"font-{weight}"`:
+#: an assembled class only exists under the dev compiler, which scans the
+#: already-resolved DOM; in production the Tailwind binary only sweeps the
+#: sources and will never see `font-medium`. The HTML is identical on both
+#: sides, so nothing would say so.
 _WEIGHT_CLASS = {"normal": "font-normal", "medium": "font-medium"}
 
 _CLOSED = "$bz.state.MapUI.default.closed"
@@ -62,53 +63,52 @@ _SEL = "$bz.state.MapUI.default.sel"
 _PANEL = "$bz.state.MapUI.default.panel"
 
 
-#: L'icône par kind, réutilisée par le graphe de dépendances.
+#: The icon per kind, reused by the dependency graph.
 _KIND_OF_NODE = _KIND_ICON
 
 
 class MapFocus(PageState):
-    """Le nœud au centre du graphe de dépendances.
+    """The node at the centre of the dependency graph.
 
-    SERVEUR, contrairement à `MapUI.sel` qui pilote l'arbre : changer le
-    centre change les nœuds DESSINÉS, donc le placement — et le
-    placement se calcule côté serveur. Les deux sélections restent
-    séparées exprès, parce qu'elles répondent à deux questions : l'arbre
-    dit « où ça vit », le graphe « qui touche à ça ».
+    SERVER side, unlike `MapUI.sel` which drives the tree: changing the
+    centre changes the nodes DRAWN, hence the placement — and the
+    placement is computed on the server. The two selections stay separate
+    on purpose, because they answer two questions: the tree says "where
+    this lives", the graph "who touches this".
     """
 
     key: str = field(default="")
 
 
 def focus_node(key: str) -> None:
-    # Recliquer sur le centre rend la vue d'ensemble : sans ça on
-    # s'enferme dans un voisinage sans porte de sortie.
+    # Clicking the centre again returns the overview: without that one
+    # gets locked into a neighbourhood with no way out.
     state = MapFocus()
     state.key = "" if state.key == key else key
 
 
 @refreshable(deps=[MapFocus])
 def dependency_graph() -> None:
-    """L'axe DÉPENDANCE de la carte — celui que l'arbre ne montre pas.
+    """The map's DEPENDENCY axis — the one the tree does not show.
 
-    `AppGraph` EST un graphe : `nodes` plus `edges` en
-    ``(source, cible, "uses"|"reads")``. L'arbre en projette la
-    CONTENANCE et n'affiche les arêtes qu'en surbrillance au survol —
-    donc rien du tout sur une machine sans pointeur fin, et rien
-    d'imprimable nulle part. Ici elles sont dessinées.
+    `AppGraph` IS a graph: `nodes` plus `edges` as
+    ``(source, target, "uses"|"reads")``. The tree projects its
+    CONTAINMENT and only shows the edges highlighted on hover — so
+    nothing at all on a machine with no fine pointer, and nothing
+    printable anywhere. Here they are drawn.
 
-    La zone ne prend aucun paramètre (une zone n'en prend jamais), donc
-    elle réintrospecte l'app courante. C'est aussi pourquoi le panneau
-    ne s'affiche pas quand `render_app_map(graph=…)` reçoit un graphe
-    explicite : elle montrerait l'app qui l'héberge, pas celui-là.
+    The zone takes no parameter (a zone never does), so it
+    re-introspects the current app. That is also why the panel is not
+    shown when `render_app_map(graph=…)` receives an explicit graph: it
+    would show the app hosting it, not that one.
     """
     ctx = maybe_current_context()
     graph = describe_app(ctx.app.features if ctx is not None else ())
     known = {n.name for n in graph.nodes}
-    # Le panneau ne s'OUVRE jamais sur le graphe entier. Mesuré sur
-    # Mesuré sur une app depuis retirée : 22 nœuds et 61 arêtes,
-    # illisible — c'est
-    # exactement le reproche qu'on fait à la carte, et l'afficher par
-    # défaut le déplacerait sans le régler.
+    # The panel never OPENS on the whole graph. Measured on an app since
+    # removed: 22 nodes and 61 edges, unreadable — which is exactly the
+    # reproach made to the map, and showing it by default would move the
+    # problem without solving it.
     focus = MapFocus().key or entry_feature(graph)
     ui.diagram(
         nodes=[
@@ -127,28 +127,28 @@ def dependency_graph() -> None:
         focus=focus or None,
         on_item_click=focus_node,
         size="sm",
-        empty_text="Aucune dépendance déclarée.",
+        empty_text="No declared dependency.",
     )
     ui.text(
-        f"Centré sur « {focus} ». Clique un nœud pour t'y déplacer — "
-        f"trait plein = uses, tireté = reads."
-        if focus else "Aucune dépendance déclarée.",
+        f"Centred on “{focus}”. Click a node to move there — "
+        f"solid line = uses, dashed = reads."
+        if focus else "No declared dependency.",
         color="muted", size="sm",
     )
 
 
 def entry_feature(graph: AppGraph) -> str:
-    """La feature qui sert la page d'accueil — le centre par défaut.
+    """The feature serving the home page — the default centre.
 
-    ⚠️ Surtout PAS le nœud le plus connecté, qui est l'intuition
-    naturelle et le pire choix possible : le plus connecté est un HUB
-    (le module de base de données), donc son voisinage est presque tout le
-    graphe. Mesuré : 18 nœuds sur 22, soit le même enchevêtrement qu'on
-    cherchait à éviter.
+    ⚠️ Above all NOT the most connected node, which is the natural
+    intuition and the worst possible choice: the most connected one is a
+    HUB (the database module), so its neighbourhood is almost the whole
+    graph. Measured: 18 nodes out of 22, that is, the same tangle one was
+    trying to avoid.
 
-    Une PAGE, elle, a peu de voisins, et son voisinage répond à une
-    vraie question — « de quoi cet écran a-t-il besoin ». On prend celle
-    de « / », sinon la première route déclarée.
+    A PAGE, for its part, has few neighbours, and its neighbourhood
+    answers a real question — "what does this screen need". We take the
+    one for "/", failing that the first declared route.
     """
     for path, feature in graph.routes:
         if path == "/":
@@ -157,22 +157,22 @@ def entry_feature(graph: AppGraph) -> str:
 
 
 class MapUI(ClientState, persist="memory"):
-    # Sentinelle : commence par un espace pour que le PREMIER repli s'aligne
-    # sur le test ``.includes(' key ')``. Défaut = tout déplié.
-    closed: str = field(default=' ')      # layouts repliés (délimité + bordé par des espaces)
-    sel: str = field(default='')          # feature sélectionnée → détail à droite
-    lit: list[str] = field(default_factory=list)   # consommé DIRECT (survol)
-    via: list[str] = field(default_factory=list)   # consommé TRANSITIF (atténué)
+    # Sentinel: starts with a space so the FIRST fold lines up with the
+    # ``.includes(' key ')`` test. Default = everything unfolded.
+    closed: str = field(default=' ')      # folded layouts (delimited, space-padded)
+    sel: str = field(default='')          # selected feature → detail on the right
+    lit: list[str] = field(default_factory=list)   # consumed DIRECTLY (hover)
+    via: list[str] = field(default_factory=list)   # consumed TRANSITIVELY (dimmed)
     panel: str = field(default='')        # "" | "routes" — le volet table des routes
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# Lecture du graphe — pur, sans rendu
+# Reading the graph — pure, with no rendering
 # ───────────────────────────────────────────────────────────────────────────
 
 
 def pkg_prefix(modules: list[str]) -> list[str]:
-    """Préfixe de package commun (pour raccourcir les chemins affichés)."""
+    """Common package prefix (to shorten the displayed paths)."""
     seqs = [m.split(".") for m in modules if m]
     out: list[str] = []
     for tier in zip(*seqs):
@@ -184,14 +184,14 @@ def pkg_prefix(modules: list[str]) -> list[str]:
 
 
 def short_path(module: str, prefix: list[str]) -> str:
-    """``examples.mad.features.geo`` → ``features/geo.py`` (préfixe retiré)."""
+    """``examples.mad.features.geo`` → ``features/geo.py`` (prefix dropped)."""
     parts = module.split(".")
     rel = parts[len(prefix):] if parts[: len(prefix)] == prefix else parts
     return "/".join(rel or parts[-1:]) + ".py"
 
 
 def consumption(node, by: dict) -> tuple[list[str], list[str]]:
-    """(direct, transitif) — ce que ``node`` consomme, pour le survol."""
+    """(direct, transitive) — what ``node`` consumes, for the hover."""
     direct = [*node.uses, *node.reads]
     seen, stack = set(direct), list(direct)
     while stack:
@@ -206,8 +206,8 @@ def consumption(node, by: dict) -> tuple[list[str], list[str]]:
 
 
 def consumer_chains(name: str, consumers: dict, by: dict) -> list[str]:
-    """Les chaînes de consommation, remontées jusqu'aux ancres/entrées —
-    l'explication du placement (« geo ← planning_engine ← planning »)."""
+    """The consumption chains, traced back to the anchors/entries — the
+    explanation of the placement ("geo ← planning_engine ← planning")."""
     paths: list[list[str]] = []
 
     def walk(n: str, path: list[str]) -> None:
@@ -225,7 +225,7 @@ def consumer_chains(name: str, consumers: dict, by: dict) -> list[str]:
                 walk(c, path + [c])
 
     walk(name, [])
-    # Fusionne les chemins partageant les mêmes intermédiaires :
+    # Merges the paths sharing the same intermediaries:
     # {(planning_engine,): [planning, tournees, nightly_replan]}
     groups: dict[tuple, list[str]] = {}
     for p in paths:
@@ -239,9 +239,9 @@ def consumer_chains(name: str, consumers: dict, by: dict) -> list[str]:
 
 
 def layout_of(nodes: list, by: dict) -> dict[str, list[tuple]]:
-    """Option A : chaque feature socle → le LAYOUT qui la porte.
-    ``optimal_parent`` layout → ce layout ; page → remonte au layout de la
-    page (badge « privé à <page> ») ; "" → groupe global (racine)."""
+    """Option A: every base feature → the LAYOUT that carries it.
+    ``optimal_parent`` layout → that layout; page → goes up to the page's
+    layout ("private to <page>" badge); "" → global group (root)."""
     out: dict[str, list[tuple]] = {}
     for n in nodes:
         if n.renderable or n.kind == "job":
@@ -249,7 +249,7 @@ def layout_of(nodes: list, by: dict) -> dict[str, list[tuple]]:
         target, badge = n.optimal_parent, None
         anchor = by.get(target)
         if anchor is not None and anchor.kind not in _BRANCH_KINDS:
-            badge = f"privé à {target}"
+            badge = f"private to {target}"
             target = anchor.render_parent
         out.setdefault(target, []).append((n, badge))
     for group in out.values():
@@ -258,38 +258,37 @@ def layout_of(nodes: list, by: dict) -> dict[str, list[tuple]]:
 
 
 def reach_label(node, by: dict) -> str:
-    """Le badge de placement du détail — où le graphe dit que ça vit."""
+    """The detail's placement badge — where the graph says this lives."""
     if node.render_parent:
-        return f"rendu dans {node.render_parent}"
+        return f"rendered in {node.render_parent}"
     if node.kind == "job":
-        return "entrée (job)"
+        return "entry point (job)"
     if node.renderable:
         return ""
     tgt = by.get(node.optimal_parent)
     if tgt is None:
-        return "socle global"
+        return "global base"
     if tgt.kind in _BRANCH_KINDS:
-        return ("socle commun à toute l'app" if not tgt.render_parent
-                else f"socle de {node.optimal_parent}")
-    return f"privé à {node.optimal_parent}"
+        return ("base common to the whole app" if not tgt.render_parent
+                else f"base of {node.optimal_parent}")
+    return f"private to {node.optimal_parent}"
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# Les lignes — UNE grammaire : clic = détail, chevron = cible séparée
+# The rows — ONE grammar: click = detail, chevron = separate target
 # ───────────────────────────────────────────────────────────────────────────
 
 
 def row_state(name: str) -> dict:
-    """Classe réactive : fond si sélectionné ; anneau fort si consommé en
-    direct par la feature survolée, atténué si transitif.
+    """Reactive class: a background if selected; a strong ring if consumed
+    directly by the hovered feature, dimmed if transitive.
 
-    ``bz-class`` et NON ``bz-attr:class`` — pourtant c'est ce que conseille
-    le message d'erreur du socle quand il refuse un ``:class``. Ici
-    ce serait faux : le bouton porte déjà un ``classes=`` statique
-    (``flex-1 min-w-0 justify-start …``), et ``bz-attr:class`` REMPLACE la
-    chaîne entière, alors que ``bz-class`` FUSIONNE ses jetons par-dessus.
-    Le premier aurait rendu la page — en effaçant la mise en page de
-    chaque rang.
+    ``bz-class`` and NOT ``bz-attr:class`` — although that is what the
+    base layer's error message advises when it refuses a ``:class``. Here
+    it would be wrong: the button already carries a static ``classes=``
+    (``flex-1 min-w-0 justify-start …``), and ``bz-attr:class`` REPLACES
+    the whole string, whereas ``bz-class`` MERGES its tokens on top. The
+    first would have rendered the page — by erasing every rank's layout.
     """
     sel = f"{_SEL} === '{name}'"
     lit = f"({_LIT} || []).includes('{name}')"
@@ -305,8 +304,8 @@ def row_state(name: str) -> dict:
 
 def row(node, m: MapUI, hover: tuple[list[str], list[str]], *,
          weight: str = "normal", chevron_key: str = "", right: str = "") -> None:
-    """Un rang. Chevron (layouts) = bouton séparé ; le rang lui-même
-    sélectionne TOUJOURS. Badge optionnel à droite (hors zone cliquable)."""
+    """A row. Chevron (layouts) = separate button; the row itself ALWAYS
+    selects. Optional badge on the right (outside the clickable area)."""
     direct, via = hover
     with ui.hstack(gap="none", align="center", classes="w-full"):
         if chevron_key:
@@ -314,11 +313,12 @@ def row(node, m: MapUI, hover: tuple[list[str], list[str]], *,
             toggle = (f"{_CLOSED} = {shut} ? "
                       f"{_CLOSED}.replace(' {chevron_key} ', ' ') : "
                       f"{_CLOSED} + '{chevron_key} '")
-            # État déplié/replié SANS ambiguïté : deux glyphes basculés par
-            # ``visible`` (bz-show) — ouvert = chevron bas (v), replié = chevron
-            # droit (>). Robuste : les deux sont dans le DOM, aucune classe
-            # dynamique à compiler (marche en dev ET en prod), contrairement à
-            # une rotation CSS (``rotate-90`` peut ne pas être dans le safelist).
+            # Unfolded/folded state with NO ambiguity: two glyphs
+            # toggled by ``visible`` (bz-show) — open = chevron down (v),
+            # folded = chevron right (>). Robust: both are in the DOM, no
+            # dynamic class to compile (works in dev AND in production),
+            # unlike a CSS rotation (``rotate-90`` may not be in the
+            # safelist).
             with ui.hstack(gap="none", align="center") as chev:
                 ui.icon("chevron-down", color="muted", size="sm",
                         visible=m.closed.contains(f" {chevron_key} ").not_())
@@ -353,17 +353,17 @@ def eyebrow(label: str) -> None:
 
 
 def labelled_group(label: str, rows, m: MapUI, hovers) -> None:
-    """Un sous-groupe étiqueté (socle / erreurs / entrées) : un simple
-    eyebrow + ses rangs, au même niveau que les pages sœurs — AUCUNE
-    bordure propre (un seul style de ligne dans tout l'arbre)."""
+    """A labelled subgroup (base / errors / entries): a plain eyebrow +
+    its rows, at the same level as the sibling pages — NO border of its
+    own (a single line style throughout the tree)."""
     eyebrow(label)
     for node, badge in rows:
         row(node, m, hovers[node.name], right=badge or "")
 
 
 def kids(nodes: list, parent: str) -> tuple[list, list]:
-    """Enfants de rendu de ``parent``, séparés (nav, erreurs). Branches
-    d'abord, puis pages, tri stable par kind puis nom."""
+    """``parent``'s render children, split (nav, errors). Branches first,
+    then pages, stable sort by kind then name."""
     ren = [n for n in nodes if n.renderable and n.render_parent == parent]
     nav = sorted((n for n in ren if n.kind != "error"),
                  key=lambda n: (0 if n.kind in _BRANCH_KINDS else 1,
@@ -373,8 +373,8 @@ def kids(nodes: list, parent: str) -> tuple[list, list]:
 
 
 def branch(node, nodes, m, hovers, socle_by_layout, by) -> None:
-    """Un layout : son rang (chevron séparé), puis — repliable — ses enfants
-    de rendu, son groupe socle, son groupe erreurs."""
+    """A layout: its row (separate chevron), then — foldable — its render
+    children, its base group, its errors group."""
     row(node, m, hovers[node.name], weight="medium", chevron_key=node.name)
     nav, errs = kids(nodes, node.name)
     socle = socle_by_layout.get(node.name, [])
@@ -386,17 +386,19 @@ def branch(node, nodes, m, hovers, socle_by_layout, by) -> None:
             else:
                 row(child, m, hovers[child.name])
         if socle:
-            # Au layout RACINE, « branche shell » lirait mal : ce socle est
-            # commun à toute l'app (db, les data partout consommées…).
-            label = ("socle · commun à toute l'app" if not node.render_parent
-                     else f"socle · branche {node.name}")
+            # At the ROOT layout, "branche shell" would read badly: this
+            # base is common to the whole app (db, the data consumed
+            # everywhere…).
+            label = ("base · common to the whole app"
+                     if not node.render_parent
+                     else f"base · {node.name} branch")
             labelled_group(label, socle, m, hovers)
         if errs:
             labelled_group("erreurs", [(e, "") for e in errs], m, hovers)
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# Le détail — contrat + placement + fichiers + chaînes
+# The detail — contract + placement + files + chains
 # ───────────────────────────────────────────────────────────────────────────
 
 
@@ -437,13 +439,13 @@ def detail(node, m: MapUI, by, consumers, prefix) -> None:
             chains = (consumer_chains(node.name, consumers, by)
                       if not node.renderable else [])
             if chains:
-                ui.text("consommé par", color="muted", size="xs",
+                ui.text("consumed by", color="muted", size="xs",
                         classes="font-mono")
                 for line in chains:
                     ui.text(line, size="sm",
                             classes="font-mono text-text/80")
             if not node.uses and not node.reads and not chains:
-                ui.text("Aucune dépendance — une feuille.", color="muted",
+                ui.text("No dependency — a leaf.", color="muted",
                         size="sm")
 
 
@@ -454,10 +456,10 @@ def detail(node, m: MapUI, by, consumers, prefix) -> None:
 
 def render_app_map(graph: AppGraph | None = None, *,
                    title: str = "Carte de l'app") -> None:
-    """Dessine la carte. Sans argument, introspecte l'app COURANTE
-    (``def app_map_page(): render_app_map()``). Avec un ``graph`` explicite,
-    dessine CE graphe — utile pour démontrer le composant sur un exemple
-    (le playground n'a pas de Features à introspecter)."""
+    """Draw the map. With no argument, introspects the CURRENT app
+    (``def app_map_page(): render_app_map()``). With an explicit ``graph``,
+    draws THAT graph — useful to demonstrate the component on an example
+    (the playground has no Features to introspect)."""
     introspecting = graph is None
     ctx = maybe_current_context()
     if introspecting:
@@ -480,12 +482,13 @@ def render_app_map(graph: AppGraph | None = None, *,
     with ui.vstack(gap="lg", classes="w-full max-w-5xl mx-auto"):
         ui.heading(title, level=1, size="2xl")
         ui.text(
-            "L'architecture que le graphe implique — pas les dossiers du repo. "
-            "L'arbre = le rendu (un layout contient ses pages). Les groupes "
-            "tiretés = le socle, posé sous le layout au plus près de ses "
-            "consommateurs. Clic sur une ligne → son contrat, ses fichiers et "
-            "sa chaîne de consommation. Survol → ce qu'elle consomme s'éclaire "
-            "(fort = direct, atténué = transitif). Chevron = replier.",
+            "The architecture the graph implies — not the repo's "
+            "folders. The tree = the rendering (a layout contains its "
+            "pages). The dashed groups = the base, placed under the layout "
+            "as close as possible to its consumers. Click a line → its "
+            "contract, its files and its chain of consumption. Hover "
+            "→ what it consumes lights up (strong = direct, dimmed = "
+            "transitive). Chevron = fold.",
             color="muted",
         )
         with ui.hstack(gap="sm", wrap=True, align="center"):
@@ -496,7 +499,7 @@ def render_app_map(graph: AppGraph | None = None, *,
                 on_click=f"{_PANEL} = {_PANEL} === 'routes' ? '' : 'routes'",
             )
             ui.button(
-                f"{len(graph.edges)} dépendances", variant="soft", size="xs",
+                f"{len(graph.edges)} dependencies", variant="soft", size="xs",
                 color="warning", icon_left="workflow",
                 on_click=f"{_PANEL} = {_PANEL} === 'graph' ? '' : 'graph'",
             )
@@ -509,19 +512,19 @@ def render_app_map(graph: AppGraph | None = None, *,
                                 classes="font-mono min-w-[10rem]")
                         ui.text(f"→ {feat}", size="sm", classes="font-mono")
 
-        # Le panneau du graphe. Absent quand un graphe EXPLICITE est
-        # passé : la zone réintrospecte l'app courante, donc elle
-        # montrerait autre chose que ce qu'on lui a demandé de dessiner.
+        # The graph's panel. Absent when an EXPLICIT graph is passed:
+        # the zone re-introspects the current app, so it would show
+        # something other than what it was asked to draw.
         if introspecting:
             with ui.card(visible=(m.panel == "graph")):
                 with ui.vstack(gap="sm"):
-                    eyebrow("dépendances · l'autre axe")
+                    eyebrow("dependencies · the other axis")
                     dependency_graph()
 
         with ui.hstack(gap="lg", align="start", classes="w-full max-md:flex-col"):
             with ui.card(classes="md:w-1/2 w-full"):
                 with ui.vstack(gap="none"):
-                    eyebrow("architecture · dérivée du graphe")
+                    eyebrow("architecture · derived from the graph")
                     for root in roots_nav:
                         if root.kind in _BRANCH_KINDS:
                             branch(root, nodes, m, hovers, socle_by_layout, by)
@@ -529,20 +532,21 @@ def render_app_map(graph: AppGraph | None = None, *,
                             row(root, m, hovers[root.name])
                     global_socle = socle_by_layout.get("", [])
                     if global_socle:
-                        labelled_group("socle · global", global_socle, m, hovers)
+                        labelled_group("base · global", global_socle, m, hovers)
                     if roots_err:
-                        labelled_group("erreurs", [(e, "") for e in roots_err], m,
+                        labelled_group("errors", [(e, "") for e in roots_err], m,
                                hovers)
                     if entries:
-                        labelled_group("entrées · jobs", [(j, "") for j in entries],
+                        labelled_group("entry points · jobs", [(j, "") for j in entries],
                                m, hovers)
-                    # Lint L1 : les routables montés HORS de toute Feature —
-                    # le squelette ne ment pas par omission, il les affiche.
+                    # Lint L1: the routables mounted OUTSIDE any Feature
+                    # — the skeleton does not lie by omission, it shows
+                    # them.
                     undeclared = tuple(
                         getattr(ctx.app, "undeclared_pages", ())
                         if (introspecting and ctx is not None) else ())
                     if undeclared:
-                        eyebrow("⚠ non déclaré · hors manifeste")
+                        eyebrow("⚠ undeclared · outside the manifest")
                         for label, route in undeclared:
                             with ui.hstack(gap="sm", align="center",
                                            classes="px-2 py-1"):
@@ -551,8 +555,8 @@ def render_app_map(graph: AppGraph | None = None, *,
                                 ui.text(f"{label}  {route}", size="sm",
                                         color="warning", classes="font-mono")
             with ui.vstack(gap="sm", classes="md:w-1/2 w-full"):
-                ui.text("← Clique une feature pour son contrat, ses fichiers "
-                        "et qui la consomme.", color="muted", size="sm",
+                ui.text("← Click a feature for its contract, its files "
+                        "and who consumes it.", color="muted", size="sm",
                         visible=(m.sel == ""))
                 for node in nodes:
                     detail(node, m, by, consumers, prefix)

@@ -1,10 +1,10 @@
-"""App map (tree) — banc de démo du composant « squelette vivant ».
+"""App map (tree) — the "living skeleton" component's demo bench.
 
-Le playground n'a pas de contrats ``Feature`` à introspecter, alors on nourrit
-``render_app_map`` avec un graphe-EXEMPLE construit à la main (une petite app
-MAD). De quoi exercer l'arbre : replier/déplier un layout (chevron ▼ / ▶ sans
-ambiguïté), survoler une ligne pour éclairer ses dépendances, cliquer pour le
-contrat + le fichier + la chaîne de consommation.
+The playground has no ``Feature`` contracts to introspect, so we feed
+``render_app_map`` with an EXAMPLE graph built by hand (a small MAD app).
+Enough to exercise the tree: fold/unfold a layout (chevron ▼ / ▶ with no
+ambiguity), hover a row to light up its dependencies, click for the
+contract + the file + the consumption chain.
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ def feature_node(name: str, kind: str, **kw) -> FeatureNode:
     return FeatureNode(name=name, kind=kind, **kw)
 
 
-# Un petit graphe réaliste : 2 layouts (repliables), des pages, du socle à
-# deux niveaux, un « privé à une page », un job, une erreur.
+# A small realistic graph: 2 layouts (foldable), pages, two levels of
+# base layer, one "private to a page", a job, an error.
 _NODES = (
     feature_node("shell", "shell", renderable=True,
        provides=(ProvideInfo("shell", "layout", "", "app.shell"),)),
@@ -77,14 +77,14 @@ SAMPLE = AppGraph(
 def page() -> None:
     with ui.container():
         with ui.vstack(gap="md"):
-            ui.heading("App map · le composant tree", level=1)
+            ui.heading('App map · the tree component', level=1)
             ui.text(
-                "Le squelette vivant : l'arbre d'architecture dérivé du graphe. "
-                "Le playground n'a pas de Features à introspecter, alors on "
-                "démontre le composant sur un graphe-exemple (une petite app "
-                "MAD). Replie un layout (le chevron passe de ▼ à ▶ sans "
-                "ambiguïté), survole une ligne pour éclairer ses dépendances, "
-                "clique pour le contrat + le fichier.",
+                'The living skeleton: the architecture tree derived from '
+                    'the graph. The playground has no Features to introspect,'
+                    ' so the component is demonstrated on an example graph (a'
+                    ' small MAD app). Fold a layout (the chevron goes from ▼ '
+                    'to ▶ unambiguously), hover a row to light up its '
+                    'dependencies, click for the contract + the file.',
                 color="muted",
             )
-            render_app_map(SAMPLE, title="Exemple : une app MAD")
+            render_app_map(SAMPLE, title='Example: a MAD app')

@@ -31,31 +31,31 @@ DROPDOWN_THEME: dict[str, Any] = {
             "absolute z-40 min-w-[12rem] py-1 "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface "
             "shadow-lg "
-            # LE FONDU ENTRANT D'UN PANNEAU ANCRÉ — la référence de
-            # la famille ; les cinq autres panneaux renvoient ici.
+            # THE ENTER FADE OF AN ANCHORED PANEL — the family's
+            # reference; the five other panels point here.
             #
-            # ``display`` ne se transitionne pas, et le runtime
-            # ouvre un panneau en écrivant ``style.display`` en
-            # ligne. Un ``transition-opacity`` seul n'animait donc
-            # RIEN : sept porteurs mesurés à opacité constante le
-            # 2026-09-04, la classe présente depuis toujours.
+            # ``display`` does not transition, and the runtime opens a
+            # panel by writing ``style.display`` inline. A
+            # ``transition-opacity`` alone therefore animated NOTHING:
+            # seven carriers measured at constant opacity on 2026-09-04,
+            # the class present from the start.
             #
-            # Les trois vont ENSEMBLE, et aucune ne sert seule :
-            #   - ``display`` dans la liste des propriétés ;
-            #   - ``transition-discrete`` (``allow-discrete``), qui
-            #     retient ``display`` jusqu'à la fin du fondu ;
-            #   - ``starting:opacity-0``, l'état de départ — sans
-            #     lui il n'y a rien d'où partir, l'élément naît à 1.
+            # The three go TOGETHER, and none serves alone:
+            #   - ``display`` in the list of properties;
+            #   - ``transition-discrete`` (``allow-discrete``), which
+            #     holds ``display`` until the end of the fade;
+            #   - ``starting:opacity-0``, the starting state — without it
+            #     there is nothing to start from, the element is born
+            #     at 1.
             #
-            # SORTANT INSTANTANÉ, et c'est voulu. ``@starting-style``
-            # ne donne que l'entrée (mesuré : 9 images à opacité 1 à
-            # la fermeture). Un fondu sortant demanderait l'état
-            # fermé en CSS, donc un ``data-open`` en miroir comme
-            # ``dialog`` — et un menu qui traîne se lit comme une
-            # latence, pas comme du soin.
+            # AN INSTANT EXIT, and it is intended. ``@starting-style``
+            # only gives the entry (measured: 9 frames at opacity 1 on
+            # closing). A leaving fade would ask for the closed state in
+            # CSS, so a mirrored ``data-open`` like ``dialog``'s — and a
+            # menu that lingers reads as latency, not as care.
             #
-            # Gardé par ``test_a_declared_transition_can_animate``.
-            # Détail et mesures : traps.md § « transition DÉCLARÉE ».
+            # Guarded by ``test_a_declared_transition_can_animate``.
+            # Detail and measurements: traps.md § "a DECLARED transition".
             "transition-[opacity,display] transition-discrete duration-150 "
             "starting:opacity-0"
         ),

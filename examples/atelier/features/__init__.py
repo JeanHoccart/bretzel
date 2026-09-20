@@ -1,1 +1,1 @@
-"""features/ — les écrans de l'atelier, et les repos qui les servent."""
+"""features/ — the workshop's screens, and the repos that serve them."""

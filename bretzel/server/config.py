@@ -21,11 +21,11 @@ from bretzel.server.crypto import (
     derive_key,
 )
 
-#: Le sous-ensemble de BCP-47 qu'une app déclare en pratique : une
-#: langue, éventuellement une écriture, éventuellement une région —
-#: ``fr``, ``zh-Hant``, ``pt-BR``, ``zh-Hant-TW``. Les extensions
-#: (``-u-ca-buddhist``) et les tags privés sont hors de ce que
-#: ``<html lang>`` demande, et les accepter reviendrait à ne rien valider.
+#: The subset of BCP-47 an app declares in practice: a language,
+#: possibly a script, possibly a region — ``fr``, ``zh-Hant``,
+#: ``pt-BR``, ``zh-Hant-TW``. The extensions (``-u-ca-buddhist``) and the
+#: private tags are outside what ``<html lang>`` asks for, and accepting
+#: them would amount to validating nothing.
 _BCP47 = re.compile(r"[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|\d{3}))?")
 
 
@@ -83,26 +83,27 @@ class BretzelConfig:
     session_max_age_days: int = 30
 
     # ── Static / build ────────────────────────────────────────────────
-    # Quand il est posé, le dossier est monté sur ``/static`` (constante
-    # ``ROUTE_STATIC_DIR``) par ``_mount_static_dir`` au démarrage — utile
-    # pour les assets utilisateur (favicon, logos, fichiers à télécharger).
-    # Un chemin qui ne pointe pas un dossier existant LÈVE au démarrage.
+    # When set, the folder is mounted at ``/static`` (the
+    # ``ROUTE_STATIC_DIR`` constant) by ``_mount_static_dir`` at startup —
+    # useful for user assets (favicon, logos, files to download). A path
+    # that does not point at an existing folder RAISES at startup.
     static_dir: str | None = None
 
-    # ── Icône ─────────────────────────────────────────────────────────
-    # Trois valeurs, et la troisième n'est pas cosmétique :
+    # ── Icon ──────────────────────────────────────────────────────────
+    # Three values, and the third is not cosmetic:
     #
-    #   ``None``   (défaut) la marque Bretzel, servie depuis
-    #              ``bretzel/static/`` par ``ROUTE_FAVICON`` ;
-    #   ``"/…"``   l'icône de l'app, à l'URL qu'elle donne — c'est à elle
-    #              de la servir (``static_dir=`` fait ça) ;
-    #   ``False``  aucune. Le head émet quand même un ``<link>`` vide
-    #              (``href="data:,"``) : sans AUCUN ``<link rel=icon>``
-    #              le navigateur va chercher ``/favicon.ico`` tout seul,
-    #              donc retirer notre marque coûterait un 404 par page.
+    #   ``None``   (default) the Bretzel mark, served from
+    #              ``bretzel/static/`` by ``ROUTE_FAVICON``;
+    #   ``"/…"``   the app's icon, at the URL it gives — it is up to the
+    #              app to serve it (``static_dir=`` does that);
+    #   ``False``  none. The head still emits an empty ``<link>``
+    #              (``href="data:,"``): with NO ``<link rel=icon>`` at
+    #              all the browser goes looking for ``/favicon.ico`` by
+    #              itself, so removing our mark would cost a 404 per
+    #              page.
     #
-    # Le troisième cas existe parce que quelqu'un qui livre un vrai
-    # produit doit pouvoir enlever notre marque AVANT d'avoir la sienne.
+    # The third case exists because someone shipping a real product must
+    # be able to remove our mark BEFORE having their own.
     favicon: str | bool | None = None
 
     # ── Security middleware shortcuts ─────────────────────────────────
@@ -113,82 +114,82 @@ class BretzelConfig:
     # forever (pre-v2). A stale action 403s → the client reloads the page.
     action_max_age: int | None = None
 
-    # Les trois en-têtes qui ne dépendent de rien (``nosniff``,
-    # ``Referrer-Policy``, ``X-Frame-Options``). Par défaut parce qu'ils
-    # ne peuvent casser aucune app ; le réglage existe pour l'app qui
-    # les pose elle-même en amont, derrière son proxy.
+    # The three headers that depend on nothing (``nosniff``,
+    # ``Referrer-Policy``, ``X-Frame-Options``). On by default because
+    # they cannot break any app; the setting exists for the app that sets
+    # them itself upstream, behind its proxy.
     security_headers: bool = True
 
-    # La CSP, sur DEUX axes volontairement séparés — le mode ici, les
-    # sources dans ``csp_sources`` en dessous. Les mélanger (un dict qui
-    # voudrait dire « active ET étends ») ferait deux façons d'écrire la
-    # même chose.
+    # The CSP, on TWO deliberately separate axes — the mode here, the
+    # sources in ``csp_sources`` below. Mixing them (a dict meaning
+    # "enable AND extend") would make two ways of writing the same thing.
     #
-    # ``False`` par défaut, et c'est le partage : Bretzel ne peut pas
-    # deviner les polices, CDN et iframes de l'app, donc c'est elle qui
-    # décide. ``"report-only"`` est le premier barreau — le navigateur
-    # évalue la politique et signale ce qui aurait sauté SANS rien
-    # bloquer. On regarde ce qui remonte, on complète ``csp_sources``,
-    # puis on passe à ``True``. Ce mode existe exactement pour ne pas
-    # découvrir en production qu'il manquait une origine.
+    # ``False`` by default, and that is the split: Bretzel cannot guess
+    # the app's fonts, CDNs and iframes, so the app decides.
+    # ``"report-only"`` is the first rung — the browser evaluates the
+    # policy and reports what would have been dropped WITHOUT blocking
+    # anything. You watch what comes back, you complete ``csp_sources``,
+    # then you move to ``True``. That mode exists precisely so as not to
+    # discover in production that an origin was missing.
     csp: bool | Literal["report-only"] = False
 
-    # Ce que l'APP ajoute — Bretzel calcule déjà ce qu'il se doit à
-    # lui-même (ses empreintes de scripts inline, ``'unsafe-eval'``, les
-    # hôtes d'API d'icônes, les origines de ses assets selon que le
-    # rapatriement vendor a eu lieu ou non).
+    # What the APP adds — Bretzel already computes what it owes itself
+    # (its inline script fingerprints, ``'unsafe-eval'``, the icon API
+    # hosts, its assets' origins depending on whether vendoring has
+    # happened or not).
     #
     #     Bretzel(csp=True, csp_sources={
     #         "font-src": ["https://fonts.gstatic.com"],
     #         "frame-src": ["https://www.youtube.com"],
     #     })
     #
-    # On peut élargir, jamais rétrécir : rétrécir se ferait en silence
-    # et casserait le framework chez celui qui l'a écrit.
+    # One can widen, never narrow: narrowing would happen silently and
+    # would break the framework for whoever wrote it.
     csp_sources: Mapping[str, Sequence[str]] = field(
         default_factory=dict, compare=False
     )
 
-    # ── Langue ────────────────────────────────────────────────────────
-    # La langue du document, en BCP-47 (``"fr"``, ``"fr-CA"``, ``"pt-BR"``).
-    # Elle fait DEUX choses, et pas une de plus :
+    # ── Language ──────────────────────────────────────────────────────
+    # The document's language, in BCP-47 (``"fr"``, ``"fr-CA"``,
+    # ``"pt-BR"``). It does TWO things, and not one more:
     #
-    #   1. ``<html lang="…">``, qui est l'attribut standard — un lecteur
-    #      d'écran choisit sa voix dessus, et le navigateur sa coupure de
-    #      mots. Le paramètre existait dans ``render/shell.py`` depuis le
-    #      début et **personne ne le passait** : toute page Bretzel
-    #      expédiait ``lang="en"`` en dur, y compris les apps françaises.
-    #   2. Elle voyage jusqu'aux composants, qui la donnent à ``Intl``
-    #      (navigateur) ou à leur formateur (serveur) pour tout ce qui se
-    #      DÉRIVE : noms de mois et de jours, axes temporels, séparateurs
-    #      de nombres, devise.
+    #   1. ``<html lang="…">``, which is the standard attribute — a
+    #      screen reader picks its voice from it, and the browser its
+    #      hyphenation. The parameter existed in ``render/shell.py`` from
+    #      the start and **nobody passed it**: every Bretzel page shipped
+    #      a hard-coded ``lang="en"``, French apps included.
+    #   2. It travels as far as the components, which give it to ``Intl``
+    #      (browser) or to their formatter (server) for everything that
+    #      is DERIVED: month and day names, time axes, number
+    #      separators, currency.
     #
-    # Ce n'est PAS de l'i18n (hors périmètre v2.0, cf. le charter) : aucun
-    # catalogue, aucune règle de pluriel, aucune extraction de messages.
-    # Les phrases que le framework a écrites lui-même — « Clear filters »,
-    # « No results » — ne se dérivent d'aucune langue ; elles se
-    # remplacent une par une via :attr:`texts`.
+    # This is NOT i18n (out of scope for v2.0, cf. the charter): no
+    # catalogue, no plural rule, no message extraction. The sentences the
+    # framework wrote itself — "Clear filters", "No results" — derive
+    # from no language; they are replaced one by one through
+    # :attr:`texts`.
     lang: str = "en"
-    # Les mots du framework, surchargeables. Clés dans
-    # :data:`bretzel.render.texts.DEFAULT_TEXTS` ; une clé inconnue LÈVE
-    # au démarrage plutôt que d'être ignorée en silence — une faute de
-    # frappe dans un dict ne se voit nulle part ailleurs.
+    # The framework's words, overridable. Keys in
+    # :data:`bretzel.render.texts.DEFAULT_TEXTS`; an unknown key RAISES
+    # at startup rather than being silently ignored — a typo in a dict
+    # shows nowhere else.
     texts: Mapping[str, Any] = field(default_factory=dict, compare=False)
-    # Les langues que l'app sait rendre. VIDE = monolingue, et c'est le
-    # défaut : rien ne change pour une app qui ne déclare rien.
+    # The languages the app can render. EMPTY = monolingual, and that is
+    # the default: nothing changes for an app that declares nothing.
     #
-    # Non vide, la langue est résolue PAR REQUÊTE — cookie ``bz_lang``,
-    # puis ``Accept-Language``, puis ``lang``. C'est l'ordre de Django,
-    # de Rails et de next-intl, et il n'est pas arbitraire : l'en-tête
-    # est un défaut de première visite, jamais une autorité, sinon un
-    # sélecteur de langue devient inécrivable et deux personnes ouvrant
-    # la même URL voient deux pages.
+    # Non-empty, the language is resolved PER REQUEST — the ``bz_lang``
+    # cookie, then ``Accept-Language``, then ``lang``. That is Django's
+    # order, Rails's and next-intl's, and it is not arbitrary: the header
+    # is a first-visit default, never an authority, otherwise a language
+    # selector becomes unwritable and two people opening the same URL see
+    # two pages.
     #
-    # ``lang`` doit y figurer : c'est le repli, et un repli hors de la
-    # liste rendrait une langue que l'app dit ne pas savoir rendre.
+    # ``lang`` must appear in it: it is the fallback, and a fallback
+    # outside the list would return a language the app says it cannot
+    # render.
     languages: tuple[str, ...] = ()
-    #: DÉRIVÉ (``__post_init__``) : les tables de mots par langue. Pas un
-    #: réglage — on ne le passe pas à ``Bretzel(...)``.
+    #: DERIVED (``__post_init__``): the per-language word tables. Not a
+    #: setting — it is not passed to ``Bretzel(...)``.
     text_tables: Any = field(init=False, repr=False, compare=False, default=None)
 
     # ── Responsive nav ────────────────────────────────────────────────
@@ -200,32 +201,32 @@ class BretzelConfig:
     # screen-responsive-nav.md.
     mobile_breakpoint: int = 768
 
-    # Barre de progression de NAVIGATION, allumée par défaut. Sur une
-    # page qui met 800 ms à revenir, on clique et rien ne bouge — donc
-    # on reclique. C'est le seul témoin de chargement que le framework
-    # allume sans qu'on le demande, et la raison est qu'il n'a AUCUNE
-    # décision de placement à poser : une bande en bord d'écran, une
-    # par app, jamais dans le flux. (Un témoin d'action en vol, lui,
-    # doit dire OÙ il s'affiche — d'où ``ui.pending()``, explicite.)
+    # NAVIGATION progress bar, on by default. On a page taking 800 ms to
+    # come back, you click and nothing moves — so you click again. It is
+    # the only loading indicator the framework turns on unasked, and the
+    # reason is that it has NO placement decision to make: a strip at the
+    # screen edge, one per app, never in the flow. (An in-flight action
+    # indicator, by contrast, must say WHERE it shows — hence
+    # ``ui.pending()``, explicit.)
     #
-    # L'éteindre est un choix esthétique légitime : une app qui a son
-    # propre chrome de chargement en aurait deux.
+    # Turning it off is a legitimate aesthetic choice: an app with its
+    # own loading chrome would have two.
     nav_progress: bool = True
 
     # ── PWA ───────────────────────────────────────────────────────────
-    #: La déclaration d'installabilité. ``None`` → aucune route de
-    #: manifeste, aucun ``<link>`` : une app qui ne demande rien n'a
-    #: pas à porter le vocabulaire.
+    #: The installability declaration. ``None`` → no manifest route, no
+    #: ``<link>``: an app that asks for nothing does not have to carry the
+    #: vocabulary.
     pwa: Any = None
 
     @property
     def _manifest_url(self) -> str | None:
-        """L'URL du manifeste, ou ``None`` — lue par le pipeline.
+        """The manifest's URL, or ``None`` — read by the pipeline.
 
-        Une PROPRIÉTÉ et pas un champ : elle se dérive de ``pwa``,
-        donc les deux ne peuvent pas diverger. Un champ aurait pu
-        rester posé après qu'on ait retiré le ``pwa``, et la tête du
-        document aurait alors lié un manifeste servi par personne.
+        A PROPERTY and not a field: it derives from ``pwa``, so the two
+        cannot diverge. A field could have stayed set after ``pwa`` was
+        removed, and the document head would then have linked a manifest
+        nobody serves.
         """
         if self.pwa is None:
             return None
@@ -233,65 +234,66 @@ class BretzelConfig:
         return MANIFEST_ROUTE
 
     # ── Transport ─────────────────────────────────────────────────────
-    # ``Secure`` sur les cookies. ``None`` = déduit du scheme de la
-    # requête (cf. ``auth.resolve_cookie_secure``) — c'est une question de
-    # transport, pas d'environnement. Forcer n'est utile que derrière un
-    # proxy qui termine le TLS sans que uvicorn tourne avec
-    # ``proxy_headers=True`` : l'app voit alors ``http`` et sous-estimerait.
+    # ``Secure`` on the cookies. ``None`` = derived from the request's
+    # scheme (cf. ``auth.resolve_cookie_secure``) — it is a question of
+    # transport, not of environment. Forcing it is only useful behind a
+    # proxy terminating TLS without uvicorn running with
+    # ``proxy_headers=True``: the app then sees ``http`` and would
+    # underestimate.
     secure_cookies: bool | None = None
 
-    # ── Préréglage ────────────────────────────────────────────────────
-    # ``mode`` ne fait QUE poser les défauts des réglages ci-dessous, plus
-    # gouverner l'axe assets / cache (pipeline CSS, en-têtes, cache-bust)
-    # via :attr:`is_dev`. Il ne décide plus rien d'autre tout seul : un
-    # booléen unique qui gouvernait à la fois la verbosité, l'exposition
-    # des erreurs ET la sécurité des cookies a coûté un bug de session en
-    # production (cf. ``auth.resolve_cookie_secure``).
+    # ── Preset ────────────────────────────────────────────────────────
+    # ``mode`` ONLY sets the defaults of the settings below, plus governs
+    # the assets / cache axis (CSS pipeline, headers, cache-bust) through
+    # :attr:`is_dev`. It no longer decides anything else on its own: a
+    # single boolean governing verbosity, error exposure AND cookie
+    # security at once cost a session bug in production (cf.
+    # ``auth.resolve_cookie_secure``).
     mode: Literal["dev", "prod"] = "prod"
 
-    # ── Pipeline CSS ──────────────────────────────────────────────────
-    # Quel chemin produit le CSS servi au navigateur. C'est le SEUL axe
-    # qui change ce qui est RENDU, d'où un réglage nommé plutôt qu'une
-    # implication du mode :
+    # ── CSS pipeline ──────────────────────────────────────────────────
+    # Which path produces the CSS served to the browser. It is the ONLY
+    # axis that changes what is RENDERED, hence a named setting rather
+    # than an implication of the mode:
     #
-    # - ``"build"``   : compile ``style.css`` au démarrage, servi en
-    #   ``<link>`` render-blocking. Le CSS est là au premier paint.
-    # - ``"browser"`` : le compilateur ``@tailwindcss/browser`` compile
-    #   dans la page. Zéro binaire à installer, mais le CSS arrive APRÈS
-    #   le premier paint — cf. traps.md, toute propriété sous
-    #   ``transition`` anime alors depuis sa valeur non-stylée.
-    # - ``"auto"``    : ``build`` en prod, ``browser`` en dev. Repli sur
-    #   ``browser`` avec avertissement si aucun binaire n'est trouvable.
+    # - ``"build"``  : compiles ``style.css`` at startup, served as a
+    #   render-blocking ``<link>``. The CSS is there at the first paint.
+    # - ``"browser"``: the ``@tailwindcss/browser`` compiler compiles in
+    #   the page. No binary to install, but the CSS arrives AFTER the
+    #   first paint — cf. traps.md, any property under ``transition``
+    #   then animates from its unstyled value.
+    # - ``"auto"``   : ``build`` in production, ``browser`` in dev. Falls
+    #   back to ``browser`` with a warning when no binary can be found.
     #
-    # ``css="build"`` en dev donne une parité exacte avec la prod, au
-    # prix d'une compilation (~3 s) à chaque démarrage.
+    # ``css="build"`` in dev gives exact parity with production, at the
+    # cost of a compilation (~3 s) on every startup.
     css: Literal["auto", "build", "browser"] = "auto"
 
-    # ── Axes indépendants (défaut : suit le préréglage) ────────────────
-    # Exposition — le détail des exceptions part-il dans la réponse, et
-    # laisse-t-on la page de traceback de FastAPI remonter ? C'est une
-    # décision de sécurité liée au fait d'être public ou non.
+    # ── Independent axes (default: follows the preset) ─────────────────
+    # Exposure — does the detail of exceptions go out in the response,
+    # and is FastAPI's traceback page allowed to surface? It is a
+    # security decision tied to being public or not.
     expose_errors: bool = False
-    # Diagnostics — le framework doit-il être bavard ? Warnings de drift
-    # de features, ``each()`` sans clé stable, IDs générés lisibles. C'est
-    # le SEUL sens de « debug » : il ne gouverne ni le transport, ni
-    # l'exposition, ni les assets.
+    # Diagnostics — should the framework be talkative? Feature drift
+    # warnings, ``each()`` without a stable key, readable generated IDs.
+    # That is the ONLY meaning of "debug": it governs neither the
+    # transport, nor the exposure, nor the assets.
     debug: bool = False
 
     @property
     def is_dev(self) -> bool:
-        """Préréglage de développement — axe assets / cache uniquement."""
+        """Development preset — assets / cache axis only."""
         return self.mode == "dev"
 
     @property
     def css_pipeline(self) -> Literal["build", "browser"]:
-        """Le pipeline CSS effectif, ``"auto"`` résolu.
+        """The effective CSS pipeline, with ``"auto"`` resolved.
 
-        ``auto`` garde le compromis historique : la prod compile (le CSS
-        doit être là au premier paint), le dev laisse le compilateur
-        navigateur pour ne pas exiger de binaire ni payer ~3 s à chaque
-        redémarrage. La différence est désormais NOMMÉE : ``css="build"``
-        en dev donne la parité exacte avec la prod.
+        ``auto`` keeps the historical trade-off: production compiles (the
+        CSS must be there at the first paint), dev leaves the browser
+        compiler so as not to require a binary nor pay ~3 s on every
+        restart. The difference is now NAMED: ``css="build"`` in dev
+        gives exact parity with production.
         """
         if self.css != "auto":
             return self.css
@@ -323,44 +325,44 @@ class BretzelConfig:
             raise ConfigError(
                 f"session_max_age_days must be >= 1, got {self.session_max_age_days}."
             )
-        # BCP-47, la forme que ``<html lang>`` et ``Intl`` attendent tous
-        # les deux. On valide la FORME, pas l'existence : refuser "fr-CA"
-        # parce qu'il n'est pas dans une liste ferait mentir le framework
-        # sur ce qu'il connaît. Un tag mal formé, lui, ne se voit nulle
-        # part — ``Intl`` lève dans le navigateur, donc en silence côté
-        # serveur, et l'attribut HTML est simplement ignoré.
+        # BCP-47, the form both ``<html lang>`` and ``Intl`` expect. We
+        # validate the SHAPE, not existence: refusing "fr-CA" because it
+        # is not in a list would make the framework lie about what it
+        # knows. A malformed tag, on the other hand, shows nowhere —
+        # ``Intl`` raises in the browser, so silently server-side, and
+        # the HTML attribute is simply ignored.
         if not _BCP47.fullmatch(self.lang):
             raise ConfigError(
-                f"lang doit être une étiquette BCP-47 (ex. 'fr', 'fr-CA', "
-                f"'pt-BR'), reçu {self.lang!r}."
+                f"lang must be a BCP-47 tag (e.g. 'fr', 'fr-CA', "
+                f"'pt-BR'), got {self.lang!r}."
             )
-        # Résolue une fois au démarrage : la fusion et la validation des
-        # clés n'ont aucune raison de se rejouer à chaque requête, et une
-        # clé inconnue doit lever AU BOOT — pas sur la page qui l'affiche.
+        # Resolved once at startup: merging and validating the keys has
+        # no reason to replay on every request, and an unknown key must
+        # raise AT BOOT — not on the page that displays it.
         for code in self.languages:
             if not _BCP47.fullmatch(code):
                 raise ConfigError(
-                    f"languages contient {code!r}, qui n'est pas une étiquette "
-                    f"BCP-47 (ex. 'fr', 'fr-CA')."
+                    f"languages contains {code!r}, which is not a BCP-47 "
+                    f"tag (e.g. 'fr', 'fr-CA')."
                 )
         if self.languages and self.lang not in self.languages:
             raise ConfigError(
-                f"lang={self.lang!r} n'est pas dans languages="
-                f"{list(self.languages)}. C'est le repli de la négociation : "
-                f"hors de la liste, il rendrait une langue que l'app déclare "
-                f"ne pas savoir rendre."
+                f"lang={self.lang!r} is not in languages="
+                f"{list(self.languages)}. It is the negotiation's "
+                f"fallback: outside the list, it would render a language "
+                f"the app declares it cannot render."
             )
-        # ``languages`` NORMALISÉ : une app monolingue déclare ``(lang,)``,
-        # pas ``()``. Deux représentations du même état obligeaient trois
-        # modules à tester le vide séparément, et « une seule langue » est
-        # déjà le cas dégénéré du général.
+        # ``languages`` NORMALISED: a monolingual app declares
+        # ``(lang,)``, not ``()``. Two representations of the same state
+        # forced three modules to test for emptiness separately, and "one
+        # language" is already the degenerate case of the general one.
         object.__setattr__(
             self, "languages", tuple(dict.fromkeys([self.lang, *self.languages]))
         )
-        # ``texts`` reste CE QUE L'UTILISATEUR A ÉCRIT — un réglage. Les
-        # tables résolues sont un objet à part, qu'on INTERROGE : une
-        # langue sans table y retombe sur le défaut au lieu de lever une
-        # ``KeyError`` sur chaque requête.
+        # ``texts`` stays WHAT THE USER WROTE — a setting. The resolved
+        # tables are a separate object, which is QUERIED: a language
+        # without a table falls back on the default there instead of
+        # raising a ``KeyError`` on every request.
         object.__setattr__(
             self,
             "text_tables",
@@ -370,34 +372,34 @@ class BretzelConfig:
             raise ConfigError(
                 f"mobile_breakpoint must be >= 1 (CSS px), got {self.mobile_breakpoint}."
             )
-        # ``csp=True`` / ``False`` / ``"report-only"``, et rien d'autre.
-        # Une faute de frappe (``csp="report"``) serait sinon traitée
-        # comme un vrai par le middleware et poserait un en-tête
-        # BLOQUANT là où le dev croyait n'observer que.
+        # ``csp=True`` / ``False`` / ``"report-only"``, and nothing
+        # else. A typo (``csp="report"``) would otherwise be treated as
+        # truthy by the middleware and would set a BLOCKING header where
+        # the developer believed they were only observing.
         if self.csp not in (True, False, "report-only"):
             raise ConfigError(
-                f"csp doit valoir True, False ou 'report-only' — reçu "
-                f"{self.csp!r}. 'report-only' fait évaluer la politique "
-                f"par le navigateur SANS rien bloquer : c'est par là "
-                f"qu'on commence."
+                f"csp must be True, False or 'report-only' — got "
+                f"{self.csp!r}. 'report-only' makes the browser evaluate "
+                f"the policy WITHOUT blocking anything: that is where one "
+                f"starts."
             )
         if self.csp_sources and self.csp is False:
             raise ConfigError(
-                "csp_sources est fourni mais csp=False : les sources ne "
-                "seraient posées nulle part. Ajoute csp='report-only' "
-                "(observation) ou csp=True (blocage)."
+                "csp_sources is supplied but csp=False: the sources "
+                "would be set nowhere. Add csp='report-only' "
+                "(observation) or csp=True (blocking)."
             )
-        # Les clés sont validées ici plutôt qu'au premier rendu : une
-        # directive mal orthographiée ne fait RIEN dans un navigateur,
-        # la ressource est juste bloquée sans message.
+        # The keys are validated here rather than on the first render:
+        # a misspelled directive does NOTHING in a browser, the resource
+        # is simply blocked with no message.
         if self.csp_sources:
             from bretzel.server.security import CSP_DIRECTIVES
 
-            for nom in self.csp_sources:
-                if nom not in CSP_DIRECTIVES:
+            for name in self.csp_sources:
+                if name not in CSP_DIRECTIVES:
                     raise ConfigError(
-                        f"csp_sources : directive inconnue {nom!r}. "
-                        f"Les directives acceptées sont : "
+                        f"csp_sources: unknown directive {name!r}. "
+                        f"The accepted directives are: "
                         f"{', '.join(sorted(CSP_DIRECTIVES))}."
                     )
         if "*" in self.cors_origins:
@@ -429,16 +431,15 @@ class BretzelConfig:
         """Resolve config from kwargs + env-var fallbacks.
 
         ``secret_key`` falls through to ``$BRETZEL_SECRET_KEY`` if not
-        passed explicitly ; ``mode`` falls through to ``$BRETZEL_MODE``
+        passed explicitly; ``mode`` falls through to ``$BRETZEL_MODE``
         ("dev" / anything else, unset → prod).
 
-        C'est ici que le préréglage devient des valeurs concrètes :
-        ``debug`` et ``expose_errors`` non fournis (ou ``None``) prennent
-        la valeur du mode. Chacun reste surchargeable indépendamment —
-        c'est tout l'intérêt : ``mode="prod", debug=True`` donne une prod
-        bavarde sans exposer les erreurs, et ``mode="dev",
-        expose_errors=False`` permet de tester les vraies pages d'erreur
-        en local.
+        This is where the preset becomes concrete values: ``debug`` and
+        ``expose_errors`` when not supplied (or ``None``) take the mode's
+        value. Each stays independently overridable — that is the whole
+        point: ``mode="prod", debug=True`` gives a talkative production
+        without exposing errors, and ``mode="dev", expose_errors=False``
+        allows testing the real error pages locally.
         """
         if not kwargs.get("secret_key"):
             kwargs["secret_key"] = os.environ.get("BRETZEL_SECRET_KEY", "")

@@ -1,11 +1,10 @@
-"""Handlers serveur du playground Diagram.
+"""The Diagram playground's server handlers.
 
-Chaque handler est un callable de NIVEAU MODULE : Bretzel l'adresse
-par ``module::qualname`` et refuse une lambda ou une fermeture.
+Every handler is a MODULE-LEVEL callable: Bretzel addresses it by
+``module::qualname`` and refuses a lambda or a closure.
 
-Aucun import de ``ui`` : les panneaux déclarent ``deps=[…]``, donc
-muter l'état suffit à les re-rendre. C'est ce qui évite le cycle
-handler ↔ panneau.
+No ``ui`` import: the panels declare ``deps=[…]``, so mutating the state
+is enough to re-render them. It is what avoids the handler ↔ panel cycle.
 """
 
 from examples.playground.features.diagram.state import (
@@ -16,31 +15,32 @@ from examples.playground.features.diagram.state import (
 
 
 def pick(key: str) -> None:
-    """``on_item_click`` reçoit la CLÉ du nœud, rien d'autre.
+    """``on_item_click`` receives the node's KEY, nothing else.
 
-    Recliquer le nœud centré rend la vue d'ensemble : sans ça on
-    s'enferme dans un voisinage sans porte de sortie.
+    Clicking the centred node again returns the overview: without that
+    one gets locked into a neighbourhood with no way out.
     """
     state = Picked()
     state.key = "" if state.key == key else key
 
 
 def playground_click_handler(key: str) -> None:
-    """Le handler du Server playground — module-level, donc adressable."""
+    """The Server playground's handler — module-level, hence
+    addressable."""
 
 
 def server_changed(state: DiagramPlayground) -> None:
-    """Le dispatcher hydrate le contrôle changé dans ``state``."""
+    """The dispatcher hydrates the changed control into ``state``."""
 
 
 
 
 def log_item_click(key: str) -> None:
-    """Journalise un clic serveur.
+    """Log a server click.
 
-    Ré-AFFECTE la liste plutôt qu'un ``append`` en place : le descripteur
-    de champ ne voit pas une mutation interne, donc l'état ne serait pas
-    marqué sale et le panneau ne se re-rendrait pas.
+    RE-ASSIGNS the list rather than an in-place ``append``: the field
+    descriptor does not see an internal mutation, so the state would not
+    be marked dirty and the panel would not re-render.
     """
     state = DiagramServerEvents()
     state.log = [*state.log, f"item_click(key={key!r})"]

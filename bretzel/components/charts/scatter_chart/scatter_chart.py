@@ -109,7 +109,7 @@ class ScatterChart(Component):
         self._y_unit = y_unit
         self._x_unit = x_unit
         self._reference_lines = _coerce_references(reference_lines)
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             color=color, size=size, width=width,
             show_axis=show_axis, show_gridlines=show_gridlines,
@@ -139,9 +139,9 @@ class ScatterChart(Component):
         series = _coerce_series(self._data, palette, default_color=color)
 
         def slot(name: str, override: str | None = None) -> str:
-            # ``coloured_slot`` ajoute le PONT de la couleur : la
-            # classe du palier est la même pour toutes les séries,
-            # c'est le pont qui dit laquelle est laquelle.
+            # ``coloured_slot`` adds the colour's BRIDGE: the step's
+            # class is the same for every series, it is the bridge that
+            # says which is which.
             return coloured_slot(self, name, override, color)
 
         wrapper_attrs = self.emit_attrs()
@@ -154,9 +154,9 @@ class ScatterChart(Component):
         if not series or not any(s.data for s in series):
             return Element(
                 tag=self._tag, attrs=wrapper_attrs,
-                # ``kind`` explicite : en réutilisant l'helper privé
-                # de LineChart, un scatter vide s'annonçait « Line
-                # chart » au lecteur d'écran (audit F24).
+                # An explicit ``kind``: by reusing LineChart's private
+                # helper, an empty scatter announced itself as "Line
+                # chart" to the screen reader (audit F24).
                 children=(render_empty_state(
                     self, width=width, height=height,
                     kind=text("chart.scatter"),

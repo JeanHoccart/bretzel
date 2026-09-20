@@ -1,48 +1,49 @@
-"""La fiche de THÈME d'un composant — ce que `describe X --theme` rend.
+"""A component's THEME card — what `describe X --theme` returns.
 
-Pourquoi elle existe
---------------------
-La fiche normale nomme les clés qu'on a le droit d'écrire dans
-``Theme(components={…})``, et s'arrête juste avant la question qu'on se
-pose vraiment. Mesuré le 2026-09-10 en écrivant le preset du kanban :
-**une dizaine de ``theme.py`` ouverts à la main** pendant que ``describe``
-tournait.
+Why it exists
+-------------
+The normal card names the keys one is allowed to write in
+``Theme(components={…})``, and stops just short of the question one
+really asks. Measured on 2026-09-10 while writing the kanban's preset:
+**about ten ``theme.py`` opened by hand** while ``describe`` was running.
 
-Les deux lignes qu'il rendait pour ``button`` et pour ``select`` étaient
-IDENTIQUES alors que les deux formes sont incompatibles — ``button``
-attend ``"md": "h-10 px-4"``, ``select`` attend ``"md": {"trigger": …}``
-— et ``input`` ne montrait nulle part ``icon_pad_left``, qui vit DANS un
-palier sans être un slot.
+The two lines it returned for ``button`` and for ``select`` were
+IDENTICAL although the two shapes are incompatible — ``button`` expects
+``"md": "h-10 px-4"``, ``select`` expects ``"md": {"trigger": …}`` — and
+``input`` showed ``icon_pad_left`` nowhere, which lives INSIDE a step
+without being a slot.
 
-Les trois manques, et ce que chacun coûte
-------------------------------------------
-1. **la FORME** (chaîne ou dict de sous-clés). Indevinable, et c'est elle
-   qui décide si l'override est lu : un dict écrit là où le thème livre
-   une chaîne fait perdre TOUS les jetons du palier — le composant rend
-   nu, en 200, sans erreur ; l'inverse lève un ``AttributeError`` au
-   rendu qui ne nomme ni le thème, ni le composant, ni la clé ;
-2. **la valeur courante** — sans elle on ne sait pas ce qu'on remplace ;
-3. **les sous-clés d'un palier**, absentes des deux listes.
+The three gaps, and what each one costs
+---------------------------------------
+1. **the SHAPE** (string or dict of sub-keys). Unguessable, and it is
+   what decides whether the override is read: a dict written where the
+   theme ships a string loses ALL the step's tokens — the component
+   renders bare, in 200, with no error; the reverse raises an
+   ``AttributeError`` at render time that names neither the theme, nor
+   the component, nor the key;
+2. **the current value** — without it one does not know what one is
+   replacing;
+3. **a step's sub-keys**, absent from both lists.
 
-Ce qu'elle refuse de faire
----------------------------
-Vomir la table. ``select`` a 18 slots, ``datatable`` bien plus, et 70 855
-caractères de classes Tailwind sur le catalogue : une sortie qui les
-imprime toutes ne se lit plus, donc ne répond plus. La fiche montre donc
-UN palier en entier — celui que le composant prend par DÉFAUT, lu dans
-sa signature — et se contente de nommer les autres.
+What it refuses to do
+---------------------
+Vomit the table. ``select`` has 18 slots, ``datatable`` far more, and
+70 855 characters of Tailwind classes across the catalogue: an output
+printing them all is no longer readable, so it no longer answers. The
+card therefore shows ONE step in full — the one the component takes by
+DEFAULT, read from its signature — and merely names the others.
 
-C'est lu dans ``cls.THEME``, donc ça ne peut pas dériver : même argument
-que ``bretzel describe``.
+It is read from ``cls.THEME``, so it cannot drift: same argument as
+``bretzel describe``.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-#: Le paramètre qui choisit dans un groupe, quand il y en a un. Un groupe
-#: absent de cette table n'a pas de « palier par défaut » — ``slots`` n'est
-#: pas un choix, c'est la liste des morceaux du composant.
+#: The parameter that chooses within a group, when there is one. A group
+#: absent from this table has no "default step" — ``slots`` is not a
+#: choice, it is the list of the component's pieces.
 GROUP_TO_PARAM = {
     "sizes": "size",
     "variants": "variant",
@@ -50,8 +51,8 @@ GROUP_TO_PARAM = {
     "tones": "tone",
 }
 
-#: Au-delà, on nomme sans montrer. Une ligne de plus ne coûte rien ; dix
-#: écrans de classes Tailwind coûtent la lecture entière.
+#: Beyond that, we name without showing. One more line costs nothing;
+#: ten screens of Tailwind classes cost the whole reading.
 _MAX_NAMED = 24
 
 
@@ -60,16 +61,17 @@ def _shape_of(value: Any) -> str:
 
 
 def _value_lines(value: Any) -> list[str]:
-    """Ce que vaut UN palier, montré en entier.
+    """What ONE step is worth, shown in full.
 
-    Un dict s'ouvre sur ses sous-clés — c'est précisément ce qu'aucune
-    liste ne montrait, et ``icon_pad_left`` en est l'exemple : il vit dans
-    un palier de ``sizes`` sans être un slot.
+    A dict opens onto its sub-keys — which is precisely what no list
+    showed, and ``icon_pad_left`` is the example: it lives in a ``sizes``
+    step without being a slot.
     """
     if not isinstance(value, dict):
         return [f"      {value}"]
-    # Largeur CALCULÉE, pas fixe : `select` porte un `header_btn_primary`
-    # de 18 caractères, et une colonne de 16 collait le nom à sa valeur.
+    # A COMPUTED width, not a fixed one: `select` carries a
+    # `header_btn_primary` of 18 characters, and a column of 16 glued the
+    # name to its value.
     width = max(len(str(sub)) for sub in value) + 2
     return [
         f"      {sub!s:<{width}}{sub_value}" for sub, sub_value in value.items()
@@ -77,16 +79,16 @@ def _value_lines(value: Any) -> list[str]:
 
 
 def _default_key(cls: Any, group: str, table: dict) -> str | None:
-    """Le palier que le composant prend sans qu'on lui demande.
+    """The step the component takes without being asked.
 
-    Lu sur la PROP RÉACTIVE et pas dans la signature : ``__init__`` rend
-    ``None`` pour ``size=`` sur tout le catalogue — c'est le descripteur
-    qui porte le vrai défaut (``'md'``). Chercher dans la signature
-    donnait donc « aucun palier par défaut » partout, et la fiche taisait
-    exactement ce que l'item réclamait : les sous-clés d'un palier.
+    Read from the REACTIVE PROP and not from the signature: ``__init__``
+    returns ``None`` for ``size=`` across the whole catalogue — it is the
+    descriptor that carries the real default (``'md'``). Looking in the
+    signature therefore gave "no default step" everywhere, and the card
+    kept silent about exactly what the item asked for: a step's sub-keys.
 
-    Vérifié présent dans la table avant d'être rendu : un défaut qui ne
-    désigne aucune clé ne doit pas faire imprimer une valeur au hasard.
+    Checked present in the table before being rendered: a default
+    designating no key must not print a value at random.
     """
     param = GROUP_TO_PARAM.get(group)
     if param is None:
@@ -106,11 +108,11 @@ def _default_key(cls: Any, group: str, table: dict) -> str | None:
 
 
 def theme_sheet(ui_name: str) -> str:
-    """La fiche de thème de ``ui_name``, en texte.
+    """``ui_name``'s theme card, as text.
 
-    Lève :class:`KeyError` si le nom n'est pas un composant, avec la même
-    phrase que ``describe`` — un utilisateur qui se trompe de nom doit
-    lire la même chose des deux côtés.
+    Raises :class:`KeyError` when the name is not a component, with the
+    same sentence as ``describe`` — a user who gets a name wrong must
+    read the same thing on both sides.
     """
     from bretzel.components import ui as ui_module
 
@@ -133,17 +135,17 @@ def theme_sheet(ui_name: str) -> str:
 
         keys = [str(k) for k in table]
         forms = {_shape_of(v) for v in table.values()}
-        forme = forms.pop() if len(forms) == 1 else "mixed"
-        out.append(f"  {group}  —  {len(keys)} keys, shape '{forme}'")
+        shape = forms.pop() if len(forms) == 1 else "mixed"
+        out.append(f"  {group}  —  {len(keys)} keys, shape '{shape}'")
 
         shown = _default_key(cls, group, table)
         if shown is not None:
             param = GROUP_TO_PARAM[group]
             out.append(f"    {shown}  (default for {param}=):")
             out += _value_lines(table[shown])
-            autres = [k for k in keys if k != shown]
-            if autres:
-                out.append(f"    other values: {', '.join(autres)}")
+            others = [k for k in keys if k != shown]
+            if others:
+                out.append(f"    other values: {', '.join(others)}")
         elif len(keys) <= _MAX_NAMED:
             out.append(f"    {', '.join(keys)}")
         else:

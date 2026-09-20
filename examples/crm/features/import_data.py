@@ -1,13 +1,12 @@
-"""features/import_data — data : lire un CSV de comptes, le juger, l'écrire.
+"""features/import_data — data: read an accounts CSV, judge it, write it.
 
-Sert l'écran 9. Trois étapes, trois fonctions, et la frontière entre elles
-est ce qui compte : **analyser** ne touche pas la base, **juger** ne touche
-pas la base non plus, **écrire** est la seule qui la touche — et elle refuse
-tout si une seule ligne est mauvaise.
+Serves screen 9. Three stages, three functions, and the boundary between
+them is what counts: **parsing** does not touch the database, **judging**
+does not touch it either, **writing** is the only one that does — and it
+refuses everything if a single row is bad.
 
-Ce dernier point n'est pas de la prudence décorative : un import à moitié
-appliqué laisse l'utilisateur devant une base qu'il ne peut ni garder ni
-rejouer.
+That last point is not decorative caution: a half-applied import leaves
+the user in front of a database they can neither keep nor replay.
 """
 
 from __future__ import annotations
@@ -25,35 +24,35 @@ from examples.crm.core.domain import (
     TODAY,
 )
 
-#: Les colonnes attendues, dans l'ordre. C'est aussi le gabarit proposé au
-#: téléchargement — un import dont on ne peut pas produire un exemple valide
-#: est un import que personne ne réussit du premier coup.
+#: The expected columns, in order. It is also the template offered for
+#: download — an import for which one cannot produce a valid example is an
+#: import nobody gets right first time.
 IMPORT_COLUMNS: tuple[str, ...] = (
     "name", "industry", "country", "city", "size", "arr", "owner",
 )
 
-#: Le plafond d'un import. Au-delà, l'aperçu n'est plus un aperçu et la
-#: transaction devient un verrou long sur une base que les autres écrans
-#: lisent.
+#: An import's ceiling. Beyond it, the preview is no longer a preview and
+#: the transaction becomes a long lock on a database the other screens are
+#: reading.
 IMPORT_MAX_ROWS = 500
 
 EXAMPLE_CSV = (
     "name,industry,country,city,size,arr,owner\n"
-    "Nouvelle Enseigne SAS,Distribution,France,Lyon,PME,42000,Marc Dubois\n"
-    "Atelier du Nord,Industrie,Belgique,Gand,TPE,9000,Sofia Rossi\n"
+    "Northway Retail Ltd,Retail,France,Lyon,Small,42000,Marc Dubois\n"
+    "Northern Works,Manufacturing,Belgium,Ghent,Micro,9000,Sofia Rossi\n"
 )
 
 
 def parse_csv(raw: str) -> tuple[list[dict], str]:
-    """``(lignes, erreur d'en-tête)``. N'ouvre aucune connexion.
+    """``(rows, header error)``. Opens no connection.
 
-    L'en-tête est vérifié AVANT les lignes : un fichier dont les colonnes ne
-    correspondent pas produirait autrement une erreur par ligne, toutes
-    identiques, et l'utilisateur lirait cinq cents fois le même reproche.
+    The header is checked BEFORE the rows: a file whose columns do not
+    match would otherwise produce one error per row, all identical, and
+    the user would read the same reproach five hundred times.
     """
     text = raw.lstrip("﻿")
     if not text.strip():
-        return [], "Le fichier est vide."
+        return [], "The file is empty."
     reader = csv.DictReader(io.StringIO(text))
     header = tuple(reader.fieldnames or ())
     if header != IMPORT_COLUMNS:
@@ -71,52 +70,51 @@ def parse_csv(raw: str) -> tuple[list[dict], str]:
 
 
 def judge(rows: list[dict], owner: str | None) -> list[dict]:
-    """Annote chaque ligne d'un ``_erreur`` — vide quand elle est bonne.
+    """Annotate every row with an ``_error`` — empty when it is good.
 
-    Le verdict vit SUR la ligne plutôt que dans une liste à part : l'aperçu
-    est un tableau, et une erreur qui n'est pas dans la ligne qu'elle
-    concerne oblige le lecteur à recompter.
+    The verdict lives ON the row rather than in a separate list: the
+    preview is a table, and an error that is not in the row it concerns
+    forces the reader to count again.
 
-    ``owner`` cadre l'écriture, et le fait en REFUSANT plutôt qu'en
-    réécrivant : forcer silencieusement le propriétaire de chaque ligne
-    ferait qu'un fichier préparé pour un collègue s'importerait sur soi
-    sans rien dire. C'est le seul endroit du CRM où le cadrage porte sur
-    une écriture, et le refus est ce qui le rend visible.
+    ``owner`` scopes the write, and does so by REFUSING rather than
+    rewriting: silently forcing every row's owner would mean a file
+    prepared for a colleague imports onto oneself without saying
+    anything. It is the CRM's only place where the scoping bears on a
+    write, and the refusal is what makes it visible.
     """
     judged: list[dict] = []
     for row in rows:
         problems: list[str] = []
         if not row["name"]:
-            problems.append("nom vide")
+            problems.append("empty name")
         if row["industry"] not in INDUSTRIES:
-            problems.append(f"secteur inconnu « {row['industry']} »")
+            problems.append(f"unknown industry “{row['industry']}”")
         if row["country"] not in COUNTRY_KEYS:
-            problems.append(f"pays inconnu « {row['country']} »")
+            problems.append(f"unknown country “{row['country']}”")
         if row["size"] not in SIZES:
-            problems.append(f"taille inconnue « {row['size']} »")
+            problems.append(f"unknown size “{row['size']}”")
         if row["owner"] not in OWNERS:
-            problems.append(f"propriétaire inconnu « {row['owner']} »")
+            problems.append(f"unknown owner \u201c{row['owner']}\u201d")
         elif owner is not None and row["owner"] != owner:
             problems.append(f"hors portefeuille « {row['owner']} »")
         if not row["arr"].isdigit():
-            problems.append("ARR non numérique")
-        judged.append({**row, "_erreur": " · ".join(problems)})
+            problems.append("ARR is not a number")
+        judged.append({**row, "_error": " · ".join(problems)})
     return judged
 
 
 def commit_rows(rows: list[dict], owner: str | None) -> int:
-    """Écrit les lignes en UNE transaction. Renvoie le nombre inséré.
+    """Write the rows in ONE transaction. Returns the number inserted.
 
-    Une seule connexion et un seul ``commit`` : cinq cents ``execute()``
-    isolés, ce sont cinq cents ouvertures de fichier et cinq cents fsync.
+    A single connection and a single ``commit``: five hundred isolated
+    ``execute()`` are five hundred file openings and five hundred fsyncs.
 
-    ⚠️ **Le cadrage est refait ICI**, alors que :func:`judge` l'a déjà
-    vérifié. Ce n'est pas de la ceinture-et-bretelles : ``judge`` tourne
-    à la requête « Vérifier » et ``commit_rows`` à la requête
-    « Importer ». Entre les deux, un directeur peut avoir changé de
-    portefeuille — et le verdict ``_erreur`` que le writer croirait sur
-    parole a été calculé sous une autre politique. Le verdict EXPLIQUE,
-    l'écriture ENFORCE.
+    ⚠️ **The scoping is redone HERE**, although :func:`judge` has already
+    checked it. It is not belt and braces: ``judge`` runs on the
+    "Check" request and ``commit_rows`` on the "Import" one. Between
+    the two, a director may have changed portfolio — and the ``_error``
+    verdict the writer would take on trust was computed under another
+    policy. The verdict EXPLAINS, the write ENFORCES.
     """
     if owner is not None:
         rows = [row for row in rows if row["owner"] == owner]

@@ -71,7 +71,7 @@ def _size_keysets(cls: type) -> list[tuple[str, frozenset[str]]]:
 
     La DISCRIMINATION entre les deux est lue sur le socle
     (:func:`bretzel.components.base.is_size_keyed`) plutôt que refaite ici
-    — elle est identique à celle dont la règle de lint ``valeur-hors-table``
+    — elle est identique à celle dont la règle de lint ``value-outside-the-table``
     a besoin, et deux implémentations d'un même arbitrage finissent par ne
     plus trancher pareil. Ce qui reste local, c'est le FORMAT du retour :
     cette gate a besoin d'un keyset par slot pour nommer le coupable, là
@@ -97,7 +97,7 @@ def test_the_scale_itself_is_pinned() -> None:
     cinq éditions visibles. Depuis qu'elle a un domicile unique, **une
     seule ligne** gouverne ce fichier, ``test_size_reaches_slots``,
     ``test_sizes_are_distinct``, ``test_playground_demos_the_api`` et la
-    règle de lint ``valeur-hors-table``.
+    règle de lint ``value-outside-the-table``.
 
     Mutation-testé : réduire ``SIZE_SCALE`` à ``("sm", "md", "lg")``
     laissait les trois gates **vertes**. Chacune compare une population à

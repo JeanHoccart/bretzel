@@ -1,60 +1,57 @@
-"""``@download`` — le routable qui rend un FICHIER, pas une page.
+"""``@download`` — the routable that returns a FILE, not a page.
 
-Tranché en séance (``these-portee-2026-08-19.md`` § 7), livré le
+Settled in session (``these-portee-2026-08-19.md`` § 7), shipped on
 2026-09-02 ::
 
-    @download("/clients.csv")
-    async def clients_csv() -> list[dict]:
-        return await db.clients()
+    @download("/customers.csv")
+    async def customers_csv() -> list[dict]:
+        return await db.customers()
 
-Pourquoi ce n'est pas une action
----------------------------------
-Contrainte héritée, déjà documentée par l'export du datatable : la
-réponse d'une action est **avalée par le bridge** et appliquée en
-``<bz-patch>``. Un téléchargement doit ÊTRE le fichier. C'est donc un
-vrai lien — ``ui.link("Exporter", href="/clients.csv")`` — et pas un
-``on_click=``.
+Why this is not an action
+-------------------------
+An inherited constraint, already documented by the datatable's export:
+an action's response is **swallowed by the bridge** and applied as a
+``<bz-patch>``. A download has to BE the file. So it is a real link —
+``ui.link("Export", href="/customers.csv")`` — and not an ``on_click=``.
 
-Pourquoi il n'est PAS signé, contrairement à l'export du datatable
--------------------------------------------------------------------
-C'est la différence qui justifie le nouveau routable, et elle va dans le
-bon sens. Le lien du datatable porte dans son URL le NOM de la fonction
-à invoquer (``rows_ref``, un ``module::qualname``), donc il doit être
-signé — sans quoi l'endpoint deviendrait un « appelle la fonction de mon
-choix ». Il en hérite d'être une **capacité au porteur** : quiconque
-tient l'URL obtient les lignes, sans lien avec l'utilisateur ni
-expiration.
+Why it is NOT signed, unlike the datatable's export
+---------------------------------------------------
+That is the difference justifying the new routable, and it goes the right
+way. The datatable's link carries in its URL the NAME of the function to
+invoke (``rows_ref``, a ``module::qualname``), so it has to be signed —
+without which the endpoint would become a "call the function of my
+choice". From that it inherits being a **bearer capability**: whoever
+holds the URL gets the rows, with no tie to the user and no expiry.
 
-Un ``@download`` ne porte rien de tout ça : la fonction est fixée à la
-DÉCORATION, comme pour ``@page``. L'URL ne décide de rien, donc il n'y a
-rien à signer — et la route passe par le même middleware que les pages,
-donc une app qui protège ses pages protège ses téléchargements sans
-écrire une ligne.
+A ``@download`` carries none of that: the function is fixed at
+DECORATION time, as for ``@page``. The URL decides nothing, so there is
+nothing to sign — and the route goes through the same middleware as the
+pages, so an app that protects its pages protects its downloads without
+writing a line.
 
-Ce que la fonction peut rendre
--------------------------------
+What the function may return
+----------------------------
 =================  ==========================================================
-``list[dict]``     un CSV — en-têtes déduits des clés du premier
-                   enregistrement
-``str``            le texte tel quel
-``bytes``          les octets tels quels (un PDF, une image, un zip)
-une ``Response``   l'échappatoire — tout ce que le reste ne couvre pas
+``list[dict]``     a CSV — headers derived from the first record's keys
+``str``            the text as-is
+``bytes``          the bytes as-is (a PDF, an image, a zip)
+a ``Response``     the escape hatch — everything the rest does not cover
 =================  ==========================================================
 
-Le nom du fichier et le type MIME sont déduits du chemin
-(``/clients.csv`` → ``clients.csv``, ``text/csv``), et tous deux se
-surchargent.
+The file name and the MIME type are derived from the path
+(``/customers.csv`` → ``customers.csv``, ``text/csv``), and both can be
+overridden.
 
-⚠️ Ce que ça ne fait PAS encore
---------------------------------
-``ui.datatable(exportable=True)`` n'est pas rebranché dessus. Le § 7 de
-la thèse annonçait que « ``exportable=True`` se réduit à poser un
-``@download`` » ; ce n'est pas si simple, et il vaut mieux l'écrire que
-de le forcer : l'export du datatable a besoin de la **requête du
-lecteur** — le tri, les filtres, la recherche au moment du clic — qui
-n'existe pas dans une route statique. C'est ce que son payload signé
-transporte. Les rebrancher demande de décider comment une vue voyage
-jusqu'à un ``@download``, et c'est une décision, pas un ménage.
+⚠️ What it does NOT do yet
+--------------------------
+``ui.datatable(exportable=True)`` is not rewired onto it. § 7 of the
+thesis announced that "``exportable=True`` reduces to setting down a
+``@download``"; it is not that simple, and it is better written down than
+forced: the datatable's export needs the **reader's query** — the sort,
+the filters, the search at the moment of the click — which does not exist
+in a static route. That is what its signed payload carries. Rewiring them
+requires deciding how a view travels to a ``@download``, and that is a
+decision, not housekeeping.
 """
 
 from __future__ import annotations
@@ -68,18 +65,18 @@ from bretzel.core.errors import BretzelError
 
 
 class DownloadAlreadyMarkedError(BretzelError):
-    """Deux ``@download`` sur la MÊME fonction — la seconde effacerait la première.
+    """Two ``@download`` on the SAME function — the second would erase the first.
 
-    Même refus, même raison et même mesure que
-    :class:`~bretzel.render.decorators.page.PageAlreadyMarkedError` : la
-    marque vit sur l'objet fonction, donc une seconde décoration rend la
-    première route introuvable, en 404, sans un mot.
+    Same refusal, same reason and same measurement as
+    :class:`~bretzel.render.decorators.page.PageAlreadyMarkedError`: the
+    mark lives on the function object, so a second decoration makes the
+    first route unreachable, as a 404, without a word.
     """
 
 
 @dataclass(frozen=True, slots=True)
 class DownloadMeta:
-    """Capturé à la décoration, lu par l'enregistreur de routes."""
+    """Captured at decoration time, read by the route registrar."""
 
     path: str
     filename: str
@@ -88,14 +85,14 @@ class DownloadMeta:
 
 
 def _filename_of(path: str) -> str:
-    """``/exports/clients.csv`` → ``clients.csv``.
+    """``/exports/customers.csv`` → ``customers.csv``.
 
-    Le dernier segment, et rien d'autre : un ``Content-Disposition`` qui
-    porterait des barres obliques laisserait le navigateur choisir, et
-    ils ne choisissent pas pareil.
+    The last segment, and nothing else: a ``Content-Disposition``
+    carrying slashes would leave the browser to choose, and browsers do
+    not choose alike.
     """
-    dernier = path.rstrip("/").rsplit("/", 1)[-1]
-    return dernier or "download"
+    last = path.rstrip("/").rsplit("/", 1)[-1]
+    return last or "download"
 
 
 def download(
@@ -107,9 +104,9 @@ def download(
     """Mark a function as the producer for a file served at ``GET path``."""
     if not path.startswith("/"):
         raise ValueError(
-            f"@download({path!r}) : un chemin de route commence par '/'. "
-            f"Sans ça la route se monte à un endroit que personne ne "
-            f"devine, et le lien de l'app rend 404."
+            f"@download({path!r}): a route path starts with '/'. Without "
+            f"that the route mounts somewhere nobody guesses, and the "
+            f"app's link returns 404."
         )
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -119,15 +116,15 @@ def download(
             media_type=media_type,
             signature=inspect.signature(fn),
         )
-        vue = getattr(fn, "_bz_download", None)
-        if vue is not None and vue != meta:
+        seen = getattr(fn, "_bz_download", None)
+        if seen is not None and seen != meta:
             raise DownloadAlreadyMarkedError(
-                f"{getattr(fn, '__qualname__', fn)!r} est déjà marquée pour "
-                f"{vue.path!r} et on la remarque pour {path!r}. La marque "
-                f"vit sur l'objet fonction : la seconde ÉCRASE la "
-                f"première, donc {vue.path!r} deviendrait un 404 sans un "
-                f"mot. Pour servir le même fichier à deux endroits, "
-                f"donne-lui deux fonctions."
+                f"{getattr(fn, '__qualname__', fn)!r} is already marked for "
+                f"{seen.path!r} and is being re-marked for {path!r}. The "
+                f"mark lives on the function object: the second "
+                f"OVERWRITES the first, so {seen.path!r} would become a "
+                f"404 without a word. To serve the same file in two "
+                f"places, give it two functions."
             )
         fn._bz_download = meta  # type: ignore[attr-defined]
         return fn

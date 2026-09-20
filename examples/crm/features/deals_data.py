@@ -1,22 +1,23 @@
-"""features/deals_data — data : le repo des opportunités, et le réordonnancement.
+"""features/deals_data — data: the opportunities repo, and the reordering.
 
-Sert l'écran 1 (le pipeline). Deux choses y vivent :
+Serves screen 1 (the pipeline). Two things live there:
 
-- :func:`pipeline_deals`, la fenêtre de lecture — les affaires OUVERTES d'un
-  propriétaire dont l'échéance tombe dans l'horizon, groupées par étape ;
-- :func:`move_deal`, l'écriture — ce qu'un drop applique.
+- :func:`pipeline_deals`, the read window — an owner's OPEN deals whose
+  due date falls inside the horizon, grouped by stage;
+- :func:`move_deal`, the write — what a drop applies.
 
-**Pourquoi une fenêtre.** 12 000 affaires, dont ~9 400 ouvertes : un kanban
-qui rendrait tout ferait 9 400 cartes. Un commercial regarde SON pipeline sur
-un horizon. La fenêtre est donc le geste métier, pas un pansement de perf —
-et c'est elle qui donne des colonnes à ~100 cartes, celles qui défilent.
+**Why a window.** 12 000 deals, of which ~9 400 open: a kanban rendering
+everything would make 9 400 cards. A salesperson looks at THEIR pipeline
+over a horizon. The window is therefore the business gesture, not a
+performance plaster — and it is what gives columns of ~100 cards, the
+ones that scroll.
 
-**Le rang.** ``position`` est un entier par étape, semé avec un pas de 64.
-Insérer entre deux cartes prend le MILIEU des deux rangs voisins ; quand il
-n'y a plus de milieu (deux rangs consécutifs), on renumérote l'étape entière
-et on recommence. C'est l'algorithme de liste ordonnée classique : il évite
-de réécrire 2 000 lignes à chaque geste, sans jamais laisser deux cartes se
-disputer un rang.
+**The rank.** ``position`` is an integer per stage, seeded with a step of
+64. Inserting between two cards takes the MIDPOINT of the two
+neighbouring ranks; when there is no midpoint left (two consecutive
+ranks), the whole stage is renumbered and we start again. It is the
+classic ordered-list algorithm: it avoids rewriting 2 000 rows at every
+gesture, without ever letting two cards fight over a rank.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ from examples.crm.core.domain import OPEN_STAGES, POSITION_STEP, TODAY
 
 
 class DealsRev(AppState):
-    """Révision des affaires — bumpée à chaque écriture."""
+    """Deals revision — bumped at every write."""
 
     rev: int = field(default=0, merge="add")
 
@@ -40,22 +41,22 @@ def horizon_date(days: int) -> str:
     return (TODAY + timedelta(days=days)).isoformat()
 
 
-#: Le plafond de cartes par colonne. Mesuré : sans lui, la fenêtre à 90 jours
-#: du premier propriétaire rend **1 093 cartes** et une page de **1,2 Mo**.
-#: Le rang manuel EST l'ordre de priorité, donc couper par le haut coupe au
-#: bon endroit — et l'en-tête de colonne dit toujours « 50 sur 564 ».
+#: The cap on cards per column. Measured: without it, the first owner's
+#: 90-day window returns **1 093 cards** and a **1.2 MB** page. The manual
+#: rank IS the priority order, so cutting from the top cuts in the right
+#: place — and the column header still says "50 out of 564".
 PER_COLUMN = 50
 
 
 def pipeline_deals(
     owner: str | None, horizon_days: int, *, limit: int = PER_COLUMN
 ) -> dict[str, list[dict]]:
-    """Les affaires ouvertes d'``owner`` échéant sous ``horizon_days`` jours.
+    """``owner``'s open deals due within ``horizon_days`` days.
 
-    Une seule requête pour les quatre colonnes, jointe au nom du compte : une
-    requête par étape, c'est quatre connexions pour un écran. Le plafond
-    s'applique PAR étape (``ROW_NUMBER`` partitionné), pas au total — sinon la
-    première colonne mangerait la fenêtre des trois autres.
+    A single query for the four columns, joined to the account's name: a
+    query per stage is four connections for one screen. The cap applies
+    PER stage (partitioned ``ROW_NUMBER``), not on the total — otherwise
+    the first column would eat the other three's window.
     """
     placeholders = ",".join("?" * len(OPEN_STAGES))
     scope, scope_params = owner_scope(owner, " AND d.owner = ?")
@@ -77,11 +78,11 @@ def pipeline_deals(
 
 
 def pipeline_totals(owner: str | None, horizon_days: int) -> dict[str, dict]:
-    """Le compte et le montant de chaque étape DANS la fenêtre, sans plafond.
+    """Each stage's count and amount INSIDE the window, with no cap.
 
-    Sert le « 50 sur 393 » d'un en-tête de colonne : sans lui, un plafond
-    laisserait croire que le pipeline s'arrête à ce qu'il montre — et la somme
-    affichée ne serait que celle des cartes visibles.
+    Serves a column header's "50 out of 393": without it, a cap would
+    suggest the pipeline stops at what it shows — and the sum displayed
+    would only be that of the visible cards.
     """
     scope, scope_params = owner_scope(owner, " AND owner = ?")
     rows = query(
@@ -94,13 +95,13 @@ def pipeline_totals(owner: str | None, horizon_days: int) -> dict[str, dict]:
 
 
 def live_board(owner: str | None) -> dict[str, dict]:
-    """``{étape: {n, total}}`` sur les affaires ouvertes, SANS horizon.
+    """``{stage: {n, total}}`` over the open deals, WITHOUT a horizon.
 
-    Sert l'écran temps réel. Elle ignore l'horizon — ce qu'un second onglet
-    doit voir bouger, c'est le total d'une étape, pas la fenêtre à 90 jours
-    d'un écran. Elle ne peut pas ignorer le propriétaire pour autant : un
-    compteur global dirait à un commercial le volume d'affaires des autres,
-    et le fait que ce soit agrégé n'en fait pas une donnée publique.
+    Serves the real-time screen. It ignores the horizon — what a second
+    tab must see move is a stage's total, not one screen's 90-day window.
+    It cannot ignore the owner for all that: a global counter would tell
+    a salesperson the others' deal volume, and the fact that it is
+    aggregated does not make it public data.
     """
     scope, scope_params = owner_scope(owner, " AND owner = ?")
     rows = query(
@@ -113,19 +114,20 @@ def live_board(owner: str | None) -> dict[str, dict]:
 
 
 def column_heads(owner: str | None, limit: int = 10) -> list[dict]:
-    """Les premières affaires de chaque colonne, dans l'ordre du kanban.
+    """The first deals of each column, in kanban order.
 
-    Le rang est la seule chose qu'un glisser-déposer écrit — donc la seule
-    qui témoigne, dans un autre onglet, que quelqu'un vient de bouger.
+    The rank is the only thing drag and drop writes — hence the only
+    thing that testifies, in another tab, that somebody has just moved
+    something.
 
-    **``UNION ALL`` et non ``ROW_NUMBER``**, contrairement à
-    :func:`pipeline_deals`. La fenêtre partitionnée numérote TOUTES les
-    affaires ouvertes et joint chacune à son compte avant d'en jeter 99 % :
-    ``EXPLAIN QUERY PLAN`` y montre un ``USE TEMP B-TREE FOR ORDER BY``, et
-    la mesure dit **32 ms pour douze lignes**. Quatre ``LIMIT`` empilés
-    laissent l'index ``(stage, position)`` faire son travail : **0,1 ms**.
-    La différence tient à ce que le plafond est ici minuscule — là-bas il
-    vaut 50 par colonne et la partition se rentabilise.
+    **``UNION ALL`` and not ``ROW_NUMBER``**, unlike
+    :func:`pipeline_deals`. The partitioned window numbers ALL the open
+    deals and joins each to its account before throwing 99 % away:
+    ``EXPLAIN QUERY PLAN`` shows a ``USE TEMP B-TREE FOR ORDER BY`` there,
+    and the measurement says **32 ms for twelve rows**. Four stacked
+    ``LIMIT`` let the ``(stage, position)`` index do its work: **0.1 ms**.
+    The difference comes from the cap being tiny here — over there it is
+    50 per column and the partition pays for itself.
     """
     per_stage = max(1, limit // len(OPEN_STAGES))
     scope, scope_params = owner_scope(owner, " AND d.owner = ?")
@@ -143,9 +145,9 @@ def column_heads(owner: str | None, limit: int = 10) -> list[dict]:
 
 
 def get_deal(deal_id: int, owner: str | None) -> dict | None:
-    """Une affaire, cadrée. Un identifiant d'affaire arrive du NAVIGATEUR
-    (c'est l'``item_key`` d'un drop) : sans cadrage, on pourrait déplacer
-    l'affaire de quelqu'un d'autre en forgeant une clé."""
+    """A deal, scoped. A deal identifier arrives from the BROWSER (it is
+    a drop's ``item_key``): without scoping, one could move somebody
+    else's deal by forging a key."""
     scope, scope_params = owner_scope(owner, " AND owner = ?")
     rows = query(f"SELECT * FROM deals WHERE id = ?{scope}",
                  (deal_id, *scope_params))
@@ -153,10 +155,11 @@ def get_deal(deal_id: int, owner: str | None) -> dict | None:
 
 
 def account_deals(account_id: int, limit: int = 25) -> list[dict]:
-    """Les affaires d'un compte, l'échéance la plus LOINTAINE d'abord.
+    """An account's deals, FURTHEST due date first.
 
-    ``DESC`` sur des dates ISO remonte le futur : ce qui reste à jouer passe
-    avant ce qui est échu, et c'est ce qu'on veut lire sur une fiche compte.
+    ``DESC`` on ISO dates brings the future up: what is still in play
+    comes before what is overdue, and that is what one wants to read on
+    an account sheet.
     """
     return query(
         "SELECT * FROM deals WHERE account_id = ? "
@@ -166,11 +169,11 @@ def account_deals(account_id: int, limit: int = 25) -> list[dict]:
 
 
 def renumber_stage(stage: str) -> None:
-    """Réétale les rangs d'une étape avec un pas de :data:`POSITION_STEP`.
+    """Re-space a stage's ranks with a step of :data:`POSITION_STEP`.
 
-    Appelé seulement quand deux voisins n'ont plus de milieu — donc rarement.
-    Une seule requête : lire 2 000 lignes en Python pour les réécrire une par
-    une coûterait 2 000 allers-retours.
+    Called only when two neighbours have no midpoint left — so rarely. A
+    single query: reading 2 000 rows into Python to rewrite them one by
+    one would cost 2 000 round trips.
     """
     execute(
         "UPDATE deals SET position = ("
@@ -184,33 +187,36 @@ def renumber_stage(stage: str) -> None:
 
 
 def slot_between(before: int | None, after: int | None) -> int | None:
-    """Le rang à donner entre deux voisins, ou ``None`` s'il n'y en a plus."""
+    """The rank to give between two neighbours, or ``None`` if there is
+    none left."""
     if before is None and after is None:
         return POSITION_STEP
     if before is None:
-        # Sans garde de positivité : rien n'exige un rang positif (l'ordre est
-        # ``ORDER BY position, id`` sur des entiers 64 bits), et refuser le
-        # négatif renumérotait l'étape entière dès la deuxième insertion en
-        # tête — l'exact geste qu'une liste de kanban reçoit le plus.
+        # No positivity guard: nothing requires a positive rank (the
+        # order is ``ORDER BY position, id`` on 64-bit integers), and
+        # refusing negatives renumbered the whole stage from the second
+        # insertion at the head — the very gesture a kanban list receives
+        # most.
         return after - POSITION_STEP
     if after is None:
         return before + POSITION_STEP
     if after - before < 2:
-        return None                       # plus de milieu : il faut renuméroter
+        return None                       # no midpoint left: renumber
     return (before + after) // 2
 
 
 def move_deal(m: Move, *, owner: str | None, horizon_days: int) -> bool:
-    """Applique un drop. Renvoie ``False`` quand le déplacement est refusé.
+    """Apply a drop. Returns ``False`` when the move is refused.
 
-    Refuser, c'est ne rien muter : le navigateur a déjà bougé la carte, donc
-    le rendu serveur qui la contredit la remet en place tout seul (``Move``).
+    Refusing is mutating nothing: the browser has already moved the card,
+    so the server render that contradicts it puts it back on its own
+    (``Move``).
 
-    La fenêtre de la zone cible est RELUE ici, à partir de la vue de
-    l'appelant — pas reçue de lui. Les rangs voisins doivent être ceux des
-    cartes que le lecteur avait sous les yeux ; un appelant qui passerait
-    l'étape entière calculerait des voisins invisibles et déposerait la carte
-    au mauvais endroit, sans erreur. L'invariant appartient à cette fonction.
+    The target zone's window is RE-READ here, from the caller's view —
+    not received from them. The neighbouring ranks must be those of the
+    cards the reader had before their eyes; a caller passing the whole
+    stage would compute invisible neighbours and drop the card in the
+    wrong place, with no error. The invariant belongs to this function.
     """
     if m.to_zone not in OPEN_STAGES:
         return False
@@ -220,9 +226,9 @@ def move_deal(m: Move, *, owner: str | None, horizon_days: int) -> bool:
     if deal is None:
         return False
 
-    # La fenêtre telle qu'elle sera APRÈS le drop, sans la carte déplacée :
-    # dans une réorganisation interne elle y est encore, dans un transfert
-    # elle n'y a jamais été.
+    # The window as it will be AFTER the drop, without the card moved:
+    # in an internal reorder it is still there, in a transfer it never
+    # was.
     others = [d for d in window if d["id"] != deal["id"]]
     index = max(0, min(m.to_index, len(others)))
     before = others[index - 1]["position"] if index > 0 else None
@@ -231,8 +237,8 @@ def move_deal(m: Move, *, owner: str | None, horizon_days: int) -> bool:
     slot = slot_between(before, after)
     if slot is None:
         renumber_stage(m.to_zone)
-        # Les rangs ont changé : relire les deux voisins par leur id, pas par
-        # leur ancienne valeur.
+        # The ranks have changed: re-read the two neighbours by their id,
+        # not by their old value.
         ids = [d["id"] for d in others]
         fresh = {
             r["id"]: r["position"]

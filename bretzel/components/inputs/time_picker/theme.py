@@ -1,36 +1,35 @@
 """Default :class:`TimePicker` theme.
 
-Même silhouette que :class:`DatePicker` — un champ éditable et un bouton
-icône DANS le même anneau de focus, un popover ancré dessous — mais le
-panneau n'est pas une grille : ce sont **deux colonnes aimantées**,
-heures et minutes.
+Same silhouette as :class:`DatePicker` — an editable field and an icon
+button INSIDE the same focus ring, an anchored popover below — but the
+panel is not a grid: it is **two snapping columns**, hours and minutes.
 
-Pourquoi des colonnes maison et pas un ``<input type="time">`` : un
-widget natif n'est pas thématisable et change complètement d'allure entre
-Chrome, Safari et Android. C'est la leçon payée sur la scrollbar du
-Carousel, en plus visible.
+Why home-made columns and not an ``<input type="time">``: a native
+widget is not themable and completely changes look between Chrome,
+Safari and Android. It is the lesson paid on the Carousel's scrollbar,
+more visibly so.
 
-Les colonnes réutilisent deux mécaniques déjà écrites :
+The columns reuse two already-written mechanics:
 
-- ``bz-no-scrollbar`` (hook du CSS framework, ``theme/css.py``) — une
-  colonne de 24 heures défile, et sa barre native serait le seul élément
-  non thématisé du composant ;
-- ``snap-y snap-mandatory`` + ``snap-center`` — le même aimantage CSS que
-  la piste du Carousel, pour que le défilement s'arrête sur une valeur
-  et jamais entre deux.
+- ``bz-no-scrollbar`` (a framework CSS hook, ``theme/css.py``) — a
+  24-hour column scrolls, and its native bar would be the component's
+  only unthemed element;
+- ``snap-y snap-mandatory`` + ``snap-center`` — the same CSS snapping as
+  the Carousel's track, so the scroll stops on a value and never between
+  two.
 
 Slots :
-- ``root``          : le wrapper — porte le scope ``bz-data``
-- ``input_frame``   : le champ visible (input + boutons, un seul anneau)
-- ``input_field``   : l'``<input>`` typable, sans cadre propre
-- ``clear_button``  : le ``×``, visible seulement s'il y a une valeur
-- ``trigger_button``: le bouton horloge qui ouvre le panneau
-- ``button_icon``   : le glyphe dans les deux boutons
-- ``panel``         : le popover ancré par ``$bz.helpers.floating``
-- ``columns``       : la rangée des deux colonnes
-- ``column``        : une colonne défilante aimantée
-- ``cell``          : une cellule d'heure ou de minute
-- ``column_label``  : l'entête « Heures » / « Minutes »
+- ``root``          : the wrapper — carries the ``bz-data`` scope
+- ``input_frame``   : the visible field (input + buttons, a single ring)
+- ``input_field``   : the typable ``<input>``, with no frame of its own
+- ``clear_button``  : the ``×``, visible only if there is a value
+- ``trigger_button``: the clock button that opens the panel
+- ``button_icon``   : the glyph in both buttons
+- ``panel``         : the popover anchored by ``$bz.helpers.floating``
+- ``columns``       : the row of the two columns
+- ``column``        : one snapping scrolling column
+- ``cell``          : one hour or minute cell
+- ``column_label``  : the "Hours" / "Minutes" header
 """
 
 from __future__ import annotations
@@ -39,10 +38,10 @@ from typing import Any
 
 TIME_PICKER_THEME: dict[str, Any] = {
     "slots": {
-        # ``w-full`` et pas ``w-fit`` : le champ remplit son parent comme
-        # tout autre input de formulaire, donc il s'aligne sur ses
-        # voisins dans une grille et ne déborde jamais de sa cellule
-        # (le défaut mesuré sur date_picker avant sa correction).
+        # ``w-full`` and not ``w-fit``: the field fills its parent like
+        # any other form input, so it lines up with its neighbours in a
+        # grid and never overflows its cell (the defect measured on
+        # date_picker before its correction).
         "root": "bz-time-picker relative flex flex-col w-full",
         "input_frame": (
             "flex items-stretch w-full rounded-field border-(length:--bz-stroke) border-text/10 "
@@ -72,23 +71,23 @@ TIME_PICKER_THEME: dict[str, Any] = {
             "disabled:opacity-50 disabled:cursor-not-allowed"
         ),
         "button_icon": "inline-flex shrink-0 text-current",
-        # Positionné par ``$bz.helpers.floating`` (``position: fixed`` +
-        # coordonnées inline). PAS de ``left-0`` / ``right-0`` : sous
-        # position fixe ils se battent avec les coordonnées inline (cf.
-        # traps.md § « panel left-0 right-0 under floating »).
+        # Positioned by ``$bz.helpers.floating`` (``position: fixed`` +
+        # inline coordinates). NO ``left-0`` / ``right-0``: under fixed
+        # position they fight the inline coordinates (cf. traps.md
+        # § "panel left-0 right-0 under floating").
         "panel": (
             "absolute z-40 mt-1 p-2 "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface shadow-lg "
-            # Le fondu entrant, cadence des CHAMPS (75 ms, moitié de
-            # celle des menus). Mécanisme des trois classes : un seul
-            # exemplaire, dans ``overlay/dropdown/theme.py``.
+            # The enter fade, FIELD cadence (75 ms, half the menus').
+            # Mechanism of the three classes: a single copy, in
+            # ``overlay/dropdown/theme.py``.
             "transition-[opacity,display] transition-discrete duration-75 "
             "starting:opacity-0"
         ),
         "columns": "flex gap-1",
-        # ``bz-no-scrollbar`` : hook du CSS framework, pas un utilitaire
-        # Tailwind — les variantes arbitraires équivalentes ne compilent
-        # pas (mesuré sur le Carousel).
+        # ``bz-no-scrollbar``: a framework CSS hook, not a Tailwind
+        # utility — the equivalent arbitrary variants do not compile
+        # (measured on the Carousel).
         "column": (
             "bz-no-scrollbar flex flex-col gap-0.5 overflow-y-auto "
             "snap-y snap-mandatory scroll-pt-1"
@@ -110,15 +109,15 @@ TIME_PICKER_THEME: dict[str, Any] = {
             "disabled:hover:bg-transparent"
         ),
     },
-    # La hauteur du palier vit sur ``input_frame`` — le cadre, qui porte
-    # la bordure. En ``box-sizing: border-box``, ``h-10`` sur le cadre
-    # vaut 40 px bordure comprise, comme ``ui.input`` qui pose hauteur et
-    # bordure sur le MÊME élément. Posée sur l'enfant, elle donnait
-    # 40 px + les 2 px du cadre : **42 px**, 2 px de plus que tout autre
-    # contrôle, aux cinq paliers. Mesuré le 2026-08-23, gardé par
+    # The step's height lives on ``input_frame`` — the frame, which
+    # carries the border. Under ``box-sizing: border-box``, ``h-10`` on
+    # the frame is 40 px border included, like ``ui.input`` which sets
+    # height and border on the SAME element. Set on the child, it gave
+    # 40 px + the frame's 2 px: **42 px**, 2 px more than any other
+    # control, at all five steps. Measured on 2026-08-23, guarded by
     # ``tests/runtime_js/test_form_controls_share_one_height.py``.
-    # Les enfants n'ont donc plus de ``h-*`` : le cadre est
-    # ``items-stretch``, ils remplissent sa hauteur intérieure.
+    # The children therefore no longer have an ``h-*``: the frame is
+    # ``items-stretch``, they fill its inner height.
     "sizes": {
         "xs": {
             "input_frame": "h-7",

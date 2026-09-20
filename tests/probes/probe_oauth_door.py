@@ -150,7 +150,7 @@ def main() -> int:
             page.wait_for_url(APP + "/login", timeout=8000)
             page.click("a[href='/auth/testidp']")
             page.wait_for_url(f"{IDP}/authorize*", timeout=8000)
-            page.click("#pick-intrus")
+            page.click("#pick-outsider")
             page.wait_for_url(APP + "/login*", timeout=10000)
             ready(page)
             after = {c["name"] for c in context.cookies()}

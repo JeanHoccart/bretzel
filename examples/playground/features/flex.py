@@ -23,8 +23,8 @@ DIRECTIONS = ["row", "row-reverse", "col", "col-reverse"]
 ALIGNS     = ["start", "center", "end", "stretch", "baseline"]
 JUSTIFIES  = ["start", "center", "end", "between", "around", "evenly"]
 GAPS       = ["none", "xs", "sm", "md", "lg", "xl"]
-#: ``""`` = la prop n'est pas demandée — et c'est le défaut, parce
-#: qu'une pile qui ne demande rien n'émet aucune de ces classes.
+#: ``""`` = the prop is not asked for — and it is the default, because
+#: a stack asking for nothing emits none of these classes.
 GROWS      = ["", "equal", "12rem", "16rem", "20rem"]
 
 
@@ -37,11 +37,10 @@ def swatch(label: str) -> None:
 
 
 def bar_fields() -> None:
-    """Deux champs de filtre — la forme réelle où ``grow=`` compte.
+    """Two filter fields — the real shape where ``grow=`` counts.
 
-    Des tuiles ne montreraient rien : elles n'ont pas de largeur propre.
-    Le cas qui a produit la prop est un champ, dont la racine porte
-    ``w-full``.
+    Tiles would show nothing: they have no width of their own. The case
+    that produced the prop is a field, whose root carries ``w-full``.
     """
     with ui.form_field(label="Search"):
         ui.input(placeholder="Search name, email, company…",
@@ -146,9 +145,9 @@ def server_panel() -> None:
                       on_change=server_changed)
         with control("wrap"):
             ui.switch(checked=state.wrap, on_change=server_changed)
-        with control("grow (base des enfants)"):
+        with control("grow (the children's basis)"):
             ui.select(value=state.grow,
-                      options=[(g, g or "— (non demandé)") for g in GROWS],
+                      options=[(g, g or '— (not asked for)') for g in GROWS],
                       on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes,
@@ -266,34 +265,32 @@ def page() -> None:
 
                     ui.heading("Grow", level=3)
                     ui.text(
-                        "``grow=`` dit comment les enfants directs se "
-                        "partagent l'axe principal. Le parent le "
-                        "distribue — aucun enfant n'a besoin de le "
-                        "savoir, donc ça marche avec n'importe quel "
-                        "composant.",
+                        '``grow=`` says how the direct children share the'
+                            ' main axis. The parent distributes it — no child'
+                            ' needs to know, so it works with any component.',
                         color="muted", size="xs",
                     )
                     with ui.vstack():
-                        # Le témoin d'abord : sans lui, on ne voit pas ce
-                        # que la prop change. Deux champs dont la racine
-                        # porte ``w-full`` (la convention de tous les
-                        # contrôles) ne peuvent pas partager une ligne de
-                        # repli — la barre devient une PILE.
-                        ui.text("sans grow= — la barre s'empile",
+                        # The control first: without it, one does not
+                        # see what the prop changes. Two fields whose
+                        # root carries ``w-full`` (every control's
+                        # convention) cannot share a wrapping row — the
+                        # bar becomes a STACK.
+                        ui.text('with no grow= — the bar stacks up',
                                 color="muted", size="sm")
                         with ui.card(padding="sm"):
                             with ui.flex(gap="md", align="end", wrap=True):
                                 bar_fields()
                         for base in ("16rem", "12rem"):
-                            ui.text(f'grow="{base}" — au moins {base} par '
-                                    f"champ, puis passage à la ligne",
+                            ui.text(f'grow="{base}" — at least {base} per '
+                                    f"field, then a line break",
                                     color="muted", size="sm")
                             with ui.card(padding="sm"):
                                 with ui.flex(gap="md", align="end",
                                              wrap=True, grow=base):
                                     bar_fields()
-                        ui.text("grow=True — parts strictement égales, "
-                                "quel que soit le contenu",
+                        ui.text('grow=True — strictly equal shares, whatever the '
+                            'content',
                                 color="muted", size="sm")
                         with ui.card(padding="sm"):
                             with ui.flex(gap="md", align="end", grow=True):

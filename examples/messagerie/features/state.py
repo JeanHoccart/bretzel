@@ -1,29 +1,30 @@
-"""messagerie/state — la vue vit dans l'adresse.
+"""messagerie/state — the view lives in the address.
 
-C'est LA mécanique que cet exemple met en scène, et elle tient en trois
-lignes de déclaration.
+This is THE mechanic this example stages, and it fits in three lines of
+declaration.
 
-Un ``PageState`` vit dans un dictionnaire serveur indexé par un uuid de
-rendu, **neuf à chaque navigation**. Sans rien de plus, ouvrir un
-message puis appuyer sur la flèche retour n'a aucun effet utile : le
-navigateur refait un vrai GET, obtient un uuid neuf, et atterrit sur une
-adresse qui ne dit rien de ce qu'on regardait.
+A ``PageState`` lives in a server dictionary keyed by a render uuid,
+**a new one at every navigation**. With nothing more, opening a message
+then pressing the back arrow has no useful effect: the browser makes a
+real GET again, gets a new uuid, and lands on an address that says
+nothing about what was being looked at.
 
-``URL = {…}`` déclare les champs dont **l'adresse fait foi**. Le socle
-les relit au rendu et réécrit la barre d'adresse à chaque mutation, sans
-navigation ni rechargement. À partir de là, trois choses marchent d'un
-coup et aucune n'a été codée : le lien se partage, le favori retrouve la
-même vue, et les flèches du navigateur font l'aller-retour.
+``URL = {…}`` declares the fields **the address is authoritative for**.
+The base layer reads them back at render time and rewrites the address
+bar at every mutation, with no navigation and no reload. From there,
+three things work at once and none was coded: the link shares, the
+bookmark finds the same view again, and the browser's arrows go back and
+forth.
 
-⚠️ **Le nom d'URL est écrit, pas dérivé du nom Python.** ``ouvert``
-s'appelle ``msg`` dans l'adresse. Une URL est une API publique : si elle
-se dérivait du nom du champ, renommer un attribut casserait les liens
-déjà partagés.
+⚠️ **The URL name is written, not derived from the Python name.**
+``opened`` is called ``thread`` in the address. A URL is a public API: if
+it derived from the field's name, renaming an attribute would break links
+already shared.
 
-⚠️ **Ce qui est déclaré est PUBLIC** — historique du navigateur, journaux
-du serveur, en-tête ``Referer`` de la requête suivante. Ici le dossier
-ouvert et l'identifiant du message lu ; le brouillon de réponse, lui,
-n'est pas de la partie et ne peut pas l'être : il n'a pas de nom d'URL.
+⚠️ **What is declared is PUBLIC** — browser history, server logs, the
+next request's ``Referer`` header. Here the open folder and the read
+message's identifier; the reply draft, for its part, is not part of it
+and cannot be: it has no URL name.
 """
 
 from __future__ import annotations
@@ -31,95 +32,93 @@ from __future__ import annotations
 from bretzel.state import ClientState, PageState, field, validator
 
 
-class Vue(PageState):
-    """Ce qu'on regarde : un dossier, et éventuellement un message.
+class View(PageState):
+    """What is being looked at: a folder, and possibly a message.
 
-    ``ouvert`` porte la clé d'un FIL, pas d'un message : ce qu'on ouvre
-    dans une messagerie est une conversation entière. Vide = rien
-    d'ouvert, et le panneau de droite affiche son état vide.
+    ``opened`` carries a THREAD's key, not a message's: what one opens in
+    a mail client is a whole conversation. Empty = nothing open, and the
+    right panel shows its empty state.
 
-    Une chaîne plutôt qu'un entier, et c'est le regroupement qui le
-    décide : un fil n'a pas d'identité propre en base, il se dérive du
-    sujet normalisé. L'adresse devient donc lisible —
-    ``?fil=les plans du hangar 3`` — ce qui est un effet de bord
-    heureux : une URL doit se lire.
+    A string rather than an integer, and it is the grouping that decides:
+    a thread has no identity of its own in storage, it derives from the
+    normalised subject. So the address becomes readable —
+    ``?thread=the-shed-3-drawings`` — which is a happy side effect: a URL
+    should read.
     """
 
-    dossier: str = field(default="recus")
-    ouvert: str = field(default="")
+    folder: str = field(default="inbox")
+    opened: str = field(default="")
 
-    URL = {"dossier": "dossier", "ouvert": "fil"}
+    URL = {"folder": "folder", "opened": "thread"}
 
 
-class Filtre(ClientState):
-    """Ce qu'on cherche dans le dossier ouvert.
+class Filter(ClientState):
+    """What is being searched for in the open folder.
 
-    ``ClientState`` et non ``PageState``, parce que le filtrage se fait
-    **dans le navigateur** : ``ui.filter_each`` prend un
-    ``ClientBinding`` et pose un ``bz-show`` par ligne. Taper ne coûte
-    donc aucune requête — ni ``on_input``, ni ``debounce``, ni zone à
-    re-rendre.
+    ``ClientState`` and not ``PageState``, because the filtering happens
+    **in the browser**: ``ui.filter_each`` takes a ``ClientBinding`` and
+    sets a ``bz-show`` per row. Typing therefore costs no request — no
+    ``on_input``, no ``debounce``, no zone to re-render.
 
-    ⚠️ **Le compromis est dans les deux sens, et il se choisit.** Le
-    filtrage client exige que TOUTES les lignes soient dans le DOM : à
-    huit messages c'est gratuit, à cinq mille c'est une page qui pèse. Le
-    jour où la boîte grossit, la réponse n'est pas de rendre ce champ
-    plus malin — c'est de filtrer côté serveur et de paginer, ce que
-    ``ui.datatable`` fait déjà (``examples/crm``).
+    ⚠️ **The trade-off cuts both ways, and it is chosen.** Client-side
+    filtering requires ALL the rows to be in the DOM: at eight messages
+    it is free, at five thousand it is a page that weighs. The day the
+    mailbox grows, the answer is not to make this field cleverer — it is
+    to filter on the server and paginate, which ``ui.datatable`` already
+    does (``examples/crm``).
 
-    ⚠️ **Rien ici n'est adressable, et c'est une décision.** Un champ
-    déclaré dans ``URL = {…}`` est PUBLIC : historique du navigateur,
-    journaux du serveur, en-tête ``Referer`` de la requête suivante. Le
-    dossier qu'on regarde ne dit rien de sensible ; ce qu'on cherche dans
-    sa boîte mail, si. Le framework tient la même ligne — ``filters``
-    n'est adressable dans aucun de ses défauts.
+    ⚠️ **Nothing here is addressable, and that is a decision.** A field
+    declared in ``URL = {…}`` is PUBLIC: browser history, server logs,
+    the next request's ``Referer`` header. Which folder you are looking
+    at says nothing sensitive; what you are searching for in your mailbox
+    does. The framework holds the same line — ``filters`` is addressable
+    in none of its defaults.
     """
 
     q: str = field(default="")
 
 
-class Panneau(PageState):
-    """L'état du panneau de rédaction : déployé ? et à quelle taille ?
+class Panel(PageState):
+    """The compose panel's state: open? and at what size?
 
-    Un état SERVEUR et non client, contrairement au brouillon qu'il
-    contient. La raison est la taille : passer de « normal » à « plein
-    écran » change les classes du conteneur, et une classe ne se lie pas
-    côté client comme une valeur. Le panneau est donc une zone
-    rafraîchissable, et son contenu textuel — lui — reste dans un
-    ``ClientState``, ce qui le fait survivre au re-rendu.
+    A SERVER state and not a client one, unlike the draft it contains.
+    The reason is the size: going from "normal" to "full screen" changes
+    the container's classes, and a class does not bind on the client the
+    way a value does. The panel is therefore a refreshable zone, and its
+    textual content — that one — stays in a ``ClientState``, which is
+    what makes it survive the re-render.
     """
 
-    #: ``normal`` (coin bas-droit) · ``reduit`` (barre de titre seule) ·
-    #: ``plein`` (centré, presque tout l'écran).
-    taille: str = field(default="normal")
-    ouvert: bool = field(default=False)
+    #: ``normal`` (bottom-right corner) · ``small`` (title bar only) ·
+    #: ``full`` (centred, almost the whole screen).
+    size: str = field(default="normal")
+    opened: bool = field(default=False)
 
-    #: Ce qui empêche l'envoi, en clair. Vide = rien à signaler.
-    erreur: str = field(default="")
+    #: What stops the send, in plain words. Empty = nothing to report.
+    error: str = field(default="")
 
-    @validator("taille")
-    def _taille(cls, value: str) -> str:
-        """Une taille hors table retombe sur ``normal``.
+    @validator("size")
+    def _size(cls, value: str) -> str:
+        """A size outside the table falls back to ``normal``.
 
-        Le validateur COERCE, il ne lève pas : la valeur arrive d'un
-        handler de l'app, pas d'une saisie — une faute de frappe ici doit
-        rendre un panneau utilisable, pas une page d'erreur.
+        The validator COERCES, it does not raise: the value comes from an
+        app handler, not from user input — a typo here should return a
+        usable panel, not an error page.
         """
-        return value if value in ("normal", "reduit", "plein") else "normal"
+        return value if value in ("normal", "small", "full") else "normal"
 
 
-class Redaction(ClientState):
-    """Le brouillon du message qu'on écrit.
+class Draft(ClientState):
+    """The draft of the message being written.
 
-    ``ClientState`` sans ``send_to_server=False`` : ces valeurs naissent
-    dans le navigateur et doivent donc remonter, sinon le handler
-    d'envoi ne saurait pas quoi enregistrer. C'est le contre-exemple
-    exact de la ``Vue`` au-dessus — celle-ci est écrite par le serveur et
-    publiée dans l'adresse, celle-là est écrite par l'humain et ne sort
-    jamais de la page tant qu'il n'a pas cliqué.
+    ``ClientState`` without ``send_to_server=False``: these values are
+    born in the browser and must therefore travel up, otherwise the send
+    handler would not know what to record. It is the exact
+    counter-example of the ``View`` above — that one is written by the
+    server and published in the address, this one is written by the human
+    and never leaves the page until they click.
     """
 
-    a: str = field(default="")
-    sujet: str = field(default="")
-    corps: str = field(default="")
-
+    to: str = field(default="")
+    subject: str = field(default="")
+    body: str = field(default="")

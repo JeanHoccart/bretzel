@@ -1,1 +1,1 @@
-"""Messagerie — la boîte mail de démonstration."""
+"""Messagerie — the demonstration mailbox."""

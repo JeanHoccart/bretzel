@@ -1,28 +1,27 @@
-"""features/shell — shell : le cadre racine, la barre latérale permanente.
+"""features/shell — shell: the root frame, the permanent sidebar.
 
-*« Une barre latérale permanente à gauche : les classes, la recherche,
-les réglages, le cahier de texte. L'ancienne version empilait tout dans
-une barre d'outils horizontale qui débordait »* (§ 8 du cahier).
+*"A permanent sidebar on the left: the classes, the search, the
+settings, the lesson log. The old version stacked everything into a
+horizontal toolbar that overflowed"* (§ 8 of the specification).
 
-Elle ne porte pour l'instant qu'une entrée : le lot 1 ne livre qu'un
-écran. Les suivantes arrivent avec leurs lots — une nav qui annonce des
-routes inexistantes est pire qu'une nav courte.
+For now it carries only one entry: batch 1 delivers one screen. The
+others arrive with their batches — a nav announcing routes that do not
+exist is worse than a short nav.
 
-**Le modèle de défilement : le document GELÉ** — ``ui.viewport`` +
-``ui.pane``. C'est celui des outils, et cette app en est un : *« la
-tablette est un poste de travail, pas une consultation »* (EF-U3). Il se
-paie d'une chaîne de hauteurs continue de la racine à la région, et il
-achète des régions à défilement indépendant — ce dont la grille du lot 3
-aura besoin, avec son en-tête de dates qui ne doit pas partir vers le
-haut quand on descend dans les créneaux du soir.
+**The scrolling model: the FROZEN document** — ``ui.viewport`` +
+``ui.pane``. It is the tools' model, and this app is one: *"the tablet is
+a workstation, not a consultation"* (EF-U3). It is paid for with a
+continuous chain of heights from the root to the region, and it buys
+independently scrolling regions — which batch 3's grid will need, with
+its header of dates that must not go up out of view when one scrolls down
+to the evening slots.
 
-⚠️ **Les deux zones de ce fichier sont ``@refreshable``, et ce n'est pas
-décoratif.** Un ``@layout`` est rendu UNE fois par chargement de page :
-tout ce qui y lit un état mutable sans être une zone est gelé pour
-toujours. Le sélecteur d'année afficherait donc la nouvelle année pendant
-que le bandeau continuerait de dire l'ancienne — l'écran montrerait la
-contradiction sans la signaler. C'est le silence B2 de
-``livrer-une-app.md``, payé deux fois ailleurs.
+⚠️ **This file's two zones are ``@refreshable``, and it is not
+decorative.** A ``@layout`` is rendered ONCE per page load: anything
+reading a mutable state there without being a zone is frozen forever. So
+the year selector would show the new year while the banner kept saying
+the old one — the screen would show the contradiction without flagging
+it. It is ``livrer-une-app.md``'s silence B2, paid for twice elsewhere.
 """
 
 from __future__ import annotations
@@ -36,11 +35,11 @@ from examples.ecole.features.annees import (
     selecteur_annee,
 )
 
-#: La nav. Elle grandit d'un lot à l'autre : accueil et réglages
-#: (lots 1-2), puis l'emploi du temps, le cahier de texte, la
-#: recherche. Une entrée n'y apparaît que quand sa route existe —
-#: c'est le piège n° 14 du cahier, « écrire un écran avant ses
-#: routes », vu depuis la nav.
+#: The nav. It grows from one batch to the next: home and settings
+#: (batches 1-2), then the timetable, the lesson log, the search. An
+#: entry only appears there when its route exists — it is the
+#: specification's trap no. 14, "writing a screen before its routes",
+#: seen from the nav.
 NAV: tuple[tuple[str, str, str], ...] = (
     ("Emploi du temps", "calendar-days", "/"),
     ("Mes classes", "layout-grid", "/classes"),
@@ -48,13 +47,13 @@ NAV: tuple[tuple[str, str, str], ...] = (
     ("Chercher un élève", "search", "/recherche"),
 )
 
-#: Ce qui se règle une fois par an, à part du quotidien.
+#: What is set once a year, apart from the daily work.
 OUTILS: tuple[tuple[str, str, str], ...] = (
     ("Import et archives", "upload", "/import"),
     ("Réglages", "settings", "/reglages"),
 )
 
-#: Les trois modes de couleur et leur icône.
+#: The three colour modes and their icon.
 THEMES: tuple[tuple[str, str, str], ...] = (
     ("light", "Thème clair", "sun"),
     ("dark", "Thème sombre", "moon"),
@@ -74,17 +73,17 @@ def zone_bandeau() -> None:
 
 @layout
 def shell() -> None:
-    # ``is_touch`` et pas ``is_mobile`` : EF-U4 dit que le plein écran ne
-    # s'affiche QUE là où il fonctionne, et le contre-exemple nommé est
-    # Safari sur tablette — une question de moteur, pas de largeur. Un
-    # iPad en paysage est large et ne sait pas le faire.
+    # ``is_touch`` and not ``is_mobile``: EF-U4 says full screen only
+    # shows where it works, and the counter-example named is Safari on a
+    # tablet — a question of engine, not of width. An iPad in landscape
+    # is wide and cannot do it.
     #
-    # ⚠️ **C'est une approximation, et elle est notée comme finding.** Le
-    # vrai test est ``document.fullscreenEnabled``, qui vit dans le
-    # navigateur ; Bretzel n'expose aucune capacité cliente à lire depuis
-    # Python. Le pointeur grossier est le plus proche substitut dont
-    # dispose le serveur, et il se trompe sur une tablette Android — où
-    # le plein écran marche et où le bouton sera caché.
+    # ⚠️ **It is an approximation, and it is noted as a finding.** The
+    # real test is ``document.fullscreenEnabled``, which lives in the
+    # browser; Bretzel exposes no client capability to read from Python.
+    # The coarse pointer is the closest substitute the server has, and it
+    # is wrong on an Android tablet — where full screen works and where
+    # the button will be hidden.
     plein_ecran_utile = not Screen().is_touch
 
     with ui.viewport():
@@ -99,11 +98,11 @@ def shell() -> None:
                         ui.sidebar_item(label, icon=icon, href=href)
             with ui.sidebar_footer(name="Physique-chimie",
                                    subtitle=annee_regardee()["libelle"]):
-                # EF-U2 : l'année se change depuis la barre latérale, et
-                # le PIED est le seul endroit qui survive au repli en
-                # rail (cf. la docstring de `selecteur_annee`). Son
-                # sous-titre porte l'année regardée, donc l'information
-                # reste lisible même quand le menu est fermé.
+                # EF-U2: the year is changed from the sidebar, and the
+                # FOOTER is the only place that survives collapsing to a
+                # rail (cf. `selecteur_annee`'s docstring). Its subtitle
+                # carries the year being looked at, so the information
+                # stays readable even when the menu is closed.
                 zone_annee()
                 ui.divider()
                 for valeur, label, icon in THEMES:
@@ -114,9 +113,9 @@ def shell() -> None:
                         label="Plein écran", icon_left="expand",
                         on_click=fullscreen(),
                     )
-        # ``padding="md"`` et pas ``lg`` : l'écran le plus contraint
-        # de l'app est une grille de SIX jours qui doit tenir en
-        # largeur, et le cadre est ce qu'on peut lui rendre.
+        # ``padding="md"`` and not ``lg``: the app's most constrained
+        # screen is a grid of SIX days that must fit in width, and the
+        # frame is what can be given back to it.
         with ui.pane(gap="md", padding="md"):
             zone_bandeau()
             ui.outlet()

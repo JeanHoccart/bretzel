@@ -34,7 +34,7 @@ dozen ``ui.heading`` / ``ui.text`` calls.
 Unordered :
 
 - One
-- Two with [a link](https://bretzel.dev) inside
+- Two with [a link](https://bretzel-py.dev) inside
 - Three, with ``inline code``
 
 Ordered :
@@ -97,7 +97,7 @@ _DIALOG_HELP = """## Keyboard shortcuts
 - ``Tab`` / ``Shift+Tab`` — move focus
 - ``Enter`` — confirm
 
-Need more help ? See the [docs](https://bretzel.dev/help)."""
+Need more help ? See the [docs](https://bretzel-py.dev/help)."""
 
 
 class MarkdownPlayground(PageState):
@@ -372,7 +372,7 @@ def page() -> None:
                         "## Section\n\n"
                         "### Subsection\n\n"
                         "Body paragraph with a [keyboard-navigable "
-                        "link](https://bretzel.dev). Tab focuses the "
+                        "link](https://bretzel-py.dev). Tab focuses the "
                         "anchor ; Enter activates it."
                     )
 

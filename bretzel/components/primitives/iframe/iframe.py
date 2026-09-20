@@ -1,47 +1,47 @@
-"""``Iframe`` — un document tiers, borné par défaut.
+"""``Iframe`` — a third-party document, bounded by default.
 
-Ce que le composant apporte au-delà de la balise nue :
+What the component brings beyond the bare tag:
 
-- **``title=`` obligatoire.** Un lecteur d'écran annonce les cadres d'une
-  page par leur titre ; sans lui, l'utilisateur entend « cadre », sans
-  savoir s'il contient une carte, une vidéo ou un formulaire de paiement.
-  C'est le pendant exact de l'``alt`` d'``ui.image``, et il est requis
-  pour la même raison : l'oubli est invisible à l'écran.
-- **``ratio=``** réserve la hauteur. Un embed est la première cause de
-  saut de page, et un ``<iframe>`` sans dimensions retombe sur un
-  300×150 hérité des années 90.
-- **``loading="lazy"``** par défaut : un embed hors écran ne charge pas.
-- **``sandbox=``, avec une valeur par défaut non vide** — cf. ci-dessous.
+- **``title=`` mandatory.** A screen reader announces a page's frames by
+  their title; without it, the user hears "frame", with no idea whether
+  it contains a map, a video or a payment form. It is the exact
+  counterpart of ``ui.image``'s ``alt``, and it is required for the same
+  reason: the omission is invisible on screen.
+- **``ratio=``** reserves the height. An embed is the leading cause of
+  page jump, and an ``<iframe>`` with no dimensions falls back on a
+  300×150 inherited from the nineties.
+- **``loading="lazy"``** by default: an off-screen embed does not load.
+- **``sandbox=``, with a non-empty default value** — cf. below.
 
-Le sandbox par défaut
----------------------
+The default sandbox
+-------------------
 
 ``SANDBOX_BASELINE`` = ``allow-scripts allow-same-origin allow-forms
-allow-popups``. Le point n'est pas ce que la liste autorise, c'est ce
-qu'elle **n'autorise pas** : dès qu'un attribut ``sandbox`` est présent,
-``allow-top-navigation`` et ``allow-downloads`` sont refusés tant qu'on
-ne les demande pas. Autrement dit le document embarqué ne peut plus
-**changer la page sous vos pieds** ni **déclencher un téléchargement** —
-les deux vecteurs qui transforment un embed en hameçonnage.
+allow-popups``. The point is not what the list allows, it is what it
+**does not** allow: as soon as a ``sandbox`` attribute is present,
+``allow-top-navigation`` and ``allow-downloads`` are refused unless you
+ask for them. In other words the embedded document can no longer
+**change the page under your feet** nor **trigger a download** — the two
+vectors that turn an embed into phishing.
 
-Les quatre permissions accordées sont celles sans lesquelles les embeds
-courants (carte, lecteur, widget de paiement) ne fonctionnent pas du
-tout. Un défaut que tout le monde désactive au premier essai
-n'apprendrait qu'une chose : à le désactiver.
+The four permissions granted are the ones without which the common
+embeds (map, player, payment widget) do not work at all. A default
+everybody disables on the first try would teach one thing only: to
+disable it.
 
-⚠️ ``allow-scripts`` + ``allow-same-origin`` ensemble, sur un document de
-**votre propre origine**, permettent à ce document de retirer son propre
-attribut ``sandbox``. C'est sans effet sur un embed tiers (origine
-différente), qui est le cas d'usage. Pour encadrer une page à vous en
-vous en protégeant vraiment, passez une liste sans ``allow-same-origin``.
+⚠️ ``allow-scripts`` + ``allow-same-origin`` together, on a document of
+**your own origin**, let that document remove its own ``sandbox``
+attribute. It has no effect on a third-party embed (a different origin),
+which is the use case. To frame a page of your own while really
+protecting yourself from it, pass a list without ``allow-same-origin``.
 
-Trois façons de sortir, toutes explicites :
+Three ways out, all explicit:
 
-- ``sandbox="allow-scripts"`` — votre propre liste, à la place de la base.
-- ``sandbox=""`` — sandbox maximal (tout refusé). Utile pour du HTML
-  statique de confiance douteuse.
-- ``sandbox=None`` — **aucun** attribut, donc aucune restriction. C'est le
-  comportement du web nu ; il faut l'écrire pour l'obtenir.
+- ``sandbox="allow-scripts"`` — your own list, instead of the baseline.
+- ``sandbox=""`` — maximal sandbox (everything refused). Useful for
+  static HTML of doubtful trust.
+- ``sandbox=None`` — **no** attribute, so no restriction. It is the bare
+  web's behaviour; you have to write it to get it.
 """
 
 from __future__ import annotations
@@ -52,8 +52,8 @@ from bretzel.components.base import Component, reactive_prop
 from bretzel.components.primitives.iframe.theme import IFRAME_THEME
 from bretzel.core.tree import Element
 
-#: Bloque top-navigation et downloads, laisse marcher les embeds usuels.
-#: Cf. le docstring du module pour le raisonnement complet.
+#: Blocks top-navigation and downloads, lets the usual embeds work.
+#: Cf. the module's docstring for the full reasoning.
 SANDBOX_BASELINE: Final[str] = (
     "allow-scripts allow-same-origin allow-forms allow-popups"
 )
@@ -69,9 +69,9 @@ class Iframe(Component):
     DEFAULT_TAG: ClassVar[str] = "iframe"
     IS_CONTAINER: ClassVar[bool] = False
 
-    # Aucune surface bindable : une URL d'embed change au re-rendu
-    # serveur. Et laisser un driver client réécrire le ``src`` d'un cadre
-    # sandboxé serait un moyen commode de pointer ailleurs.
+    # No bindable surface: an embed URL changes on a server re-render.
+    # And letting a client driver rewrite a sandboxed frame's ``src``
+    # would be a convenient way of pointing it elsewhere.
     src: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
     title: str = reactive_prop(default="", emit_attr=False)
     ratio: str | None = reactive_prop(default=None, emit_attr=False)
@@ -85,41 +85,43 @@ class Iframe(Component):
         sandbox: str | None = SANDBOX_BASELINE,
         **kwargs: Any,
     ) -> None:
-        # ``title`` keyword-only SANS défaut : l'omettre est une TypeError
-        # à l'appel, pas un cadre anonyme au lecteur d'écran.
+        # ``title`` keyword-only with NO default: omitting it is a
+        # TypeError at the call, not an anonymous frame for the screen
+        # reader.
         #
-        # ``sandbox`` n'est PAS une ``reactive_prop`` : le socle drope les
-        # kwargs reactive ``None``, or ici ``None`` est une VALEUR — « retire
-        # l'attribut ». Le défaut vit donc dans la signature, où il est aussi
-        # lisible dans ``help()`` et les info-bulles d'éditeur.
+        # ``sandbox`` is NOT a ``reactive_prop``: the base layer drops
+        # reactive ``None`` kwargs, yet here ``None`` is a VALUE —
+        # "remove the attribute". The default therefore lives in the
+        # signature, where it is also readable in ``help()`` and in
+        # editor tooltips.
         self._sandbox = sandbox
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(src=src, title=title, ratio=ratio, **kwargs)
 
     def render(self) -> Element:
         theme = self._resolved_theme()
         values = self._reactive_values
 
-        # ``classes=`` est posé par le wrap métaclasse — pas ici (doublon).
+        # ``classes=`` is set by the metaclass wrap — not here (duplicate).
         root_class = self.slot_class(
             "root", theme.get("ratios", {}).get(values.get("ratio"), "")
         )
 
         attrs = self.emit_attrs()
         attrs["class"] = root_class
-        # ``src`` omis plutôt que vide : un ``src=""`` est résolu contre
-        # l'URL du document, donc le cadre chargerait LA PAGE COURANTE
-        # dans lui-même. Trouvé sur ``ui.video`` en lisant les logs du
-        # serveur, et ici la conséquence serait pire — une page qui se
-        # contient elle-même, récursivement.
+        # ``src`` omitted rather than empty: a ``src=""`` is resolved
+        # against the document's URL, so the frame would load THE
+        # CURRENT PAGE inside itself. Found on ``ui.video`` while reading
+        # the server's logs, and here the consequence would be worse — a
+        # page containing itself, recursively.
         if values.get("src"):
             attrs["src"] = values["src"]
         attrs["title"] = values.get("title") or ""
 
-        # Une seule branche pour les trois états : rien passé → la base
-        # (défaut de signature), une liste → la liste, ``""`` → émis tel
-        # quel car ``"" is not None`` (sandbox MAXIMAL, significatif),
-        # ``None`` → aucun attribut, aucune restriction.
+        # A single branch for the three states: nothing passed → the
+        # baseline (signature default), a list → the list, ``""`` →
+        # emitted as is because ``"" is not None`` (MAXIMAL sandbox,
+        # meaningful), ``None`` → no attribute, no restriction.
         if self._sandbox is not None:
             attrs["sandbox"] = self._sandbox
 

@@ -50,9 +50,9 @@ from bretzel.state import LiveConnection
 from bretzel.theme import ColorScheme
 
 # ``auth`` is exposed as a module so ``from bretzel import auth`` then
-# ``auth.login(user_id)`` works as documented in spec 07. ``oauth`` suit
-# la même forme : on écrit ``oauth.OIDC(...)``, jamais un import de
-# classe nue — le préfixe dit de quel protocole on parle.
+# ``auth.login(user_id)`` works as documented in spec 07. ``oauth``
+# takes the same shape: one writes ``oauth.OIDC(...)``, never a bare
+# class import — the prefix says which protocol is being spoken.
 auth = _auth_module
 oauth = _oauth_module
 

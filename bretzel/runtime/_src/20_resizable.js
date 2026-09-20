@@ -1,64 +1,62 @@
-/* 20_resizable.js — scope partagé du composant Resizable (split panes).
+/* 20_resizable.js — the shared scope of the Resizable component (split panes).
  *
- * ⚠️ **Troisième famille de « drag » du dépôt, et la confondre coûte cher** :
- *   - `12_slider.js`      = pointeur → une VALEUR sur une échelle ;
- *   - `19_dnd.js`         = déplacer un NŒUD d'une position à une autre ;
- *   - ici                 = pointeur → une DIMENSION. Rien ne bouge, rien
- *                           ne change de parent : deux voisins se
- *                           repartagent la place qu'ils occupent déjà.
- * C'est la famille du slider (pointer-drag, delta continu), pas celle du
- * node-DnD — la roadmap le dit depuis le cadrage #6 et ce fichier n'a donc
- * AUCUNE dépendance vers `19_dnd.js`.
+ * ⚠️ **The repository's third "drag" family, and confusing it costs**:
+ *   - `12_slider.js`      = pointer → a VALUE on a scale;
+ *   - `19_dnd.js`         = moving a NODE from one position to another;
+ *   - here                = pointer → a DIMENSION. Nothing moves,
+ *                           nothing changes parent: two neighbours
+ *                           re-share the room they already occupy.
+ * It is the slider's family (pointer-drag, continuous delta), not the
+ * node-DnD's — the roadmap has said so since framing #6, and this file
+ * therefore has NO dependency on `19_dnd.js`.
  *
  *   bz-data="{...$bz.resizable.scope, sizes: [30,70], _mins: [10,10],
  *             _vertical: false, _group: null,
  *             _read(){…}, _write(v){…}}"
  *
- * ``_group`` est capturé au ``bz-init`` du root (`_group = $el`) : une
- * méthode de scope n'a pas accès à ``$el``, seules les directives en ont
- * (même contrainte et même remède que Slider et Carousel).
+ * ``_group`` is captured at the root's ``bz-init`` (`_group = $el`): a
+ * scope method has no access to ``$el``, only directives do (same
+ * constraint and same remedy as Slider and Carousel).
  *
- * ── Le partage se fait en POIDS, jamais en pixels ─────────────────────
- * Chaque panneau est un ``flex-grow: w`` sur une base nulle, donc le
- * navigateur répartit la place restante au prorata des poids — la largeur
- * des poignées est déduite AVANT le partage, sans qu'on la connaisse, et
- * un groupe qui rétrécit garde ses proportions sans qu'on écoute le
- * moindre ``resize``. Les pixels n'entrent ici qu'à un seul endroit : la
- * conversion du delta du pointeur, mesurée à chaque geste.
+ * ── The split is in WEIGHTS, never in pixels ──────────────────────────
+ * Each panel is a ``flex-grow: w`` on a zero basis, so the browser
+ * shares the remaining room pro rata to the weights — the handles'
+ * width is deducted BEFORE the split, without our knowing it, and a
+ * group that shrinks keeps its proportions without our listening to any
+ * ``resize``. Pixels enter here in a single place: the conversion of the
+ * pointer's delta, measured at every gesture.
  *
- * ── Deux voisins, jamais plus ─────────────────────────────────────────
- * Tirer une poignée ne redistribue QUE la paire qu'elle sépare : leur
- * somme est invariante pendant le geste, donc les autres panneaux ne
- * bougent pas d'un pixel. C'est le comportement de tous les vrais
- * splitters, et c'est ce qui rend le geste prévisible — un utilisateur qui
- * élargit sa colonne de gauche n'a pas envie de voir la droite se
- * réorganiser.
+ * ── Two neighbours, never more ────────────────────────────────────────
+ * Dragging a handle redistributes ONLY the pair it separates: their sum
+ * is invariant during the gesture, so the other panels do not move a
+ * pixel. It is the behaviour of every real splitter, and it is what
+ * makes the gesture predictable — a user widening their left column does
+ * not want to see the right one reorganise itself.
  *
- * ── Pourquoi rien n'est publié PENDANT le geste ───────────────────────
- * Le glissement écrit les styles en direct (chemin rapide, aucun tick de
- * signal) ; l'état n'est publié qu'au relâchement. Publier chaque frame
- * enverrait un ``change`` par pixel au serveur, et ferait écrire
- * localStorage cent fois par seconde quand le ClientState est
- * ``persist="local"``. Même raison que le ``SETTLE_MS`` du Carousel.
+ * ── Why nothing is published DURING the gesture ───────────────────────
+ * The drag writes the styles live (the fast path, no signal tick); the
+ * state is only published on release. Publishing every frame would send
+ * one ``change`` per pixel to the server, and would write localStorage a
+ * hundred times a second when the ClientState is ``persist="local"``.
+ * Same reason as the Carousel's ``SETTLE_MS``.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  //: Le pas d'une flèche du clavier, en points de pourcentage. Le motif
-  //: ARIA « window splitter » exige que la poignée soit pilotable sans
-  //: pointeur — c'est la seule façon de redimensionner au clavier, et
-  //: elle est aussi la seule qui marche sans souris ET sans écran
-  //: tactile.
+  //: The step of a keyboard arrow, in percentage points. The ARIA
+  //: "window splitter" pattern requires the handle to be drivable
+  //: without a pointer — it is the only way to resize from the
+  //: keyboard, and it is also the only one that works with no mouse AND
+  //: no touch screen.
   const KEY_STEP = 2;
 
   $bz.resizable = {
     scope: {
-      // ── Lecture du DOM ───────────────────────────────────────────
-      // ``:scope >`` et pas un querySelectorAll nu : un Resizable
-      // IMBRIQUÉ dans un panneau (le cas d'usage « éditeur + aperçu »
-      // dans une colonne redimensionnable) verrait sinon les panneaux
-      // de son enfant comme les siens.
+      // ── Reading the DOM ──────────────────────────────────────────
+      // ``:scope >`` and not a bare querySelectorAll: a Resizable NESTED
+      // in a panel (the "editor + preview inside a resizable column" use
+      // case) would otherwise see its child's panels as its own.
       _panels() {
         if (!this._group) return [];
         return Array.prototype.slice.call(
@@ -70,40 +68,41 @@
         return this._vertical ? r.height : r.width;
       },
 
-      // ── L'état → la mise en page ─────────────────────────────────
-      // Appelé depuis un ``bz-effect`` du root : lire ``_read()``
-      // inscrit la dépendance, donc un écrivain EXTERNE (une binding
-      // pilotée ailleurs, un `.set([…])`, une restauration depuis
-      // localStorage au boot) repose les panneaux tout seul.
+      // ── State → layout ───────────────────────────────────────────
+      // Called from the root's ``bz-effect``: reading ``_read()``
+      // registers the dependency, so an EXTERNAL writer (a binding
+      // driven elsewhere, a `.set([…])`, a restore from localStorage at
+      // boot) re-lays the panels by itself.
       //
-      // C'est aussi ce qui rend l'anti-FOUC gratuit : le root porte un
-      // ``bz-data``, donc il reste ``visibility:hidden`` jusqu'à
+      // It is also what makes the anti-FOUC free: the root carries a
+      // ``bz-data``, so it stays ``visibility:hidden`` until
       // ``html.bz-ready`` (cf. ``render/shell.py`` § _ANTI_FLASH_STYLE),
-      // et le boot hydrate le store depuis localStorage AVANT le scan
-      // qui exécute cet effet. Les tailles mémorisées sont donc en place
-      // au premier pixel peint — aucun script pré-paint à écrire.
+      // and the boot hydrates the store from localStorage BEFORE the
+      // scan that runs this effect. The remembered sizes are therefore
+      // in place at the first painted pixel — no pre-paint script to
+      // write.
       _apply() {
-        // Les panneaux d'abord, leur COMPTE ensuite passé à ``_weights``
-        // : sans ça les deux méthodes lancent chacune le même
-        // ``querySelectorAll``, à chaque tick de l'effet.
+        // The panels first, their COUNT then passed to ``_weights``:
+        // without that both methods each launch the same
+        // ``querySelectorAll``, at every tick of the effect.
         const panels = this._panels();
         const sizes = this._weights(panels.length);
         for (let i = 0; i < panels.length; i++) {
           const w = sizes[i];
           if (w === undefined) continue;
-          // Le style INLINE et pas une classe : la valeur est continue
-          // (un utilisateur s'arrête où il veut), donc aucune classe
-          // Tailwind ne peut l'exprimer — et une classe assemblée
-          // n'existerait pas dans le CSS compilé de prod.
+          // An INLINE style and not a class: the value is continuous
+          // (a user stops where they want), so no Tailwind class can
+          // express it — and an assembled class would not exist in
+          // production's compiled CSS.
           panels[i].style.flexGrow = String(w);
         }
-        // ``aria-valuenow`` est reposé ICI, dans l'unique passe
-        // réactive, et pas seulement dans les gestes. C'est ce qui rend
-        // les QUATRE chemins d'écriture corrects par construction :
-        // pointeur, clavier, `.set()` / `.reset()`, et une binding
-        // pilotée ailleurs. Recopié dans chaque geste, il ne couvrait
-        // que les deux premiers — `.set([20, 80])` laissait un lecteur
-        // d'écran sur la valeur du premier rendu.
+        // ``aria-valuenow`` is set back HERE, in the single reactive
+        // pass, and not only in the gestures. It is what makes the FOUR
+        // write paths correct by construction: pointer, keyboard,
+        // `.set()` / `.reset()`, and a binding driven elsewhere. Copied
+        // into each gesture, it only covered the first two —
+        // `.set([20, 80])` left a screen reader on the first render's
+        // value.
         if (this._group) {
           const handles = this._group.querySelectorAll(
             ":scope > [data-bz-rz-handle]"
@@ -114,33 +113,32 @@
         }
       },
 
-      // Le tableau de poids **normalisé à 100**. Un panneau ajouté par
-      // un morph sans que ``sizes`` suive (une liste de panneaux qui
-      // vient des données) recevrait sinon ``undefined`` : il tombe à
-      // part égale plutôt que de disparaître.
+      // The weight array **normalised to 100**. A panel added by a
+      // morph without ``sizes`` following (a list of panels coming from
+      // data) would otherwise get ``undefined``: it falls back to an
+      // equal share rather than disappearing.
       //
-      // ⚠️ **La normalisation n'est pas cosmétique, et l'oublier ici a
-      // rendu le composant inerte.** ``_mins`` voyage en POINTS DE
-      // POURCENTAGE ; si les poids restent bruts, les deux échelles ne
-      // se parlent plus. Mesuré : ``sizes=[1, 3]`` (une écriture
-      // documentée — c'est le RAPPORT qui compte) avec
-      // ``min_size=15`` donne ``pair = 4``, ``lo = 15``, donc
-      // ``hi < lo`` à chaque frame, donc une poignée qui ne bouge
-      // JAMAIS — sans erreur, sans rien dans la console. En mode local
-      // le défaut était invisible parce que le ``bz-data`` semé par le
-      // serveur est déjà normalisé ; il n'apparaissait qu'en mode
-      // binding, celui-là même que le composant met en avant pour
+      // ⚠️ **The normalisation is not cosmetic, and forgetting it here
+      // made the component inert.** ``_mins`` travels in PERCENTAGE
+      // POINTS; if the weights stay raw, the two scales no longer talk
+      // to each other. Measured: ``sizes=[1, 3]`` (a documented writing
+      // — it is the RATIO that counts) with ``min_size=15`` gives
+      // ``pair = 4``, ``lo = 15``, so ``hi < lo`` at every frame, so a
+      // handle that NEVER moves — with no error, nothing in the console.
+      // In local mode the defect was invisible because the ``bz-data``
+      // seeded by the server is already normalised; it only showed in
+      // binding mode, the very one the component puts forward for
       // ``persist="local"``.
       //
-      // MIROIR EXACT de ``normalize_weights`` (``resizable.py``), gaté
-      // par ``tests/runtime_js/test_resizable_mirrors_python.py``, qui
-      // fait tourner les deux moitiés sur la même table.
+      // An EXACT MIRROR of ``normalize_weights`` (``resizable.py``),
+      // gated by ``tests/runtime_js/test_resizable_mirrors_python.py``,
+      // which runs both halves over the same table.
       //
-      // ``count`` est optionnel : l'appelant qui vient DÉJÀ de compter
-      // les panneaux le passe (``_apply``), les autres le laissent
-      // dériver. ⚠️ La lecture de ``_read()`` reste la PREMIÈRE ligne :
-      // c'est elle qui inscrit la dépendance réactive de l'effet, et la
-      // déplacer après un retour anticipé la perdrait en silence.
+      // ``count`` is optional: a caller that has ALREADY counted the
+      // panels passes it (``_apply``), the others let it be derived.
+      // ⚠️ The ``_read()`` call stays the FIRST line: it is what
+      // registers the effect's reactive dependency, and moving it after
+      // an early return would lose it in silence.
       _weights(count) {
         const raw = this._read();
         const n = count === undefined ? this._panels().length : count;
@@ -163,22 +161,21 @@
         return isFinite(m) && m > 0 ? m : 0;
       },
 
-      // Le PLAFOND, en points de pourcentage. ``100`` est la valeur
-      // neutre et non une sentinelle : un panneau qui peut prendre toute
-      // la place n'est pas borné. Ajouté le 2026-08-23 — ``_min`` vivait
-      // seul, ce qui était une asymétrie et pas une décision.
+      // The CEILING, in percentage points. ``100`` is the neutral value
+      // and not a sentinel: a panel that can take all the room is not
+      // bounded. Added on 2026-08-23 — ``_min`` lived alone, which was
+      // an asymmetry and not a decision.
       _max(i) {
         const m = Array.isArray(this._maxs) ? Number(this._maxs[i]) : 100;
         return isFinite(m) && m > 0 && m <= 100 ? m : 100;
       },
 
-      // ── Le geste ─────────────────────────────────────────────────
-      // Aucun seuil d'activation, contrairement au node-DnD : une
-      // poignée de splitter n'a pas de « clic » concurrent à préserver
-      // (elle ne fait rien d'autre), et elle est déjà une cible dédiée.
-      // Le seuil du DnD existe pour que cliquer une CARTE reste un clic ;
-      // ici il ne protégerait rien et ajouterait une latence au premier
-      // pixel.
+      // ── The gesture ──────────────────────────────────────────────
+      // No activation threshold, unlike the node-DnD: a splitter's
+      // handle has no competing "click" to preserve (it does nothing
+      // else), and it is already a dedicated target. The DnD's threshold
+      // exists so that clicking a CARD stays a click; here it would
+      // protect nothing and would add latency to the first pixel.
       _start(e, i) {
         const panels = this._panels();
         const a = panels[i];
@@ -190,66 +187,66 @@
         this._drag = {
           i: i,
           from: this._vertical ? e.clientY : e.clientX,
-          // Le facteur px → poids est figé au DÉBUT du geste, et c'est
-          // volontaire : la somme des poids ne bouge pas pendant qu'on
-          // tire (on ne fait que la répartir), donc le rapport reste
-          // juste jusqu'au relâchement.
+          // The px → weight factor is frozen at the START of the
+          // gesture, and it is deliberate: the sum of the weights does
+          // not move while you drag (we only redistribute it), so the
+          // ratio stays right until release.
           factor: weights.reduce((s, w) => s + w, 0) / totalPx,
-          // Le poids du panneau gauche AU DÉBUT du geste : c'est la base
-          // à laquelle le delta s'ajoute, donc elle ne doit pas suivre
-          // les valeurs intermédiaires (sinon le déplacement se cumule
-          // et le pointeur « glisse » sous la poignée). Le poids droit,
-          // lui, se déduit de la paire — inutile de le retenir.
+          // The left panel's weight at the START of the gesture: it is
+          // the base the delta adds to, so it must not follow the
+          // intermediate values (otherwise the movement accumulates and
+          // the pointer "slides" under the handle). The right weight is
+          // derived from the pair — no need to remember it.
           a: weights[i],
           sizes: weights,
-          // Les deux panneaux et la poignée sont RETENUS ici, pas
-          // re-cherchés à chaque frame : ``_move`` tourne à la cadence
-          // du pointeur, et rien de tout ça ne peut changer pendant un
-          // geste. Sans cette capture, chaque frame relançait DEUX
-          // ``querySelectorAll`` (les panneaux, puis les poignées pour
-          // ``aria-valuenow``) pour atteindre trois nœuds connus.
+          // Both panels and the handle are HELD here, not re-searched
+          // at every frame: ``_move`` runs at the pointer's cadence, and
+          // none of this can change during a gesture. Without that
+          // capture, each frame relaunched TWO ``querySelectorAll`` (the
+          // panels, then the handles for ``aria-valuenow``) to reach
+          // three known nodes.
           aEl: a,
           bEl: b,
           handle: e.currentTarget,
         };
-        // Capturer sur la POIGNÉE : le curseur sort de sa boîte dès le
-        // premier pixel (elle fait quelques points de large), et sans
-        // capture le geste s'arrêterait là.
+        // Capture on the HANDLE: the cursor leaves its box at the very
+        // first pixel (it is a few points wide), and with no capture the
+        // gesture would stop there.
         $bz.helpers.capturePointer(e.currentTarget, e);
       },
 
-      // Répartir ``want`` sur la paire ``i`` / ``i+1``, en place, en
-      // respectant les deux minimums. Rend ``false`` quand la paire est
-      // FIGÉE — le cas où les deux minimums ne tiennent pas dedans (60 +
-      // 60 sur 100) : on préfère ne rien bouger plutôt que de violer
-      // l'un des deux au motif que l'autre l'exige aussi.
+      // Distribute ``want`` over the pair ``i`` / ``i+1``, in place,
+      // respecting both minimums. Returns ``false`` when the pair is
+      // FROZEN — the case where the two minimums do not fit inside it
+      // (60 + 60 in 100): we prefer to move nothing rather than violate
+      // one of them on the grounds that the other requires it too.
       //
-      // Une seule copie pour le pointeur ET le clavier : c'est la même
-      // arithmétique, seule la provenance de ``want`` diffère (un delta
-      // de pointeur, ou un pas de flèche). Écrite deux fois, elle se
-      // serait corrigée une fois sur deux.
+      // A single copy for the pointer AND the keyboard: it is the same
+      // arithmetic, only ``want``'s origin differs (a pointer delta, or
+      // an arrow step). Written twice, it would have been fixed one time
+      // in two.
       _pair(sizes, i, want) {
         const pair = sizes[i] + sizes[i + 1];
-        // Les quatre contraintes se croisent : le plancher de GAUCHE et
-        // le plafond de DROITE poussent la poignée dans le même sens
-        // (vers la droite), les deux autres dans l'autre. D'où le
-        // ``max`` sur les planchers et le ``min`` sur les plafonds,
-        // exprimés dans la même unité — la taille du panneau de gauche.
+        // The four constraints cross: the LEFT floor and the RIGHT
+        // ceiling push the handle the same way (to the right), the other
+        // two the other way. Hence the ``max`` on the floors and the
+        // ``min`` on the ceilings, expressed in the same unit — the left
+        // panel's size.
         const lo = Math.max(this._min(i), pair - this._max(i + 1));
         const hi = Math.min(pair - this._min(i + 1), this._max(i));
-        // Paire FIGÉE : les contraintes ne tiennent pas ensemble (60 +
-        // 60 sur 100, ou un plafond sous un plancher). On préfère ne
-        // rien bouger plutôt que d'en violer une au motif qu'une autre
-        // l'exige.
+        // A FROZEN pair: the constraints do not hold together (60 + 60
+        // in 100, or a ceiling under a floor). We prefer to move nothing
+        // rather than violate one on the grounds that another requires
+        // it.
         if (hi < lo) return false;
         sizes[i] = Math.max(lo, Math.min(hi, want));
         sizes[i + 1] = pair - sizes[i];
         return true;
       },
 
-      // Publier : c'est ici, et seulement ici, que l'état sort du geste.
-      // L'arrondi à deux décimales évite de persister des flottants à
-      // dix-sept chiffres dans localStorage.
+      // Publish: it is here, and only here, that the state leaves the
+      // gesture. Rounding to two decimals avoids persisting
+      // seventeen-digit floats in localStorage.
       _publish(sizes) {
         this._write(sizes.map((w) => Math.round(w * 100) / 100));
       },
@@ -260,8 +257,8 @@
         const delta =
           ((this._vertical ? e.clientY : e.clientX) - d.from) * d.factor;
         if (!this._pair(d.sizes, d.i, d.a + delta)) return;
-        // Écriture DIRECTE, sans passer par l'état : voir l'en-tête du
-        // fichier. La publication a lieu une fois, au relâchement.
+        // A DIRECT write, not going through the state: see the file's
+        // header. Publication happens once, on release.
         d.aEl.style.flexGrow = String(d.sizes[d.i]);
         d.bEl.style.flexGrow = String(d.sizes[d.i + 1]);
         this._announce(d.handle, d.sizes[d.i]);
@@ -276,40 +273,41 @@
       },
 
       // ── a11y ─────────────────────────────────────────────────────
-      // ``aria-valuenow`` dit « le panneau qui me précède occupe N % ».
-      // Le serveur ne le rend qu'une fois, en statique — la poignée
-      // n'est pas un composant, elle n'a pas de prop réactive à lier —
-      // donc c'est le JS qui le tient à jour.
+      // ``aria-valuenow`` says "the panel before me occupies N %". The
+      // server renders it only once, statically — the handle is not a
+      // component, it has no reactive prop to bind — so it is the JS
+      // that keeps it up to date.
       //
-      // **Un seul auteur pour l'état publié** : ``_apply``, la passe
-      // réactive. Tout ce qui écrit l'état y repasse, donc les quatre
-      // chemins sont couverts sans qu'aucun ait à y penser. ``_move``
-      // l'appelle EN PLUS, et uniquement parce qu'il est le seul à ne
-      // rien publier avant le relâchement — sans ça un lecteur d'écran
-      // annoncerait la valeur d'avant pendant toute la durée du drag.
+      // **A single author for the published state**: ``_apply``, the
+      // reactive pass. Everything that writes the state goes back
+      // through it, so the four paths are covered without any of them
+      // having to think about it. ``_move`` calls it IN ADDITION, and
+      // only because it is the only one that publishes nothing before
+      // release — without that a screen reader would announce the
+      // previous value for the whole duration of the drag.
       _announce(handle, value) {
         if (handle && value !== undefined) {
           handle.setAttribute("aria-valuenow", String(Math.round(value)));
         }
       },
 
-      // ── Le repli ─────────────────────────────────────────────────
-      // Ranger le panneau ``i`` en donnant sa place à ``j``, son voisin
-      // d'en face. Re-jouer le geste le restaure.
+      // ── Collapsing ───────────────────────────────────────────────
+      // Put panel ``i`` away by giving its place to ``j``, its opposite
+      // neighbour. Replaying the gesture restores it.
       //
-      // ⚠️ **Le repli PASSE OUTRE ``min_size``, et c'est le but.** Il ne
-      // passe donc PAS par ``_pair``, qui existe pour empêcher qu'on
-      // franchisse un minimum en TIRANT. Le minimum dit « ne me réduis
-      // pas par accident » ; le repli est un geste explicite qui dit
-      // « range-le ». Sans cette sortie, ``min_size=20`` rendrait un
-      // panneau repliable non repliable, et il faudrait un second
-      // vocabulaire pour dire la même chose. VS Code et shadcn font
-      // pareil.
+      // ⚠️ **Collapsing OVERRIDES ``min_size``, and that is the point.**
+      // It therefore does NOT go through ``_pair``, which exists to stop
+      // a minimum being crossed by DRAGGING. The minimum says "do not
+      // shrink me by accident"; collapsing is an explicit gesture that
+      // says "put it away". Without that way out, ``min_size=20`` would
+      // make a collapsible panel non-collapsible, and a second
+      // vocabulary would be needed to say the same thing. VS Code and
+      // shadcn do the same.
       //
-      // ``_folded`` retient la taille d'avant, par index. Elle vit dans
-      // le scope — donc elle survit à un morph, comme le reste de
-      // l'état du composant — et pas côté serveur, qui n'a aucune idée
-      // de ce que quelqu'un a rangé il y a trois secondes.
+      // ``_folded`` remembers the previous size, by index. It lives in
+      // the scope — so it survives a morph, like the rest of the
+      // component's state — and not on the server, which has no idea
+      // what somebody put away three seconds ago.
       _fold(i, j) {
         const sizes = this._weights();
         if (sizes[i] === undefined || sizes[j] === undefined) return;
@@ -318,18 +316,19 @@
         const pair = sizes[i] + sizes[j];
 
         if (back !== undefined) {
-          // Restaurer. Le voisin garde son propre plancher : rendre au
-          // panneau rangé plus que la paire ne contient l'écraserait.
+          // Restore. The neighbour keeps its own floor: giving the
+          // stored panel back more than the pair contains would crush
+          // it.
           const want = Math.min(back, Math.max(0, pair - this._min(j)));
           sizes[i] = want;
           sizes[j] = pair - want;
           delete memo[i];
         } else if (sizes[i] <= 0.01) {
-          // Replié SANS souvenir : le cas d'un partage restauré depuis
-          // localStorage, où un panneau était à zéro avant le F5. Sans
-          // cette branche, double-cliquer ne ferait rien du tout — le
-          // panneau resterait rangé pour toujours. Il revient à son
-          // plancher, ou à part égale s'il n'en a pas.
+          // Collapsed WITH NO memory: the case of a split restored
+          // from localStorage, where a panel was at zero before the F5.
+          // Without that branch, double-clicking would do nothing at all
+          // — the panel would stay put away forever. It comes back to
+          // its floor, or to an equal share if it has none.
           const want = Math.min(
             this._min(i) || 100 / Math.max(1, this._panels().length),
             Math.max(0, pair - this._min(j))
@@ -344,17 +343,17 @@
         this._publish(sizes);
       },
 
-      // ── Clavier ──────────────────────────────────────────────────
-      // La poignée est un ``role="separator"`` focusable : les flèches
-      // la déplacent, comme un slider. Le pas est en points de
-      // pourcentage, donc indépendant de la largeur du groupe.
+      // ── Keyboard ─────────────────────────────────────────────────
+      // The handle is a focusable ``role="separator"``: the arrows move
+      // it, like a slider. The step is in percentage points, so
+      // independent of the group's width.
       _key(e, i, fold) {
         const key = e.key;
-        // ``Entrée`` replie, quand la poignée touche un panneau
-        // repliable. C'est le jumeau clavier du double-clic, et le motif
-        // ARIA « window splitter » le prescrit : une poignée focusable
-        // dont la seule commande de repli serait un geste souris n'a pas
-        // de repli du tout pour qui n'a pas de souris.
+        // ``Enter`` collapses, when the handle touches a collapsible
+        // panel. It is the double-click's keyboard twin, and the ARIA
+        // "window splitter" pattern prescribes it: a focusable handle
+        // whose only collapse command were a mouse gesture has no
+        // collapse at all for whoever has no mouse.
         if (key === "Enter" && Array.isArray(fold)) {
           e.preventDefault();
           this._fold(fold[0], fold[1]);
@@ -366,21 +365,20 @@
         e.preventDefault();
         const sizes = this._weights();
         const step = key === back ? -KEY_STEP : KEY_STEP;
-        // Pas de ``_announce`` ici : ``_publish`` relance ``_apply``,
-        // qui repose tous les ``aria-valuenow``. L'appeler EN PLUS
-        // donnerait deux auteurs à la même valeur.
+        // No ``_announce`` here: ``_publish`` relaunches ``_apply``,
+        // which sets every ``aria-valuenow`` back. Calling it IN
+        // ADDITION would give the same value two authors.
         if (this._pair(sizes, i, sizes[i] + step)) this._publish(sizes);
       },
 
-      // ── Impératif ────────────────────────────────────────────────
+      // ── Imperative ───────────────────────────────────────────────
       set(v) {
         if (Array.isArray(v)) this._write(v);
       },
-      // Revenir au partage égal. Une méthode et pas un « re-set des
-      // tailles initiales » : le serveur ne rend le composant qu'une
-      // fois, donc « initial » n'a pas de sens stable une fois que
-      // l'utilisateur a tiré une poignée — alors que « à parts égales »
-      // est vrai à tout moment.
+      // Back to the equal split. A method and not a "re-set of the
+      // initial sizes": the server renders the component only once, so
+      // "initial" has no stable meaning once the user has dragged a
+      // handle — whereas "in equal shares" is true at any moment.
       reset() {
         const n = this._panels().length;
         if (!n) return;

@@ -1,26 +1,25 @@
-"""features/classe — page : une classe, ses élèves, ses quatre vues.
+"""features/classe — page: a class, its pupils, its four views.
 
-EF-C2 : *« une classe montre ses élèves en grille de photos, avec un
-sélecteur de trimestre. On bascule entre quatre vues : les élèves, les
-évaluations, le bilan, le plan. »*
+EF-C2: *"a class shows its pupils in a photo grid, with a term selector.
+One switches between four views: the pupils, the assessments, the
+summary, the plan."*
 
-⚠️ **Les onglets arrivent lot par lot**, et c'est le piège n° 14 vu de
-près : un onglet qui ouvre un panneau vide est pire qu'un onglet absent —
-il promet quelque chose. Le lot 4 livre « Élèves » ; les évaluations
-viennent au lot 5, le bilan au lot 6, le plan au lot 7, et chacun ajoute
-sa ligne ici.
+⚠️ **The tabs arrive batch by batch**, and it is trap no. 14 seen close
+up: a tab opening an empty panel is worse than an absent tab — it
+promises something. Batch 4 delivers "Élèves"; the assessments come in
+batch 5, the summary in 6, the plan in 7, and each adds its line here.
 
-Ce que l'adresse retient (EF-U1)
----------------------------------
-*« La classe, le trimestre, la vue. »* La classe est dans le CHEMIN — un
-identifiant de ressource, pas un réglage de vue. Le trimestre et l'onglet
-sont dans la query : ``/classe/3?t=2&vue=eleves`` s'ouvre sur le même
-écran chez qui reçoit le lien.
+What the address keeps (EF-U1)
+-------------------------------
+*"The class, the term, the view."* The class is in the PATH — a resource
+identifier, not a view setting. The term and the tab are in the query:
+``/classe/3?t=2&vue=eleves`` opens on the same screen for whoever
+receives the link.
 
-⚠️ L'onglet passe par ``ui.tabs(url=…)``, qui l'écrit tout seul dans
-l'adresse sans aucune requête — le panneau est déjà monté et c'est
-``bz-show`` qui bascule. Le trimestre, lui, change ce que le SERVEUR
-calcule, donc il est un état adressable et il coûte un aller-retour.
+⚠️ The tab goes through ``ui.tabs(url=…)``, which writes it into the
+address on its own with no request — the panel is already mounted and it
+is ``bz-show`` that flips it. The term, for its part, changes what the
+SERVER computes, so it is an addressable state and it costs a round trip.
 """
 
 from __future__ import annotations
@@ -61,8 +60,8 @@ from examples.ecole.features.vue_classe import (
     selecteur_trimestre,
 )
 
-#: Les onglets LIVRÉS. Chaque lot en ajoute un — jamais avant que son
-#: panneau existe.
+#: The tabs DELIVERED. Each batch adds one — never before its panel
+#: exists.
 VUES: tuple[tuple[str, str, str], ...] = (
     ("eleves", "Élèves", "users"),
     ("evaluations", "Évaluations", "clipboard-list"),
@@ -72,18 +71,18 @@ VUES: tuple[tuple[str, str, str], ...] = (
 
 
 class EnteteClasse(PageState):
-    """Le brouillon de l'en-tête : le professeur principal (EF-C6)."""
+    """The header's draft: the form tutor (EF-C6)."""
 
     classe_id: int = field(default=0)
     prof_principal: str = field(default="")
 
 
 class MouvementDraft(PageState):
-    """Un mouvement d'élève : ajouter, sortir, revenir, transférer.
+    """A pupil movement: add, leave, return, transfer.
 
-    Un seul brouillon pour les quatre gestes, parce que c'est une seule
-    boîte de dialogue dont le corps change : les quatre partagent la
-    date, et trois partagent l'élève.
+    A single draft for the four gestures, because it is a single dialog
+    whose body changes: all four share the date, and three share the
+    pupil.
     """
 
     ouvert: bool = field(default=False)
@@ -97,7 +96,7 @@ class MouvementDraft(PageState):
 
 
 class SuppressionDraft(PageState):
-    """La confirmation EXPLICITE d'EF-C8, et ce qu'elle coûte."""
+    """EF-C8's EXPLICIT confirmation, and what it costs."""
 
     ouvert: bool = field(default=False)
     classe_id: int = field(default=0)
@@ -131,7 +130,7 @@ def fermer_mouvement(draft: MouvementDraft) -> None:
 
 
 def enregistrer_mouvement(draft: MouvementDraft) -> None:
-    """Les quatre gestes d'EF-C5, dans le seul endroit qui les connaît."""
+    """EF-C5's four gestures, in the only place that knows them."""
     annee_id = annee_regardee()["id"]
     classe_id = int(draft.classe_id)
     geste = str(draft.geste)
@@ -179,11 +178,11 @@ def confirmer_suppression(draft: SuppressionDraft) -> None:
 # ── Le rendu ─────────────────────────────────────────────────────────
 
 def lien_vers_le_plan() -> None:
-    """L'onglet Plan : le plan lui-même, et le chemin vers son écran.
+    """The Plan tab: the plan itself, and the path to its screen.
 
-    Le panneau est celui de ``features/plan.py`` — le MÊME, pas une
-    copie : deux rendus d'un plan de classe divergeraient, et celui
-    qu'on ne regarde pas serait le faux.
+    The panel is ``features/plan.py``'s — the SAME, not a copy: two
+    renderings of a seating plan would diverge, and the one not being
+    looked at would be the false one.
     """
     vue = VueClasse()
     with ui.vstack(gap="md"):
@@ -196,12 +195,13 @@ def lien_vers_le_plan() -> None:
 
 
 def vignette(eleve_ligne: dict, classe_id: int, fige: bool) -> None:
-    """Un élève dans la grille : son visage, son nom, ses particularités.
+    """A pupil in the grid: their face, their name, their particularities.
 
-    Le jeu de démonstration porte des **initiales colorées** et pas des
-    visages (§ 12 du cahier) : c'est plus sobre, et ça retire toute
-    ambiguïté sur l'origine des images. ``ui.avatar`` les dérive du nom
-    tout seul — les calculer ici serait du travail en double.
+    The demonstration set carries **coloured initials** and not faces
+    (§ 12 of the specification): it is soberer, and it removes any
+    ambiguity about where the images come from. ``ui.avatar`` derives
+    them from the name on its own — computing them here would be
+    duplicated work.
     """
     with (
         ui.card(padding="sm", href=f"/eleve/{eleve_ligne['id']}"),
@@ -237,9 +237,10 @@ def panneau_eleves() -> None:
         with ui.hstack(justify="between", align="center", wrap=True):
             ui.text(f"{len(liste)} élèves en cours d'inscription",
                     color="muted")
-            # EF-C10 : le mouvement ne se PROPOSE que sur l'année en
-            # cours. L'interdit vient de RT-1 et vit dans la garde ; ici
-            # il s'agit de ne pas offrir un bouton qui refusera.
+            # EF-C10: the movement is only OFFERED on the current
+            # year. The prohibition comes from RT-1 and lives in the
+            # guard; here it is about not offering a button that will
+            # refuse.
             if not fige:
                 ui.button("Ajouter un élève", icon_left="user-plus",
                           variant="outline",
@@ -298,10 +299,10 @@ def entete() -> None:
                 ui.input(value=form.prof_principal, disabled=fige,
                          placeholder="Mme Ferrandin")
             if donnees["prof_principal"]:
-                # EF-C6 : son nom ouvre un lien de courrier. L'adresse
-                # est dérivée du nom faute de colonne dédiée — c'est
-                # ce que faisait l'application d'origine, et ça marche
-                # tant que l'établissement suit sa convention.
+                # EF-C6: their name opens a mail link. The address is
+                # derived from the name for want of a dedicated column —
+                # it is what the original application did, and it works
+                # as long as the school follows its convention.
                 ui.link(
                     label="Écrire",
                     href=courriel_de(donnees["prof_principal"]),
@@ -388,10 +389,10 @@ def dialogue_suppression() -> None:
             "Les notes, les appréciations, les plans et le cahier de texte "
             "de cette classe seront supprimés avec elle.",
         )
-        # EF-C8 : une confirmation qui ne dit pas ce qu'elle coûte n'en
-        # est pas une. RT-2 : les élèves qui n'appartiennent QU'À elle
-        # partent aussi — sinon ils resteraient en base sans classe,
-        # invisibles.
+        # EF-C8: a confirmation that does not say what it costs is not
+        # one. RT-2: the pupils belonging ONLY to it leave too —
+        # otherwise they would stay in the database with no class,
+        # invisible.
         ui.banner(
             message=(f"{emportes} élève(s) n'appartiennent qu'à cette "
                      f"classe et seront supprimés."
@@ -414,9 +415,9 @@ def classe_page(classe_id: int) -> None:
     donnees = classe(int(classe_id))
     if donnees is None:
         abort(404)
-    # La page SÈME l'identité ; les zones la LISENT. Une zone
-    # ``@refreshable`` se re-rend hors du routage : elle n'a aucun
-    # paramètre de chemin sous la main.
+    # The page SEEDS the identity; the zones READ it. A ``@refreshable``
+    # zone re-renders outside the routing: it has no path parameter at
+    # hand.
     vue = VueClasse()
     if int(vue.classe_id) != int(classe_id):
         vue.classe_id = int(classe_id)
@@ -438,10 +439,9 @@ def classe_page(classe_id: int) -> None:
             with ui.tab_panel(tab="bilan"):
                 panneau_bilan()
             with ui.tab_panel(tab="plan"):
-                # EF-G14 : le bouton « Figer » vit dans l'EN-TÊTE de
-                # l'écran de plan, pas dans la barre du plan. Ici, on
-                # renvoie vers cet écran plutôt que de le rejouer en
-                # miniature dans un onglet.
+                # EF-G14: the "Figer" button lives in the plan screen's
+                # HEADER, not in the plan's bar. Here we send to that
+                # screen rather than replay it in miniature in a tab.
                 lien_vers_le_plan()
     dialogue_mouvement()
     dialogue_suppression()

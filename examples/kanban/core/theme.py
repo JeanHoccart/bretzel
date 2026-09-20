@@ -1,26 +1,26 @@
-"""Le seul global de l'app : son thème.
+"""The app's only global: its theme.
 
-**L'échelle vient du framework**, et l'app n'a rien à demander : c'est
-le DÉFAUT livré depuis le 2026-09-13. Elle vivait ici dans un
-``core/preset.py`` de 351 lignes qui retaillait onze composants un par
-un ; ``examples/ecole`` l'a recopié, s'est retrouvé avec quatre hauteurs
-de champ sur un écran (les onze composants NON cités restaient au
-défaut), et les deux apps ont fini par prouver la même chose : la densité
-se déplace par la BASE de l'échelle, pas composant par composant.
+**The scale comes from the framework**, and the app has nothing to ask
+for: it is the DEFAULT shipped since 2026-09-13. It used to live here in
+a 351-line ``core/preset.py`` resizing eleven components one by one;
+``examples/ecole`` copied it, ended up with four field heights on one
+screen (the eleven components NOT named stayed at the default), and both
+apps ended up proving the same thing: density moves through the BASE of
+the scale, not component by component.
 
-Ce qui reste ici est ce que le framework ne décide pas, parce qu'une
-échelle livrée ne porte jamais une marque :
+What stays here is what the framework does not decide, because a shipped
+scale never carries a brand:
 
-- **les neutres**, gris-mauve très légèrement désaturés plutôt que le
-  slate bleuté de Tailwind, et un quasi-noir en sombre — c'est le fond
-  d'un tableau de cartes, qui doit s'effacer ;
-- **la teinte**, un teal ;
-✅ **Les deux raffinements de composant sont partis dans le framework**
-le 2026-09-13 — les chiffres tabulaires du badge et la carte au filet
-plutôt qu'à l'ombre au repos. Ils vivaient ici en recopiant la chaîne de
-slot livrée pour n'y changer qu'un mot, donc ils gelaient la version du
-jour : le besoin n'avait rien de propre à un tableau de cartes, et c'est
-ce qui en faisait des défauts, pas des surcharges.
+- **the neutrals**, a very slightly desaturated mauve-grey rather than
+  Tailwind's bluish slate, and a near-black in dark mode — it is the
+  background of a card board, which must recede;
+- **the hue**, a teal;
+✅ **The two component refinements left for the framework** on
+2026-09-13 — the badge's tabular figures and the card with a hairline
+rather than a shadow at rest. They lived here by copying the shipped slot
+string to change a single word in it, so they froze that day's version:
+the need had nothing specific to a card board, and that is what made them
+defaults, not overrides.
 """
 
 from bretzel.theme import Theme
@@ -60,10 +60,10 @@ THEME = Theme(
                     "border-(length:--bz-stroke) border-text/8"
                 ),
             },
-            # ⚠️ Les sélecteurs ``aria-disabled:`` sont recopiés tels
-            # quels : ils neutralisent le relief par spécificité (0,3,0
-            # bat 0,2,0), et les omettre ferait relever une surface
-            # verrouillée au survol.
+            # ⚠️ The ``aria-disabled:`` selectors are copied as is:
+            # they neutralise the relief by specificity (0,3,0 beats
+            # 0,2,0), and omitting them would make a locked surface lift
+            # on hover.
             "hoverable": (
                 "transition-all duration-150 ease-out cursor-pointer "
                 "relative top-0 "

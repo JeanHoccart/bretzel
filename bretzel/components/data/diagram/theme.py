@@ -1,72 +1,69 @@
-"""Thème par défaut de :class:`Diagram`.
+"""Default theme for :class:`Diagram`.
 
-Un graphe orienté rendu en couches : les nœuds sont du HTML positionné,
-les arêtes un calque ``<svg>`` derrière eux. C'est ce partage qui décide
-du thème — les slots de nœud sont des classes Tailwind ordinaires
-(donc un nœud a un anneau de focus, une troncature, une teinte de
-survol comme n'importe quel contrôle), et les slots d'arête sont des
-attributs de présentation SVG.
+A directed graph rendered in layers: the nodes are positioned HTML, the
+edges an ``<svg>`` layer behind them. It is that split that decides the
+theme — the node slots are ordinary Tailwind classes (so a node has a
+focus ring, truncation, a hover tint like any control), and the edge
+slots are SVG presentation attributes.
 
 Slots :
 
-- ``root``      : le conteneur qui défile, EN X seulement. C'est la
-  VRAIE racine — ``id`` / ``classes=`` / ``attrs=`` / ``visible`` /
-  ``tooltip`` y atterrissent. Un graphe plus large que la page se fait
-  défiler, il ne rétrécit pas ; sa HAUTEUR, elle, est celle de son
-  contenu, et c'est au parent de décider s'il la borne. Deux barres dans
-  deux rectangles, c'est ce qu'on obtient autrement.
-- ``canvas``    : la boîte positionnée à l'intérieur, aux dimensions que
-  le moteur de placement a calculées. ``relative``, parce que chaque
-  nœud est en ``absolute`` par rapport à elle.
-- ``edges``     : le ``<svg>`` du calque d'arêtes — ``absolute inset-0``
-  et surtout ``pointer-events-none``, sans quoi il avalerait les clics
-  destinés aux nœuds qu'il recouvre.
-- ``node``      : l'enveloppe positionnée d'un nœud — ``absolute``, le
-  rayon (que l'anneau du nœud centré épouse) et l'affordance de clic.
-  Aucune décoration : bordure et fond vivent sur ``node_body``, sinon un
-  ``render=`` maison les recevrait EN PLUS des siennes. Sa position et sa
-  taille arrivent en style inline (cf. l'avertissement plus bas).
-- ``node_body`` : la carte par défaut d'un nœud, quand aucun ``render=``
-  n'est fourni. Bordure, fond, coin arrondi, et l'anneau de focus.
-- ``node_focus``: le nœud sur lequel la vue est centrée. UN seul repère,
-  posé sur le corps — sur l'enveloppe il produisait un second trait à un
-  pixel de celui du corps.
-- ``node_dim``  : un nœud qu'aucune arête ne relie à celui qu'on vient de
-  désigner. Une opacité seulement : il reste lisible et cliquable.
-- ``label``     : le texte d'un nœud par défaut.
-- ``empty``     : le mot affiché quand le graphe est vide.
+- ``root``      : the scrolling container, IN X only. It is the REAL
+  root — ``id`` / ``classes=`` / ``attrs=`` / ``visible`` / ``tooltip``
+  land there. A graph wider than the page is scrolled, it does not
+  shrink; its HEIGHT, for its part, is its content's, and it is up to
+  the parent to decide whether to bound it. Two bars in two rectangles
+  is what you get otherwise.
+- ``canvas``    : the positioned box inside, at the dimensions the
+  layout engine computed. ``relative``, because each node is
+  ``absolute`` relative to it.
+- ``edges``     : the edge layer's ``<svg>`` — ``absolute inset-0`` and
+  above all ``pointer-events-none``, without which it would swallow the
+  clicks meant for the nodes it covers.
+- ``node``      : a node's positioned wrapper — ``absolute``, the radius
+  (which the focused node's ring hugs) and the click affordance. No
+  decoration: border and background live on ``node_body``, otherwise a
+  home-made ``render=`` would get them ON TOP of its own. Its position
+  and size arrive as an inline style (cf. the warning below).
+- ``node_body`` : a node's default card, when no ``render=`` is
+  supplied. Border, background, rounded corner, and the focus ring.
+- ``node_focus``: the node the view is centred on. ONE marker only, set
+  on the body — on the wrapper it produced a second line one pixel from
+  the body's.
+- ``node_dim``  : a node no edge links to the one just designated. An
+  opacity only: it stays readable and clickable.
+- ``label``     : a default node's text.
+- ``empty``     : the word shown when the graph is empty.
 
-``edge`` / ``edge_flipped`` / ``edge_dim`` sont des **classes portées par
-le ``<path>``**. Elles utilisent les utilitaires ``stroke-*`` de
-Tailwind, donc la couleur d'une arête suit le thème comme le reste et
-non une valeur en dur.
+``edge`` / ``edge_flipped`` / ``edge_dim`` are **classes carried by the
+``<path>``**. They use Tailwind's ``stroke-*`` utilities, so an edge's
+colour follows the theme like the rest and not a hard-coded value.
 
-``sizes`` porte la géométrie, en NOMBRES, parce que le placement en a
-besoin avant de rendre quoi que ce soit — c'est la même convention que
-les graphiques (``bar_chart`` y range ``h``, ``axis``, ``pad``).
+``sizes`` carries the geometry, in NUMBERS, because the layout needs it
+before rendering anything — it is the same convention as the charts
+(``bar_chart`` files ``h``, ``axis``, ``pad`` there).
 
 Sizes :
 
-- ``w`` / ``h``   : la taille d'un nœud. **Fixe par palier** : le serveur
-  ne mesure pas le texte, donc la largeur se décide à l'avance ou il
-  faudrait replacer côté client. Un nœud qui doit respirer passe par
+- ``w`` / ``h``   : a node's size. **Fixed per step**: the server does
+  not measure text, so the width is decided in advance or one would have
+  to re-lay out on the client. A node that needs room goes through
   ``ui.node(width=…)``.
-- ``layer``       : l'écart entre deux couches — c'est la longueur
-  visible des arêtes.
-- ``lane``        : l'écart entre deux nœuds d'une même couche.
-- ``text``        : la classe typographique du label.
-- ``icon`` / ``badge`` : les paliers que le rendu par défaut passe à
-  ``ui.icon`` et ``ui.badge``. Ils vivent ici et pas en dur dans le
-  rendu, sinon un ``ui.diagram(size="xl")`` garderait des icônes de la
-  taille d'un ``sm`` — le défaut des pastilles figées dans un combobox.
+- ``layer``       : the gap between two layers — it is the visible
+  length of the edges.
+- ``lane``        : the gap between two nodes of the same layer.
+- ``text``        : the label's typographic class.
+- ``icon`` / ``badge`` : the steps the default render passes to
+  ``ui.icon`` and ``ui.badge``. They live here and not hard-coded in the
+  render, otherwise a ``ui.diagram(size="xl")`` would keep icons the
+  size of an ``sm`` — the defect of the chips frozen in a combobox.
 
-⚠️ **La position et la taille d'un nœud ne passeront JAMAIS par une
-classe.** ``left-[240px]`` est une classe ASSEMBLÉE : le compilateur
-Tailwind de production ne balaie que des littéraux, donc elle n'existe
-qu'en dev, l'HTML est identique des deux côtés et la page se disloque
-uniquement en production. Les coordonnées vont en ``style=`` inline, et
-c'est aussi ce qui garantit que la boîte dessinée est exactement celle
-que le moteur a placée.
+⚠️ **A node's position and size will NEVER go through a class.**
+``left-[240px]`` is an ASSEMBLED class: the production Tailwind compiler
+only sweeps literals, so it exists in dev only, the HTML is identical on
+both sides and the page falls apart in production only. The coordinates
+go in an inline ``style=``, and that is also what guarantees the drawn
+box is exactly the one the engine placed.
 """
 
 from __future__ import annotations
@@ -75,96 +72,95 @@ from typing import Any
 
 DIAGRAM_THEME: dict[str, Any] = {
     "slots": {
-        # Il défile en X, et EN X SEULEMENT.
+        # It scrolls in X, and IN X ONLY.
         #
-        # `overflow-auto` (les deux axes) faisait de ce composant le
-        # seul du catalogue à scroller verticalement — mesuré : tous les
-        # autres conteneurs qui défilent (`table`, `carousel`,
-        # `file_upload`) écrivent `overflow-x-auto`. Le prix se voyait
-        # dès qu'on le posait dans une colonne bornée : la colonne
-        # scrollait ET le diagramme scrollait, deux barres dans deux
-        # rectangles différents, l'une dedans l'autre dehors.
+        # `overflow-auto` (both axes) made this component the only one in
+        # the catalogue to scroll vertically — measured: every other
+        # scrolling container (`table`, `carousel`, `file_upload`) writes
+        # `overflow-x-auto`. The price showed as soon as you put it in a
+        # bounded column: the column scrolled AND the diagram scrolled,
+        # two bars in two different rectangles, one inside the other
+        # outside.
         #
-        # Un placement en couches grandit SUR LE CÔTÉ, pas vers le bas :
-        # la hauteur est celle de la couche la plus fournie, et c'est au
-        # parent — la page, ou un `ui.pane` — de décider si elle défile.
+        # A layered layout grows SIDEWAYS, not downwards: the height is
+        # that of the fullest layer, and it is up to the parent — the
+        # page, or a `ui.pane` — to decide whether it scrolls.
         "root": (
-            # Pas de `bg-` : la racine hérite de la page, comme celle de
-            # `ui.table`. Un fond posé ici est teinté par le pont de
-            # couleur, donc TOUTE la surface prend la couleur — c'est
-            # une nappe, pas un accent, et ça écrase le dessin.
+            # No `bg-`: the root inherits from the page, like
+            # `ui.table`'s. A background set here is tinted by the colour
+            # bridge, so the WHOLE surface takes the colour — it is a
+            # wash, not an accent, and it crushes the drawing.
             "bz-diagram "  # marqueur d'audit — cf. tests/audit/checklist.py
             "relative overflow-x-auto max-w-full rounded-box "
             "border-(length:--bz-stroke) border-text/10"
         ),
-        # La boîte placée. Ses dimensions arrivent en style inline.
+        # The placed box. Its dimensions arrive as an inline style.
         "canvas": "relative",
-        # Le calque d'arêtes. `pointer-events-none` est structurel : il
-        # recouvre les nœuds, donc sans ça aucun clic n'atteindrait un
-        # nœud — et ça se voit uniquement à l'essai, jamais en relecture.
+        # The edge layer. `pointer-events-none` is structural: it
+        # covers the nodes, so without it no click would reach a node —
+        # and that only shows on trying it, never on re-reading.
         "edges": "absolute inset-0 pointer-events-none overflow-visible",
-        # L'enveloppe d'un nœud : le positionnement, plus le RAYON.
+        # A node's wrapper: the positioning, plus the RADIUS.
         #
-        # Le rayon n'est pas décoratif ici : c'est lui que suit l'anneau
-        # du nœud centré. Sans lui l'anneau est un RECTANGLE posé autour
-        # d'un nœud arrondi — deux formes concentriques qui ne coïncident
-        # pas, ce qui se voit tout de suite et se corrige à cet endroit
-        # seulement.
-        # `cursor-pointer` INCONDITIONNEL, et ce n'est pas une
-        # approximation : un nœud répond TOUJOURS au clic — il éclaire
-        # ses voisins même sans `on_item_click=`. Le réserver aux nœuds
-        # qui portent un handler serveur mentirait dans l'autre sens.
-        # `select-none` avec lui : sans ça un clic un peu appuyé
-        # surligne le label au lieu de désigner le nœud.
+        # The radius is not decorative here: it is what the focused
+        # node's ring follows. Without it the ring is a RECTANGLE around
+        # a rounded node — two concentric shapes that do not coincide,
+        # which shows immediately and is fixed in this place only.
+        # `cursor-pointer` UNCONDITIONALLY, and it is not an
+        # approximation: a node ALWAYS answers a click — it lights up its
+        # neighbours even with no `on_item_click=`. Reserving it for
+        # nodes carrying a server handler would lie the other way.
+        # `select-none` with it: without that a slightly firm click
+        # highlights the label instead of designating the node.
         "node": "absolute rounded-box cursor-pointer select-none",
-        # La carte par défaut. `h-full w-full` pour qu'elle remplisse
-        # exactement la boîte que le moteur a réservée — sinon le dessin
-        # et le placement divergent d'un ou deux pixels par nœud.
+        # The default card. `h-full w-full` so it fills exactly the box
+        # the engine reserved — otherwise the drawing and the layout
+        # diverge by a pixel or two per node.
         #
-        # ⚠️ Où la couleur passe, et où elle ne passe PAS. Le FOND reste
-        # neutre (`bg-surface`) : un palier coloré là teinte toute la
-        # boîte, et vingt boîtes teintées font une nappe qui écrase le
-        # dessin. La BORDURE, elle, lit le palier du pont
-        # (`--bz-border`), donc `color=` se voit — un liseré, pas un
-        # aplat. Sans ça `color=` ne fait plus RIEN, et un kwarg qui ne
-        # fait rien est le mode d'échec dominant de ce dépôt.
+        # ⚠️ Where the colour goes, and where it does NOT. The BACKGROUND
+        # stays neutral (`bg-surface`): a coloured step there tints the
+        # whole box, and twenty tinted boxes make a wash that crushes the
+        # drawing. The BORDER, for its part, reads the bridge's step
+        # (`--bz-border`), so `color=` shows — an outline, not a flat
+        # fill. Without that `color=` does NOTHING any more, and a kwarg
+        # that does nothing is this repository's dominant failure mode.
         "node_body": (
             "h-full w-full flex items-center gap-2 px-3 rounded-box "
             "border-(length:--bz-stroke) border-(--bz-border) bg-surface "
             "transition-[opacity,background-color,border-color] "
-            # Le survol : il avait DISPARU en neutralisant la palette.
-            # Un nœud cliquable qui ne réagit pas au pointeur ne se
-            # signale plus comme cliquable.
+            # The hover: it had DISAPPEARED when the palette was
+            # neutralised. A clickable node that does not react to the
+            # pointer no longer signals itself as clickable.
             "hover:bg-(--bz-bg) hover:border-(--bz-border-hover) "
             "focus-visible:outline-none focus-visible:ring-2 "
             "focus-visible:ring-(--bz-focus)"
         ),
-        # Le nœud sur lequel la vue est centrée. Un anneau sur
-        # l'enveloppe — qui porte maintenant le même rayon que le corps,
-        # donc il l'épouse au lieu de l'encadrer.
+        # The node the view is centred on. A ring on the wrapper —
+        # which now carries the same radius as the body, so it hugs it
+        # instead of framing it.
         "node_focus": "ring-2 ring-(--bz-focus)",
-        # L'estompage, quand un autre nœud est désigné. Une opacité et
-        # rien d'autre : le nœud reste lisible et cliquable, il passe
-        # juste en arrière-plan.
+        # The dimming, when another node is designated. An opacity and
+        # nothing else: the node stays readable and clickable, it just
+        # moves to the background.
         "node_dim": "opacity-25",
         "label": "truncate",
-        # L'enveloppe de l'état vide. Le CONTENU, lui, est un vrai
-        # `ui.empty_state` — pas un texte gris posé au centre.
+        # The empty state's wrapper. The CONTENT, for its part, is a
+        # real `ui.empty_state` — not a grey text dropped in the middle.
         "empty": "p-6",
     },
-    # Les arêtes. `fill-none` est obligatoire : un `<path>` est rempli
-    # par défaut, donc une courbe sans lui s'affiche en aplat noir.
-    # Le palier de BORDURE du pont, pas un aplat : une arête suit la
-    # couleur du composant sans capter l'œil. C'est l'autre endroit — avec
-    # le liseré des nœuds — où `color=` reste visible.
+    # The edges. `fill-none` is mandatory: a `<path>` is filled by
+    # default, so a curve without it shows as a black blob.
+    # The bridge's BORDER step, not a flat fill: an edge follows the
+    # component's colour without catching the eye. It is the other place
+    # — along with the nodes' outline — where `color=` stays visible.
     "edge": "fill-none stroke-(--bz-border) stroke-[1.5]",
     "edge_flipped": (
         "fill-none stroke-(--bz-border) stroke-[1.5] [stroke-dasharray:4_3]"
     ),
     "edge_dim": "fill-none stroke-(--bz-border) stroke-[1.5] opacity-15",
-    # Les cinq paliers de l'enum standard. En manquer un ne lève pas :
-    # le rendu retombe sur `md` en silence, donc un `size="xl"` serait
-    # plus PETIT qu'un voisin au même palier.
+    # The standard enum's five steps. Missing one does not raise: the
+    # render falls back on `md` in silence, so a `size="xl"` would be
+    # SMALLER than a neighbour at the same step.
     "sizes": {
         "xs": {"w": 100, "h": 30, "layer": 44, "lane": 10,
                "text": "text-xs", "icon": "xs", "badge": "xs"},

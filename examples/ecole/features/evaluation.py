@@ -1,27 +1,27 @@
-"""features/evaluation — page : la saisie des notes d'un devoir.
+"""features/evaluation — page: entering a test's marks.
 
-EF-D4 à EF-D7. **C'est l'écran du soir**, celui où trente notes se
-tapent d'affilée, et c'est le seul de l'application où la frappe est
-l'ennemi au sens propre.
+EF-D4 to EF-D7. **It is the evening screen**, the one where thirty marks
+are typed in a row, and it is the app's only one where typing is the
+enemy in the literal sense.
 
-⚠️ Le seul endroit de l'app qui écrit un ``name=`` à la main
---------------------------------------------------------------
-La règle 4 du funnel dit : *« pas de ``name=`` manuel sur un champ de
-formulaire — ``value=binding`` et l'autoname dérive le nom »*. Un binding
-est un CHAMP DÉCLARÉ d'une classe d'état, et **on ne peut pas déclarer
-trente champs pour trente élèves qu'on ne connaît qu'à l'exécution**.
+⚠️ The app's only place that writes a ``name=`` by hand
+---------------------------------------------------------
+Rule 4 of the funnel says: *"no manual ``name=`` on a form field —
+``value=binding`` and autoname derives the name"*. A binding is a
+DECLARED FIELD of a state class, and **one cannot declare thirty fields
+for thirty pupils only known at run time**.
 
-La sortie de secours est celle que le framework fournit : un ``name=``
-dérivé de la clé de ligne, et :func:`~bretzel.state.form_value` pour le
-relire. Sa propre fiche dit pourtant qu'elle est faite pour *« des
-valeurs transitoires qui ne méritent pas leur état typé — un jeton
-CAPTCHA, une confirmation de mot de passe »*, et que *« pour ce qui a une
-structure, on préfère un état typé »*. Trente notes ont une structure.
+The escape hatch is the one the framework provides: a ``name=`` derived
+from the row key, and :func:`~bretzel.state.form_value` to read it back.
+Its own note says, though, that it is made for *"transient values that do
+not deserve their typed state — a CAPTCHA token, a password
+confirmation"*, and that *"for anything with a structure, a typed state
+is preferred"*. Thirty marks have a structure.
 
-C'est le finding F3 du chantier, dans sa forme la plus coûteuse : la
-règle a raison partout où le nombre de champs est connu à l'écriture, et
-n'a rien à proposer là où il ne l'est pas. Écrit ici plutôt que contourné
-en silence.
+It is the work's finding F3, in its costliest form: the rule is right
+everywhere the number of fields is known at writing time, and has nothing
+to offer where it is not. Written here rather than worked around in
+silence.
 """
 
 from __future__ import annotations
@@ -55,40 +55,38 @@ from examples.ecole.features.shell import shell
 
 
 class VueEvaluation(PageState):
-    """L'évaluation ouverte. La page sème, les zones lisent (cf. F4)."""
+    """The assessment open. The page seeds, the zones read (cf. F4)."""
 
     evaluation_id: int = field(default=0)
 
 
 class CompetencesDraft(PageState):
-    """La répartition des points, ouverte dans son dialogue (EF-D3)."""
+    """The distribution of points, open in its dialog (EF-D3)."""
 
     ouvert: bool = field(default=False)
     evaluation_id: int = field(default=0)
 
 
 def nom_du_champ(prefixe: str, *cles: int) -> str:
-    """Le ``name=`` d'un champ de ligne — une seule façon de le former.
+    """A row field's ``name=`` — one single way of forming it.
 
-    Une seule fonction pour l'écrire ET le relire : deux littéraux à
-    quinze lignes d'écart finiraient par diverger d'un tiret, et le
-    symptôme serait « la saisie ne s'enregistre pas », sans erreur.
+    A single function to write it AND read it back: two literals fifteen
+    lines apart would end up diverging by a hyphen, and the symptom would
+    be "the entry does not save", with no error.
     """
     return "_".join([prefixe, *(str(c) for c in cles)])
 
 
 def enregistrer_notes() -> None:
-    """La saisie de masse d'EF-D4 : trente notes en un envoi.
+    """EF-D4's bulk entry: thirty marks in one send.
 
-    Un seul formulaire et un seul aller-retour. Trente actions séparées
-    coûteraient trente requêtes et rendraient la frappe hachée — or *« la
-    frappe est l'ennemi »* est le besoin nommé par le cahier pour ce
-    moment d'usage.
+    A single form and a single round trip. Thirty separate actions would
+    cost thirty requests and make the typing choppy — and *"typing is the
+    enemy"* is the need the specification names for this moment of use.
 
-    ⚠️ **Une ligne refusée n'annule pas les autres.** Les refus sont
-    ramassés et dits ensemble ; ce qui est valide est écrit. L'inverse —
-    tout ou rien — ferait reperdre vingt-neuf saisies pour une faute de
-    frappe.
+    ⚠️ **A refused row does not cancel the others.** The refusals are
+    collected and said together; what is valid is written. The opposite —
+    all or nothing — would lose twenty-nine entries again for one typo.
     """
     donnees = evaluation(int(VueEvaluation().evaluation_id))
     if donnees is None:
@@ -131,9 +129,9 @@ def enregistrer_notes() -> None:
             refus.append(f"{qui} : « {brut} » n'est pas un nombre.")
 
     if refus:
-        # EF-D5 : *« le refus est expliqué à l'écran »*. Un message qui
-        # dirait seulement « enregistrement refusé » obligerait à
-        # comparer trente lignes pour trouver laquelle.
+        # EF-D5: *"the refusal is explained on screen"*. A message
+        # saying only "save refused" would force comparing thirty rows
+        # to find which one.
         ui.notification(" · ".join(refus[:3]), variant="error", title=
                         f"{len(refus)} note(s) refusée(s)", duration_ms=8000)
         return
@@ -157,7 +155,7 @@ def fermer_competences(draft: CompetencesDraft) -> None:
 
 
 def enregistrer_competences(draft: CompetencesDraft) -> None:
-    """Le barème DEVIENT la somme des points (EF-D3)."""
+    """The scale BECOMES the sum of the points (EF-D3)."""
     donnees = evaluation(int(draft.evaluation_id))
     if donnees is None:
         return
@@ -220,9 +218,9 @@ def ligne_de_saisie(ligne: dict, deja: dict, detaillee: list[dict],
             for competence in detaillee:
                 with ui.form_field(label=f"{competence['code']} "
                                          f"/{competence['points']:g}"):
-                    # Pas de ``max=`` non plus : même raison qu'en
-                    # dessous — une sous-note au-dessus de ses points doit
-                    # être refusée avec sa phrase, pas rabotée.
+                    # No ``max=`` either: the same reason as below — a
+                    # sub-mark above its points must be refused with its
+                    # sentence, not trimmed.
                     ui.number_input(
                         name=nom_du_champ("sc", eleve_id, competence["id"]),
                         value=sous.get((eleve_id, competence["id"])),
@@ -235,13 +233,13 @@ def ligne_de_saisie(ligne: dict, deja: dict, detaillee: list[dict],
             )
         else:
             with ui.form_field(label=f"Note /{bareme:g}"):
-                # ⚠️ **Pas de ``max=``, et c'est EF-D5.** Un plafond posé
-                # sur le champ RABOTE silencieusement : on tape 999, le
-                # navigateur écrit 20, et personne n'apprend rien. Le
-                # cahier demande que la note soit REFUSÉE *et que le refus
-                # soit expliqué à l'écran* — donc la valeur doit atteindre
-                # la règle métier. Corriger en douce ce que quelqu'un a
-                # tapé est la forme d'erreur qu'on ne voit jamais.
+                # ⚠️ **No ``max=``, and it is EF-D5.** A ceiling set on
+                # the field TRIMS silently: one types 999, the browser
+                # writes 20, and nobody learns anything. The
+                # specification asks the mark to be REFUSED *and the
+                # refusal to be explained on screen* — so the value must
+                # reach the business rule. Quietly correcting what
+                # somebody typed is the form of error one never sees.
                 ui.number_input(name=nom_du_champ("note", eleve_id),
                                 value=note.get("valeur"), min=0,
                                 step=0.5, disabled=fige)
@@ -289,7 +287,7 @@ def entete_devoir(donnees: dict, detaillee: list[dict], fige: bool) -> None:
 
 
 def histogramme(donnees: dict) -> None:
-    """EF-D6 — la répartition et la moyenne de la classe."""
+    """EF-D6 — the class's distribution and average."""
     tranches = repartition(donnees["id"], float(donnees["bareme"]))
     moyenne = moyenne_de_classe(donnees["id"])
     with ui.card(padding="lg"), ui.vstack(gap="md"):

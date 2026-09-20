@@ -1,54 +1,54 @@
-"""Les mots que le framework a écrits lui-même, et comment les remplacer.
+"""The words the framework wrote itself, and how to replace them.
 
-Un composant Bretzel écrit des phrases : « Clear filters » sur le bouton
-de la datatable, « Dismiss alert » sur la croix d'une alerte, « Accepted:
-… » sous une zone de dépôt. Elles sont en anglais, et **aucune API au
-monde ne sait les traduire** — contrairement aux noms de mois, aux
-formats de date ou aux séparateurs de nombres, qui se DÉRIVENT d'un code
-de langue et que :attr:`~bretzel.server.config.BretzelConfig.lang` suffit
-à obtenir (cf. la docstring de ce champ).
+A Bretzel component writes sentences: "Clear filters" on the datatable's
+button, "Dismiss alert" on an alert's cross, "Accepted: …" under a drop
+zone. They are in English, and **no API in the world knows how to
+translate them** — unlike month names, date formats or number
+separators, which are DERIVED from a language code and which
+:attr:`~bretzel.server.config.BretzelConfig.lang` is enough to obtain
+(cf. that field's docstring).
 
-D'où ce module : une table plate, une clé par phrase, surchargeable par
-l'app en un seul endroit ::
+Hence this module: a flat table, one key per sentence, overridable by the
+app in a single place ::
 
     Bretzel(lang="fr", texts={
         "datatable.clear_filters": "Effacer les filtres",
         "alert.dismiss": "Fermer l'alerte",
     })
 
-Ce module possède les **mots**. Le choix de la LANGUE — négociation,
-cookie, table du visiteur — vit à côté, dans :mod:`bretzel.render.lang` :
-deux questions, deux modules, et c'est le découpage qui rend chacun
-lisible seul.
+This module owns the **words**. The choice of LANGUAGE — negotiation,
+cookie, the visitor's table — lives next door, in
+:mod:`bretzel.render.lang`: two questions, two modules, and it is that
+split that makes each readable on its own.
 
-⚠️ Ça ne fait **pas** de l'i18n (hors périmètre v2.0), et il faut savoir
-où s'arrête la promesse : le framework traduit LES MOTS QU'IL A ÉCRITS.
-Les tiennes — « Contacts », « Enregistrer » — n'ont ni catalogue, ni
-extraction, ni marquage. :attr:`bretzel.Language.code` rend la langue résolue, et
-un dict par langue dans ton app fait le reste en six lignes. La seule
-règle de pluriel est *un / autre*, ce qui couvre l'anglais et le
-français, pas le russe.
+⚠️ This is **not** i18n (out of scope for v2.0), and it is worth knowing
+where the promise stops: the framework translates THE WORDS IT WROTE.
+Yours — "Contacts", "Save" — have no catalogue, no extraction, no
+marking. :attr:`bretzel.Language.code` returns the resolved language, and
+a dict per language in your app does the rest in six lines. The only
+plural rule is *one / other*, which covers English and French, not
+Russian.
 
-C'est aussi la réparation d'une incohérence : jusqu'ici la moitié des
-textes visibles étaient des props (``search_placeholder=``, ``empty_text=``,
-``label=``) et l'autre moitié était en dur, sans qu'aucune règle ne dise
-laquelle serait laquelle.
+It is also the repair of an inconsistency: until now half the visible
+texts were props (``search_placeholder=``, ``empty_text=``, ``label=``)
+and the other half were hard-coded, with no rule saying which would be
+which.
 
-Pourquoi une table plutôt qu'une prop par phrase
-------------------------------------------------
-Une prop par phrase, ce sont vingt-six props de plus sur seize composants,
-à repasser **à chaque montage** — exactement le défaut que
-``month_names=`` avait déjà, et qui coûtait trois répétitions sur un seul
-écran du CRM. La table se déclare une fois pour l'app.
+Why a table rather than one prop per sentence
+---------------------------------------------
+One prop per sentence means twenty-six more props on sixteen components,
+to be passed again **at every mount** — exactly the flaw ``month_names=``
+already had, and which cost three repetitions on a single CRM screen. The
+table is declared once for the app.
 
-Comment y ajouter une entrée
-----------------------------
-Une phrase neuve dans un composant s'écrit ``text("mon_composant.ma_clé")``
-et sa valeur anglaise se pose ici. L'ordre inverse — écrire la chaîne en
-dur « pour l'instant » — est ce que
+How to add an entry to it
+-------------------------
+A new sentence in a component is written ``text("my_component.my_key")``
+and its English value is set here. The reverse order — hard-coding the
+string "for now" — is what
 ``tests/consistency/test_framework_words_go_through_the_table.py``
-interdit : elle est invisible en revue et ne se voit qu'à l'écran, dans
-une langue qu'on ne parle pas.
+forbids: it is invisible in review and only shows on screen, in a
+language one does not speak.
 """
 
 from __future__ import annotations
@@ -62,10 +62,10 @@ __all__ = [
 ]
 
 
-#: Les valeurs anglaises. La clé est ``<composant>.<rôle>`` — le préfixe
-#: n'est pas décoratif : « Clear », « Clear date », « Clear time » et
-#: « Clear range » sont QUATRE phrases distinctes, et les fusionner
-#: donnerait un bouton qui ment dans la moitié des cas.
+#: The English values. The key is ``<component>.<role>`` — the prefix is
+#: not decorative: "Clear", "Clear date", "Clear time" and "Clear range"
+#: are FOUR distinct sentences, and merging them would give a button that
+#: lies half the time.
 DEFAULT_TEXTS: Mapping[str, str] = {
     # ── Champs de saisie ─────────────────────────────────────────────
     "input.clear": "Clear",
@@ -74,15 +74,15 @@ DEFAULT_TEXTS: Mapping[str, str] = {
     "combobox.empty": "No results",
     "slider.range_start": "Range start",
     "slider.range_end": "Range end",
-    # ── Dates et heures ──────────────────────────────────────────────
-    # Les NOMS de mois et de jours ne sont pas ici : ils se dérivent de
-    # ``lang`` via ``Intl`` dans le navigateur. Seuls les mots que nous
-    # avons écrits nous-mêmes ont une clé.
+    # ── Dates and times ──────────────────────────────────────────────
+    # Month and day NAMES are not here: they derive from ``lang`` through
+    # ``Intl`` in the browser. Only the words we wrote ourselves have a
+    # key.
     "calendar.month": "Month",
     "calendar.year": "Year",
-    # Le nom accessible d'une case MARQUÉE. ``{day}`` est le numéro du
-    # jour, ``{n}`` le compte passé à ``marks=``. Une phrase entière : la
-    # virgule et l'ordre changent d'une langue à l'autre.
+    # The accessible name of a MARKED cell. ``{day}`` is the day number,
+    # ``{n}`` the count passed to ``marks=``. A whole sentence: the comma
+    # and the order change from one language to another.
     "calendar.marked": "{day}, {n} events",
     "calendar.previous_month": "Previous month",
     "calendar.next_month": "Next month",
@@ -102,10 +102,10 @@ DEFAULT_TEXTS: Mapping[str, str] = {
     "color_picker.open": "Open color palette",
     "time_picker.clear": "Clear time",
     "time_picker.open": "Open time picker",
-    # ── Dépôt de fichiers ────────────────────────────────────────────
-    # Les trois aides sous la zone de dépôt. ``{types}`` est la liste
-    # d'extensions acceptées, ``{size}`` le plafond déjà formaté avec son
-    # unité, ``{max}`` le nombre maximum de fichiers.
+    # ── File drop ────────────────────────────────────────────────────
+    # The three hints under the drop zone. ``{types}`` is the list of
+    # accepted extensions, ``{size}`` the ceiling already formatted with
+    # its unit, ``{max}`` the maximum number of files.
     "file_upload.accepted": "Accepted: {types}",
     "file_upload.max_size": "Max size: {size}",
     "file_upload.multiple": "Multiple files allowed",
@@ -115,13 +115,13 @@ DEFAULT_TEXTS: Mapping[str, str] = {
     "file_upload.button": "Upload file",
     "file_upload.drop_more": "Drop more files here",
     "file_upload.drop_replace": "Drop a different file to replace",
-    # ── Tableau de données ───────────────────────────────────────────
+    # ── Data table ───────────────────────────────────────────────────
     "datatable.clear_filters": "Clear filters",
     "datatable.filter_placeholder": "Filter values…",
-    # Quatre phrases ENTIÈRES plutôt qu'un mot recollé à un nombre : une
-    # traduction déplace l'ordre des morceaux, et «  of  » n'est pas une
-    # brique réutilisable. ``{n}`` = ce qui est affiché, ``{total}`` = ce
-    # qui existe avant filtrage.
+    # Four WHOLE sentences rather than a word glued to a number: a
+    # translation moves the order of the pieces, and " of " is not a
+    # reusable brick. ``{n}`` = what is displayed, ``{total}`` = what
+    # exists before filtering.
     "datatable.results_one": "{n} result",
     "datatable.results_other": "{n} results",
     "datatable.results_narrowed_one": "{n} result of {total}",
@@ -131,12 +131,12 @@ DEFAULT_TEXTS: Mapping[str, str] = {
     "badge.remove": "Remove",
     "banner.dismiss": "Dismiss",
     "modal.close": "Close",
-    # ── Contrôles composés ───────────────────────────────────────────
-    # Ces huit-là ne s'écrivaient pas ``aria_label=`` mais
-    # ``attrs={"aria-label": …}``, une forme qu'aucun ``grep`` ne trouve
-    # quand on cherche l'autre — d'où la gate qui lit l'AST plutôt que le
-    # texte. La huitième était même écrite en FRANÇAIS dans le framework,
-    # seule de tout le dépôt.
+    # ── Composite controls ───────────────────────────────────────────
+    # Those eight were not written ``aria_label=`` but
+    # ``attrs={"aria-label": …}``, a form no ``grep`` finds when looking
+    # for the other — hence the gate reading the AST rather than the
+    # text. The eighth was even written in FRENCH in the framework, alone
+    # in the whole repository.
     "picker.remove": "Remove",
     "picker.select_all": "Select all",
     "picker.clear": "Clear",
@@ -152,15 +152,15 @@ DEFAULT_TEXTS: Mapping[str, str] = {
     "number_input.increment": "Increment",
     "number_input.decrement": "Decrement",
     "sidebar.rail_toggle": "Collapse or expand the sidebar",
-    # Le nom accessible du logo quand la barre est repliée : il ne lui
-    # reste que son glyphe, donc il s'annoncerait « lien » tout court.
-    # Écrit en FRANÇAIS dans le framework jusqu'au 2026-08-24 — la
-    # deuxième de deux, et la première avait été déclarée « seule de
-    # tout le dépôt » faute d'un détecteur qui voyait cette forme-là.
+    # The accessible name of the logo when the bar is collapsed: all it
+    # has left is its glyph, so it would announce itself as plain "link".
+    # Written in FRENCH in the framework until 2026-08-24 — the second of
+    # two, and the first had been declared "alone in the whole
+    # repository" for want of a detector that saw that form.
     "sidebar.home": "Home",
-    # ── Graphiques ───────────────────────────────────────────────────
-    # Le nom du graphique part dans l'``aria-label`` de son ``<svg>``
-    # quand il est vide — c'est ce qu'un lecteur d'écran annonce.
+    # ── Charts ───────────────────────────────────────────────────────
+    # The chart's name goes into the ``aria-label`` of its ``<svg>`` when
+    # it is empty — that is what a screen reader announces.
     "chart.bar": "Bar chart",
     "chart.line": "Line chart",
     "chart.pie": "Pie chart",
@@ -169,10 +169,10 @@ DEFAULT_TEXTS: Mapping[str, str] = {
     "chart.scatter_date_axis": "Scatter plot (date axis)",
     "chart.empty": "No data",
     "chart.series": "Series",
-    # Le résumé que lit un lecteur d'écran sur le ``<svg>``. Des phrases
-    # ENTIÈRES : « Bar chart — 12 categories across Nord, Sud » ne se
-    # traduit pas en recollant « across » à deux fragments. ``{kind}``
-    # est le nom du graphique, déjà traduit par sa propre clé.
+    # The summary a screen reader reads on the ``<svg>``. WHOLE
+    # sentences: "Bar chart — 12 categories across Nord, Sud" does not
+    # translate by gluing "across" to two fragments. ``{kind}`` is the
+    # chart's name, already translated by its own key.
     "chart.summary": "{kind} — {what}",
     "chart.summary_across": "{kind} — {what} across {names}",
     "chart.categories": "{n} categories",
@@ -182,11 +182,11 @@ DEFAULT_TEXTS: Mapping[str, str] = {
     "chart.sparkline": "Sparkline",
     "chart.sparkline_empty": "Sparkline — no data",
     "chart.sparkline_summary": "Sparkline — {n} points, min {low}, max {high}",
-    # ``fmt="currency"`` codait le dollar EN DUR, et sa docstring
-    # l'assumait (« USD-only v1 »). Un CRM français y lisait ses montants
-    # en ``$1,234.50``. ``{value}`` arrive déjà groupé — la SÉPARATION
-    # des milliers, elle, reste anglaise : ce serait un axe de formatage
-    # de nombres, pas un mot du framework.
+    # ``fmt="currency"`` hard-coded the dollar, and its docstring owned
+    # up to it ("USD-only v1"). A French CRM read its amounts there as
+    # ``$1,234.50``. ``{value}`` already arrives grouped — thousands
+    # SEPARATION, on the other hand, stays English: that would be a
+    # number-formatting axis, not a framework word.
     "chart.currency": "${value}",
     # ── Navigation ───────────────────────────────────────────────────
     "pagination.previous": "Previous page",
@@ -206,31 +206,31 @@ def resolve_texts(overrides: Mapping[str, str] | None) -> Mapping[str, str]:
     unknown = sorted(set(overrides) - set(DEFAULT_TEXTS))
     if unknown:
         raise TextsError(
-            f"texts= a {len(unknown)} clé(s) inconnue(s) : "
+            f"texts= has {len(unknown)} unknown key(s): "
             f"{', '.join(repr(k) for k in unknown)}. "
-            f"Les clés valides sont listées dans "
+            f"The valid keys are listed in "
             f"bretzel.render.texts.DEFAULT_TEXTS."
         )
-    # Et les TROUS, pas seulement les clés. Une surcharge qui renomme
-    # ``{size}`` en ``{taille}`` démarre sans un mot et lève un
-    # ``KeyError`` nu sur la page qui l'affiche — soit exactement la
-    # panne que la validation ci-dessus existe pour empêcher, une case
-    # plus loin.
+    # And the HOLES, not just the keys. An override renaming ``{size}``
+    # to ``{taille}`` starts up without a word and raises a bare
+    # ``KeyError`` on the page that displays it — that is to say exactly
+    # the failure the validation above exists to prevent, one square
+    # further on.
     for key, template in overrides.items():
         expected = _holes(DEFAULT_TEXTS[key])
         got = _holes(template)
         if got != expected:
             raise TextsError(
-                f"texts[{key!r}] n'a pas les mêmes trous que le modèle : "
-                f"attendu {sorted(expected) or 'aucun'}, reçu "
-                f"{sorted(got) or 'aucun'}. Modèle de référence : "
+                f"texts[{key!r}] does not have the same holes as the "
+                f"template: expected {sorted(expected) or 'none'}, got "
+                f"{sorted(got) or 'none'}. Reference template: "
                 f"{DEFAULT_TEXTS[key]!r}."
             )
     return {**DEFAULT_TEXTS, **overrides}
 
 
 def _holes(template: str) -> set[str]:
-    """Les noms de champ d'un modèle — ``"{n} sur {total}"`` → ``{n, total}``."""
+    """A template's field names — ``"{n} of {total}"`` → ``{n, total}``."""
     return {
         field for _, field, _, _ in Formatter().parse(template) if field
     }
@@ -246,15 +246,15 @@ def text(key: str, /, **fmt: Any) -> str:
         template = table[key]
     except KeyError:
         raise TextsError(
-            f"{key!r} n'est pas une clé de texte du framework. "
-            f"Ajoute-la à bretzel.render.texts.DEFAULT_TEXTS."
+            f"{key!r} is not a framework text key. "
+            f"Add it to bretzel.render.texts.DEFAULT_TEXTS."
         ) from None
     try:
         return template.format(**fmt)
     except (KeyError, IndexError) as exc:
         raise TextsError(
-            f"le texte {key!r} attend un trou que l'appelant n'a pas "
-            f"fourni ({exc}). Modèle : {template!r}."
+            f"the text {key!r} expects a hole the caller did not supply "
+            f"({exc}). Template: {template!r}."
         ) from None
 
 
@@ -268,7 +268,7 @@ def template(key: str, /) -> str:
         return table[key]
     except KeyError:
         raise TextsError(
-            f"{key!r} n'est pas une clé de texte du framework."
+            f"{key!r} is not a framework text key."
         ) from None
 
 

@@ -74,7 +74,7 @@ class TestManifeste:
     def test_the_two_TIERS_cannot_be_mixed(self) -> None:
         """Les laisser coexister obligerait à inventer une règle de
         priorité que personne ne devinerait."""
-        with pytest.raises(ValueError, match="tous les deux"):
+        with pytest.raises(ValueError, match="both given"):
             PWA(name="T", icon="/a.png", icons=(PWAIcon("/b.png", 192),))
 
     def test_the_png_type_is_derived(self) -> None:
@@ -93,13 +93,13 @@ class TestManifeste:
 
 class TestRefus:
     def test_an_empty_name_is_REFUSED(self) -> None:
-        with pytest.raises(ValueError, match="vide"):
+        with pytest.raises(ValueError, match="is empty"):
             PWA(name="   ")
 
     def test_a_relative_start_url_is_REFUSED(self) -> None:
         """Relatif, il se résoudrait contre l'emplacement du manifeste et
         ouvrirait une page que personne n'a choisie."""
-        with pytest.raises(ValueError, match="commence par"):
+        with pytest.raises(ValueError, match="begins with"):
             PWA(name="T", start_url="accueil")
 
 

@@ -62,10 +62,10 @@ def register_error_handlers(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
     ``config.expose_errors`` is False) so dev keeps the FastAPI traceback
     page.
     """
-    # Exposition, pas verbosité : le détail d'une exception qui part
-    # dans la réponse est une décision de sécurité. ``expose_errors``
-    # défaut sur le mode mais se règle seul (``mode="dev",
-    # expose_errors=False`` pour tester les vraies pages d'erreur).
+    # Exposure, not verbosity: the detail of an exception that goes out
+    # in the response is a security decision. ``expose_errors`` defaults
+    # to the mode but can be set on its own (``mode="dev",
+    # expose_errors=False`` to test the real error pages).
     expose = bool(getattr(bretzel_app.config, "expose_errors", False))
 
     async def on_http_exception(

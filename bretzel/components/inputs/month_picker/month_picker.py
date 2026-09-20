@@ -1,29 +1,29 @@
-"""``MonthPicker`` — champ de MOIS avec grille d'année en popover.
+"""``MonthPicker`` — a MONTH field with a year grid in a popover.
 
 Usage ::
 
-    ui.month_picker(value=state.periode)              # "2026-08"
-    ui.month_picker(value=state.periode, min="2026-03", max="2026-12")
+    ui.month_picker(value=state.period)              # "2026-08"
+    ui.month_picker(value=state.period, min="2026-03", max="2026-12")
 
-**La valeur est une chaîne ``"YYYY-MM"``** — troisième membre de la même
-famille de formats que l'ISO des dates et le ``"HH:MM"`` des heures, et
-pour la même raison : zéro-paddée, elle se **trie lexicographiquement
-comme chronologiquement**, donc borner est une comparaison de chaînes.
-Python accepte aussi un ``datetime.date``, TRONQUÉ au mois — quelqu'un
-qui passe ``date(2026, 8, 14)`` veut visiblement « août 2026 », et le
-refuser lui coûterait un ``strftime`` pour rien.
+**The value is a ``"YYYY-MM"`` string** — the third member of the same
+family of formats as the dates' ISO and the times' ``"HH:MM"``, and for
+the same reason: zero-padded, it **sorts lexicographically as it sorts
+chronologically**, so bounding is a string comparison. Python also
+accepts a ``datetime.date``, TRUNCATED to the month — somebody passing
+``date(2026, 8, 14)`` visibly wants "August 2026", and refusing would
+cost them a ``strftime`` for nothing.
 
-Le composant est mince à dessein : le cadre, le popover, l'input caché et
-le routage des handlers viennent de ``_picker_field`` ; la grille vient
-de ``ui.calendar(mode="month")``. Ce qui reste ici est le **codec de
-valeur** et le normaliseur de saisie — c'est-à-dire tout ce qui lui est
-propre, et rien d'autre.
+The component is thin by design: the frame, the popover, the hidden
+input and the handler routing come from ``_picker_field``; the grid
+comes from ``ui.calendar(mode="month")``. What is left here is the
+**value codec** and the input normaliser — that is to say everything
+proper to it, and nothing else.
 
-``min`` / ``max`` acceptent un ``"YYYY-MM"`` ou une ``date``, et sont
-tronqués au mois : un ``min`` au 15 mars n'interdit PAS mars, puisqu'une
-partie du mois reste permise. Ils ne sont **pas** bindables, même
-raisonnement que TimePicker — la règle ne les admet en one-way que pour
-la contrainte croisée d'un range de dates.
+``min`` / ``max`` accept a ``"YYYY-MM"`` or a ``date``, and are
+truncated to the month: a ``min`` on 15 March does NOT forbid March,
+since part of the month is still allowed. They are **not** bindable,
+same reasoning as TimePicker — the rule only admits them one-way for the
+cross constraint of a date range.
 """
 
 from __future__ import annotations
@@ -44,13 +44,13 @@ from bretzel.render import text
 
 
 def month_to_ym(value: Any, *, owner: str = "MonthPicker") -> str:
-    """Coercer une valeur de mois vers ``"YYYY-MM"``.
+    """Coerce a month value to ``"YYYY-MM"``.
 
-    ``None`` → ``""`` ; une ``date`` → son mois (TRONQUÉE, cf. docstring
-    du module) ; une chaîne passe et est coupée à 7 caractères, ce qui
-    accepte aussi bien ``"2026-08"`` que ``"2026-08-14"``. Tout le reste
-    est une erreur d'usage, levée avec ``owner`` pour que l'auteur voie
-    QUI a refusé — même contrat que ``date_to_iso`` et ``time_to_hhmm``.
+    ``None`` → ``""``; a ``date`` → its month (TRUNCATED, cf. the
+    module's docstring); a string passes and is cut to 7 characters,
+    which accepts ``"2026-08"`` as well as ``"2026-08-14"``. Everything
+    else is a usage error, raised with ``owner`` so the author sees WHO
+    refused — same contract as ``date_to_iso`` and ``time_to_hhmm``.
     """
     from bretzel.components.base.attrs import ComponentDefinitionError
 
@@ -66,15 +66,14 @@ def month_to_ym(value: Any, *, owner: str = "MonthPicker") -> str:
     )
 
 
-#: Normalisation au blur : la saisie libre devient ``YYYY-MM``, ou se
-#: vide. Templatée sur ``{V}`` pour que les modes lié et littéral
-#: partagent le même parseur — même forme que chez DatePicker et
-#: TimePicker.
+#: Blur normalisation: free input becomes ``YYYY-MM``, or empties.
+#: Templated on ``{V}`` so that bound and literal modes share the same
+#: parser — same shape as at DatePicker and TimePicker.
 NORMALISE_TO_YM_TEMPLATE = (
     "(() => {{ const raw = String({V} || '').trim(); "
     "if (!raw) {{ {V} = ''; return; }} "
-    # ``2026-08`` / ``2026/08`` / ``08-2026`` / ``08/2026`` — un seul
-    # motif, puis on décide qui est l'année par la LONGUEUR du groupe.
+    # ``2026-08`` / ``2026/08`` / ``08-2026`` / ``08/2026`` — a single
+    # pattern, then we decide which is the year by the group's LENGTH.
     "const m = raw.match(/^(\\d{{1,4}})[^\\d](\\d{{1,4}})/); "
     "if (!m) {{ {V} = ''; return; }} "
     "let y, mo; "
@@ -87,7 +86,7 @@ NORMALISE_TO_YM_TEMPLATE = (
 
 
 def normalise_to_ym_js(value_expr: str) -> str:
-    """Le normaliseur saisie-libre → ``YYYY-MM`` pour ``value_expr``."""
+    """The free-input → ``YYYY-MM`` normaliser for ``value_expr``."""
     return NORMALISE_TO_YM_TEMPLATE.format(V=value_expr)
 
 
@@ -98,10 +97,10 @@ class MonthPicker(Component):
     THEME_KEY: ClassVar[str] = "month_picker"
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
-    #: Un picker est les DEUX natures à la fois : un panneau ancré
-    #: (comme `dialog`) et un champ qui porte une valeur (comme
-    #: `input`). Sa surface est donc l'union des deux vocabulaires
-    #: déjà fixés par ses voisins — rien d'inventé ici.
+    #: A picker is BOTH natures at once: an anchored panel (like
+    #: `dialog`) and a field carrying a value (like `input`). Its surface
+    #: is therefore the union of the two vocabularies already fixed by
+    #: its neighbours — nothing invented here.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
@@ -113,8 +112,8 @@ class MonthPicker(Component):
     )
     min: Any = reactive_prop(default=None, emit_attr=False)
     max: Any = reactive_prop(default=None, emit_attr=False)
-    # ``emit_attr=False`` : la racine est un ``<div>``, où ``disabled`` ne
-    # fait rien. Forwardé à la main sur les trois porteurs réels.
+    # ``emit_attr=False``: the root is a ``<div>``, where ``disabled``
+    # does nothing. Forwarded by hand onto the three real carriers.
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -144,19 +143,19 @@ class MonthPicker(Component):
         self._month_names = list(month_names) if month_names else None
         self._clearable = clearable
         self._close_on_pick = close_on_pick
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, value=value, min=min, max=max,
             color=color, size=size, disabled=disabled, required=required,
             on_change=on_change, on_focus=on_focus, on_blur=on_blur,
             **kwargs,
         )
-        # APRÈS `super().__init__` : les deux installeurs lisent
-        # `_binding_metadata`, qui n'est peuplé qu'à ce moment-là.
+        # AFTER `super().__init__`: both installers read
+        # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ PAS `"input"` : le premier `<input>` d'un picker est le
-        # porteur CACHÉ (`hidden_carrier`), qui ne prend pas le
-        # focus. Mesuré — `.focus()` ne faisait rien sur les six.
+        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
+        # carrier (`hidden_carrier`), which does not take focus.
+        # Measured — `.focus()` did nothing on all six.
         install_value_commands(
             self, focus_selector="input:not([type=hidden])"
         )
@@ -180,8 +179,9 @@ class MonthPicker(Component):
         for bound in ("min", "max"):
             raw = self._reactive_values.get(bound)
             if raw:
-                # Le calendrier attend une DATE pour ses bornes et les
-                # tronque lui-même ; on lui donne le 1er du mois.
+                # The calendar expects a DATE for its bounds and
+                # truncates them itself; we give it the 1st of the
+                # month.
                 cal_kwargs[bound] = f"{month_to_ym(raw)}-01"
         picked = [f"{val} = $event.detail.value"]
         if self._close_on_pick:
@@ -204,9 +204,10 @@ class MonthPicker(Component):
             calendar_kwargs=cal_kwargs,
             root_css=self.compose_class(
                 "root", apply_variant_size_modifiers=False),
-            # ``sized`` et non ``compose_class`` : la hauteur du palier
-            # vit sur le CADRE, qui porte la bordure (cf. la note du
-            # thème) — sinon le contrôle rend 2 px de trop.
+            # ``sized`` and not ``compose_class``: the step's height
+            # lives on the FRAME, which carries the border (cf. the
+            # theme's note) — otherwise the control renders 2 px too
+            # many.
             frame_css=sized("input_frame"),
             panel_css=self.compose_class(
                 "panel", apply_variant_size_modifiers=False),

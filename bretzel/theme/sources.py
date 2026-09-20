@@ -1,41 +1,41 @@
-"""Les racines que le compilateur de prod BALAIE — et qui les déclare.
+"""The roots the production compiler SCANS — and who declares them.
 
-Tailwind ne compile pas seulement le CSS d'entrée : il lit des fichiers
-pour savoir quelles classes garder. Sans directive, il ne lit que le
-``cwd``. Ce module répond donc à une seule question, et c'est toute sa
-raison d'être : **quels dossiers, en plus du dossier courant.**
+Tailwind does not only compile the input CSS: it reads files to know
+which classes to keep. Without a directive, it only reads the ``cwd``.
+This module therefore answers a single question, and that is its whole
+reason to exist: **which folders, besides the current one.**
 
-Trois réponses, et l'ordre dit leur nature :
+Three answers, and their order says what they are:
 
-1. **Le paquet du framework**, toujours, sans que personne ne le
-   demande. Le bug fermé le 2026-08-29 était exactement son absence :
-   installé par pip, ``bretzel`` n'est plus sous le ``cwd``, donc les
-   classes de ses ``theme.py`` disparaissaient du ``style.css`` de prod
-   — 609 Ko contre 684, sans une erreur, avec les bonnes couleurs et
-   aucune mise en forme.
-2. **Ce que les paquets installés déclarent**, via le point d'entrée
-   ``bretzel.scan_roots`` (cf. :func:`discovered_source_roots`).
-3. Rien d'autre. Il n'y a **pas** de troisième porte — ni kwarg de
-   ``Theme``, ni option de config. Une seule manière de faire chaque
-   chose (principe 4 de la charte), et c'est celle-ci parce qu'elle est
-   la seule où ``pip install`` suffit : l'app n'a rien à écrire pour
-   qu'un paquet tiers soit balayé.
+1. **The framework package**, always, without anyone asking. The bug
+   closed on 2026-08-29 was exactly its absence: installed by pip,
+   ``bretzel`` is no longer under the ``cwd``, so the classes of its
+   ``theme.py`` files disappeared from the production ``style.css`` —
+   609 KB against 684, with no error, with the right colours and no
+   formatting at all.
+2. **What installed packages declare**, through the ``bretzel.scan_roots``
+   entry point (cf. :func:`discovered_source_roots`).
+3. Nothing else. There is **no** third door — no ``Theme`` kwarg, no
+   config option. One single way to do each thing (charter principle 4),
+   and this is the one because it is the only one where ``pip install``
+   is enough: the app writes nothing for a third-party package to be
+   scanned.
 
-Déclarer une racine
--------------------
-Un paquet qui porte des classes Tailwind — une bibliothèque de
-composants tierce, **ou l'app elle-même quand elle est livrée en
-paquet** — le dit dans son ``pyproject.toml`` ::
+Declaring a root
+----------------
+A package carrying Tailwind classes — a third-party component library,
+**or the app itself when it ships as a package** — says so in its
+``pyproject.toml`` ::
 
     [project.entry-points."bretzel.scan_roots"]
-    mes-composants = "mes_composants"
+    my-components = "my_components"
 
-La clé est libre (elle ne sert qu'aux diagnostics) ; la valeur est le
-**nom d'un module importable**, dont le dossier devient la racine.
+The key is free (it only serves diagnostics); the value is the **name of
+an importable module**, whose folder becomes the root.
 
-⚠️ **Une racine déclarée est un dossier LU au démarrage**, pas du code
-exécuté : la résolution passe par :func:`importlib.util.find_spec`, qui
-ne charge pas le module.
+⚠️ **A declared root is a folder READ at startup**, not code that runs:
+resolution goes through :func:`importlib.util.find_spec`, which does not
+load the module.
 """
 
 from __future__ import annotations
@@ -46,56 +46,56 @@ from functools import cache
 from importlib import metadata, util
 from pathlib import Path
 
-#: Le paquet installé — la racine qui porte les thèmes de composant.
+#: The installed package — the root carrying the component themes.
 #:
-#: ``parents[1]`` depuis ``bretzel/theme/sources.py`` donne ``bretzel/``,
-#: **où que le paquet soit posé** : le dépôt en développement, ou le
-#: ``site-packages`` de qui l'installe.
+#: ``parents[1]`` from ``bretzel/theme/sources.py`` gives ``bretzel/``,
+#: **wherever the package is laid down**: the development repository, or
+#: the ``site-packages`` of whoever installs it.
 #:
-#: Elle est calculée, PAS découverte, et c'est délibéré : passer par le
-#: point d'entrée ferait dépendre le rendu du framework de la présence
-#: de ses propres métadonnées, donc casserait un ``git clone`` non
-#: installé. La seule racine dont on connaît le chemin sans rien lire
-#: est aussi la seule qu'on ne peut pas se permettre de rater.
+#: It is computed, NOT discovered, and that is deliberate: going through
+#: the entry point would make the framework's render depend on the
+#: presence of its own metadata, and therefore break an uninstalled
+#: ``git clone``. The one root whose path we know without reading
+#: anything is also the one we cannot afford to miss.
 FRAMEWORK_SOURCE_ROOT: Path = Path(__file__).resolve().parents[1]
 
-#: Le groupe de points d'entrée. C'est une **API publique** : un paquet
-#: tiers l'écrit dans son ``pyproject.toml``, donc le renommer casse ses
-#: métadonnées sans qu'aucun test de ce dépôt ne le voie.
+#: The entry-point group. It is a **public API**: a third-party package
+#: writes it in its ``pyproject.toml``, so renaming it breaks their
+#: metadata without any test in this repository seeing it.
 ENTRY_POINT_GROUP = "bretzel.scan_roots"
 
 
 @cache
 def discovered_source_roots() -> tuple[Path, ...]:
-    """Les racines que les paquets installés déclarent, triées.
+    """The roots installed packages declare, sorted.
 
-    **Triées, et c'est structurel** : l'ordre des points d'entrée dépend
-    de l'ordre du ``sys.path`` et du système de fichiers. Or ces racines
-    entrent dans le CSS, dont l'empreinte NOMME le fichier compilé en
-    cache (``build.get_or_build_css``). Un ordre instable produirait
-    deux empreintes pour un même environnement, donc une recompilation
-    de deux secondes à chaque démarrage — la maladie exacte réparée le
-    2026-08-27, réintroduite par la porte d'à côté.
+    **Sorted, and that is structural**: entry-point order depends on
+    ``sys.path`` order and on the file system. And these roots go into
+    the CSS, whose fingerprint NAMES the cached compiled file
+    (``build.get_or_build_css``). An unstable order would produce two
+    fingerprints for one environment, hence a two-second recompilation
+    on every startup — the exact illness fixed on 2026-08-27,
+    reintroduced through the next door.
 
-    Une entrée inutilisable ne fait pas tomber le démarrage — l'app
-    n'est pas responsable des métadonnées d'un tiers — mais elle ne
-    passe pas en silence : les classes de ce paquet manqueraient en
-    prod, et rien d'autre ne le dirait. Même arbitrage que le repli du
-    compilateur, qui s'annonce lui aussi.
+    An unusable entry does not bring startup down — the app is not
+    responsible for a third party's metadata — but it does not pass in
+    silence either: that package's classes would be missing in
+    production, and nothing else would say so. Same arbitration as the
+    compiler fallback, which also announces itself.
 
-    Mémoïsée : les métadonnées d'installation ne changent pas pendant la
-    vie d'un process. ``discovered_source_roots.cache_clear()`` existe
-    pour les tests, qui fabriquent des points d'entrée.
+    Memoised: installation metadata does not change during a process's
+    life. ``discovered_source_roots.cache_clear()`` exists for the
+    tests, which fabricate entry points.
     """
     roots: set[Path] = set()
     for point in metadata.entry_points(group=ENTRY_POINT_GROUP):
         path = _root_of_module(point.module)
         if path is None:
             print(
-                f"[bretzel] WARN : le point d'entrée {ENTRY_POINT_GROUP} "
-                f"« {point.name} » nomme {point.module!r}, introuvable.\n"
-                "[bretzel]        Ses classes Tailwind manqueront du "
-                "style.css compilé."
+                f"[bretzel] WARN: the {ENTRY_POINT_GROUP} entry point "
+                f"\"{point.name}\" names {point.module!r}, not found.\n"
+                "[bretzel]        Its Tailwind classes will be missing "
+                "from the compiled style.css."
             )
             continue
         roots.add(path)
@@ -103,15 +103,15 @@ def discovered_source_roots() -> tuple[Path, ...]:
 
 
 def _root_of_module(name: str) -> Path | None:
-    """Le dossier d'un module importable, **sans l'importer**.
+    """An importable module's folder, **without importing it**.
 
-    Un paquet (``mes_composants``) rend son dossier ; un module simple
-    (``mes_composants.theme``) rend le dossier qui le contient — les
-    deux formes marchent, parce qu'un auteur écrira l'une ou l'autre
-    sans penser à la différence.
+    A package (``my_components``) returns its folder; a plain module
+    (``my_components.theme``) returns the folder containing it — both
+    forms work, because an author will write one or the other without
+    thinking about the difference.
 
-    Retourne ``None`` quand le nom ne résout pas : paquet désinstallé,
-    métadonnées orphelines, faute de frappe.
+    Returns ``None`` when the name does not resolve: uninstalled
+    package, orphaned metadata, typo.
     """
     already_loaded = sys.modules.get(name)
     if already_loaded is not None:
@@ -131,11 +131,11 @@ def _root_of_module(name: str) -> Path | None:
 
 
 def all_source_roots() -> tuple[Path, ...]:
-    """Le paquet du framework, puis ce que les autres déclarent.
+    """The framework package, then what the others declare.
 
-    Le framework en tête parce qu'il est le seul certain ; le reste
-    trié par :func:`discovered_source_roots`. Une racine déclarée deux
-    fois n'apparaît qu'une.
+    The framework first because it is the only certain one; the rest
+    sorted by :func:`discovered_source_roots`. A root declared twice
+    appears once.
     """
     roots: list[Path] = [FRAMEWORK_SOURCE_ROOT]
     roots.extend(
@@ -147,26 +147,26 @@ def all_source_roots() -> tuple[Path, ...]:
 def generate_source_directives(roots: Iterable[Path | str]) -> str:
     """Return the Tailwind v4 ``@source "<dir>";`` block for ``roots``.
 
-    Mesure du 2026-08-29, ``cwd`` = un dossier d'app quelconque, chemin
-    de prod réel (``get_or_build_css``) ::
+    Measured on 2026-08-29, ``cwd`` = some app folder, real production
+    path (``get_or_build_css``) ::
 
-        sans directive   609 Ko   tabular-nums ABSENT · 16rem ABSENT
-        avec             684 Ko   les deux PRESENT
+        without directive   609 KB   tabular-nums ABSENT · 16rem ABSENT
+        with                684 KB   both PRESENT
 
-    La safelist ``@source inline(...)`` ne pouvait pas rattraper le
-    coup, et c'est ce qui rend les deux mécanismes complémentaires
-    plutôt que redondants : la safelist ne clôt que ce que le scanner ne
-    PEUT pas voir (un ``{bg_color}`` non résolu au render). Une classe
-    statique comme ``rounded-md`` est parfaitement visible — à condition
-    qu'on regarde le bon dossier.
+    The ``@source inline(...)`` safelist could not make up for it, and
+    that is what makes the two mechanisms complementary rather than
+    redundant: the safelist only closes what the scanner CANNOT see (a
+    ``{bg_color}`` unresolved at render time). A static class like
+    ``rounded-md`` is perfectly visible — provided one looks in the right
+    folder.
 
-    Un chemin est écrit tel quel dans du CSS : un guillemet dedans
-    couperait la directive au milieu, donc il lève plutôt que de
-    produire une feuille cassée.
+    A path is written as-is into CSS: a quote inside it would cut the
+    directive in the middle, so it raises rather than producing a broken
+    sheet.
 
-    ⚠️ **Pour le compilateur de prod uniquement.** Le compilateur
-    navigateur du mode dev lit le DOM vivant, pas le disque ; ces
-    directives sont retirées du CSS inliné par
+    ⚠️ **For the production compiler only.** The dev mode's browser
+    compiler reads the live DOM, not the disk; these directives are
+    stripped from the inlined CSS by
     :func:`bretzel.theme.css.strip_scan_roots`.
     """
     lines: list[str] = []
@@ -174,9 +174,9 @@ def generate_source_directives(roots: Iterable[Path | str]) -> str:
         path = Path(root).resolve().as_posix()
         if '"' in path:
             raise ValueError(
-                f"Racine de balayage inutilisable : {path!r} contient un "
-                'guillemet, qui terminerait la directive @source "…" au '
-                "milieu du chemin."
+                f"Unusable scan root: {path!r} contains a quote, which "
+                'would end the @source "…" directive in the middle of the '
+                "path."
             )
         lines.append(f'@source "{path}";')
     return "\n".join(lines)

@@ -1,12 +1,11 @@
-"""CRM — l'instrument d'usage réel. ``py -m examples.crm.main``.
+"""CRM — the real-use instrument. ``py -m examples.crm.main``.
 
-Ce n'est pas une 18ᵉ démo : c'est l'app dont on se sert pour MESURER le
-framework en long et en large. Le brief, la règle « interdiction de se
-dépanner » et le journal des findings vivent dans
-``.claude/work/chantier-crm-2026-08-19.md``.
+It is not an 18th demo: it is the app used to MEASURE the framework at
+length. The brief, the "no working around it" rule and the findings
+journal live in ``.claude/work/chantier-crm-2026-08-19.md``.
 
-``main`` est le seul fichier à connaître l'instance : il ``include`` les
-features, sème la base au démarrage, et laisse le contrat se valider.
+``main`` is the only file that knows the instance: it ``include``s the
+features, seeds the database at startup, and lets the contract validate.
 """
 
 from pathlib import Path
@@ -17,7 +16,7 @@ from bretzel.server import action_path, redirect_response
 from examples.crm.core import db
 from examples.crm.core.db import init_db
 from examples.crm.core.domain import LOGIN_PATH
-from examples.crm.core.texts import FR_TEXTS
+from examples.crm.core.texts import TEXTS
 from examples.crm.core.theme import THEME
 from examples.crm.features import (
     access,
@@ -49,18 +48,18 @@ from examples.crm.features import (
     shell,
 )
 
-#: Les assets de l'app, montés sur ``/static`` par ``static_dir=``.
-#: Un chemin ABSOLU dérivé de ce fichier : un chemin relatif dépendrait
-#: du dossier depuis lequel on lance, et ``Bretzel(static_dir=…)`` LÈVE
-#: au démarrage quand il ne pointe pas un dossier existant.
+#: The app's assets, mounted on ``/static`` by ``static_dir=``.
+#: An ABSOLUTE path derived from this file: a relative path would depend
+#: on the folder one launches from, and ``Bretzel(static_dir=…)`` RAISES
+#: at startup when it does not point at an existing folder.
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-#: L'icône de CETTE app — un entonnoir, pas le nœud de Bretzel.
+#: THIS app's icon — a funnel, not Bretzel's knot.
 #:
-#: C'est la démonstration de ``favicon=`` : par défaut une app Bretzel
-#: porte la marque du framework, et il suffit d'une chaîne pour poser la
-#: sienne. Le fichier est servi par ``static_dir``, donc c'est l'app qui
-#: en répond — le framework ne fait que l'annoncer dans le ``<head>``.
+#: It is ``favicon=``'s demonstration: by default a Bretzel app carries
+#: the framework's mark, and one string is enough to set its own. The
+#: file is served by ``static_dir``, so it is the app that answers for it
+#: — the framework only announces it in the ``<head>``.
 FAVICON_PATH = "/static/favicon.svg"
 
 app = Bretzel(
@@ -69,84 +68,83 @@ app = Bretzel(
     theme=THEME,
     static_dir=str(STATIC_DIR),
     favicon=FAVICON_PATH,
-    # ``prod`` et pas ``dev`` : c'est le seul mode qui montre la vitesse
-    # réelle. En dev le CSS est compilé DANS le navigateur par
-    # ``@tailwindcss/browser`` et le runtime est servi en version lisible
-    # (286 Ko au lieu de 97) — deux choix faits pour la boucle de
-    # développement, pas pour l'affichage. En prod : feuille compilée
-    # servie en un ``<link>``, ``runtime.min.js``, et les trois scripts
-    # tiers rapatriés s'ils sont dans ``.bretzel/vendor/``. Mesuré le
-    # 2026-08-27 sur une page minimale, cache froid : DOMContentLoaded à
-    # 110 ms contre 644.
+    # ``prod`` and not ``dev``: it is the only mode that shows the real
+    # speed. In dev the CSS is compiled IN the browser by
+    # ``@tailwindcss/browser`` and the runtime is served in its readable
+    # version (286 kB instead of 97) — two choices made for the
+    # development loop, not for display. In production: a compiled sheet
+    # served in one ``<link>``, ``runtime.min.js``, and the three
+    # third-party scripts vendored if they are in ``.bretzel/vendor/``.
+    # Measured on 2026-08-27 on a minimal page, cold cache:
+    # DOMContentLoaded at 110 ms against 644.
     #
-    # ⚠️ Deux contreparties, toutes deux réelles : le premier démarrage
-    # recompile ``.bretzel/style.css`` (quelques secondes, binaire
-    # Tailwind requis dans ``.bretzel/bin/``), et ce cache est PARTAGÉ
-    # avec les autres exemples — alterner CRM et playground recompile à
-    # chaque fois, parce que leurs thèmes n'ont pas la même empreinte.
-    # Repasser à ``mode="dev"`` pour retrouver le rechargement à chaud.
+    # ⚠️ Two trade-offs, both real: the first startup recompiles
+    # ``.bretzel/style.css`` (a few seconds, the Tailwind binary required
+    # in ``.bretzel/bin/``), and that cache is SHARED with the other
+    # examples — alternating CRM and playground recompiles every time,
+    # because their themes do not have the same fingerprint. Go back to
+    # ``mode="dev"`` to get hot reloading again.
     mode="prod",
-    # ── La langue, déclarée UNE fois ──────────────────────────────────
-    # Elle pose ``<html lang="fr">`` (un lecteur d'écran y choisit sa
-    # voix) et surtout, elle fait nommer les mois et les jours par le
-    # navigateur : les quatre composants de date de cet écran rendaient
-    # « August / MON TUE WED », et la seule prise était de repasser 19
-    # chaînes à CHAQUE montage — trois fois rien que sur l'écran 6.
-    lang="fr",
-    texts=FR_TEXTS,
+    # ── The language, declared ONCE ───────────────────────────────────
+    # It sets ``<html lang="en">`` — a screen reader picks its voice from
+    # it — and it names the months and the days of the four date
+    # components. It was ``"fr"`` until 2026-09-20, and the switch is
+    # what let the 19 strings each of those components was being passed
+    # go: English is what they render with no help at all.
+    lang="en",
+    texts=TEXTS,
 )
 
 
-#: Les chemins joignables SANS être connecté. Tout le reste est fermé —
-#: c'est le sens d'une garde par middleware, et la raison pour laquelle
-#: ce n'est pas un ``@page(auth=…)`` : une page ajoutée demain est
-#: protégée sans que personne y pense.
-#: ⚠️ ``PUBLIC_ASSET_ROUTES`` vient du FRAMEWORK, et c'est le point.
-#: Ces trois chemins étaient énumérés ici à la main — plus un quatrième
-#: (``theme.js``) qui n'était monté par personne, et qui a été retiré du
-#: framework en conséquence. Surtout, il fallait
-#: SAVOIR que ``/_bretzel/refetch`` et ``/_bretzel/sse`` rendent du HTML
-#: de page et doivent rester fermés. C'est de la connaissance du socle
-#: dans du code d'app : une route interne ajoutée demain cassait cette
-#: garde, ou l'ouvrait, sans que rien ne le dise. Le classement
-#: appartient à celui qui monte les routes, et il est gaté
-#: (``test_framework_routes_are_classified``).
-#: ⚠️ Et c'est ``is_public_asset_path`` qui tranche, PAS une égalité sur
-#: ``PUBLIC_ASSET_ROUTES`` : cet ensemble contient des MOTIFS de route.
-#: ``/_bretzel/vendor/{filename}`` n'est égal à aucun chemin réel, donc
-#: l'égalité refusait les trois scripts tiers — et le navigateur recevait
-#: cette page de connexion à la place d'un ``<script>``. Symptôme exact,
-#: mesuré le 2026-08-27 : trois ``Unexpected token '<'`` en console, la
-#: page rendue à 100 nœuds au lieu de 1 700, aucune erreur serveur.
-#: ⚠️ **L'icône de l'app en fait partie, et ce n'est pas intuitif.**
-#: ``is_public_asset_path`` ne connaît que les assets du FRAMEWORK —
-#: c'est sa définition. Une icône posée par ``favicon=`` vit chez l'app,
-#: sur ``/static``, donc la garde la refuse comme n'importe quelle page :
-#: la connexion demande son icône avant que quiconque soit connecté, et
-#: reçoit une 302 vers elle-même. Symptôme : aucune icône sur l'écran de
-#: connexion, une seule, et rien dans les logs. C'est le prix de poser sa
-#: propre marque, et il se paie ici, sur une ligne.
+#: The paths reachable WITHOUT being signed in. Everything else is
+#: closed — it is the meaning of a middleware guard, and the reason this
+#: is not a ``@page(auth=…)``: a page added tomorrow is protected without
+#: anybody thinking about it.
+#: ⚠️ ``PUBLIC_ASSET_ROUTES`` comes from the FRAMEWORK, and that is the
+#: point. These three paths were enumerated here by hand — plus a fourth
+#: (``theme.js``) that nobody mounted, and which was removed from the
+#: framework in consequence. Above all, one had to KNOW that
+#: ``/_bretzel/refetch`` and ``/_bretzel/sse`` return page HTML and must
+#: stay closed. That is base-layer knowledge inside app code: an internal
+#: route added tomorrow broke this guard, or opened it, without anything
+#: saying so. The classification belongs to whoever mounts the routes,
+#: and it is gated (``test_framework_routes_are_classified``).
+#: ⚠️ And it is ``is_public_asset_path`` that decides, NOT an equality on
+#: ``PUBLIC_ASSET_ROUTES``: that set contains route PATTERNS.
+#: ``/_bretzel/vendor/{filename}`` equals no real path, so equality
+#: refused the three third-party scripts — and the browser received this
+#: sign-in page instead of a ``<script>``. The exact symptom, measured on
+#: 2026-08-27: three ``Unexpected token '<'`` in the console, the page
+#: rendered at 100 nodes instead of 1 700, no server error.
+#: ⚠️ **The app's icon is part of it, and that is not intuitive.**
+#: ``is_public_asset_path`` only knows the FRAMEWORK's assets — that is
+#: its definition. An icon set by ``favicon=`` lives at the app, on
+#: ``/static``, so the guard refuses it like any page: the sign-in asks
+#: for its icon before anybody is signed in, and gets a 302 to itself.
+#: Symptom: no icon on the sign-in screen, only one, and nothing in the
+#: logs. It is the price of setting one's own mark, and it is paid here,
+#: on one line.
 PUBLIC_PATHS: frozenset[str] = frozenset({LOGIN_PATH, FAVICON_PATH})
 
-#: L'action de connexion, et elle seule — nommée par la FONCTION.
+#: The sign-in action, and it alone — named by the FUNCTION.
 #:
-#: ⚠️ C'était un préfixe de module (``…/examples.crm.features.login::``).
-#: Le résolveur du socle marche en ``getattr`` sur le module, donc ce
-#: préfixe ouvrait nominalement tout ce que ``login.py`` importe —
-#: ``auth.login``, ``redirect``, la fabrique de composants. La
-#: signature HMAC restait la vraie barrière, mais le périmètre de la
-#: garde grandissait avec la liste d'imports d'un fichier, en silence.
+#: ⚠️ It used to be a module prefix (``…/examples.crm.features.login::``).
+#: The base layer's resolver works by ``getattr`` on the module, so that
+#: prefix nominally opened everything ``login.py`` imports —
+#: ``auth.login``, ``redirect``, the component factory. The HMAC
+#: signature stayed the real barrier, but the guard's scope grew with a
+#: file's import list, in silence.
 #:
-#: ⚠️ Ouvrir ``/_bretzel/action/`` en entier serait plus court et FAUX :
-#: les zones ``@refreshable`` se re-rendent par ``/_bretzel/refetch/…`` et
-#: le temps réel par ``/_bretzel/sse`` — deux routes qui rendent du HTML
-#: de page. Les laisser dehors, c'est laisser douze écrans se rendre pour
-#: un anonyme.
+#: ⚠️ Opening ``/_bretzel/action/`` entirely would be shorter and WRONG:
+#: the ``@refreshable`` zones re-render through ``/_bretzel/refetch/…``
+#: and real time through ``/_bretzel/sse`` — two routes that return page
+#: HTML. Leaving them out is letting twelve screens render for an
+#: anonymous visitor.
 #:
-#: ``sign_out`` n'y est PAS : on ne se déconnecte que connecté.
-#: ⚠️ Le chemin se DEMANDAIT au framework depuis le 2026-08-24
-#: (``action_path``) : il était recomposé ici à la main, avec le
-#: séparateur de wire-id, et ``examples/auth`` allait le recopier.
+#: ``sign_out`` is NOT there: one only signs out when signed in.
+#: ⚠️ The path could be ASKED of the framework since 2026-08-24
+#: (``action_path``): it was recomposed here by hand, with the wire-id
+#: separator, and ``examples/auth`` was about to copy it.
 PUBLIC_ACTIONS: frozenset[str] = frozenset(
     action_path(fn) for fn in (login.sign_in,)
 )
@@ -154,17 +152,16 @@ PUBLIC_ACTIONS: frozenset[str] = frozenset(
 
 @app.middleware
 async def require_login(request, call_next):
-    """La garde. Écrite en PREMIER, donc la plus externe.
+    """The guard. Written FIRST, so the outermost.
 
-    ``auth.user_id`` et non ``auth.is_authenticated`` : à ce
-    niveau ni le contexte de rendu ni ``request.state.user`` n'existent
-    encore. Jusqu'au 2026-08-23 cet exemple lisait le cookie lui-même et
-    devait recevoir ``app.config._auth_key`` — l'attribut privé — depuis
-    ici.
+    ``auth.user_id`` and not ``auth.is_authenticated``: at this level
+    neither the render context nor ``request.state.user`` exists yet.
+    Until 2026-08-23 this example read the cookie itself and had to
+    receive ``app.config._auth_key`` — the private attribute — from here.
 
-    ``redirect_response`` et non ``redirect`` : le premier tranche entre
-    une vraie 302 (navigation) et un ``HX-Redirect`` (action du bridge),
-    le second lève hors d'un contexte de rendu.
+    ``redirect_response`` and not ``redirect``: the first decides between
+    a real 302 (navigation) and an ``HX-Redirect`` (bridge action), the
+    second raises outside a render context.
     """
     path = request.url.path
     if (path in PUBLIC_PATHS
@@ -177,8 +174,8 @@ async def require_login(request, call_next):
 
 @app.startup
 async def seed_db() -> None:
-    # Idempotent : ne resème que si ``SEED_VERSION`` a bougé. ~4 s la
-    # première fois pour 262 000 lignes, zéro les suivantes.
+    # Idempotent: only re-seeds if ``SEED_VERSION`` has moved. ~4 s the
+    # first time for 262 000 rows, zero afterwards.
     init_db()
 
 
@@ -186,8 +183,8 @@ app.include(
     db,                          # infra
     shell,                       # shell
     analyse_nav,                 # layout (shell ▸ analyse_nav ▸ pages)
-    access,                      # logic (la politique d'accès)
-    geo,                         # facade (le géocodeur, service externe)
+    access,                      # logic (the access policy)
+    geo,                         # facade (the geocoder, an external service)
     nightly_hygiene,             # job (aucune route, aucun rendu)
     auth_data,                                  # data
     accounts_data, contacts_data, deals_data,

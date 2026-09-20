@@ -78,16 +78,17 @@ TABLE_THEME: dict[str, Any] = {
         # at render time so the header follows the ``color`` prop.
         "head": "",
         # Padding is added per-size at render time (see ``sizes``).
-        # ⚠️ Casse NORMALE, et c'est un choix mesuré. L'en-tête était en
-        # ``text-xs uppercase tracking-wide`` : à 12 px, des capitales
-        # espacées se lisent nettement moins vite qu'un mot ordinaire, et
-        # le spec DataTable de V1 demandait déjà de les remplacer pour
-        # cette raison. Ce qui sépare un en-tête d'une donnée est le POIDS
-        # et la couleur — la convention des bibliothèques actuelles.
+        # ⚠️ NORMAL case, and it is a measured choice. The header was in
+        # ``text-xs uppercase tracking-wide``: at 12 px, spaced capitals
+        # read markedly slower than an ordinary word, and V1's DataTable
+        # spec already asked to replace them for that reason. What
+        # separates a header from data is the WEIGHT and the colour — the
+        # convention of current libraries.
         #
-        # Ce slot est la SOURCE de la décision : ``Datatable.head_button``
-        # la recopie pour que sa colonne triable s'aligne sur sa voisine
-        # statique. Changer l'une sans l'autre casse cet alignement.
+        # This slot is the SOURCE of the decision:
+        # ``Datatable.head_button`` copies it so its sortable column
+        # aligns with its static neighbour. Changing one without the
+        # other breaks that alignment.
         "head_cell": (
             "text-start text-sm font-semibold "
             "text-text/70 border-b-(length:--bz-stroke) border-text/10 whitespace-nowrap"

@@ -1,21 +1,20 @@
-"""L'étage profond — celui qui IMPORTE l'application.
+"""The deep tier — the one that IMPORTS the application.
 
-Les règles statiques lisent des fichiers ; celles-ci lisent une app
-**montée**. C'est ce qui leur permet de répondre à des questions qu'aucun
-AST ne peut trancher : « ce routable est-il couvert par une Feature ? »,
-« ce contrat correspond-il aux imports réels ? ». En échange, elles
-exécutent le code de l'utilisateur — d'où le drapeau séparé, et d'où le
-fait que ce ne sera jamais le défaut.
+The static rules read files; these read a **mounted** app. That is what
+lets them answer questions no AST can settle: "is this routable covered
+by a Feature?", "does this contract match the real imports?". In
+exchange, they run the user's code — hence the separate flag, and hence
+the fact that it will never be the default.
 
-**Le contrat d'entrée** est celui de tous les runners ASGI
-(``uvicorn mon_app.main:app``) : ``module:attribut``. Le réutiliser plutôt
-que d'inventer une syntaxe évite d'avoir à l'apprendre, et il est déjà
-dans les doigts de qui lance le serveur.
+**The input contract** is that of every ASGI runner
+(``uvicorn my_app.main:app``): ``module:attribute``. Reusing it rather
+than inventing a syntax spares having to learn one, and it is already in
+the fingers of whoever starts the server.
 
-Les deux lints existent depuis le 2026-07-05 dans :mod:`bretzel.server` et
-tournaient **uniquement au startup**, en WARN sur stdout. Rien ne
-permettait de les lancer à froid, ni d'en faire un code de sortie. C'est
-tout ce que ce module ajoute : un point d'entrée et une traduction en
+Both lints have existed since 2026-07-05 in :mod:`bretzel.server` and ran
+**only at startup**, as WARN on stdout. Nothing allowed running them cold,
+nor turning them into an exit code. That is all this module adds: an
+entry point and a translation into
 :class:`~bretzel.lint.report.Finding`.
 """
 
@@ -29,29 +28,29 @@ from bretzel.lint.report import Finding, Report
 RULE_UNDECLARED = "routable-non-declare"
 RULE_DRIFT = "contrat-derive"
 
-#: Ce qu'on accepte comme cible. Aligné sur les runners ASGI.
+#: What we accept as a target. Aligned with the ASGI runners.
 TARGET_SYNTAX = "module:attribut  (ex. `examples.mad.main:app`)"
 
 
 def load_app(target: str) -> tuple[object, Path]:
-    """Importe ``module:attribut`` et rend l'objet.
+    """Import ``module:attribute`` and return the object.
 
-    Rend ``(objet, fichier du module)`` — le fichier sert à ancrer les
-    constats sur quelque chose d'ouvrable. Un constat de carte n'a pas de
-    ligne (il porte sur un contrat, pas sur une expression), mais il a au
-    moins un fichier, et « ``<app>`` » n'ouvre rien.
+    Returns ``(object, the module's file)`` — the file serves to anchor
+    the findings on something openable. A map finding has no line (it is
+    about a contract, not an expression), but it has at least a file, and
+    "``<app>``" opens nothing.
 
-    N'appelle rien : les ``include()`` d'une app Bretzel s'exécutent à
-    l'import du module, donc les ``Feature`` et les routables sont déjà
-    collectés quand l'objet existe. On ne démarre PAS le serveur — le
-    lifespan ferait bien plus que lire.
+    It calls nothing: a Bretzel app's ``include()`` run at the module's
+    import, so the ``Feature`` and the routables are already collected
+    when the object exists. We do NOT start the server — the lifespan
+    would do far more than read.
     """
     if ":" not in target:
         raise ValueError(
-            f"cible `{target}` invalide — attendu {TARGET_SYNTAX}. "
-            f"`--deep` a besoin d'une application MONTÉE, pas de chemins : "
-            f"les questions qu'il pose (« ce routable est-il couvert ? ») "
-            f"n'ont pas de réponse dans un fichier isolé."
+            f"invalid target `{target}` — expected {TARGET_SYNTAX}. "
+            f"`--deep` needs a MOUNTED application, not paths: the "
+            f"questions it asks (\"is this routable covered?\") have no "
+            f"answer in an isolated file."
         )
     module_name, _, attribute = target.partition(":")
     module = importlib.import_module(module_name)
@@ -61,33 +60,33 @@ def load_app(target: str) -> tuple[object, Path]:
     except AttributeError:
         exported = [n for n in vars(module) if not n.startswith("_")]
         raise ValueError(
-            f"`{module_name}` n'expose pas `{attribute}`. Disponibles : {sorted(exported)[:10]}."
+            f"`{module_name}` does not expose `{attribute}`. Available: {sorted(exported)[:10]}."
         ) from None
 
 
 def run_deep(target: str) -> Report:
-    """Les lints de carte sur l'app désignée par ``module:attribut``."""
+    """The map lints on the app designated by ``module:attribute``."""
     app, origin = load_app(target)
     return lint_app(app, origin=origin, label=target)
 
 
 def lint_app(app: object, *, origin: Path, label: str = "l'app") -> Report:
-    """Le cœur, séparé de l'import.
+    """The core, separated from the import.
 
-    Séparé exprès : une gate doit pouvoir fabriquer une app en mémoire et
-    vérifier que les deux lints la voient, sans passer par un module sur
-    disque ni toucher à ``sys.path``. Un lint qu'on ne peut exercer que
-    par son point d'entrée finit non testé.
+    Separated on purpose: a gate must be able to build an app in memory
+    and check that both lints see it, without going through a module on
+    disk nor touching ``sys.path``. A lint that can only be exercised
+    through its entry point ends up untested.
     """
     from bretzel.server.feature import dependency_drift, undeclared_provides
 
     features = getattr(app, "features", ())
     if not features:
         raise ValueError(
-            f"`{label}` n'expose aucune `Feature` — soit ce n'est pas une "
-            f"application Bretzel, soit elle n'utilise pas les Features. "
-            f"Les deux lints de carte n'ont alors rien à arbitrer, et une "
-            f"app sans contrat n'a pas à se faire sermonner."
+            f"`{label}` exposes no `Feature` — either it is not a Bretzel "
+            f"application, or it does not use Features. The two map lints "
+            f"then have nothing to arbitrate, and an app with no contract "
+            f"has no business being lectured."
         )
 
     report = Report(rules_run=(RULE_UNDECLARED, RULE_DRIFT), files_scanned=1)
@@ -100,11 +99,11 @@ def lint_app(app: object, *, origin: Path, label: str = "l'app") -> Report:
                 path=module_path,
                 line=0,
                 message=(
-                    f"`{name}` ({route or 'sans route'}) est monté mais "
-                    f"déclaré par aucune Feature — il tourne, et la carte ne "
-                    f"le voit pas. Le squelette ment par omission."
+                    f"`{name}` ({route or 'no route'}) is mounted but "
+                    f"declared by no Feature — it runs, and the map does not "
+                    f"see it. The skeleton lies by omission."
                 ),
-                hint="Ajoute-le aux `provides` d'une Feature.",
+                hint="Add it to a Feature's `provides`.",
             )
         )
 
@@ -117,9 +116,9 @@ def lint_app(app: object, *, origin: Path, label: str = "l'app") -> Report:
                     line=0,
                     message=(
                         f"la feature `{drift.feature}` importe "
-                        f"{list(drift.missing)} sans le déclarer."
+                        f"{list(drift.missing)} without declaring them."
                     ),
-                    hint="Ajoute-les à ses `uses` / `reads`.",
+                    hint="Add them to its `uses` / `reads`.",
                 )
             )
         if drift.stale:
@@ -129,10 +128,10 @@ def lint_app(app: object, *, origin: Path, label: str = "l'app") -> Report:
                     path=module_path,
                     line=0,
                     message=(
-                        f"la feature `{drift.feature}` déclare "
-                        f"{list(drift.stale)} mais ne l'importe jamais."
+                        f"the feature `{drift.feature}` declares "
+                        f"{list(drift.stale)} but never imports them."
                     ),
-                    hint="Retire-les de son contrat — un contrat périmé ment.",
+                    hint="Remove them from its contract — a stale contract lies.",
                 )
             )
 

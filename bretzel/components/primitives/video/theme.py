@@ -1,39 +1,38 @@
 """Default :class:`Video` theme.
 
-Même parti que :mod:`bretzel.components.primitives.image.theme` : la
-racine **est** l'élément média, sans enveloppe. Un ``<video>`` porte
-lui-même ``aspect-ratio``, ``object-fit`` et un fond, donc la boîte
-d'attente est son propre background.
+Same stance as :mod:`bretzel.components.primitives.image.theme`: the
+root **is** the media element, with no wrapper. A ``<video>`` carries
+``aspect-ratio``, ``object-fit`` and a background itself, so the waiting
+box is its own background.
 
-Ce que ça donne sans une ligne de JS :
+What that gives with no line of JS:
 
-- **avant que les métadonnées arrivent**, la boîte au ratio déclaré
-  occupe déjà sa place. Une vidéo est le pire cas du saut de page : le
-  navigateur ne connaît ses dimensions qu'après un aller-retour réseau,
-  donc sans ``ratio`` tout ce qui suit se décale une seconde plus tard ;
-- **si la source casse**, la même boîte reste.
+- **before the metadata arrive**, the box at the declared ratio already
+  takes its place. A video is the worst case of page jump: the browser
+  only knows its dimensions after a network round trip, so without
+  ``ratio`` everything that follows shifts a second later;
+- **if the source breaks**, the same box stays.
 
-Le fond est ``bg-black`` et non le ``bg-muted/30`` de l'image — une
-couleur de palette FIXE, donc une exception à la règle des tokens
-sémantiques, déclarée dans ``test_themes_use_semantic_colours``.
+The background is ``bg-black`` and not the image's ``bg-muted/30`` — a
+FIXED palette colour, so an exception to the semantic-token rule,
+declared in ``test_themes_use_semantic_colours``.
 
-La raison : ce noir n'est pas une surface de la page, c'est la **surface
-d'un média**. Les bandes de letterboxing sont noires chez tous les
-lecteurs, dans les deux modes, parce que la vidéo est étalonnée contre du
-noir. Un ``bg-muted/30`` donnerait des bandes gris clair autour d'une
-image sombre en mode clair, ce qui est le mauvais rendu — pas le rendu
-« adapté au thème ».
+The reason: that black is not a surface of the page, it is a **medium's
+surface**. Letterboxing bars are black in every player, in both modes,
+because video is graded against black. A ``bg-muted/30`` would give
+light grey bars around a dark image in light mode, which is the wrong
+render — not the "theme-aware" one.
 
 
-⚠️ **La table de ratios est RECOPIÉE depuis le thème de l'image, à
-dessein.** Les chaînes de classes visuelles restent par composant dans
-ce dépôt — un token de style partagé couplerait deux thèmes qu'on doit
-pouvoir faire diverger (le jour où une vidéo veut un ratio cinéma que
-l'image n'a pas). La convention est harmonisée, pas factorisée.
+⚠️ **The ratio table is COPIED from the image's theme, on purpose.**
+Visual class strings stay per component in this repository — a shared
+style token would couple two themes that must be able to diverge (the
+day a video wants a cinema ratio the image does not have). The
+convention is harmonised, not factored out.
 
-Et comme chez l'image : table **fermée**, classes écrites en entier. Une
-f-string ``aspect-[{w}/{h}]`` serait invisible au compilateur Tailwind de
-prod — elle marcherait en dev et disparaîtrait au déploiement.
+And as at the image: a **closed** table, classes written out in full. An
+f-string ``aspect-[{w}/{h}]`` would be invisible to the production
+Tailwind compiler — it would work in dev and disappear at deployment.
 """
 
 from __future__ import annotations
@@ -42,9 +41,10 @@ from typing import Any
 
 VIDEO_THEME: dict[str, Any] = {
     "slots": {
-        # ``block`` : un élément média est ``inline`` par défaut, ce qui
-        # lui colle l'espace de la ligne de base sous le ventre.
-        # ``bg-black`` : LE fond qui sert de boîte d'attente (cf. docstring).
+        # ``block``: a media element is ``inline`` by default, which
+        # sticks the baseline's space under its belly.
+        # ``bg-black``: THE background that serves as the waiting box
+        # (cf. the docstring).
         "root": "block max-w-full bg-black",
     },
     "ratios": {
@@ -53,10 +53,10 @@ VIDEO_THEME: dict[str, Any] = {
         "portrait": "aspect-[3/4] w-full",
         "wide": "aspect-[21/9] w-full",
     },
-    # Comment l'image du média remplit le ratio déclaré. ``contain`` est
-    # le défaut ici, à l'INVERSE de ``ui.image`` : recadrer une photo est
-    # anodin, recadrer une vidéo coupe l'action — le letterboxing est le
-    # comportement attendu de tout lecteur.
+    # How the medium's picture fills the declared ratio. ``contain`` is
+    # the default here, the OPPOSITE of ``ui.image``: cropping a photo is
+    # harmless, cropping a video cuts the action — letterboxing is the
+    # behaviour expected of any player.
     "fits": {
         "contain": "object-contain",
         "cover": "object-cover",

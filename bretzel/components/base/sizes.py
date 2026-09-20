@@ -1,52 +1,52 @@
-"""L'échelle de taille, et la lecture d'une table ``sizes``.
+"""The size scale, and how a ``sizes`` table is read.
 
-Pourquoi ce module existe
---------------------------
+Why this module exists
+----------------------
 
-L'échelle ``xs|sm|md|lg|xl`` est la grammaire des contrôles : ``bretzel describe``
-l'annonce comme un **enum fermé** sur Button, Input, Select, Badge, Avatar,
-Icon, Spinner, Progress… Elle était pourtant recopiée **cinq fois dans
-``tests/`` et zéro fois dans ``bretzel/``** (mesuré le 2026-08-16) —
-``test_size_enum_is_complete``, ``test_size_reaches_slots``,
-``test_sizes_are_distinct``, ``test_playground_demos_the_api``,
-``probes/bench_switch``. Un enum déclaré fermé qui n'existe nulle part dans
-le code n'est pas fermé : c'est une convention, et une convention ne peut
-rien refuser.
+The ``xs|sm|md|lg|xl`` scale is the controls' grammar:
+``bretzel describe`` announces it as a **closed enum** on Button, Input,
+Select, Badge, Avatar, Icon, Spinner, Progress… And yet it was copied
+**five times in ``tests/`` and zero times in ``bretzel/``** (measured on
+2026-08-16) — ``test_size_enum_is_complete``,
+``test_size_reaches_slots``, ``test_sizes_are_distinct``,
+``test_playground_demos_the_api``, ``probes/bench_switch``. An enum
+declared closed that exists nowhere in the code is not closed: it is a
+convention, and a convention can refuse nothing.
 
-⚠️ Ce que l'échelle n'est PAS
-------------------------------
+⚠️ What the scale is NOT
+------------------------
 
-Ce n'est pas « toutes les valeurs qu'un composant accepte ». Trois familles
-vont au-delà, et c'est **voulu** :
+It is not "every value a component accepts". Three families go beyond
+it, and that is **intended**:
 
-- ``Text`` et ``Heading`` portent l'échelle **typographique** (``xs`` à
-  ``8xl``, mesuré) — un titre n'a pas la taille d'un bouton, et
-  ``bretzel describe`` le dit : « ne pas confondre » ;
-- ``Avatar`` étend à ``2xl`` (visuel portrait) ;
-- ``Icon`` de même.
+- ``Text`` and ``Heading`` carry the **typographic** scale (``xs`` to
+  ``8xl``, measured) — a heading is not a button's size, and
+  ``bretzel describe`` says so: "do not confuse them";
+- ``Avatar`` extends to ``2xl`` (portrait visual);
+- ``Icon`` likewise.
 
-:data:`SIZE_SCALE` est donc **le socle commun**, et il sert deux rôles : le
-palier minimal qu'une table de contrôle doit couvrir, et — c'est le second
-usage, moins évident — le **marqueur** qui dit si une table est indexée par
-taille ou par slot.
+:data:`SIZE_SCALE` is therefore **the common base**, and it serves two
+roles: the minimal set a control's table must cover, and — this is the
+second, less obvious use — the **marker** saying whether a table is
+indexed by size or by slot.
 
-Les deux imbrications de ``sizes``, et pourquoi il faut les départager
------------------------------------------------------------------------
+The two ``sizes`` nestings, and why they must be told apart
+-----------------------------------------------------------
 
-Sur les 44 tables ``sizes`` du catalogue, **33 sont imbriquées**, et deux
-imbrications OPPOSÉES coexistent ::
+Of the catalogue's 44 ``sizes`` tables, **33 are nested**, and two
+OPPOSITE nestings coexist ::
 
-    Checkbox    sizes = {"sm": {"root": …, "label": …}}     ← clés = TAILLES
-    DatePicker  sizes = {"input_field": {"sm": …, "md": …}} ← clés = SLOTS
+    Checkbox    sizes = {"sm": {"root": …, "label": …}}     ← keys = SIZES
+    DatePicker  sizes = {"input_field": {"sm": …, "md": …}} ← keys = SLOTS
 
-Structurellement indiscernables : dans les deux cas un dict de dicts. Le
-seul signal disponible est le **contenu** des clés, d'où
-:func:`size_vocabulary`, qui regarde à quel étage l'échelle apparaît.
+Structurally indistinguishable: in both cases a dict of dicts. The only
+signal available is the **content** of the keys, hence
+:func:`size_vocabulary`, which looks at which tier the scale appears in.
 
-Confondre les deux n'est pas théorique : une première version de la règle
-de lint ``valeur-hors-table`` a signalé ``ui.date_picker(size="sm")``, qui
-est parfaitement correct — le composant résout ses tailles lui-même dans
-son ``render``.
+Confusing the two is not theoretical: a first version of the
+``value-outside-the-table`` lint rule reported
+``ui.date_picker(size="sm")``, which is perfectly correct — the component
+resolves its sizes itself in its ``render``.
 """
 
 from __future__ import annotations
@@ -54,38 +54,38 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Final
 
-#: Les cinq paliers de contrôle. **Source unique** — tout ce qui a besoin
-#: de savoir « est-ce un nom de taille ? » se compose là-dessus.
+#: The five control steps. **Single source** — everything that needs to
+#: know "is this a size name?" composes on it.
 SIZE_SCALE: Final[tuple[str, ...]] = ("xs", "sm", "md", "lg", "xl")
 
 _SCALE: Final[frozenset[str]] = frozenset(SIZE_SCALE)
 
 
 def is_size_keyed(table: Mapping[str, Any]) -> bool:
-    """La table est-elle indexée par TAILLE (et non par slot) ?
+    """Is the table indexed by SIZE (and not by slot)?
 
-    Le test est l'intersection avec :data:`SIZE_SCALE`, et non « les
-    valeurs sont-elles des chaînes » : ``Checkbox`` est indexé par taille
-    ET imbriqué, ``Button`` est indexé par taille et plat. La forme des
-    valeurs ne dit donc rien de l'indexation.
+    The test is the intersection with :data:`SIZE_SCALE`, and not "are
+    the values strings": ``Checkbox`` is indexed by size AND nested,
+    ``Button`` is indexed by size and flat. The shape of the values
+    therefore says nothing about the indexing.
     """
     return bool(_SCALE & set(table))
 
 
 def size_vocabulary(theme: Mapping[str, Any] | None) -> frozenset[str]:
-    """Les valeurs que ``size=`` peut prendre pour ce thème de composant.
+    """The values ``size=`` can take for this component theme.
 
-    Absorbe les deux imbrications :
+    Absorbs both nestings:
 
-    - table indexée par taille → ses propres clés, **entières** (donc
-      ``2xl``..``8xl`` inclus pour ``Text`` / ``Heading`` / ``Avatar``) ;
-    - table indexée par slot → l'union des clés du second étage qui
-      portent l'échelle.
+    - a size-indexed table → its own keys, **whole** (so ``2xl``..``8xl``
+      included for ``Text`` / ``Heading`` / ``Avatar``);
+    - a slot-indexed table → the union of the second tier's keys that
+      carry the scale.
 
-    Rend un ensemble **vide** quand il n'y a pas de table du tout — le
-    composant consomme alors ``size=`` autrement (``radio_group``), et un
-    consommateur ne doit surtout pas conclure « aucune valeur n'est
-    valide ». Le vide veut dire « je ne sais pas », pas « rien ».
+    Returns an **empty** set when there is no table at all — the
+    component then consumes ``size=`` otherwise (``radio_group``), and a
+    consumer must on no account conclude "no value is valid". Empty means
+    "I do not know", not "nothing".
     """
     table = (theme or {}).get("sizes")
     if not isinstance(table, Mapping) or not table:
@@ -99,33 +99,32 @@ def size_vocabulary(theme: Mapping[str, Any] | None) -> frozenset[str]:
     return frozenset(found)
 
 
-#: La taille d'``ui.icon`` qui va avec un libellé d'une taille donnée :
-#: **le cran juste au-dessus**, sur l'échelle d'``Icon``.
+#: The ``ui.icon`` size that goes with a label of a given size: **the
+#: step just above**, on ``Icon``'s scale.
 #:
-#: Pourquoi un cran, et pas la même taille
-#: ---------------------------------------
+#: Why one step, and not the same size
+#: -----------------------------------
 #:
-#: ``<iconify-icon>`` se dimensionne en ``1em`` — sa taille EST sa
-#: ``font-size``. À taille égale, un glyphe paraît donc plus petit que le
-#: texte : il n'a pas de hampe, pas de jambage, rien qui accroche la
-#: ligne de base. Le thème d'``Icon`` le dit déjà pour son défaut
+#: ``<iconify-icon>`` sizes itself in ``1em`` — its size IS its
+#: ``font-size``. At an equal size, a glyph therefore looks smaller than
+#: the text: it has no ascender, no descender, nothing to catch the
+#: baseline. ``Icon``'s theme already says so for its default
 #: (``"md": "text-lg",  # slightly bigger than text for readability``) —
-#: cette table ne fait que généraliser cette intention aux libellés qui
-#: ne font PAS 16 px.
+#: this table only generalises that intention to labels that are NOT
+#: 16 px.
 #:
-#: Le défaut d'``Icon`` était calibré contre un corps de page (18/16 =
-#: 1,125). Les items ont des libellés de 12 à 14 px, et l'utiliser tel
-#: quel y donnait jusqu'à 1,50 (``breadcrumb_item``, mesuré le
-#: 2026-08-18).
+#: ``Icon``'s default was calibrated against body text (18/16 = 1.125).
+#: The items have labels of 12 to 14 px, and using it as-is gave up to
+#: 1.50 there (``breadcrumb_item``, measured on 2026-08-18).
 #:
-#: L'échelle d'``Icon`` est trouée (``sm`` = 14 px puis ``md`` = 18 px,
-#: rien à 16) : « le cran au-dessus » se lit donc sur SA table, pas sur
-#: celle de Tailwind. Cinq des huit composants-items la respectaient
-#: déjà avant que la règle soit écrite.
+#: ``Icon``'s scale has a hole (``sm`` = 14 px then ``md`` = 18 px,
+#: nothing at 16): "the step above" is therefore read on ITS table, not
+#: on Tailwind's. Five of the eight item components already respected it
+#: before the rule was written.
 #:
-#: ⚠️ Une taille d'icône qui n'est PAS un cran au-dessus doit être
-#: DÉCLARÉE avec sa raison — ``bottom_bar_item`` monte à 24 px parce que
-#: c'est une cible tactile, pas un ornement de ligne de texte. Gaté par
+#: ⚠️ An icon size that is NOT one step above must be DECLARED with its
+#: reason — ``bottom_bar_item`` goes up to 24 px because it is a touch
+#: target, not a line-of-text ornament. Gated by
 #: ``tests/consistency/test_icon_follows_its_label.py``.
 ICON_SIZE_ABOVE: Final[Mapping[str, str]] = {
     "text-[10px]": "xs",   # 10 px → 12
@@ -138,14 +137,13 @@ ICON_SIZE_ABOVE: Final[Mapping[str, str]] = {
 
 
 def icon_size_for(label_class: str) -> str | None:
-    """La taille d'icône qui va avec ce libellé — ``None`` si sa classe
-    de texte n'est pas dans :data:`ICON_SIZE_ABOVE`.
+    """The icon size that goes with this label — ``None`` when its text
+    class is not in :data:`ICON_SIZE_ABOVE`.
 
-    ``label_class`` est la chaîne de classes composée du libellé ; on y
-    cherche le token ``text-*`` de TAILLE. Les autres ``text-*`` (une
-    couleur, ``text-left``) ne sont pas dans la table, donc ignorés — ce
-    qui est exactement pourquoi la table liste les tailles au lieu de
-    matcher un préfixe.
+    ``label_class`` is the label's composed class string; we look in it
+    for the SIZE ``text-*`` token. The other ``text-*`` (a colour,
+    ``text-left``) are not in the table, so they are ignored — which is
+    exactly why the table lists the sizes instead of matching a prefix.
     """
     for token in label_class.split():
         size = ICON_SIZE_ABOVE.get(token)

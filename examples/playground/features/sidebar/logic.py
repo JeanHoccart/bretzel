@@ -1,8 +1,8 @@
-"""Handlers du banc ``Sidebar`` — ils MUTENT, les panneaux se re-rendent.
+"""The ``Sidebar`` bench's handlers — they MUTATE, the panels re-render.
 
-Chaque ``log_*`` empile une ligne dans ``SidebarEvents``, dont le
-panneau d'événements déclare la dépendance : le re-rendu est celui du
-socle, pas un appel explicite.
+Every ``log_*`` pushes a line into ``SidebarEvents``, whose dependency
+the events panel declares: the re-render is the base layer's, not an
+explicit call.
 """
 
 from examples.playground.features.sidebar.state import (
@@ -37,9 +37,9 @@ def clear_log() -> None:
 
 
 def server_changed(state: SidebarPlayground) -> None:
-    # Param typé → le dispatcher hydrate la valeur du contrôle changé dans
-    # ``state`` (coercée + persistée). Le panneau déclare
-    # ``deps=[SidebarPlayground]``, il se re-rend seul.
+    # A typed param → the dispatcher hydrates the changed control's
+    # value into ``state`` (coerced + persisted). The panel declares
+    # ``deps=[SidebarPlayground]``, it re-renders on its own.
     pass
 
 

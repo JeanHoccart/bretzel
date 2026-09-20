@@ -1,34 +1,34 @@
-"""features/cahier_data — data : le cahier de texte, la progression, les fiches.
+"""features/cahier_data — data: the lesson log, the progression, the
+sheets.
 
-``kind="data"``. EF-K1 à EF-K12, EF-L1 à EF-L3, EF-M1 à EF-M4.
+``kind="data"``. EF-K1 to EF-K12, EF-L1 to EF-L3, EF-M1 to EF-M4.
 
-EF-K2 — **le geste visé est celui du soir**
----------------------------------------------
-*« Ouvrir, vérifier, recopier sur École Directe. Tout le reste est là
-pour épargner de la frappe. »* Cinq pré-remplissages, et le cinquième est
-le seul qui ne se devine pas :
+EF-K2 — **the gesture aimed at is the evening one**
+-----------------------------------------------------
+*"Open, check, copy onto École Directe. All the rest is there to save
+typing."* Five pre-fillings, and the fifth is the only one that cannot be
+guessed:
 
-1. la classe du MOMENT, d'après l'emploi du temps ;
-2. le chapitre de la dernière séance de cette classe ;
-3. la séance SUIVANTE, pour cette classe ;
-4. le texte pré-rempli avec les deux titres ;
-5. **le chapitre n'est annoncé qu'une fois par classe.** *« Répété à
-   chaque séance, il noierait le titre du jour sur École Directe. »*
+1. the class OF THE MOMENT, from the timetable;
+2. the chapter of that class's last session;
+3. the NEXT session, for that class;
+4. the text pre-filled with both titles;
+5. **the chapter is announced only once per class.** *"Repeated at every
+   session, it would drown the day's title on École Directe."*
 
-EF-K5 — le cahier lit la GRILLE **et** les exceptions
-------------------------------------------------------
-*« Jamais la grille seule — sinon il proposerait de noter une classe
-qu'on n'a pas eue. »* C'est pour ça que :func:`prochaines_heures` passe
-par ``grille_data.semaine_affichee``, qui mélange déjà les trois sources,
-au lieu de relire ``creneaux``.
+EF-K5 — the log reads the GRID **and** the exceptions
+-------------------------------------------------------
+*"Never the grid alone — otherwise it would offer to record a class that
+did not take place."* That is why :func:`prochaines_heures` goes through
+``grille_data.semaine_affichee``, which already mixes the three sources,
+instead of re-reading ``creneaux``.
 
-EF-M3 — une fiche est rattachée par le TITRE, jamais par le numéro
--------------------------------------------------------------------
-**Piège n° 10.** *« Un numéro glisse dès qu'on insère une séance en cours
-d'année : toutes les fiches suivantes se retrouveraient sur la voisine,
-sans que rien ne le dise. »* La clé de ``fiches_seance`` est donc
-``(chapitre_id, seance_titre)``, et le numéro n'est qu'une position du
-jour.
+EF-M3 — a sheet is attached by TITLE, never by number
+-------------------------------------------------------
+**Trap no. 10.** *"A number slips as soon as a session is inserted
+mid-year: every following sheet would end up on its neighbour, with
+nothing to say so."* So ``fiches_seance``'s key is ``(chapitre_id,
+seance_titre)``, and the number is only a position of the day.
 """
 
 from __future__ import annotations
@@ -43,18 +43,19 @@ from examples.ecole.features.annees import garde_ecriture
 
 
 class CahierRev(AppState):
-    """Le jeton des zones du cahier. Même raison que les autres."""
+    """The log zones' token. The same reason as the others."""
 
     rev: int = field(default=0, merge="add")
 
 
 def entrees_de(classe_id: int, croissant: bool = False) -> list[dict]:
-    """Les entrées d'une classe (EF-K8).
+    """A class's entries (EF-K8).
 
-    *« La liste d'une classe se lit la séance du jour en tête. L'archive,
-    elle, se lit dans l'ordre chronologique croissant, septembre en haut.
-    Ce n'est pas le même objet : un écran se consulte, une archive se lit
-    du début à la fin. »* D'où le paramètre, et son défaut.
+    *"A class's list is read with the day's session at the head. The
+    archive, for its part, is read in increasing chronological order,
+    September at the top. It is not the same object: a screen is
+    consulted, an archive is read from beginning to end."* Hence the
+    parameter, and its default.
     """
     sens = "ASC" if croissant else "DESC"
     return query(
@@ -84,12 +85,12 @@ def entree(entree_id: int) -> dict | None:
 
 
 def chapitres_du_niveau(niveau: str) -> list[dict]:
-    """Les chapitres d'un niveau (EF-L3).
+    """A level's chapters (EF-L3).
 
-    *« Le niveau rapproche une classe d'un chapitre par le début de son
-    code. »* Le rapprochement passe par
-    :func:`~examples.ecole.core.domain.niveau_du_code`, qui est l'unique
-    façon de le faire dans toute l'application.
+    *"The level brings a class close to a chapter through the start of
+    its code."* The matching goes through
+    :func:`~examples.ecole.core.domain.niveau_du_code`, which is the only
+    way of doing it in the whole application.
     """
     return query(
         "SELECT id, titre, rang FROM chapitres WHERE niveau = ? "
@@ -108,20 +109,19 @@ def derniere_entree(classe_id: int) -> dict | None:
 
 
 def deja_notee(classe_id: int, chapitre_id: int, titre: str) -> bool:
-    """EF-K11 — *« rien n'est proposé si la classe a déjà noté cette
-    séance : ce serait l'inviter à l'écrire deux fois »*."""
+    """EF-K11 — *"nothing is proposed if the class has already recorded
+    this session: that would be inviting them to write it twice"*."""
     return bool(query(
         "SELECT 1 FROM cahier WHERE classe_id = ? AND chapitre_id = ? "
         "AND seance_titre = ? LIMIT 1", (classe_id, chapitre_id, titre)))
 
 
 def chapitre_deja_annonce(classe_id: int, chapitre_id: int) -> bool:
-    """EF-K2 § 5 — **le chapitre n'est annoncé qu'une fois par classe.**
+    """EF-K2 § 5 — **the chapter is announced only once per class.**
 
-    *« Répété à chaque séance, il noierait le titre du jour sur École
-    Directe. »* Et c'est PAR CLASSE, ce qui est la raison pour laquelle
-    reprendre une entrée pour une classe sœur bouge cette ligne-là et
-    rien d'autre (EF-K9).
+    *"Repeated at every session, it would drown the day's title on École
+    Directe."* And it is PER CLASS, which is the reason why picking up an
+    entry for a sister class moves that line and nothing else (EF-K9).
     """
     return bool(query(
         "SELECT 1 FROM cahier WHERE classe_id = ? AND chapitre_id = ? LIMIT 1",
@@ -129,12 +129,11 @@ def chapitre_deja_annonce(classe_id: int, chapitre_id: int) -> bool:
 
 
 def proposition(classe_id: int, niveau: str) -> dict:
-    """Ce que le formulaire du soir doit déjà porter (EF-K2).
+    """What the evening form must already carry (EF-K2).
 
-    Rend ``{chapitre_id, chapitre, numero, titre, contenu, travail}``.
-    Les quatre pré-remplissages se lisent dans l'ordre du cahier ; le
-    cinquième — l'annonce du chapitre — est la ligne conditionnelle du
-    ``contenu``.
+    Returns ``{chapitre_id, chapitre, numero, titre, contenu, travail}``.
+    The four pre-fillings read in the specification's order; the fifth —
+    the chapter announcement — is the ``contenu``'s conditional line.
     """
     chapitres = chapitres_du_niveau(niveau)
     if not chapitres:
@@ -153,7 +152,7 @@ def proposition(classe_id: int, niveau: str) -> dict:
         None,
     )
     if suivante is None:
-        # Le chapitre est fini pour cette classe : on passe au suivant.
+        # The chapter is finished for this class: we move to the next.
         rang = chapitres.index(chapitre)
         chapitre = chapitres[min(rang + 1, len(chapitres) - 1)]
         seances = seances_de(chapitre["id"])
@@ -181,13 +180,14 @@ def proposition(classe_id: int, niveau: str) -> dict:
 
 def ce_qua_note_une_soeur(classe_id: int, niveau: str, chapitre_id: int,
                           titre: str) -> list[dict]:
-    """EF-K10 — *« ce qu'une classe sœur a noté pour la même séance »*.
+    """EF-K10 — *"what a sister class recorded for the same session"*.
 
-    *« Le geste : on est sur la 4e2, on cherche ce que la 4e1 a fait.
-    Sans cela il faut aller sur la 4e1, retrouver la séance et la pousser
-    — l'inverse du sens dans lequel on pense. »*
+    *"The gesture: we are on 4e2, we look for what 4e1 did. Without it
+    one has to go to 4e1, find the session and push it — the opposite of
+    the direction one thinks in."*
 
-    Rien n'est rendu si CETTE classe a déjà noté la séance (EF-K11).
+    Nothing is returned if THIS class has already recorded the session
+    (EF-K11).
     """
     if not titre or deja_notee(classe_id, chapitre_id, titre):
         return []
@@ -204,17 +204,15 @@ def ce_qua_note_une_soeur(classe_id: int, niveau: str, chapitre_id: int,
 
 
 def reprendre(contenu: str, chapitre: str, annoncer: bool) -> str:
-    """EF-K9 — *« le texte est AJUSTÉ, jamais recalculé »*.
+    """EF-K9 — *"the text is ADJUSTED, never recomputed"*.
 
-    *« Une première version le recomposait depuis le chapitre, et jetait
-    donc tout ce qui avait été écrit à la main — or c'est exactement ce
-    qu'on veut reprendre. Seule la ligne d'annonce du chapitre bouge,
-    parce que la règle "le chapitre n'est annoncé qu'une fois" est PAR
-    CLASSE. »*
+    *"A first version recomposed it from the chapter, and therefore threw
+    away everything written by hand — which is exactly what one wants to
+    pick up. Only the chapter-announcement line moves, because the rule
+    'the chapter is announced only once' is PER CLASS."*
 
-    Donc : on retire l'annonce si elle est là et qu'elle ne doit pas y
-    être, on l'ajoute si elle doit y être. Le reste du texte n'est jamais
-    touché.
+    So: we remove the announcement if it is there and should not be, we
+    add it if it should be. The rest of the text is never touched.
     """
     lignes = contenu.split("\n")
     annonce = f"{chapitre}."
@@ -226,18 +224,19 @@ def reprendre(contenu: str, chapitre: str, annoncer: bool) -> str:
 
 
 def prochaines_heures(annee: dict, depuis: date, jours: int = 7) -> list[dict]:
-    """Les heures à venir, **grille ET exceptions** (EF-K5, EF-K6, EF-K7).
+    """The hours coming up, **grid AND exceptions** (EF-K5, EF-K6,
+    EF-K7).
 
-    - une heure ANNULÉE n'y est pas, et n'est plus proposée comme prochain
-      cours (EF-K5) ;
-    - un jour de vacances n'y est pas non plus (EF-K6 : *« le cahier ne
-      propose jamais de travail pour le lundi 26 octobre si ce lundi
-      tombe en vacances »*) ;
-    - une heure à NATURE n'a pas de séance à consigner (EF-K7).
+    - a CANCELLED hour is not there, and is no longer proposed as the
+      next lesson (EF-K5);
+    - a holiday day is not there either (EF-K6: *"the log never offers
+      homework for Monday 26 October if that Monday falls in the
+      holidays"*);
+    - an hour with a NATURE has no session to record (EF-K7).
 
-    Et chaque heure dit si c'est un **TP de trois heures** (EF-K12), par
-    la règle unique de ``domain.est_un_tp`` : *« une seule définition du
-    TP dans toute l'application, jamais deux »*.
+    And every hour says whether it is a **three-hour practical**
+    (EF-K12), by ``domain.est_un_tp``'s single rule: *"one single
+    definition of the practical in the whole application, never two"*.
     """
     from examples.ecole.features.grille_data import (
         lundi_affiche,
@@ -265,14 +264,13 @@ def prochaines_heures(annee: dict, depuis: date, jours: int = 7) -> list[dict]:
 
 
 def progression(annee_id: int, niveau: str) -> dict:
-    """EF-L1 — **un tableau, pas une liste.**
+    """EF-L1 — **a table, not a list.**
 
-    *« Une ligne par classe, une colonne par chapitre, et dans chaque
-    case où elle en est. »* Le besoin derrière : *« cinq classes sur un
-    même programme dérivent l'une de l'autre sans qu'on s'en aperçoive,
-    et on le découvre en juin quand il est trop tard »* — donc le
-    décalage doit se lire COLONNE PAR COLONNE, pas en lisant cinq cahiers
-    l'un après l'autre.
+    *"One row per class, one column per chapter, and in each cell where
+    it has got to."* The need behind it: *"five classes on the same
+    syllabus drift apart without anybody noticing, and one discovers it
+    in June when it is too late"* — so the gap must read COLUMN BY
+    COLUMN, not by reading five logs one after the other.
     """
     chapitres = chapitres_du_niveau(niveau)
     classes = [
@@ -311,10 +309,10 @@ def niveaux_enseignes(annee_id: int) -> list[str]:
     return vus
 
 
-# ── Les fiches de séance (EF-M) ──────────────────────────────────────
+# ── The session sheets (EF-M) ────────────────────────────────────────
 
 def fiche_seance(chapitre_id: int, titre: str) -> dict | None:
-    """La fiche d'une séance, **par son TITRE** (EF-M3, piège n° 10)."""
+    """A session's sheet, **by its TITLE** (EF-M3, trap no. 10)."""
     lignes = query(
         "SELECT id, resume FROM fiches_seance WHERE chapitre_id = ? "
         "AND seance_titre = ?", (chapitre_id, titre))
@@ -328,7 +326,7 @@ def fiche_seance(chapitre_id: int, titre: str) -> dict | None:
 
 
 def fiches_du_chapitre(chapitre_id: int) -> dict[str, dict]:
-    """Les fiches d'un chapitre, indexées par TITRE de séance."""
+    """A chapter's sheets, indexed by session TITLE."""
     return {
         r["seance_titre"]: {"id": r["id"], "resume": r["resume"]}
         for r in query(
@@ -338,19 +336,19 @@ def fiches_du_chapitre(chapitre_id: int) -> dict[str, dict]:
 
 
 def fiches_orphelines(chapitre_id: int) -> list[str]:
-    """EF-M4 — celles qu'on n'a pas pu rattacher, **signalées**.
+    """EF-M4 — those that could not be reattached, **flagged**.
 
-    *« Une séance renommée, insérée ou supprimée doit laisser les fiches
-    là où elles vont, et SIGNALER celles qu'on n'a pas pu rattacher
-    plutôt que de les poser au hasard. »* Une fiche dont le titre ne
-    correspond à aucune séance du chapitre est donc dite, pas
-    réaffectée — la réaffecter au hasard est précisément le piège n° 10.
+    *"A session renamed, inserted or deleted must leave the sheets where
+    they belong, and FLAG those that could not be reattached rather than
+    putting them somewhere at random."* So a sheet whose title matches no
+    session of the chapter is said, not reassigned — reassigning it at
+    random is precisely trap no. 10.
     """
     titres = {s["titre"] for s in seances_de(chapitre_id)}
     return [t for t in fiches_du_chapitre(chapitre_id) if t not in titres]
 
 
-# ── Les écritures ────────────────────────────────────────────────────
+# ── The writes ───────────────────────────────────────────────────────
 
 def poser_entree(classe_id: int, annee_id: int, champs: dict) -> int:
     garde_ecriture(annee_id)
@@ -376,7 +374,7 @@ def modifier_entree(entree_id: int, annee_id: int, champs: dict) -> None:
 
 
 def marquer_reportee(entree_id: int, annee_id: int) -> None:
-    """EF-K4 — comme les notes (EF-D7), avec la date."""
+    """EF-K4 — like the marks (EF-D7), with the date."""
     garde_ecriture(annee_id)
     execute("UPDATE cahier SET reporte_le = ? WHERE id = ?",
             (date.today().isoformat(), entree_id))
@@ -391,7 +389,7 @@ def supprimer_entree(entree_id: int, annee_id: int) -> None:
 
 def ecrire_resume(chapitre_id: int, titre: str, annee_id: int,
                   resume: str) -> None:
-    """EF-M2 — le résumé se RÉÉCRIT. C'est la moitié qu'on corrige."""
+    """EF-M2 — the summary is REWRITTEN. It is the half one corrects."""
     garde_ecriture(annee_id)
     execute(
         "INSERT INTO fiches_seance (chapitre_id, seance_titre, resume) "
@@ -404,12 +402,12 @@ def ecrire_resume(chapitre_id: int, titre: str, annee_id: int,
 
 def ajouter_note(chapitre_id: int, titre: str, annee_id: int, carnet: str,
                  texte: str) -> None:
-    """EF-M2 — les deux carnets où l'on AJOUTE.
+    """EF-M2 — the two notebooks one ADDS to.
 
-    *« Chaque note est datée et NE REMPLACE PAS la précédente : la même
-    séance donnée à la 3e2 puis à la 3e9, ce sont deux observations. »*
-    C'est un ``INSERT``, jamais un ``UPDATE``, et c'est toute la
-    différence avec le résumé juste au-dessus.
+    *"Every note is dated and DOES NOT REPLACE the previous one: the same
+    session given to 3e2 then to 3e9 makes two observations."* It is an
+    ``INSERT``, never an ``UPDATE``, and that is the whole difference
+    with the summary just above.
     """
     garde_ecriture(annee_id)
     lignes = query(

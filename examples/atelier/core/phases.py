@@ -1,34 +1,33 @@
-"""core/phases — logic : à quelle PHASE de travail appartient un appel.
+"""core/phases — logic: which work PHASE a call belongs to.
 
-Feature ``kind="logic"`` : elle ne rend rien, ne touche aucune ressource,
-et ne porte aucun état. Elle répond à une question et une seule — « cet
-appel d'outil, c'est de la lecture, de l'écriture, de la vérification ou
-de la livraison ? » — et c'est de cette réponse que tout le reste de
-l'atelier découle.
+A ``kind="logic"`` feature: it renders nothing, touches no resource, and
+carries no state. It answers one question and one only — "this tool call,
+is it reading, writing, verifying or delivering?" — and everything else
+in the workshop follows from that answer.
 
-Pourquoi les phases sont le cœur
----------------------------------
-Compter les appels dit qu'une tâche a coûté cher. Il ne dit pas POURQUOI.
-La suite des phases, elle, se lit d'un coup d'œil :
+Why the phases are the heart
+-----------------------------
+Counting the calls says a task was expensive. It does not say WHY. The
+sequence of phases, on the other hand, reads at a glance:
 
-    LLLL ÉÉÉÉ VV ÉÉ VV                    → sain
-    L É V É V É V É V É V É V É V         → l'aller-retour incessant
+    RRRR WWWW VV WW VV                    → healthy
+    R W V W V W V W V W V W V W V         → the endless back-and-forth
 
-Les deux tâches peuvent avoir le même nombre d'appels. Seule la seconde
-montre quelqu'un qui code par tâtonnement, écrit trois lignes, relance la
-suite, relit le rouge, récrit trois lignes. C'est exactement ce que
-l'utilisateur a demandé de voir.
+Both tasks may have the same number of calls. Only the second shows
+somebody coding by trial and error, writing three lines, re-running the
+suite, re-reading the red, rewriting three lines. That is exactly what
+the user asked to see.
 
-⚠️ Le classement est HEURISTIQUE, et il le reste
-------------------------------------------------
-Un appel ``Bash`` peut tout faire : ``cat`` lit, ``pytest`` vérifie, un
-``python - <<EOF`` écrit un fichier. On lit donc la COMMANDE, pas
-seulement le nom de l'outil — et il restera des cas ambigus, rangés en
-``AUTRE`` plutôt que devinés. Une phase inventée ferait mentir la frise,
-et la frise est tout ce qu'on regarde.
+⚠️ The classification is HEURISTIC, and it stays so
+---------------------------------------------------
+A ``Bash`` call can do anything: ``cat`` reads, ``pytest`` verifies, a
+``python - <<EOF`` writes a file. So we read the COMMAND, not only the
+tool's name — and ambiguous cases will remain, filed as ``OTHER`` rather
+than guessed. An invented phase would make the strip lie, and the strip
+is all we look at.
 
-Le compte de `AUTRE` est affiché : s'il grossit, c'est l'heuristique qu'il
-faut corriger, pas la mesure qu'il faut croire.
+The count of `OTHER` is shown: if it grows, it is the heuristic that
+needs fixing, not the measurement that should be believed.
 """
 
 from __future__ import annotations
@@ -37,73 +36,72 @@ import re
 
 from bretzel import Feature
 
-#: Les quatre phases, dans l'ordre où une tâche saine les traverse. La
-#: cinquième — ``AUTRE`` — n'est pas une phase de travail : c'est l'aveu
-#: que l'heuristique n'a pas su.
-LECTURE = "lecture"
-ECRITURE = "ecriture"
-VERIFICATION = "verification"
-LIVRAISON = "livraison"
-AUTRE = "autre"
+#: The four phases, in the order a healthy task goes through them. The
+#: fifth — ``OTHER`` — is not a work phase: it is the admission that the
+#: heuristic did not know.
+READING = "reading"
+WRITING = "writing"
+VERIFYING = "verifying"
+DELIVERING = "delivering"
+OTHER = "other"
 
-PHASES = (LECTURE, ECRITURE, VERIFICATION, LIVRAISON, AUTRE)
+PHASES = (READING, WRITING, VERIFYING, DELIVERING, OTHER)
 
-#: Ce que chaque phase veut dire, en une ligne — pour l'écran, pas pour le
-#: code. Les libellés vivent ici parce que c'est ici qu'on les décide.
-LIBELLES = {
-    LECTURE: "lire et comprendre",
-    ECRITURE: "produire du code",
-    VERIFICATION: "juger ce qui est écrit",
-    LIVRAISON: "commiter",
-    AUTRE: "non classé — l'heuristique n'a pas su",
+#: What each phase means, in one line — for the screen, not for the code.
+#: The labels live here because this is where they are decided.
+LABELS = {
+    READING: "read and understand",
+    WRITING: "produce code",
+    VERIFYING: "judge what is written",
+    DELIVERING: "commit",
+    OTHER: "unclassified — the heuristic did not know",
 }
 
-#: La lettre de chaque phase, et sa couleur. Les deux vivent ICI parce
-#: qu'elles sont lues à trois endroits — la frise de la liste, celle de
-#: la fiche, et la légende. Trois copies finiraient par ne plus dire la
-#: même chose, et une légende qui ment sur ses propres couleurs est pire
-#: qu'une absence de légende.
-LETTRES = {
-    LECTURE: "L", ECRITURE: "É", VERIFICATION: "V",
-    LIVRAISON: "C", AUTRE: "·",
+#: Each phase's letter, and its colour. Both live HERE because they are
+#: read in three places — the list's strip, the sheet's strip, and the
+#: legend. Three copies would end up no longer saying the same thing, and
+#: a legend lying about its own colours is worse than no legend at all.
+LETTERS = {
+    READING: "R", WRITING: "W", VERIFYING: "V",
+    DELIVERING: "D", OTHER: "·",
 }
 
-COULEURS = {
-    LECTURE: "info",
-    ECRITURE: "primary",
-    VERIFICATION: "warning",
-    LIVRAISON: "success",
-    AUTRE: "muted",
+COLOURS = {
+    READING: "info",
+    WRITING: "primary",
+    VERIFYING: "warning",
+    DELIVERING: "success",
+    OTHER: "muted",
 }
 
-#: ``L`` → ``info``. La frise est stockée en LETTRES — c'est une chaîne,
-#: pas une liste de phases — donc la peindre demande le chemin retour.
-COULEUR_PAR_LETTRE = {
-    lettre: COULEURS[phase] for phase, lettre in LETTRES.items()
+#: ``R`` → ``info``. The strip is stored as LETTERS — it is a string,
+#: not a list of phases — so painting it needs the way back.
+COLOUR_BY_LETTER = {
+    letter: COLOURS[phase] for phase, letter in LETTERS.items()
 }
 
-#: Les outils dont le NOM suffit à trancher. Les autres passent par la
-#: lecture de leur commande.
-PAR_OUTIL = {
-    "Read": LECTURE,
-    "Grep": LECTURE,
-    "Glob": LECTURE,
-    "NotebookRead": LECTURE,
-    "WebFetch": LECTURE,
-    "WebSearch": LECTURE,
-    "Write": ECRITURE,
-    "Edit": ECRITURE,
-    "NotebookEdit": ECRITURE,
+#: The tools whose NAME is enough to decide. The others go through
+#: reading their command.
+BY_TOOL = {
+    "Read": READING,
+    "Grep": READING,
+    "Glob": READING,
+    "NotebookRead": READING,
+    "WebFetch": READING,
+    "WebSearch": READING,
+    "Write": WRITING,
+    "Edit": WRITING,
+    "NotebookEdit": WRITING,
 }
 
-#: Ce qui PRÉCÈDE le vrai verbe et le cache : un `cd` de positionnement,
-#: un `export` d'encodage, une variable de chemin. Mesuré à la première
-#: aspiration : **24 % des appels finissaient en « non classé »**, presque
-#: tous pour cette raison — la commande disait
-#: ``export PYTHONIOENCODING=utf-8; py -m pytest …`` et l'heuristique
-#: lisait le ``export``. Un quart d'appels non classés rend la frise
-#: incroyable, donc inutile.
-PREAMBULE = re.compile(
+#: What PRECEDES the real verb and hides it: a positioning `cd`, an
+#: encoding `export`, a path variable. Measured on the first ingest:
+#: **24 % of the calls ended up "unclassified"**, almost all for this
+#: reason — the command said
+#: ``export PYTHONIOENCODING=utf-8; py -m pytest …`` and the heuristic
+#: read the ``export``. A quarter of unclassified calls makes the strip
+#: unbelievable, hence useless.
+PRELUDE = re.compile(
     r"^\s*(?:"
     r"cd\s+[^&;|]+(?:&&|;)"          # cd … && …
     r"|export\s+\w+=[^;]*;"          # export VAR=… ;
@@ -113,136 +111,135 @@ PREAMBULE = re.compile(
 
 
 def strip_prelude(command: str) -> str:
-    """La commande sans ce qui la précède — appliqué jusqu'à point fixe.
+    """The command without what precedes it — applied to a fixed point.
 
-    Une commande de ce dépôt en empile souvent deux (``cd`` puis
-    ``export``), donc un seul passage ne suffit pas.
+    A command in this repository often stacks two (``cd`` then
+    ``export``), so a single pass is not enough.
     """
     previous = None
     while previous != command:
         previous = command
-        command = PREAMBULE.sub("", command, count=1)
+        command = PRELUDE.sub("", command, count=1)
     return command
 
 
-#: ⚠️ L'ORDRE COMPTE : `git commit` gagne sur `git add`, et `pytest` sur
-#: un `cd` qui le précède. On teste donc de la phase la plus spécifique à
-#: la plus générale, et le premier motif qui mord décide.
+#: ⚠️ THE ORDER MATTERS: `git commit` wins over `git add`, and `pytest`
+#: over a `cd` preceding it. So we test from the most specific phase to
+#: the most general, and the first pattern that bites decides.
 #:
-#: Chaque motif est ancré sur un MOT (``\b``) : sans ça, `check` mordrait
-#: sur `checkout` et rangerait un `git checkout` en vérification.
-MOTIFS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    (LIVRAISON, re.compile(r"\bgit\s+(commit|push|tag|revert)\b")),
+#: Every pattern is anchored on a WORD (``\b``): without that, `check`
+#: would bite on `checkout` and file a `git checkout` as verification.
+PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (DELIVERING, re.compile(r"\bgit\s+(commit|push|tag|revert)\b")),
     (
-        VERIFICATION,
+        VERIFYING,
         re.compile(
             r"\bpytest\b|\bruff\s+check\b|\blint-imports\b|\bimportlinter\b"
             r"|\bmypy\b|cli\.main\s+check\b|cli\.main\s+probe\b"
             r"|\bprobe_\w+\.py\b"
         ),
     ),
-    # `describe` est de la LECTURE et non de la vérification : il répond à
-    # « qu'est-ce qui existe », pas à « est-ce que c'est juste ». Les
-    # ranger ensemble effacerait justement la distinction qu'on mesure.
-    (LECTURE, re.compile(r"cli\.main\s+describe\b|\bgit\s+(log|show|diff|status)\b")),
+    # `describe` is READING and not verification: it answers "what
+    # exists", not "is this right". Filing them together would erase
+    # precisely the distinction being measured.
+    (READING, re.compile(r"cli\.main\s+describe\b|\bgit\s+(log|show|diff|status)\b")),
     (
-        LECTURE,
+        READING,
         re.compile(
             r"^\s*(cat|sed|head|tail|less|grep|rg|ls|find|wc|du|tree)\b"
             r"|\|\s*(grep|rg|head|tail|wc)\b"
         ),
     ),
-    # Un heredoc Python, un `>` ou un `tee` : c'est une ÉCRITURE de
-    # fichier déguisée en commande shell. Le mode d'échec sans cette
-    # ligne est silencieux — toute la production passerait en `AUTRE`.
-    (ECRITURE, re.compile(r"<<\s*'?\w+'?\s*$|>\s*[\w./-]+\.\w+|\btee\b|\bsed\s+-i\b")),
-    (LIVRAISON, re.compile(r"\bgit\s+(add|mv|rm|stash)\b")),
-    # ⚠️ Un `py -c` est ambigu par nature — il lit aussi bien qu'il écrit.
-    # On tranche sur ce qu'il FAIT : une écriture de fichier se voit
-    # (`write_text`, `open(..., "w")`), tout le reste est de
-    # l'inspection. Deviner « lecture » sans cette distinction rangerait
-    # en lecture les scripts d'édition, qui sont la façon dont ce dépôt
-    # écrit la plupart de ses fichiers.
-    (ECRITURE, re.compile(r"\bwrite_text\b|\bopen\([^)]*[\"']w[\"']|\bdump\(")),
-    (LECTURE, re.compile(r"\bpy(thon)?\b\s+-c\b|\bpython\b\s+-\s*$|\bread_text\b")),
+    # A Python heredoc, a `>` or a `tee`: it is a file WRITE disguised
+    # as a shell command. The failure mode without this line is silent —
+    # all the production would go to `OTHER`.
+    (WRITING, re.compile(r"<<\s*'?\w+'?\s*$|>\s*[\w./-]+\.\w+|\btee\b|\bsed\s+-i\b")),
+    (DELIVERING, re.compile(r"\bgit\s+(add|mv|rm|stash)\b")),
+    # ⚠️ A `py -c` is ambiguous by nature — it reads as much as it
+    # writes. We decide on what it DOES: a file write shows
+    # (`write_text`, `open(..., "w")`), all the rest is inspection.
+    # Guessing "reading" without this distinction would file the editing
+    # scripts as reading, and they are how this repository writes most of
+    # its files.
+    (WRITING, re.compile(r"\bwrite_text\b|\bopen\([^)]*[\"']w[\"']|\bdump\(")),
+    (READING, re.compile(r"\bpy(thon)?\b\s+-c\b|\bpython\b\s+-\s*$|\bread_text\b")),
 )
 
 
 def phase_of(tool: str, command: str = "") -> str:
-    """La phase d'un appel — son outil, et sa commande si c'est un shell.
+    """A call's phase — its tool, and its command if it is a shell.
 
-    ``command`` est la commande COMPLÈTE, pas son libellé : le verbe qui
-    décide arrive souvent après un préambule, et parfois à la deuxième
-    ligne d'une chaîne. Le libellé court, lui, sert à l'affichage et se
-    calcule ailleurs.
+    ``command`` is the COMPLETE command, not its label: the deciding verb
+    often comes after a preamble, and sometimes on the second line of a
+    string. The short label, for its part, serves the display and is
+    computed elsewhere.
     """
-    direct = PAR_OUTIL.get(tool)
+    direct = BY_TOOL.get(tool)
     if direct is not None:
         return direct
     if not command:
-        return AUTRE
-    # La commande ENTIÈRE, pas sa première ligne : le verbe qui compte
-    # arrive souvent après un `cd` ou un `export`, et parfois à la
-    # deuxième ligne d'une chaîne.
-    utile = strip_prelude(" ".join(command.split()))
-    for phase, motif in MOTIFS:
-        if motif.search(utile):
+        return OTHER
+    # The WHOLE command, not its first line: the verb that counts often
+    # comes after a `cd` or an `export`, and sometimes on the second line
+    # of a string.
+    useful = strip_prelude(" ".join(command.split()))
+    for phase, pattern in PATTERNS:
+        if pattern.search(useful):
             return phase
-    return AUTRE
+    return OTHER
 
 
 def sequence(phases: list[str]) -> str:
-    """La frise, compressée : les répétitions se réduisent à une lettre.
+    """The strip, compressed: repetitions reduce to one letter.
 
-    ``[lecture, lecture, lecture, ecriture]`` → ``"L É"``. Ce qu'on veut
-    voir n'est pas combien d'appels, c'est combien de FOIS on change de
-    phase — et une frise de 600 lettres ne se lit plus.
+    ``[reading, reading, reading, writing]`` → ``"R W"``. What we want to
+    see is not how many calls, it is how many TIMES the phase changes —
+    and a 600-letter strip no longer reads.
     """
     out: list[str] = []
     for phase in phases:
-        lettre = LETTRES.get(phase, "·")
-        if not out or out[-1] != lettre:
-            out.append(lettre)
+        letter = LETTERS.get(phase, "·")
+        if not out or out[-1] != letter:
+            out.append(letter)
     return " ".join(out)
 
 
 def verification_cycles(phases: list[str]) -> int:
-    """Combien de FOIS on est entré en vérification dans cette tâche.
+    """How many TIMES verification was entered in this task.
 
-    C'est la mesure de la règle que l'utilisateur a posée : on code tout,
-    on vérifie, on corrige, on vérifie une dernière fois. **Deux cycles,
-    pas plus.** Trois veut dire qu'on a recommencé ; dix, qu'on a codé
-    par tâtonnement en se servant de la suite de tests comme d'un
-    compilateur.
+    It is the measurement of the rule the user set: you code everything,
+    you verify, you correct, and one last verify. **Two cycles, no
+    more.** Three means starting over; ten, coding by trial and error
+    using the test suite as a compiler.
 
-    Compté sur les BLOCS et pas sur les appels : lancer trois suites de
-    suite est UN cycle de vérification, pas trois.
+    Counted on the BLOCKS and not on the calls: launching three suites in
+    a row is ONE verification cycle, not three.
     """
     cycles = 0
-    dedans = False
+    inside = False
     for phase in phases:
-        if phase == VERIFICATION and not dedans:
+        if phase == VERIFYING and not inside:
             cycles += 1
-            dedans = True
-        elif phase in (ECRITURE, LECTURE):
-            dedans = False
+            inside = True
+        elif phase in (WRITING, READING):
+            inside = False
     return cycles
 
 
-#: Le plafond que l'utilisateur a posé le 2026-09-12 : « tu codes tout, tu
-#: fais le check, tu corriges, et un seul dernier — deux checks globaux,
-#: pas plus, pas d'aller-retour incessant ». Il vit ici plutôt que dans
-#: l'écran : c'est une règle du dépôt, pas un détail d'affichage.
+#: The ceiling the user set on 2026-09-12: "you code everything, you run
+#: the check, you correct, and one last one — two global checks, no more,
+#: no endless back-and-forth". It lives here rather than in the screen:
+#: it is a rule of the repository, not a display detail.
 CYCLES_MAX = 2
 
 
-def verdict(cycles: int, erreurs: int) -> str:
-    """Le jugement d'une tâche, en un mot — ce que la liste trie dessus."""
+def verdict(cycles: int, errors: int) -> str:
+    """A task's verdict, in one word — what the list sorts on."""
     if cycles > CYCLES_MAX:
-        return "aller-retour"
-    if erreurs:
-        return "corrigé"
-    return "du premier coup"
+        return "back-and-forth"
+    if errors:
+        return "corrected"
+    return "first time"
 
 
 feature = Feature(

@@ -1,21 +1,22 @@
-"""features/realtime — écran 11 : ce qu'un autre onglet fait arriver ici.
+"""features/realtime — screen 11: what another tab makes arrive here.
 
-Ce que cet écran met sous contrainte : le **SSE**. Une zone
-``@refreshable(deps=[DealsRev, ViewerPrefs], broadcast=[DealsRev])`` :
-deux dépendances, une seule diffusée — le pipeline est global, le
-portefeuille regardé est personnel. Quand le pipeline écrit
-dans un onglet, `DealsRev` bouge, et le socle pousse un signal aux AUTRES
-onglets, qui refont leur requête. Aucune ligne de JavaScript ici, aucune
-URL — la zone porte son `data-bz-subscribe-url`, le runtime la lit.
+What this screen puts under constraint: **SSE**. A zone
+``@refreshable(deps=[DealsRev, ViewerPrefs], broadcast=[DealsRev])``: two
+dependencies, only one broadcast — the pipeline is global, the portfolio
+being looked at is personal. When the pipeline writes in one tab,
+`DealsRev` moves, and the base layer pushes a signal to the OTHER tabs,
+which redo their request. No line of JavaScript here, no URL — the zone
+carries its `data-bz-subscribe-url`, the runtime reads it.
 
-**Le test à faire à deux onglets** : ouvrir cette page à gauche, le pipeline
-à droite, glisser une carte. Les chiffres de gauche bougent sans qu'on les
-touche. Un onglet seul ne prouve rien — il aurait de toute façon re-rendu
-sa propre zone.
+**The test to do with two tabs**: open this page on the left, the
+pipeline on the right, drag a card. The figures on the left move without
+being touched. A single tab proves nothing — it would have re-rendered
+its own zone anyway.
 
-``LiveConnection().connected`` est l'état de la connexion, tenu par le runtime et
-lu ici : c'est un ``ClientState``, donc l'afficher ne coûte pas une zone —
-la valeur redescend dans un patch et le navigateur écrit dans le nœud.
+``LiveConnection().connected`` is the connection's state, held by the
+runtime and read here: it is a ``ClientState``, so showing it does not
+cost a zone — the value comes back down in a patch and the browser writes
+into the node.
 """
 
 from __future__ import annotations
@@ -39,21 +40,23 @@ from examples.crm.features.shell import shell
 
 @refreshable(deps=[DealsRev, ViewerPrefs], broadcast=[DealsRev])
 def board_pulse() -> None:
-    """L'état du pipeline, tous porteurs confondus — poussé aux autres onglets.
+    """The pipeline's state, all holders together — pushed to the other
+    tabs.
 
-    Deux dépendances, **une seule diffusée**, et c'est tout le sujet :
+    Two dependencies, **only one broadcast**, and that is the whole
+    subject:
 
-    - ``DealsRev`` est une propriété de la BASE. Deux onglets ouverts
-      doivent voir le même chiffre, et celui qui n'a rien fait doit
-      bouger aussi — donc il est diffusé ;
-    - ``ViewerPrefs`` est le portefeuille que CETTE direction regarde.
-      Il re-rend la zone ici, et il n'a rien à faire chez les autres.
+    - ``DealsRev`` is a property of the DATABASE. Two open tabs must see
+      the same figure, and the one that did nothing must move too — so it
+      is broadcast;
+    - ``ViewerPrefs`` is the portfolio THIS directorate is looking at. It
+      re-renders the zone here, and it has no business at the others'.
 
-    ⚠️ Cette écriture n'existait pas avant le 2026-08-23. ``broadcast``
-    était un booléen, donc ``deps`` servait deux rôles à la fois : ajouter
-    ``ViewerPrefs`` aurait fait refetcher le monde entier dès qu'une seule
-    personne change SON réglage. La zone ne suivait donc pas le changement
-    de portefeuille — pas par oubli, faute de pouvoir l'écrire.
+    ⚠️ This writing did not exist before 2026-08-23. ``broadcast`` was a
+    boolean, so ``deps`` served two roles at once: adding ``ViewerPrefs``
+    would have made the whole world refetch as soon as a single person
+    changed THEIR setting. So the zone did not follow the portfolio
+    change — not by oversight, for want of being able to write it.
     """
     rows = live_board(visible_owner())
     total = sum(r["total"] or 0 for r in rows.values())
@@ -65,25 +68,25 @@ def board_pulse() -> None:
                     euros(row.get("total") or 0), "folder-open",
                     STAGE_COLOR[stage])
         with ui.hstack(justify="between", align="center"):
-            ui.text("Total ouvert", color="muted", size="sm")
+            ui.text("Total open", color="muted", size="sm")
             ui.heading(euros(total), level=3, size="md")
 
 
 @refreshable(deps=[DealsRev, ViewerPrefs], broadcast=[DealsRev])
 def recent_moves() -> None:
-    """Les dix affaires en tête de leurs colonnes, dans l'ordre du kanban.
+    """The ten deals at the head of their columns, in kanban order.
 
-    C'est la liste qui bouge quand quelqu'un réordonne : le rang est la
-    seule chose que le glisser-déposer écrit, donc la seule qui témoigne.
+    It is the list that moves when somebody reorders: the rank is the
+    only thing drag and drop writes, hence the only thing that testifies.
 
-    Même partage que ``board_pulse`` : le rang est global et se diffuse,
-    le portefeuille regardé est personnel et reste ici.
+    The same split as ``board_pulse``: the rank is global and is
+    broadcast, the portfolio being looked at is personal and stays here.
     """
     rows = column_heads(visible_owner(), limit=12)
     with ui.vstack(gap="sm"):
-        ui.heading("En tête de colonne", level=2, size="md")
+        ui.heading("Leading the column", level=2, size="md")
         if not rows:
-            ui.text("Aucune affaire ouverte.", color="muted", size="sm")
+            ui.text("No open deal.", color="muted", size="sm")
         for row in ui.each(rows, key="id"):
             with ui.card(padding="sm"), ui.hstack(gap="sm", align="center"):
                 ui.badge(STAGE_LABEL[row["stage"]],
@@ -98,10 +101,10 @@ def recent_moves() -> None:
 
 
 def connection_badge() -> None:
-    """L'état de la connexion SSE, lié — donc sans zone.
+    """The SSE connection's state, bound — so with no zone.
 
-    S'il était une zone ``@refreshable``, il ajouterait du HTML à chacune
-    des réponses qu'il prétend décrire.
+    Were it a ``@refreshable`` zone, it would add HTML to every one of the
+    responses it claims to describe.
     """
     live = LiveConnection()
     with ui.hstack(gap="sm", align="center"):
@@ -109,18 +112,18 @@ def connection_badge() -> None:
                 visible=live.connected)
         ui.icon("radio", color="muted", size="sm",
                 visible=~live.connected)
-        ui.text("Flux temps réel", color="muted", size="sm")
+        ui.text("Live stream", color="muted", size="sm")
 
 
-@page("/temps-reel", layout=shell, title="Temps réel")
+@page("/realtime", layout=shell, title="Realtime")
 def realtime_page() -> None:
     with ui.vstack(gap="lg"):
         with ui.hstack(justify="between", align="center", wrap=True):
-            ui.heading("Temps réel", level=1, size="2xl")
+            ui.heading("Realtime", level=1, size="2xl")
             connection_badge()
         ui.alert(
-            "Ouvre le Pipeline dans un second onglet et glisse une carte : "
-            "les chiffres de cette page bougent sans être rechargés.",
+            "Open the Pipeline in a second tab and drag a card: the "
+            "figures on this page move without being reloaded.",
             color="info", icon="info",
         )
         board_pulse()

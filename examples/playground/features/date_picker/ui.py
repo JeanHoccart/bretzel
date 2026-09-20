@@ -44,11 +44,11 @@ from examples.playground.features.date_picker.logic import (
 PATH = "/date_picker"
 
 TODAY = dt.date.today()
-#: Le 1er du mois courant. Les demos de ``marks=`` s'y ancrent : la
-#: grille n'affiche QUE le mois courant, donc ``TODAY + 11 jours``
-#: un 25 tombe dans le mois suivant et la demo ne montre aucune
-#: pastille. Tout mois a au moins 28 jours, donc ces decalages-la
-#: sont toujours dedans.
+#: The 1st of the current month. The ``marks=`` demos anchor on it:
+#: the grid shows ONLY the current month, so ``TODAY + 11 days`` on a
+#: 25th falls into the next month and the demo shows no dot at all.
+#: Every month has at least 28 days, so those offsets are always
+#: inside.
 MONTH_START = TODAY.replace(day=1)
 
 
@@ -96,9 +96,9 @@ def build_preview(state: DatePickerPlayground):
             d.strip() for d in state.disabled_dates.split(",") if d.strip()
         ]
     if state.marks:
-        # La forme LISTE de ``marks=`` : « ces jours-la ont quelque
-        # chose ». La forme dict (date -> compte) est demontree sur la
-        # page ``calendar``, qui est le composant proprietaire.
+        # The LIST form of ``marks=``: "those days have something".
+        # The dict form (date -> count) is demonstrated on the
+        # ``calendar`` page, which is the owning component.
         kwargs["marks"] = [
             d.strip() for d in state.marks.split(",") if d.strip()
         ]
@@ -177,13 +177,13 @@ def server_panel() -> None:
                       options=[(s, s) for s in SIZES],
                       on_change=server_changed)
         with control("weekstart (0=Sun, 1=Mon)"):
-            # ``state.weekstart`` SANS ``str()`` : la valeur porte un tampon
-            # (le nom du champ) et c'est la seule chose qui atteste « le
-            # serveur fait foi ». ``str()`` le déballe → pas de
-            # ``_serverSync`` → le contrôle reste figé sur son ancienne
-            # valeur après un refresh du panneau. Select normalise déjà en
-            # chaîne pour matcher les clés d'options (mesuré : le champ vaut
-            # "1" avec ou sans le ``str()``), donc il ne protégeait de rien.
+            # ``state.weekstart`` WITHOUT ``str()``: the value carries a
+            # stamp (the field's name) and it is the only thing attesting
+            # "the server is authoritative". ``str()`` unwraps it → no
+            # ``_serverSync`` → the control stays frozen on its old value
+            # after a panel refresh. Select already normalises to a string
+            # to match the option keys (measured: the field is "1" with or
+            # without the ``str()``), so it protected nothing.
             ui.select(value=state.weekstart,
                       options=[("0", "0 (Sunday)"),
                                ("1", "1 (Monday)")],
@@ -414,7 +414,7 @@ def page() -> None:
                     )
                     with ui.flex(justify="start"):
                         ui.date_picker(
-                            placeholder="Choisir une date",
+                            placeholder='Pick a date',
                             weekday_names=list(WEEKDAYS_FR),
                             month_names=list(MONTHS_FR),
                         )
@@ -662,25 +662,29 @@ def page() -> None:
                         with ui.vstack():
                             ui.heading("External controls — the 3 modes", level=2)
                             ui.text(
-                                "Les sept méthodes arrivées le 2026-09-03. Un picker "
-                                "est DEUX natures à la fois : un panneau ancré (comme "
-                                "`dialog`) et un champ qui porte une valeur (comme "
-                                "`input`). Sa surface est donc l'union des deux "
-                                "vocabulaires déjà fixés par ses voisins — rien "
-                                "d'inventé.",
+                                'The seven methods that arrived on '
+                                    '2026-09-03. A picker is TWO natures at '
+                                    'once: an anchored panel (like `dialog`) '
+                                    'and a field carrying a value (like '
+                                    '`input`). Its surface is therefore the '
+                                    'union of the two vocabularies its '
+                                    'neighbours already fixed — nothing '
+                                    'invented.',
                                 color="muted", size="sm",
                             )
 
-                            # ── Mode 1 — Impératif seul ─────────────────────
+                            # ── Mode 1 — Imperative only ────────────────────
                             ui.heading("Mode 1 — Imperative only (default for "
                                        "one-off writes)", level=3)
                             ui.text(
-                                "Aucun ClientState. `.open()` / `.close()` / "
-                                "`.toggle()` dispatchent `bz-open` / `bz-close` / "
-                                "`bz-toggle`, que la racine rattrape ; `.set()` "
-                                "dispatche `bz-set`. `.focus()` vise le champ "
-                                "VISIBLE — pas le porteur caché, qui est le premier "
-                                "`<input>` du composant et ne prend pas le focus.",
+                                'No ClientState. `.open()` / `.close()` /'
+                                    ' `.toggle()` dispatch `bz-open` / `bz-'
+                                    'close` / `bz-toggle`, which the root '
+                                    'catches; `.set()` dispatches `bz-set`. '
+                                    '`.focus()` targets the VISIBLE field — '
+                                    'not the hidden carrier, which is the '
+                                    "component's first `<input>` and never "
+                                    'takes focus.',
                                 color="muted", size="sm",
                             )
                             m1 = ui.date_picker()
@@ -700,12 +704,13 @@ def page() -> None:
 
                             ui.divider()
 
-                            # ── Mode 2 — ClientBinding seule ────────────────
+                            # ── Mode 2 — ClientBinding only ─────────────────
                             ui.heading("Mode 2 — ClientBinding only (when another "
                                        "component must read or react)", level=3)
                             ui.text(
-                                "`value=binding` : la valeur vit dans le store, "
-                                "donc un voisin la lit sans aller-retour.",
+                                '`value=binding`: the value lives in the '
+                                    'store, so a neighbour reads it with no '
+                                    'round trip.',
                                 color="muted", size="sm",
                             )
                             lie = DatePickerClient(key="ext_binding")
@@ -721,14 +726,15 @@ def page() -> None:
 
                             ui.divider()
 
-                            # ── Mode 3 — Les deux ───────────────────────────
+                            # ── Mode 3 — Both ───────────────────────────────
                             ui.heading("Mode 3 — Both (write-through)", level=3)
                             ui.text(
-                                "Binding fournie ET méthodes appelées. `.set()` "
-                                "détecte la binding et écrit DEDANS — le dispatch "
-                                "DOM n'est pas utilisé, la source de vérité reste "
-                                "unique. `.open()` reste un dispatch : le panneau "
-                                "n'est pas une valeur.",
+                                'A binding supplied AND the methods '
+                                    'called. `.set()` detects the binding and'
+                                    ' writes INTO it — the DOM dispatch is '
+                                    'not used, the source of truth stays '
+                                    'single. `.open()` stays a dispatch: the '
+                                    'panel is not a value.',
                                 color="muted", size="sm",
                             )
                             deux = DatePickerClient(key="ext_both")

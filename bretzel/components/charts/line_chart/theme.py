@@ -84,8 +84,8 @@ LINE_CHART_THEME: dict[str, Any] = {
         "dot":          "fill-(--bz-solid)",
         # "You are here" dot at the active column (one per series).
         # ``stroke-background stroke-2`` rings it in the page colour so
-        # it pops off the curve it sits on — the fix for "je ne vois
-        # pas les points". ``transition-[cx,cy]`` glides it along as the
+        # it pops off the curve it sits on — the fix for "I cannot
+        # see the points". ``transition-[cx,cy]`` glides it along as the
         # cursor sweeps columns.
         "dot_active": (
             "fill-(--bz-solid) stroke-background stroke-2 "

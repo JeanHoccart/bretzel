@@ -1,1 +1,1 @@
-"""Les features de la messagerie."""
+"""The mail client's features."""

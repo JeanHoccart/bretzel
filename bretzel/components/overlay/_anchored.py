@@ -1,38 +1,37 @@
-"""Le rendu commun des overlays ANCRÉS — ``Dropdown`` et ``Popover``.
+"""The shared render of the ANCHORED overlays — ``Dropdown`` and ``Popover``.
 
-Le frère de ``_modal`` : même famille de composants, autre mécanique. Un
-overlay ancré n'a ni backdrop ni verrou de scroll ; son panneau est
-téléporté dans ``<body>`` puis positionné par ``$bz.helpers.floating``
-contre le déclencheur.
+``_modal``'s sibling: same family of components, different mechanics. An
+anchored overlay has neither backdrop nor scroll lock; its panel is
+teleported into ``<body>`` then positioned by ``$bz.helpers.floating``
+against the trigger.
 
-Ce que la mesure a montré
---------------------------
-Le 2026-08-19 : ``Dropdown.render`` = 99 lignes, ``Popover.render`` =
-103, **75 identiques (75 %)**. Les deux fichiers importaient exactement
-les onze mêmes helpers de ``base/_wiring``, dans le même ordre. La
-différence tient en quatre valeurs :
+What the measurement showed
+----------------------------
+On 2026-08-19: ``Dropdown.render`` = 99 lines, ``Popover.render`` = 103,
+**75 identical (75 %)**. Both files imported exactly the same eleven
+helpers from ``base/_wiring``, in the same order. The difference fits in
+four values:
 
-======================  ==============  ==============
-                        Dropdown        Popover
-======================  ==============  ==============
-alignement par défaut   ``start``       ``center``
-``role`` du panneau     ``menu``        ``dialog``
-``aria-haspopup``       ``menu``        ``dialog``
-fermeture au choix      ``bz-dropdown-pick``  —
-======================  ==============  ==============
+======================  ====================  ==============
+                        Dropdown              Popover
+======================  ====================  ==============
+default alignment       ``start``             ``center``
+panel ``role``          ``menu``              ``dialog``
+``aria-haspopup``       ``menu``              ``dialog``
+close on pick           ``bz-dropdown-pick``  —
+======================  ====================  ==============
 
-⚠️ Comme pour ``_modal``, le reste de l'écart n'était pas du code mais
-des **commentaires** : le piège des refs d'overlay lié (sans scope
-propre, le panneau téléporté remonte au ``rootScope`` partagé où tous
-les ``bztrigger`` se marchent dessus, et le panneau s'ancre au
-déclencheur d'un AUTRE overlay) y était expliqué deux fois, dans deux
-formulations. Un piège documenté deux fois est un piège qu'on corrigera
-une fois.
+⚠️ As with ``_modal``, the rest of the gap was not code but
+**comments**: the bound-overlay ref trap (with no scope of its own, the
+teleported panel walks up to the shared ``rootScope`` where every
+``bztrigger`` tramples the others, and the panel anchors to ANOTHER
+overlay's trigger) was explained twice there, in two wordings. A trap
+documented twice is a trap that will be fixed once.
 
-Ce qui reste chez l'appelant
------------------------------
-Les chaînes de style : elles arrivent **déjà composées**
-(`feedback_no_shared_style_tokens`), ce module ne lit jamais un thème.
+What stays with the caller
+---------------------------
+The style strings: they arrive **already composed**
+(`feedback_no_shared_style_tokens`), this module never reads a theme.
 """
 
 from __future__ import annotations
@@ -64,43 +63,42 @@ def render_anchored_overlay(
     default_align: str,
     close_on_event: str | None = None,
 ) -> Element:
-    """Déclencheur enveloppé + panneau téléporté + racine câblée.
+    """Wrapped trigger + teleported panel + wired root.
 
-    ``close_on_event`` sert la seule chose qu'un dropdown a en plus : ses
-    items dispatchent ``bz-dropdown-pick`` en se faisant choisir, et
-    c'est ce qui referme le menu. L'expression d'ouverture est calculée
-    ICI (binding ou drapeau local), donc l'appelant ne peut pas écrire
-    l'écouteur lui-même — il nomme l'événement, on le câble.
+    ``close_on_event`` serves the one thing a dropdown has in addition:
+    its items dispatch ``bz-dropdown-pick`` when they are picked, and
+    that is what closes the menu. The open expression is computed HERE
+    (binding or local flag), so the caller cannot write the listener
+    themselves — they name the event, we wire it.
     """
     position = component._reactive_values.get("position") or "auto"
     align = component._reactive_values.get("align") or default_align
     dismissible = bool(component._reactive_values.get("dismissible"))
 
-    # ── L'état ouvert : ClientBinding ou booléen littéral ─────────────
-    # Le binding vit dans ``_binding_metadata`` ; le bool brut reste dans
-    # ``_reactive_values`` pour le cas littéral et le SSR.
+    # ── The open state: ClientBinding or literal boolean ─────────────
+    # The binding lives in ``_binding_metadata``; the raw bool stays in
+    # ``_reactive_values`` for the literal case and for the SSR.
     open_binding = component._binding_metadata.get("open")
     bound_open = open_binding is not None
     open_expr = open_binding.binding_path() if bound_open else "open"
     initial_open = bool(component._reactive_values.get("open"))
 
-    # ── Panneau ──────────────────────────────────────────────────────
-    # Le placement appartient à ``$bz.helpers.floating``, attaché par le
-    # ``bz-effect`` du panneau à l'ouverture — aucune classe de position
-    # statique.
+    # ── Panel ────────────────────────────────────────────────────────
+    # The placement belongs to ``$bz.helpers.floating``, attached by the
+    # panel's ``bz-effect`` on opening — no static position class.
     panel_attrs: dict[str, Any] = {
         "class": slots.get("panel", ""),
         "role": role,
         "bz-ref": "bzpanel",
-        # Bascule d'affichage + attach/detach du flottant, en un effet.
+        # Display toggle + attach/detach of the floating, in one effect.
         "bz-effect": anchored_panel_effect(
             open_expr, floating_placement(position, align)
         ),
     }
     if close_on_event:
         panel_attrs[f"bz-on:{close_on_event}"] = f"{open_expr} = false"
-    # FOUC : l'effet flottant gère le display, mais on pré-tamponne
-    # l'état fermé pour que rien ne peigne en (0,0) avant le boot.
+    # FOUC: the floating effect handles the display, but we pre-stamp
+    # the closed state so nothing paints at (0,0) before the boot.
     if not initial_open:
         stamp_display_none(panel_attrs)
 
@@ -110,7 +108,7 @@ def render_anchored_overlay(
         children=tuple(component._render_children()),
     )
 
-    # ── Déclencheur ──────────────────────────────────────────────────
+    # ── Trigger ──────────────────────────────────────────────────────
     trigger_nodes: list[Node] = []
     if component._trigger is not None:
         trigger_nodes.append(
@@ -121,24 +119,24 @@ def render_anchored_overlay(
             )
         )
 
-    # ── Racine ───────────────────────────────────────────────────────
-    # Un déclencheur pleine largeur doit élargir le wrapper ``w-fit``,
-    # sinon il se replie sur la largeur du contenu (partagé avec Tooltip).
+    # ── Root ─────────────────────────────────────────────────────────
+    # A full-width trigger must widen the ``w-fit`` wrapper, otherwise it
+    # folds back to the content's width (shared with Tooltip).
     attrs = component.emit_attrs()
     root_slot = slots.get("root", "")
     if trigger_is_full_width([component._trigger]):
         root_slot = expand_fit_wrapper(root_slot)
-    # ``classes=`` est posé par le wrap métaclasse — pas ici (doublon).
+    # ``classes=`` is set by the metaclass wrap — not here (duplicate).
     attrs["class"] = root_slot
 
     if not bound_open:
-        # Un ``open`` backé serveur doit se ré-adopter au refresh
-        # (``absorb`` garderait sinon le signal de scope périmé) ; la
-        # garde laisse un littéral client tranquille.
+        # A server-backed ``open`` must re-adopt on refresh (``absorb``
+        # would otherwise keep the stale scope signal); the guard leaves
+        # a client literal alone.
         #
-        # Le dialecte unique : ``_value_server_backed`` répond « d'où
-        # vient ma valeur » (et rend False sur un binding, donc il reste
-        # correct même hors de ce ``if``).
+        # The single dialect: ``_value_server_backed`` answers "where
+        # does my value come from" (and returns False on a binding, so it
+        # stays correct even outside this ``if``).
         sync = server_sync_marker(
             "open", enabled=component._value_server_backed("open")
         )
@@ -147,26 +145,25 @@ def render_anchored_overlay(
             + (f",{sync}" if sync else "") + "}"
         )
     else:
-        # Lié : le drapeau vit dans le store global, mais la racine a
-        # QUAND MÊME besoin de son propre scope (littéral vide) pour que
-        # ``bztrigger`` / ``bzpanel`` s'isolent par instance. Sans hôte de
-        # scope, ``findScope`` remonte depuis le panneau téléporté
-        # jusqu'au ``rootScope`` partagé — où CHAQUE overlay lié
-        # enregistre le même ``bztrigger``, dernier arrivé gagne — et le
-        # helper flottant ancre le panneau au déclencheur d'un AUTRE
-        # overlay, hors écran. Cf. traps.md § « bound overlay ref
-        # collision ».
+        # Bound: the flag lives in the global store, but the root
+        # STILL needs its own scope (an empty literal) so that
+        # ``bztrigger`` / ``bzpanel`` isolate per instance. With no scope
+        # host, ``findScope`` walks up from the teleported panel to the
+        # shared ``rootScope`` — where EVERY bound overlay registers the
+        # same ``bztrigger``, last one wins — and the floating helper
+        # anchors the panel to ANOTHER overlay's trigger, off screen. Cf.
+        # traps.md § "bound overlay ref collision".
         attrs["bz-data"] = "{}"
 
-    # Dispatch open/close (pas de verrou de scroll pour un panneau
-    # ancré), récepteurs de l'API impérative, Échap + clic-dehors : le
-    # câblage ancré partagé (``base/_wiring.py``).
+    # Open/close dispatch (no scroll lock for an anchored panel),
+    # imperative API receivers, Escape + click-outside: the shared
+    # anchored wiring (``base/_wiring.py``).
     attrs["bz-effect"] = dispatch_root_effect(open_expr)
     attrs.update(imperative_listeners(open_expr))
     if dismissible:
         attrs["bz-init"] = anchored_dismiss_init(open_expr)
 
-    # Le panneau se téléporte dans <body> (cf. ``teleport_to_body``).
+    # The panel teleports into <body> (cf. ``teleport_to_body``).
     return Element(
         tag=component._tag,
         attrs=attrs,

@@ -1,3 +1,4 @@
-"""Composants marqueurs du framework : ``outlet``, ``fragment``, ``interval``,
-``title``, ``meta_tag``, et la famille ``each``. (``page`` et ``layout`` NE
-sont PAS ici : ce sont des décorateurs, dans ``render/decorators/``.)"""
+"""The framework's marker components: ``outlet``, ``fragment``,
+``interval``, ``title``, ``meta_tag``, and the ``each`` family. (``page``
+and ``layout`` are NOT here: they are decorators, in
+``render/decorators/``.)"""

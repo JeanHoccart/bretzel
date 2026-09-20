@@ -52,27 +52,26 @@ class Tooltip(Component):
     # open away from the rail, etc.) — the pinned side then flips to its
     # opposite only when it lacks room.
     position: str = reactive_prop(default="auto", emit_attr=False)
-    #: Le budget TOTAL, du survol au texte lisible. C'est ce nombre
-    #: qui se ressent — pas le délai seul.
+    #: The TOTAL budget, from hover to readable text. That is the
+    #: number that is felt — not the delay alone.
     #:
-    #: Le tooltip est le SEUL de la famille à payer deux attentes qui
-    #: s'AJOUTENT : ce délai, PUIS le fondu d'apparition. Écrire 300
-    #: dans ``delay`` en donnait donc 450 à l'écran, et un survol qui
-    #: met une demi-seconde à répondre se lit comme une panne, pas
-    #: comme une garde anti-déclenchement. Rapporté à l'usage le
-    #: 2026-09-04.
+    #: The tooltip is the family's ONLY member to pay two waits that ADD
+    #: UP: this delay, THEN the enter fade. Writing 300 in ``delay``
+    #: therefore gave 450 on screen, and a hover that takes half a second
+    #: to answer reads as a failure, not as an anti-trigger guard.
+    #: Reported from use on 2026-09-04.
     REVEAL_BUDGET_MS: ClassVar[int] = 300
 
-    #: La durée du fondu, en miroir du ``duration-75`` du thème.
-    #: ⚠️ Les deux DOIVENT rester d'accord — le budget se répartit
-    #: entre eux, donc changer la classe sans changer ce nombre
-    #: allongerait le total en silence. Gardé par
+    #: The fade's duration, mirroring the theme's ``duration-75``.
+    #: ⚠️ The two MUST stay in agreement — the budget is split between
+    #: them, so changing the class without changing this number would
+    #: lengthen the total in silence. Guarded by
     #: ``test_the_tooltip_budget_matches_its_fade``.
     FADE_MS: ClassVar[int] = 75
 
-    #: Ce qu'on attend AVANT de commencer à peindre : le budget moins
-    #: le fondu. Dérivé, jamais recopié — c'est la soustraction faite
-    #: de tête qui redérive.
+    #: What we wait BEFORE starting to paint: the budget minus the
+    #: fade. Derived, never copied — it is the subtraction done in one's
+    #: head that re-drifts.
     DEFAULT_DELAY_MS: ClassVar[int] = REVEAL_BUDGET_MS - FADE_MS
 
     delay: int = reactive_prop(default=DEFAULT_DELAY_MS, emit_attr=False)
@@ -90,7 +89,7 @@ class Tooltip(Component):
         enabled: bool | ClientBinding | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             position=position,
             delay=delay,
@@ -106,10 +105,10 @@ class Tooltip(Component):
         # trigger wrapper), so it can read ancestors via ``$el.closest``.
         self._enabled: bool | ClientBinding | str | None = enabled
         # ``text`` accepts a literal string, a ``ClientBinding`` (reactive
-        # panel content), or a Component. ``adopt_slot`` détache un Component
-        # (sinon rendu 2×) et laisse passer string / ClientBinding intacts.
-        # ``ClientBinding.__bool__`` LÈVE, donc le ``or ""`` est réservé au
-        # cas non-binding.
+        # panel content), or a Component. ``adopt_slot`` detaches a
+        # Component (otherwise rendered twice) and lets string /
+        # ClientBinding through intact. ``ClientBinding.__bool__``
+        # RAISES, so the ``or ""`` is reserved for the non-binding case.
         adopted = Component.adopt_slot(text)
         if isinstance(adopted, (ClientBinding, Component)):
             self._text: str | ClientBinding | Component = adopted
@@ -143,10 +142,11 @@ class Tooltip(Component):
             apply_variant_size_modifiers=False,
         ).replace("absolute", "fixed") + " group"
 
-        # ``emit_text_slot`` gère les 4 formes d'un slot textuel (string /
-        # ClientBinding → span+bz-text via ``path_of`` / Component → rendu
-        # en place / vide → None). Le ``or TextNode("")`` couvre le slot vide
-        # (le panel existe toujours, sans texte).
+        # ``emit_text_slot`` handles the 4 shapes of a textual slot
+        # (string / ClientBinding → span+bz-text through ``path_of`` /
+        # Component → rendered in place / empty → None). The ``or
+        # TextNode("")`` covers the empty slot (the panel always exists,
+        # with no text).
         text_node: Node = self.emit_text_slot(self._text) or TextNode("")
         # Arrow stays absolute-positioned RELATIVE TO THE PANEL. Its
         # per-side anchor lives in the ``arrow`` slot as four
@@ -199,7 +199,7 @@ class Tooltip(Component):
             # collapses to content width. Shared with Popover / Dropdown.
             root_slot = expand_fit_wrapper(root_slot)
         attrs = self.emit_attrs()
-        # ``classes=`` posé par le wrap métaclasse — pas ici (doublon).
+        # ``classes=`` set by the metaclass wrap — not here (duplicate).
         attrs["class"] = root_slot
         attrs["bz-data"] = _build_bzdata(delay, self._enabled_expr())
         attrs["bz-ref"] = "bzroot"
@@ -234,21 +234,21 @@ class Tooltip(Component):
             # instead of hand-rolling the path here.
             return self.path_of(enabled)
         if not isinstance(enabled, str):
-            # ⚠️ Une valeur BACKÉE SERVEUR n'est pas un ``bool`` au sens
-            # d'``isinstance`` : ``ServerState`` la tamponne en
-            # ``_BoundBool``, une sous-classe d'``int`` qui porte son
-            # ``field_name``. Le test ``isinstance(enabled, bool)``
-            # ci-dessus la rate donc, et le ``str()`` final émettait le
-            # littéral PYTHON ``True`` dans du JavaScript — d'où un
-            # ``ReferenceError: True is not defined`` au premier survol,
-            # qui tuait l'effet.
+            # ⚠️ A SERVER-BACKED value is not a ``bool`` in the
+            # ``isinstance`` sense: ``ServerState`` stamps it as a
+            # ``_BoundBool``, an ``int`` subclass carrying its
+            # ``field_name``. The ``isinstance(enabled, bool)`` test
+            # above therefore misses it, and the final ``str()`` emitted
+            # the PYTHON literal ``True`` into JavaScript — hence a
+            # ``ReferenceError: True is not defined`` on the first hover,
+            # which killed the effect.
             #
-            # Trouvé au navigateur le 2026-07-29, sur la page tooltip du
-            # playground (``enabled=state.enabled``). Bug ANTÉRIEUR à la
-            # bascule vers ``$bz.tooltip.scope`` : l'ancien builder
-            # interpolait la même expression dans ``if (!(True)) return;``.
-            # Les 9 400 tests Python étaient verts — seul un vrai
-            # navigateur pouvait le voir.
+            # Found in the browser on 2026-07-29, on the playground's
+            # tooltip page (``enabled=state.enabled``). A bug PREDATING
+            # the switch to ``$bz.tooltip.scope``: the old builder
+            # interpolated the same expression into ``if (!(True))
+            # return;``. The 9,400 Python tests were green — only a real
+            # browser could see it.
             return "true" if enabled else "false"
         return str(enabled)
 
@@ -278,30 +278,31 @@ def _build_bzdata(delay_ms: int, enabled_expr: str = "true") -> str:
     changes. Positioning is owned by ``$bz.helpers.floating`` (engaged by
     the panel's ``anchored_panel_effect``).
     """
-    # ``_show`` / ``_hide`` vivent une seule fois dans ``$bz.tooltip.scope``
-    # (``bretzel/runtime/_src/16_accordion.js``). Ce builder les sérialisait
-    # par instance en y CUISANT la configuration — le corps contenait
-    # ``if (!(true)) return;`` et le délai en littéral, donc deux tooltips
-    # de délais différents produisaient deux CODES différents.
+    # ``_show`` / ``_hide`` live once in ``$bz.tooltip.scope``
+    # (``bretzel/runtime/_src/16_accordion.js``). This builder serialised
+    # them per instance while BAKING the configuration into them — the
+    # body contained ``if (!(true)) return;`` and the delay as a literal,
+    # so two tooltips with different delays produced two different CODES.
     #
-    # ``_enabled`` doit rester une EXPRESSION relue à chaque survol — une
-    # condition vivante (état replié, media query, ClientBinding) doit être
-    # honorée au fil de ses changements. La bascule « config en données »
-    # l'avait pourtant émis en CHAMP (``_enabled: <expr>``), ce qui produit
-    # exactement le contraire : un champ est évalué une seule fois, hors
-    # effet, et ``absorb`` en emballe le snapshot dans un signal découplé du
-    # store. Le commentaire promettait le survol, le code figeait au
-    # montage. Seul un corps de méthode est relu — d'où la surcharge de la
-    # constante ``_enabled()`` du slab. ``_delay`` reste un champ : c'est un
-    # littéral server-side, donc une vraie donnée.
+    # ``_enabled`` must stay an EXPRESSION re-read on every hover — a
+    # live condition (a collapsed state, a media query, a ClientBinding)
+    # must be honoured as it changes. The "config as data" switch had
+    # nevertheless emitted it as a FIELD (``_enabled: <expr>``), which
+    # produces exactly the opposite: a field is evaluated once, outside
+    # any effect, and ``absorb`` wraps its snapshot in a signal decoupled
+    # from the store. The comment promised the hover, the code froze at
+    # mount. Only a method body is re-read — hence the override of the
+    # slab's ``_enabled()`` constant. ``_delay`` stays a field: it is a
+    # server-side literal, so real data.
     enabled_override = (
         f"_enabled() {{ return !!({enabled_expr}); }},"
         if enabled_expr != "true"
         else ""
     )
-    # ``_delay`` est de la CONFIG (server-owned) → re-semé sans condition.
-    # ``open`` et ``_t`` NON : état client (le panneau ouvert, le timer en
-    # vol). Les re-semer refermerait un tooltip affiché à chaque swap voisin.
+    # ``_delay`` is CONFIG (server-owned) → re-seeded unconditionally.
+    # ``open`` and ``_t`` are NOT: client state (the open panel, the
+    # in-flight timer). Re-seeding them would close a displayed tooltip
+    # on every neighbouring swap.
     return (
         "{...$bz.tooltip.scope,"
         "open: false,"

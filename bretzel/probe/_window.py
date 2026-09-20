@@ -1,9 +1,9 @@
-"""Une fenêtre — un contexte de navigateur, sa page, ce qu'elle a vu.
+"""A window — a browser context, its page, what it has seen.
 
-Une fenêtre est un contexte Playwright, pas un onglet : cookies et
-stockage lui appartiennent, donc deux fenêtres sont deux SESSIONS. C'est
-la seule façon de mesurer ce qui fait un framework fullstack — ce qu'une
-session écrit et qu'une autre doit voir.
+A window is a Playwright context, not a tab: cookies and storage belong
+to it, so two windows are two SESSIONS. It is the only way of measuring
+what makes a fullstack framework — what one session writes and another
+must see.
 """
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ from typing import Any
 
 from bretzel.probe._settle import settle_page
 
-#: Combien de temps un élément a le droit de se faire attendre avant que
-#: le harnais déclare qu'il ne viendra pas. Même ordre que les attentes
-#: écrites à la main dans les probes du dépôt (5 s).
+#: How long an element is allowed to keep us waiting before the harness
+#: declares it will not come. Same order as the hand-written waits in the
+#: repository's probes (5 s).
 APPEAR_MS = 5000
 
 
@@ -44,7 +44,7 @@ class Box:
 
 @dataclass(frozen=True, slots=True)
 class Seen:
-    """Une requête vue partir depuis une fenêtre."""
+    """A request seen leaving from a window."""
 
     method: str
     url: str
@@ -73,12 +73,11 @@ class Window:
         self._seen: list[Seen] = []
         self._wire()
 
-    # ── ce que la fenêtre enregistre toute seule ──────────────────────
+    # ── what the window records by itself ─────────────────────────────
     #
-    # L'ancien harnais se contentait d'IMPRIMER les erreurs JS, et ça a
-    # coûté : 178 exceptions ont vécu deux jours dans une sortie que
-    # personne ne lit tant qu'un test ne tombe pas. Ici on collecte, et
-    # le balayage final asserte.
+    # The old harness merely PRINTED the JS errors, and that cost: 178
+    # exceptions lived for two days in an output nobody reads until a
+    # test falls. Here we collect, and the final sweep asserts.
     def _wire(self) -> None:
         self.page.on("pageerror", lambda err: self.errors.append(str(err)))
         self.page.on(
@@ -103,9 +102,9 @@ class Window:
     def _note(self, request: Any) -> None:
         if not request.url.startswith(self._base):
             return
-        # `eventsource` est exclu volontairement : le flux SSE d'une zone
-        # `broadcast=` ne se ferme jamais, le compter ferait mentir tout
-        # décompte de geste.
+        # `eventsource` is deliberately excluded: the SSE stream of a
+        # `broadcast=` zone never closes, and counting it would make any
+        # per-gesture count lie.
         if request.resource_type not in ("fetch", "xhr", "document"):
             return
         self._seen.append(
@@ -115,20 +114,21 @@ class Window:
     # ── agir ──────────────────────────────────────────────────────────
     def goto(self, path: str) -> None:
         if not path.startswith("/"):
-            # Sans ce refus, Playwright rend « Cannot navigate to invalid
-            # URL » avec la pile complète. Le cas arrive pour de vrai :
-            # sous Git Bash, un `--route /x` est réécrit en chemin Windows
-            # avant même d'atteindre Python (mesuré le 2026-09-10).
+            # Without this refusal, Playwright returns "Cannot navigate
+            # to invalid URL" with the full stack. The case happens for
+            # real: under Git Bash, a `--route /x` is rewritten to a
+            # Windows path before even reaching Python (measured on
+            # 2026-09-10).
             raise ValueError(
-                f"une route commence par « / » — reçu {path!r}. Sous Git "
-                "Bash, préfixe la commande de MSYS_NO_PATHCONV=1."
+                f"a route starts with \"/\" — got {path!r}. Under Git "
+                "Bash, prefix the command with MSYS_NO_PATHCONV=1."
             )
-        # `wait_until="load"` et pas `networkidle` : une page qui porte
-        # une zone `broadcast=` ouvre un EventSource, donc l'inactivité
-        # réseau n'arrive jamais et le goto expire à 30 s.
+        # `wait_until="load"` and not `networkidle`: a page carrying a
+        # `broadcast=` zone opens an EventSource, so network idleness
+        # never happens and the goto expires at 30 s.
         self.page.goto(self._base + path, wait_until="load")
-        # `load` est déjà passé : rien n'est en train de débouncer, donc
-        # le plancher anti-debounce n'aurait rien à couvrir.
+        # `load` has already passed: nothing is debouncing, so the
+        # anti-debounce floor would have nothing to cover.
         self.settle(floor=0)
 
     def click(self, sel: str) -> None:
@@ -154,63 +154,63 @@ class Window:
         mouse.down()
         bx, by = self.box(dst).center
         self._glide(ax, ay, bx, by)
-        # La cible a bougé sous le geste : on refait le dernier segment
-        # vers là où elle est MAINTENANT. Sans déplacement c'est une
-        # série de mouvements sur place, que le moteur encaisse.
+        # The target moved under the gesture: we redo the last segment
+        # towards where it is NOW. With no displacement it is a series of
+        # moves on the spot, which the engine absorbs.
         cx, cy = self.box(dst).center
         self._glide(bx, by, cx, cy)
         self._assert_landed(dst)
         mouse.up()
 
-    #: Où est l'élément en cours de glissement, à cet instant. Le moteur
-    #: pose ``data-bz-dragging`` à l'ouverture du geste et le retire au
-    #: relâchement, donc cette fenêtre-là est la seule où la question a
-    #: une réponse.
+    #: Where the element being dragged is, at this instant. The engine
+    #: sets ``data-bz-dragging`` when the gesture opens and removes it on
+    #: release, so that window is the only one where the question has an
+    #: answer.
     _LANDED_JS = """
     (sel) => {
         const item = document.querySelector('[data-bz-dragging]');
-        // Pas de glisser de NŒUD en cours : curseur d'un slider, poignée
-        // de `ui.resizable`… Rien à vérifier, et surtout rien à refuser.
+        // No NODE drag in progress: a slider's thumb, a `ui.resizable`
+        // handle… Nothing to check, and above all nothing to refuse.
         if (!item) return null;
-        const cible = document.querySelector(sel);
-        if (!cible) return null;
+        const target = document.querySelector(sel);
+        if (!target) return null;
         const zone = item.closest('[data-bz-dropzone]');
         return {
-            ok: cible.contains(item),
+            ok: target.contains(item),
             zone: zone ? zone.getAttribute('data-bz-dropzone') : null,
         };
     }
     """
 
     def _assert_landed(self, dst: str) -> None:
-        """Juste avant de lâcher : l'élément est-il DANS la cible ?
+        """Just before releasing: is the element INSIDE the target?
 
-        Le re-visé ne suffit pas à le garantir. Il se prouve pour des
-        zones SŒURS d'un même flux — retirer l'élément de sa zone
-        actuelle décale la cible d'une hauteur d'élément, l'y déposer la
-        fait grandir d'autant, et les deux se compensent au bord qui
-        compte. Il cesse de se prouver dès que le segment de correction
-        traverse une TROISIÈME zone, ce qui demande un élément plus haut
-        qu'une zone intermédiaire — une géométrie que rien n'interdit.
+        Re-aiming is not enough to guarantee it. It is provable for
+        SIBLING zones of one flow — removing the element from its current
+        zone shifts the target by one element's height, dropping it there
+        makes it grow by as much, and the two cancel out at the edge that
+        matters. It stops being provable as soon as the correction
+        segment crosses a THIRD zone, which requires an element taller
+        than an intermediate zone — a geometry nothing forbids.
 
-        D'où cette vérification plutôt qu'un raisonnement : elle coûte un
-        aller-retour et transforme un atterrissage muet en erreur qui
-        nomme le harnais. C'est la moitié qui manquait au re-visé, et
-        elle existait déjà à la main dans ``probe_kanban``.
+        Hence this check rather than an argument: it costs one round trip
+        and turns a mute landing into an error that names the harness. It
+        is the half re-aiming was missing, and it already existed by hand
+        in ``probe_kanban``.
         """
         landed = self.page.evaluate(self._LANDED_JS, dst)
         if landed is None or landed["ok"]:
             return
-        self.page.mouse.up()  # ne pas laisser un bouton enfoncé derrière soi
+        self.page.mouse.up()  # never leave a button held down behind us
         raise DropMissedError(
-            f"[{self.name}] le glisser visait {dst!r} et l'élément est "
-            f"dans {landed['zone']!r} au moment de lâcher.\n"
-            "Le harnais vise le CENTRE de la cible ; une zone qui porte "
-            "déjà des éléments peut demander un point plus haut."
+            f"[{self.name}] the drag aimed at {dst!r} and the element is "
+            f"in {landed['zone']!r} at release time.\n"
+            "The harness aims at the target's CENTRE; a zone that already "
+            "carries elements may need a higher point."
         )
 
     def _glide(self, ax: float, ay: float, bx: float, by: float) -> None:
-        """Douze pas de souris de (ax, ay) vers (bx, by)."""
+        """Twelve mouse steps from (ax, ay) to (bx, by)."""
         mouse = self.page.mouse
         steps = 12
         for i in range(1, steps + 1):
@@ -233,8 +233,8 @@ class Window:
         raw = self._one(sel).bounding_box()
         if raw is None:
             raise ElementNotFoundError(
-                f"[{self.name}] {sel!r} existe mais n'a pas de géométrie "
-                "(display:none, ou détaché)."
+                f"[{self.name}] {sel!r} exists but has no geometry "
+                "(display:none, or detached)."
             )
         return Box(raw["x"], raw["y"], raw["width"], raw["height"])
 
@@ -270,29 +270,28 @@ class Window:
         return tuple(self._seen[mark:])
 
     def _one(self, sel: str) -> Any:
-        """Le premier élément désigné — en l'ATTENDANT s'il arrive.
+        """The first designated element — WAITING for it if it is coming.
 
-        ``count()`` est un instantané, et un probe agit presque toujours
-        sur quelque chose qu'un geste précédent vient de faire apparaître.
-        Refuser tout de suite obligeait chaque appelant à faire précéder
-        son clic d'une attente écrite à la main : mesuré en portant
-        ``probe_messagerie`` le 2026-09-11, six fois dans un seul
-        fichier, pour un bouton qui arrivait 200 ms plus tard.
+        ``count()`` is a snapshot, and a probe nearly always acts on
+        something a previous gesture has just brought up. Refusing
+        immediately forced every caller to precede its click with a
+        hand-written wait: measured while porting ``probe_messagerie`` on
+        2026-09-11, six times in a single file, for a button that arrived
+        200 ms later.
 
-        C'est bien une attente d'ÉTAT, pas une durée : elle rend la main
-        dès que le nœud est attaché. Le plafond n'est là que pour dire
-        « il ne viendra pas » au lieu de pendre.
+        It really is a STATE wait, not a duration: it hands back as soon
+        as the node is attached. The ceiling is only there to say "it is
+        not coming" instead of hanging.
 
-        ⚠️ Ne vaut QUE pour les éléments sur lesquels on agit ou qu'on
-        lit. :meth:`has` et :meth:`count` interrogent le DOM directement,
-        et doivent le faire : une attente les ferait mentir sur une
-        absence, qui est souvent ce qu'on mesure.
+        ⚠️ It holds ONLY for the elements one acts on or reads.
+        :meth:`has` and :meth:`count` query the DOM directly, and must do
+        so: a wait would make them lie about an absence, which is often
+        what is being measured.
         """
-        # Import différé, comme ``_browser`` : Playwright est un extra de
-        # développement, et ``import bretzel.probe`` ne doit pas en
-        # dépendre. On attrape l'expiration SEULE — un sélecteur mal
-        # formé doit lever tel quel, pas se déguiser en « rien ne
-        # correspond ».
+        # Deferred import, like ``_browser``: Playwright is a
+        # development extra, and ``import bretzel.probe`` must not depend
+        # on it. We catch the timeout ALONE — a malformed selector must
+        # raise as-is, not disguise itself as "nothing matches".
         from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
         loc = self.page.locator(sel).first
@@ -300,7 +299,7 @@ class Window:
             loc.wait_for(state="attached", timeout=APPEAR_MS)
         except PlaywrightTimeout as exc:
             raise ElementNotFoundError(
-                f"[{self.name}] rien ne correspond à {sel!r} après "
+                f"[{self.name}] nothing matches {sel!r} after "
                 f"{APPEAR_MS / 1000:g} s."
             ) from exc
         return loc

@@ -151,7 +151,7 @@ def test_an_unreadable_form_refuses_the_action(client) -> None:
         headers={"content-type": "multipart/form-data; boundary=xyz"},
     )
     assert reponse.status_code == 500
-    assert "n'a pas été exécutée" in reponse.text
+    assert "was not executed" in reponse.text
     assert RECU == []
 
 

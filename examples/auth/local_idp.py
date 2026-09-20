@@ -1,34 +1,34 @@
-"""Un vrai fournisseur OIDC, en local — pour essayer la porte SANS compte.
+"""A real OIDC provider, locally — to try the door WITHOUT an account.
 
-⚠️ **On ne le lance presque jamais seul** : ``py -m examples.auth.demo``
-démarre celui-ci ET l'app, avec les variables déjà posées. Ce module reste
-lançable à part (port 8954, ``BZ_IDP_PORT`` pour en changer) quand on veut
-brancher autre chose dessus.
+⚠️ **It is almost never launched alone**: ``py -m examples.auth.demo``
+starts this one AND the app, with the variables already set. This module
+stays launchable on its own (port 8954, ``BZ_IDP_PORT`` to change it) when
+you want to plug something else into it.
 
-C'est la façon la plus rapide de cliquer un vrai flux OAuth de bout en
-bout : aucune inscription chez Google, aucun secret à poser.
+It is the fastest way to click a real OAuth flow end to end: no signing
+up at Google, no secret to set.
 
-Pas un bouchon : il publie sa découverte, tient un écran de consentement,
-**vérifie PKCE** (SHA-256 du vérifieur contre le défi reçu), signe son
-``id_token`` en HS256 avec le ``client_secret``, et refuse un code déjà
-échangé. C'est ce qu'il faut pour que le probe mesure la porte de Bretzel
-et non l'accord de deux fictions.
+Not a stub: it publishes its discovery, holds a consent screen,
+**verifies PKCE** (SHA-256 of the verifier against the challenge
+received), signs its ``id_token`` in HS256 with the ``client_secret``, and
+refuses an already-exchanged code. That is what it takes for the probe to
+measure Bretzel's door and not the agreement of two fictions.
 
-Ce qu'il n'est pas : un fournisseur conforme. Pas de refresh token, pas
-de JWKS (la porte ne vérifie pas la signature — le jeton lui arrive du
-token endpoint par TLS, cf. ``oauth.py``), pas de gestion de sessions.
+What it is not: a compliant provider. No refresh token, no JWKS (the door
+does not verify the signature — the token reaches it from the token
+endpoint over TLS, cf. ``oauth.py``), no session management.
 
-Son issuer est ``http://localhost:8954`` quand l'app est sur
-``127.0.0.1`` — **deux sites distincts** pour le navigateur, et c'est
-délibéré : le retour du fournisseur est alors une navigation INTER-SITE,
-ce qui met sous contrainte le ``SameSite=lax`` du cookie de transaction.
-⚠️ Deux ports du même hôte n'auraient rien prouvé (inter-origine ≠
-inter-site) : mesuré le 2026-08-24, un ``SameSite=strict`` y passait.
+Its issuer is ``http://localhost:8954`` when the app is on ``127.0.0.1``
+— **two distinct sites** for the browser, and that is deliberate: the
+provider's return is then a CROSS-SITE navigation, which puts the
+transaction cookie's ``SameSite=lax`` under constraint. ⚠️ Two ports of
+the same host would have proved nothing (cross-origin ≠ cross-site):
+measured on 2026-08-24, a ``SameSite=strict`` passed there.
 
-⚠️ **Il vit dans l'exemple et pas dans les tests**, exprès : la sonde
-``tests/probes/probe_oauth_door.py`` le lance aussi. Un fournisseur de
-test dans `tests/` et un second pour la démo auraient dérivé l'un de
-l'autre — celui qu'on clique doit être celui qu'on mesure.
+⚠️ **It lives in the example and not in the tests**, on purpose: the probe
+``tests/probes/probe_oauth_door.py`` launches it too. A test provider in
+`tests/` and a second one for the demo would have drifted apart — the one
+you click must be the one you measure.
 """
 
 from __future__ import annotations
@@ -46,25 +46,27 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.routing import Route
 
-#: ⚠️ Le port et l'issuer sont LIÉS : un fournisseur OIDC s'identifie par
-#: son issuer, et la porte le compare à celui que porte l'``id_token``.
-#: Les tenir séparés laissait annoncer ``:8954`` en écoutant ailleurs —
-#: la connexion échouait alors sur « id_token émis par un autre issuer »,
-#: un message qui n'aurait désigné personne.
+#: ⚠️ The port and the issuer are TIED: an OIDC provider identifies
+#: itself by its issuer, and the door compares it to the one the
+#: ``id_token`` carries. Keeping them apart let it announce ``:8954``
+#: while listening elsewhere — the sign-in then failed on "id_token
+#: issued by another issuer", a message that would have named nobody.
 PORT = int(os.environ.get("BZ_IDP_PORT", "8954"))
 ISSUER = f"http://localhost:{PORT}"
 CLIENT_ID = "bretzel-test-client"
 CLIENT_SECRET = "bretzel-test-secret"
 
-#: Les deux comptes que l'écran de consentement propose. Le second sert
-#: au versant REFUS : son adresse est hors du domaine que l'app accepte.
+#: The two accounts the consent screen offers. The second serves the
+#: REFUSAL side: its address is outside the domain the app accepts.
 ACCOUNTS = {
-    "jean": {"sub": "prov-jean", "email": "jean@macorp.fr", "name": "Jean Interne"},
-    "intrus": {"sub": "prov-intrus", "email": "someone@ailleurs.com", "name": "Un Intrus"},
+    "jean": {"sub": "prov-jean", "email": "jean@macorp.fr",
+             "name": "Jean Insider"},
+    "outsider": {"sub": "prov-outsider", "email": "someone@elsewhere.com",
+                 "name": "An Outsider"},
 }
 
-#: code -> transaction en cours. Un dict de process : ce banc sert un
-#: probe à la fois.
+#: code -> transaction in flight. A process-wide dict: this bench serves
+#: one probe at a time.
 CODES: dict[str, dict[str, str]] = {}
 
 
@@ -73,21 +75,21 @@ def b64url(raw: bytes) -> str:
 
 
 async def index(request: Request) -> HTMLResponse:
-    """Une page d'accueil, parce qu'on VIENT y regarder.
+    """A home page, because people COME and look at it.
 
-    Un fournisseur OIDC n'a pas de racine dans le protocole, donc elle
-    rendait « Not Found » — et c'est exactement l'URL qu'un humain ouvre
-    pour vérifier que le serveur est vivant. Un 404 à cet endroit répond
-    « mort » à la question qu'on pose.
+    An OIDC provider has no root in the protocol, so it returned "Not
+    Found" — and that is exactly the URL a human opens to check the
+    server is alive. A 404 there answers "dead" to the question being
+    asked.
     """
     app_port = os.environ.get("BZ_APP_PORT", "8012")
     return HTMLResponse(
-        f"<h1>Fournisseur OIDC de test</h1>"
-        f"<p>Il est vivant. Ce n'est pas l'app — l'app est sur "
+        f"<h1>Test OIDC provider</h1>"
+        f"<p>It is alive. This is not the app — the app is on "
         f"<a href='http://127.0.0.1:{app_port}'>127.0.0.1:{app_port}</a>.</p>"
         f"<p>issuer <code>{ISSUER}</code> — "
-        f"<a href='/.well-known/openid-configuration'>sa découverte</a></p>"
-        f"<p>Comptes : {', '.join(a['email'] for a in ACCOUNTS.values())}</p>"
+        f"<a href='/.well-known/openid-configuration'>its discovery</a></p>"
+        f"<p>Accounts: {', '.join(a['email'] for a in ACCOUNTS.values())}</p>"
     )
 
 
@@ -105,12 +107,12 @@ async def discovery(request: Request) -> JSONResponse:
 
 
 async def authorize(request: Request) -> HTMLResponse:
-    """L'écran de consentement — deux comptes, un lien chacun."""
+    """The consent screen — two accounts, one link each."""
     query = request.query_params
     if query.get("client_id") != CLIENT_ID:
-        return HTMLResponse("client_id inconnu", status_code=400)
+        return HTMLResponse("unknown client_id", status_code=400)
     if query.get("code_challenge_method") != "S256" or not query.get("code_challenge"):
-        return HTMLResponse("PKCE exigé", status_code=400)
+        return HTMLResponse("PKCE required", status_code=400)
 
     carry = {
         key: query.get(key, "")
@@ -119,14 +121,14 @@ async def authorize(request: Request) -> HTMLResponse:
     links = "".join(
         f'<p><a id="pick-{name}" href="/pick?account={name}&'
         + "&".join(f"{k}={v}" for k, v in carry.items()).replace("&", "&amp;")
-        + f'">Continuer comme {data["email"]}</a></p>'
+        + f'">Continue as {data["email"]}</a></p>'
         for name, data in ACCOUNTS.items()
     )
-    return HTMLResponse(f"<h1>Fournisseur de test</h1>{links}")
+    return HTMLResponse(f"<h1>Test provider</h1>{links}")
 
 
 async def pick(request: Request) -> RedirectResponse:
-    """Le clic sur un compte : on frappe un code et on renvoie l'app."""
+    """The click on an account: we mint a code and send the app back."""
     query = request.query_params
     account = ACCOUNTS[query["account"]]
     code = b64url(hashlib.sha256(f"{time.time_ns()}{account['sub']}".encode()).digest())
@@ -146,14 +148,14 @@ async def pick(request: Request) -> RedirectResponse:
 async def token(request: Request) -> JSONResponse:
     form = await request.form()
     code = str(form.get("code", ""))
-    pending = CODES.pop(code, None)  # un code ne s'échange qu'UNE fois
+    pending = CODES.pop(code, None)  # a code is exchanged exactly ONCE
     if pending is None:
         return JSONResponse({"error": "invalid_grant"}, status_code=400)
     if form.get("client_id") != CLIENT_ID or form.get("client_secret") != CLIENT_SECRET:
         return JSONResponse({"error": "invalid_client"}, status_code=401)
 
-    # PKCE, vraiment vérifié : c'est la moitié du flux que seul un
-    # fournisseur peut mettre sous contrainte.
+    # PKCE, really verified: it is the half of the flow only a provider
+    # can put under constraint.
     verifier = str(form.get("code_verifier", ""))
     expected = b64url(hashlib.sha256(verifier.encode()).digest())
     if not verifier or expected != pending["code_challenge"]:
@@ -187,7 +189,7 @@ async def token(request: Request) -> JSONResponse:
 
 
 async def userinfo(request: Request) -> JSONResponse:
-    """Pour la classe ``oauth.OAuth2``, qui n'a pas d'``id_token``."""
+    """For the ``oauth.OAuth2`` class, which has no ``id_token``."""
     bearer = request.headers.get("authorization", "").removeprefix("Bearer ")
     for account in ACCOUNTS.values():
         if bearer == f"at-{account['sub']}":
@@ -207,24 +209,24 @@ app = Starlette(
 )
 
 def main() -> None:
-    """Démarre le fournisseur, EN LE DISANT.
+    """Start the provider, AND SAY SO.
 
-    Il tournait en ``log_level="warning"`` : uvicorn n'annonce son écoute
-    qu'en ``info``, donc la commande ne rendait pas la main **et
-    n'affichait rien**. Un silence total se lit comme un plantage — c'est
-    ce qui est arrivé au premier humain qui l'a lancé, et il avait raison
-    de le croire.
+    It ran with ``log_level="warning"``: uvicorn only announces its
+    listening in ``info``, so the command did not give the hand back
+    **and printed nothing**. Total silence reads as a crash — that is
+    what happened to the first human who launched it, and they were right
+    to believe it.
     """
-    comptes = ", ".join(account["email"] for account in ACCOUNTS.values())
-    # ``flush`` : sans terminal (redirection, sous-process), Python
-    # bufferise stdout et la bannière sortirait APRÈS les lignes
-    # d'uvicorn, qui passent par le logging.
+    accounts = ", ".join(a["email"] for a in ACCOUNTS.values())
+    # ``flush``: with no terminal (redirection, subprocess), Python
+    # buffers stdout and the banner would come out AFTER uvicorn's lines,
+    # which go through logging.
     print(
-        f"Fournisseur OIDC de test — issuer {ISSUER}\n"
-        f"  découverte : {ISSUER}/.well-known/openid-configuration\n"
-        f"  client_id  : {CLIENT_ID}\n"
-        f"  comptes    : {comptes}\n"
-        "Laisse-le tourner, et lance l'app dans un AUTRE terminal "
+        f"Test OIDC provider — issuer {ISSUER}\n"
+        f"  discovery : {ISSUER}/.well-known/openid-configuration\n"
+        f"  client_id : {CLIENT_ID}\n"
+        f"  accounts  : {accounts}\n"
+        "Leave it running, and start the app in ANOTHER terminal "
         "(cf. examples/auth/README.md § 3).",
         flush=True,
     )

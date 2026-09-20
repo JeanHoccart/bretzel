@@ -9,7 +9,7 @@ lives in ``runtime/_src/19_dnd.js``, delegated from the document, so a
 zone works the moment its attributes are in the page — including after a
 morph, which is why no per-zone listener is wired here.
 
-**Two orthogonal doors**, the distinction the cadrage insists on :
+**Two orthogonal doors**, the distinction the framing insists on :
 
 - ``accepts=`` decides what may come IN. **Omitted does not mean
   « anything »** : an undeclared zone receives only its OWN items, so a
@@ -22,32 +22,33 @@ morph, which is why no per-zone listener is wired here.
   everything and lets nothing leave.
 
 Conflating them into one « locked » boolean would have made the trash
-un-expressible, which is exactly the case the cadrage names.
+un-expressible, which is exactly the case the framing names.
 
-- ``holds=`` dit COMBIEN la zone tient. ``"many"`` est le défaut et ne
-  s'écrit pas : le dépôt INSÈRE, et le geste glisse la carte à sa place
-  pendant le survol. ``holds="one"`` dit qu'un seul occupant tient — une
-  chaise d'un plan de classe, un créneau. Le geste cesse alors d'y
-  déposer la carte (la zone en porterait deux le temps du survol, elle
-  s'ouvrirait, et tout autour se décalerait) et marque la cible comme
-  ÉCRASABLE. Le dépôt part quand même au handler, avec ``to_zone`` sur la
-  cible et ``to_index`` à zéro : c'est lui qui échange ou refuse.
+- ``holds=`` says HOW MANY the zone holds. ``"many"`` is the default and
+  is not written: the drop INSERTS, and the gesture slides the card into
+  place during the hover. ``holds="one"`` says a single occupant fits —
+  a chair in a seating plan, a slot. The gesture then stops dropping the
+  card there (the zone would hold two for the duration of the hover, it
+  would open, and everything around would shift) and marks the target as
+  OVERWRITABLE. The drop still goes to the handler, with ``to_zone`` on
+  the target and ``to_index`` at zero: it is the handler that swaps or
+  refuses.
 
-  ⚠️ La zone déclare sa CARDINALITÉ, jamais l'effet du dépôt. Un
-  ``drop="replace"`` mettrait une seconde autorité à côté du handler, et
-  rien ne rattraperait le désaccord si l'un insère quand l'autre annonce
-  un remplacement.
+  ⚠️ The zone declares its CARDINALITY, never the drop's effect. A
+  ``drop="replace"`` would put a second authority beside the handler,
+  and nothing would catch the disagreement if one inserts while the
+  other announces a replacement.
 
-**Ce que le geste MONTRE, et où ça se règle.** Par défaut la carte en vol
-garde sa taille : la zone d'arrivée s'ouvre de la hauteur d'une carte.
-L'autre convention — un emplacement fin, à la react-beautiful-dnd —
-s'obtient en surchargeant le slot ``dragging`` de ``draggable``, qui
-documente le ``data-bz-drag-axis`` publié pour ça. C'est un goût, donc
-c'est dans le thème et pas dans une prop.
+**What the gesture SHOWS, and where that is set.** By default the card
+in flight keeps its size: the landing zone opens by the height of a
+card. The other convention — a thin placeholder, à la
+react-beautiful-dnd — is obtained by overriding ``draggable``'s
+``dragging`` slot, which documents the ``data-bz-drag-axis`` published
+for that. It is a taste, so it is in the theme and not in a prop.
 
-**There is no ``can_drop=``.** Refusing is the handler doing nothing : the
-runtime restaure la position si le marqueur du dépôt survit à la réponse,
-même quand le handler ne provoque aucun nouveau rendu.
+**There is no ``can_drop=``.** Refusing is the handler doing nothing :
+the runtime restores the position if the drop's marker survives the
+response, even when the handler causes no new render.
 
 **Why the handler hangs off a hidden carrier and not the root.** A ``div``
 carries neither ``name``/``value`` nor a native ``change``, so the payload
@@ -102,15 +103,15 @@ class Dropzone(Component):
         self._accepts = tuple(accepts) if accepts is not None else None
 
     def _needs_identity(self) -> bool:
-        """Always — une zone doit être NOMMABLE, même sans handler.
+        """Always — a zone must be NAMEABLE, even with no handler.
 
-        Le fallback de ``name=`` est l'id stable. Sans identité rendue, une
-        zone qui n'a ni ``name=`` ni ``on_move=`` sort avec
-        ``data-bz-dropzone=""`` — et elle peut parfaitement rester une
-        SOURCE : en tirer un item vers une zone nommée poste un ``Move``
-        dont ``from_zone`` vaut ``""``. Avec deux zones anonymes sur la
-        page, le handler ne peut plus dire d'où l'item vient, donc tout
-        « retire-le de la source » vise la mauvaise liste.
+        ``name=``'s fallback is the stable id. With no rendered identity,
+        a zone that has neither ``name=`` nor ``on_move=`` comes out with
+        ``data-bz-dropzone=""`` — and it can perfectly well stay a
+        SOURCE: dragging an item from it to a named zone posts a ``Move``
+        whose ``from_zone`` is ``""``. With two anonymous zones on the
+        page, the handler can no longer say where the item comes from, so
+        any "remove it from the source" aims at the wrong list.
         """
         return True
 
@@ -128,17 +129,18 @@ class Dropzone(Component):
             attrs["data-bz-accepts"] = ",".join(self._accepts)
         if locked:
             attrs["data-bz-locked"] = "true"
-        # ⚠️ ``one`` seulement : ``many`` est le défaut et n'a rien à
-        # écrire. Un attribut posé pour dire « comme d'habitude » alourdit
-        # chaque zone de la page sans qu'aucun sélecteur ne le lise.
+        # ⚠️ ``one`` only: ``many`` is the default and has nothing to
+        # write. An attribute set to say "as usual" weighs down every
+        # zone on the page without any selector reading it.
         if self._holds == "one":
             attrs["data-bz-holds"] = "one"
 
-        # Par le COMPOSEUR, jamais par ``theme["slots"][…]`` en direct :
-        # c'est lui qui fait atterrir un ``slots={"root": …}`` de
-        # l'appelant. Un lookup à la main droppe cet override EN SILENCE —
-        # le défaut mesuré sur ToggleGroup, écrit dans le docstring de
-        # ``slot_class``. Mes deux composants le reproduisaient.
+        # Through the COMPOSER, never through ``theme["slots"][…]``
+        # directly: it is the composer that makes a caller's
+        # ``slots={"root": …}`` land. A hand-made lookup drops that
+        # override IN SILENCE — the defect measured on ToggleGroup,
+        # written in ``slot_class``'s docstring. Both my components
+        # reproduced it.
         attrs["class"] = " ".join(
             part for part in (
                 self.compose_class("root", ),
@@ -159,9 +161,9 @@ class Dropzone(Component):
         # dispatches ``move`` from ; rendering it only for the server case
         # would make a client-only ``on_move="…"`` a dead letter — the
         # event would have nothing to fire from, and the string shape is
-        # part of the declared surface (cf. traps.md § « ``EVENTS = (...)``
-        # + ``on_X=`` kwarg ≠ event qui fire »). The event bubbles, so the
-        # root's ``bz-on:move`` catches it.
+        # part of the declared surface (cf. traps.md § "``EVENTS = (...)``
+        # + an ``on_X=`` kwarg ≠ an event that fires"). The event bubbles,
+        # so the root's ``bz-on:move`` catches it.
         carrier_attrs: dict[str, Any] = {
             "type": "hidden",
             "data-bz-move-carrier": "true",

@@ -1,16 +1,15 @@
-"""L'algèbre de binding client Python→JS — lue ET exécutée.
+"""The Python→JS client binding algebra — read AND executed.
 
-``state.x > 3`` devient ``… > 3`` dans un ``bz-show``. Cette
-correspondance ne vivait qu'en prose, donc elle pouvait pourrir. Ce module
-lit chaque opérateur / helper de ``ClientBinding`` vivant **et l'exécute
-contre une sonde** pour capturer le JS réellement émis — c'est le gain
-anti-rouille : l'exemple montré **est** la sortie réelle, pas une chaîne
-recopiée à la main.
+``state.x > 3`` becomes ``… > 3`` in a ``bz-show``. That correspondence
+lived only in prose, so it could rot. This module reads every operator /
+helper of a live ``ClientBinding`` **and runs it against a probe** to
+capture the JS actually emitted — that is the anti-rust gain: the example
+shown **is** the real output, not a hand-copied string.
 
-``ClientExpression`` hérite toute la surface — mais elle **redéfinit les
-six mutateurs pour lever**, donc lire ``ClientBinding`` seul ne couvre pas
-SA surface : la lecture est paramétrée par la classe, et les opérations
-qu'une classe refuse ne figurent pas dans sa fiche.
+``ClientExpression`` inherits the whole surface — but it **redefines the
+six mutators to raise**, so reading ``ClientBinding`` alone does not cover
+ITS surface: the reading is parameterised by the class, and the operations
+a class refuses do not appear in its card.
 """
 
 from __future__ import annotations
@@ -21,42 +20,42 @@ from functools import cache
 from bretzel.introspect.methods import describe_method_surface
 from bretzel.introspect.model import CATEGORY_UNCLASSIFIED, AlgebraOp
 
-# nom → (catégorie, « comment on l'écrit en Python ») — affichage seul.
+# name → (category, "how it is written in Python") — display only.
 _ALGEBRA_DISPLAY: dict[str, tuple[str, str]] = {
-    "__eq__": ("comparaison", "x == y"),
-    "__ne__": ("comparaison", "x != y"),
-    "__lt__": ("comparaison", "x < y"),
-    "__le__": ("comparaison", "x <= y"),
-    "__gt__": ("comparaison", "x > y"),
-    "__ge__": ("comparaison", "x >= y"),
-    "eq": ("comparaison", "x.eq(y)"),
-    "ne": ("comparaison", "x.ne(y)"),
-    "lt": ("comparaison", "x.lt(y)"),
-    "le": ("comparaison", "x.le(y)"),
-    "gt": ("comparaison", "x.gt(y)"),
-    "ge": ("comparaison", "x.ge(y)"),
-    "between": ("comparaison", "x.between(lo, hi)"),
-    "__add__": ("arithmétique", "x + y"),
-    "__radd__": ("arithmétique", "y + x"),
-    "__sub__": ("arithmétique", "x - y"),
-    "__rsub__": ("arithmétique", "y - x"),
-    "__mul__": ("arithmétique", "x * y"),
-    "__rmul__": ("arithmétique", "y * x"),
-    "__truediv__": ("arithmétique", "x / y"),
-    "__floordiv__": ("arithmétique", "x // y"),
-    "__mod__": ("arithmétique", "x % y"),
-    "__neg__": ("arithmétique", "-x"),
-    "__abs__": ("arithmétique", "abs(x)"),
-    "__round__": ("arithmétique", "round(x, n)"),
-    "to_fixed": ("arithmétique", "x.to_fixed(n)"),
-    "__invert__": ("logique", "~x"),
-    "__and__": ("logique", "x & y"),
-    "__or__": ("logique", "x | y"),
-    "not_": ("logique", "x.not_()"),
-    "then_else": ("logique", "cond.then_else(a, b)"),
-    "length": ("liste", "x.length()"),
-    "contains": ("liste", "x.contains(v)"),
-    "join": ("liste", "x.join(sep)"),
+    "__eq__": ("comparison", "x == y"),
+    "__ne__": ("comparison", "x != y"),
+    "__lt__": ("comparison", "x < y"),
+    "__le__": ("comparison", "x <= y"),
+    "__gt__": ("comparison", "x > y"),
+    "__ge__": ("comparison", "x >= y"),
+    "eq": ("comparison", "x.eq(y)"),
+    "ne": ("comparison", "x.ne(y)"),
+    "lt": ("comparison", "x.lt(y)"),
+    "le": ("comparison", "x.le(y)"),
+    "gt": ("comparison", "x.gt(y)"),
+    "ge": ("comparison", "x.ge(y)"),
+    "between": ("comparison", "x.between(lo, hi)"),
+    "__add__": ("arithmetic", "x + y"),
+    "__radd__": ("arithmetic", "y + x"),
+    "__sub__": ("arithmetic", "x - y"),
+    "__rsub__": ("arithmetic", "y - x"),
+    "__mul__": ("arithmetic", "x * y"),
+    "__rmul__": ("arithmetic", "y * x"),
+    "__truediv__": ("arithmetic", "x / y"),
+    "__floordiv__": ("arithmetic", "x // y"),
+    "__mod__": ("arithmetic", "x % y"),
+    "__neg__": ("arithmetic", "-x"),
+    "__abs__": ("arithmetic", "abs(x)"),
+    "__round__": ("arithmetic", "round(x, n)"),
+    "to_fixed": ("arithmetic", "x.to_fixed(n)"),
+    "__invert__": ("logic", "~x"),
+    "__and__": ("logic", "x & y"),
+    "__or__": ("logic", "x | y"),
+    "not_": ("logic", "x.not_()"),
+    "then_else": ("logic", "cond.then_else(a, b)"),
+    "length": ("list", "x.length()"),
+    "contains": ("list", "x.contains(v)"),
+    "join": ("list", "x.join(sep)"),
     "toggle": ("mutation", "x.toggle()"),
     "increment": ("mutation", "x.increment(n)"),
     "decrement": ("mutation", "x.decrement(n)"),
@@ -67,43 +66,43 @@ _ALGEBRA_DISPLAY: dict[str, tuple[str, str]] = {
 
 _ALGEBRA_DUNDERS = frozenset(n for n in _ALGEBRA_DISPLAY if n.startswith("__"))
 
-# Seule la plomberie NON-dunder a besoin d'être écartée explicitement —
-# ``describe_method_surface`` drope déjà tout dunder absent
-# d'``include_dunders``, donc __init__ / __bool__ / __repr__ n'arrivent
-# jamais jusqu'ici.
+# Only the NON-dunder plumbing needs to be dropped explicitly —
+# ``describe_method_surface`` already drops every dunder absent from
+# ``include_dunders``, so __init__ / __bool__ / __repr__ never reach
+# here.
 _ALGEBRA_SKIP = frozenset({"serialize_path", "binding_path"})
 
 _CATEGORY_ORDER = {
-    "comparaison": 0,
-    "arithmétique": 1,
-    "logique": 2,
-    "liste": 3,
+    "comparison": 0,
+    "arithmetic": 1,
+    "logic": 2,
+    "list": 3,
     "mutation": 4,
     CATEGORY_UNCLASSIFIED: 5,
 }
 
-# Les deux opérateurs binaires dont le second membre doit être un BINDING
-# et non un littéral — ``x & 3`` n'a pas de sens, ``x & y`` si.
+# The two binary operators whose right-hand side must be a BINDING and
+# not a literal — ``x & 3`` makes no sense, ``x & y`` does.
 _BINARY_ON_BINDINGS = frozenset({"__and__", "__or__"})
 
 
 def describe_client_algebra(cls: type | None = None) -> tuple[AlgebraOp, ...]:
-    """Lit l'algèbre Python→JS d'une classe de binding, vivante.
+    """Read a binding class's live Python→JS algebra.
 
-    ``cls`` vaut ``ClientBinding`` par défaut — l'algèbre complète, ce que
-    la doc vivante affiche.
+    ``cls`` is ``ClientBinding`` by default — the complete algebra, what
+    the living documentation displays.
 
-    **Passer une sous-classe rend SA surface effective, et c'est
-    load-bearing.** ``ClientExpression`` hérite les trente-quatre
-    opérateurs et **redéfinit les six mutateurs pour LEVER**
-    (``ReactivityError`` : une expression n'a pas de champ où écrire).
-    Une fiche construite sur la classe de base annonçait donc
-    ``x.toggle()`` avec son JS, sur la seule classe qui le refuse.
+    **Passing a subclass returns ITS effective surface, and that is
+    load-bearing.** ``ClientExpression`` inherits the thirty-four
+    operators and **redefines the six mutators to RAISE**
+    (``ReactivityError``: an expression has no field to write to). A card
+    built on the base class therefore announced ``x.toggle()`` with its
+    JS, on the one class that refuses it.
 
-    Une méthode absente d':data:`_ALGEBRA_DISPLAY` sort en
-    :data:`CATEGORY_UNCLASSIFIED` — la vue la montre quand même (rien
-    n'est perdu) et ``test_docs_coverage`` rougit, pour qu'un mainteneur
-    classe le nouvel opérateur exprès.
+    A method absent from :data:`_ALGEBRA_DISPLAY` comes out as
+    :data:`CATEGORY_UNCLASSIFIED` — the view shows it anyway (nothing is
+    lost) and ``test_docs_coverage`` turns red, so a maintainer
+    classifies the new operator on purpose.
     """
     from bretzel.state import ClientBinding
 
@@ -112,10 +111,10 @@ def describe_client_algebra(cls: type | None = None) -> tuple[AlgebraOp, ...]:
 
 @cache
 def _describe_client_algebra(cls: type) -> tuple[AlgebraOp, ...]:
-    """Worker mis en cache — clé sur la classe, donc un dev-reload (nouvel
-    objet classe) produit une nouvelle entrée, exactement comme le cache
-    reload-safe de :func:`describe_state`. Sans lui, la boucle de 40
-    sondes se rejouerait à chaque rendu de page."""
+    """A cached worker — keyed on the class, so a dev-reload (a new class
+    object) produces a new entry, exactly like :func:`describe_state`'s
+    reload-safe cache. Without it, the loop of 40 probes would replay on
+    every page render."""
     probe, other = _probes(cls)
     ops = [
         AlgebraOp(
@@ -132,10 +131,11 @@ def _describe_client_algebra(cls: type) -> tuple[AlgebraOp, ...]:
         for category, python in [
             _ALGEBRA_DISPLAY.get(method.name, (CATEGORY_UNCLASSIFIED, f"x.{method.name}(…)"))
         ]
-        # Une opération que CETTE classe refuse n'est pas listée. La garder
-        # sans JS se lirait « la sonde n'a pas su » ; la garder avec serait
-        # un mensonge. L'absence est la seule lecture juste — et le refus
-        # lui-même porte son message d'erreur, qui explique mieux que nous.
+        # An operation THIS class refuses is not listed. Keeping it
+        # without JS would read as "the probe did not know"; keeping it
+        # with JS would be a lie. Absence is the only correct reading —
+        # and the refusal itself carries its error message, which
+        # explains better than we can.
         for js, refused in [_probe_js(probe, other, method.name)]
         if not refused
     ]
@@ -143,12 +143,12 @@ def _describe_client_algebra(cls: type) -> tuple[AlgebraOp, ...]:
 
 
 def _probes(cls: type) -> tuple[object, object]:
-    """Deux instances de ``cls`` à qui poser les opérateurs.
+    """Two instances of ``cls`` to put the operators to.
 
-    Les deux formes de construction du module d'état sont essayées dans
-    l'ordre : celle d'un binding (quatre champs nommés) puis celle d'une
-    expression (une source JS). Sans ceci, sonder ``ClientExpression``
-    levait à la CONSTRUCTION, hors du ``try`` de la sonde.
+    The state module's two construction forms are tried in order: a
+    binding's (four named fields) then an expression's (a JS source).
+    Without this, probing ``ClientExpression`` raised at CONSTRUCTION
+    time, outside the probe's ``try``.
     """
     try:
         return (
@@ -160,19 +160,19 @@ def _probes(cls: type) -> tuple[object, object]:
 
 
 def _probe_js(probe: object, other: object, name: str) -> tuple[str | None, bool]:
-    """Appelle ``name`` sur la sonde et capture le JS émis.
+    """Call ``name`` on the probe and capture the JS emitted.
 
-    Rend ``(js, refusé)``. L'arité est lue sur la signature vivante (pas
-    de table par méthode) : un opérateur logique binaire reçoit un second
-    binding, les autres binaires un littéral, les ternaires deux
-    littéraux. Best-effort — rend ``None`` si la forme ne colle pas, donc
-    une méthode neuve ne casse jamais la page, elle s'affiche juste sans
-    exemple.
+    Returns ``(js, refused)``. The arity is read from the live signature
+    (no per-method table): a binary logical operator receives a second
+    binding, the other binary ones a literal, the ternary ones two
+    literals. Best-effort — returns ``None`` when the shape does not fit,
+    so a new method never breaks the page, it simply shows without an
+    example.
 
-    ``refusé`` distingue le second cas du premier : une classe qui LÈVE
-    exprès (:class:`~bretzel.state.ReactivityError`) ne rate pas la
-    sonde, elle répond non — et une opération refusée n'a rien à faire
-    dans la fiche de la classe qui la refuse.
+    ``refused`` distinguishes the second case from the first: a class
+    that RAISES on purpose (:class:`~bretzel.state.ReactivityError`) does
+    not fail the probe, it answers no — and a refused operation has no
+    business in the card of the class that refuses it.
     """
     from bretzel.state import ReactivityError
 

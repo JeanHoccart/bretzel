@@ -10,7 +10,7 @@ Concrete subclasses set ``THEME`` + ``THEME_KEY`` and nothing else —
 :class:`~bretzel.components.overlay.dropdown.DropdownItem` and
 :class:`~bretzel.components.navigation.sidebar.SidebarFooterItem` are thin
 shells so the row logic lives in ONE place (primitives/, importable by any
-group — no cross-group cycle, anti-règle 5).
+group — no cross-group cycle, anti-rule 5).
 
 Theme contract — the subclass theme must expose slots ``root`` /
 ``icon_left`` / ``label`` / ``icon_right`` / ``shortcut`` and a ``colors``
@@ -57,14 +57,14 @@ class MenuItem(Component):
         on_click: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             color=color, disabled=disabled, on_click=on_click, **kwargs
         )
-        # ``label=`` et ``shortcut=`` sont des slots textuels : ils
-        # acceptent ``str | ClientBinding | Component``. ``adopt_slot``
-        # détache un Component pour qu'il ne rende pas AUSSI tout seul
-        # dans la portée environnante.
+        # ``label=`` and ``shortcut=`` are textual slots: they accept
+        # ``str | ClientBinding | Component``. ``adopt_slot`` detaches a
+        # Component so it does not ALSO render on its own in the
+        # surrounding scope.
         self._label = Component.adopt_slot(label)
         self._href = href
         self._shortcut = Component.adopt_slot(shortcut)
@@ -107,14 +107,15 @@ class MenuItem(Component):
                 self._slotted_icon(self._icon_left, slots.get("icon_left", ""))
             )
         if isinstance(self._label, Component):
-            # Un Component garde sa propre racine — l'envelopper dans le
-            # span du slot ``label`` lui imposerait la typo de la ligne,
-            # ce qu'un contenu riche vient justement remplacer.
+            # A Component keeps its own root — wrapping it in the
+            # ``label`` slot's span would impose the row's typography on
+            # it, which is precisely what rich content comes to replace.
             children.append(self._label.render())
         else:
-            # ``emit_text_slot`` renvoie ``None`` pour ``None`` ET pour la
-            # chaîne vide — un seul garde couvre les deux, d'où l'absence
-            # de ``if self._label is not None`` autour de ce bloc.
+            # ``emit_text_slot`` returns ``None`` for ``None`` AND for
+            # the empty string — a single guard covers both, hence the
+            # absence of an ``if self._label is not None`` around this
+            # block.
             label_node = self.emit_text_slot(self._label)
             if label_node is not None:
                 children.append(
@@ -138,8 +139,8 @@ class MenuItem(Component):
                 )
             )
 
-        # base row + optional colour tint ; ``classes=`` posé par le wrap
-        # métaclasse — pas ici (doublon).
+        # base row + optional colour tint ; ``classes=`` set by the
+        # metaclass wrap — not here (duplicate).
         root_class = " ".join(
             p for p in (slots.get("root", ""), color_cls) if p
         )
@@ -151,21 +152,21 @@ class MenuItem(Component):
         disabled = bool(self._reactive_values.get("disabled"))
         disabled_binding = self._binding_metadata.get("disabled")
         if disabled_binding is not None:
-            # ⚠️ Le chemin RÉACTIF. Tout ce que fait la branche statique
-            # ci-dessous se décide À LA CONSTRUCTION, donc jamais quand
-            # ``disabled`` est piloté par une binding : la valeur au rendu
-            # vaut ``False``, la branche n'est pas prise, et l'émission
-            # automatique posait ``bz-attr:disabled`` sur un ``<a>`` — un
-            # attribut qui n'existe pas sur une ancre, donc rien du tout.
-            # Mesuré le 2026-08-13 : ``ui.dropdown_item(disabled=binding)``
-            # gardait son ``href``, son ``bz-on:click`` et son apparence
-            # d'entrée active.
+            # ⚠️ The REACTIVE path. Everything the static branch below
+            # does is decided AT CONSTRUCTION, so never when ``disabled``
+            # is driven by a binding: the value at render is ``False``,
+            # the branch is not taken, and the automatic emission set
+            # ``bz-attr:disabled`` on an ``<a>`` — an attribute that does
+            # not exist on an anchor, so nothing at all. Measured on
+            # 2026-08-13: ``ui.dropdown_item(disabled=binding)`` kept its
+            # ``href``, its ``bz-on:click`` and the look of an active
+            # entry.
             #
-            # La réécriture en ``aria-disabled`` est ce qui répare les
-            # TROIS moitiés d'un coup : le thème habille déjà l'état via
-            # ses variantes ``aria-disabled:``, un lecteur d'écran
-            # l'annonce, et le socle runtime en dérive l'inertie
-            # (``$bz._inert``) — clic, navigation et action serveur.
+            # Rewriting it as ``aria-disabled`` is what fixes all THREE
+            # halves at once: the theme already dresses the state through
+            # its ``aria-disabled:`` variants, a screen reader announces
+            # it, and the runtime base layer derives the inertness from it
+            # (``$bz._inert``) — click, navigation and server action.
             path = self.path_of(disabled_binding)
             attrs.pop("bz-attr:disabled", None)
             attrs["bz-attr:aria-disabled"] = bool_attr(path)
@@ -200,11 +201,10 @@ class MenuItem(Component):
             if not disabled:
                 attrs["href"] = self._href
             return Element(tag="a", attrs=attrs, children=tuple(children))
-        # Seulement si la balise est encore un bouton. ``type`` posé ici
-        # et pas par ``emit_attrs`` — donc hors de portée du garde-fou
-        # central — atterrissait tel quel sur un ``tag=`` personnalisé,
-        # où il désigne un type MIME. Gaté par
-        # ``test_a_changed_tag_drops_what_it_cannot_carry``.
+        # Only if the tag is still a button. ``type`` set here and not
+        # by ``emit_attrs`` — so out of reach of the central guard —
+        # landed as is on a custom ``tag=``, where it names a MIME type.
+        # Gated by ``test_a_changed_tag_drops_what_it_cannot_carry``.
         if self._tag == "button":
             attrs.setdefault("type", "button")
         return Element(tag=self._tag, attrs=attrs, children=tuple(children))

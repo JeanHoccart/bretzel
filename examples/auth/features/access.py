@@ -1,13 +1,13 @@
-"""features/access — les DEUX moitiés de l'identité, dans un seul fichier.
+"""features/access — the TWO halves of identity, in a single file.
 
-C'est le fichier que cette démo existe pour montrer : `@auth.source` dit
-d'où une identité peut venir, `@auth.door` dit comment on entre, et les
-deux finissent au même endroit — ``auth.user_id()``, donc ``UserState``,
-donc tout le reste de l'app sans un seul `if`.
+This is the file this demo exists to show: `@auth.source` says where an
+identity may come from, `@auth.door` says how one gets in, and both end
+up in the same place — ``auth.user_id()``, hence ``UserState``, hence all
+the rest of the app without a single `if`.
 
-Il n'importe PAS ``main`` : les deux décorateurs sont libres, exactement
-comme ``@page`` (``app-structure.md`` § 9). C'est ``main.include(...)``
-qui ramasse les marques.
+It does NOT import ``main``: both decorators are free, exactly like
+``@page`` (``app-structure.md`` § 9). It is ``main.include(...)`` that
+picks the marks up.
 """
 
 from __future__ import annotations
@@ -30,20 +30,20 @@ from examples.auth.core.domain import (
     upsert_by_email,
 )
 
-# ── Qui est cette requête ? ────────────────────────────────────────────────
+# ── Who is this request? ───────────────────────────────────────────────────
 
 
 @auth.source
 def from_api_token(request: object) -> str | None:
-    """Une identité de machine, portée par l'en-tête à chaque appel.
+    """A machine identity, carried by the header on every call.
 
-    Aucun cookie, aucune session : le porteur EST la preuve, et il est
-    revérifié à chaque requête. C'est la deuxième des deux familles —
-    l'autre (le cookie signé) est jouée avant celle-ci par le framework.
+    No cookie, no session: the bearer IS the proof, and it is re-checked
+    at every request. It is the second of the two families — the other
+    (the signed cookie) is played before this one by the framework.
 
-    Une app réelle vérifierait ici une signature JWT plutôt qu'un dict.
-    Ce qui ne changerait pas : la fonction est **synchrone** (elle tourne
-    à chaque requête), et rend un identifiant ou ``None``.
+    A real app would verify a JWT signature here rather than a dict. What
+    would not change: the function is **synchronous** (it runs on every
+    request), and returns an identifier or ``None``.
     """
     header = request.headers.get("authorization", "")  # type: ignore[attr-defined]
     if not header.lower().startswith("bearer "):
@@ -53,18 +53,18 @@ def from_api_token(request: object) -> str | None:
 
 @auth.source
 def from_trusted_proxy(request: object) -> str | None:
-    """L'identité posée par un proxy SSO — oauth2-proxy, IAP, Access.
+    """The identity set by an SSO proxy — oauth2-proxy, IAP, Access.
 
-    La quatrième façon d'entrer, et **la seule qui n'a pas d'écran** :
-    l'authentification a eu lieu avant d'arriver ici, le reverse proxy
-    l'atteste par un en-tête, et l'app n'a plus qu'à joindre sa table.
+    The fourth way in, and **the only one with no screen**: authentication
+    happened before arriving here, the reverse proxy attests it with a
+    header, and the app only has to join its table.
 
-    ⚠️ **Elle est éteinte par défaut, et c'est le sujet.** Un en-tête est
-    déclaratif : n'importe qui peut l'envoyer. Elle ne vaut QUE derrière
-    un proxy qui l'écrase systématiquement, et une app qui l'active sans
-    ça ouvre une porte à qui sait taper `curl -H`. D'où l'interrupteur
-    explicite (``BZ_TRUST_PROXY_HEADER=1``) plutôt qu'un défaut : dans ce
-    sens-là, l'oubli ferme au lieu d'ouvrir.
+    ⚠️ **It is off by default, and that is the point.** A header is
+    declarative: anyone can send it. It is worth something ONLY behind a
+    proxy that systematically overwrites it, and an app that turns it on
+    without that opens a door to whoever can type `curl -H`. Hence the
+    explicit switch (``BZ_TRUST_PROXY_HEADER=1``) rather than a default:
+    that way round, forgetting closes instead of opening.
     """
     if not trusted_proxy():
         return None
@@ -77,11 +77,11 @@ def from_trusted_proxy(request: object) -> str | None:
 
 
 def on_oauth_user(profile: oauth.OAuthProfile) -> str | None:
-    """La décision d'accepter, et l'endroit où la porte devient une ligne.
+    """The decision to accept, and where the door becomes a row.
 
-    ``None`` refuse. C'est le seul filtre qui existe entre « cette
-    personne a un compte chez Google » et « cette personne entre chez
-    moi » — sans lui, une porte est ouverte à la planète entière.
+    ``None`` refuses. It is the only filter that exists between "this
+    person has a Google account" and "this person comes into my house" —
+    without it, a door stands open to the whole planet.
     """
     if not profile.email or not profile.email.endswith(ALLOWED_DOMAIN):
         return None
@@ -89,11 +89,10 @@ def on_oauth_user(profile: oauth.OAuthProfile) -> str | None:
 
 
 def configured_doors() -> list[Any]:
-    """Les portes que l'environnement décrit — zéro, une, ou deux.
+    """The doors the environment describes — zero, one, or two.
 
-    Construites au lieu d'être écrites en dur parce qu'une démo ne peut
-    pas porter de secrets. Le code d'une vraie app écrit simplement le
-    décorateur au-dessus de sa fonction.
+    Built rather than hard-coded because a demo cannot carry secrets. A
+    real app's code simply writes the decorator above its function.
     """
     doors: list[object] = []
     oidc = oidc_settings()
@@ -105,29 +104,29 @@ def configured_doors() -> list[Any]:
     return doors
 
 
-#: Les noms des portes montées, pour que la page de connexion sache quels
-#: boutons afficher. Une liste vide n'est pas une panne : la démo tourne
-#: en mot de passe seul.
+#: The names of the mounted doors, so the login page knows which buttons
+#: to show. An empty list is not a failure: the demo runs on password
+#: alone.
 DOORS = configured_doors()
 
 for porte in DOORS:
-    # ``@auth.door(porte)`` s'empile — deux portes peuvent aboutir à la
-    # même fonction, et c'est le cas ici. Le décorateur MARQUE en place
-    # et rend le même objet : pas de réaffectation, elle ferait croire à
-    # un enveloppement.
+    # ``@auth.door(door)`` stacks — two doors can end on the same
+    # function, and that is the case here. The decorator MARKS in place
+    # and returns the same object: no reassignment, it would suggest a
+    # wrapper.
     auth.door(porte)(on_oauth_user)
 
 
-# ── Le reste, qui ne connaît plus qu'un ``user_id`` ────────────────────────
+# ── The rest, which now knows nothing but a ``user_id`` ────────────────────
 
 
 def current_user() -> dict[str, str] | None:
-    """Le profil de la personne connectée, quelle que soit la porte.
+    """The signed-in person's profile, whichever door they came through.
 
-    ``auth.user_id()`` rend la même chaîne que la connexion vienne du
-    formulaire, d'une porte OAuth ou d'un jeton de machine. C'est tout
-    l'objet du dispositif : au-delà de cette ligne, l'app ne sait plus
-    par où on est entré, et n'a pas à le savoir.
+    ``auth.user_id()`` returns the same string whether the sign-in came
+    from the form, an OAuth door or a machine token. That is the whole
+    point of the arrangement: beyond this line, the app no longer knows
+    how you got in, and does not have to.
     """
     return by_id(auth.user_id())
 

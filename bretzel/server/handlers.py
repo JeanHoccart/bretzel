@@ -84,25 +84,25 @@ def encode_action_id(handler: Callable[..., Any]) -> str:
 
 
 def action_path(handler: Callable[..., Any]) -> str:
-    """Le chemin que POSTe ce handler — ce qu'une garde doit laisser passer.
+    """The path this handler POSTs to — what a guard must let through.
 
-    Une garde d'auth est en défaut-FERMÉ : elle bloque tout sauf une
-    liste publique. Or le formulaire d'une page de connexion **poste une
-    action**, et cette action est aussi bloquée que le reste — le
-    symptôme est vicieux : htmx suit la redirection en transparence, le
-    HTML de ``/login`` revient dans la réponse, et **rien ne se passe à
-    l'écran**. Aucune erreur, aucun message, un bouton mort.
+    An auth guard is default-CLOSED: it blocks everything but a public
+    list. And a login page's form **posts an action**, and that action is
+    as blocked as the rest — the symptom is vicious: htmx follows the
+    redirection transparently, ``/login``'s HTML comes back in the
+    response, and **nothing happens on screen**. No error, no message, a
+    dead button.
 
-    ``examples/crm`` a payé ce piège le 2026-08-20 et l'a réparé en
-    recomposant le chemin à la main (``ROUTE_ACTION`` + le séparateur de
-    wire-id) ; ``examples/auth`` l'a repayé le 2026-08-24. Deux apps
-    sur deux, donc c'est le framework qui doit le dire ::
+    ``examples/crm`` paid that trap on 2026-08-20 and repaired it by
+    recomposing the path by hand (``ROUTE_ACTION`` + the wire-id
+    separator); ``examples/auth`` paid it again on 2026-08-24. Two apps
+    out of two, so it is the framework that must say it ::
 
         PUBLIC = {"/login", action_path(login.sign_in), *app.public_paths}
 
-    La composition passe par :func:`encode_action_id` — le même encodeur
-    que la route et que les attributs d'action, sans quoi le chemin
-    dériverait le jour où le wire-id changerait de forme.
+    The composition goes through :func:`encode_action_id` — the same
+    encoder as the route and the action attributes, without which the
+    path would drift the day the wire-id changed shape.
     """
     return f"{ROUTE_ACTION}/{encode_action_id(handler)}"
 

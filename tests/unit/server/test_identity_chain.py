@@ -204,7 +204,7 @@ def test_an_identity_source_is_not_mistaken_for_a_page() -> None:
 
 
 def test_identify_refuses_a_coroutine() -> None:
-    with pytest.raises(TypeError, match="synchrone"):
+    with pytest.raises(TypeError, match="synchronous"):
 
         @auth.source
         async def from_directory(request: object) -> str | None:  # pragma: no cover

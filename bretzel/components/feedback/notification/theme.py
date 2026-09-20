@@ -3,14 +3,14 @@
 Notification is the only feedback component whose visible DOM is
 managed by the runtime (``bretzel/runtime/_src/09_notification.js``)
 rather than Python — there's no ``Component`` to mount, no render()
-to call. Le runtime possède le per-toast chrome.
+to call. The runtime owns the per-toast chrome.
 
-⚠️ Il y a **SIX** piles, pas quatre — ``top``/``bottom`` × ``left``/
-``center``/``right`` (cf. ``positions`` plus bas). Et ce n'est pas le
-runtime qui les « possède » : leur squelette HTML est généré en Python
-(``notification.py::skeleton_html``) et injecté dans ``<body>`` par le
-shell **à chaque rendu de page**, donc présent dès le premier paint. Le
-runtime ne fait que pousser des données dans le scope.
+⚠️ There are **SIX** stacks, not four — ``top``/``bottom`` ×
+``left``/``center``/``right`` (cf. ``positions`` below). And it is not
+the runtime that "owns" them: their HTML skeleton is generated in Python
+(``notification.py::skeleton_html``) and injected into ``<body>`` by the
+shell **on every page render**, so present from the first paint. The
+runtime only pushes data into the scope.
 
 To keep the styling source-of-truth in Python (Tailwind JIT scans
 ``.py`` files for class literals ; the app theme module + per-app

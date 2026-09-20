@@ -1,20 +1,20 @@
-"""``Viewport`` + ``Pane`` — le banc de l'écran gelé.
+"""``Viewport`` + ``Pane`` — the frozen-screen bench.
 
-Les deux composants du modèle « document gelé, régions qui défilent ».
-Ils vont ensemble et se testent ensemble : un ``pane`` sans hauteur
-au-dessus de lui ne défile pas, et un ``viewport`` sans ``pane`` clippe
-son contenu.
+The two components of the "frozen document, scrolling regions" model.
+They go together and are tested together: a ``pane`` with no height above
+it does not scroll, and a ``viewport`` with no ``pane`` clips its
+content.
 
-⚠️ **Le viewport ne peut pas être monté DANS cette page**, et c'est une
-propriété du composant, pas une limite du banc : il est ``fixed
-inset-0``, donc il recouvrirait la barre latérale et la page entière. Il
-est démontré de deux façons honnêtes — son HTML émis, lisible ici, et
-une **route à part** (``/screen-demo``, sans coque) où il EST l'écran.
-C'est le seul endroit du playground où « mettre le composant dans une
-carte » n'a aucun sens.
+⚠️ **The viewport cannot be mounted IN this page**, and it is a property
+of the component, not a limit of the bench: it is ``fixed inset-0``, so
+it would cover the sidebar and the whole page. It is demonstrated in two
+honest ways — its emitted HTML, readable here, and a **separate route**
+(``/screen-demo``, with no shell) where it IS the screen. It is the
+playground's only place where "putting the component in a card" makes no
+sense.
 
-``BINDABLE_PROPS = ()`` pour les deux : de la disposition pure, rien
-qu'un driver client aurait à piloter.
+``BINDABLE_PROPS = ()`` for both: pure layout, nothing a client driver
+would have to drive.
 """
 
 from bretzel import refreshable, ui
@@ -45,8 +45,8 @@ class ScreenPlayground(PageState):
 
 
 def server_changed(state: ScreenPlayground) -> None:
-    # Le dispatcher hydrate la valeur du contrôle modifié dans ``state`` ;
-    # ``deps=[ScreenPlayground]`` re-rend le panneau.
+    # The dispatcher hydrates the changed control's value into
+    # ``state``; ``deps=[ScreenPlayground]`` re-renders the panel.
     pass
 
 
@@ -58,8 +58,8 @@ def control(label: str):
 
 
 def filler(count: int, prefix: str = "Ligne") -> None:
-    """Assez de contenu pour que le pane déborde — sinon rien ne défile
-    et le banc ne montre rien."""
+    """Enough content for the pane to overflow — otherwise nothing
+    scrolls and the bench shows nothing."""
     for i in range(count):
         with ui.card(padding="sm"):
             ui.text(f"{prefix} {i + 1}", size="sm", color="muted")
@@ -87,8 +87,9 @@ def pane_panel() -> None:
 
     ui.divider()
 
-    # La hauteur bornée est POSÉE PAR LE BANC, jamais par le pane : c'est
-    # tout le contrat du composant — il prend ce que son parent lui laisse.
+    # The bounded height is SET BY THE BENCH, never by the pane: it is
+    # the component's whole contract — it takes what its parent leaves
+    # it.
     with ui.card(padding="none", classes="h-72 flex flex-col"):
         with ui.pane(gap=state.gap, padding=state.padding,
                      align=state.align, justify=state.justify):
@@ -100,7 +101,7 @@ def pane_panel() -> None:
                       align=state.align, justify=state.justify)
     with preview:
         ui.text("Contenu")
-    emitted_html_block("HTML émis (pane avec un seul texte)",
+    emitted_html_block('Emitted HTML (a pane with a single text)',
                        serialize_html(preview))
 
 
@@ -127,12 +128,12 @@ def viewport_panel() -> None:
     frame = ui.viewport(direction=state.direction, align=state.frame_align,
                         gap=state.frame_gap)
     with frame, ui.pane(padding="md"):
-        ui.text("Région qui défile")
-    emitted_html_block("HTML émis (viewport + un pane)",
+        ui.text('A scrolling region')
+    emitted_html_block('Emitted HTML (viewport + one pane)',
                        serialize_html(frame))
 
     with ui.hstack(gap="sm", align="center", wrap=True):
-        ui.text("Le voir monté pour de vrai :", color="muted", size="sm")
+        ui.text('See it really mounted:', color="muted", size="sm")
         ui.button("Ouvrir /screen-demo", href=DEMO_PATH, variant="outline",
                   size="sm")
 
@@ -141,21 +142,21 @@ def page() -> None:
     with ui.container(), ui.vstack():
         ui.heading("Viewport + Pane", level=1)
         ui.text(
-            "Les deux composants du modèle « document gelé » : un cadre "
-            "qui prend l'écran et ne défile jamais, et les régions qui "
-            "défilent à l'intérieur. Bretzel garde par DÉFAUT l'autre "
-            "modèle — une page sans coque défile normalement ; celui-ci "
-            "s'écrit explicitement.",
+            'The two components of the “frozen document” model: a frame '
+                'that takes the screen and never scrolls, and the regions '
+                'that scroll inside it. Bretzel keeps the other model by '
+                'DEFAULT — a page with no shell scrolls normally; this one is'
+                ' written explicitly.',
             color="muted",
         )
 
-        # ── Carte 1 — Référence : le pane ────────────────────────────
+        # ── Card 1 — Reference: the pane ─────────────────────────────
         with ui.card(), ui.vstack():
-            ui.heading("Référence — pane", level=2)
+            ui.heading('Reference — pane', level=2)
             ui.text(
-                "Chaque boîte ci-dessous est une carte de hauteur fixe. "
-                "Le pane prend la place restante et défile ; c'est le "
-                "PARENT qui donne la hauteur, jamais le pane.",
+                'Every box below is a fixed-height card. The pane takes '
+                    'the remaining space and scrolls; it is the PARENT that '
+                    'gives the height, never the pane.',
                 color="muted", size="sm",
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
@@ -168,45 +169,44 @@ def page() -> None:
                             with ui.pane(gap="sm", padding=padding):
                                 filler(10)
 
-        # ── Carte 2 — Les deux régimes de hauteur ────────────────────
+        # ── Card 2 — The two height regimes ──────────────────────────
         with ui.card(), ui.vstack():
-            ui.heading("Les deux régimes de hauteur", level=2)
+            ui.heading('The two height regimes', level=2)
             ui.text(
-                "Un pane porte `flex-1` ET `h-full`, parce que son parent "
-                "peut avoir deux formes. À gauche une colonne flex — "
-                "`flex-basis` gagne, le pane prend la place restante sous "
-                "l'en-tête. À droite un bloc à hauteur définie — `flex-1` "
-                "est inerte, `h-full` rend. Les deux défilent.",
+                'A pane carries `flex-1` AND `h-full`, because its parent'
+                    ' can have two shapes. On the left a flex column — `flex-'
+                    'basis` wins, the pane takes the space left under the '
+                    'header. On the right a block with a defined height — '
+                    '`flex-1` is inert, `h-full` renders. Both scroll.',
                 color="muted", size="sm",
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.vstack(gap="xs"):
-                    ui.text("parent = colonne flex (+ un en-tête)",
+                    ui.text('parent = a flex column (+ a header)',
                             size="xs", color="muted")
                     with ui.card(padding="none",
                                  classes="h-64 flex flex-col"):
                         with ui.hstack(classes="shrink-0 px-3 py-2 "
                                                "border-b border-text/10"):
-                            ui.text("En-tête épinglé", size="sm",
+                            ui.text('Pinned header', size="sm",
                                     weight="semibold")
                         with ui.pane(gap="sm", padding="sm"):
                             filler(10)
                 with ui.vstack(gap="xs"):
-                    ui.text("parent = bloc à hauteur définie", size="xs",
+                    ui.text('parent = a block with a defined height', size="xs",
                             color="muted")
                     with ui.card(padding="none", classes="h-64"):
                         with ui.pane(gap="sm", padding="sm"):
                             filler(10)
 
-        # ── Carte 3 — Deux panes indépendants ────────────────────────
+        # ── Card 3 — Two independent panes ───────────────────────────
         with ui.card(), ui.vstack():
-            ui.heading("Deux régions qui défilent seules", level=2)
+            ui.heading('Two regions that scroll on their own', level=2)
             ui.text(
-                "C'est LA raison d'être du modèle gelé, et ce que le "
-                "modèle « document qui défile » ne sait pas faire : deux "
-                "colonnes côte à côte, chacune avec sa propre position "
-                "de défilement. Un maître-détail, un kanban, un fil de "
-                "messages à côté d'une liste.",
+                'This is THE reason the frozen model exists, and what the'
+                    ' "scrolling document" model cannot do: two columns side '
+                    'by side, each with its own scroll position. A master-'
+                    'detail, a kanban, a message thread next to a list.',
                 color="muted", size="sm",
             )
             with ui.card(padding="none", classes="h-72"):
@@ -221,42 +221,41 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Viewport", level=2)
             ui.text(
-                "Il n'est pas monté ici, et c'est voulu : `fixed "
-                "inset-0` recouvrirait la barre latérale et cette page. "
-                "Son HTML est lisible ci-dessous, et la route "
-                "`/screen-demo` le monte pour de vrai, sans coque.",
+                'It is not mounted here, and that is on purpose: `fixed '
+                    'inset-0` would cover the sidebar and this page. Its HTML'
+                    ' is readable below, and the `/screen-demo` route mounts '
+                    'it for real, with no shell.',
                 color="muted", size="sm",
             )
             viewport_panel()
 
-        # ── Carte 5 — Banc serveur du pane ───────────────────────────
+        # ── Card 5 — The pane's server bench ─────────────────────────
         with ui.card(), ui.vstack():
             ui.heading("Banc serveur — pane", level=2)
             ui.text(
-                "Chaque prop est câblée à un contrôle ; l'aperçu et le "
-                "HTML émis se rafraîchissent à chaque changement.",
+                'Every prop is wired to a control; the preview and the '
+                    'emitted HTML both refresh on every change.',
                 color="muted", size="sm",
             )
             pane_panel()
 
 
 def full_demo() -> None:
-    """Le viewport MONTÉ — page sans coque, il est l'écran.
+    """The viewport MOUNTED — a page with no shell, it is the screen.
 
-    Deux régions : une colonne fixe qui ne défile pas, et un pane qui
-    défile. Rien d'autre ne bouge, et le document n'a aucune barre à
-    lui : c'est exactement ce que le modèle promet.
+    Two regions: a fixed column that does not scroll, and a pane that
+    does. Nothing else moves, and the document has no bar of its own: it
+    is exactly what the model promises.
     """
     with ui.viewport(direction="row", align="stretch", gap="none"):
         with ui.vstack(gap="sm", classes="w-56 shrink-0 p-4 "
                                          "border-r border-text/10"):
             ui.heading("Colonne fixe", level=3, size="sm")
-            ui.text("Elle ne défile pas, quelle que soit la longueur de "
-                    "la région de droite.", color="muted", size="xs")
+            ui.text('It does not scroll, however long the region on the right is.', color="muted", size="xs")
             ui.button("← Retour au banc", href=PATH, variant="outline",
                       size="sm")
         with ui.pane(gap="sm", padding="lg"):
-            ui.heading("Région qui défile", level=2)
-            ui.text("Le document, lui, n'a aucune barre de défilement.",
+            ui.heading('A scrolling region', level=2)
+            ui.text('The document itself has no scrollbar at all.',
                     color="muted", size="sm")
             filler(40, "Contenu")

@@ -1,9 +1,9 @@
 """``SignaturePad`` test bench.
 
-Dix cards. ``SignaturePad.BINDABLE_PROPS = ("value",)`` — la data-URL du
-tracé est bindable (le client l'écrit en dessinant) ; placeholder /
-clear_label / disabled / size / color restent du design-time. Event :
-``change``. Impératif : ``.clear()``.
+Ten cards. ``SignaturePad.BINDABLE_PROPS = ("value",)`` — the stroke's
+data URL is bindable (the client writes it by drawing); placeholder /
+clear_label / disabled / size / color stay design-time. Event:
+``change``. Imperative: ``.clear()``.
 """
 
 from urllib.parse import quote
@@ -16,21 +16,22 @@ from examples.playground.features.inspection import emitted_html_block
 PATH = "/signature_pad"
 
 
-#: Une signature « déjà là » pour la démo du dossier rouvert.
+#: A signature "already there" for the reopened-file demo.
 #:
-#: Une data-URI SVG plutôt qu'un PNG en base64, pour deux raisons : elle
-#: reste LISIBLE dans la source (un blob base64 ne dit rien de ce qu'il
-#: dessine), et elle exerce l'autre branche de data-URI — celle qui est
-#: percent-encodée, sans padding ``=``. Le canvas charge les deux
-#: pareil.
+#: An SVG data URI rather than a base64 PNG, for two reasons: it stays
+#: READABLE in the source (a base64 blob says nothing about what it
+#: draws), and it exercises the other data-URI branch — the
+#: percent-encoded one, with no ``=`` padding. The canvas loads both the
+#: same.
 #:
-#: ⚠️ La première version de cette carte utilisait un PNG 1×1
-#: TRANSPARENT : même une fois le chargement corrigé, elle n'aurait rien
-#: montré. Une démo qui ne peut pas échouer visiblement ne démontre rien.
-#: ⚠️ La couleur s'écrit ``#334155`` en CLAIR : c'est ``quote`` qui
-#: l'encode en ``%23``. L'écrire déjà encodée la fait doubler
-#: (``%2523``), le SVG lit alors une couleur invalide, et le tracé ne
-#: rend RIEN — mesuré, et invisible autrement qu'en comptant les pixels.
+#: ⚠️ This card's first version used a TRANSPARENT 1×1 PNG: even once
+#: the loading was fixed, it would have shown nothing. A demo that cannot
+#: visibly fail demonstrates nothing.
+#: ⚠️ The colour is written ``#334155`` in the CLEAR: it is ``quote``
+#: that encodes it as ``%23``. Writing it already encoded doubles it
+#: (``%2523``), the SVG then reads an invalid colour, and the stroke
+#: renders NOTHING — measured, and invisible other than by counting
+#: pixels.
 EXISTING_SIGNATURE = "data:image/svg+xml," + quote(
     "<svg xmlns='http://www.w3.org/2000/svg' width='320' height='110'>"
     "<path d='M20 78 C 55 18, 78 96, 108 52 S 156 12, 186 66 "
@@ -69,9 +70,9 @@ class SignaturePadEvents(PageState):
     log: list = field(default_factory=list)
 
 
-# Le cas CANONIQUE du composant : la signature vit dans un état SERVEUR,
-# et l'autoname dérive le ``name`` de l'input caché depuis le champ. Rien
-# à câbler — ``_hydrate_state`` la réécrit à la soumission.
+# The component's CANONICAL case: the signature lives in a SERVER state,
+# and autoname derives the hidden input's ``name`` from the field.
+# Nothing to wire — ``_hydrate_state`` rewrites it on submission.
 class Contract(PageState):
     signature: str = field(default="")
     signed_by: str = field(default="")
@@ -85,11 +86,12 @@ class SignaturePadClientEvents(ClientState, persist="memory"):
     log: list = field(default_factory=list)
 
 
-# ⚠️ Le state qui rend le ``change`` du banc LISIBLE. Sans binding ni
-# ``name=``, le composant ne pose AUCUN ``name`` sur son input caché
-# (choix délibéré du socle : un name par défaut injecterait un champ
-# parasite dans chaque formulaire englobant), donc le handler part avec
-# une FormData vide. Leçon payée sur le banc /resizable le même jour.
+# ⚠️ The state that makes the bench's ``change`` READABLE. With neither
+# a binding nor a ``name=``, the component sets NO ``name`` on its hidden
+# input (the base layer's deliberate choice: a default name would inject
+# a stray field into every enclosing form), so the handler leaves with an
+# empty FormData. A lesson paid for on the /resizable bench the same
+# day.
 class SignaturePadServerEvents(ClientState, persist="memory"):
     value: str = field(default="")
 
@@ -100,8 +102,8 @@ def log(name: str) -> None:
 
 
 def log_change(value: str = "") -> None:
-    # On journalise la TAILLE et le préfixe, pas la data-URL : trente
-    # kilo-octets de base64 dans un log rendraient la page illisible.
+    # We log the SIZE and the prefix, not the data URL: thirty
+    # kilobytes of base64 in a log would make the page unreadable.
     head = value[:30] + "…" if len(value) > 30 else value
     log(f"change(len={len(value)}, head={head!r})")
 
@@ -122,10 +124,10 @@ def playground_change_handler(value: str = "") -> None:
 
 
 def sign_contract(doc: Contract) -> None:
-    """Le handler de la démo formulaire — hydraté depuis la soumission.
+    """The form demo's handler — hydrated from the submission.
 
-    C'est LE point du composant : ``doc.signature`` porte la data-URL
-    sans qu'aucun endpoint ni encodage n'ait été écrit.
+    It is THE point of the component: ``doc.signature`` carries the data
+    URL without any endpoint or encoding having been written.
     """
     log(
         f"submit(signed_by={doc.signed_by!r}, "
@@ -153,7 +155,7 @@ def build_preview(state: SignaturePadPlayground) -> dict:
         "size": state.size,
         "color": state.color,
     }
-    # Chaîne vide = ne pas passer le kwarg.
+    # An empty string = do not pass the kwarg.
     if state.placeholder:
         kwargs["placeholder"] = state.placeholder
     if state.clear_label:
@@ -200,15 +202,15 @@ def server_panel() -> None:
     state = SignaturePadPlayground()
 
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
-        with control("placeholder (vide = pas d'invite)"):
+        with control('placeholder (empty = no prompt)'):
             ui.input(value=state.placeholder, placeholder="Sign here",
                      on_change=server_changed)
-        with control("clear_label (vide = pas de bouton)"):
+        with control('clear_label (empty = no button)'):
             ui.input(value=state.clear_label, placeholder="Clear",
                      on_change=server_changed)
         with control("disabled"):
             ui.switch(checked=state.disabled, on_change=server_changed)
-        with control("size (hauteur du cadre)"):
+        with control('size (frame height)'):
             ui.select(value=state.size,
                       options=[(s, s) for s in SIZES],
                       on_change=server_changed)
@@ -236,7 +238,7 @@ def server_panel() -> None:
                         placeholder="data-test=pad",
                         on_change=server_changed)
         with control("tooltip"):
-            ui.input(value=state.tooltip, placeholder="Signez ici",
+            ui.input(value=state.tooltip, placeholder='Sign here',
                      on_change=server_changed)
         with control("visible"):
             ui.select(value=state.visible,
@@ -259,7 +261,7 @@ def server_panel() -> None:
     ui.divider()
 
     emitted_html_block(
-        "Emitted HTML (SignaturePad + son canvas + le porteur caché)",
+        'Emitted HTML (SignaturePad + its canvas + the hidden carrier)',
         serialize_html(ui.signature_pad(**kwargs)),
     )
 
@@ -269,10 +271,10 @@ def events_panel() -> None:
     state = SignaturePadEvents()
 
     ui.text(
-        "Le pad émet UN ``change`` au LEVER du stylo, jamais pendant le "
-        "tracé — un PNG pèse des dizaines de kilo-octets, et l'émettre "
-        "par frame ferait partir autant de POST. Signez ci-dessous et "
-        "levez le doigt : une seule ligne apparaît.",
+        'The pad emits ONE ``change`` on pen LIFT, never while drawing — '
+            'a PNG weighs tens of kilobytes, and emitting it per frame would '
+            'send as many POSTs. Sign below and lift your finger: a single '
+            'line appears.',
         color="muted", size="sm",
     )
 
@@ -282,11 +284,11 @@ def events_panel() -> None:
 
     ui.divider()
 
-    ui.heading("Le cas canonique — un formulaire", level=3)
+    ui.heading('The canonical case — a form', level=3)
     ui.text(
-        "La signature vit dans un ServerState. L'autoname dérive "
-        "``name=\"signature\"`` du champ, et le handler la reçoit "
-        "hydratée : ni endpoint, ni encodage à écrire.",
+        'The signature lives in a ServerState. Autoname derives '
+            '``name="signature"`` from the field, and the handler receives it'
+            ' hydrated: no endpoint and no encoding to write.',
         color="muted", size="sm",
     )
     doc = Contract()
@@ -309,7 +311,7 @@ def events_panel() -> None:
                 ui.text(f"{i}. {evt}",
                         color="muted", size="sm", classes="font-mono")
     else:
-        ui.text("(no events yet — signez le pad ci-dessus)",
+        ui.text('(no events yet — sign the pad above)',
                 color="muted", size="sm")
 
     ui.divider()
@@ -326,11 +328,11 @@ def page() -> None:
     with ui.container(), ui.vstack():
         ui.heading("Signature pad", level=1)
         ui.text(
-            "Signer au doigt ou à la souris, dans un formulaire. La "
-            "valeur est un PNG en data-URL, portée par un input caché "
-            "nommé — donc elle part avec le formulaire comme un champ "
-            "ordinaire, et ton ServerState la reçoit hydratée. Le "
-            "premier et le seul <canvas> du dépôt.",
+            'Signing with a finger or a mouse, inside a form. The value '
+                'is a PNG as a data URL, carried by a named hidden input — so'
+                ' it leaves with the form like an ordinary field, and your '
+                'ServerState receives it hydrated. The first and only '
+                '<canvas> in the repository.',
             color="muted",
         )
 
@@ -343,23 +345,23 @@ def page() -> None:
             ui.heading("Basic", level=3)
             ui.signature_pad()
 
-            ui.heading("Sizes (hauteur du cadre)", level=3)
+            ui.heading('Sizes (frame height)', level=3)
             ui.text(
-                "Le seul axe de taille qu'un pad ait : un <canvas> n'a "
-                "AUCUNE dimension intrinsèque, donc sans hauteur "
-                "déclarée il fait zéro pixel.",
+                'The only size axis a pad has: a <canvas> has NO '
+                    'intrinsic dimension, so with no declared height it is '
+                    'zero pixels tall.',
                 color="muted", size="xs",
             )
             for s in SIZES:
                 ui.text(f"size={s}", color="muted", size="xs")
                 ui.signature_pad(size=s)
 
-            ui.heading("Colors (cadre focalisé + bouton)", level=3)
+            ui.heading('Colors (focused frame + button)', level=3)
             ui.text(
-                "La couleur ne teinte PAS l'encre : le trait prend la "
-                "couleur de texte, pour rester lisible dans les deux "
-                "thèmes. Un pen_color= aurait figé une encre invisible "
-                "sur l'autre fond.",
+                'The colour does NOT tint the ink: the stroke takes the '
+                    'text colour, so it stays readable in both themes. A '
+                    'pen_color= would have frozen an ink invisible on the '
+                    'other background.',
                 color="muted", size="xs",
             )
             for c in COLORS:
@@ -367,8 +369,8 @@ def page() -> None:
 
             ui.heading("disabled", level=3)
             ui.text(
-                "Le cadre passe en trait plein et se grise : un pad "
-                "signé ne doit plus INVITER à signer.",
+                'The frame goes solid and greys out: a signed pad must no'
+                    ' longer INVITE a signature.',
                 color="muted", size="xs",
             )
             ui.signature_pad(disabled=True)
@@ -377,25 +379,25 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Slots", level=2)
             ui.text(
-                "Deux textes, et pas de sous-composant : l'invite et le "
-                "libellé du bouton. Vider l'un le fait DISPARAÎTRE — "
-                "c'est l'échappatoire pour un pad sans invite, ou sans "
-                "bouton parce que la page en a déjà un ailleurs.",
+                'Two texts, and no sub-component: the prompt and the '
+                    "button's label. Emptying one makes it DISAPPEAR — that "
+                    'is the escape hatch for a pad with no prompt, or with no'
+                    ' button because the page already has one elsewhere.',
                 color="muted", size="sm",
             )
 
-            ui.heading("placeholder personnalisé", level=3)
-            ui.signature_pad(placeholder="Signez dans le cadre")
+            ui.heading('a custom placeholder', level=3)
+            ui.signature_pad(placeholder='Sign in the frame')
 
-            ui.heading("Sans invite", level=3)
+            ui.heading('With no prompt', level=3)
             ui.signature_pad(placeholder="")
 
-            ui.heading("Sans bouton Effacer", level=3)
+            ui.heading('With no Clear button', level=3)
             ui.signature_pad(clear_label="")
 
-            ui.heading("Libellé du bouton traduit", level=3)
+            ui.heading('Translated button label', level=3)
             ui.signature_pad(clear_label="Effacer",
-                             placeholder="Signez ici")
+                             placeholder='Sign here')
 
         # ── Card 3 — Edge cases ─────────────────────────────────
         with ui.card(), ui.vstack():
@@ -404,31 +406,31 @@ def page() -> None:
                     color="muted", size="sm")
 
             ui.heading("Ni invite ni bouton", level=3)
-            ui.text("Un cadre nu — pas une erreur.",
+            ui.text('A bare frame — not an error.',
                     color="muted", size="xs")
             ui.signature_pad(placeholder="", clear_label="")
 
-            ui.heading("Invite très longue", level=3)
+            ui.heading('A very long prompt', level=3)
             ui.signature_pad(
                 placeholder="Signez ici en utilisant votre doigt, votre "
                             "stylet ou votre souris, puis validez"
             )
 
-            ui.heading("Une signature déjà là", level=3)
+            ui.heading('A signature already there', level=3)
             ui.text(
-                "Un dossier rouvert : la data-URL est rendue au SSR, "
-                "chargée à l'hydratation et peinte SOUS les traits "
-                "neufs. Signez par-dessus : les deux partent ensemble. "
-                "Effacer emporte les deux aussi — « effacer » veut dire "
-                "un cadre vide, pas « revenir à la signature d'avant ».",
+                'A reopened file: the data URL is rendered at SSR, loaded'
+                    ' on hydration and painted UNDER the new strokes. Sign '
+                    'over it: the two leave together. Clearing takes both too'
+                    ' — “clear” means an empty frame, not “go back to the '
+                    'previous signature”.',
                 color="muted", size="xs",
             )
             ui.signature_pad(value=EXISTING_SIGNATURE)
 
-            ui.heading("Dans un cadre étroit", level=3)
+            ui.heading('In a narrow frame', level=3)
             ui.text(
-                "Le pad remplit la place qu'on lui donne — il n'a "
-                "aucune largeur intrinsèque à laquelle se réduire.",
+                'The pad fills the space it is given — it has no '
+                    'intrinsic width to shrink to.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
@@ -439,56 +441,55 @@ def page() -> None:
         # ── Card 4 — Composability ──────────────────────────────
         with ui.card(), ui.vstack():
             ui.heading("Composability", level=2)
-            ui.text("SignaturePad dans ses contextes habituels.",
+            ui.text('SignaturePad in its usual contexts.',
                     color="muted", size="sm")
 
-            ui.heading("Dans un ui.form_field", level=3)
+            ui.heading('In a ui.form_field', level=3)
             with ui.form_field(label="Signature",
-                               hint="Signez dans le cadre ci-dessus"):
+                               hint='Sign in the frame above'):
                 ui.signature_pad(size="sm")
 
-            ui.heading("Dans un ui.dialog", level=3)
-            with ui.dialog(title="Signer le contrat", width="lg") as dlg, \
+            ui.heading('Inside a ui.dialog', level=3)
+            with ui.dialog(title='Sign the contract', width="lg") as dlg, \
                     ui.vstack():
                 ui.signature_pad()
-            ui.button("Ouvrir le dialogue", on_click=dlg.open())
+            ui.button('Open the dialog', on_click=dlg.open())
 
-            ui.heading("Dans un panneau redimensionnable", level=3)
+            ui.heading('In a resizable panel', level=3)
             ui.text(
-                "Le test qui compte, et le seul qu'un screenshot ne "
-                "montre pas : redimensionner un <canvas> l'EFFACE. "
-                "Signez, tirez la poignée — la signature doit survivre.",
+                'The test that counts, and the only one a screenshot does'
+                    ' not show: resizing a <canvas> ERASES it. Sign, drag the'
+                    ' handle — the signature must survive.',
                 color="muted", size="xs",
             )
             ui.text(
-                "⚠️ Noter la composition : un panneau est un EMPLACEMENT, "
-                "il ne rembourre pas. C'est le vstack qu'on met dedans "
-                "qui pose le p-4 — sinon le pad colle au bord et au "
-                "séparateur. Les surfaces rembourrent (card, dialog), "
-                "les emplacements non (panneau, slide, tab panel).",
+                '⚠️ Note the composition: a panel is a SLOT, it does not '
+                    'pad. It is the vstack you put inside that sets the p-4 —'
+                    ' otherwise the pad sticks to the edge and to the '
+                    'separator. Surfaces pad (card, dialog), slots do not '
+                    '(panel, slide, tab panel).',
                 color="muted", size="xs",
             )
             with ui.resizable(sizes=[60, 40], style="height: 260px"):
                 with ui.resizable_panel(min_size=30):
                     with ui.vstack(gap="sm", classes="p-4 h-full"):
-                        ui.text("Signez, puis tirez la poignée.",
+                        ui.text('Sign, then drag the handle.',
                                 color="muted", size="xs")
                         ui.signature_pad(size="sm")
                 with ui.resizable_panel():
                     with ui.vstack(classes="p-4"):
-                        ui.text("Le panneau voisin.", color="muted")
+                        ui.text('The neighbouring panel.', color="muted")
 
         # ── Card 5 — A11y ───────────────────────────────────────
         with ui.card(), ui.vstack():
             ui.heading("A11y", level=2)
             ui.text(
-                "Le <canvas> est aria-hidden À DESSEIN : ce qui est "
-                "annoncé et atteignable au clavier, c'est l'input caché "
-                "(un vrai contrôle de formulaire, avec son name) et le "
-                "bouton Effacer. Poser un rôle sur une surface de "
-                "dessin annoncerait un contrôle qu'aucune touche ne "
-                "pilote — la moitié d'un motif ARIA vaut moins que pas "
-                "de motif du tout.",
+                'The <canvas> is aria-hidden ON PURPOSE: what is '
+                    'announced and reachable from the keyboard is the hidden '
+                    'input (a real form control, with its name) and the Clear'
+                    ' button. Putting a role on a drawing surface would '
+                    'announce a control no key drives — half an ARIA pattern '
+                    'is worth less than no pattern at all.',
                 color="muted", size="sm",
             )
             ui.signature_pad(aria_label="Demo signature")
@@ -513,13 +514,12 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Client playground", level=2)
             ui.text(
-                "Mirror of SignaturePad's BINDABLE_PROPS = ('value',). "
-                "⚠️ À n'utiliser que si un AUTRE composant doit lire la "
-                "signature côté client : le snapshot ClientState part "
-                "ENTIER à chaque POST d'action, donc un pad lié renvoie "
-                "ses dizaines de kilo-octets à chaque clic de la page. "
-                "Le cas normal, c'est un ServerState (carte « Server "
-                "events »).",
+                "Mirror of SignaturePad's BINDABLE_PROPS = ('value',). ⚠️"
+                    ' Only to be used if ANOTHER component has to read the '
+                    'signature client side: the ClientState snapshot leaves '
+                    'WHOLE on every action POST, so a bound pad sends its '
+                    'tens of kilobytes back on every click of the page. The '
+                    'normal case is a ServerState (the “Server events” card).',
                 color="muted", size="sm",
             )
             client = SignaturePadClient()
@@ -527,9 +527,9 @@ def page() -> None:
 
             ui.text(
                 ClientExpression(
-                    "'octets dans le store : ' + "
-                    "(($bz.state.SignaturePadClient.default.sig || '')"
-                    ".length)"
+                    "'bytes in the store: ' + "
+                        '(($bz.state.SignaturePadClient.default.sig || '
+                        "'').length)"
                 ),
                 color="muted", size="sm", classes="font-mono",
             )
@@ -537,8 +537,8 @@ def page() -> None:
             ui.divider()
 
             emitted_html_block(
-                "Emitted HTML — le porteur lit la cellule du store "
-                "directement ; le runtime y écrit au lever du stylo.",
+                'Emitted HTML — the carrier reads the store cell '
+                    'directly; the runtime writes into it on pen lift.',
                 serialize_html(ui.signature_pad(value=client.sig)),
             )
 
@@ -546,10 +546,10 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("External controls — the 3 modes", level=2)
             ui.text(
-                ".clear() dispatche TOUJOURS un event DOM, binding ou "
-                "pas : vider n'est pas « écrire la chaîne vide », il "
-                "faut aussi jeter les points gardés en mémoire et "
-                "repeindre — et seul le runtime sait le faire.",
+                '.clear() ALWAYS dispatches a DOM event, binding or not: '
+                    'clearing is not “writing the empty string”, the points '
+                    'kept in memory have to be thrown away and the surface '
+                    'repainted — and only the runtime knows how.',
                 color="muted", size="sm",
             )
 
@@ -566,8 +566,8 @@ def page() -> None:
             ui.signature_pad(value=bound.sig)
             ui.text(
                 ClientExpression(
-                    "(($bz.state.SignaturePadClient.binding_only.sig "
-                    "|| '').length ? 'signé' : 'vide')"
+                    '(($bz.state.SignaturePadClient.binding_only.sig || '
+                        "'').length ? 'signed' : 'empty')"
                 ),
                 color="muted", size="sm",
             )
@@ -592,18 +592,18 @@ def page() -> None:
             ui.divider()
 
             emitted_html_block(
-                "Emitted HTML — la root porte bz-on:bz-clear, le "
-                "récepteur vers lequel .clear() dispatche.",
+                'Emitted HTML — the root carries bz-on:bz-clear, the '
+                    'receiver .clear() dispatches to.',
                 serialize_html(ui.signature_pad(value=both.sig)),
             )
 
         # ── Card 10 — Client events ─────────────────────────────
         with ui.card(), ui.vstack():
             ui.heading("Client events", level=2)
-            ui.text("change wired to a client expression that pushes "
-                    "the payload SIZE onto a ClientState list. Zero "
-                    "network — et on pousse la taille, pas la "
-                    "data-URL : un log de PNG en base64 est illisible.",
+            ui.text('change wired to a client expression that pushes the payload '
+                'SIZE onto a ClientState list. Zero network — and it is the '
+                'size that gets pushed, not the data URL: a log of base64 '
+                'PNGs is unreadable.',
                     color="muted", size="sm")
             cevents = SignaturePadClientEvents()
             _size = ClientExpression("($event.target.value || '').length")
@@ -630,9 +630,9 @@ def page() -> None:
             ui.divider()
 
             emitted_html_block(
-                "Emitted HTML — le handler bz-on:change est relocalisé "
-                "sur l'input caché, dont le bz-effect re-tire un change "
-                "à chaque lever de stylo.",
+                'Emitted HTML — the bz-on:change handler is relocated '
+                    'onto the hidden input, whose bz-effect re-fires a change'
+                    ' on every pen lift.',
                 serialize_html(
                     ui.signature_pad(on_change=cevents.log.push(_size))
                 ),

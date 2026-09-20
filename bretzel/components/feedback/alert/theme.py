@@ -6,16 +6,17 @@ icon and trailing dismiss button are inline-flex aligned so multi-line
 messages stay nicely indented.
 
 Slots :
-- ``root``     : the flex wrapper that holds everything. **Pas de**
-  ``role="alert"`` : Alert ne le pose jamais automatiquement (sémantique
-  « interrompre maintenant », injustifiée pour un panneau d'info) — le
-  caller le passe s'il le veut. Cf. ``alert.py`` § A11y note.
+- ``root``     : the flex wrapper that holds everything. **No**
+  ``role="alert"``: Alert never sets it automatically ("interrupt now"
+  semantics, unjustified for an info panel) — the caller passes it if
+  they want it. Cf. ``alert.py`` § A11y note.
 - ``icon``     : the leading icon (auto-derived from color, override-able)
 - ``content``  : vertical stack of title + message
 - ``title``    : semibold heading line
 - ``message``  : the actual prose
-- ``dismiss``  : slot du ``<button>`` × de fermeture — construit par ``dismiss_button``
-  (``base/_wiring.py``), **plus** par un IconButton ghost comme jadis
+- ``dismiss``  : slot of the closing ``×`` ``<button>`` — built by
+  ``dismiss_button`` (``base/_wiring.py``), **no longer** by a ghost
+  IconButton as it once was
 """
 
 from __future__ import annotations
@@ -31,17 +32,17 @@ ALERT_THEME: dict[str, Any] = {
         "root": (
             "flex items-center gap-3 w-full "
             "rounded-box border-(length:--bz-stroke) px-4 py-3 "
-            # ⚠️ Portait ``transition-opacity duration-200``, qui
-            # n'animait rien : le dismiss pose ``bz-show``, donc un
-            # ``display:none`` — mesuré le 2026-09-04, opacité 1
-            # jusqu'à la disparition, en deux images.
+            # ⚠️ It carried ``transition-opacity duration-200``, which
+            # animated nothing: the dismiss sets ``bz-show``, so a
+            # ``display:none`` — measured on 2026-09-04, opacity 1 until
+            # it disappeared, in two frames.
             #
-            # Le remède des panneaux (``starting:opacity-0`` +
-            # ``transition-discrete``) ne vaut PAS ici : une alerte
-            # est DANS le flux, donc un fondu sans effondrement de
-            # hauteur laisserait un trou pendant l'animation. La
-            # classe part. Le jour où on veut la sortie animée,
-            # c'est la HAUTEUR qu'il faut traiter, pas l'opacité.
+            # The panels' remedy (``starting:opacity-0`` +
+            # ``transition-discrete``) does NOT hold here: an alert is IN
+            # the flow, so a fade with no height collapse would leave a
+            # hole during the animation. The class goes. The day we want
+            # the exit animated, it is the HEIGHT that must be treated,
+            # not the opacity.
             "bg-(--bz-bg) border-(--bz-solid)/20 text-(--bz-text)"
         ),
         # ``leading-none`` neutralises the icon font's line-height so the
@@ -58,10 +59,11 @@ ALERT_THEME: dict[str, Any] = {
         # ``text-text/80`` keeps the message readable in any color context ;
         # the title (not the body) carries the colour cue.
         "message": "text-sm leading-snug text-text/80",
-        # × ghost button — le look (jadis porté par un IconButton ghost)
-        # vit ici depuis l'unification dismiss_button : carré h-8 w-8,
-        # rounded-box, teinte ``--bz-bg``, hover/focus ring. Les paliers
-        # viennent du pont que le socle pose sur la racine de l'alert.
+        # × ghost button — the look (once carried by a ghost IconButton)
+        # lives here since the dismiss_button unification: an h-8 w-8
+        # square, rounded-box, ``--bz-bg`` tint, hover/focus ring. The
+        # steps come from the bridge the base layer sets on the alert's
+        # root.
         "dismiss": (
             "shrink-0 inline-flex items-center justify-center "
             "h-8 w-8 rounded-field text-(--bz-text) "

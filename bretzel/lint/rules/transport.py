@@ -1,25 +1,24 @@
-"""Règle : une app ne pilote pas le transport à la main.
+"""Rule: an app does not drive the transport by hand.
 
-Le charter (CLAUDE.md, principe 2) tient la frontière transport en
-runtime-only. Une app déclare un handler ``on_<event>=`` et le socle émet
-le POST **signé** (HMAC + horodatage + snapshot d'état client) via
-``action_attrs``. Écrire un ``hx-post`` à la main produit une requête qui
-n'a rien de tout ça : elle sera refusée, ou pire, elle contournera une
-protection qu'on croyait acquise.
+The charter (CLAUDE.md, principle 2) keeps the transport boundary
+runtime-only. An app declares an ``on_<event>=`` handler and the base
+layer emits the **signed** POST (HMAC + timestamp + client-state
+snapshot) through ``action_attrs``. Writing an ``hx-post`` by hand
+produces a request that has none of that: it will be refused, or worse,
+it will bypass a protection one believed was in place.
 
-Deux formes, parce que les deux atteignent le DOM :
+Two forms, because both reach the DOM:
 
-- le kwarg ``hx_post=…`` — le socle a un passthrough déclaré pour ``hx-``,
-  donc il part verbatim et **ne lève pas** ;
-- la clé ``attrs={"hx-post": …}`` — même chemin, autre orthographe.
+- the ``hx_post=…`` kwarg — the base layer has a declared passthrough for
+  ``hx-``, so it goes out verbatim and **does not raise**;
+- the ``attrs={"hx-post": …}`` key — same path, different spelling.
 
-Quelques composants du framework pilotent le swap engine directement, et
-c'est assumé : la liste est gelée dans
-``tests/consistency/test_raw_htmx_stays_in_the_allowlist.py``, avec la
-règle du charter — « un nouveau composant qui en aurait besoin doit
-d'abord pousser l'usage dans un helper runtime ». **Cette permission est
-celle du framework, pas celle des apps** : une app n'a aucun helper à
-écrire, elle a un handler à déclarer.
+A few framework components drive the swap engine directly, and that is
+accepted: the list is frozen in
+``tests/consistency/test_raw_htmx_stays_in_the_allowlist.py``, with the
+charter's rule — "a new component that needed it must first push the
+usage into a runtime helper". **That permission is the framework's, not
+the apps'**: an app has no helper to write, it has a handler to declare.
 """
 
 from __future__ import annotations
@@ -29,11 +28,11 @@ import ast
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-RULE = "transport-a-la-main"
+RULE = "hand-written-transport"
 
 _HINT = (
-    "Déclare `on_<event>=mon_handler` : le socle pose le `hx-post` avec sa "
-    "signature HMAC. Un POST écrit à la main n'en a pas."
+    "Declare `on_<event>=my_handler`: the base layer sets the `hx-post` "
+    "with its HMAC signature. A hand-written POST has none."
 )
 
 
@@ -68,8 +67,9 @@ def _finding(module: Module, line: int, attr: str) -> Finding:
         path=module.path,
         line=line,
         message=(
-            f"`{attr}` écrit à la main : la requête partira SANS la signature "
-            f"HMAC ni les en-têtes de protocole que le socle ajoute."
+            f"`{attr}` written by hand: the request will go out WITHOUT "
+            f"the HMAC signature nor the protocol headers the base layer "
+            f"adds."
         ),
         hint=_HINT,
     )

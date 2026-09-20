@@ -90,33 +90,31 @@ COMBOBOX_THEME: dict[str, Any] = {
         # right-0`` : that leaves a ``right: 0`` which, under fixed
         # positioning, stretches the panel to the viewport's right edge
         # (cf. traps.md).
-        # La hauteur max vit dans ``sizes[<size>]["panel"]`` (pas ici :
-        # figée, un combobox ``xl`` couperait ses options).
-        # ⚠️ ``mt-1`` et ``shadow-lg`` sont ALIGNÉS sur la famille des
-        # panneaux ancrés, pas choisis ici : select, date_picker,
-        # date_range_picker, dropdown et popover portent tous
-        # ``shadow-lg``, et les trois qui ont un décalage portent ``mt-1``.
-        # Combobox était le seul en ``mt-2 shadow-xl`` — deux champs
-        # voisins dans un même formulaire ouvraient donc des panneaux
-        # d'ombre et d'écart différents, alors que ``select/theme.py``
-        # déclare que les deux doivent se lire comme UNE famille.
-        # Gardé par ``tests/consistency/test_anchored_panels_match.py``.
+        # The max height lives in ``sizes[<size>]["panel"]`` (not here:
+        # frozen, an ``xl`` combobox would cut its options off).
+        # ⚠️ ``mt-1`` and ``shadow-lg`` are ALIGNED on the anchored-panel
+        # family, not chosen here: select, date_picker, date_range_picker,
+        # dropdown and popover all carry ``shadow-lg``, and the three with
+        # an offset carry ``mt-1``. Combobox was the only one in
+        # ``mt-2 shadow-xl`` — two neighbouring fields in one form
+        # therefore opened panels with different shadows and offsets,
+        # while ``select/theme.py`` declares that the two must read as ONE
+        # family.
+        # Guarded by ``tests/consistency/test_anchored_panels_match.py``.
         "panel": (
             "absolute z-40 mt-1 overflow-y-auto "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface "
             "shadow-lg "
-            # Le fondu entrant, à la cadence des CHAMPS — moitié de
-            # celle des menus. Le mécanisme des trois classes est
-            # expliqué en un seul exemplaire dans
-            # ``overlay/dropdown/theme.py``.
+            # The enter fade, at the FIELD cadence — half the menus'.
+            # The mechanism of the three classes is explained in a single
+            # copy in ``overlay/dropdown/theme.py``.
             #
-            # Pourquoi 75 et pas 150 : un menu est un DÉTOUR (on
-            # l'ouvre, on regarde, on choisit) et 150 ms s'y lisent
-            # comme du soin ; un champ est sur le CHEMIN, souvent
-            # rempli à la chaîne, et la même durée s'y lit comme de
-            # la latence. Rapporté à l'usage le 2026-09-04, sur les
-            # deux à la fois — donc c'est bien la CLASSE de
-            # composant qui décide, pas le composant.
+            # Why 75 and not 150: a menu is a DETOUR (you open it, you
+            # look, you choose) and 150 ms read there as care; a field is
+            # on the PATH, often filled in series, and the same duration
+            # reads there as latency. Reported from use on 2026-09-04, on
+            # both at once — so it is indeed the CLASS of component that
+            # decides, not the component.
             "transition-[opacity,display] transition-discrete duration-75 "
             "starting:opacity-0"
         ),
@@ -140,9 +138,9 @@ COMBOBOX_THEME: dict[str, Any] = {
         # Counter — "3 / 29" tabular-style. Subtle, secondary
         # information : muted text + small + tabular-nums so the
         # digits don't dance as the count changes.
-        # La taille de texte vit dans ``sizes[<size>]["header_counter"]``
-        # — ne PAS la remettre ici : le slot et la table s'écraseraient
-        # mutuellement dans un ordre décidé par Tailwind (traps.md).
+        # The text size lives in ``sizes[<size>]["header_counter"]`` — do
+        # NOT put it back here: the slot and the table would overwrite
+        # each other in an order Tailwind decides (traps.md).
         "header_counter": (
             "shrink-0 text-muted tabular-nums"
         ),
@@ -185,10 +183,10 @@ COMBOBOX_THEME: dict[str, Any] = {
             "disabled:opacity-50 disabled:cursor-not-allowed"
         ),
         "option_active": "bg-(--bz-bg) text-(--bz-text)",
-        # La coche d'une option prise (mode multi). ``ml-auto`` la pousse
-        # au bord droit sans toucher l'alignement du libellé. La taille du
-        # glyphe vit dans ``sizes[<size>]["check_icon_size"]`` — une icône
-        # se taille en ``text-*``, jamais en ``w-``/``h-`` (traps.md).
+        # A picked option's tick (multi mode). ``ml-auto`` pushes it to
+        # the right edge without touching the label's alignment. The
+        # glyph's size lives in ``sizes[<size>]["check_icon_size"]`` — an
+        # icon is sized in ``text-*``, never in ``w-``/``h-`` (traps.md).
         "option_check": "shrink-0 ms-auto text-(--bz-text)",
         "option_selected": "font-semibold text-(--bz-text)",
         # No-results placeholder.
@@ -196,17 +194,18 @@ COMBOBOX_THEME: dict[str, Any] = {
             "px-3 py-6 text-center text-muted/80"
         ),
     },
-    # Échelle complète. Les clés en ``*_size`` ne sont PAS des classes :
-    # ce sont les tokens de taille des sous-composants (Badge pour les
-    # pills, Icon pour le chevron / la croix), lus par ``render()`` et
-    # passés au constructeur. Convention reprise de ``BADGE_THEME``, qui
-    # porte déjà ``icon_size`` / ``close_icon_size`` pour la même raison :
-    # sans ça, un combobox ``xl`` embarque des pills ``sm``.
+    # The full scale. The ``*_size`` keys are NOT classes: they are the
+    # size tokens of the subcomponents (Badge for the pills, Icon for the
+    # chevron / the cross), read by ``render()`` and passed to the
+    # constructor. A convention taken from ``BADGE_THEME``, which already
+    # carries ``icon_size`` / ``close_icon_size`` for the same reason:
+    # without it, an ``xl`` combobox embeds ``sm`` pills.
     #
-    # ⚠️ Une icône se taille en ``text-*`` (via le token Icon), JAMAIS en
-    # ``w-``/``h-`` — ``iconify-icon`` rend son glyphe à 1em (traps.md).
+    # ⚠️ An icon is sized in ``text-*`` (through the Icon token), NEVER in
+    # ``w-``/``h-`` — ``iconify-icon`` renders its glyph at 1em
+    # (traps.md).
     #
-    # ``md`` = l'apparence historique, inchangée au pixel près.
+    # ``md`` = the historical look, unchanged to the pixel.
     "sizes": {
         "xs": {
             "trigger": "min-h-[1.75rem] px-2 py-0.5 text-xs",

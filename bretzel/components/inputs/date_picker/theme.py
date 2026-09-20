@@ -75,27 +75,27 @@ DATE_PICKER_THEME: dict[str, Any] = {
         "panel": (
             "absolute z-40 mt-1 "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface shadow-lg "
-            # Le fondu entrant, cadence des CHAMPS (75 ms, moitié de
-            # celle des menus). Mécanisme des trois classes : un seul
-            # exemplaire, dans ``overlay/dropdown/theme.py``.
+            # The enter fade, FIELD cadence (75 ms, half the menus').
+            # Mechanism of the three classes: a single copy, in
+            # ``overlay/dropdown/theme.py``.
             "transition-[opacity,display] transition-discrete duration-75 "
             "starting:opacity-0"
         ),
     },
-    # ── Size paliers ─────────────────────────────────────────────
-    # La hauteur vit sur ``input_frame``, PAS sur ``input_field`` — et
-    # c'est load-bearing. Le cadre porte la bordure ; en ``box-sizing:
-    # border-box`` (le préréglage Tailwind), un ``h-10`` posé sur le
-    # cadre vaut 40 px bordure comprise, exactement comme ``ui.input``,
-    # qui pose sa hauteur et sa bordure sur le MÊME élément. Posée sur
-    # l'enfant, elle donnait 40 px + les 2 px du cadre : **42 px**, soit
-    # 2 px de plus que tout autre contrôle, à chacun des cinq paliers.
-    # Mesuré en Chromium le 2026-08-23, gardé par
+    # ── Size steps ───────────────────────────────────────────────
+    # The height lives on ``input_frame``, NOT on ``input_field`` — and
+    # it is load-bearing. The frame carries the border; under
+    # ``box-sizing: border-box`` (Tailwind's preset), an ``h-10`` set on
+    # the frame is 40 px border included, exactly like ``ui.input``,
+    # which sets its height and its border on the SAME element. Set on
+    # the child, it gave 40 px + the frame's 2 px: **42 px**, that is
+    # 2 px more than any other control, at each of the five steps.
+    # Measured in Chromium on 2026-08-23, guarded by
     # ``tests/runtime_js/test_form_controls_share_one_height.py``.
     #
-    # Les enfants n'ont donc plus de ``h-*`` : le cadre est
-    # ``items-stretch``, ils remplissent sa hauteur intérieure. Leur en
-    # redonner un les ferait dépasser du cadre.
+    # The children therefore no longer have an ``h-*``: the frame is
+    # ``items-stretch``, they fill its inner height. Giving them one back
+    # would make them overflow the frame.
     "sizes": {
         "input_frame": {
             "xs": "h-7",

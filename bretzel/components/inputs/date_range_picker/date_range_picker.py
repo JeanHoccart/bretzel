@@ -70,9 +70,9 @@ from bretzel.render import text
 
 
 def _date_to_iso(value: Any) -> str:
-    """``DateRangePicker``'s date coercion — the shared one, bound to this
-    component's name for the error message (audit F50 : les trois
-    composants de la famille date en portaient une copie identique)."""
+    """``DateRangePicker``'s date coercion — the shared one, bound to
+    this component's name for the error message (audit F50: the three
+    components of the date family each carried an identical copy)."""
     return date_to_iso(value, owner="DateRangePicker")
 
 
@@ -85,10 +85,10 @@ class DateRangePicker(Component):
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = (
         "value", "min", "max", "disabled",
     )
-    #: Un picker est les DEUX natures à la fois : un panneau ancré
-    #: (comme `dialog`) et un champ qui porte une valeur (comme
-    #: `input`). Sa surface est donc l'union des deux vocabulaires
-    #: déjà fixés par ses voisins — rien d'inventé ici.
+    #: A picker is BOTH natures at once: an anchored panel (like
+    #: `dialog`) and a field carrying a value (like `input`). Its surface
+    #: is therefore the union of the two vocabularies already fixed by
+    #: its neighbours — nothing invented here.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
@@ -98,10 +98,10 @@ class DateRangePicker(Component):
     value: Any = reactive_prop(default=None, writes=True, scope_keys=("vstart", "vend"), names_field=True)
     min: Any = reactive_prop(default=None, emit_attr=False)
     max: Any = reactive_prop(default=None, emit_attr=False)
-    # ``emit_attr=False`` : la racine est un ``<div>`` wrapper, où
-    # ``disabled`` ne fait RIEN. Le binding est forwardé à la main dans
-    # ``render()`` sur les quatre carriers réels (champ start, champ end,
-    # ×, trigger) — cf. gate ``test_binding_lands_on_carrier``.
+    # ``emit_attr=False``: the root is a wrapper ``<div>``, where
+    # ``disabled`` does NOTHING. The binding is forwarded by hand in
+    # ``render()`` onto the four real carriers (start field, end field,
+    # ×, trigger) — cf. the ``test_binding_lands_on_carrier`` gate.
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -135,28 +135,29 @@ class DateRangePicker(Component):
     ) -> None:
         self._placeholder_start = placeholder_start
         self._placeholder_end = placeholder_end
-        # ``adopt_slot`` + ``emit_text_slot`` sont un COUPLE (cf. le docstring
-        # d'emit_text_slot) : le 1er détache le Component (sinon rendu 2×), le
-        # 2nd le REND (sinon il file dans TextNode() qui attend une string →
-        # `'Text' object has no attribute 'replace'` au serialize). Faire l'un
-        # sans l'autre échange un bug contre un autre.
+        # ``adopt_slot`` + ``emit_text_slot`` are a COUPLE (cf.
+        # emit_text_slot's docstring): the 1st detaches the Component
+        # (otherwise rendered twice), the 2nd RENDERS it (otherwise it
+        # goes into TextNode() which expects a string → `'Text' object
+        # has no attribute 'replace'` at serialize). Doing one without
+        # the other swaps one bug for another.
         self._separator = Component.adopt_slot(separator)
-        # ``None`` = « laisse le navigateur nommer », depuis
-        # ``<html lang>``. Figer l'anglais ici obligeait chaque app à
-        # repasser les 19 chaînes à chaque montage. Cf. ``ui.calendar``.
+        # ``None`` = "let the browser name them", from ``<html lang>``.
+        # Freezing English here forced every app to pass the 19 strings
+        # again at every mount. Cf. ``ui.calendar``.
         self._weekday_names = list(weekday_names) if weekday_names else None
         self._month_names = list(month_names) if month_names else None
         self._disabled_dates = list(disabled_dates or [])
-        # Transmis tel quel : la grille de jours est la MEME que
-        # celle de ``ui.calendar``, donc une marque a une cellule ou
-        # atterrir. ``ui.month_picker`` ne l'a pas : sa grille est
-        # faite de MOIS, pas de jours.
+        # Passed on as is: the day grid is the SAME as
+        # ``ui.calendar``'s, so a mark has a cell to land in.
+        # ``ui.month_picker`` does not have it: its grid is made of
+        # MONTHS, not days.
         self._marks = marks
         self._weekstart = weekstart
         self._clearable = clearable
         self._close_on_close = close_on_close
 
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, value=value,
             min=min, max=max,
@@ -167,12 +168,12 @@ class DateRangePicker(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # APRÈS `super().__init__` : les deux installeurs lisent
-        # `_binding_metadata`, qui n'est peuplé qu'à ce moment-là.
+        # AFTER `super().__init__`: both installers read
+        # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ PAS `"input"` : le premier `<input>` d'un picker est le
-        # porteur CACHÉ (`hidden_carrier`), qui ne prend pas le
-        # focus. Mesuré — `.focus()` ne faisait rien sur les six.
+        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
+        # carrier (`hidden_carrier`), which does not take focus.
+        # Measured — `.focus()` did nothing on all six.
         install_value_commands(
             self, focus_selector="input:not([type=hidden])"
         )
@@ -256,29 +257,30 @@ class DateRangePicker(Component):
         # ``vstart``/``vend`` are scope signals absorb preserves across a
         # morph — opt them into ``_serverSync`` so a server-backed ``value``
         # re-adopts on refresh (gate leaves ClientBinding/literal untouched).
-        # ⚠️ Ici la divergence était VIVANTE, pas latente : la valeur d'un
-        # range est une LISTE de 2 éléments, donc le pattern documenté
-        # ``value=[state.debut, state.fin]`` (deux dates stampées dans une
-        # liste littérale) n'a pas de ``field_name`` sur la liste
-        # elle-même. L'inline répondait False → aucun ``_serverSync``, et
-        # un changement serveur de la plage était perdu au morph.
-        # ``_value_server_backed`` gère ce cas (branche « case 3 »).
+        # ⚠️ Here the divergence was LIVE, not latent: a range's value is
+        # a LIST of 2 elements, so the documented pattern
+        # ``value=[state.start, state.end]`` (two stamped dates in a
+        # literal list) has no ``field_name`` on the list itself. The
+        # inline version answered False → no ``_serverSync`` at all, and
+        # a server change of the range was lost at the morph.
+        # ``_value_server_backed`` handles that case (the "case 3"
+        # branch).
         sync = server_sync_marker(
             "vstart", "vend", enabled=self._value_server_backed("value"))
         root_attrs["bz-data"] = (
             f"{{open: false, vstart: {init_vstart}, vend: {init_vend}"
             + (f",{sync}" if sync else "") + "}"
         )
-        # ── Les récepteurs de l'API impérative ───────────────────
+        # ── The receivers of the imperative API ──────────────────
         #
-        # En mode LIÉ, `.open()` / `.set()` écrivent directement dans le
-        # store et ces écouteurs ne se déclenchent jamais ; on les pose
-        # quand même pour que le contrat soit le même dans les deux
-        # modes — le choix déjà fait par Sidebar, Dialog et Select.
+        # In BOUND mode, `.open()` / `.set()` write straight into the
+        # store and these listeners never fire; we set them anyway so the
+        # contract is the same in both modes — the choice already made by
+        # Sidebar, Dialog and Select.
         for _ev, _handler in imperative_listeners("open").items():
             root_attrs.setdefault(_ev, _handler)
-        # Deux variables, donc pas de `bz-set` scalaire :
-        # `.set()` pose le DÉBUT de la plage.
+        # Two variables, so no scalar `bz-set`: `.set()` sets the
+        # range's START.
         root_attrs.setdefault(
             "bz-on:bz-set", "vstart = $event.detail.value"
         )
@@ -351,9 +353,9 @@ class DateRangePicker(Component):
                     f"{attrs['bz-on:blur']}; {merged['bz-on:blur']}"
                 )
             attrs.update(merged)
-            # Reactive ``disabled`` → les deux champs éditables, pas le
-            # wrapper. Le frame se grise tout seul avec
-            # (``has-[input:disabled]`` dans le thème).
+            # Reactive ``disabled`` → both editable fields, not the
+            # wrapper. The frame greys out by itself with them
+            # (``has-[input:disabled]`` in the theme).
             self.forward_binding("disabled", attrs)
             return Element(tag="input", attrs=attrs, children=())
 
@@ -410,10 +412,11 @@ class DateRangePicker(Component):
         input_frame = Element(
             tag="div",
             attrs={
-                # ``slot_with_size`` et non ``compose_class`` : la
-                # hauteur du palier vit sur le CADRE, qui porte la
-                # bordure — sinon le contrôle rend 2 px de plus que
-                # ``ui.input`` au même ``size=`` (cf. la note du thème).
+                # ``slot_with_size`` and not ``compose_class``: the
+                # step's height lives on the FRAME, which carries the
+                # border — otherwise the control renders 2 px more than
+                # ``ui.input`` at the same ``size=`` (cf. the theme's
+                # note).
                 "class": slot_with_size("input_frame"),
                 "bz-ref": "bztrigger",
             },

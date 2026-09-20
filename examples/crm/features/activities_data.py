@@ -1,11 +1,11 @@
-"""features/activities_data — data : le journal d'activité, filtré en SQL.
+"""features/activities_data — data: the activity log, filtered in SQL.
 
-Sert l'écran 6. 60 000 activités : la fenêtre de lecture est toujours bornée
-par une période ET par un plafond, jamais « tout puis on filtre en Python ».
+Serves screen 6. 60 000 activities: the read window is always bounded by
+a period AND by a cap, never "everything then filter in Python".
 
-Les dates voyagent en **ISO**, et c'est structurel : ``'2026-08-19'`` se
-compare lexicographiquement comme chronologiquement, donc un ``BETWEEN`` sur
-du texte SQLite ordonne juste, et l'index sur ``at`` sert.
+The dates travel in **ISO**, and that is structural: ``'2026-08-19'``
+compares lexicographically as chronologically, so a ``BETWEEN`` on SQLite
+text orders correctly, and the index on ``at`` serves.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from examples.crm.core.domain import ACTIVITY_KEYS
 
 
 class ActivitiesRev(AppState):
-    """Révision du journal — bumpée à chaque écriture."""
+    """Log revision — bumped at every write."""
 
     rev: int = field(default=0, merge="add")
 
@@ -25,11 +25,11 @@ class ActivitiesRev(AppState):
 def filter_clause(
     start: str, end: str, kind: str, owner: str | None
 ) -> tuple[str, list]:
-    """La clause commune aux trois lectures de l'écran.
+    """The clause common to the screen's three reads.
 
-    Écrite une fois : la liste, les compteurs et l'agenda doivent regarder
-    exactement la même fenêtre, sinon le nombre affiché ne décrit pas la
-    liste qui est en dessous.
+    Written once: the list, the counters and the calendar must look at
+    exactly the same window, otherwise the number shown does not describe
+    the list below it.
     """
     clauses = ["a.at BETWEEN ? AND ?"]
     params: list = [start, end]
@@ -45,7 +45,7 @@ def filter_clause(
 def activities_between(
     start: str, end: str, kind: str, owner: str | None, *, limit: int = 60
 ) -> list[dict]:
-    """Les activités de la fenêtre, la plus récente d'abord, plafonnées."""
+    """The window's activities, most recent first, capped."""
     where, params = filter_clause(start, end, kind, owner)
     return query(
         f"SELECT a.*, c.first_name, c.last_name, ac.name AS account_name "
@@ -60,10 +60,10 @@ def activities_between(
 def activity_counts(
     start: str, end: str, kind: str, owner: str | None
 ) -> dict:
-    """``{type: nombre}`` sur la fenêtre — sans jointure, sans plafond.
+    """``{type: count}`` over the window — no join, no cap.
 
-    Pas de ``JOIN`` ici : compter n'a besoin d'aucune colonne des deux autres
-    tables, et la jointure ferait 60 000 accès par rowid pour rien.
+    No ``JOIN`` here: counting needs no column from the other two tables,
+    and the join would make 60 000 rowid lookups for nothing.
     """
     where, params = filter_clause(start, end, kind, owner)
     rows = query(
@@ -76,17 +76,17 @@ def activity_counts(
 
 def busiest_days(start: str, end: str, kind: str, owner: str | None,
                  *, limit: int = 8) -> list[dict]:
-    """Les journées les plus chargées de la fenêtre.
+    """The window's busiest days.
 
-    ⚠️ Cette liste existe parce que ``ui.calendar`` ne sait PAS marquer un
-    jour : il n'a ni prop d'événements ni slot de cellule (cf. le journal du
-    chantier). L'agenda de l'écran sert donc à CHOISIR un jour, et c'est ce
-    tableau qui dit lesquels sont chargés — deux contrôles pour ce qu'un
-    calendrier annoté ferait seul.
+    ⚠️ This list exists because ``ui.calendar`` CANNOT mark a day: it has
+    neither an events prop nor a cell slot (cf. the work's journal). So
+    the screen's calendar serves to CHOOSE a day, and it is this table
+    that says which ones are busy — two controls for what an annotated
+    calendar would do alone.
     """
     where, params = filter_clause(start, end, kind, owner)
     return query(
-        f"SELECT a.at AS jour, COUNT(*) AS n FROM activities a {where} "
+        f"SELECT a.at AS day, COUNT(*) AS n FROM activities a {where} "
         f"GROUP BY a.at ORDER BY n DESC, a.at DESC LIMIT ?",
         (*params, limit),
     )
@@ -94,19 +94,19 @@ def busiest_days(start: str, end: str, kind: str, owner: str | None,
 
 def add_activity(contact_id: int, kind: str, subject: str, at: str,
                  owner: str, scope: str | None) -> int:
-    """Journalise une activité. Le compte est DÉRIVÉ du contact, pas demandé.
+    """Log an activity. The account is DERIVED from the contact, not
+    asked for.
 
-    La table le porte en double (dénormalisation assumée pour que la fiche
-    compte agrège sans jointure) ; le laisser saisir permettrait d'écrire une
-    activité rattachée à un compte qui n'est pas celui du contact.
+    The table carries it twice (denormalisation accepted so the account
+    sheet aggregates without a join); letting it be entered would allow
+    writing an activity attached to an account that is not the contact's.
 
-    ⚠️ **Deux propriétaires, et ce n'est pas une redondance.** ``owner``
-    est celui qu'on ÉCRIT sur la ligne ; ``scope`` est celui qui a le
-    droit d'écrire. Pour un commercial ils sont égaux ; pour la direction
-    ``scope`` vaut ``None`` et ``owner`` est le porteur choisi. Les
-    confondre, c'était laisser un commercial journaliser sur le contact
-    d'un collègue en forgeant un identifiant — ``contact_id`` arrive du
-    navigateur.
+    ⚠️ **Two owners, and it is not a redundancy.** ``owner`` is the one
+    WRITTEN on the row; ``scope`` is the one entitled to write. For a
+    salesperson they are equal; for the directorate ``scope`` is ``None``
+    and ``owner`` is the chosen holder. Confusing them was letting a
+    salesperson log on a colleague's contact by forging an identifier —
+    ``contact_id`` arrives from the browser.
     """
     scope_sql, scope_params = owner_scope(scope, " AND owner = ?")
     rows = query(

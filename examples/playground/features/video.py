@@ -1,20 +1,19 @@
 """``Video`` test bench.
 
-Sept cartes : Reference / Ratios / La garde autoplay / Edge cases /
-Composability / A11y / Server playground. BINDABLE_PROPS = () donc aucune
-carte Client.
+Seven cards: Reference / Ratios / The autoplay guard / Edge cases /
+Composability / A11y / Server playground. BINDABLE_PROPS = () so no
+Client card.
 
-Périmètre du composant : un <video> natif HABILLÉ, pas un lecteur. Les
-contrôles sont ceux du navigateur.
+The component's scope: a native <video> DRESSED UP, not a player. The
+controls are the browser's.
 
-⚠️ AUCUNE source, et pas non plus un chemin bidon : les <video> de cette
-page n'ont pas d'attribut src du tout. Un .mp4 dans le dépôt pèserait
-pour rien, une URL distante rendrait les probes dépendants du réseau —
-et un chemin inexistant, que la v1 de ce banc utilisait, fait tirer des
-DIZAINES de 404 au serveur à chaque chargement (constaté dans les logs
-de dev). Ce qu'on voit est le poster (un SVG en data:) dans sa boîte au
-ratio déclaré : exactement l'état « avant que la vidéo arrive », pour
-zéro requête.
+⚠️ NO source, and not a dummy path either: this page's <video> have no
+src attribute at all. An .mp4 in the repository would weigh for nothing,
+a remote URL would make the probes depend on the network — and a
+non-existent path, which this bench's v1 used, makes the server take
+DOZENS of 404 at every load (seen in the dev logs). What one sees is the
+poster (an SVG in a data:) in its box at the declared ratio: exactly the
+"before the video arrives" state, for zero requests.
 """
 
 from urllib.parse import quote
@@ -33,10 +32,10 @@ FITS = ["contain", "cover"]
 
 
 def poster_source(width: int, height: int, fill: str, label: str) -> str:
-    """Un poster SVG en data: — déterministe et hors ligne.
+    """A poster SVG in a data: — deterministic and offline.
 
-    Les # sont échappés : un # non échappé dans une data: URI coupe l'URL
-    sur un fragment, et la moitié droite du SVG serait perdue.
+    The # are escaped: an unescaped # in a data: URI cuts the URL on a
+    fragment, and the SVG's right half would be lost.
     """
     svg = (
         f"<svg xmlns='http://www.w3.org/2000/svg' width='{width}' "
@@ -54,46 +53,46 @@ def poster_source(width: int, height: int, fill: str, label: str) -> str:
 
 
 def vtt_source(cue: str) -> str:
-    """Un fichier WebVTT en data: — même raison que le poster.
+    """A WebVTT file in a data: — the same reason as the poster.
 
-    Une piste servie depuis le réseau rendrait le banc dépendant de lui,
-    et un chemin inexistant ferait tirer un 404 par piste et par
-    chargement. Ici le navigateur charge vraiment la piste : le menu CC
-    la liste, et ``textTracks[0].cues.length`` vaut 1.
+    A track served from the network would make the bench depend on it,
+    and a non-existent path would take one 404 per track per load. Here
+    the browser really loads the track: the CC menu lists it, and
+    ``textTracks[0].cues.length`` is 1.
     """
     body = f"WEBVTT\n\n00:00.000 --> 00:05.000\n{cue}"
     return "data:text/vtt;charset=utf-8," + quote(body)
 
 
 CAPTION_TRACKS = [
-    ui.track(vtt_source("Bienvenue dans Bretzel."),
-             srclang="fr", label="Français", default=True),
+    ui.track(vtt_source('Welcome to Bretzel.'),
+             srclang="fr", label='French', default=True),
     ui.track(vtt_source("Welcome to Bretzel."),
              srclang="en", label="English"),
-    ui.track(vtt_source("Une page de code sur fond sombre."),
+    ui.track(vtt_source('A page of code on a dark background.'),
              srclang="fr", label="Audiodescription", kind="descriptions"),
 ]
 
 POSTER_WIDE = poster_source(480, 270, "#1e293b", "poster 480x270")
 POSTER_TALL = poster_source(270, 480, "#4c1d95", "poster 270x480")
-# AUCUNE source. Pas « un chemin absent » — pas de src du tout.
+# NO source. Not "an absent path" — no src at all.
 #
-# La v1 de ce banc pointait ses 16 <video> vers un /media/demo-absente.mp4
-# inexistant, en croyant rester « hors ligne ». Résultat, visible dans les
-# logs du serveur de dev : des DIZAINES de GET 404 par chargement de page,
-# chaque élément réclamant sa source et le navigateur réessayant. Un banc
-# ne doit pas marteler le serveur pour démontrer une boîte vide.
+# This bench's v1 pointed its 16 <video> at a non-existent
+# /media/demo-absente.mp4, believing it stayed "offline". The result,
+# visible in the dev server's logs: DOZENS of GET 404 per page load,
+# every element asking for its source and the browser retrying. A bench
+# must not hammer the server to demonstrate an empty box.
 #
-# Sans src, le composant n'émet pas l'attribut du tout (il ne met JAMAIS
-# src="" — un attribut vide se résout contre l'URL du document, donc le
-# navigateur retéléchargerait la page comme média). Zéro requête, et le
-# poster + la boîte au ratio s'affichent exactement pareil : c'est bien
-# l'état « avant que la vidéo arrive » qu'on veut montrer.
+# With no src, the component does not emit the attribute at all (it NEVER
+# puts src="" — an empty attribute resolves against the document's URL,
+# so the browser would re-download the page as media). Zero requests, and
+# the poster + the ratio box show exactly the same: it is indeed the
+# "before the video arrives" state we want to show.
 SRC = None
 
 
 class VideoPlayground(PageState):
-    """État du banc serveur — un champ par prop + par échappatoire."""
+    """The server bench's state — one field per prop + per escape hatch."""
 
     poster: str = field(default="wide")
     ratio: str = field(default="video")
@@ -103,7 +102,7 @@ class VideoPlayground(PageState):
     loop: str = field(default="off")
     muted: str = field(default="off")
     tracks: str = field(default="off")
-    # Échappatoires.
+    # Escape hatches.
     classes: str = field(default="")
     custom_id: str = field(default="")
     aria_label: str = field(default="")
@@ -184,7 +183,7 @@ def server_panel() -> None:
                       options=[("wide", "480×270"), ("tall", "270×480"),
                                ("none", "aucun")],
                       on_change=server_changed)
-        with control("ratio — c'est LUI qui décide de la forme"):
+        with control('ratio — IT is what decides the shape'):
             ui.select(value=state.ratio,
                       options=[("", "aucun (taille naturelle)")]
                       + [(r, r) for r in RATIOS],
@@ -215,22 +214,22 @@ def server_panel() -> None:
             ui.input(value=state.custom_id, placeholder="my-video",
                      on_change=server_changed)
         with control("aria-label"):
-            ui.input(value=state.aria_label, placeholder="Démo produit",
+            ui.input(value=state.aria_label, placeholder='Product demo',
                      on_change=server_changed)
         with control("style"):
             ui.input(value=state.style, placeholder="opacity: 0.8",
                      on_change=server_changed)
-        with control("extra_attrs (un par ligne, clé=valeur)"):
+        with control('extra_attrs (one per line, key=value)'):
             ui.textarea(value=state.extra_attrs, rows=3,
                         placeholder="preload=none",
                         on_change=server_changed)
         with control("tooltip"):
-            ui.input(value=state.tooltip, placeholder="Cliquez pour lire",
+            ui.input(value=state.tooltip, placeholder='Click to play',
                      on_change=server_changed)
         with control("visible"):
             ui.select(value=state.visible,
-                      options=[("on", "True (défaut)"),
-                               ("off", "False (pas de rendu)")],
+                      options=[("on", 'True (default)'),
+                               ("off", 'False (nothing rendered)')],
                       on_change=server_changed)
 
     ui.divider()
@@ -259,19 +258,18 @@ def page() -> None:
         with ui.vstack():
             ui.heading("Video", level=1)
             ui.text(
-                "Un <video> natif habillé, pas un lecteur : les contrôles "
-                "restent ceux du navigateur. Ce que le composant apporte, "
-                "c'est la place réservée (ratio), le poster, et deux "
-                "pièges natifs absorbés — autoplay force muted, et "
-                "playsinline est toujours émis.",
+                'A dressed-up native <video>, not a player: the controls '
+                    "stay the browser's. What the component brings is the "
+                    'reserved space (ratio), the poster, and two native traps'
+                    ' absorbed — autoplay forces muted, and playsinline is '
+                    'always emitted.',
                 color="muted",
             )
             ui.text(
-                "Aucune source réelle sur cette page : les chemins .mp4 "
-                "sont absents à dessein, pour que le banc reste hors "
-                "ligne. Ce que vous voyez est le poster et la boîte — "
-                "c'est-à-dire exactement l'état AVANT que la vidéo "
-                "arrive.",
+                'No real source on this page: the .mp4 paths are missing '
+                    'on purpose, so the bench stays offline. What you see is '
+                    'the poster and the box — that is, exactly the state '
+                    'BEFORE the video arrives.',
                 color="muted", size="sm",
             )
 
@@ -280,15 +278,15 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Reference", level=2)
 
-                    ui.heading("Avec poster et contrôles (le défaut)",
+                    ui.heading('With a poster and controls (the default)',
                                level=3)
                     with ui.vstack(classes="max-w-sm"):
                         ui.video(poster=POSTER_WIDE, ratio="video")
 
-                    ui.heading("Sans poster — la boîte sombre", level=3)
+                    ui.heading('With no poster — the dark box', level=3)
                     ui.text(
-                        "C'est l'état d'attente : la place est réservée, "
-                        "rien ne saute quand la vidéo arrive.",
+                        'This is the waiting state: the space is '
+                            'reserved, nothing jumps when the video arrives.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-sm"):
@@ -299,18 +297,18 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Ratios", level=2)
                     ui.text(
-                        "Le même poster dans les quatre ratios. La forme "
-                        "vient du ratio, jamais de la source — même règle "
-                        "que ui.image.",
+                        'The same poster in all four ratios. The shape '
+                            'comes from the ratio, never from the source — '
+                            'the same rule as ui.image.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "Constaté au navigateur : en wide (21/9) dans une "
-                        "colonne étroite, la barre de contrôles native "
-                        "occupe presque toute la boîte — elle a une "
-                        "hauteur minimale que le composant ne peut pas "
-                        "réduire. Un ratio très plat va avec une largeur "
-                        "généreuse, ou avec controls=False.",
+                        'Seen in the browser: in wide (21/9) inside a '
+                            'narrow column, the native control bar takes '
+                            'almost the whole box — it has a minimum height '
+                            'the component cannot reduce. A very flat ratio '
+                            'goes with a generous width, or with '
+                            'controls=False.',
                         color="muted", size="xs",
                     )
                     with ui.grid(cols={"base": 2, "md": 4}, gap="md"):
@@ -323,18 +321,18 @@ def page() -> None:
             # ── Carte 3 — La garde autoplay ─────────────────────────
             with ui.card():
                 with ui.vstack():
-                    ui.heading("La garde autoplay", level=2)
+                    ui.heading('The autoplay guard', level=2)
                     ui.text(
-                        "Tous les navigateurs bloquent une lecture "
-                        "automatique avec du son. Sans garde, la vidéo ne "
-                        "démarre simplement pas — sans erreur, sans log, "
-                        "sans indice visuel. Le composant force donc muted "
-                        "dès qu'autoplay est demandé, et l'écrit dans le "
-                        "HTML plutôt que de livrer un attribut inerte.",
+                        'Every browser blocks autoplay with sound. With '
+                            'no guard, the video simply does not start — no '
+                            'error, no log, no visual clue. So the component '
+                            'forces muted as soon as autoplay is asked for, '
+                            'and writes it into the HTML rather than shipping'
+                            ' an inert attribute.',
                         color="muted", size="sm",
                     )
-                    ui.heading("autoplay=True, muted non précisé", level=3)
-                    ui.text("Le HTML émis porte les deux :",
+                    ui.heading('autoplay=True, muted not specified', level=3)
+                    ui.text('The emitted HTML carries both:',
                             color="muted", size="xs")
                     ui.code(
                         serialize_html(
@@ -347,11 +345,11 @@ def page() -> None:
 
                     ui.heading("playsinline, toujours", level=3)
                     ui.text(
-                        "Jamais une prop. Sans lui, iOS sort la vidéo du "
-                        "flux et confisque l'écran dès la lecture — "
-                        "jamais ce qu'on veut dans une application, et "
-                        "c'est le genre de chose qu'on découvre sur un "
-                        "iPhone en production.",
+                        'Never a prop. Without it, iOS takes the video '
+                            'out of the flow and seizes the screen as soon as'
+                            ' it plays — never what you want in an '
+                            'application, and exactly the kind of thing you '
+                            'discover on an iPhone in production.',
                         color="muted", size="sm",
                     )
 
@@ -360,23 +358,22 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Edge cases", level=2)
 
-                    ui.heading("Source absente — la boîte tient", level=3)
+                    ui.heading('Missing source — the box holds', level=3)
                     ui.text(
-                        "Toutes les vidéos de cette page sont dans ce "
-                        "cas : le ratio a réservé la place, donc rien ne "
-                        "bouge.",
+                        'Every video on this page is in that case: the '
+                            'ratio reserved the space, so nothing moves.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-xs"):
                         ui.video(ratio="video")
 
-                    ui.heading("Poster au ratio contraire", level=3)
+                    ui.heading("A poster at the opposite ratio", level=3)
                     ui.text(
-                        "Un poster 270×480 dans une boîte 16/9. fit="
-                        "contain (le défaut) le montre en entier avec du "
-                        "letterboxing ; cover le recadrerait — et couper "
-                        "l'action est rarement voulu, d'où ce défaut "
-                        "inverse de celui d'ui.image.",
+                        'A 270×480 poster in a 16/9 box. fit=contain (the'
+                            ' default) shows it whole with letterboxing; '
+                            'cover would crop it — and cutting the action is '
+                            'rarely wanted, hence this default being the '
+                            "opposite of ui.image's.",
                         color="muted", size="xs",
                     )
                     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
@@ -387,12 +384,11 @@ def page() -> None:
                                 ui.video(poster=POSTER_TALL,
                                          ratio="video", fit=fit)
 
-                    ui.heading("Sans contrôles ni autoplay", level=3)
+                    ui.heading('With neither controls nor autoplay', level=3)
                     ui.text(
-                        "Personne ne peut la lire. Le composant ne "
-                        "l'interdit pas — c'est une combinaison légitime "
-                        "pour une vidéo pilotée par du code — mais elle "
-                        "se voit ici.",
+                        'Nobody can play it. The component does not '
+                            'forbid it — it is a legitimate combination for a'
+                            ' code-driven video — but it can be seen here.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-xs"):
@@ -404,9 +400,9 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Composability", level=2)
 
-                    ui.heading("Dans une carte", level=3)
+                    ui.heading('In a card', level=3)
                     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
-                        for label in ("Prise en main", "Nouveautés"):
+                        for label in ("Getting started", "What's new"):
                             with ui.card():
                                 with ui.vstack(gap="sm"):
                                     ui.video(poster=POSTER_WIDE,
@@ -415,7 +411,7 @@ def page() -> None:
                                     ui.text("2 min", color="muted",
                                             size="sm")
 
-                    ui.heading("Dans une cellule de grille contrainte",
+                    ui.heading('Inside a constrained grid cell',
                                level=3)
                     with ui.grid(cols={"base": 3}, gap="sm"):
                         for name in ("square", "video", "portrait"):
@@ -426,75 +422,71 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("A11y", level=2)
                     ui.text(
-                        "controls=True par défaut, et c'est la décision "
-                        "d'accessibilité du composant : le défaut de la "
-                        "plateforme est « pas de contrôles », ce qui "
-                        "laisse un élément que personne ne peut atteindre "
-                        "au clavier. Les contrôles rendus sont ceux du "
-                        "navigateur — déjà étiquetés, déjà tabulables, "
-                        "déjà annoncés dans la langue du système. Les "
-                        "redessiner voudrait dire les réimplémenter, "
-                        "clavier compris.",
+                        'controls=True by default, and that is the '
+                            "component's accessibility decision: the "
+                            "platform's default is “no controls”, which "
+                            'leaves an element nobody can reach from the '
+                            'keyboard. The controls rendered are the '
+                            "browser's — already labelled, already tabbable, "
+                            "already announced in the system's language. "
+                            'Redrawing them would mean reimplementing them, '
+                            'keyboard included.',
                         color="muted", size="sm",
                     )
                     ui.text(
-                        "La garde autoplay a une seconde raison, "
-                        "au-delà du blocage navigateur : du son qui part "
-                        "seul recouvre la voix d'un lecteur d'écran, et "
-                        "l'utilisateur n'a alors plus de moyen simple de "
-                        "trouver quoi arrêter.",
+                        'The autoplay guard has a second reason, beyond '
+                            "the browser's own block: sound that starts by "
+                            "itself drowns a screen reader's voice, and the "
+                            'user then has no easy way to find what to stop.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("poster n'est pas un texte alternatif",
+                    ui.heading('poster is not alternative text',
                                level=3)
                     ui.text(
-                        "<video> n'a pas d'attribut alt, et l'affiche "
-                        "est une image de plus, décorative. Ce qui "
-                        "décrit la vidéo doit vivre À CÔTÉ, en texte "
-                        "réel — lisible par tout le monde, y compris "
-                        "avant que la vidéo charge.",
+                        '<video> has no alt attribute, and the poster is '
+                            'one more image, decorative. What describes the '
+                            'video must live BESIDE it, as real text — '
+                            'readable by everyone, including before the video'
+                            ' loads.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(gap="sm", classes="max-w-sm"):
                         ui.video(poster=POSTER_WIDE, ratio="video")
-                        ui.text("Prise en main de Bretzel — 2 min : "
-                                "créer une page, brancher un état typé, "
-                                "muter.",
+                        ui.text('Getting started with Bretzel — 2 min: create a '
+                            'page, wire a typed state, mutate.',
                                 color="muted", size="sm")
 
-                    ui.heading("Sous-titres — tracks=", level=3)
+                    ui.heading('Subtitles — tracks=', level=3)
                     ui.text(
-                        "Le composant reste une feuille : les pistes "
-                        "sont des DONNÉES, pas des enfants. Un track "
-                        "correct veut trois attributs, et ui.track les "
-                        "exige tous les trois — une piste sans langue ni "
-                        "libellé ne se construit pas, donc elle ne peut "
-                        "pas arriver muette dans le menu du navigateur.",
+                        'The component stays a leaf: the tracks are DATA,'
+                            ' not children. A correct track wants three '
+                            'attributes, and ui.track demands all three — a '
+                            'track with no language and no label does not '
+                            'build, so it cannot turn up nameless in the '
+                            "browser's menu.",
                         color="muted", size="sm",
                     )
                     with ui.vstack(gap="sm", classes="max-w-sm"):
                         ui.video(poster=POSTER_WIDE, ratio="video",
                                  tracks=CAPTION_TRACKS)
                     ui.text(
-                        "Trois pistes ci-dessus : deux langues de "
-                        "sous-titres et une audiodescription. Les "
-                        "fichiers sont des data: URI, donc la page "
-                        "reste hors ligne — le menu CC du navigateur les "
-                        "liste pour de vrai.",
+                        'Three tracks above: two subtitle languages and '
+                            'one audio description. The files are data: URIs,'
+                            " so the page stays offline — the browser's CC "
+                            'menu really does list them.',
                         color="muted", size="xs",
                     )
 
-                    ui.heading("Ce que le composant ne fournit PAS",
+                    ui.heading('What the component does NOT provide',
                                level=3)
                     ui.text(
-                        "kind=\"metadata\" est refusé : il ne s'adresse "
-                        "qu'à du JS (vignettes de survol, marqueurs d'un "
-                        "lecteur maison) et ui.video n'est pas un "
-                        "lecteur. Pas de sources multiples non plus — un "
-                        "seul src, et le jour où plusieurs formats "
-                        "remontent, ce sera un sources= sur le modèle de "
-                        "tracks=.",
+                        'kind="metadata" is refused: it only addresses JS'
+                            ' (hover thumbnails, markers for a home-made '
+                            'player) and ui.video is not a player. No '
+                            'multiple sources either — a single src, and the '
+                            'day several formats come up, it will be a '
+                            'sources= on the tracks= model.',
                         color="muted", size="xs",
                     )
 
@@ -503,9 +495,9 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Server playground", level=2)
                     ui.text(
-                        "Chaque prop ET chaque échappatoire câblée à un "
-                        "contrôle. Mettez autoplay à True et regardez "
-                        "muted apparaître dans le HTML émis.",
+                        'Every prop AND every escape hatch is wired to a '
+                            'control. Set autoplay to True and watch muted '
+                            'appear in the emitted HTML.',
                         color="muted", size="sm",
                     )
                     server_panel()

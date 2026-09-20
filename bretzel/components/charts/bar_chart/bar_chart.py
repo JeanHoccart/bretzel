@@ -73,19 +73,19 @@ class BarChart(Component):
 
     THEME: ClassVar[dict[str, Any]] = BAR_CHART_THEME
     THEME_KEY: ClassVar[str] = "bar_chart"
-    #: L'event est DÉCLARÉ, et ce n'est pas de la métadonnée.
+    #: The event is DECLARED, and it is not metadata.
     #:
-    #: Tant qu'il ne l'était pas, `on_item_click=` n'acceptait qu'un callable :
-    #: la forme « chaîne d'expression cliente », que tout `on_*` du
-    #: framework accepte, y levait un `TypeError` remonté nu de
-    #: `functools.partial`, sans nommer le composant ni la prop. Mesuré
-    #: le 2026-09-06 sur trois composants livrés
+    #: As long as it was not, `on_item_click=` accepted only a callable:
+    #: the "client expression string" shape, which every framework `on_*`
+    #: accepts, raised a `TypeError` surfaced bare from
+    #: `functools.partial`, naming neither the component nor the prop.
+    #: Measured on 2026-09-06 on three shipped components
     #: (`.claude/work/audit-declaration-2026-09-06.md`).
     #:
-    #: Le routage reste MANUEL — le socle pose l'`hx-post` d'un event
-    #: déclaré sur la RACINE, or ici c'est chaque BARRE qui porte le sien,
-    #: avec sa donnée. D'où `item_action_attrs`, le routeur partagé des
-    #: quatre composants dans ce cas.
+    #: The routing stays MANUAL — the base layer sets a declared event's
+    #: `hx-post` on the ROOT, yet here it is each BAR that carries its
+    #: own, with its data. Hence `item_action_attrs`, the shared router
+    #: of the four components in that case.
     EVENTS: ClassVar[tuple[str, ...]] = ("item_click",)
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
@@ -99,11 +99,11 @@ class BarChart(Component):
     # ``stacked`` = segments along the value axis (column total reads as
     # a whole) ; ``stacked_100`` = each stack normalised to 100 % for
     # composition comparison. Single-series payloads ignore the variant.
-    # ``steps=`` : la valeur nomme un MODE DE TRACÉ, pas un palier de
-    # thème — il n'y a donc aucune table à lire, et ``variant="zzz"``
-    # rendait à l'identique de ``"grouped"``, en silence. Les trois
-    # membres sont testés plus bas (``variant in ("stacked", …)``) ;
-    # l'ensemble, lui, se déclare ici, une fois.
+    # ``steps=``: the value names a PLOTTING MODE, not a theme step —
+    # there is therefore no table to read, and ``variant="zzz"`` rendered
+    # identically to ``"grouped"``, in silence. The three members are
+    # tested below (``variant in ("stacked", …)``); the set itself is
+    # declared here, once.
     variant: str = reactive_prop(
         default="grouped", emit_attr=False,
         steps=("grouped", "stacked", "stacked_100"),
@@ -150,7 +150,7 @@ class BarChart(Component):
         self._y_unit = y_unit
         self._reference_lines = _coerce_references(reference_lines)
         self._on_item_click = on_item_click
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             color=color, size=size, width=width,
             variant=variant, orientation=orientation,
@@ -192,9 +192,9 @@ class BarChart(Component):
         # optional override carries per-Series colours into the bar /
         # legend-dot slots without leaking the chart's default.
         def slot(name: str, override: str | None = None) -> str:
-            # ``coloured_slot`` ajoute le PONT de la couleur : la
-            # classe du palier est la même pour toutes les séries,
-            # c'est le pont qui dit laquelle est laquelle.
+            # ``coloured_slot`` adds the colour's BRIDGE: the step's
+            # class is the same for every series, it is the bridge that
+            # says which is which.
             return coloured_slot(self, name, override, color)
 
         wrapper_attrs = self.emit_attrs()
@@ -519,8 +519,8 @@ def _hit_rect(
         "bz-on:mouseleave": "hide()",
     }
     if on_item_click:
-        # Les trois formes d'un `on_*`, par le routeur partagé — ce site
-        # n'acceptait qu'un callable.
+        # The three shapes of an `on_*`, through the shared router —
+        # this site accepted only a callable.
         attrs.update(item_action_attrs(
             on_item_click,
             event="item_click",
@@ -857,14 +857,14 @@ def _render_stacked_bars_horizontal(
 
 
 def _fits_label(extent: float, value_font: int) -> bool:
-    """Le segment a-t-il la place d'accueillir une étiquette ``NN%`` ?
+    """Does the segment have room for a ``NN%`` label?
 
-    ``extent`` est la dimension du segment le long de l'axe où le texte
-    tient le moins — sa hauteur en vertical, sa largeur en horizontal.
-    Le seuil vaut la taille de police plus une marge : en-dessous, le
-    glyphe déborde du remplissage et les étiquettes des parts voisines
-    se télescopent. Une petite part n'est donc pas étiquetée — sa valeur
-    reste dans le tooltip au survol.
+    ``extent`` is the segment's dimension along the axis where the text
+    fits least — its height when vertical, its width when horizontal.
+    The threshold is the font size plus a margin: below it, the glyph
+    overflows the fill and the neighbouring slices' labels collide. A
+    small slice is therefore not labelled — its value stays in the hover
+    tooltip.
     """
     return extent >= value_font + 4
 
@@ -882,14 +882,15 @@ def _render_stacked_100_bars_horizontal(
     so the hover tooltip stays informative even though the segments
     are sized off the normalised ratio.
 
-    ``show_values`` écrit le **pourcentage** au centre de chaque segment
-    — pas la valeur brute (elle ne se lit pas dans une pile normalisée,
-    et le tooltip la porte déjà), et pas un total en bout de barre (il
-    vaut toujours 100). Les segments trop étroits sont sautés.
+    ``show_values`` writes the **percentage** in the centre of each
+    segment — not the raw value (it does not read in a normalised stack,
+    and the tooltip already carries it), and not a total at the end of
+    the bar (it is always 100). Segments that are too narrow are
+    skipped.
 
-    (Les deux paramètres étaient dans la signature sans jamais être lus —
-    ``show_values=True`` était ignoré en silence sur ce seul variant,
-    audit F32.)
+    (Both parameters were in the signature without ever being read —
+    ``show_values=True`` was silently ignored on that one variant, audit
+    F32.)
     """
     plot_h = plot_bottom - plot_top
     n_cats = len(series[0].data)
@@ -973,8 +974,8 @@ def _render_stacked_100_bars_vertical(
 ) -> Element:
     """100 %% normalised vertical stack — each column sums to 100 %.
 
-    ``show_values`` : comme son pendant horizontal — le pourcentage au
-    centre de chaque segment, les parts trop courtes sautées.
+    ``show_values``: like its horizontal counterpart — the percentage in
+    the centre of each segment, slices that are too short skipped.
     """
     plot_w = plot_right - plot_left
     n_cats = len(series[0].data)

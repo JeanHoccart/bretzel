@@ -1,12 +1,12 @@
-"""core/ui — les briques d'interface partagées PAR l'app.
+"""core/ui — the interface bricks shared BY the app.
 
-Un seul habitant pour l'instant : la carte KPI. Elle vivait en cinq copies —
-quatre identiques et une divergente — avant d'être remontée ici, ce qui est
-exactement l'histoire d'``examples/mad/core/ui.py``, dont la docstring dit
-qu'il existe « parce que la carte KPI vivait en double ».
+A single inhabitant for now: the KPI card. It lived in five copies — four
+identical and one divergent — before being moved up here, which is
+exactly the story of ``examples/mad/core/ui.py``, whose docstring says it
+exists "because the KPI card lived in duplicate".
 
-Ce n'est pas un fourre-tout : s'il grossit, c'est qu'il contient une feature
-qu'on n'a pas nommée (cf. ``app-structure.md`` § 6).
+It is not a dumping ground: if it grows, it is holding a feature that has
+not been named (cf. ``app-structure.md`` § 6).
 """
 
 from __future__ import annotations
@@ -15,11 +15,11 @@ from bretzel import ui
 
 
 def kpi(label: str, value: str, icon: str, color: str) -> None:
-    """La carte chiffre-clé de l'app : pastille d'icône, libellé, valeur.
+    """The app's key-figure card: icon pill, label, value.
 
-    Un seul gabarit pour les cinq rangées qui en posent (comptes, fiche
-    compte, activités, rapports) — sinon deux rangées de KPI voisines
-    s'affichent à des hauteurs et des graisses différentes, sans raison.
+    A single template for the five rows that place one (accounts, account
+    sheet, activities, reports) — otherwise two neighbouring KPI rows
+    show at different heights and weights, for no reason.
     """
     with ui.card(padding="md"):
         with ui.hstack(gap="md", align="center"):

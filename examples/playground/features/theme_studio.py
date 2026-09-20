@@ -1,39 +1,40 @@
-"""``/theme-studio`` — régler le thème en direct, et repartir avec le code.
+"""``/theme-studio`` — set the theme live, and leave with the code.
 
-Cette page ne pilote pas les composants : elle pilote **les entrées du
-générateur**. On bouge les onze couleurs sémantiques — en clair ET en
-sombre — les trois familles de rayon, l'épaisseur du trait et la densité ;
-tout ce qui est en dessous se recalcule : les douze paliers, les vrais
-composants de l'aperçu, et le mode sombre avec.
+This page does not drive the components: it drives **the generator's
+inputs**. One moves the eleven semantic colours — in light AND in dark —
+the three radius families, the stroke width and the density; everything
+below recomputes: the twelve steps, the preview's real components, and
+dark mode with them.
 
-Pourquoi elle règle des VARIABLES et n'appelle aucun serveur
-------------------------------------------------------------
+Why it sets VARIABLES and calls no server
+------------------------------------------
 
-Les paliers (``--bz-bg``, ``--bz-text``…) sont dérivés en CSS depuis
-``--color-<nom>`` : changer la source suffit à repeindre toute la page,
-et le navigateur le fait seul.
+The steps (``--bz-bg``, ``--bz-text``…) are derived in CSS from
+``--color-<name>``: changing the source is enough to repaint the whole
+page, and the browser does it alone.
 
-Et la sortie est du **code**, pas un état sauvé : le bloc du bas rend le
-``Theme(...)`` à coller dans ``core/theme.py``. Git est la persistance.
+And the output is **code**, not a saved state: the block at the bottom
+renders the ``Theme(...)`` to paste into ``core/theme.py``. Git is the
+persistence.
 
-⚠️ **Un ``<style>`` injecté, pas des styles INLINE** — et c'est la
-correction du 2026-08-30. Écrire ``--color-primary`` en style inline sur
-``<html>`` gagne contre TOUTES les règles, donc contre le bloc ``.dark``
-du thème : dès qu'on touchait une couleur, le mode sombre cessait de
-fonctionner pour elle. Une feuille injectée porte les deux règles,
-``:root`` et ``.dark``, et la cascade retrouve son travail.
+⚠️ **An injected ``<style>``, not INLINE styles** — and it is the fix of
+2026-08-30. Writing ``--color-primary`` as an inline style on ``<html>``
+wins against ALL the rules, hence against the theme's ``.dark`` block: as
+soon as one touched a colour, dark mode stopped working for it. An
+injected sheet carries both rules, ``:root`` and ``.dark``, and the
+cascade gets its job back.
 
-⚠️ **Ce qui se règle ici se règle À CHAUD. Le reste ne s'y trouve pas.**
-Tailwind inline un nombre nu pour ``ring-2``, ``duration-150``, ``z-40``
-— aucune variable ne les porte, donc aucun curseur ne peut les bouger
-sans recompiler. Les mettre ici donnerait l'illusion du contraire.
+⚠️ **What is set here is set HOT. The rest is not here.** Tailwind inlines
+a bare number for ``ring-2``, ``duration-150``, ``z-40`` — no variable
+carries them, so no slider can move them without recompiling. Putting
+them here would give the illusion of the opposite.
 
-Ce que la page n'a pas encore
-------------------------------
+What the page does not have yet
+--------------------------------
 
-- la typographie (``--font-sans`` + l'échelle ``--text-*``) ;
-- le relief (``--shadow-*``), qui redevient réglable si son jeton est
-  écrit depuis des ``var()`` — cf. le chantier.
+- the typography (``--font-sans`` + the ``--text-*`` scale);
+- the relief (``--shadow-*``), which becomes settable again if its token
+  is written from ``var()`` — cf. the work note.
 """
 
 import json
@@ -44,37 +45,38 @@ from bretzel.theme import SHAPE_SLOT_NAMES
 
 PATH = "/theme-studio"
 
-#: Les onze slots sémantiques : (nom, rôle, défaut clair, défaut sombre).
-#: L'ordre est celui de la lecture — l'accent d'abord, les fonds ensuite.
+#: The eleven semantic slots: (name, role, light default, dark default).
+#: The order is the reading one — the accent first, the backgrounds
+#: next.
 SLOTS: list[tuple[str, str, str, str]] = [
     ("primary",    "l'accent de marque",           "#682747", "#682747"),
     ("secondary",  "l'accent secondaire",          "#3a52b0", "#3a52b0"),
-    ("success",    "ce qui a réussi",              "#2f9e64", "#2f9e64"),
-    ("warning",    "ce qui demande attention",     "#f0a91b", "#f0a91b"),
-    ("error",      "ce qui a échoué",              "#e5484d", "#e5484d"),
-    ("info",       "une information neutre",       "#0e9bc4", "#0e9bc4"),
-    ("background", "le fond de la page",           "#fafafa", "#0a0a0a"),
-    ("surface",    "le fond d'un panneau",         "#ffffff", "#151515"),
-    ("interface",  "le remplissage d'un contrôle", "#f0f0f1", "#212121"),
-    ("text",       "le texte courant",             "#171717", "#f5f5f5"),
-    ("muted",      "le texte secondaire",          "#6b6b6e", "#a0a0a3"),
+    ("success",    'what succeeded',              "#2f9e64", "#2f9e64"),
+    ("warning",    'what needs attention',     "#f0a91b", "#f0a91b"),
+    ("error",      'what failed',              "#e5484d", "#e5484d"),
+    ("info",       'a neutral piece of information',       "#0e9bc4", "#0e9bc4"),
+    ("background", "the page's background",           "#fafafa", "#0a0a0a"),
+    ("surface",    "a panel's background",         "#ffffff", "#151515"),
+    ("interface",  "a control's fill", "#f0f0f1", "#212121"),
+    ("text",       'the running text',             "#171717", "#f5f5f5"),
+    ("muted",      'the secondary text',          "#6b6b6e", "#a0a0a3"),
 ]
 
-#: Les défauts de couleur, DÉRIVÉS de :data:`SLOTS` — le mode clair pour
-#: le champ nu, le sombre pour son jumeau ``d_``.
+#: The colour defaults, DERIVED from :data:`SLOTS` — light mode for the
+#: bare field, dark for its ``d_`` twin.
 #:
-#: Ils étaient écrits deux fois : dans ``SLOTS`` pour l'affichage, et en
-#: littéral sur chaque champ de la classe. Deux copies d'une même valeur
-#: dérivent toujours, et celle-ci ne pouvait diverger qu'en SILENCE — la
-#: page aurait montré une valeur et le store en aurait retenu une autre.
+#: They were written twice: in ``SLOTS`` for the display, and as a
+#: literal on every field of the class. Two copies of one value always
+#: drift, and this one could only diverge in SILENCE — the page would
+#: have shown one value and the store kept another.
 COLOR_DEFAULTS: dict[str, str] = {
     **{name: light for name, _role, light, _dark in SLOTS},
     **{f"d_{name}": dark for name, _role, _light, dark in SLOTS},
 }
 
-#: Les défauts des cinq curseurs. Ils n'ont pas de table d'affichage d'où
-#: les tirer — leur tuple vit dans ``page()`` — donc ils sont ici, au même
-#: endroit que les couleurs, et la classe les lit comme elle.
+#: The five sliders' defaults. They have no display table to draw them
+#: from — their tuple lives in ``page()`` — so they are here, in the same
+#: place as the colours, and the class reads them the same way.
 SLIDER_DEFAULTS: dict[str, float] = {
     "box": 0.75,
     "field_": 0.75,
@@ -83,17 +85,17 @@ SLIDER_DEFAULTS: dict[str, float] = {
     "spacing": 0.1875,
 }
 
-#: Les vingt-sept valeurs livrées, d'un bloc. C'est ce que « Réinitialiser »
-#: repose, et c'est la MÊME source que les défauts de la classe — donc le
-#: bouton ne peut pas ramener à un troisième état.
+#: The twenty-seven shipped values, in one block. It is what "Reset"
+#: puts back, and it is the SAME source as the class's defaults — so the
+#: button cannot bring things back to a third state.
 SHIPPED_DEFAULTS: dict[str, str | float] = {**COLOR_DEFAULTS, **SLIDER_DEFAULTS}
 
 PREVIEW_COLORS = ["primary", "success", "warning", "error", "info", "muted"]
 
 
 class Studio(ClientState, persist="local"):
-    """Les réglages. ``persist="local"`` : on retrouve son thème en
-    revenant, sans que rien ne parte au serveur."""
+    """The settings. ``persist="local"``: one finds one's theme again on
+    coming back, without anything going to the server."""
 
     primary:    str = field(default=COLOR_DEFAULTS["primary"])
     secondary:  str = field(default=COLOR_DEFAULTS["secondary"])
@@ -126,23 +128,23 @@ class Studio(ClientState, persist="local"):
     stroke: float = field(default=SLIDER_DEFAULTS["stroke"])
 
 
-#: Le MIROIR JavaScript de ``bretzel.theme.palette.resolve_color_pair``.
+#: The JavaScript MIRROR of ``bretzel.theme.palette.resolve_color_pair``.
 #:
-#: Pourquoi il existe. Le foreground d'une couleur n'est pas « noir ou
-#: blanc » : il est dérivé du fond — clarté choisie par un seuil de
-#: luminance WCAG, puis TEINTÉ de la teinte du fond pour que la paire
-#: reste d'un seul morceau. Cet algorithme vit en Python et tourne à la
-#: génération du CSS. Le studio, lui, ne parle jamais au serveur : sans
-#: ce miroir, choisir du blanc pour ``primary`` laissait le texte blanc
-#: sur blanc, et aucun rechargement n'y changeait rien — la page ne
-#: renvoie ses couleurs nulle part.
+#: Why it exists. A colour's foreground is not "black or white": it is
+#: derived from the background — lightness chosen by a WCAG luminance
+#: threshold, then TINTED with the background's hue so the pair stays of
+#: a piece. That algorithm lives in Python and runs when the CSS is
+#: generated. The studio, for its part, never talks to the server:
+#: without this mirror, choosing white for ``primary`` left white text on
+#: white, and no reload could change it — the page sends its colours
+#: nowhere.
 #:
-#: Pourquoi c'est une DUPLICATION assumée. C'est le même arbitrage que
-#: ``protocol.py`` ↔ ``runtime.js`` : le JS ne peut pas importer Python.
-#: Et comme là-bas, la duplication est GATÉE — les six nombres de
-#: l'algèbre sont nommés dans ``palette.py`` et
-#: ``test_the_foreground_algebra_is_mirrored_in_js`` vérifie qu'ils
-#: apparaissent ici.
+#: Why it is an accepted DUPLICATION. It is the same arbitration as
+#: ``protocol.py`` ↔ ``runtime.js``: the JS cannot import Python. And as
+#: over there, the duplication is GATED — the algebra's six numbers are
+#: named in ``palette.py`` and
+#: ``test_the_foreground_algebra_is_mirrored_in_js`` checks they appear
+#: here.
 FOREGROUND_JS = """
 if (!window.bzFg) {
   var toHls = function (r, g, b) {
@@ -189,12 +191,12 @@ if (!window.bzFg) {
     var hls = toHls(r, g, b);
     var baseL = lum(r, g, b) > 0.179 ? 0.08 : 0.96;
     var baseS = Math.min(hls[2] * 0.12, 0.08);
-    // Miroir de ``palette._readable_fg`` : la teinte RECULE jusqu'à ce
-    // que AA (4.5) soit clos, et on s'arrête au premier cran suffisant.
-    // Sans cette boucle, le studio rendrait un foreground différent de
-    // celui que Python calcule sur les trois couleurs qui en avaient
-    // besoin — muted, pink, plum — et personne ne le verrait, les deux
-    // moitiés étant plausibles séparément.
+    // Mirror of ``palette._readable_fg``: the tint BACKS OFF until AA
+    // (4.5) is cleared, and we stop at the first sufficient step.
+    // Without this loop, the studio would render a foreground different
+    // from the one Python computes on the three colours that needed it
+    // — muted, pink, plum — and nobody would see it, the two halves
+    // being plausible on their own.
     var extreme = baseL < 0.5 ? 0 : 1;
     var out = [0, 0, 0];
     for (var step = 0; step <= 5; step++) {
@@ -212,18 +214,18 @@ if (!window.bzFg) {
 """
 
 
-#: ``(famille de rayon, champ du store)``.
+#: ``(radius family, store field)``.
 #:
-#: Les familles viennent de ``SHAPE_SLOT_NAMES``, le tuple du framework
-#: dont ``Theme(shape=…)`` et la gate du rayon se servent déjà : une
-#: quatrième famille ajoutée là-bas apparaît ici sans qu'on y touche.
-#: La seule information PROPRE à cette page est le décalage de nom —
-#: ``field`` est une fonction de ``bretzel.state``, donc le champ du
-#: store s'appelle ``field_``.
+#: The families come from ``SHAPE_SLOT_NAMES``, the framework tuple
+#: ``Theme(shape=…)`` and the radius gate already use: a fourth family
+#: added there appears here without anybody touching it. The only
+#: information SPECIFIC to this page is the name shift — ``field`` is a
+#: function of ``bretzel.state``, so the store field is called
+#: ``field_``.
 #:
-#: Écrit une fois : la feuille injectée et le code exporté doivent nommer
-#: les mêmes familles, et deux listes en auraient nommé deux jeux
-#: distincts au premier ajout.
+#: Written once: the injected sheet and the exported code must name the
+#: same families, and two lists would have named two distinct sets at the
+#: first addition.
 SHAPE_FIELDS: tuple[tuple[str, str], ...] = tuple(
     (family, "field_" if family == "field" else family)
     for family in SHAPE_SLOT_NAMES
@@ -231,63 +233,62 @@ SHAPE_FIELDS: tuple[tuple[str, str], ...] = tuple(
 
 
 def path(name: str) -> str:
-    """Le chemin JS d'un champ du store.
+    """A store field's JS path.
 
-    Il est déterministe — classe, clé d'instance, champ — donc on le
-    construit ici plutôt que de le redeviner dans chaque expression.
+    It is deterministic — class, instance key, field — so we build it
+    here rather than re-guess it in every expression.
     """
     return f"$bz.state.Studio.default.{name}"
 
 
 def reset_expression() -> str:
-    """Le JS qui remet CHAQUE champ à la valeur LIVRÉE par le framework.
+    """The JS that puts EVERY field back to the value the framework
+    SHIPS.
 
-    Pourquoi ce bouton existe
-    --------------------------
-    ``Studio`` est ``persist="local"`` : les réglages survivent à la
-    fermeture de l'onglet, ce qui est le bon défaut pour une page où l'on
-    revient. Mais la conséquence n'avait pas de sortie — une fois qu'on y
-    a touché, **plus rien ne ramène aux valeurs du framework**, pas même
-    un rechargement, et repeindre le thème par défaut ne change rien à ce
-    qu'on voit. Signalé le 2026-09-13 : la page affichait encore un rose
-    ``#e93d82`` saisi des semaines plus tôt, pendant que le défaut livré
-    était un indigo.
+    Why this button exists
+    -----------------------
+    ``Studio`` is ``persist="local"``: the settings survive closing the
+    tab, which is the right default for a page one comes back to. But the
+    consequence had no way out — once touched, **nothing brings back the
+    framework's values**, not even a reload, and repainting the default
+    theme changes nothing about what is seen. Flagged on 2026-09-13: the
+    page still showed a ``#e93d82`` pink entered weeks earlier, while the
+    shipped default was an indigo.
 
-    Pourquoi il se construit depuis la CLASSE
-    ------------------------------------------
-    :data:`SHIPPED_DEFAULTS` est la table que les CHAMPS de ``Studio``
-    lisent eux-mêmes : le bouton et le store ne peuvent donc pas diverger.
-    Écrire la liste à la main ici la ferait dériver au premier curseur
-    ajouté — et ce serait la dérive silencieuse habituelle : le bouton
-    remettrait tout SAUF le nouveau réglage, ce qui ressemble à un bouton
-    qui marche. La gate ``test_the_studio_exports_every_knob`` tient les
-    deux bouts.
+    Why it is built from the CLASS
+    -------------------------------
+    :data:`SHIPPED_DEFAULTS` is the table ``Studio``'s FIELDS read
+    themselves: so the button and the store cannot diverge. Writing the
+    list by hand here would make it drift at the first slider added — and
+    it would be the usual silent drift: the button would reset everything
+    EXCEPT the new setting, which looks like a button that works. The
+    gate ``test_the_studio_exports_every_knob`` holds both ends.
     """
     return "; ".join(
-        f"{path(name)} = {json.dumps(valeur)}"
-        for name, valeur in sorted(SHIPPED_DEFAULTS.items())
+        f"{path(name)} = {json.dumps(value)}"
+        for name, value in sorted(SHIPPED_DEFAULTS.items())
     )
 
 
 def repaint_effect() -> str:
-    """L'effet qui repeint la page, via une FEUILLE injectée.
+    """The effect that repaints the page, through an INJECTED sheet.
 
-    Il écrit un ``<style>`` unique portant ``:root { … }`` et
-    ``.dark { … }``. C'est ce qui rend le mode sombre réglable : un style
-    inline sur ``<html>`` gagnerait contre la règle ``.dark`` du thème et
-    figerait la couleur dans les deux modes.
+    It writes a single ``<style>`` carrying ``:root { … }`` and
+    ``.dark { … }``. It is what makes dark mode settable: an inline style
+    on ``<html>`` would win against the theme's ``.dark`` rule and freeze
+    the colour in both modes.
 
-    La feuille est ajoutée en fin de ``<head>``, donc APRÈS celle du
-    thème : à spécificité égale, l'ordre décide, et c'est la nôtre qui
-    gagne.
+    The sheet is appended at the end of ``<head>``, hence AFTER the
+    theme's: at equal specificity, the order decides, and ours wins.
     """
     def block(prefix: str) -> str:
-        """Chaque source écrit sa PAIRE : le fond ET son foreground.
+        """Every source writes its PAIR: the background AND its
+        foreground.
 
-        Écrire le fond seul laissait ``--color-<nom>-foreground`` à la
-        valeur calculée au démarrage par le serveur — donc du blanc sur
-        blanc dès qu'on choisissait une couleur claire, sans qu'aucun
-        rechargement n'y puisse rien.
+        Writing the background alone left ``--color-<name>-foreground``
+        at the value computed at startup by the server — hence white on
+        white as soon as one chose a light colour, with no reload able to
+        do anything about it.
         """
         return " + ".join(
             f"'--color-{name}:' + {path(prefix + name)} + ';'"
@@ -296,19 +297,19 @@ def repaint_effect() -> str:
             for name, _role, _light, _dark in SLOTS
         )
 
-    # Les TROIS familles, et rien d'autre. Cette ligne écrivait
-    # ``--radius-sm/md/lg/xl`` depuis un seul curseur × quatre
-    # facteurs — donc elle bougeait quatre jetons dont rien ne disait
-    # pourquoi ils différaient. Depuis le 2026-08-30 le thème n'écrit
-    # plus que ``rounded-box`` / ``rounded-field`` / ``rounded-selector``,
-    # qui sont trois questions distinctes.
+    # The THREE families, and nothing else. This line used to write
+    # ``--radius-sm/md/lg/xl`` from a single slider × four factors — so
+    # it moved four tokens with nothing saying why they differed. Since
+    # 2026-08-30 the theme only writes ``rounded-box`` /
+    # ``rounded-field`` / ``rounded-selector``, which are three distinct
+    # questions.
     radius = " + ".join(
         f"'--radius-{family}:' + {path(attr)} + 'rem;'"
         for family, attr in SHAPE_FIELDS
     )
-    # Le trait : une seule base, les deux crans en dérivent. Écrire les
-    # trois ici plutôt que la base seule aurait figé le rapport dans la
-    # page au lieu de le laisser au `calc()` du thème.
+    # The stroke: a single base, the two steps derive from it. Writing
+    # all three here rather than the base alone would have frozen the
+    # ratio in the page instead of leaving it to the theme's `calc()`.
     stroke = f"'--bz-stroke:' + {path('stroke')} + 'px;'"
     return (
         FOREGROUND_JS
@@ -327,42 +328,41 @@ def repaint_effect() -> str:
 
 
 def rounded(name: str) -> str:
-    """Le champ, arrondi au millième.
+    """The field, rounded to the thousandth.
 
-    Un curseur au pas de 0,05 rend ``0.7500000000000001`` une fois sur
-    vingt. Invisible dans une feuille injectée ; recopié tel quel dans le
-    code exporté, où ça se voit.
+    A slider with a 0.05 step returns ``0.7500000000000001`` one time in
+    twenty. Invisible in an injected sheet; copied as is into the
+    exported code, where it shows.
 
-    ⚠️ **Pourquoi ce n'est pas ``round(binding, 3)``.** Le framework émet
-    exactement ce JS — ``ClientBinding.__round__`` rend la même chaîne au
-    caractère près. Il n'est pas utilisable d'ici : ces émetteurs sont
-    des fonctions de module, appelées sans contexte de rendu pour que la
-    gate puisse les lire à l'import, et hors contexte ``Studio().box``
-    rend un ``float``, pas un binding. Vérifié le 2026-08-31, pas
-    supposé. C'est le même arbitrage qui justifie ``path()`` juste
-    au-dessus.
+    ⚠️ **Why it is not ``round(binding, 3)``.** The framework emits
+    exactly that JS — ``ClientBinding.__round__`` returns the same string
+    to the character. It is not usable from here: these emitters are
+    module functions, called with no render context so the gate can read
+    them at import, and outside a context ``Studio().box`` returns a
+    ``float``, not a binding. Checked on 2026-08-31, not assumed. It is
+    the same arbitration that justifies ``path()`` just above.
     """
     return f"(Math.round({path(name)} * 1000) / 1000)"
 
 
 def export_expression() -> str:
-    """Le code à coller, en une seule expression pour ``bz-text``.
+    """The code to paste, in a single expression for ``bz-text``.
 
-    Il porte TOUT ce que la page règle, et c'est le point : jusqu'au
-    2026-08-31 il n'émettait que les vingt-deux couleurs. Les quatre
-    curseurs de forme et celui de densité se réglaient, s'affichaient à
-    l'écran, et disparaissaient à la copie — sans rien dire. C'est le
-    pire mode d'échec d'un exportateur : une sortie plausible et
-    incomplète. ``test_the_studio_exports_every_knob`` le garde.
+    It carries EVERYTHING the page sets, and that is the point: until
+    2026-08-31 it only emitted the twenty-two colours. The four shape
+    sliders and the density one were set, shown on screen, and vanished
+    on copy — without a word. It is an exporter's worst failure mode: a
+    plausible and incomplete output.
+    ``test_the_studio_exports_every_knob`` guards it.
 
-    La densité sort en ``spacing=`` depuis le 2026-09-13. Elle passait par
-    ``css="@theme { --spacing: … }"``, faute de paramètre à elle — le
-    framework n'ouvrait pas la densité, au motif que chaque composant a
-    déjà son ``size=``. Le motif tenait pour un MULTIPLICATEUR ; il ne
-    tenait pas pour la base de l'échelle, que deux apps ont fini par
-    déplacer à la main. Le code exporté reste vrai dans les deux formes,
-    mais celle-ci est validée à la construction là où un bloc CSS était
-    cru sur parole.
+    The density comes out as ``spacing=`` since 2026-09-13. It went
+    through ``css="@theme { --spacing: … }"``, for want of a parameter of
+    its own — the framework did not open the density, on the grounds that
+    every component already has its ``size=``. The grounds held for a
+    MULTIPLIER; they did not hold for the scale's base, which two apps
+    ended up moving by hand. The exported code stays true in both forms,
+    but this one is validated at construction where a CSS block was taken
+    on trust.
     """
     def block(prefix: str) -> str:
         return " + '\\n' + ".join(
@@ -390,8 +390,8 @@ def export_expression() -> str:
 
 
 def component_preview(color: str) -> None:
-    """De VRAIS composants, pas des pastilles. C'est le seul moyen de
-    voir qu'un palier casse."""
+    """REAL components, not swatches. It is the only way to see that a
+    step breaks."""
     with ui.card(padding="sm"):
         with ui.hstack(gap="sm", align="center", classes="flex-wrap"):
             ui.badge(color, color=color, variant="soft")
@@ -410,56 +410,56 @@ def page() -> None:
     with ui.vstack(gap="lg", attrs={"bz-effect": repaint_effect()}):
         ui.heading("Theme studio", level=1)
         ui.text(
-            "Les onze couleurs sémantiques dans les DEUX modes, les trois "
-            "familles de rayon, le trait et la densité. Tout se recalcule "
-            "dans le navigateur, sans un aller-retour serveur. La sortie "
-            "est du CODE : le bloc du bas se colle dans core/theme.py.",
+            'The eleven semantic colours in BOTH modes, the three radius '
+                'families, the stroke and the density. Everything recomputes '
+                'in the browser, with no server round trip. The output is '
+                'CODE: the block at the bottom pastes into core/theme.py.',
             color="muted",
         )
         ui.text(
-            "Le sélecteur clair / sombre / système vit dans le pied de la "
-            "barre latérale. Les deux colonnes de couleur restent "
-            "éditables quel que soit le mode affiché.",
+            "The light / dark / system selector lives in the sidebar's "
+                'footer. Both colour columns stay editable whichever mode is '
+                'displayed.',
             color="muted", size="sm",
         )
 
-        # ⚠️ Le bouton n'est pas un ornement : sans lui, ``persist="local"``
-        # est un aller SANS retour. Il écrit les signaux en clair (une
-        # chaîne ``on_click``, donc du client pur), et la persistance suit
-        # — pas de requête, pas de rechargement.
+        # ⚠️ The button is not an ornament: without it, ``persist="local"``
+        # is a one-way trip. It writes the signals in the clear (an
+        # ``on_click`` string, hence pure client), and the persistence
+        # follows — no request, no reload.
         with ui.hstack(gap="sm", align="center", classes="flex-wrap"):
             ui.button(
-                "Réinitialiser",
+                'Reset',
                 icon_left="rotate-ccw",
                 variant="outline",
                 size="sm",
                 on_click=reset_expression(),
             )
             ui.text(
-                "remet les vingt-sept réglages aux valeurs livrées par le "
-                "framework. Vos réglages sont gardés dans ce navigateur, "
-                "donc ils survivent à un thème qui change de côté serveur.",
+                'puts the twenty-seven settings back to the values the '
+                    'framework ships. Your settings are kept in this browser,'
+                    ' so they survive a theme changing on the server side.',
                 size="xs", color="muted",
             )
 
-        # ⚠️ UNE seule colonne, sur toute la largeur. La page a été
-        # bâtie en deux colonnes côte à côte — les réglages à gauche, un
-        # aperçu à droite — et les deux se disputaient la place : les
-        # champs se serraient à 144 px pendant que l'aperçu était coupé.
-        # Deux choses qui ont besoin de largeur ne se mettent pas côte à
-        # côte ; elles se mettent l'une sous l'autre.
+        # ⚠️ ONE single column, across the whole width. The page was
+        # built in two columns side by side — the settings on the left, a
+        # preview on the right — and the two fought over the space: the
+        # fields squeezed to 144 px while the preview was cut off. Two
+        # things that need width do not go side by side; they go one
+        # under the other.
         ui.divider()
-        ui.heading("Les sources", level=2)
+        ui.heading('The sources', level=2)
         ui.text(
-            "Vingt-deux valeurs saisies. Tout le reste en descend — les "
-            "douze paliers de chaque couleur, dans les deux modes.",
+            'Twenty-two values typed in. Everything else descends from '
+                'them — the twelve steps of every colour, in both modes.',
             size="sm", color="muted",
         )
-        # ``min_col`` EST ``repeat(auto-fit, minmax(20rem, 1fr))`` — la
-        # primitive existe, je l'avais réécrite à la main en classe
-        # arbitraire dans un ``ui.container``, qui porte en plus un
-        # ``px-6 py-8`` par défaut : d'où les 24 px d'indentation que la
-        # grille n'aurait jamais dû avoir.
+        # ``min_col`` IS ``repeat(auto-fit, minmax(20rem, 1fr))`` — the
+        # primitive existed, I had rewritten it by hand as an arbitrary
+        # class in a ``ui.container``, which also carries a ``px-6 py-8``
+        # by default: hence the 24 px of indentation the grid should
+        # never have had.
         with ui.grid(min_col="20rem", gap="lg"):
             for name, role, _light, _dark in SLOTS:
                 with ui.vstack(gap="xs"):
@@ -473,40 +473,39 @@ def page() -> None:
                             getattr(settings, f"d_{name}"), size="sm"
                         )
         ui.text(
-            "Dans chaque paire : le mode clair à gauche, le sombre à "
-            "droite.",
+            'In each pair: light mode on the left, dark on the right.',
             size="xs", color="muted",
         )
 
         ui.divider()
-        ui.heading("Les formes", level=2)
+        ui.heading('The shapes', level=2)
         ui.text(
-            "Trois familles de rayon, parce que trois questions "
-            "différentes : ce qui CONTIENT, ce qu'on TOUCHE, les petites "
-            "MARQUES. Une seule échelle globale ne serait pas réglable — "
-            "elle bougerait les trois du même geste.",
+            'Three radius families, because three different questions: '
+                'what CONTAINS, what one TOUCHES, the small MARKS. A single '
+                'global scale would not be adjustable — it would move all '
+                'three with the same gesture.',
             size="sm", color="muted",
         )
         ui.text(
-            "Ce qui NE bouge pas : le switch, le radio, le spinner et la "
-            "barre de progression restent ronds. Leur rond est leur "
-            "forme — un switch carré se lit comme une case à cocher.",
+            'What does NOT move: the switch, the radio, the spinner and '
+                'the progress bar stay round. Their roundness is their shape '
+                '— a square switch reads as a checkbox.',
             size="xs", color="muted",
         )
-        # L'unité vit dans le tuple. Elle était collée en
-        # ``f"{label} (rem)"`` pour tout le monde, ce qui donnait
-        # « l'épaisseur du trait (px) (rem) ».
+        # The unit lives in the tuple. It was glued on as
+        # ``f"{label} (rem)"`` for everybody, which gave "the stroke
+        # width (px) (rem)".
         with ui.grid(min_col="16rem", gap="lg"):
             for label, unit, binding, lo, hi, step in (
-                ("--radius-box · ce qui CONTIENT", "rem",
+                ('--radius-box · what CONTAINS', "rem",
                  settings.box, 0.0, 2.0, 0.05),
-                ("--radius-field · ce qu'on TOUCHE", "rem",
+                ('--radius-field · what one TOUCHES', "rem",
                  settings.field_, 0.0, 2.0, 0.05),
-                ("--radius-selector · les petites MARQUES", "rem",
+                ('--radius-selector · the small MARKS', "rem",
                  settings.selector, 0.0, 1.0, 0.025),
-                ("--bz-stroke · l'épaisseur du trait", "px",
+                ('--bz-stroke · the stroke width', "px",
                  settings.stroke, 0.0, 4.0, 0.5),
-                ("--spacing · la densité", "rem",
+                ('--spacing · the density', "rem",
                  settings.spacing, 0.15, 0.4, 0.01),
             ):
                 with ui.vstack(gap="none"):
@@ -516,15 +515,15 @@ def page() -> None:
                               step=step, size="sm")
 
         ui.divider()
-        ui.heading("L'aperçu", level=2)
+        ui.heading('The preview', level=2)
         ui.text(
-            "De VRAIS composants, et rien d'autre. La page montrait "
-            "aussi les douze paliers en pastilles : douze carrés sans "
-            "étiquette, coupés par la colonne, illisibles en sombre — "
-            "et surtout redondants. Un badge `soft` EST `--bz-bg`, un "
-            "badge `outline` EST `--bz-border`, un bouton plein EST "
-            "`--bz-solid` avec `--bz-on-solid` écrit dessus. Le "
-            "composant dit la même chose et dit en plus si elle marche.",
+            'REAL components, and nothing else. The page also showed the '
+                'twelve steps as swatches: twelve unlabelled squares, cut off'
+                ' by the column, unreadable in dark mode — and above all '
+                'redundant. A `soft` badge IS `--bz-bg`, an `outline` badge '
+                'IS `--bz-border`, a solid button IS `--bz-solid` with `--bz-'
+                'on-solid` written on it. The component says the same thing, '
+                'and says in addition whether it works.',
             size="sm", color="muted",
         )
         with ui.grid(min_col="24rem", gap="md"):
@@ -532,18 +531,18 @@ def page() -> None:
                 component_preview(color)
 
         ui.divider()
-        ui.heading("Le code à coller", level=2)
+        ui.heading('The code to paste', level=2)
         ui.text(
-            "Git est la persistance. Cette page est un générateur, pas "
-            "un magasin de thèmes — ce qu'on règle à l'œil finit dans "
-            "core/theme.py, versionné et relu.",
+            'Git is the persistence. This page is a generator, not a '
+                'theme store — what you tune by eye ends up in core/theme.py,'
+                ' versioned and reviewed.',
             color="muted", size="sm",
         )
-        # ⚠️ ``ui.code`` et plus un ``ui.container`` habillé à la main.
-        # Le bloc était un ``<div>`` portant sa propre pile de classes
-        # ``font-mono … border … bg-interface`` : il ne ressemblait à
-        # AUCUN autre bloc de code de l'app, et il ne pouvait pas suivre
-        # le thème qu'il sert justement à régler. ``text`` est bindable,
-        # donc une ``ClientExpression`` y passe — le composant émet un
-        # ``<span bz-text>`` dans son ``<code>``.
+        # ⚠️ ``ui.code`` and no longer a hand-dressed ``ui.container``.
+        # The block was a ``<div>`` carrying its own stack of
+        # ``font-mono … border … bg-interface`` classes: it looked like
+        # NO other code block in the app, and it could not follow the
+        # theme it exists to set. ``text`` is bindable, so a
+        # ``ClientExpression`` goes through — the component emits a
+        # ``<span bz-text>`` inside its ``<code>``.
         ui.code(ClientExpression(export_expression()), lang="python")

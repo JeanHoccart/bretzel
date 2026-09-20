@@ -1,26 +1,27 @@
-"""features/grille_data — data : la grille type, ses exceptions, son retour.
+"""features/grille_data — data: the typical grid, its exceptions, its
+way back.
 
-``kind="data"``. Elle répond à **une** question composée : *que voit-on
-la semaine du tant ?* — et la réponse mélange trois sources que le cahier
-ordonne explicitement (EF-K5) :
+``kind="data"``. It answers **one** compound question: *what do we see in
+the week of such and such?* — and the answer mixes three sources the
+specification orders explicitly (EF-K5):
 
-1. la **grille type**, qui se répète par jour × horaire × semaine A/B ;
-2. les **heures exceptionnelles**, posées sur de VRAIES dates, et qui
-   l'emportent : une heure en plus, ou une annulation ;
-3. les **périodes sans classe**, qui vident un jour entier (EF-B4).
+1. the **typical grid**, repeating per day × time slot × week A/B;
+2. the **exceptional hours**, set on REAL dates, and which win: an extra
+   hour, or a cancellation;
+3. the **periods without class**, which empty a whole day (EF-B4).
 
-*« Le cahier lit le résultat de la grille ET des exceptions, jamais la
-grille seule — sinon il proposerait de noter une classe qu'on n'a pas
-eue »* : c'est pour ça que :func:`semaine_affichee` est la seule porte,
-et que le lot 9 la réutilisera telle quelle.
+*"The log reads the result of the grid AND the exceptions, never the grid
+alone — otherwise it would offer to record a class that did not take
+place"*: that is why :func:`semaine_affichee` is the only door, and why
+batch 9 will reuse it as is.
 
-Le retour en arrière (EF-B12)
-------------------------------
-La grille entière est mise de côté **avant chaque modification**, en
-JSON, et les vingt dernières sont gardées. Restaurer réécrit les
-créneaux — sauf ceux dont la classe a disparu entre-temps : *« une classe
-supprimée ne ressuscite pas : sa case est perdue, le reste revient »*.
-C'est la seule forme qui ne recrée pas de donnée à partir d'une photo.
+The way back (EF-B12)
+----------------------
+The whole grid is set aside **before every modification**, as JSON, and
+the last twenty are kept. Restoring rewrites the slots — except those
+whose class has disappeared in the meantime: *"a deleted class does not
+come back to life: its cell is lost, the rest returns"*. It is the only
+form that does not recreate data from a snapshot.
 """
 
 from __future__ import annotations
@@ -41,19 +42,19 @@ from examples.ecole.core.domain import (
 )
 from examples.ecole.features.annees import garde_ecriture
 
-#: Combien de grilles précédentes on garde (§ 5.4). Vingt, c'est une
-#: session de reprise d'emploi du temps entière — au-delà, on ne revient
-#: plus « en arrière », on restaure une vieille version, et ce n'est pas
-#: le même geste.
+#: How many previous grids are kept (§ 5.4). Twenty is a whole
+#: timetable-revision session — beyond that, one is no longer going
+#: "back", one is restoring an old version, and it is not the same
+#: gesture.
 GRILLES_GARDEES = 20
 
 
 def codes_de_lannee(annee_id: int) -> frozenset[str]:
-    """Les codes de classe existants — l'entrée d'EF-B8.
+    """The existing class codes — EF-B8's input.
 
-    C'est cette liste qui décide si « 2nde - 4 » se découpe ou reste
-    entier. Elle est relue à chaque saisie : une classe créée à la case
-    d'avant doit être reconnue à la suivante.
+    It is this list that decides whether "2nde - 4" is split or stays
+    whole. It is re-read at every entry: a class created at the previous
+    cell must be recognised at the next.
     """
     return frozenset(
         r["code"] for r in query(
@@ -62,11 +63,11 @@ def codes_de_lannee(annee_id: int) -> frozenset[str]:
 
 
 def lundi_affiche(annee: dict, demande: str) -> date:
-    """Le lundi de la semaine à montrer — demandée, ou celle d'aujourd'hui.
+    """The Monday of the week to show — the one asked for, or today's.
 
-    Une demande hors de l'année est ramenée dans l'année : un lien
-    partagé d'une année sur l'autre ouvre alors la première semaine
-    plutôt qu'une grille vide sans explication.
+    A request outside the year is brought back inside it: a link shared
+    from one year to the next then opens the first week rather than an
+    empty grid with no explanation.
     """
     debut = date.fromisoformat(annee["debut"])
     fin = date.fromisoformat(annee["fin"])
@@ -82,13 +83,13 @@ def lundi_affiche(annee: dict, demande: str) -> date:
 
 
 def semaine_affichee(annee: dict, lundi: date) -> dict:
-    """Tout ce que la grille d'une semaine doit savoir, en une lecture.
+    """Everything a week's grid must know, in one read.
 
-    Rend ``{"lettre", "jours": [{date, periode, blocs}], "bornes"}``.
+    Returns ``{"lettre", "jours": [{date, periode, blocs}], "bornes"}``.
 
-    ⚠️ **``lettre`` peut être ``None``**, et l'écran doit le DIRE plutôt
-    que d'afficher « A » (RT-4). Sans date de référence, la grille type
-    n'est pas lisible du tout : on ne sait pas quelle semaine on regarde.
+    ⚠️ **``lettre`` may be ``None``**, and the screen must SAY so rather
+    than show "A" (RT-4). Without a reference date, the typical grid is
+    not readable at all: we do not know which week we are looking at.
     """
     lundi_ref = (date.fromisoformat(annee["lundi_ref"])
                  if annee["lundi_ref"] else None)
@@ -107,8 +108,8 @@ def semaine_affichee(annee: dict, lundi: date) -> dict:
                        "WHERE annee_id = ?", (annee["id"],))
     ]
 
-    # La grille type de la semaine affichée. Sans lettre, il n'y a rien à
-    # lire : on rend les jours vides plutôt que d'inventer une moitié.
+    # The typical grid of the week shown. With no letter, there is
+    # nothing to read: we return empty days rather than invent half.
     typiques: dict[tuple[int, int], dict] = {}
     if lettre:
         for ligne in query(
@@ -124,8 +125,8 @@ def semaine_affichee(annee: dict, lundi: date) -> dict:
                 "salle": ligne["salle"], "exception": False,
             }
 
-    # Les exceptions de CES dates-là. Elles l'emportent : une classe pose
-    # une heure en plus, une ligne sans classe l'annule (EF-B11).
+    # THOSE dates' exceptions. They win: a class sets an extra hour, a
+    # row with no class cancels it (EF-B11).
     samedi = lundi + timedelta(days=5)
     exceptions: dict[tuple[str, int], dict | None] = {}
     for ligne in query(
@@ -141,9 +142,9 @@ def semaine_affichee(annee: dict, lundi: date) -> dict:
             if ligne["code"] else None
         )
 
-    # Ce qui est déjà consigné au cahier de texte, pour la pastille
-    # d'EF-B13. La liste ne porte QUE sur la semaine affichée — la tenir
-    # pour l'année entière coûterait cent cinquante lignes pour six.
+    # What is already recorded in the lesson log, for EF-B13's badge.
+    # The list covers ONLY the week shown — keeping it for the whole year
+    # would cost a hundred and fifty rows for six.
     consignees = {
         (r["date"], r["code"])
         for r in query(
@@ -168,15 +169,15 @@ def semaine_affichee(annee: dict, lundi: date) -> dict:
         blocs = blocs_du_jour(cases, bornes)
         for bloc in blocs:
             bloc["consignee"] = (iso, bloc["code"]) in consignees
-            # ⚠️ Le drapeau d'EXCEPTION se recolle ICI, après la fusion,
-            # et il a manqué une heure : ``blocs_du_jour`` construit un
-            # dict NEUF (debut / fin / code / nature / salles) et n'a
-            # aucune raison de connaître les exceptions — c'est une règle
-            # de calendrier, pas de mise en bloc. Sans ce recollage,
-            # ``bloc["exception"]`` était toujours absent et une heure
-            # posée à la main rendait exactement comme un cours ordinaire.
-            # Trouvé par le probe, pas en relisant : les deux formes
-            # produisent un HTML valide.
+            # ⚠️ The EXCEPTION flag is glued back on HERE, after the
+            # merge, and it was missing for an hour: ``blocs_du_jour``
+            # builds a NEW dict (debut / fin / code / nature / salles)
+            # and has no reason to know about the exceptions — it is a
+            # calendar rule, not a block-building one. Without this
+            # regluing, ``bloc["exception"]`` was always absent and an
+            # hour set by hand rendered exactly like an ordinary lesson.
+            # Found by the probe, not by re-reading: both forms produce
+            # valid HTML.
             bloc["exception"] = any(
                 cases[rang].get("exception")
                 for rang in range(bloc["debut"], bloc["fin"] + 1)
@@ -192,22 +193,22 @@ def semaine_affichee(annee: dict, lundi: date) -> dict:
     return {"lettre": lettre, "jours": jours, "bornes": bornes}
 
 
-#: Sentinelle : une exception qui ANNULE est un ``None`` légitime, donc
-#: ``None`` ne peut pas vouloir dire « pas d'exception ici ».
+#: Sentinel: an exception that CANCELS is a legitimate ``None``, so
+#: ``None`` cannot mean "no exception here".
 _MANQUE = object()
 
 
-# ── Les écritures ────────────────────────────────────────────────────
+# ── The writes ───────────────────────────────────────────────────────
 
 def creer_classe_vide(annee_id: int, code: str) -> int:
-    """EF-B6 — *« un code inconnu crée la classe, vide »*.
+    """EF-B6 — *"an unknown code creates the class, empty"*.
 
-    *L'emploi du temps arrive fin août, les listes d'élèves à la
-    rentrée* : refuser un code inconnu obligerait à créer dix classes à
-    la main avant de pouvoir saisir la première heure.
+    *The timetable arrives at the end of August, the pupil lists at the
+    start of term*: refusing an unknown code would force creating ten
+    classes by hand before being able to enter the first hour.
 
-    Le cycle et le niveau sont PROPOSÉS depuis le code (RT-3), une fois,
-    ici — et corrigeables ensuite dans l'écran de la classe.
+    The cycle and the level are PROPOSED from the code (RT-3), once,
+    here — and correctable afterwards in the class's screen.
     """
     garde_ecriture(annee_id)
     niveau = niveau_du_code(code)
@@ -220,11 +221,11 @@ def creer_classe_vide(annee_id: int, code: str) -> int:
 
 
 def sauver_grille(annee_id: int) -> None:
-    """Met la grille entière de côté, AVANT une modification (EF-B12).
+    """Set the whole grid aside, BEFORE a modification (EF-B12).
 
-    La photo porte les CODES de classe, pas leurs identifiants : c'est ce
-    qui permet à la restauration de sauter proprement une classe
-    supprimée entre-temps, au lieu de buter sur une clé étrangère morte.
+    The snapshot carries the class CODES, not their identifiers: it is
+    what lets the restore cleanly skip a class deleted in the meantime,
+    instead of stumbling on a dead foreign key.
     """
     photo = query(
         "SELECT cr.jour, h.rang, cr.semaine, c.code, cr.nature, cr.salle "
@@ -249,12 +250,12 @@ def sauver_grille(annee_id: int) -> None:
 
 def poser_case(annee_id: int, jour: int, rang: int, semaine: str,
                saisie: str) -> str:
-    """Pose (ou vide) une case de la grille TYPE. Rend le code retenu.
+    """Set (or clear) a cell of the TYPICAL grid. Returns the code kept.
 
-    La saisie entière passe par
-    :func:`~examples.ecole.core.domain.lire_saisie` — le découpage en
-    classe / nature / salle est une règle de domaine, pas un détail
-    d'écran, et c'est le piège n° 1.
+    The whole entry goes through
+    :func:`~examples.ecole.core.domain.lire_saisie` — the split into
+    class / nature / room is a domain rule, not a screen detail, and it
+    is trap no. 1.
     """
     garde_ecriture(annee_id)
     sauver_grille(annee_id)
@@ -286,12 +287,12 @@ def poser_case(annee_id: int, jour: int, rang: int, semaine: str,
 
 
 def annuler_derniere_grille(annee_id: int) -> bool:
-    """Rend la grille telle qu'elle était (EF-B12). Faux s'il n'y a rien.
+    """Return the grid as it was (EF-B12). False if there is nothing.
 
-    *« Une classe supprimée entre-temps ne ressuscite pas : sa case est
-    perdue, le reste revient. »* La photo est donc relue code par code,
-    et les codes inconnus sont SAUTÉS — pas recréés. Recréer une classe
-    supprimée exprès serait pire que de perdre sa case.
+    *"A class deleted in the meantime does not come back to life: its
+    cell is lost, the rest returns."* So the snapshot is re-read code by
+    code, and unknown codes are SKIPPED — not recreated. Recreating a
+    class deleted on purpose would be worse than losing its cell.
     """
     garde_ecriture(annee_id)
     lignes = query(
@@ -321,11 +322,12 @@ def annuler_derniere_grille(annee_id: int) -> bool:
 
 
 def poser_exception(annee_id: int, jour: str, rang: int, code: str) -> None:
-    """Une heure en plus, ou une ANNULATION (EF-B11).
+    """An extra hour, or a CANCELLATION (EF-B11).
 
-    ``code`` vide = annulation. *« Une case du calendrier ne porte qu'une
-    décision : reposer la même case remplace »* — c'est l'unicité
-    ``(annee, jour, horaire)`` du schéma qui le tient, pas un test ici.
+    An empty ``code`` = a cancellation. *"A calendar cell carries one
+    decision only: setting the same cell again replaces"* — it is the
+    schema's ``(annee, jour, horaire)`` uniqueness that holds it, not a
+    test here.
     """
     garde_ecriture(annee_id)
     classe_id = classe_id_de(annee_id, code) if code else None
@@ -340,7 +342,7 @@ def poser_exception(annee_id: int, jour: str, rang: int, code: str) -> None:
 
 
 def retirer_exception(annee_id: int, jour: str, rang: int) -> None:
-    """Retire la décision d'une case : la grille type reprend la main."""
+    """Remove a cell's decision: the typical grid takes over again."""
     garde_ecriture(annee_id)
     execute(
         "DELETE FROM heures_exceptionnelles WHERE annee_id = ? AND jour = ? "
@@ -351,7 +353,7 @@ def retirer_exception(annee_id: int, jour: str, rang: int) -> None:
 
 
 def regler_horaire(annee_id: int, rang: int, debut: str, fin: str) -> None:
-    """Règle les bornes d'un créneau POUR TOUTE L'ANNÉE (EF-B3)."""
+    """Set a slot's boundaries FOR THE WHOLE YEAR (EF-B3)."""
     garde_ecriture(annee_id)
     execute(
         "UPDATE horaires SET debut = ?, fin = ? WHERE annee_id = ? AND rang = ?",
@@ -360,7 +362,7 @@ def regler_horaire(annee_id: int, rang: int, debut: str, fin: str) -> None:
 
 
 def classe_id_de(annee_id: int, code: str) -> int | None:
-    """L'identifiant d'une classe par son code, ou ``None``."""
+    """A class's identifier by its code, or ``None``."""
     lignes = query(
         "SELECT id FROM classes WHERE annee_id = ? AND code = ?",
         (annee_id, code))

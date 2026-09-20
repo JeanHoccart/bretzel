@@ -1,57 +1,56 @@
-"""Règle : un total d'``AppState`` incrémenté sans être déclaré additif.
+"""Rule: an ``AppState`` total incremented without being declared additive.
 
-Le silence qu'elle ferme
+The silence it closes
+---------------------
+
+``stats.views += 1`` reads 5, computes 6, and the commit sends "set 6".
+Two requests that read 5 both send "set 6": one is missing. Declaring
+``field(default=0, merge="add")`` sends the DELTA instead, which the
+store applies itself — and both count.
+
+Nothing reports the omission. Measured on 2026-09-04: alone in front of
+their screen, a developer NEVER meets it, because their requests are
+sequential — each reads what the previous one wrote. It takes two tabs
+clicking together, or two users. The fault therefore waits for
+production, and there it does not raise either: a counter simply advances
+more slowly than the clicks.
+
+Why ``AppState`` ONLY
+---------------------
+
+Because ``+=`` does not mean "total". ``state.page += 1`` is a CHOICE —
+"the next page" — and declaring it additive would produce page 7 when two
+tabs go to 3 and to 5. The signal is therefore not the operator, it is
+the **sharing**: an ``AppState`` is unique for the whole process, so a
+number one increments there is a collective count, never somebody's
+position.
+
+The other scopes are deliberately OUT of the rule, and not because they
+are safe:
+
+- ``SessionState`` and ``UserState`` are shared between the tabs of one
+  browser, so the loss is real there — but a "+ 1" there is as often a
+  pagination or a setting as a total, and reporting both would make noise
+  where the rule must make signal;
+- ``PageState`` only lives for the duration of a render; two quick clicks
+  on the same page can overlap, but what is lost there dies with the tab.
+
+Measured over ``examples/`` on 2026-09-05: 45 increments on an
+``AppState``, 4 on a session, 2 on a page. The scope that matters is also
+the one where the pattern is most frequent.
+
+What the rule cannot see
 ------------------------
 
-``stats.vues += 1`` lit 5, calcule 6, et le commit envoie « mets 6 ».
-Deux requêtes qui ont lu 5 envoient toutes les deux « mets 6 » : il en
-manque un. Déclarer ``field(default=0, merge="add")`` fait envoyer
-l'ÉCART, que le magasin applique lui-même — et les deux comptent.
+A state passed as an ARGUMENT (``def bump(s: Stats): s.views += 1``): it
+would take real data flow. The detector goes one notch up — it knows
+direct constructions (``Stats().views += 1``) and local variables
+assigned from a state (``s = Stats()``), which covers both of the
+repository's spellings. Saying so here rather than letting exhaustiveness
+be assumed.
 
-Rien ne signale l'oubli. Mesuré le 2026-09-04 : seul devant son écran,
-un développeur ne le rencontre JAMAIS, parce que ses requêtes sont
-séquentielles — chacune lit ce que la précédente a écrite. Il faut deux
-onglets qui cliquent ensemble, ou deux utilisateurs. La faute attend
-donc la production, et là elle ne lève pas non plus : un compteur
-avance simplement moins vite que les clics.
-
-Pourquoi ``AppState`` SEULEMENT
---------------------------------
-
-Parce que ``+=`` ne veut pas dire « total ». ``state.page += 1`` est un
-CHOIX — « la page suivante » —, et le déclarer additif produirait la
-page 7 quand deux onglets vont à la 3 et à la 5. Le signal n'est donc
-pas l'opérateur, c'est le **partage** : un ``AppState`` est unique pour
-tout le processus, donc un nombre qu'on y incrémente est un compte
-collectif, jamais la position de quelqu'un.
-
-Les autres portées sont volontairement HORS de la règle, et ce n'est pas
-qu'elles soient à l'abri :
-
-- ``SessionState`` et ``UserState`` sont partagés entre les onglets d'un
-  même navigateur, donc la perte y est réelle — mais un « + 1 » y est
-  aussi souvent une pagination ou un réglage qu'un total, et signaler
-  les deux ferait du bruit là où la règle doit faire du signal ;
-- ``PageState`` ne vit que le temps d'un rendu ; deux clics rapides sur
-  la même page peuvent se chevaucher, mais ce qu'on y perd meurt avec
-  l'onglet.
-
-Mesuré sur ``examples/`` le 2026-09-05 : 45 incréments sur un
-``AppState``, 4 sur une session, 2 sur une page. La portée qui compte
-est aussi celle où le motif est le plus fréquent.
-
-Ce que la règle ne peut pas voir
----------------------------------
-
-Un état passé en ARGUMENT (``def bump(s: Stats): s.vues += 1``) : il
-faudrait un vrai flot de données. Le détecteur remonte d'un cran — il
-connaît les constructions directes (``Stats().vues += 1``) et les
-variables locales assignées depuis un état (``s = Stats()``), ce qui
-couvre les deux orthographes du dépôt. Le dire ici plutôt que laisser
-croire à l'exhaustivité.
-
-La règle est **pure** : un module, des constats. Elle ne connaît ni
-corpus, ni plancher.
+The rule is **pure**: one module, some findings. It knows neither corpus
+nor floor.
 """
 
 from __future__ import annotations
@@ -62,19 +61,19 @@ from functools import lru_cache
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-RULE = "compteur-partage-non-declare"
+RULE = "undeclared-shared-counter"
 
-#: Les opérations qui ACCUMULENT. ``*=`` et le reste n'en sont pas : leur
-#: écart dépend de la valeur lue, donc l'additivité ne les sauverait pas.
+#: The operations that ACCUMULATE. ``*=`` and the rest are not: their
+#: delta depends on the value read, so additivity would not save them.
 _ACCUMULATORS = (ast.Add, ast.Sub)
 
 
 @lru_cache(maxsize=1)
 def _app_state_names() -> frozenset[str]:
-    """Les classes ``AppState`` publiques, dérivées et non recopiées.
+    """The public ``AppState`` classes, derived and not copied.
 
-    Une table de noms écrite à la main dérive du code qu'elle juge —
-    c'est la règle du dossier.
+    A hand-written table of names drifts from the code it judges — that
+    is the folder's rule.
     """
     import inspect
 
@@ -96,7 +95,7 @@ def _app_state_names() -> frozenset[str]:
 
 
 def _base_names(node: ast.ClassDef) -> set[str]:
-    """Les noms de base écrits, ``module.Classe`` réduit à ``Classe``."""
+    """The base names written, ``module.Class`` reduced to ``Class``."""
     names: set[str] = set()
     for base in node.bases:
         if isinstance(base, ast.Name):
@@ -107,91 +106,91 @@ def _base_names(node: ast.ClassDef) -> set[str]:
 
 
 def _local_app_states(tree: ast.Module) -> dict[str, dict[str, ast.expr | None]]:
-    """``{classe d'app: {champ: la valeur de sa déclaration}}``.
+    """``{app class: {field: its declaration's value}}``.
 
-    On garde la déclaration entière et pas seulement le nom : c'est elle
-    qui dira si ``merge="add"`` est déjà là. Les classes sont lues dans
-    l'ordre du fichier, donc une base locale est connue avant ses filles.
+    We keep the whole declaration and not only the name: it is what will
+    say whether ``merge="add"`` is already there. The classes are read in
+    file order, so a local base is known before its children.
     """
-    connues = _app_state_names()
-    etats: dict[str, dict[str, ast.expr | None]] = {}
+    known = _app_state_names()
+    states: dict[str, dict[str, ast.expr | None]] = {}
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
             continue
-        if not (_base_names(node) & (connues | set(etats))):
+        if not (_base_names(node) & (known | set(states))):
             continue
-        champs: dict[str, ast.expr | None] = {}
+        fields: dict[str, ast.expr | None] = {}
         for stmt in node.body:
             if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
-                champs[stmt.target.id] = stmt.value
-        etats[node.name] = champs
-    return etats
+                fields[stmt.target.id] = stmt.value
+        states[node.name] = fields
+    return states
 
 
-def _declares_add(valeur: ast.expr | None) -> bool:
-    """La déclaration porte-t-elle ``merge="add"`` ?"""
-    if not isinstance(valeur, ast.Call):
+def _declares_add(value: ast.expr | None) -> bool:
+    """Does the declaration carry ``merge="add"``?"""
+    if not isinstance(value, ast.Call):
         return False
     return any(
         kw.arg == "merge"
         and isinstance(kw.value, ast.Constant)
         and kw.value.value == "add"
-        for kw in valeur.keywords
+        for kw in value.keywords
     )
 
 
-def _state_of(cible: ast.Attribute, locales: dict[str, str]) -> str | None:
-    """La classe d'état derrière ``X.champ``, ou ``None``.
+def _state_of(target: ast.Attribute, bound_locals: dict[str, str]) -> str | None:
+    """The state class behind ``X.field``, or ``None``.
 
-    Deux orthographes, et ce sont celles du dépôt :
-    ``Stats().vues`` (construction directe) et ``s.vues`` où ``s`` vient
-    d'un ``s = Stats()`` plus haut dans la même fonction.
+    Two spellings, and they are the repository's: ``Stats().views``
+    (direct construction) and ``s.views`` where ``s`` comes from an
+    ``s = Stats()`` higher up in the same function.
     """
-    porteur = cible.value
-    if isinstance(porteur, ast.Call) and isinstance(porteur.func, ast.Name):
-        return porteur.func.id
-    if isinstance(porteur, ast.Name):
-        return locales.get(porteur.id)
+    holder = target.value
+    if isinstance(holder, ast.Call) and isinstance(holder.func, ast.Name):
+        return holder.func.id
+    if isinstance(holder, ast.Name):
+        return bound_locals.get(holder.id)
     return None
 
 
-def _locals_bound_to_a_state(func: ast.AST, connues: set[str]) -> dict[str, str]:
-    """``{nom local: classe d'état}`` pour les ``s = Stats()`` de la fonction."""
-    lies: dict[str, str] = {}
+def _locals_bound_to_a_state(func: ast.AST, known: set[str]) -> dict[str, str]:
+    """``{local name: state class}`` for the function's ``s = Stats()``."""
+    bound: dict[str, str] = {}
     for node in ast.walk(func):
         if not isinstance(node, ast.Assign) or len(node.targets) != 1:
             continue
-        cible, valeur = node.targets[0], node.value
-        if not isinstance(cible, ast.Name):
+        target, value = node.targets[0], node.value
+        if not isinstance(target, ast.Name):
             continue
-        if isinstance(valeur, ast.Call) and isinstance(valeur.func, ast.Name):
-            if valeur.func.id in connues:
-                lies[cible.id] = valeur.func.id
-        # ``await Stats.load()`` — l'autre porte d'entrée
-        elif isinstance(valeur, ast.Await) and isinstance(valeur.value, ast.Call):
-            appel = valeur.value
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+            if value.func.id in known:
+                bound[target.id] = value.func.id
+        # ``await Stats.load()`` — the other way in
+        elif isinstance(value, ast.Await) and isinstance(value.value, ast.Call):
+            call = value.value
             if (
-                isinstance(appel.func, ast.Attribute)
-                and appel.func.attr == "load"
-                and isinstance(appel.func.value, ast.Name)
-                and appel.func.value.id in connues
+                isinstance(call.func, ast.Attribute)
+                and call.func.attr == "load"
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id in known
             ):
-                lies[cible.id] = appel.func.value.id
-    return lies
+                bound[target.id] = call.func.value.id
+    return bound
 
 
 def check(module: Module) -> list[Finding]:
-    """Les totaux d'``AppState`` incrémentés sans déclaration additive."""
-    etats = _local_app_states(module.tree)
-    if not etats:
+    """The ``AppState`` totals incremented without an additive declaration."""
+    states = _local_app_states(module.tree)
+    if not states:
         return []
-    connues = set(etats)
+    known = set(states)
 
     findings: list[Finding] = []
     for func in ast.walk(module.tree):
         if not isinstance(func, ast.FunctionDef | ast.AsyncFunctionDef):
             continue
-        locales = _locals_bound_to_a_state(func, connues)
+        bound_locals = _locals_bound_to_a_state(func, known)
         for node in ast.walk(func):
             if not isinstance(node, ast.AugAssign):
                 continue
@@ -199,13 +198,13 @@ def check(module: Module) -> list[Finding]:
                 continue
             if not isinstance(node.target, ast.Attribute):
                 continue
-            classe = _state_of(node.target, locales)
-            if classe not in etats:
+            cls_name = _state_of(node.target, bound_locals)
+            if cls_name not in states:
                 continue
-            champ = node.target.attr
-            if champ not in etats[classe]:
+            field_name = node.target.attr
+            if field_name not in states[cls_name]:
                 continue
-            if _declares_add(etats[classe][champ]):
+            if _declares_add(states[cls_name][field_name]):
                 continue
             findings.append(
                 Finding(
@@ -213,19 +212,20 @@ def check(module: Module) -> list[Finding]:
                     path=module.path,
                     line=node.lineno,
                     message=(
-                        f"`{classe}.{champ}` est incrémenté en place, et "
-                        f"`{classe}` est un `AppState` — donc UN objet pour "
-                        f"tout le serveur. Le champ n'est pas déclaré "
-                        f"additif : deux requêtes qui lisent le même nombre "
-                        f"écrivent le même nombre, et un incrément se perd."
+                        f"`{cls_name}.{field_name}` is incremented in "
+                        f"place, and `{cls_name}` is an `AppState` — so ONE "
+                        f"object for the whole server. The field is not "
+                        f"declared additive: two requests reading the same "
+                        f"number write the same number, and one increment is "
+                        f"lost."
                     ),
                     hint=(
-                        f"Déclare `{champ}: … = field(default=0, "
-                        f'merge="add")`. Le commit enverra l\'ÉCART, que le '
-                        f"magasin applique lui-même — deux clics simultanés "
-                        f"compteront tous les deux. Si ce nombre n'est PAS "
-                        f"un total mais une position ou un réglage, laisse-le "
-                        f"tel quel : le dernier qui écrit a alors raison."
+                        f"Declare `{field_name}: … = field(default=0, "
+                        f'merge="add")`. The commit will send the DELTA, '
+                        f"which the store applies itself — two simultaneous "
+                        f"clicks will both count. If this number is NOT a "
+                        f"total but a position or a setting, leave it as-is: "
+                        f"the last writer is then right."
                     ),
                 )
             )

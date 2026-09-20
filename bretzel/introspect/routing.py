@@ -1,30 +1,30 @@
-"""Le routage des kwargs — dérivé du socle, jamais recopié.
+"""Kwarg routing — derived from the base layer, never copied.
 
-**Pourquoi cette section existe, et pourquoi elle est générée.**
-``kwarg-routing.md`` portait une table écrite à la main décrivant les cinq
-seaux de ``split_kwargs``. Le 2026-08-16, elle contenait **trois
-affirmations fausses** : les préfixes Alpine annoncés « passthrough »
-(faux depuis le 2026-07-30, soit deux semaines et demie), le seau 6
-nommé « catch-all » (fermé le jour même), et un avertissement affirmant
-que ``bz-*`` n'y passe pas (mesuré : six le font).
+**Why this section exists, and why it is generated.**
+``kwarg-routing.md`` carried a hand-written table describing
+``split_kwargs``'s five buckets. On 2026-08-16, it contained **three
+false claims**: the Alpine prefixes announced as "passthrough" (false
+since 2026-07-30, so two and a half weeks), bucket 6 called "catch-all"
+(closed that very day), and a warning claiming ``bz-*`` does not go
+through it (measured: six do).
 
-Trois gates de doc existaient déjà et aucune ne pouvait les voir : elles
-vérifient des chemins, des symboles, des inventaires — des choses
-**décidables**. « Ce paragraphe décrit-il encore le comportement ? » ne
-l'est pas.
+Three documentation gates already existed and none of them could see
+those: they check paths, symbols, inventories — **decidable** things.
+"Does this paragraph still describe the behaviour?" is not.
 
-Trois candidats de gate ont été mesurés puis **écartés** :
+Three gate candidates were measured and then **set aside**:
 
-- une gate sur les constantes citées avec leur valeur → population de 3,
-  et trois faux positifs sur trois (guillemets, placeholders) ;
-- étendre la gate de vocabulaire Alpine au funnel → ~60 exceptions à
-  écrire, presque toutes du récit légitime (``traps.md`` RACONTE) ;
-- une gate de fraîcheur par co-changement git → 9 docs sur 11 « en
-  retard » en permanence. Un signal toujours allumé n'est pas un signal.
+- a gate on the constants cited with their value → a population of 3, and
+  three false positives out of three (quotes, placeholders);
+- extending the Alpine vocabulary gate to the funnel → ~60 exceptions to
+  write, nearly all of them legitimate narrative (``traps.md`` TELLS
+  stories);
+- a freshness gate by git co-change → 9 docs out of 11 permanently
+  "behind". A signal that is always on is not a signal.
 
-Ce qui reste, et qui marche : **ne pas écrire la partie décidable**. Une
-table qui énumère des constantes n'a pas à être recopiée — elle se lit.
-La prose garde ce qui ne dérive pas : le *pourquoi*.
+What remains, and works: **not writing the decidable part**. A table
+enumerating constants does not have to be copied — it reads itself. The
+prose keeps what does not derive: the *why*.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Bucket:
-    """Un seau de ``split_kwargs``, avec ce qui y tombe."""
+    """One ``split_kwargs`` bucket, with what falls into it."""
 
     rank: int
     name: str
@@ -43,7 +43,7 @@ class Bucket:
 
 
 def describe_kwarg_routing() -> tuple[Bucket, ...]:
-    """Les seaux, lus sur les constantes du socle."""
+    """The buckets, read from the base layer's constants."""
     from bretzel.components.base.attrs import (
         _DEAD_ALPINE_PREFIXES,
         _PASSTHROUGH_PREFIXES,

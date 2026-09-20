@@ -102,7 +102,7 @@ def test_an_unknown_text_key_raises_at_startup() -> None:
     """Pas à la page qui l'affiche : une faute de frappe dans un dict de
     traduction ne se manifeste que par une phrase restée en anglais, que
     l'auteur de la traduction ne relira jamais."""
-    with pytest.raises(TextsError, match="inconnue"):
+    with pytest.raises(TextsError, match="unknown"):
         Bretzel(secret_key="x" * 32, texts={"alert.dismis": "Fermer"})
 
 

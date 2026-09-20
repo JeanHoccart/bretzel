@@ -183,14 +183,15 @@ def start_lightning_watch(
 ) -> subprocess.Popen[bytes]:
     """Spawn the binary in ``--watch`` mode and return the live process.
 
-    ⚠️ **Aucun appelant de production** (vérifié 2026-08-01 : le seul appel du
-    dépôt est dans ``tests/unit/theme/test_compiler.py``). C'est normal —
-    ``bretzel dev`` n'existe pas encore, et le pipeline CSS de dev compile
-    Tailwind dans le navigateur. Cette fonction est la brique du jour où on
-    câblera Lightning CSS (décision actée, cf. ``EVOLUTION.md``) ; gardée
-    plutôt que supprimée pour cette raison, pas par oubli.
+    ⚠️ **No production caller** (verified 2026-08-01: the repository's
+    only call is in ``tests/unit/theme/test_compiler.py``). That is
+    normal — ``bretzel dev`` does not exist yet, and the dev CSS pipeline
+    compiles Tailwind in the browser. This function is the brick for the
+    day Lightning CSS gets wired (a settled decision, cf.
+    ``EVOLUTION.md``); kept rather than removed for that reason, not by
+    oversight.
 
-    Quand ce sera branché : the caller owns the lifecycle —
+    When it is wired: the caller owns the lifecycle —
     ``proc.terminate()`` on shutdown.
     """
     bin_path = binary or find_lightning_binary()

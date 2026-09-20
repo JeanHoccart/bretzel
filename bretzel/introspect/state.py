@@ -1,15 +1,15 @@
-"""Les classes d'état, lues vivantes.
+"""The state classes, read live.
 
-Portée / persistance, chaque champ avec son type, son défaut et ses
-validateurs, les computed. C'est le miroir anti-rouille du chapitre État
-de la doc vivante : ajouter un champ, câbler un validateur ou changer un
-défaut se reflète au prochain rendu, sans une édition ici.
+Scope / persistence, every field with its type, its default and its
+validators, the computed ones. It is the anti-rust mirror of the living
+documentation's State chapter: adding a field, wiring a validator or
+changing a default is reflected on the next render, with no edit here.
 
-⚠️ Ce module décrit **une classe donnée**. Décrire le *module*
-``bretzel.state`` lui-même — les quatre portées serveur, ``field`` /
-``computed`` / ``validator``, et quel backend de persistance sert quelle
-portée — appartient à l'item 3 du chantier et n'est **pas** ici. Ne pas
-lire l'absence de ces sections comme « ce n'est pas introspectable ».
+⚠️ This module describes **a given class**. Describing the
+``bretzel.state`` *module* itself — the four server scopes, ``field`` /
+``computed`` / ``validator``, and which persistence backend serves which
+scope — belongs to item 3 of the project and is **not** here. Do not read
+the absence of those sections as "this is not introspectable".
 """
 
 from __future__ import annotations
@@ -24,13 +24,13 @@ from bretzel.introspect.model import FieldInfo, StateInfo
 
 @cache
 def describe_state(cls: type) -> StateInfo:
-    """Lit une sous-classe d'état vivante.
+    """Read a live state subclass.
 
-    Mise en cache sur ``cls`` : une classe d'état est immuable pour la
-    durée du process, donc ``get_type_hints`` (la partie coûteuse) tourne
-    une fois par classe et non une fois par rendu. En dev ``reload=True``,
-    une édition produit un nouvel objet classe → une nouvelle clé de
-    cache, donc le miroir reflète toujours le code tel qu'écrit.
+    Cached on ``cls``: a state class is immutable for the process's
+    lifetime, so ``get_type_hints`` (the expensive part) runs once per
+    class and not once per render. In dev with ``reload=True``, an edit
+    produces a new class object → a new cache key, so the mirror always
+    reflects the code as written.
     """
     from bretzel.state import MISSING, ClientState
     from bretzel.state.url import (
@@ -52,9 +52,9 @@ def describe_state(cls: type) -> StateInfo:
 
     field_infos: list[FieldInfo] = []
     for name, hint in hints.items():
-        # La métaclasse d'état range sa comptabilité en ClassVars dunder
-        # (__validators__, __computed__, __scope__, __persist__) — cette
-        # garde unique les écarte toutes en gardant les champs utilisateur.
+        # The state metaclass stores its bookkeeping in dunder ClassVars
+        # (__validators__, __computed__, __scope__, __persist__) — this
+        # single guard drops them all while keeping the user fields.
         if name.startswith("__"):
             continue
 
@@ -70,25 +70,24 @@ def describe_state(cls: type) -> StateInfo:
     persist = getattr(cls, "__persist__", "memory") if is_client else None
     scope_label = f"persist={persist!r}" if is_client else getattr(cls, "__scope__", "?")
 
-    # L'adressage se lit en DEUX temps parce qu'il se déclare en deux
-    # temps : ``field(url="tri")`` NOMME, ``addressable=True`` ALLUME.
-    # Ne rendre que l'effectif ferait disparaître les noms d'un
-    # ``DatatableState`` non allumé — or c'est exactement là qu'un
-    # lecteur les cherche, puisque sa sous-classe n'en écrit aucun.
+    # Addressability reads in TWO steps because it is declared in two
+    # steps: ``field(url="sort")`` NAMES, ``addressable=True`` LIGHTS UP.
+    # Returning only the effective one would make the names of a
+    # non-lit ``DatatableState`` disappear — and that is exactly where a
+    # reader looks for them, since its subclass writes none.
     #
-    # Les DEUX lectures viennent de ``state/url.py``, qui porte la règle.
-    # La recopier ici pour la moitié « nommé » a tenu une heure : elle
-    # sautait la validation, donc la fiche conseillait une déclaration
-    # qui lève.
+    # BOTH reads come from ``state/url.py``, which carries the rule.
+    # Copying it here for the "named" half lasted an hour: it skipped
+    # the validation, so the card advised a declaration that raises.
     url_error: str | None = None
     try:
         url_params = tuple(addressable_fields(cls).items())
         url_named = tuple(would_publish(cls).items())
-    except AddressableFieldError as refus:
-        # Une déclaration refusée lève au rendu, donc l'app ne tourne
-        # pas — mais c'est ici qu'on vient comprendre POURQUOI, et une
-        # fiche muette se lirait comme « cet état ne publie rien ».
-        url_params, url_named, url_error = (), (), str(refus)
+    except AddressableFieldError as refusal:
+        # A refused declaration raises at render time, so the app does
+        # not run — but this is where one comes to understand WHY, and a
+        # mute card would read as "this state publishes nothing".
+        url_params, url_named, url_error = (), (), str(refusal)
 
     return StateInfo(
         name=cls.__name__,
@@ -106,8 +105,8 @@ def describe_state(cls: type) -> StateInfo:
 
 
 def _default_label(cls: type, name: str, declared: dict, missing: object) -> str:
-    """Le défaut d'un champ, qu'il vienne d'un ``field(...)`` ou d'une
-    annotation nue dont la valeur vit en attribut de classe dans la MRO."""
+    """A field's default, whether it comes from a ``field(...)`` or from a
+    bare annotation whose value lives as a class attribute in the MRO."""
     if name in declared:
         field = declared[name]
         factory = getattr(field, "default_factory", None)

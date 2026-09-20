@@ -1,61 +1,56 @@
-"""En-têtes de sécurité — les ennuyeux toujours, la CSP à la demande.
+"""Security headers — the boring ones always, the CSP on request.
 
-Deux étages, et la ligne qui les sépare est « est-ce que ça peut casser
-l'app ».
+Two tiers, and the line between them is "can this break the app".
 
-**Les en-têtes ennuyeux** (:data:`BORING_HEADERS`) ne dépendent de rien
-que Bretzel ne connaisse : ils sont posés par défaut, et
-``Bretzel(security_headers=False)`` les retire. Aucune décision à
-prendre.
+**The boring headers** (:data:`BORING_HEADERS`) depend on nothing
+Bretzel does not know: they are set by default, and
+``Bretzel(security_headers=False)`` removes them. No decision to take.
 
-**La CSP**, elle, dépend de ce que l'app charge — ses polices, ses CDN,
-ses ``ui.video`` distants — et le framework ne peut pas le deviner. Elle
-est donc opt-in : ``Bretzel(csp="report-only")`` puis ``csp=True``. Mais
-le dev ne rédige pas la politique : Bretzel connaît **ses propres**
-besoins et les calcule ; ``csp_sources=`` ne sert qu'à déclarer ce que
-l'app ajoute.
+**The CSP**, on the other hand, depends on what the app loads — its
+fonts, its CDNs, its remote ``ui.video`` — and the framework cannot
+guess it. So it is opt-in: ``Bretzel(csp="report-only")`` then
+``csp=True``. But the developer does not write the policy: Bretzel knows
+**its own** needs and computes them; ``csp_sources=`` only serves to
+declare what the app adds.
 
-Ce que Bretzel doit à lui-même
-------------------------------
+What Bretzel owes itself
+------------------------
 
-- ``'unsafe-eval'`` : le moteur de directives compile chaque attribut
-  ``bz-*`` en fonction (``new Function`` dans
-  :file:`runtime/_src/02_directives.js` et :file:`03_scope.js`). Mesuré
-  le 2026-09-05 : 29 % des 134 057 expressions émises par le playground
-  sortent d'un sous-ensemble interprétable (fonctions fléchées à corps
-  d'instructions 17 %, ``if``/``return`` 9,5 %, indexation calculée
-  9 %, ``new X()`` 2,3 %), et ce sont les directives du framework qui
-  les écrivent — ``bz-init`` 97 %, ``bz-on:focus`` 97 %, ``bz-class``
-  92 %. S'en passer demanderait un interpréteur JS, pas une passe de
-  nettoyage.
+- ``'unsafe-eval'``: the directive engine compiles every ``bz-*``
+  attribute into a function (``new Function`` in
+  :file:`runtime/_src/02_directives.js` and :file:`03_scope.js`).
+  Measured on 2026-09-05: 29 % of the 134 057 expressions the playground
+  emits fall outside an interpretable subset (arrow functions with
+  statement bodies 17 %, ``if``/``return`` 9.5 %, computed indexing 9 %,
+  ``new X()`` 2.3 %), and it is the framework's directives that write
+  them — ``bz-init`` 97 %, ``bz-on:focus`` 97 %, ``bz-class`` 92 %.
+  Doing without it would require a JS interpreter, not a cleanup pass.
 
-  ⚠️ Ça n'annule PAS la protection : sans ``'unsafe-inline'`` dans
-  ``script-src``, une balise ``<script>`` injectée ne s'exécute pas —
-  et c'est la classe XSS dominante. ``'unsafe-eval'`` ne sert un
-  attaquant qu'une fois qu'il peut déjà faire entrer une chaîne dans
-  une expression, ce que :func:`~bretzel.core.escape.escape_js` ferme.
+  ⚠️ This does NOT cancel the protection: without ``'unsafe-inline'`` in
+  ``script-src``, an injected ``<script>`` tag does not run — and that
+  is the dominant XSS class. ``'unsafe-eval'`` only serves an attacker
+  once they can already get a string into an expression, which
+  :func:`~bretzel.core.escape.escape_js` closes.
 
-- **Trois empreintes** plutôt qu'un ``nonce``. Les corps inline que la
-  coque émet (:func:`~bretzel.render.shell.inline_scripts`) sont
-  déterministes — mesuré : 3 empreintes distinctes sur 77 pages × 2
-  requêtes. Un ``nonce`` aurait imposé une valeur par réponse (donc une
-  page non cachable) et un paramètre de plus à toute coque
-  personnalisée ; les hashes ne coûtent rien et ne touchent aucune
-  signature.
+- **Three fingerprints** rather than a ``nonce``. The inline bodies the
+  shell emits (:func:`~bretzel.render.shell.inline_scripts`) are
+  deterministic — measured: 3 distinct fingerprints across 77 pages × 2
+  requests. A ``nonce`` would have forced one value per response (hence
+  an uncacheable page) and one more parameter on every custom shell; the
+  hashes cost nothing and touch no signature.
 
-- **Les hôtes d'API d'icônes.** La coque actuelle configure
-  ``<iconify-icon>`` pour passer par la route locale
-  ``/_bretzel/icons``. Les origines historiques restent autorisées pour
-  compatibilité ; c'est le serveur qui les interroge lors d'un manque en
-  cache, pas le navigateur du visiteur.
+- **The icon API hosts.** The current shell configures
+  ``<iconify-icon>`` to go through the local ``/_bretzel/icons`` route.
+  The historical origins stay allowed for compatibility; it is the
+  server that queries them on a cache miss, not the visitor's browser.
 
-- **Les origines des assets, telles qu'elles sont**. Le repli CDN est
-  la règle tant que ``python -m bretzel.render.vendor`` n'a pas tourné
-  (cf. :mod:`bretzel.render.vendor`) : une politique écrite en dur
-  mentirait une fois sur deux. Les URL viennent donc de
-  :func:`~bretzel.render.shell.shell_sources`, la même source que ce que
-  la coque émet — et c'est ce qui fait suivre la politique toute seule
-  quand une quatrième dépendance arrive.
+- **The assets' origins, as they are**. The CDN fallback is the rule as
+  long as ``python -m bretzel.render.vendor`` has not run (cf.
+  :mod:`bretzel.render.vendor`): a hard-coded policy would lie half the
+  time. The URLs therefore come from
+  :func:`~bretzel.render.shell.shell_sources`, the same source as what
+  the shell emits — and that is what makes the policy follow by itself
+  when a fourth dependency arrives.
 
 """
 
@@ -76,32 +71,32 @@ __all__ = [
 ]
 
 
-#: Posés sur chaque réponse, sauf ``security_headers=False``.
+#: Set on every response, unless ``security_headers=False``.
 #:
-#: Aucun des trois ne dépend de ce que l'app charge, ce qui est la
-#: raison pour laquelle ils sont un défaut et la CSP n'en est pas un.
+#: None of the three depends on what the app loads, which is why they are
+#: a default and the CSP is not.
 #:
-#: - ``nosniff`` empêche le navigateur de re-deviner le type d'une
-#:   réponse — c'est ce qui transforme un fichier uploadé en script.
-#: - ``strict-origin-when-cross-origin`` est le défaut des navigateurs
-#:   modernes ; l'écrire le rend vrai aussi sur les vieux.
-#: - ``SAMEORIGIN`` et non ``DENY`` : une app a le droit de s'inclure
-#:   elle-même dans une iframe (aperçus, docs), et le clickjacking
-#:   vient d'ailleurs. Quand la CSP est active, ``frame-ancestors``
-#:   dit la même chose et prime.
+#: - ``nosniff`` stops the browser re-guessing a response's type — that
+#:   is what turns an uploaded file into a script.
+#: - ``strict-origin-when-cross-origin`` is modern browsers' default;
+#:   writing it makes it true on old ones too.
+#: - ``SAMEORIGIN`` and not ``DENY``: an app is entitled to include
+#:   itself in an iframe (previews, docs), and clickjacking comes from
+#:   elsewhere. When the CSP is active, ``frame-ancestors`` says the same
+#:   thing and takes precedence.
 BORING_HEADERS: Final[dict[str, str]] = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "SAMEORIGIN",
 }
 
-#: Les hôtes historiques d'Iconify, conservés dans la politique pour
-#: compatibilité. La coque dirige aujourd'hui les glyphes vers la route
-#: locale ``/_bretzel/icons`` ; le relais serveur utilise la même liste.
+#: Iconify's historical hosts, kept in the policy for compatibility. The
+#: shell today directs glyphs to the local ``/_bretzel/icons`` route; the
+#: server relay uses the same list.
 #:
-#: Gaté par ``tests/consistency/test_the_icon_hosts_are_in_the_policy.py``
-#: : une mise à jour d'iconify qui changerait ces hôtes doit rougir ici
-#: plutôt que faire disparaître les icônes en production.
+#: Gated by ``tests/consistency/test_the_icon_hosts_are_in_the_policy.py``:
+#: an iconify update changing those hosts must turn red here rather than
+#: make the icons disappear in production.
 ICON_API_ORIGINS: Final[tuple[str, ...]] = (
     "https://api.iconify.design",
     "https://api.simplesvg.com",
@@ -114,77 +109,77 @@ def _base_policy(
     js_ext: Sequence[str],
     css_ext: Sequence[str],
 ) -> dict[str, list[str]]:
-    """La politique que Bretzel se doit à lui-même.
+    """The policy Bretzel owes itself.
 
-    Extraite pour que :data:`CSP_DIRECTIVES` en DÉRIVE au lieu de la
-    recopier : ajouter une directive ici la rend extensible par une app
-    sans qu'on y pense, là où deux listes divergeaient en silence.
+    Extracted so that :data:`CSP_DIRECTIVES` DERIVES from it instead of
+    copying it: adding a directive here makes it extensible by an app
+    without anyone thinking about it, where two lists diverged silently.
     """
     return {
         "default-src": ["'self'"],
-        # ``'unsafe-eval'`` : le moteur de directives. Pas
-        # ``'unsafe-inline'`` — c'est ce qui tue le <script> injecté.
+        # ``'unsafe-eval'``: the directive engine. Not
+        # ``'unsafe-inline'`` — that is what kills the injected <script>.
         "script-src": ["'self'", "'unsafe-eval'", *hashes, *js_ext],
-        # ``'unsafe-inline'`` est ici IRRÉDUCTIBLE : la page porte des
-        # attributs ``style=``, et un hash ou un nonce ne couvre pas un
-        # attribut — pire, en présence de l'un d'eux le navigateur
-        # IGNORE ``'unsafe-inline'`` et l'attribut saute quand même.
-        # Le compilateur Tailwind navigateur (mode dev) injecte en plus
-        # sa feuille au runtime.
+        # ``'unsafe-inline'`` is IRREDUCIBLE here: the page carries
+        # ``style=`` attributes, and a hash or a nonce does not cover an
+        # attribute — worse, in the presence of either the browser
+        # IGNORES ``'unsafe-inline'`` and the attribute is dropped
+        # anyway. The browser Tailwind compiler (dev mode) additionally
+        # injects its sheet at runtime.
         "style-src": ["'self'", "'unsafe-inline'", *css_ext],
         "img-src": ["'self'", "data:", "blob:"],
         "font-src": ["'self'", "data:"],
-        # Le pont POSTe en même origine, le SSE aussi. Les hôtes d'icônes
-        # restent autorisés pour compatibilité avec l'ancien chemin direct.
+        # The bridge POSTs same-origin, and so does the SSE. The icon
+        # hosts stay allowed for compatibility with the old direct path.
         "connect-src": ["'self'", *ICON_API_ORIGINS, *js_ext],
         "media-src": ["'self'", "data:", "blob:"],
         "manifest-src": ["'self'"],
         "form-action": ["'self'"],
-        # Le pendant de ``X-Frame-Options: SAMEORIGIN``, et il prime.
+        # The counterpart of ``X-Frame-Options: SAMEORIGIN``, and it
+        # takes precedence.
         "frame-ancestors": ["'self'"],
         "base-uri": ["'self'"],
-        # Rien n'a besoin de <object>/<embed>, et ils contournent
-        # ``script-src`` sur de vieux moteurs.
+        # Nothing needs <object>/<embed>, and they bypass
+        # ``script-src`` on old engines.
         "object-src": ["'none'"],
     }
 
 
-#: Les directives qu'une app a le droit d'étendre via ``csp_sources``.
+#: The directives an app is allowed to extend through ``csp_sources``.
 #:
-#: La liste existe pour qu'une **faute de frappe soit une erreur** :
-#: ``{"img_src": [...]}`` ou ``{"image-src": [...]}`` ne fait rien du
-#: tout dans un navigateur, la ressource est simplement bloquée, et le
-#: seul indice est une ligne de console. Refuser la clé au démarrage
-#: coûte moins cher.
+#: The list exists so that **a typo is an error**: ``{"img_src": [...]}``
+#: or ``{"image-src": [...]}`` does nothing at all in a browser, the
+#: resource is simply blocked, and the only hint is a console line.
+#: Refusing the key at startup costs less.
 CSP_DIRECTIVES: Final[frozenset[str]] = frozenset(
-    # DÉRIVÉE de la politique de base, plus recopiée : deux listes à
-    # tenir d'accord divergeaient au premier ajout, et le symptôme
-    # tombait chez le dev qui ESSAIE d'étendre la directive, pas chez
-    # celui qui l'a ajoutée.
+    # DERIVED from the base policy, no longer copied: two lists to keep
+    # in agreement diverged at the first addition, and the symptom landed
+    # on the developer TRYING to extend the directive, not on the one who
+    # added it.
     _base_policy(hashes=(), js_ext=(), css_ext=())
 ) | frozenset(
-    # Les deux que le socle ne porte pas : sans valeur par défaut, elles
-    # héritent de ``default-src``, et une app doit pouvoir les déclarer.
+    # The two the base layer does not carry: with no default value,
+    # they inherit from ``default-src``, and an app must be able to
+    # declare them.
     {"frame-src", "worker-src"}
 )
 
 
 def script_hash(body: str) -> str:
-    """Rendre le ``'sha256-…'`` d'un corps de ``<script>`` inline.
+    """Return the ``'sha256-…'`` of an inline ``<script>`` body.
 
-    Le navigateur hache les octets **exactement** tels qu'ils sont entre
-    les balises : pas de trim, pas de normalisation. D'où le
-    ``encode("utf-8")`` nu.
+    The browser hashes the bytes **exactly** as they are between the
+    tags: no trim, no normalisation. Hence the bare ``encode("utf-8")``.
     """
     digest = hashlib.sha256(body.encode("utf-8")).digest()
     return f"'sha256-{base64.b64encode(digest).decode('ascii')}'"
 
 
 def _origin(url: str) -> str | None:
-    """Rendre l'origine d'une URL absolue, ou ``None`` si elle est relative.
+    """Return an absolute URL's origin, or ``None`` when it is relative.
 
-    Une URL relative (``/_bretzel/vendor/htmx.min.js``) est couverte par
-    ``'self'`` et n'a rien à ajouter à la politique.
+    A relative URL (``/_bretzel/vendor/htmx.min.js``) is covered by
+    ``'self'`` and has nothing to add to the policy.
     """
     parsed = urlsplit(url)
     if not parsed.scheme or not parsed.netloc:
@@ -199,49 +194,50 @@ def build_policy(
     style_urls: Iterable[str] = (),
     extra: Mapping[str, Sequence[str]] | None = None,
 ) -> str:
-    """Composer la valeur de l'en-tête ``Content-Security-Policy``.
+    """Compose the value of the ``Content-Security-Policy`` header.
 
-    ``script_urls`` et ``style_urls`` sont les URL que la coque va
-    réellement émettre — c'est ce qui rend la politique juste que le
-    rapatriement vendor ait eu lieu ou non, et ce qui la fait suivre
-    toute seule quand une quatrième dépendance arrive. Les deux sont
-    séparées parce qu'une origine de script n'a rien à faire dans
-    ``style-src`` : l'y mettre autoriserait une feuille de style qu'on
-    n'a jamais eu l'intention de charger. ``inline_bodies`` sont les
-    corps de :func:`~bretzel.render.shell.inline_scripts`.
+    ``script_urls`` and ``style_urls`` are the URLs the shell will
+    actually emit — that is what makes the policy correct whether
+    vendoring has happened or not, and what makes it follow by itself
+    when a fourth dependency arrives. The two are separate because a
+    script origin has no business in ``style-src``: putting it there
+    would allow a stylesheet we never intended to load.
+    ``inline_bodies`` are the bodies of
+    :func:`~bretzel.render.shell.inline_scripts`.
 
-    Les valeurs de ``extra`` sont ajoutées **en plus** des sources du
-    framework : une app peut élargir, jamais rétrécir. Rétrécir se ferait
-    en silence et casserait le framework chez le dev qui l'a fait.
+    The values of ``extra`` are added **on top of** the framework's
+    sources: an app can widen, never narrow. Narrowing would happen
+    silently and would break the framework for the developer who did it.
     """
     js_ext = sorted({o for u in script_urls if (o := _origin(u))})
     css_ext = sorted({o for u in style_urls if (o := _origin(u))})
     hashes = [script_hash(b) for b in inline_bodies]
 
-    politique = _base_policy(hashes=hashes, js_ext=js_ext, css_ext=css_ext)
+    policy = _base_policy(hashes=hashes, js_ext=js_ext, css_ext=css_ext)
 
-    for nom, ajouts in (extra or {}).items():
-        if nom not in CSP_DIRECTIVES:
-            connues = ", ".join(sorted(CSP_DIRECTIVES))
+    for name, added in (extra or {}).items():
+        if name not in CSP_DIRECTIVES:
+            known = ", ".join(sorted(CSP_DIRECTIVES))
             raise ValueError(
-                f"csp_sources : directive inconnue {nom!r}. "
-                f"Une directive mal orthographiée ne fait RIEN dans un "
-                f"navigateur — la ressource est bloquée sans message. "
-                f"Les directives acceptées sont : {connues}."
+                f"csp_sources: unknown directive {name!r}. "
+                f"A misspelled directive does NOTHING in a browser — the "
+                f"resource is blocked with no message. The accepted "
+                f"directives are: {known}."
             )
-        # ⚠️ Une directive ABSENTE de la politique n'est pas permissive :
-        # elle retombe sur ``default-src``. La déclarer la fait donc
-        # sortir de ce repli, et ce que ``default-src`` autorisait est
-        # perdu — c'est un RÉTRÉCISSEMENT déguisé en ajout.
+        # ⚠️ A directive ABSENT from the policy is not permissive: it
+        # falls back on ``default-src``. Declaring it therefore takes it
+        # out of that fallback, and what ``default-src`` allowed is lost
+        # — it is a NARROWING disguised as an addition.
         #
-        # Mesuré le 2026-09-05 sur le playground : ``frame-src: ["data:"]``
-        # a bloqué une iframe MÊME-ORIGINE qui passait avant, parce que
-        # ``frame-src`` héritait jusque-là de ``default-src 'self'``. On
-        # amorce donc avec ce dont la directive héritait, pour que
-        # « élargir, jamais rétrécir » soit vrai et pas seulement écrit.
-        politique.setdefault(nom, list(politique["default-src"]))
-        for source in ajouts:
-            if source not in politique[nom]:
-                politique[nom].append(source)
+        # Measured on 2026-09-05 on the playground:
+        # ``frame-src: ["data:"]`` blocked a SAME-ORIGIN iframe that used
+        # to pass, because ``frame-src`` had until then inherited from
+        # ``default-src 'self'``. So we seed with what the directive
+        # inherited, for "widen, never narrow" to be true and not merely
+        # written.
+        policy.setdefault(name, list(policy["default-src"]))
+        for source in added:
+            if source not in policy[name]:
+                policy[name].append(source)
 
-    return "; ".join(f"{nom} {' '.join(vals)}" for nom, vals in politique.items())
+    return "; ".join(f"{name} {' '.join(vals)}" for name, vals in policy.items())

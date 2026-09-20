@@ -16,11 +16,10 @@ button when the caller wants the badge dismissible ::
         on_close=partial(remove_filter, "react"),
     )
 
-``dismissible=True`` **ou** ``on_close`` est la seule différence structurelle
-between
-"static indicator" and "user-managed entry" — without it, the
-badge is a leaf span ; with it, the framework appends a real
-``<button>`` with ``aria-label="Remove"``. The button dispatches a
+``dismissible=True`` **or** ``on_close`` is the only structural
+difference between "static indicator" and "user-managed entry" —
+without it, the badge is a leaf span ; with it, the framework appends a
+real ``<button>`` with ``aria-label="Remove"``. The button dispatches a
 bubbling ``close`` CustomEvent that the root's ``on_close=`` wiring
 catches (``hx-trigger="close"`` for a server callable,
 ``bz-on:close`` for a client expression) — only the × triggers it,
@@ -79,16 +78,17 @@ class Badge(Component):
         on_close: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             variant=variant, size=size,
             color=color, dismissible=dismissible,
             on_close=on_close,
             **kwargs,
         )
-        # ``adopt_slot`` détache un Component slot (déjà auto-enregistré
-        # chez le parent) sinon il rend deux fois ; string / ClientBinding
-        # passent intacts. Cf. traps.md § « Slot Component sans adopt_slot ».
+        # ``adopt_slot`` detaches a Component slot (already
+        # auto-registered with the parent) otherwise it renders twice;
+        # string / ClientBinding pass through intact. Cf. traps.md § "A
+        # Component slot without adopt_slot".
         self._label = Component.adopt_slot(label)
 
         # Icons scale with the badge size : ``adopt_slot(icon_shortcut)``
@@ -97,9 +97,9 @@ class Badge(Component):
         # string-shortcut Icon at that size. Caller-passed Icon instances
         # are left alone (explicit choice).
         size_key = self._reactive_values.get("size") or "sm"
-        # ``_resolved_theme()``, PAS ``self.THEME`` (le dict livré ignore un
-        # ``Theme(components={"badge": …})``) — sinon l'icône ne suit pas la
-        # table de tailles surchargée par l'app.
+        # ``_resolved_theme()``, NOT ``self.THEME`` (the shipped dict
+        # ignores a ``Theme(components={"badge": …})``) — otherwise the
+        # icon does not follow the size table the app overrode.
         size_map = self._resolved_theme().get("sizes", {}).get(size_key, {})
         icon_size = size_map.get("icon_size", "sm")
 
@@ -148,17 +148,17 @@ class Badge(Component):
         root_attrs = self.emit_attrs()
         close_wired = close_handler_wired(root_attrs)
 
-        # ── Dismiss-UI : le × prend la place de ``icon_right`` ──────
-        # Deux formes, pas trois : le × apparaît sur un ``dismissible``
-        # littéral vrai OU un ``on_close=`` câblé, et il OCCUPE le slot
-        # de droite (``icon_right`` est alors abandonné). Sinon pas de ×,
-        # et ``icon_right`` rend normalement.
+        # ── Dismiss UI: the × takes ``icon_right``'s place ───────────
+        # Two shapes, not three: the × appears on a literal true
+        # ``dismissible`` OR a wired ``on_close=``, and it OCCUPIES the
+        # right-hand slot (``icon_right`` is then dropped). Otherwise no
+        # ×, and ``icon_right`` renders normally.
         #
-        # ⚠️ Il y avait un 3e mode « reactive » pour un
-        # ``dismissible=<ClientBinding>`` — ~20 lignes qui ne pouvaient
-        # PAS s'exécuter : le constructeur refuse ce binding depuis la
-        # coupe du 2026-07-16 (``dismissible`` n'est pas dans
-        # ``BINDABLE_PROPS``). Retiré (audit F06).
+        # ⚠️ There was a 3rd "reactive" mode for a
+        # ``dismissible=<ClientBinding>`` — ~20 lines that could NOT run:
+        # the constructor has refused that binding since the 2026-07-16
+        # cut (``dismissible`` is not in ``BINDABLE_PROPS``). Removed
+        # (audit F06).
         show_close = dismissible_lit or close_wired
 
         # ── Root classes : slot base + variant.root + size.root ─────
@@ -190,8 +190,8 @@ class Badge(Component):
             else:
                 children.append(label_node)
 
-        # ``icon_right`` ne rend QUE sans × — les deux se disputent le
-        # même slot de droite.
+        # ``icon_right`` renders ONLY with no × — the two compete for
+        # the same right-hand slot.
         if self._icon_right is not None and not show_close:
             children.append(self._icon_right.render())
 
@@ -205,7 +205,7 @@ class Badge(Component):
                 _resolve(slots.get("close", "")),
                 size_map.get("close", ""),
             ) if p)
-            # Émission + detach single-sourcés dans ``dismiss_button``.
+            # Emission + detach single-sourced in ``dismiss_button``.
             children.append(dismiss_button(
                 button_class=close_class,
                 aria_label=text("badge.remove"),

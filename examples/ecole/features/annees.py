@@ -1,29 +1,29 @@
-"""features/annees — l'année qu'on regarde, et la barrière RT-1.
+"""features/annees — the year being looked at, and the RT-1 barrier.
 
-``kind="logic"`` : la feature la plus courte de l'app, et celle que
-toutes les autres liront. Elle répond à deux questions, et l'application
-entière dépend de la seconde.
+``kind="logic"``: the app's shortest feature, and the one every other
+will read. It answers two questions, and the whole application depends on
+the second.
 
-1. **Quelle année regarde-t-on ?** Un choix de confort, rangé dans la
-   session — il survit à une navigation, il ne suit personne d'un poste à
-   l'autre, et il n'est **pas** dans l'adresse. EF-U1 énumère ce que
-   l'adresse doit porter — la classe, le trimestre, l'onglet, la semaine,
-   la salle, le tri — et l'année n'y est pas : ce n'est pas *ce qu'on
-   regarde*, c'est *depuis quand on regarde*.
+1. **Which year are we looking at?** A convenience choice, filed in the
+   session — it survives a navigation, it follows nobody from one machine
+   to another, and it is **not** in the address. EF-U1 lists what the
+   address must carry — the class, the term, the tab, the week, the room,
+   the sort — and the year is not among them: it is not *what one is
+   looking at*, it is *from when one is looking*.
 
-2. **A-t-on le droit d'écrire ?** C'est RT-1, et c'est une RÈGLE, pas un
-   écran : *« une saisie faite par erreur dans l'année d'avant passerait
-   sinon inaperçue »*. La garde est donc une fonction que chaque écriture
-   appelle, et le bouton qu'on n'affiche pas (EF-C10) n'est que la
-   politesse par-dessus.
+2. **Are we allowed to write?** It is RT-1, and it is a RULE, not a
+   screen: *"an entry made by mistake in the previous year would
+   otherwise go unnoticed"*. So the guard is a function every write
+   calls, and the button one does not show (EF-C10) is only the
+   politeness on top.
 
-⚠️ **Pourquoi la garde n'est pas dans ``db.execute``.** Elle ne pourrait
-pas : l'année concernée dépend de la table, et parfois d'une jointure —
-une place de plan appartient à une salle, qui appartient à une classe,
-qui appartient à une année. Une garde posée à la porte SQL devrait
-redécouvrir cette chaîne pour chaque écriture, ou se taire. Ici elle
-prend l'année en paramètre : c'est plus verbeux, et c'est le point — on
-peut RELIRE une fonction d'écriture et voir si elle est gardée.
+⚠️ **Why the guard is not in ``db.execute``.** It could not be: the year
+concerned depends on the table, and sometimes on a join — a seat on a
+plan belongs to a room, which belongs to a class, which belongs to a
+year. A guard set at the SQL door would have to rediscover that chain for
+every write, or stay silent. Here it takes the year as a parameter: it is
+more verbose, and that is the point — one can RE-READ a write function
+and see whether it is guarded.
 """
 
 from __future__ import annotations
@@ -36,31 +36,31 @@ from examples.ecole.core.db import query
 
 
 class AnneeEnConsultationError(RuntimeError):
-    """Une écriture a visé une année qui n'est pas celle en cours (RT-1).
+    """A write aimed at a year that is not the current one (RT-1).
 
-    Une vraie levée plutôt qu'un retour ``False`` : un refus qu'on peut
-    ignorer en oubliant de lire la valeur de retour n'est pas une
-    barrière. L'app la rattrape là où elle sait quoi dire à l'écran ;
-    ailleurs, elle remonte, et une page d'erreur vaut mieux qu'une
-    écriture silencieuse dans l'année d'avant.
+    A real raise rather than a ``False`` return: a refusal one can ignore
+    by forgetting to read the return value is not a barrier. The app
+    catches it where it knows what to say on screen; elsewhere it comes
+    up, and an error page is better than a silent write into the previous
+    year.
     """
 
 
 class AnneeVue(SessionState):
-    """L'année que CE navigateur regarde. Vide = celle en cours.
+    """The year THIS browser is looking at. Empty = the current one.
 
-    ⚠️ **Le vide est une valeur, pas un trou.** Un identifiant par défaut
-    serait faux le jour où la base change d'année — et un état de session
-    ne peut pas lire la base pour se donner un défaut. ``""`` veut dire
-    « celle qui est en cours, quelle qu'elle soit », ce qui reste vrai
-    après la bascule d'une rentrée à l'autre.
+    ⚠️ **Empty is a value, not a hole.** A default identifier would be
+    wrong the day the database changes year — and a session state cannot
+    read the database to give itself a default. ``""`` means "whichever
+    one is current", which stays true after the switch from one school
+    year to the next.
     """
 
     annee: str = field(default="")
 
 
 def toutes_les_annees() -> list[dict]:
-    """Les années, la plus récente d'abord."""
+    """The years, most recent first."""
     return query(
         "SELECT id, libelle, debut, fin, en_cours, lundi_ref "
         "FROM annees ORDER BY debut DESC"
@@ -68,20 +68,20 @@ def toutes_les_annees() -> list[dict]:
 
 
 def annees_regardee_et_en_cours() -> tuple[dict, dict]:
-    """Les DEUX années qui décident de tout, en **une seule lecture**.
+    """The TWO years that decide everything, in **one single read**.
 
-    Elles sortent de la même liste, et les demander séparément la
-    relisait deux fois. Mesuré le 2026-09-13 sur ``/plan/1`` : vider une
-    place partait sur **9 lectures de la table des années** pour 26
-    requêtes SQL au total, parce que quatre zones appelaient chacune un
-    :func:`en_consultation` qui en coûtait deux.
+    They come out of the same list, and asking for them separately read
+    it twice. Measured on 2026-09-13 on ``/plan/1``: emptying one seat
+    went out on **9 reads of the years table** for 26 SQL queries in
+    total, because four zones each called an :func:`en_consultation` that
+    cost two.
 
-    S'il n'y avait aucune année en cours — une base à moitié semée — la
-    plus récente fait office : un écran vide serait une panne de plus à
-    diagnostiquer, alors qu'une année qui refuse l'écriture se voit à
-    l'écran. Et un choix qui ne désigne plus rien (une année supprimée,
-    une session qui traîne) retombe sur l'année en cours plutôt que de
-    lever : un réglage périmé ne doit pas bloquer une page.
+    If there were no current year — a half-seeded database — the most
+    recent stands in: an empty screen would be one more failure to
+    diagnose, whereas a year that refuses writing shows on screen. And a
+    choice that no longer names anything (a deleted year, a session
+    hanging around) falls back on the current year rather than raising: a
+    stale setting must not block a page.
     """
     annees = toutes_les_annees()
     en_cours = next((a for a in annees if a["en_cours"]), annees[0])
@@ -94,31 +94,32 @@ def annees_regardee_et_en_cours() -> tuple[dict, dict]:
 
 
 def annee_en_cours() -> dict:
-    """L'année dans laquelle on a le droit d'écrire (RT-1).
+    """The year one is allowed to write in (RT-1).
 
-    Une seule année est en cours à la fois (§ 5.1).
+    Only one year is current at a time (§ 5.1).
     """
     return annees_regardee_et_en_cours()[1]
 
 
 def annee_regardee() -> dict:
-    """L'année que l'écran doit montrer — choisie, ou celle en cours."""
+    """The year the screen must show — chosen, or the current one."""
     return annees_regardee_et_en_cours()[0]
 
 
 def en_consultation() -> bool:
-    """Regarde-t-on une année qu'on n'a pas le droit d'écrire ?"""
+    """Are we looking at a year we are not allowed to write?"""
     regardee, en_cours = annees_regardee_et_en_cours()
     return regardee["id"] != en_cours["id"]
 
 
 def garde_ecriture(annee_id: int) -> None:
-    """**La barrière RT-1.** Lève si ``annee_id`` n'est pas l'année en cours.
+    """**The RT-1 barrier.** Raises if ``annee_id`` is not the current
+    year.
 
-    À appeler en PREMIÈRE ligne de toute fonction qui écrit une donnée
-    datée. Elle prend l'identifiant de l'année visée, jamais celui de
-    l'année regardée : une écriture peut viser autre chose que ce que
-    l'écran affiche, et c'est justement le cas qu'on veut attraper.
+    To be called on the FIRST line of every function writing dated data.
+    It takes the identifier of the year AIMED AT, never that of the year
+    being looked at: a write can aim at something other than what the
+    screen shows, and that is precisely the case to catch.
     """
     en_cours = annee_en_cours()
     if annee_id != en_cours["id"]:
@@ -131,11 +132,11 @@ def garde_ecriture(annee_id: int) -> None:
 
 
 def options_annees() -> list[tuple[str, str]]:
-    """Les choix du sélecteur. ``""`` = l'année en cours, nommée.
+    """The selector's choices. ``""`` = the current year, named.
 
-    La première entrée porte le LIBELLÉ de l'année en cours et pas le mot
-    « en cours » tout seul : le sélecteur doit dire quelle année on
-    regarde, pas quel réglage est actif.
+    The first entry carries the current year's LABEL and not the words
+    "current" alone: the selector must say which year is being looked at,
+    not which setting is active.
     """
     annees = toutes_les_annees()
     en_cours = next((a for a in annees if a["en_cours"]), annees[0])
@@ -150,43 +151,42 @@ def options_annees() -> list[tuple[str, str]]:
 
 
 def changer_annee(vue: AnneeVue) -> None:
-    """Le professeur change d'année ; les zones ``deps=`` se re-rendent.
+    """The teacher changes year; the ``deps=`` zones re-render.
 
-    ⚠️ Le corps est vide **et c'est le mécanisme** : le socle a déjà
-    hydraté ``vue.annee`` avant d'appeler le handler, et la mutation
-    seule déclenche le re-render des zones qui déclarent
-    ``deps=[AnneeVue]``. Le paramètre TYPÉ est ce qui hydrate — un
-    handler sans lui répondrait zéro octet.
+    ⚠️ The body is empty **and that is the mechanism**: the base layer
+    has already hydrated ``vue.annee`` before calling the handler, and
+    the mutation alone triggers the re-render of the zones declaring
+    ``deps=[AnneeVue]``. The TYPED parameter is what hydrates — a handler
+    without it would answer zero bytes.
     """
 
 
 def aller_a_lannee(valeur: str) -> None:
-    """Regarder une autre année. ``""`` = celle en cours.
+    """Look at another year. ``""`` = the current one.
 
-    Le corps mute l'état et rien d'autre : les zones qui déclarent
-    ``deps=[AnneeVue]`` se re-rendent toutes seules.
+    The body mutates the state and nothing else: the zones declaring
+    ``deps=[AnneeVue]`` re-render on their own.
     """
     AnneeVue().annee = valeur
 
 
 def selecteur_annee() -> None:
-    """Les années, en entrées du PIED de la barre latérale (EF-U2).
+    """The years, as entries in the sidebar's FOOTER (EF-U2).
 
-    Elles vivent dans la coque et pas dans une page : le choix porte sur
-    TOUS les écrans, donc il appartient au cadre.
+    They live in the shell and not in a page: the choice bears on ALL the
+    screens, so it belongs to the frame.
 
-    ⚠️ **Dans le pied, et pas en section.** La version d'avant posait un
-    ``ui.select`` dans le corps de la barre. Replié en rail, le champ
-    était écrasé à la largeur du rail : une boîte de deux centimètres
-    avec un chevron et rien d'autre. C'est un défaut que l'utilisateur a
-    signalé deux fois, et qu'aucune app ne peut réparer chez elle — le
-    repli est un état CLIENT, donc un écran rendu par le serveur ne sait
-    pas qu'il est dedans.
+    ⚠️ **In the footer, and not in a section.** The previous version put
+    a ``ui.select`` in the bar's body. Collapsed to a rail, the field was
+    squeezed to the rail's width: a two-centimetre box with a chevron and
+    nothing else. It is a defect the user reported twice, and that no app
+    can fix at home — the collapse is a CLIENT state, so a screen
+    rendered by the server does not know it is in one.
 
-    ``ui.sidebar_footer``, lui, le sait : en rail il ne montre que
-    l'avatar, et son menu flotte AU-DESSUS de la barre (il passe en
-    ``position: fixed`` pour échapper à son ``overflow``). C'est la
-    réponse que le framework donne déjà, et elle n'était pas utilisée.
+    ``ui.sidebar_footer``, for its part, does know: in rail mode it shows
+    only the avatar, and its menu floats ABOVE the bar (it goes
+    ``position: fixed`` to escape its ``overflow``). It is the answer the
+    framework already gives, and it was not being used.
     """
     courante = AnneeVue().annee
     for valeur, libelle in options_annees():
@@ -198,13 +198,13 @@ def selecteur_annee() -> None:
 
 
 def bandeau_consultation() -> None:
-    """« Année en consultation » — sur CHAQUE écran qui refuserait une
-    écriture (EF-U2).
+    """"Année en consultation" — on EVERY screen that would refuse a
+    write (EF-U2).
 
-    Rendu dans la coque, donc il n'y a aucun écran où l'oublier. Le texte
-    dit ce qui est interdit, pas seulement ce qui est vrai : « lecture
-    seule » se lit comme un état, « aucune saisie n'est possible » comme
-    une conséquence.
+    Rendered in the shell, so there is no screen where it can be
+    forgotten. The text says what is forbidden, not only what is true:
+    "read only" reads as a state, "no entry is possible" as a
+    consequence.
     """
     if not en_consultation():
         return

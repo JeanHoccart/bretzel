@@ -74,12 +74,12 @@ class RenderContext:
     root_children: list[Any] = field(default_factory=list)
     is_rendering: bool = False  # set during the tree-walk render phase
 
-    # ── Langue et mots du framework ──────────────────────────────────────
-    #: Recopiés de la config au montage du contexte plutôt que lus à
-    #: travers ``ctx.app`` : un composant qui a besoin de la langue est
-    #: en couche 5, la config en couche 7, et la moitié des bancs de test
-    #: construisent un ``RenderContext`` sans app complète. Les défauts
-    #: ci-dessous sont donc ce que voit un composant monté hors requête.
+    # ── Language and framework words ─────────────────────────────────────
+    #: Copied from the config when the context is mounted rather than
+    #: read through ``ctx.app``: a component needing the language is in
+    #: layer 5, the config in layer 7, and half the test benches build a
+    #: ``RenderContext`` without a complete app. The defaults below are
+    #: therefore what a component mounted outside a request sees.
     lang: str = "en"
     texts: Mapping[str, str] = field(default_factory=lambda: DEFAULT_TEXTS)
 
@@ -91,15 +91,15 @@ class RenderContext:
     # ── Hydration payloads pre-parsed by the middleware ──────────────────
     client_state_payload: dict[str, dict[str, Any]] = field(default_factory=dict)
     form_data: dict[str, Any] = field(default_factory=dict)
-    #: Pourquoi ``form_data`` est vide alors que la requête portait un
-    #: formulaire — ``None`` quand tout s'est bien passé.
+    #: Why ``form_data`` is empty although the request carried a form —
+    #: ``None`` when everything went well.
     #:
-    #: Sans ce champ, un corps multipart illisible (part trop grosse,
-    #: connexion coupée en plein envoi) rendait un formulaire VIDE et le
-    #: handler tournait quand même : il lisait `""` partout et écrivait
-    #: ça dans l'état. La panne n'était donc pas une erreur, c'était une
-    #: SAISIE — un formulaire qui s'efface tout seul. Le dispatcher
-    #: d'action refuse quand ce champ est posé.
+    #: Without this field, an unreadable multipart body (a part too
+    #: large, a connection cut mid-upload) returned an EMPTY form and the
+    #: handler ran anyway: it read `""` everywhere and wrote that into
+    #: the state. The failure was therefore not an error, it was an
+    #: INPUT — a form that clears itself. The action dispatcher refuses
+    #: when this field is set.
     form_error: str | None = None
 
     # ── Auth ─────────────────────────────────────────────────────────────
@@ -107,28 +107,28 @@ class RenderContext:
     session_id: str = ""
     csrf_token: str = ""
 
-    #: Les zones ``@refreshable`` que le NAVIGATEUR porte réellement, ou
-    #: ``None`` quand on ne sait pas.
+    #: The ``@refreshable`` zones the BROWSER really carries, or
+    #: ``None`` when we do not know.
     #:
-    #: La distinction est tout le mécanisme : ``None`` veut dire « je
-    #: n'ai pas l'information » — un runtime en cache, un client tiers,
-    #: un test qui POSTe à la main — et le drain ne filtre alors rien,
-    #: exactement comme avant. Un ensemble VIDE voudrait dire « ce
-    #: document ne porte aucune zone », ce que le runtime n'envoie
-    #: jamais (il omet l'en-tête dans ce cas). Confondre les deux ferait
-    #: taire toutes les zones au premier client qui ne parle pas la
-    #: dernière version du protocole, sans une erreur.
+    #: The distinction is the whole mechanism: ``None`` means "I do not
+    #: have the information" — a cached runtime, a third-party client, a
+    #: test POSTing by hand — and the drain then filters nothing, exactly
+    #: as before. An EMPTY set would mean "this document carries no
+    #: zone", which the runtime never sends (it omits the header in that
+    #: case). Confusing the two would silence every zone for the first
+    #: client that does not speak the latest version of the protocol,
+    #: without an error.
     live_zones: frozenset[str] | None = None
 
-    #: ``{id de zone: empreinte}`` que le navigateur dit AFFICHER, lu du
-    #: même en-tête que :attr:`live_zones`. Sert à taire une zone dont le
-    #: rendu neuf est identique. Vide quand le client se tait — donc le
-    #: comportement par défaut est d'expédier.
+    #: ``{zone id: fingerprint}`` the browser says it is DISPLAYING, read
+    #: from the same header as :attr:`live_zones`. Used to silence a zone
+    #: whose fresh render is identical. Empty when the client says
+    #: nothing — so the default behaviour is to ship.
     zone_hashes: dict[str, str] = field(default_factory=dict)
 
-    #: L'onglet qui a émis la requête courante, ou ``""`` s'il se tait
-    #: (un runtime plus ancien, un appel hors navigateur). Sert à ne pas
-    #: lui rediffuser ce qu'il vient de recevoir — cf.
+    #: The tab that issued the current request, or ``""`` when it says
+    #: nothing (an older runtime, a call outside a browser). Used to
+    #: avoid re-broadcasting to it what it has just received — cf.
     #: :data:`~bretzel.runtime.protocol.HEADER_TAB`.
     tab_id: str = ""
 
@@ -140,46 +140,45 @@ class RenderContext:
     # tail to derive its ``outlet_<layout>`` id, ``SidebarItem.__init__``
     # reads the same to plumb ``hx-target=#outlet_<layout>``.
     layout_stack: list[str] = field(default_factory=list)
-    #: Les ``ui.sidebar`` construites pendant CE rendu. Sert deux
-    #: questions qui ne se repondent qu'une fois la page batie :
-    #: resoudre a QUELLE barre un ``ui.sidebar_trigger`` sans argument
-    #: parle, et verifier qu'une barre escamotable a bien un moyen
-    #: d'etre rouverte — sinon la navigation est injoignable, en
-    #: silence (mesure le 2026-08-24 : aside a x=-256, ZERO element
-    #: cliquable a l'ecran, page a 200).
+    #: The ``ui.sidebar`` built during THIS render. Serves two questions
+    #: that can only be answered once the page is built: resolving WHICH
+    #: bar a ``ui.sidebar_trigger`` with no argument speaks to, and
+    #: checking that a collapsible bar does have a way of being reopened
+    #: — otherwise navigation is unreachable, silently (measured on
+    #: 2026-08-24: aside at x=-256, ZERO clickable element on screen,
+    #: page at 200).
     sidebars: list[Any] = field(default_factory=list)
-    #: Les ``ui.sidebar_trigger`` construits pendant CE rendu. Resolus
-    #: par ``base/_wiring.wire_sidebar_triggers`` quand l'arbre est bati,
-    #: pas a la construction : sinon un declencheur ecrit AVANT la barre
-    #: — une coque qui pose sa barre du haut d'abord — ne trouverait
-    #: rien, et la garde d'atteignabilite le prendrait pour une absence.
-    #: Meme lecon que les barres ``sticky`` : l'ordre d'ecriture ne doit
-    #: pas changer le verdict.
+    #: The ``ui.sidebar_trigger`` built during THIS render. Resolved by
+    #: ``base/_wiring.wire_sidebar_triggers`` once the tree is built, not
+    #: at construction: otherwise a trigger written BEFORE the bar — a
+    #: shell that sets down its top bar first — would find nothing, and
+    #: the reachability guard would take that for an absence. Same lesson
+    #: as the ``sticky`` bars: writing order must not change the
+    #: verdict.
     sidebar_triggers: list[Any] = field(default_factory=list)
-    #: Les barres ``sticky`` construites pendant CE rendu, chacune avec
-    #: son nom d'appel et le fichier:ligne qui l'a ecrite. Remplie par
-    #: ``base/_wiring.register_sticky_bar``, videe par la passe de
-    #: ``render/pipeline._drain``.
+    #: The ``sticky`` bars built during THIS render, each with its call
+    #: name and the file:line that wrote it. Filled by
+    #: ``base/_wiring.register_sticky_bar``, emptied by the
+    #: ``render/pipeline._drain`` pass.
     #:
-    #: **Pourquoi une liste et pas un controle a la construction** :
-    #: « suis-je bien placee ? » est une question posee a l'ARBRE, et
-    #: l'arbre n'existe pas encore quand la barre se construit. Deux
-    #: defauts mesures le 2026-08-24 le prouvent — une barre ecrite AVANT
-    #: le ``ui.viewport`` ne peut pas savoir qu'un cadre va venir, et une
-    #: barre enveloppee dans un ``ui.fragment`` n'a pas son vrai parent de
-    #: DISPOSITION sur ``parent_stack``. Les deux rendaient une page
-    #: cassee en silence.
+    #: **Why a list and not a check at construction time**: "am I well
+    #: placed?" is a question asked of the TREE, and the tree does not
+    #: exist yet when the bar is built. Two flaws measured on 2026-08-24
+    #: prove it — a bar written BEFORE the ``ui.viewport`` cannot know a
+    #: frame is coming, and a bar wrapped in a ``ui.fragment`` does not
+    #: have its real LAYOUT parent on ``parent_stack``. Both rendered a
+    #: broken page silently.
     #:
-    #: Vide sur l'immense majorite des rendus : seules ``ui.bottom_bar``
-    #: et ``ui.navbar(sticky=True)`` s'y inscrivent, donc la passe ne
-    #: part meme pas.
+    #: Empty on the vast majority of renders: only ``ui.bottom_bar`` and
+    #: ``ui.navbar(sticky=True)`` register here, so the pass does not
+    #: even start.
     sticky_bars: list[Any] = field(default_factory=list)
-    #: ``{classe d'etat: {champs modifies}}`` pour CETTE requete, pose
-    #: par la route d'action depuis ``StateRegistry.diff_and_notify``.
-    #: **Vide veut dire « on ne sait pas »**, pas « rien n'a change » :
-    #: un rendu de page complet et un refetch SSE le laissent vide, et
-    #: doivent donc tout re-rendre. Tout lecteur doit traiter le vide
-    #: comme le cas conservateur.
+    #: ``{state class: {modified fields}}`` for THIS request, set by the
+    #: action route from ``StateRegistry.diff_and_notify``. **Empty means
+    #: "we do not know"**, not "nothing changed": a full page render and
+    #: an SSE refetch both leave it empty, and must therefore re-render
+    #: everything. Every reader must treat empty as the conservative
+    #: case.
     changed_fields: dict = field(default_factory=dict)
     is_partial: bool = False
     # Two distinct flows flip ``is_partial`` :
@@ -201,38 +200,39 @@ class RenderContext:
     is_action: bool = False
     refreshable_target: str | None = None
 
-    #: Le jeton qui rend les ``bz-id`` de la page UNIQUES À CETTE PAGE.
+    #: The token that makes the page's ``bz-id`` UNIQUE TO THIS PAGE.
     #:
-    #: Le défaut qu'il ferme, mesuré le 2026-08-13 : le magasin de scopes
-    #: du runtime est une ``Map`` indexée par le ``bz-id`` **chaîne**
-    #: (``03_scope.js``), et un ``hx-boost`` ne recharge pas le runtime. Or
-    #: un ``bz-id`` décrit une POSITION dans l'arbre
-    #: (``outlet_shell_container_0_…_accordion_0``) et ne dit rien de la
-    #: page. Deux pages de même forme produisaient donc la même clé : sur
-    #: les 68 pages du playground, **13 collisions** hors du shell — un
-    #: tooltip sur 13 pages, un dialog sur 7. Après une navigation, le
-    #: scope de la page précédente était retrouvé par son id et ses
-    #: valeurs l'emportaient sur le littéral frais du serveur (ouvrir
-    #: l'accordéon de ``/accordion``, aller sur ``/markdown``, il y arrive
-    #: ouvert ; un F5 le rend correctement).
+    #: The flaw it closes, measured on 2026-08-13: the runtime's scope
+    #: store is a ``Map`` indexed by the ``bz-id`` **string**
+    #: (``03_scope.js``), and an ``hx-boost`` does not reload the
+    #: runtime. But a ``bz-id`` describes a POSITION in the tree
+    #: (``outlet_shell_container_0_…_accordion_0``) and says nothing
+    #: about the page. Two pages of the same shape therefore produced the
+    #: same key: across the playground's 68 pages, **13 collisions**
+    #: outside the shell — one tooltip on 13 pages, one dialog on 7.
+    #: After a navigation, the previous page's scope was found by its id
+    #: and its values won over the server's fresh literal (open the
+    #: accordion on ``/accordion``, go to ``/markdown``, and it arrives
+    #: open; an F5 renders it correctly).
     #:
-    #: ⚠️ Il qualifie l'id que l'outlet donne à ses ENFANTS, jamais l'id
-    #: que l'outlet REND : htmx renvoie ce dernier en ``HX-Target``, donc
-    #: le bouger casserait le rendu partiel à la navigation suivante.
+    #: ⚠️ It qualifies the id the outlet gives its CHILDREN, never the id
+    #: the outlet RENDERS: htmx sends the latter back as ``HX-Target``,
+    #: so moving it would break partial rendering on the next
+    #: navigation.
     #:
-    #: Le CHEMIN et pas la route : ``/contacts/5`` et ``/contacts/9`` sont
-    #: deux pages pour l'utilisateur, et partager leur état ferait fuir
-    #: l'accordéon d'un contact à l'autre. La query en est exclue —
-    #: ``/issues?tri=date`` est la même page qu'``/issues``.
+    #: The PATH and not the route: ``/contacts/5`` and ``/contacts/9``
+    #: are two pages for the user, and sharing their state would leak one
+    #: contact's accordion into another's. The query is excluded from it
+    #: — ``/issues?sort=date`` is the same page as ``/issues``.
     page_scope: str = ""
 
     @property
     def child_scope_root(self) -> str:
-        """Le suffixe à coller à un id de parent pour le rendre page-unique.
+        """The suffix to append to a parent id to make it page-unique.
 
-        Vide quand ``page_scope`` l'est — hors requête (bancs, tests
-        unitaires) les ids gardent exactement leur forme d'avant, ce qui
-        laisse intacts les inventaires et les captures qui les citent.
+        Empty when ``page_scope`` is — outside a request (benches, unit
+        tests) ids keep exactly their previous form, which leaves intact
+        the inventories and snapshots that cite them.
         """
         return f"__{self.page_scope}" if self.page_scope else ""
 
@@ -253,32 +253,32 @@ class RenderContext:
     # to emit OOB swap fragments.
     refresh_queue: list[Any] = field(default_factory=list)
 
-    # Zones ``@refreshable`` ASYNC dont le corps reste à attendre.
+    # ASYNC ``@refreshable`` zones whose body is still to be awaited.
     #
-    # Une zone s'appelle ``zone()``, sans ``await``, y compris quand son
-    # corps est une coroutine : c'est la convention d'appel du framework,
-    # et elle ne change pas parce qu'une lecture devient asynchrone.
-    # ``RefreshableHandle.__call__`` pose donc la SECTION dans l'arbre
-    # immédiatement — la place de la zone dans la page est décidée au
-    # moment de l'appel, pas au moment où sa donnée arrive — puis empile
-    # ici ``(section, coroutine)``. Le pipeline draine la file quand le
-    # corps de la page a fini.
+    # A zone is called ``zone()``, with no ``await``, including when its
+    # body is a coroutine: that is the framework's calling convention,
+    # and it does not change because a read becomes asynchronous.
+    # ``RefreshableHandle.__call__`` therefore sets the SECTION down in
+    # the tree immediately — the zone's place in the page is decided at
+    # call time, not when its data arrives — then pushes
+    # ``(section, coroutine)`` here. The pipeline drains the queue once
+    # the page body has finished.
     #
-    # Une liste, pas un ``gather`` : les zones s'attendent en SÉRIE parce
-    # qu'elles partagent ``parent_stack`` — deux corps concurrents
-    # s'enregistreraient l'un chez l'autre. La concurrence, si elle est
-    # voulue un jour, se prend DANS un corps de zone (``asyncio.gather``
-    # sur ses requêtes), pas entre les zones.
+    # A list, not a ``gather``: zones are awaited in SERIES because they
+    # share ``parent_stack`` — two concurrent bodies would register with
+    # each other. Concurrency, if it is ever wanted, is taken INSIDE a
+    # zone body (``asyncio.gather`` over its requests), not between
+    # zones.
     #
-    # Drainée en BOUCLE : une zone async peut en appeler une autre, qui
-    # s'ajoute ici pendant qu'on attend la première.
+    # Drained in a LOOP: an async zone can call another, which is added
+    # here while we await the first.
     pending_async_zones: list[Any] = field(default_factory=list)
 
     # Toast notifications queued by ``ui.notification(...)`` during the
-    # request. Drained by the partial-renderer at end-of-action : elles
-    # partent dans un ``<bz-patch>`` sous la clé réservée
-    # ``_notifications``, que le bridge forwarde à ``$bz.notify``. Le
-    # toaster s'auto-monte au premier toast (pas de container à monter).
+    # request. Drained by the partial-renderer at end-of-action: they go
+    # out in a ``<bz-patch>`` under the reserved ``_notifications`` key,
+    # which the bridge forwards to ``$bz.notify``. The toaster mounts
+    # itself on the first toast (no container to mount).
     notifications: list[dict[str, Any]] = field(default_factory=list)
 
     # Components register their callable event handlers here at render
@@ -417,21 +417,20 @@ _UNSAFE_IN_ID = re.compile(r"[^A-Za-z0-9]+")
 
 
 def page_scope_of(ctx: RenderContext) -> str:
-    """Le jeton de page, derive du CHEMIN de la requete.
+    """The page token, derived from the request PATH.
 
-    Le meme pour un chargement complet et pour une navigation boostee de
-    la meme URL — c'est la condition pour que
-    ``test_partial_nav_keeps_identity`` continue de tenir : les deux
-    chemins d'arrivee doivent produire les MEMES ids.
+    The same for a full load and for a boosted navigation of the same
+    URL — that is the condition for ``test_partial_nav_keeps_identity``
+    to keep holding: both arrival paths must produce the SAME ids.
 
-    Rend ``""`` hors requete (bancs, ``render_isolated``), et les ids
-    gardent alors leur forme d'avant.
+    Returns ``""`` outside a request (benches, ``render_isolated``), and
+    ids then keep their previous form.
     """
     url = getattr(getattr(ctx, "request", None), "url", None)
-    chemin = getattr(url, "path", None)
-    if not isinstance(chemin, str) or not chemin:
+    path = getattr(url, "path", None)
+    if not isinstance(path, str) or not path:
         return ""
-    return _UNSAFE_IN_ID.sub("_", chemin).strip("_") or "racine"
+    return _UNSAFE_IN_ID.sub("_", path).strip("_") or "root"
 
 
 @contextmanager

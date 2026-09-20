@@ -1,31 +1,30 @@
-"""features/suivi_data — data : le travail à vérifier, et les deux rappels.
+"""features/suivi_data — data: the work to check, and the two reminders.
 
-``kind="data"``. EF-H1 à EF-H4 et EF-I1 à EF-I5.
+``kind="data"``. EF-H1 to EF-H4 and EF-I1 to EF-I5.
 
-EF-H3 — **rien n'est effacé quand c'est fait**
------------------------------------------------
-*« Trois cahiers incomplets dans le trimestre disent quelque chose que
-trois lignes effacées ne diraient plus. »* Une vérification faite reçoit
-une DATE ; seule une ligne posée **par erreur** se supprime — *« la
-cocher "fait" serait un mensonge »*.
+EF-H3 — **nothing is erased when it is done**
+----------------------------------------------
+*"Three incomplete exercise books in the term say something that three
+erased rows would no longer say."* A check done receives a DATE; only a
+row set **by mistake** is deleted — *"ticking it 'done' would be a lie"*.
 
-Les deux rappels sont CALCULÉS, jamais tenus dans une liste
-------------------------------------------------------------
-*« Deux oublis que l'application voit venir, calculés à la demande et non
-tenus dans une liste qui divergerait de la réalité. »* C'est pour ça
-qu'aucune table ne les stocke : une liste de rappels se désynchronise du
-jour où une note est saisie ailleurs, et personne ne le voit.
+The two reminders are COMPUTED, never kept in a list
+------------------------------------------------------
+*"Two oversights the application sees coming, computed on demand and not
+kept in a list that would diverge from reality."* That is why no table
+stores them: a list of reminders goes out of sync the day a mark is
+entered elsewhere, and nobody sees it.
 
-Et le décompte de séances porte QUATRE nuances, toutes payées :
+And the session count carries FOUR nuances, all paid for:
 
-- il se compte depuis l'**emploi du temps**, jour par jour, alternance
-  comprise (RT-5) ;
-- **vacances et fériés déduits** (RT-6, piège n° 3 : *seuil franchi deux
-  semaines trop tôt*) ;
-- sur le **trimestre en cours**, pas sur l'année (EF-I4, piège n° 4 :
-  *juste au T1, faux aux T2 et T3*) ;
-- **sans créneau, une classe n'est pas signalée** (EF-I3 : *mieux vaut se
-  taire que signaler à tort*).
+- it counts from the **timetable**, day by day, alternation included
+  (RT-5);
+- **holidays and public holidays deducted** (RT-6, trap no. 3:
+  *threshold crossed two weeks too early*);
+- over the **current term**, not the year (EF-I4, trap no. 4: *right in
+  T1, wrong in T2 and T3*);
+- **with no slot, a class is not flagged** (EF-I3: *better to keep quiet
+  than flag wrongly*).
 """
 
 from __future__ import annotations
@@ -38,34 +37,34 @@ from examples.ecole.core.db import execute, query
 from examples.ecole.core.domain import est_jour_de_classe, semaine_ab
 from examples.ecole.features.annees import garde_ecriture
 
-#: EF-I1 — au bout de combien de jours une évaluation non reportée se
-#: signale. *« Le compteur part de la PREMIÈRE note saisie, pas de la
-#: dernière : corriger une note trois semaines après ne doit pas effacer
-#: un rappel mérité. »*
+#: EF-I1 — after how many days an unreported assessment flags itself.
+#: *"The counter starts from the FIRST mark entered, not from the last:
+#: correcting a mark three weeks later must not erase a deserved
+#: reminder."*
 JOURS_AVANT_RAPPEL = 15
 
-#: EF-I2 — combien de fois une classe doit avoir été vue avant qu'on
-#: signale les élèves sans observation.
+#: EF-I2 — how many times a class must have been seen before the pupils
+#: with no observation are flagged.
 SEANCES_AVANT_RAPPEL = 5
 
-#: EF-I5 — au-delà de combien d'élèves on donne le NOMBRE et un lien
-#: plutôt que la liste. *« En début de trimestre toute la classe est sans
-#: observation, et la liste noierait les quelques oubliés qu'on
-#: cherche. »*
+#: EF-I5 — beyond how many pupils we give the NUMBER and a link rather
+#: than the list. *"At the start of term the whole class has no
+#: observation, and the list would drown the few forgotten ones one is
+#: looking for."*
 NOMS_AFFICHES = 8
 
 
 class SuiviRev(AppState):
-    """Le jeton des zones de suivi. Même raison que les autres."""
+    """The follow-up zones' token. The same reason as the others."""
 
     rev: int = field(default=0, merge="add")
 
 
 def verifications_de(classe_id: int, en_attente: bool = True) -> list[dict]:
-    """Le travail à vérifier d'une classe (EF-H1).
+    """A class's work to check (EF-H1).
 
-    *« La classe est gardée à côté, parce que c'est par classe qu'on relit
-    la liste — et qu'un élève peut changer de classe en cours d'année. »*
+    *"The class is kept beside it, because it is by class that the list
+    is re-read — and because a pupil may change class mid-year."*
     """
     clause = ("v.fait_le IS NULL" if en_attente
               else "v.fait_le IS NOT NULL")
@@ -82,10 +81,10 @@ def verifications_de(classe_id: int, en_attente: bool = True) -> list[dict]:
 
 
 def verifications_eleve(eleve_id: int) -> list[dict]:
-    """Celles d'un élève — **elles le SUIVENT** (EF-H1).
+    """A pupil's own — **they FOLLOW them** (EF-H1).
 
-    Le rappel porte sur un élève nommé, pas sur un texte libre : il reste
-    attaché à lui même s'il change de classe.
+    The reminder is about a named pupil, not free text: it stays attached
+    to them even if they change class.
     """
     return query(
         """
@@ -99,8 +98,8 @@ def verifications_eleve(eleve_id: int) -> list[dict]:
 
 def poser_verification(eleve_id: int, classe_id: int, annee_id: int,
                        motif: str) -> None:
-    """EF-H2 — *« une note qui demande dix secondes de plus est une note
-    qu'on ne prend pas »*."""
+    """EF-H2 — *"a note that takes ten seconds longer is a note one does
+    not take"*."""
     garde_ecriture(annee_id)
     execute(
         "INSERT INTO verifications (eleve_id, classe_id, motif, cree_le, "
@@ -110,7 +109,7 @@ def poser_verification(eleve_id: int, classe_id: int, annee_id: int,
 
 
 def marquer_faite(verification_id: int, annee_id: int) -> None:
-    """EF-H3 — la date est POSÉE, la ligne reste."""
+    """EF-H3 — the date is SET, the row stays."""
     garde_ecriture(annee_id)
     execute("UPDATE verifications SET fait_le = ? WHERE id = ?",
             (date.today().isoformat(), verification_id))
@@ -118,23 +117,22 @@ def marquer_faite(verification_id: int, annee_id: int) -> None:
 
 
 def supprimer_verification(verification_id: int, annee_id: int) -> None:
-    """La ligne posée PAR ERREUR — *« la cocher "fait" serait un
-    mensonge »*."""
+    """The row set BY MISTAKE — *"ticking it 'done' would be a lie"*."""
     garde_ecriture(annee_id)
     execute("DELETE FROM verifications WHERE id = ?", (verification_id,))
     SuiviRev().rev += 1
 
 
-# ── Les deux rappels, calculés à la demande ──────────────────────────
+# ── The two reminders, computed on demand ────────────────────────────
 
 def seances_faites(annee: dict, classe_id: int, depuis: date,
                    jusqua: date) -> int:
-    """Combien de fois cette classe a été vue entre deux dates.
+    """How many times this class was seen between two dates.
 
-    **Le décompte d'EF-I2, avec ses trois nuances.** Il parcourt les
-    jours un par un : c'est le seul moyen de déduire vacances et fériés
-    (RT-6) tout en respectant l'alternance (RT-5). Une multiplication
-    « semaines × créneaux » serait plus rapide et fausse des deux côtés.
+    **EF-I2's count, with its three nuances.** It walks the days one by
+    one: it is the only way of deducting holidays and public holidays
+    (RT-6) while respecting the alternation (RT-5). A "weeks × slots"
+    multiplication would be faster and wrong on both counts.
     """
     if not annee["lundi_ref"]:
         return 0
@@ -167,21 +165,21 @@ def seances_faites(annee: dict, classe_id: int, depuis: date,
 
 
 def a_des_creneaux(annee_id: int, classe_id: int) -> bool:
-    """EF-I3 — *« sans créneau, une classe n'est pas signalée »*."""
+    """EF-I3 — *"with no slot, a class is not flagged"*."""
     return bool(query(
         "SELECT 1 FROM creneaux WHERE annee_id = ? AND classe_id = ? LIMIT 1",
         (annee_id, classe_id)))
 
 
 def notes_non_reportees(annee_id: int) -> list[dict]:
-    """EF-I1 — les évaluations dont la PREMIÈRE note date de plus de 15 jours.
+    """EF-I1 — the assessments whose FIRST mark is more than 15 days old.
 
-    ⚠️ **``MIN(...)`` et pas ``MAX(...)``**, et c'est l'exigence :
-    *« le compteur part de la première note saisie, pas de la dernière :
-    corriger une note trois semaines après ne doit pas effacer un rappel
-    mérité »*. Faute de date sur la note elle-même, c'est la date de
-    l'ÉVALUATION qui fait office — elle est antérieure à toute saisie,
-    donc le rappel arrive au plus tôt, jamais au plus tard.
+    ⚠️ **``MIN(...)`` and not ``MAX(...)``**, and it is the requirement:
+    *"the counter starts from the first mark entered, not from the last:
+    correcting a mark three weeks later must not erase a deserved
+    reminder"*. For want of a date on the mark itself, it is the
+    ASSESSMENT's date that stands in — it precedes any entry, so the
+    reminder arrives at the earliest, never at the latest.
     """
     limite = (date.today() - timedelta(days=JOURS_AVANT_RAPPEL)).isoformat()
     return query(
@@ -200,13 +198,13 @@ def notes_non_reportees(annee_id: int) -> list[dict]:
 
 def eleves_sans_observation(annee: dict, trimestre: int,
                             debut_trimestre: date) -> list[dict]:
-    """EF-I2 — les classes vues au moins cinq fois dont des élèves n'ont
-    aucun critère coché.
+    """EF-I2 — the classes seen at least five times where some pupils
+    have no criterion ticked.
 
-    Le décompte porte sur le **trimestre en cours** (EF-I4, piège n° 4) :
-    *« partir de la rentrée était juste au premier trimestre et faux aux
-    deux suivants — une classe franchissait le seuil dès le premier jour,
-    et l'application signalait alors toute la classe »*.
+    The count covers the **current term** (EF-I4, trap no. 4): *"starting
+    from the beginning of the school year was right in the first term and
+    wrong in the next two — a class crossed the threshold on the very
+    first day, and the application then flagged the whole class"*.
     """
     signales: list[dict] = []
     for classe in query(
@@ -241,12 +239,12 @@ def eleves_sans_observation(annee: dict, trimestre: int,
 
 
 def derniere_seance(classe_id: int) -> dict | None:
-    """Ce qui a été vu la dernière fois, pour EF-B15.
+    """What was covered last time, for EF-B15.
 
-    *« Le numéro et le titre de la SÉANCE, rien d'autre — ni la date, ni
-    le chapitre, ni le travail donné. Le chapitre est le même pendant six
-    semaines et ne situe pas la classe ; il ne sert que de secours pour
-    une heure notée sans séance choisie. »*
+    *"The SESSION's number and title, nothing else — neither the date,
+    nor the chapter, nor the homework set. The chapter is the same for
+    six weeks and does not situate the class; it only serves as a
+    fallback for an hour recorded with no session chosen."*
     """
     lignes = query(
         """

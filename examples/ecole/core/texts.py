@@ -1,20 +1,20 @@
-"""core/texts — les mots que le FRAMEWORK écrit lui-même, en français.
+"""core/texts — the words the FRAMEWORK writes itself, in French.
 
-``lang="fr"`` suffit à faire nommer les mois et les jours par le
-navigateur. Ces phrases-ci, non : aucune API ne traduit « Dismiss alert »,
-donc elles se remplacent une par une.
+``lang="fr"`` is enough to make the browser name the months and the days.
+These sentences, no: no API translates "Dismiss alert", so they are
+replaced one by one.
 
-Les clés valides sont dans ``bretzel.render.texts.DEFAULT_TEXTS`` ; une
-clé inconnue LÈVE au démarrage — une faute de frappe dans un dict de
-traduction ne produit sinon aucune erreur, juste une phrase restée en
-anglais que personne ne relira.
+The valid keys are in ``bretzel.render.texts.DEFAULT_TEXTS``; an unknown
+key RAISES at startup — a typo in a translation dict would otherwise
+produce no error at all, just a sentence left in English that nobody will
+re-read.
 
-⚠️ Cette table est **la même** que celle d'``examples/crm``, à la
-monnaie près. C'est un manque du framework — du français générique
-retapé d'une app à l'autre — déjà instruit dans ``.claude/work/todo.md``.
-Elle est recopiée plutôt qu'importée du CRM : une app d'exemple n'importe
-pas une autre app d'exemple, et le jour où le framework livrera ses
-tables de langue, les deux copies disparaîtront ensemble.
+⚠️ This table is **the same** as ``examples/crm``'s, up to the currency.
+It is a gap in the framework — generic French retyped from one app to the
+next — already filed in ``.claude/work/todo.md``. It is copied rather
+than imported from the CRM: an example app does not import another
+example app, and the day the framework ships its language tables, both
+copies will disappear together.
 """
 
 FR_TEXTS: dict[str, str] = {

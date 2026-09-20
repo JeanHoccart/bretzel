@@ -322,18 +322,17 @@ def page() -> None:
                     ui.select(COUNTRIES, value="fr",
                               placeholder="Pick a country")
 
-                    ui.heading("render= — le corps de l'option", level=3)
+                    ui.heading("render= — the option's body", level=3)
                     with ui.vstack():
-                        ui.text("Le composant garde l'enveloppe : data-value, "
-                                "le clic, aria-selected. Le rappel remplit "
-                                "l'interieur.",
+                        ui.text('The component keeps the wrapper: data-value, the'
+                            ' click, aria-selected. The callback fills the '
+                            'inside.',
                                 color="muted", size="xs")
                         ui.select(FRUITS, placeholder="Pick a fruit…",
                                   render=lambda v, l: ui.badge(
                                       label=l, color="primary"))
-                        ui.text("Limite : le declencheur affiche le label "
-                                "TEXTE — une carte JS ne porte pas de "
-                                "balisage.",
+                        ui.text('A limit: the trigger shows the TEXT label — a JS'
+                            ' map carries no markup.',
                                 color="muted", size="xs")
 
                     ui.heading("Sizes", level=3)
@@ -688,12 +687,12 @@ def page() -> None:
                     m1 = ui.select(FRUITS,
                                    placeholder="Imperative — no binding")
                     with ui.hstack(gap="sm", wrap=True):
-                        # ⚠️ `open` / `close` / `toggle` ajoutés le
-                        # 2026-09-03, en dernier des huit composants de
-                        # cette forme — un panneau ancré qui porte une
-                        # valeur. Select n'avait que la moitié champ ;
-                        # les six pickers et Combobox l'ont reçue le même
-                        # jour. Même nature, même surface.
+                        # ⚠️ `open` / `close` / `toggle` added on
+                        # 2026-09-03, last of the eight components of
+                        # this shape — an anchored panel carrying a
+                        # value. Select had only the field half; the six
+                        # pickers and Combobox got it the same day. The
+                        # same nature, the same surface.
                         ui.button("Ouvrir", on_click=m1.open())
                         ui.button("Fermer", variant="outline",
                                   on_click=m1.close())
@@ -753,14 +752,14 @@ def page() -> None:
                         level=3,
                     )
                     ui.text(
-                        "Binding fournie ET on appelle ``.set(...)`` "
-                        "/ ``.clear()`` sur l'instance. Le framework "
-                        "détecte la binding et délègue à "
-                        "``binding.set(value)`` — **le DOM dispatch "
-                        "n'est pas utilisé**, single source of truth "
-                        "préservée. L'observer (à droite) voit les "
-                        "écritures imperatives ET les clicks "
-                        "manuels via le même store.",
+                        'A binding supplied AND ``.set(...)`` / '
+                            '``.clear()`` called on the instance. The '
+                            'framework detects the binding and delegates to '
+                            '``binding.set(value)`` — **the DOM dispatch is '
+                            'not used**, single source of truth preserved. '
+                            'The observer (on the right) sees the imperative '
+                            'writes AND the manual clicks through the same '
+                            'store.',
                         color="muted", size="sm",
                     )
                     both = SelectClient(key="both")

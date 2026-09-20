@@ -1,38 +1,38 @@
-"""L'ARBRE des dossiers — le framework décrit son propre rangement.
+"""The folder TREE — the framework describes its own layout.
 
-⚠️ **À ne pas confondre avec ``packages.py``, son voisin de dossier**,
-qui traite d'un tout autre sujet : les composants publiés par des
-paquets TIERS installés. Ici il s'agit de l'arbre de Bretzel lui-même.
-Les deux noms se ressemblent assez pour qu'on écrase l'un en croyant
-créer l'autre — c'est arrivé le 2026-09-02, et ce sont les 216 rouges
-de la suite qui l'ont dit, pas la relecture.
+⚠️ **Not to be confused with ``packages.py``, its folder neighbour**,
+which deals with an entirely different subject: the components published
+by installed THIRD-PARTY packages. Here it is Bretzel's own tree. The two
+names look alike enough that one overwrites one believing one is creating
+the other — that happened on 2026-09-02, and it was the suite's 216 reds
+that said so, not the re-reading.
 
-``describe_module`` lit une table écrite à la main : sept modules
-classés symbole par symbole. C'est précis, et c'est **aveugle au reste**
-— ``bretzel.components.inputs`` est un vrai paquet, avec une vraie
-docstring, et l'introspection répondait « n'existe pas ».
+``describe_module`` reads a hand-written table: seven modules classified
+symbol by symbol. That is precise, and it is **blind to the rest** —
+``bretzel.components.inputs`` is a real package, with a real docstring,
+and introspection answered "does not exist".
 
-Mesuré le 2026-09-02 : **117 dossiers sous ``bretzel/``, 117 ont une
-docstring de paquet, zéro manquant.** La matière pour se décrire existe
-donc déjà en entier — personne ne la lisait.
+Measured on 2026-09-02: **117 folders under ``bretzel/``, 117 have a
+package docstring, none missing.** The material to describe itself
+therefore already exists in full — nobody was reading it.
 
-Ce module la lit. Il ne classe rien et n'invente rien : il marche
-l'arbre, prend la docstring que le dossier porte déjà, et rend la
-hiérarchie. Le classement par besoin de ``modules.py`` reste posé
-PAR-DESSUS, sur les sept modules qui l'ont — les deux se complètent, ils
-ne se remplacent pas.
+This module reads it. It classifies nothing and invents nothing: it walks
+the tree, takes the docstring the folder already carries, and returns the
+hierarchy. ``modules.py``'s per-need classification stays laid ON TOP, on
+the seven modules that have it — the two complement each other, they do
+not replace each other.
 
-Pourquoi ça ne peut pas pourrir
---------------------------------
-Parce que la source est le dossier lui-même. Une liste écrite à la main
-dérive dès qu'on ajoute un paquet sans y penser ; ici, un paquet neuf
-apparaît tout seul, et sa docstring est ce que son auteur a écrit en le
-créant. La seule chose à garder est qu'il en ait une —
-``test_every_package_describes_itself`` s'en charge.
+Why it cannot rot
+-----------------
+Because the source is the folder itself. A hand-written list drifts as
+soon as one adds a package without thinking about it; here, a new package
+appears on its own, and its docstring is what its author wrote when
+creating it. The only thing to keep is that it has one —
+``test_every_package_describes_itself`` takes care of that.
 
-C'est la même leçon que le skill ``bretzel-api`` supprimé le
-2026-08-01 : un catalogue recopié à la main dérive plus vite qu'il ne
-sert. La différence entre les deux, c'est de savoir QUI est la source.
+It is the same lesson as the ``bretzel-api`` skill deleted on 2026-08-01:
+a hand-copied catalogue drifts faster than it serves. The difference
+between the two is knowing WHO the source is.
 """
 
 from __future__ import annotations
@@ -42,30 +42,30 @@ from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
-#: La racine du paquet installé. Lue depuis ce fichier plutôt que par
-#: ``importlib`` : on veut l'ARBRE DE FICHIERS, pas ce que Python a bien
-#: voulu importer — un paquet cassé doit apparaître, pas disparaître.
+#: The installed package's root. Read from this file rather than through
+#: ``importlib``: we want the FILE TREE, not what Python was willing to
+#: import — a broken package must appear, not disappear.
 _ROOT = Path(__file__).resolve().parent.parent
 
 
 @dataclass(frozen=True, slots=True)
 class SymbolLine:
-    """Un symbole public d'un module, et sa première ligne.
+    """A module's public symbol, and its first line.
 
-    Pas une fiche : le détail complet d'un composant vit dans
-    ``describe_ui_symbol``, qui lit la classe RÉELLE (params, slots,
-    events). Ici on ne veut que « ce qui est là, et à quoi ça sert »,
-    lu à l'AST — donc sans importer quoi que ce soit.
+    Not a card: a component's full detail lives in
+    ``describe_ui_symbol``, which reads the REAL class (params, slots,
+    events). Here we only want "what is there, and what it is for", read
+    from the AST — so without importing anything.
     """
 
     name: str
-    kind: str          # "fonction" | "classe"
+    kind: str          # "function" | "class"
     summary: str
 
 
 @dataclass(frozen=True, slots=True)
 class ModuleInfo:
-    """Un module ``.py``, sa raison d'être, et ce qu'il expose."""
+    """A ``.py`` module, its reason to exist, and what it exposes."""
 
     name: str
     summary: str
@@ -74,20 +74,20 @@ class ModuleInfo:
 
 @dataclass(frozen=True, slots=True)
 class PackageNode:
-    """Un paquet, sa raison d'être, et ce qu'il contient."""
+    """A package, its reason to exist, and what it contains."""
 
-    #: Le chemin pointé, ``bretzel.components.inputs``.
+    #: The dotted path, ``bretzel.components.inputs``.
     name: str
-    #: La PREMIÈRE ligne de sa docstring — ce qu'il fait, en une phrase.
+    #: The FIRST line of its docstring — what it does, in one sentence.
     summary: str
-    #: Sa docstring entière, pour qui veut le détail.
+    #: Its whole docstring, for whoever wants the detail.
     doc: str
-    #: Ses sous-paquets, triés.
+    #: Its subpackages, sorted.
     children: tuple[PackageNode, ...] = field(default_factory=tuple)
-    #: Les modules ``.py`` qu'il porte en propre (hors ``__init__``),
-    #: avec leur première ligne ET leurs symboles publics. Un module
-    #: privé (``_x.py``) en fait partie : il compte dans le rangement
-    #: même s'il n'est pas de l'API.
+    #: The ``.py`` modules it carries in its own right (excluding
+    #: ``__init__``), with their first line AND their public symbols. A
+    #: private module (``_x.py``) is one of them: it counts in the layout
+    #: even if it is not part of the API.
     modules: tuple[ModuleInfo, ...] = field(default_factory=tuple)
 
     @property
@@ -96,48 +96,47 @@ class PackageNode:
 
 
 def _docstring_of(path: Path) -> str:
-    """La docstring d'un fichier, ou ``""``.
+    """A file's docstring, or ``""``.
 
-    ⚠️ ``utf-8-sig`` et pas ``utf-8`` : ``bretzel/render/__init__.py`` a
-    porté un BOM que le second laisse en tête de chaîne et qu'``ast``
-    refuse — un fichier sur 344 sortait ainsi du balayage de sept gates,
-    pendant des mois. Le lecteur partagé de ``tests/consistency`` porte
-    la même correction, pour la même raison.
+    ⚠️ ``utf-8-sig`` and not ``utf-8``: ``bretzel/render/__init__.py``
+    carried a BOM that the latter leaves at the head of the string and
+    that ``ast`` refuses — one file out of 344 thus dropped out of seven
+    gates' sweep, for months. The shared reader in ``tests/consistency``
+    carries the same fix, for the same reason.
     """
     try:
-        arbre = ast.parse(path.read_text(encoding="utf-8-sig"))
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
     except (SyntaxError, UnicodeDecodeError, OSError):
         return ""
-    return ast.get_docstring(arbre) or ""
+    return ast.get_docstring(tree) or ""
 
 
 def _first_line(doc: str) -> str:
-    """Le premier PARAGRAPHE, lignes recollées — pas la première ligne.
+    """The first PARAGRAPH, lines re-joined — not the first line.
 
-    ⚠️ **La différence n'est pas cosmétique, elle est mesurée.** Prendre
-    la première *ligne* coupait **68 résumés sur 592 (11 %)** en plein
-    milieu d'une phrase, parce que l'auteur avait replié sa phrase à 79
-    colonnes :
+    ⚠️ **The difference is not cosmetic, it is measured.** Taking the
+    first *line* cut **68 summaries out of 592 (11 %)** in the middle of
+    a sentence, because the author had wrapped their sentence at 79
+    columns:
 
         Stable 8-char hex digest used to compress IDs (and other stable
 
-    Le lecteur ne voyait pas une phrase courte, il voyait une phrase
-    fausse — et rien à l'écran ne disait qu'il en manquait la moitié.
+    The reader did not see a short sentence, they saw a false one — and
+    nothing on screen said half of it was missing.
 
-    Le paragraphe les répare **toutes les 68, sans rien coûter** : la
-    longueur médiane est la même (59 caractères), parce que la grande
-    majorité des résumés tiennent déjà sur une ligne. Seuls 9 dépassent
-    200 caractères.
+    The paragraph repairs **all 68, at no cost**: the median length is
+    the same (59 characters), because the vast majority of summaries
+    already fit on one line. Only 9 exceed 200 characters.
 
-    On s'arrête au premier saut de ligne VIDE : la suite d'une docstring
-    est le détail, et le résumé doit rester un résumé.
+    We stop at the first EMPTY line: the rest of a docstring is the
+    detail, and a summary must stay a summary.
     """
-    bloc: list[str] = []
-    for ligne in doc.strip().splitlines():
-        if not ligne.strip():
+    block: list[str] = []
+    for line in doc.strip().splitlines():
+        if not line.strip():
             break
-        bloc.append(ligne.strip())
-    return " ".join(bloc)
+        block.append(line.strip())
+    return " ".join(block)
 
 
 def _is_package(path: Path) -> bool:
@@ -145,97 +144,96 @@ def _is_package(path: Path) -> bool:
 
 
 def _module_info(path: Path) -> ModuleInfo:
-    """Le module, sa phrase, et ses symboles publics de premier niveau.
+    """The module, its sentence, and its top-level public symbols.
 
-    Pourquoi on descend jusque-là (2026-09-02)
-    ------------------------------------------
-    Parce que le niveau au-dessus est souvent VIDE. Mesuré : **73 des
-    117 docstrings de paquet sont des talons** de la forme
-    « icon_button component. », pendant que le module juste en dessous
-    dit « IconButton — square button whose only content is an icon ».
+    Why we descend that far (2026-09-02)
+    ------------------------------------
+    Because the level above is often EMPTY. Measured: **73 of the 117
+    package docstrings are stubs** of the form "icon_button component.",
+    while the module just below says "IconButton — square button whose
+    only content is an icon".
 
-    Le contenu existe, il est un cran plus bas : **608 symboles publics,
-    592 documentés — 97 %**. Descendre coûte donc moins
-    cher que de réécrire 73 docstrings de dossier — et donne du texte
-    que quelqu'un a écrit en pensant à ce qu'il faisait, pas pour
-    remplir une case.
+    The content exists, it is one notch lower: **608 public symbols, 592
+    documented — 97 %**. Descending therefore costs less than rewriting
+    73 folder docstrings — and gives text somebody wrote thinking about
+    what they were doing, not to fill a box.
 
-    ⚠️ Lu à l'AST, donc SANS importer. Un module qui casse à l'import
-    reste décrit — et c'est voulu : la doc d'un dépôt doit survivre à un
-    fichier en travaux.
+    ⚠️ Read from the AST, so WITHOUT importing. A module that breaks on
+    import stays described — and that is intended: a repository's
+    documentation must survive a file under construction.
     """
     doc_module = _docstring_of(path)
-    symboles: list[SymbolLine] = []
+    symbol_lines: list[SymbolLine] = []
     try:
-        arbre = ast.parse(path.read_text(encoding="utf-8-sig"))
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
     except (SyntaxError, UnicodeDecodeError, OSError):
-        arbre = None
-    if arbre is not None:
-        for n in arbre.body:
+        tree = None
+    if tree is not None:
+        for n in tree.body:
             if isinstance(n, ast.ClassDef):
-                kind = "classe"
+                kind = "class"
             elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                kind = "fonction"
+                kind = "function"
             else:
                 continue
             if n.name.startswith("_"):
                 continue
-            symboles.append(SymbolLine(
+            symbol_lines.append(SymbolLine(
                 name=n.name, kind=kind,
                 summary=_first_line(ast.get_docstring(n) or ""),
             ))
     return ModuleInfo(
         name=path.stem, summary=_first_line(doc_module),
-        symbols=tuple(symboles),
+        symbols=tuple(symbol_lines),
     )
 
 
 @cache
 def describe_package(name: str = "bretzel") -> PackageNode:
-    """L'arbre à partir de ``name``, docstrings comprises.
+    """The tree starting from ``name``, docstrings included.
 
-    ``name`` est un chemin pointé (``bretzel.components.inputs``). Lève
-    ``ValueError`` s'il ne désigne pas un paquet — et le message dit ce
-    qui EXISTE au niveau demandé, parce qu'une erreur de frappe sur un
-    nom de dossier est le cas courant.
+    ``name`` is a dotted path (``bretzel.components.inputs``). Raises
+    ``ValueError`` when it does not designate a package — and the message
+    says what EXISTS at the requested level, because a typo in a folder
+    name is the common case.
 
-    Mémoïsée, et il a fallu la mesurer pour le voir
-    ------------------------------------------------
-    Marcher l'arbre parse **344 fichiers à l'AST**, ce qui coûtait
-    **740 ms À CHAQUE APPEL**. Les huit autres lecteurs de ce paquet
-    portent un ``@cache`` depuis toujours ; celui-ci ne l'avait pas, et
-    c'était le plus cher de tous — 150 fois ``index()``, qui met 4,7 ms.
+    Memoised, and it took measuring to see it
+    -----------------------------------------
+    Walking the tree parses **344 files at the AST level**, which cost
+    **740 ms ON EVERY CALL**. The package's eight other readers have
+    carried a ``@cache`` forever; this one did not, and it was the most
+    expensive of all — 150 times ``index()``, which takes 4.7 ms.
 
-    La page ``/tree`` de ``examples/docs`` l'appelait DEUX fois par
-    requête (ici, puis via :func:`package_names`) : **1 340 ms** pour
-    une page, contre 132 ms pour ``/components``.
+    ``examples/docs``'s ``/tree`` page called it TWICE per request (here,
+    then through :func:`package_names`): **1 340 ms** for one page,
+    against 132 ms for ``/components``.
 
-    Sûr parce que le résultat est immuable : ``PackageNode`` est un
-    ``frozen`` dont tous les champs sont des chaînes ou des tuples de
-    ``frozen``. Aucun appelant ne peut donc corrompre l'entrée en cache.
+    Safe because the result is immutable: ``PackageNode`` is a ``frozen``
+    whose every field is a string or a tuple of ``frozen``. No caller can
+    therefore corrupt the cached entry.
 
-    ⚠️ La source est le SYSTÈME DE FICHIERS, pas un objet Python : un
-    dossier ajouté pendant la vie du process n'apparaît pas. En dev ça
-    ne se voit pas — ``mode="dev"`` redémarre le process au moindre
-    fichier touché — et un script qui fabriquerait des paquets à la
-    volée appelle ``describe_package.cache_clear()``, comme le fait
-    ``third_party_components``.
+    ⚠️ The source is the FILE SYSTEM, not a Python object: a folder added
+    during the process's life does not appear. In dev it does not show —
+    ``mode="dev"`` restarts the process at the slightest file touched —
+    and a script fabricating packages on the fly calls
+    ``describe_package.cache_clear()``, as ``third_party_components``
+    does.
     """
     parts = name.split(".")
     if parts[0] != "bretzel":
         raise ValueError(
-            f"describe_package({name!r}) : les paquets décrits ici vivent "
-            f"sous ``bretzel``. Pour un symbole, c'est "
+            f"describe_package({name!r}): the packages described here "
+            f"live under ``bretzel``. For a symbol, it is "
             f"``describe_ui_symbol``."
         )
     path = _ROOT.joinpath(*parts[1:])
     if not _is_package(path):
-        voisins = sorted(
+        siblings = sorted(
             p.name for p in path.parent.iterdir() if _is_package(p)
         ) if path.parent.is_dir() else []
         raise ValueError(
-            f"``{name}`` n'est pas un paquet. Au même niveau : "
-            f"{', '.join(voisins) or '(rien)'}."
+            f"``{name}`` is not a package. At the same level: "
+            f"{', '.join(siblings) or '(none)'}."
         )
     return _build(name, path)
 
@@ -259,74 +257,74 @@ def _build(name: str, path: Path) -> PackageNode:
 
 
 def walk(node: PackageNode) -> list[PackageNode]:
-    """Le nœud et toute sa descendance, en profondeur d'abord."""
+    """The node and all its descendants, depth first."""
     out = [node]
-    for enfant in node.children:
-        out.extend(walk(enfant))
+    for child in node.children:
+        out.extend(walk(child))
     return out
 
 
 def package_names(root: str = "bretzel") -> tuple[str, ...]:
-    """Tous les paquets sous ``root``, chemins pointés, triés."""
+    """Every package under ``root``, dotted paths, sorted."""
     return tuple(n.name for n in walk(describe_package(root)))
 
 
 def render_tree(node: PackageNode, *, max_depth: int | None = None) -> str:
-    """L'arbre en texte — ce que ``bretzel describe <paquet>`` affiche.
+    """The tree as text — what ``bretzel describe <package>`` shows.
 
-    ``max_depth`` compte À PARTIR du nœud demandé, pas de la racine :
-    ``describe bretzel --depth 1`` montre les grands blocs,
-    ``describe bretzel.components --depth 1`` montre ses groupes.
+    ``max_depth`` counts FROM the requested node, not from the root:
+    ``describe bretzel --depth 1`` shows the big blocks,
+    ``describe bretzel.components --depth 1`` shows its groups.
     """
-    lignes: list[str] = []
+    lines: list[str] = []
     base = node.depth
 
-    def _ecrire(n: PackageNode) -> None:
+    def _write(n: PackageNode) -> None:
         relative = n.depth - base
         if max_depth is not None and relative > max_depth:
             return
         indent = "  " * relative
-        resume = f"  — {n.summary}" if n.summary else ""
-        lignes.append(f"{indent}{n.name.split('.')[-1]}/{resume}")
-        for enfant in n.children:
-            _ecrire(enfant)
+        summary = f"  — {n.summary}" if n.summary else ""
+        lines.append(f"{indent}{n.name.split('.')[-1]}/{summary}")
+        for child in n.children:
+            _write(child)
 
-    _ecrire(node)
-    return "\n".join(lignes)
+    _write(node)
+    return "\n".join(lines)
 
 
 def render_package(node: PackageNode) -> str:
-    """La fiche d'un paquet — sa raison d'être, son arbre, ses modules.
+    """A package's card — its reason to exist, its tree, its modules.
 
-    Volontairement PLUS COURTE qu'une fiche de symbole : on vient ici
-    pour savoir « qu'y a-t-il là-dedans », pas pour lire une signature.
-    Le détail d'un symbole reste ``describe <nom>``.
+    Deliberately SHORTER than a symbol's card: one comes here to know
+    "what is in there", not to read a signature. A symbol's detail stays
+    ``describe <name>``.
     """
-    lignes = [f"## {node.name}", ""]
+    lines = [f"## {node.name}", ""]
     if node.doc:
-        # La docstring entière, indentée — c'est ce que l'auteur du
-        # paquet a écrit, et le reformuler ferait diverger les deux.
-        for ligne in node.doc.strip().splitlines():
-            lignes.append(f"  {ligne}" if ligne.strip() else "")
-        lignes.append("")
+        # The whole docstring, indented — it is what the package's
+        # author wrote, and rephrasing it would make the two diverge.
+        for line in node.doc.strip().splitlines():
+            lines.append(f"  {line}" if line.strip() else "")
+        lines.append("")
 
     if node.children:
-        lignes.append(f"  Subpackages ({len(node.children)})")
-        for enfant in node.children:
-            court = enfant.name.split(".")[-1]
-            resume = f"  — {enfant.summary}" if enfant.summary else ""
-            lignes.append(f"    {court}/{resume}")
-        lignes.append("")
+        lines.append(f"  Subpackages ({len(node.children)})")
+        for child in node.children:
+            short = child.name.split(".")[-1]
+            summary = f"  — {child.summary}" if child.summary else ""
+            lines.append(f"    {short}/{summary}")
+        lines.append("")
 
     if node.modules:
-        lignes.append(f"  Modules ({len(node.modules)})")
+        lines.append(f"  Modules ({len(node.modules)})")
         for mod in node.modules:
-            lignes.append(f"    {mod.name:<24}{mod.summary}")
+            lines.append(f"    {mod.name:<24}{mod.summary}")
             for sym in mod.symbols:
-                lignes.append(f"      {sym.name:<22}{sym.summary}")
-        lignes.append("")
+                lines.append(f"      {sym.name:<22}{sym.summary}")
+        lines.append("")
 
     total = len(walk(node))
     if total > 1:
-        lignes.append(f"  {total} packages in total under this node.")
-    return "\n".join(lignes)
+        lines.append(f"  {total} packages in total under this node.")
+    return "\n".join(lines)

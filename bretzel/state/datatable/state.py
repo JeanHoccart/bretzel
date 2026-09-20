@@ -31,11 +31,10 @@ browser.
 
 from __future__ import annotations
 
-# Imports PROFONDS et intra-paquet, pas une plongée : passer par
-# ``bretzel.state`` d'ici serait un import circulaire — c'est
-# ``state/__init__.py`` qui nous charge. Même forme que
-# ``live_connection.py``, qui prend ``ClientState`` chez
-# ``scopes.client``.
+# DEEP intra-package imports, not a dive: going through ``bretzel.state``
+# from here would be a circular import — it is ``state/__init__.py`` that
+# loads us. Same shape as ``live_connection.py``, which takes
+# ``ClientState`` from ``scopes.client``.
 from bretzel.state.datatable.query import Query
 from bretzel.state.fields.descriptor import field
 from bretzel.state.scopes.server import ServerState
@@ -56,36 +55,35 @@ class DatatableState(ServerState, scope="page"):
     """
 
     # Column key currently sorted on. Empty string = source order.
-    sort_key: str = field(default="", url="tri")
+    sort_key: str = field(default="", url="sort")
     # ``"asc"`` / ``"desc"``. Only meaningful while ``sort_key`` is set ;
     # kept across a reset to neutral so re-sorting the same column
     # resumes where it left off rather than always restarting ascending.
-    sort_dir: str = field(default="asc", url="sens")
+    sort_dir: str = field(default="asc", url="dir")
     # 1-indexed, to pair directly with ``ui.pagination`` (whose ``value``
     # runs 1…total_pages).
     page: int = field(default=1, url="p")
-    per_page: int = field(default=20, url="taille")
+    per_page: int = field(default=20, url="size")
     # Global search box. Matched case-insensitively against every
     # column's stringified value.
     search: str = field(default="", url="q")
-    #: ⚠️ ``filters`` n'a **volontairement PAS** de ``url=``, et c'est ce
-    #: qui le tient hors de l'adresse : ``addressable=True`` n'allume que
-    #: les champs que le framework a nommés. Deux raisons, l'une technique
-    #: et l'autre décisive.
+    #: ⚠️ ``filters`` **deliberately has NO** ``url=``, and that is what
+    #: keeps it out of the address: ``addressable=True`` only lights up
+    #: the fields the framework has named. Two reasons, one technical and
+    #: one decisive.
     #:
-    #: Technique : c'est un ``dict``, une query ne porte que des chaînes,
-    #: et il n'existe pas encore de format pour celui-là (la déclaration
-    #: est refusée, cf. :mod:`bretzel.state.url`).
+    #: Technical: it is a ``dict``, a query only carries strings, and no
+    #: format exists for this one yet (the declaration is refused, cf.
+    #: :mod:`bretzel.state.url`).
     #:
-    #: Décisive : une valeur de filtre est ce qu'il y a de plus
-    #: susceptible d'être personnel — ``?statut=en_recouvrement`` finit
-    #: dans les logs d'accès du serveur et dans le ``Referer`` du premier
-    #: lien externe cliqué depuis la page.
+    #: Decisive: a filter value is the most likely thing to be personal —
+    #: ``?status=in_collection`` ends up in the server access logs and in
+    #: the ``Referer`` of the first external link clicked from the page.
     #:
-    #: Si tu veux qu'un filtre SURVIVE sans être publié, ce n'est pas
-    #: l'URL qu'il faut : c'est la portée. ``class Issues(DatatableState,
-    #: scope="session")`` et le filtre traverse les navigations,
-    #: côté serveur, sans rien exposer.
+    #: If you want a filter to SURVIVE without being published, the URL is
+    #: not what you need: the scope is. ``class Issues(DatatableState,
+    #: scope="session")`` and the filter crosses navigations, server-side,
+    #: exposing nothing.
     #
     # Per-column narrowing : ``{column_key: [kept values]}``. A key only
     # appears once the reader has UNTICKED something — "everything ticked"
@@ -109,13 +107,13 @@ class DatatableState(ServerState, scope="page"):
         return Query(
             sort_key=str(self.sort_key),
             sort_dir=str(self.sort_dir),
-            # ``for_export`` : la page est NORMALISEE a 1, pas recopiee.
-            # ``Query.offset`` rend deja 0 dans ce mode, donc la valeur
-            # n'a aucun effet — mais elle est serialisee dans l'URL
-            # signee du bouton CSV, et une URL qui change a chaque
-            # pagination rend la barre d'outils differente a chaque
-            # changement de page. C'est ce qui interdisait de la
-            # preserver (cf. ``Datatable._toolbar_can_be_preserved``).
+            # ``for_export``: the page is NORMALISED to 1, not copied.
+            # ``Query.offset`` already returns 0 in that mode, so the
+            # value has no effect — but it is serialised into the signed
+            # URL of the CSV button, and a URL that changes on every
+            # pagination makes the toolbar different on every page
+            # change. That is what forbade preserving it (cf.
+            # ``Datatable._toolbar_can_be_preserved``).
             page=1 if for_export else int(self.page),
             per_page=max(1, int(self.per_page)),
             search=str(self.search),
@@ -129,14 +127,13 @@ class DatatableState(ServerState, scope="page"):
     def toggle_filter(self, key: str, value: str, domain: list[str]) -> None:
         """Tick / untick one value in ``key``'s filter.
 
-        ⚠️ Plus aucun call-site dans le composant depuis que le panneau
-        applique en UNE action à sa fermeture (``set_filter``). Gardée
-        comme surface publique de ``DatatableState`` : un handler
-        utilisateur peut vouloir basculer une valeur depuis ailleurs (un
-        clic sur un badge de ligne, un raccourci). Si personne ne s'en
-        sert d'ici la 2.0, elle part avec ``toggle_all_filter``.
+        ⚠️ No call site left in the component since the panel applies in
+        ONE action on close (``set_filter``). Kept as public surface of
+        ``DatatableState``: a user handler may want to toggle a value
+        from elsewhere (a click on a row badge, a shortcut). If nobody
+        uses it by 2.0, it goes with ``toggle_all_filter``.
 
-        ``domain`` is the column's full set of values : needed because the
+        ``domain`` is the column's full set of values: needed because the
         first untick has to materialise "all of them except this one" from
         a state that, until now, said nothing about this column at all.
         Ticking the last missing one drops the key again, so an untouched

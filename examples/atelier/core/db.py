@@ -1,31 +1,28 @@
-"""core/db — infra : la base de l'atelier, son schéma et ses portes.
+"""core/db — infra: the workshop's database, its schema and its doors.
 
-Feature ``kind="infra"`` : elle ne rend rien et ne porte aucun ``State``.
-Elle POSSÈDE le fichier SQLite et expose ``query`` / ``scalar`` /
-``execute``. Les features ``*_data`` requêtent par-dessus ; les pages ne
-la touchent jamais. Même découpage que ``examples/crm``, et pour la même
-raison.
+A ``kind="infra"`` feature: it renders nothing and carries no ``State``.
+It OWNS the SQLite file and exposes ``query`` / ``scalar`` / ``execute``.
+The ``*_data`` features query on top of it; the pages never touch it. The
+same split as ``examples/crm``, and for the same reason.
 
-Pourquoi une base et pas une lecture directe
----------------------------------------------
-Les transcripts font **516 Mo sur 70 sessions**. Les relire à chaque
-affichage rendrait tout écran inutilisable, et surtout : la question
-qu'on pose n'est pas « comment s'est passée cette tâche » mais « est-ce
-que ça progresse ». Comparer demande de tout avoir sous la main, donc
-indexé.
+Why a database and not a direct read
+-------------------------------------
+The transcripts are **516 MB over 70 sessions**. Re-reading them at every
+display would make every screen unusable, and above all: the question
+being asked is not "how did this task go" but "is this improving".
+Comparing needs everything at hand, hence indexed.
 
-C'est aussi ce qui fait de cette app un instrument utile au framework :
-une ``ui.datatable`` en mode callable sur dizaines de milliers de lignes,
-qui est le tier que la datatable existe pour servir.
+It is also what makes this app a useful instrument for the framework: a
+``ui.datatable`` in callable mode over tens of thousands of rows, which
+is the tier the datatable exists to serve.
 
-⚠️ Sync, pas ``aiosqlite`` — pour la raison mesurée dans
-``examples/crm/core/db.py`` : une zone ``@refreshable`` ne peut pas être
-``async``, et dans une app réelle toute lecture vit dans une zone. Deux
-couches de données seraient exactement le « se dépanner » que ces
-instruments interdisent.
+⚠️ Sync, not ``aiosqlite`` — for the reason measured in
+``examples/crm/core/db.py``: a ``@refreshable`` zone cannot be ``async``,
+and in a real app every read lives in a zone. Two data layers would be
+exactly the "work around it" these instruments forbid.
 
-Pas d'état global mutable (anti-règle 2) : ``connect()`` ouvre une
-connexion neuve par appel.
+No mutable global state (anti-rule 2): ``connect()`` opens a fresh
+connection per call.
 """
 
 from __future__ import annotations
@@ -35,211 +32,221 @@ from pathlib import Path
 from typing import Any
 
 from bretzel import Feature
-from examples.atelier.core.epoque import JALON
+from examples.atelier.core.era import MILESTONE
 
 DB_PATH = Path(__file__).with_name("atelier.db")
 
-#: Bumpé quand le schéma change : ``init_db`` reconstruit alors les tables
-#: plutôt que de migrer. Une base d'OBSERVATION se rebâtit depuis sa
-#: source en quelques minutes — écrire des migrations pour elle serait du
-#: travail qui ne mesure rien.
-SCHEMA_VERSION = 4
+#: Bumped when the schema changes: ``init_db`` then rebuilds the tables
+#: rather than migrating. An OBSERVATION database rebuilds from its source
+#: in a few minutes — writing migrations for it would be work that
+#: measures nothing.
+SCHEMA_VERSION = 5
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
-    cle    TEXT PRIMARY KEY,
-    valeur TEXT NOT NULL
+    name  TEXT PRIMARY KEY,
+    value TEXT NOT NULL
 );
 
--- Une session = un fichier de transcript = une fenêtre de travail.
+-- A session = a transcript file = a working window.
 CREATE TABLE IF NOT EXISTS sessions (
     id         TEXT PRIMARY KEY,
-    fichier    TEXT NOT NULL,
-    debut      TEXT,
-    fin        TEXT,
+    file       TEXT NOT NULL,
+    started    TEXT,
+    ended      TEXT,
     minutes    REAL    NOT NULL DEFAULT 0,
-    taches     INTEGER NOT NULL DEFAULT 0,
-    -- Les tours de conversation qui n'ont DÉCLENCHÉ aucun outil : « ok »,
-    -- « vas-y », une question à laquelle on répond de mémoire. Ce ne sont
-    -- pas des tâches, et les compter comme telles diluait toutes les
-    -- moyennes — 345 sur 1 857 avant qu'on les sépare. On les compte ici
-    -- plutôt que de les jeter : savoir combien d'échanges il a fallu
-    -- pour un travail donné est une information, simplement pas la même.
-    echanges   INTEGER NOT NULL DEFAULT 0,
-    appels     INTEGER NOT NULL DEFAULT 0,
-    erreurs    INTEGER NOT NULL DEFAULT 0,
-    jetons_in  INTEGER NOT NULL DEFAULT 0,
-    jetons_out INTEGER NOT NULL DEFAULT 0
+    tasks      INTEGER NOT NULL DEFAULT 0,
+    -- The conversation turns that TRIGGERED no tool: "ok", "go ahead", a
+    -- question answered from memory. They are not tasks, and counting
+    -- them as such diluted every average — 345 out of 1 857 before they
+    -- were separated. We count them here rather than throw them away:
+    -- knowing how many exchanges a given piece of work took is
+    -- information, simply not the same one.
+    exchanges  INTEGER NOT NULL DEFAULT 0,
+    calls      INTEGER NOT NULL DEFAULT 0,
+    errors     INTEGER NOT NULL DEFAULT 0,
+    tokens_in  INTEGER NOT NULL DEFAULT 0,
+    tokens_out INTEGER NOT NULL DEFAULT 0
 );
 
--- Une tâche = un message de l'utilisateur jusqu'à la réponse finale.
--- C'est l'unité de jugement : c'est à cette échelle qu'on demande « est-ce
--- que ça a été fait du premier coup ».
-CREATE TABLE IF NOT EXISTS taches (
+-- A task = a user message through to the final answer. It is the unit of
+-- judgement: it is at that scale that one asks "was this done first
+-- time".
+CREATE TABLE IF NOT EXISTS tasks (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL,
-    ordre      INTEGER NOT NULL,
-    debut      TEXT,
-    -- ⚠️ Les minutes de TRAVAIL : du premier appel d'outil au dernier.
-    -- PAS le temps d'horloge entre la demande et la réponse, qui incluait
-    -- le temps où l'utilisateur est parti — mesuré jusqu'à 3 223 minutes,
-    -- soit 53 heures, sur une tâche qui a duré un quart d'heure. Une
-    -- colonne qui ment de deux ordres de grandeur ne se lit plus, elle
-    -- s'ignore.
+    rank       INTEGER NOT NULL,
+    started    TEXT,
+    -- ⚠️ The WORKING minutes: from the first tool call to the last.
+    -- NOT the wall time between the request and the answer, which
+    -- included the time the user was away — measured up to 3 223
+    -- minutes, that is 53 hours, on a task that took a quarter of an
+    -- hour. A column that lies by two orders of magnitude is no longer
+    -- read, it is ignored.
     minutes    REAL    NOT NULL DEFAULT 0,
-    demande    TEXT    NOT NULL DEFAULT '',
-    appels     INTEGER NOT NULL DEFAULT 0,
-    erreurs    INTEGER NOT NULL DEFAULT 0,
+    request    TEXT    NOT NULL DEFAULT '',
+    calls      INTEGER NOT NULL DEFAULT 0,
+    errors     INTEGER NOT NULL DEFAULT 0,
     cycles     INTEGER NOT NULL DEFAULT 0,
-    frise      TEXT    NOT NULL DEFAULT '',
+    strip      TEXT    NOT NULL DEFAULT '',
     verdict    TEXT    NOT NULL DEFAULT '',
-    jetons     INTEGER NOT NULL DEFAULT 0,
-    -- Sur QUOI la tâche a travaillé. C'est ce qui sépare « construire le
-    -- socle » de « écrire une app », et sans quoi les deux se jugent au
-    -- même mètre — ce qui n'a de sens pour aucun des deux.
-    perimetre  TEXT    NOT NULL DEFAULT 'autre',
-    -- A-t-on LU avant d'écrire ? Le temps 1 de la règle des quatre temps.
-    lu_avant   INTEGER NOT NULL DEFAULT 0,
-    -- A-t-on demandé la SURFACE (`describe`) avant d'écrire ? C'est la
-    -- question « est-ce que je consulte, ou est-ce que j'invente ».
+    tokens     INTEGER NOT NULL DEFAULT 0,
+    -- WHAT the task worked on. It is what separates "building the base
+    -- layer" from "writing an app", and without which the two are judged
+    -- by the same yardstick — which makes sense for neither.
+    scope      TEXT    NOT NULL DEFAULT 'other',
+    -- Did we READ before writing? Time 1 of the four-times rule.
+    read_first INTEGER NOT NULL DEFAULT 0,
+    -- Did we ask for the SURFACE (`describe`) before writing? That is the
+    -- question "do I consult, or do I invent".
     surface    INTEGER NOT NULL DEFAULT 0,
-    -- A-t-on fait juger le CONTRAT d'app (`check --deep`) ? C'est la
-    -- question « `Feature()` est-il un atout ou du cosmétique ».
-    contrat    INTEGER NOT NULL DEFAULT 0
+    -- Did we have the app CONTRACT judged (`check --deep`)? That is the
+    -- question "is `Feature()` an asset or cosmetics".
+    contract   INTEGER NOT NULL DEFAULT 0
 );
 
--- Un appel d'outil, avec sa phase. C'est la table de détail : elle porte
--- la frise d'une tâche et le classement par outil.
-CREATE TABLE IF NOT EXISTS appels (
+-- A tool call, with its phase. This is the detail table: it carries a
+-- task's strip and the ranking by tool.
+CREATE TABLE IF NOT EXISTS calls (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    tache_id INTEGER NOT NULL,
-    ordre    INTEGER NOT NULL,
-    horaire  TEXT,
-    outil    TEXT NOT NULL,
+    task_id  INTEGER NOT NULL,
+    rank     INTEGER NOT NULL,
+    at       TEXT,
+    tool     TEXT NOT NULL,
     phase    TEXT NOT NULL,
-    commande TEXT NOT NULL DEFAULT '',
-    erreur   INTEGER NOT NULL DEFAULT 0,
+    command  TEXT NOT NULL DEFAULT '',
+    error    INTEGER NOT NULL DEFAULT 0,
     detail   TEXT NOT NULL DEFAULT '',
-    cible    TEXT NOT NULL DEFAULT ''
+    target   TEXT NOT NULL DEFAULT ''
 );
 
-CREATE INDEX IF NOT EXISTS idx_taches_session ON taches(session_id);
-CREATE INDEX IF NOT EXISTS idx_taches_verdict ON taches(verdict);
-CREATE INDEX IF NOT EXISTS idx_taches_perim   ON taches(perimetre);
-CREATE INDEX IF NOT EXISTS idx_appels_tache   ON appels(tache_id, ordre);
-CREATE INDEX IF NOT EXISTS idx_appels_outil   ON appels(outil);
-CREATE INDEX IF NOT EXISTS idx_appels_phase   ON appels(phase);
+CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_verdict ON tasks(verdict);
+CREATE INDEX IF NOT EXISTS idx_tasks_scope   ON tasks(scope);
+CREATE INDEX IF NOT EXISTS idx_calls_task    ON calls(task_id, rank);
+CREATE INDEX IF NOT EXISTS idx_calls_tool    ON calls(tool);
+CREATE INDEX IF NOT EXISTS idx_calls_phase   ON calls(phase);
 """
 
 
-#: ⚠️ CE QUE LES ÉCRANS LISENT. Les tables portent tout ce qui a été
-#: aspiré ; les vues s'arrêtent au jalon de :mod:`core.epoque`. Une vue
-#: et non une clause recopiée : les features de données font vingt-six
-#: lectures, donc vingt-six occasions d'oublier la coupure — et une
-#: statistique qui inclut en silence des tâches d'avant les instruments
-#: est exactement le chiffre faux qu'on cherche à éviter.
+#: ⚠️ WHAT THE SCREENS READ. The tables carry everything that was
+#: ingested; the views stop at :mod:`core.era`'s milestone. A view and
+#: not a copied clause: the data features make twenty-six reads, hence
+#: twenty-six chances to forget the cut-off — and a statistic that
+#: silently includes tasks from before the instruments is exactly the
+#: wrong figure we are trying to avoid.
 #:
-#: L'aspiration, elle, écrit dans les TABLES : rien n'est perdu, et
-#: reculer le jalon d'un jour se fait sans ré-aspirer 516 Mo.
-VUES = f"""
-DROP VIEW IF EXISTS taches_epoque;
-DROP VIEW IF EXISTS appels_epoque;
-DROP VIEW IF EXISTS sessions_epoque;
+#: The ingest, for its part, writes into the TABLES: nothing is lost, and
+#: moving the milestone back by a day needs no re-ingest of 516 MB.
+VIEWS = f"""
+DROP VIEW IF EXISTS tasks_era;
+DROP VIEW IF EXISTS calls_era;
+DROP VIEW IF EXISTS sessions_era;
 
-CREATE VIEW taches_epoque AS
-    SELECT * FROM taches WHERE debut >= '{JALON}';
+CREATE VIEW tasks_era AS
+    SELECT * FROM tasks WHERE started >= '{MILESTONE}';
 
-CREATE VIEW appels_epoque AS
-    SELECT a.* FROM appels a
-    JOIN taches t ON t.id = a.tache_id
-    WHERE t.debut >= '{JALON}';
+CREATE VIEW calls_era AS
+    SELECT c.* FROM calls c
+    JOIN tasks t ON t.id = c.task_id
+    WHERE t.started >= '{MILESTONE}';
 
-CREATE VIEW sessions_epoque AS
+CREATE VIEW sessions_era AS
     SELECT * FROM sessions
-    WHERE id IN (SELECT session_id FROM taches_epoque);
+    WHERE id IN (SELECT session_id FROM tasks_era);
 """
 
-#: Repartir de zéro, sans toucher au FICHIER. Windows verrouille un
-#: fichier ouvert : tant qu'une fenêtre de l'atelier est affichée, un
-#: ``unlink`` lève ``WinError 32`` et l'aspiration échoue. Un job qui
-#: exige qu'on ferme l'app qu'il alimente ne sert à rien — mesuré le
-#: 2026-09-12, deux serveurs ouverts, aucune ré-aspiration possible.
-#: Les index tombent avec leur table.
-VIDER = """
-DROP VIEW IF EXISTS taches_epoque;
-DROP VIEW IF EXISTS appels_epoque;
-DROP VIEW IF EXISTS sessions_epoque;
-DROP TABLE IF EXISTS appels;
-DROP TABLE IF EXISTS taches;
+#: Start over, without touching the FILE. Windows locks an open file: as
+#: long as a workshop window is displayed, an ``unlink`` raises
+#: ``WinError 32`` and the ingest fails. A job that requires closing the
+#: app it feeds is useless — measured on 2026-09-12, two servers open, no
+#: re-ingest possible. The indexes fall with their table.
+DROP_ALL = """
+DROP VIEW IF EXISTS tasks_era;
+DROP VIEW IF EXISTS calls_era;
+DROP VIEW IF EXISTS sessions_era;
+DROP TABLE IF EXISTS calls;
+DROP TABLE IF EXISTS tasks;
 DROP TABLE IF EXISTS sessions;
 DROP TABLE IF EXISTS meta;
 """
 
 
 def connect() -> sqlite3.Connection:
-    """Une connexion neuve (rows en accès dict-like)."""
+    """A fresh connection (rows with dict-like access)."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def query(sql: str, params: tuple = ()) -> list[sqlite3.Row]:
-    """Les lignes d'un SELECT."""
+    """A SELECT's rows."""
     with connect() as conn:
         return conn.execute(sql, params).fetchall()
 
 
 def scalar(sql: str, params: tuple = ()) -> Any:
-    """La première colonne de la première ligne — ``None`` si rien."""
+    """The first column of the first row — ``None`` if nothing."""
     with connect() as conn:
         row = conn.execute(sql, params).fetchone()
     return None if row is None else row[0]
 
 
 def execute(sql: str, params: tuple = ()) -> None:
-    """Une écriture."""
+    """A write."""
     with connect() as conn:
         conn.execute(sql, params)
 
 
 def init_db(*, reset: bool = False) -> None:
-    """Crée le schéma. ``reset`` repart de tables vides.
+    """Create the schema. ``reset`` starts again from empty tables.
 
-    La version du schéma est relue à chaque démarrage : une base écrite
-    par une version antérieure est jetée plutôt que migrée, parce qu'elle
-    se rebâtit depuis les transcripts.
+    The schema version is re-read at every startup: a database written by
+    an earlier version is thrown away rather than migrated, because it
+    rebuilds from the transcripts.
     """
     with connect() as conn:
         if reset:
-            conn.executescript(VIDER)
+            conn.executescript(DROP_ALL)
         conn.executescript(SCHEMA)
-        conn.executescript(VUES)
-        courante = conn.execute(
-            "SELECT valeur FROM meta WHERE cle = 'schema_version'"
-        ).fetchone()
-        if courante is not None and int(courante[0]) != SCHEMA_VERSION:
-            conn.executescript(VIDER)
+        conn.executescript(VIEWS)
+        # ⚠️ The read itself can RAISE, and that is a stale schema too.
+        # ``CREATE TABLE IF NOT EXISTS`` leaves an older ``meta`` alone,
+        # so a version bump that renamed its columns gets
+        # ``no such column`` here — before the comparison below could
+        # ever say so. Met on 2026-09-20, renaming the schema to
+        # English: the app would not start at all, on a database it was
+        # perfectly able to rebuild.
+        try:
+            current = conn.execute(
+                "SELECT value FROM meta WHERE name = 'schema_version'"
+            ).fetchone()
+        except sqlite3.OperationalError:
+            current = (str(SCHEMA_VERSION - 1),)
+        if current is not None and int(current[0]) != SCHEMA_VERSION:
+            conn.executescript(DROP_ALL)
             conn.executescript(SCHEMA)
-            conn.executescript(VUES)
+            conn.executescript(VIEWS)
         conn.execute(
-            "INSERT OR REPLACE INTO meta (cle, valeur) VALUES ('schema_version', ?)",
+            "INSERT OR REPLACE INTO meta (name, value) "
+            "VALUES ('schema_version', ?)",
             (str(SCHEMA_VERSION),),
         )
 
 
 def is_seeded() -> bool:
-    """Y a-t-il quelque chose à regarder ?
+    """Is there anything to look at?
 
-    L'app doit pouvoir démarrer sur une base VIDE et le dire, plutôt que
-    de rendre des écrans creux : le transcript est une source externe,
-    elle peut ne pas avoir encore été aspirée.
+    The app must be able to start on an EMPTY database and say so, rather
+    than render hollow screens: the transcript is an external source, it
+    may not have been ingested yet.
     """
-    return bool(DB_PATH.exists() and (scalar("SELECT COUNT(*) FROM taches") or 0))
+    return bool(DB_PATH.exists() and (scalar("SELECT COUNT(*) FROM tasks") or 0))
 
 
 feature = Feature(
     name="db",
     kind="infra",
-    uses=["epoque"],
+    uses=["era"],
     provides=[connect, query, scalar, execute, init_db, is_seeded],
 )

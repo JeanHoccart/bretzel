@@ -1,22 +1,21 @@
-"""kanban/state — ce que chacun regarde, par-dessus le tableau commun.
+"""kanban/state — what each person looks at, on top of the common board.
 
-Le tableau lui-même vit dans ``donnees.Tableau`` (``AppState``) : il est
-le même pour tout le monde. Tout ce qui est ici est PERSONNEL, et la
-portée le dit sans qu'un commentaire ait à le rappeler.
+The board itself lives in ``donnees.Tableau`` (``AppState``): it is the
+same for everyone. Everything here is PERSONAL, and the scope says so
+without a comment having to repeat it.
 
-- :class:`Moi` est un ``SessionState`` : qui je suis tient au cookie,
-  donc deux fenêtres du même navigateur sont la même personne et une
-  fenêtre privée en est une autre. C'est ce qui rend l'essai à deux
-  écrans lisible.
-- :class:`Vue` et :class:`Filtres` sont des ``PageState`` : ce que je
-  regarde ne regarde que moi. Filtrer sur mes cartes ne doit rien changer
-  chez les autres — et c'est précisément pour ça que ces états ne sont
-  **pas** diffusés (cf. ``broadcast=`` dans ``tableau.py``).
+- :class:`Moi` is a ``SessionState``: who I am hangs on the cookie, so
+  two windows of the same browser are the same person and a private
+  window is another. That is what makes the two-screen trial readable.
+- :class:`Vue` and :class:`Filtres` are ``PageState``: what I look at
+  concerns only me. Filtering on my cards must change nothing for the
+  others — and that is precisely why these states are **not** broadcast
+  (cf. ``broadcast=`` in ``tableau.py``).
 
-**Rien n'est adressable ici, et c'est une décision.** ``URL = {…}`` est
-la mécanique que met en scène ``examples/messagerie`` ; la reprendre
-donnerait deux sujets à une app qui en démontre un. Le lien vers une
-carte est donc le premier manque assumé de cet exemple.
+**Nothing is addressable here, and that is a decision.** ``URL = {…}`` is
+the mechanic ``examples/messagerie`` stages; taking it up would give two
+subjects to an app that demonstrates one. A link to a card is therefore
+this example's first acknowledged gap.
 """
 
 from __future__ import annotations
@@ -33,15 +32,15 @@ from examples.kanban.features.donnees import CLES, LIB_ETIQUETTE, NOMS
 
 
 class Moi(SessionState):
-    """Qui je suis sur ce tableau.
+    """Who I am on this board.
 
-    Il n'y a pas d'authentification : cet exemple met en scène l'état
-    partagé, et une page de connexion est le sujet d'``auth``. Le
-    sélecteur du bandeau permet donc de changer d'identité en un clic,
-    ce qui suffit à voir un journal signé de plusieurs mains.
+    There is no authentication: this example stages shared state, and a
+    login page is ``auth``'s subject. The banner's selector therefore
+    lets you change identity in one click, which is enough to see a
+    journal signed by several hands.
 
-    ``SessionState`` et non ``PageState`` : changer d'identité dans un
-    onglet doit valoir pour tous les onglets de la même personne.
+    ``SessionState`` and not ``PageState``: changing identity in one tab
+    must hold for all the tabs of the same person.
     """
 
     membre: str = field(default="cam")
@@ -52,20 +51,20 @@ class Moi(SessionState):
 
 
 class Vue(PageState):
-    """Ce que cette page affiche en plus du tableau.
+    """What this page shows on top of the board.
 
-    ``ouverte`` porte l'identifiant de la carte montrée dans le tiroir,
-    ``tiroir`` dit s'il est déployé. Deux champs pour une idée, et c'est
-    le socle qui l'impose :
+    ``ouverte`` carries the identifier of the card shown in the drawer,
+    ``tiroir`` says whether it is open. Two fields for one idea, and it
+    is the base layer that imposes it:
 
-    ⚠️ ``open=`` d'un overlay ne se resynchronise depuis le serveur que
-    si la valeur passée porte encore sa PROVENANCE — un champ d'état, pas
-    une expression. ``open=vue.ouverte != ""`` rend un ``bool`` Python
-    ordinaire : le socle ne peut plus dire d'où il vient, n'émet pas le
-    marqueur de resynchronisation, et le tiroir garde son état client à
-    travers le morph. Mesuré : la carte s'affichait bien dans le panneau,
-    et le panneau restait fermé. C'est la même famille que la règle
-    ``etat-perdu-par-un-cast`` de ``bretzel check``.
+    ⚠️ An overlay's ``open=`` only resynchronises from the server if the
+    value passed still carries its PROVENANCE — a state field, not an
+    expression. ``open=vue.ouverte != ""`` returns an ordinary Python
+    ``bool``: the base layer can no longer say where it comes from, does
+    not emit the resynchronisation marker, and the drawer keeps its
+    client state across the morph. Measured: the card did appear in the
+    panel, and the panel stayed closed. It is the same family as
+    ``bretzel check``'s ``state-lost-by-a-cast`` rule.
     """
 
     ouverte: str = field(default="")
@@ -73,34 +72,36 @@ class Vue(PageState):
 
 
 class Affichage(ClientState):
-    """Ce qui est déployé à l'écran, et rien d'autre.
+    """What is unfolded on screen, and nothing else.
 
-    ``ClientState`` parce que montrer ou cacher une colonne ne regarde
-    personne d'autre et ne change aucune donnée : le faire voyager
-    jusqu'au serveur coûtait un aller-retour et un re-rendu de zone pour
-    basculer une classe. Les deux versions — le panneau et son rail — sont
-    rendues, et ``visible=`` en cache une. Zéro requête.
+    ``ClientState`` because showing or hiding a column concerns nobody
+    else and changes no data: making it travel to the server cost a round
+    trip and a zone re-render to flip a class. Both versions — the panel
+    and its rail — are rendered, and ``visible=`` hides one. Zero
+    requests.
 
-    C'est le pendant exact du choix inverse pris pour :class:`Filtres`
-    juste dessous : là-bas le serveur DOIT savoir, ici non.
+    It is the exact counterpart of the opposite choice taken for
+    :class:`Filtres` just below: there the server MUST know, here it must
+    not.
     """
 
     activite: bool = field(default=True)
 
 
 class Filtres(PageState):
-    """Les trois filtres du bandeau. Serveur, pas client — et pourquoi.
+    """The banner's three filters. Server side, not client — and why.
 
-    ``examples/messagerie`` filtre dans le navigateur avec
-    ``ui.filter_each`` : zéro requête par frappe. Ici ce serait un bug.
-    Un filtre client laisse les cartes masquées DANS le DOM ; le socle
-    lit l'index d'un dépôt parmi les éléments glissables réellement
-    présents, donc déposer « en deuxième position » d'une colonne
-    filtrée viserait des voisins invisibles, et la carte atterrirait
-    ailleurs que là où le doigt l'a lâchée.
+    ``examples/messagerie`` filters in the browser with
+    ``ui.filter_each``: zero requests per keystroke. Here that would be a
+    bug. A client filter leaves the hidden cards IN the DOM; the base
+    layer reads a drop's index among the draggable elements really
+    present, so dropping "in second position" of a filtered column would
+    aim at invisible neighbours, and the card would land somewhere other
+    than where the finger let it go.
 
-    Le serveur, lui, filtre et calcule les voisins avec la MÊME fonction
-    (``donnees.colonne_de``), donc les deux ne peuvent pas diverger.
+    The server, for its part, filters and computes the neighbours with
+    the SAME function (``donnees.colonne_de``), so the two cannot
+    diverge.
     """
 
     qui: str = field(default="tous")
@@ -117,43 +118,43 @@ class Filtres(PageState):
 
 
 class Fiche(PageState):
-    """QUELLE carte le brouillon du tiroir appartient à.
+    """WHICH card the drawer's draft belongs to.
 
-    Un seul champ, écrit par le serveur à l'ouverture. C'est lui qui
-    empêche d'enregistrer le brouillon d'une carte sur une autre quand
-    l'enregistrement part pendant qu'on en ouvrait une autre.
+    A single field, written by the server on opening. It is what stops a
+    card's draft being saved onto another one when the save leaves while
+    another is being opened.
     """
 
     carte_id: str = field(default="")
 
 
 class Brouillon(ClientState):
-    """Ce qu'on est en train d'écrire dans le tiroir.
+    """What is being written in the drawer.
 
-    ⚠️ **``ClientState``, et il a fallu une mesure pour l'écrire.** Ces
-    champs vivaient dans le ``PageState`` ci-dessus, donc ils étaient
-    rendus par le serveur — à l'intérieur d'une zone qui déclare
-    ``broadcast=[Tableau]``. Conséquence : **n'importe qui déplaçait une
-    carte, et ce que tu tapais disparaissait.** Mesuré à deux sessions le
-    2026-09-09 — B écrit « brouillon en cours » sans envoyer, A glisse une
-    carte à l'autre bout du tableau, et quatre secondes plus tard le champ
-    de B est vide et son titre est revenu à celui du serveur.
+    ⚠️ **``ClientState``, and it took a measurement to write it.** These
+    fields lived in the ``PageState`` above, so they were rendered by the
+    server — inside a zone declaring ``broadcast=[Tableau]``.
+    Consequence: **anybody moved a card, and what you were typing
+    vanished.** Measured across two sessions on 2026-09-09 — B writes
+    "brouillon en cours" without sending, A drags a card to the other end
+    of the board, and four seconds later B's field is empty and their
+    title has gone back to the server's.
 
-    Une valeur de ``ClientState`` vit dans le magasin du navigateur : le
-    morph la réapplique, donc elle survit à un re-rendu venu d'ailleurs.
-    C'est la même décision que la rédaction d'``examples/messagerie``, et
-    pour la même raison.
+    A ``ClientState`` value lives in the browser's store: the morph
+    reapplies it, so it survives a re-render coming from elsewhere. It is
+    the same decision as ``examples/messagerie``'s composing, and for the
+    same reason.
 
-    Le serveur peut quand même l'AMORCER — ``logic.charger`` recopie la
-    carte ouverte dedans, et la valeur redescend dans le patch. Écrire un
-    état client depuis un handler est un chemin normal du socle, pas un
-    détour.
+    The server can still SEED it — ``logic.charger`` copies the open card
+    into it, and the value comes back down in the patch. Writing a client
+    state from a handler is a normal path of the base layer, not a
+    detour.
 
-    Deux régimes se lisent encore à l'écran : le titre, la description,
-    l'assigné, l'échéance et les points attendent « Enregistrer » — les
-    écrire à chaque frappe ferait une écriture partagée par caractère.
-    Les étiquettes, les sous-tâches et les commentaires partent au clic,
-    parce qu'un clic EST déjà la décision.
+    Two regimes still read on screen: the title, the description, the
+    assignee, the due date and the points wait for "Enregistrer" —
+    writing them at every keystroke would make one shared write per
+    character. The labels, the subtasks and the comments leave on the
+    click, because a click IS already the decision.
     """
 
     titre: str = field(default="")
@@ -162,8 +163,8 @@ class Brouillon(ClientState):
     echeance: str = field(default="")
     points: int = field(default=0)
 
-    #: Les deux champs d'ajout du tiroir. Ils se vident après usage, donc
-    #: ils ne font pas partie du brouillon qu'on enregistre.
+    #: The drawer's two add fields. They empty after use, so they are not
+    #: part of the draft one saves.
     sous_tache: str = field(default="")
     commentaire: str = field(default="")
 
@@ -171,33 +172,33 @@ class Brouillon(ClientState):
 
 
 class Avancement(ClientState):
-    """Combien de sous-tâches sont cochées, tenu DANS le navigateur.
+    """How many subtasks are ticked, kept IN the browser.
 
-    La vérité reste le tableau : c'est lui que le serveur écrit, et c'est
-    de lui que ce compteur est réamorcé à chaque rendu du tiroir. Mais
-    cocher une case déplace la barre **avant** que la requête parte, au
-    lieu d'attendre les 180 Ko de la réponse. C'est de l'optimiste au sens
-    strict — le client avance, le serveur arbitre, le rendu suivant
-    recale. Sans lui la barre était juste et EN RETARD, ce qui est le pire
-    des deux : le geste a l'air de n'avoir rien fait.
+    The truth stays the board: it is what the server writes, and it is
+    from it that this counter is re-seeded at every render of the drawer.
+    But ticking a box moves the bar **before** the request leaves,
+    instead of waiting for the response's 180 kB. It is optimism in the
+    strict sense — the client goes ahead, the server arbitrates, the next
+    render realigns. Without it the bar was right and LATE, which is the
+    worst of the two: the gesture looks as if it did nothing.
 
-    ⚠️ **Une classe à part, et c'est la mesure qui l'impose.** Ce champ a
-    d'abord vécu dans :class:`Brouillon`. Écrire UNE valeur d'un état
-    client depuis le serveur renvoie l'objet ENTIER dans le patch : la
-    réconciliation de ce compteur remettait donc aussi ``commentaire`` à
-    la valeur que le serveur croyait, c'est-à-dire vide. Mesuré — on
-    tape, la réponse d'un geste voisin arrive 1,2 s plus tard, et le
-    champ se vide tout seul.
+    ⚠️ **A separate class, and it is the measurement that imposes it.**
+    This field first lived in :class:`Brouillon`. Writing ONE value of a
+    client state from the server sends the WHOLE object back in the
+    patch: reconciling this counter therefore also put ``commentaire``
+    back to the value the server believed, that is, empty. Measured — you
+    type, a neighbouring gesture's response arrives 1.2 s later, and the
+    field empties on its own.
 
-    La règle qui en sort : **un brouillon que l'humain édite et une
-    valeur que le serveur recale ne partagent pas une classe.**
+    The rule that comes out of it: **a draft the human edits and a value
+    the server realigns do not share a class.**
     """
 
     faites: int = field(default=0)
 
 
 class Nouvelle(PageState):
-    """La carte qu'on est en train de créer, dans le dialogue."""
+    """The card being created, in the dialog."""
 
     titre: str = field(default="")
     colonne: str = field(default="a_faire")

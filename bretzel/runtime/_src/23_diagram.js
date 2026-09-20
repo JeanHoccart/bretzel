@@ -1,32 +1,32 @@
-/* 23_diagram.js — la mise en évidence des voisins, dans `ui.diagram`.
+/* 23_diagram.js — the highlighting of neighbours, in `ui.diagram`.
  *
- * Le graphe est PLACÉ côté serveur : positions, couches, tracés, tout
- * arrive calculé. Ce fichier ne place rien. Il ne fait qu'une chose, et
- * elle est purement locale : quand on désigne un nœud, tout ce qui n'est
- * pas relié s'estompe.
+ * The graph is LAID OUT on the server: positions, layers, paths, it all
+ * arrives computed. This file lays out nothing. It does one thing, and
+ * it is purely local: when you designate a node, everything that is not
+ * connected dims.
  *
- * Pourquoi ça ne peut pas être un aller-retour
- * ---------------------------------------------
- * Éclairer ne change pas QUELS nœuds existent, seulement lesquels sont
- * en avant. Passer par le serveur pour ça coûterait une requête et un
- * morph par désignation, pour un résultat que le navigateur connaît
- * déjà : l'adjacence est cuite dans le DOM au rendu.
+ * Why it cannot be a round trip
+ * ------------------------------
+ * Lighting up does not change WHICH nodes exist, only which are in the
+ * foreground. Going through the server for that would cost a request and
+ * a morph per designation, for a result the browser already knows: the
+ * adjacency is baked into the DOM at render.
  *
- * Ce que le serveur garde, lui, c'est le RESSERREMENT (`focus=`) — là
- * les nœuds dessinés changent, donc le placement change, donc il faut
- * re-rendre. Les deux gestes se ressemblent à l'écran et n'ont pas le
- * même coût ; c'est la seule raison pour laquelle ils sont séparés.
+ * What the server does keep is the NARROWING (`focus=`) — there the
+ * drawn nodes change, so the layout changes, so it has to re-render. The
+ * two gestures look alike on screen and do not have the same cost; that
+ * is the only reason they are separate.
  *
- * Pourquoi un slab plutôt qu'une expression par nœud
- * ---------------------------------------------------
- * Même raison que 16_accordion : sérialiser ces corps de méthode dans le
- * `bz-data` de chaque nœud ferait 120 octets × N. Ici seule l'ADJACENCE
- * voyage — un tableau de clés par nœud, la seule chose qui diffère
- * réellement d'un nœud à l'autre.
+ * Why a slab rather than an expression per node
+ * ----------------------------------------------
+ * Same reason as 16_accordion: serialising these method bodies into
+ * every node's `bz-data` would be 120 bytes × N. Here only the ADJACENCY
+ * travels — an array of keys per node, the only thing that really
+ * differs from one node to the next.
  *
- * ⚠️ Des MÉTHODES, jamais des getters : `scope.absorb` invoque chaque clé
- * à l'enregistrement et figerait un getter sur sa première valeur
- * (cf. traps.md).
+ * ⚠️ METHODS, never getters: `scope.absorb` invokes each key at
+ * registration and would freeze a getter on its first value (cf.
+ * traps.md).
  */
 (function () {
   "use strict";
@@ -34,16 +34,16 @@
 
   $bz.diagram = {
     scope: {
-      /* La sélection — LUE ET ÉCRITE par `_read` / `_write`.
+      /* The selection — READ AND WRITTEN by `_read` / `_write`.
        *
-       * Ces deux-là portent l'indirection : les mêmes méthodes servent
-       * le champ local `value` (aucun binding) et la cellule du magasin
-       * (`value=` lié à un `ClientState`). C'est l'idiome de `tree` et
-       * de `toggle_group` — sans lui, chaque méthode devrait tester en
-       * quel mode elle tourne.
+       * These two carry the indirection: the same methods serve the
+       * local `value` field (no binding) and the store cell (a `value=`
+       * bound to a `ClientState`). It is `tree`'s and `toggle_group`'s
+       * idiom — without it, every method would have to test which mode
+       * it is running in.
        *
-       * Pas de getter : `scope.absorb` invoque chaque clé une fois à
-       * l'enregistrement et le figerait sur sa première valeur.
+       * No getter: `scope.absorb` invokes each key once at registration
+       * and would freeze it on its first value.
        */
       _read() {
         return this.value;
@@ -52,31 +52,32 @@
         this.value = v;
       },
 
-      /* Désigner `key`, dont `adj` liste les voisins (lui compris).
+      /* Designate `key`, whose neighbours `adj` lists (itself
+       * included).
        *
-       * Recliquer le nœud déjà désigné éteint. C'est la seule sortie au
-       * clavier et au doigt — sans elle on reste éclairé sans savoir
-       * comment revenir, et il n'y a pas de survol pour s'en sortir sur
-       * un écran tactile. */
+       * Re-clicking the already designated node switches off. It is the
+       * only way out from the keyboard and the finger — without it you
+       * stay lit with no way of knowing how to come back, and there is
+       * no hover to get out of it on a touch screen. */
       light(key) {
         this._write(
           String(this._read() || "") === String(key) ? "" : String(key)
         );
       },
 
-      /* Ce nœud doit-il rester en avant ?
+      /* Must this node stay in the foreground?
        *
-       * DÉRIVÉ de la sélection, jamais stocké. La première version
-       * gardait un tableau `lit` que `light()` remplissait — et ce
-       * tableau ne bougeait pas quand la sélection changeait depuis
-       * DEHORS (un `select` lié au même `ClientState`, un
-       * `state.node.set(...)`). Le magasin suivait, l'écran non :
-       * mesuré à `dim = 0` là où un clic donnait 3.
+       * DERIVED from the selection, never stored. The first version kept
+       * a `lit` array that `light()` filled — and that array did not
+       * move when the selection changed from OUTSIDE (a `select` bound
+       * to the same `ClientState`, a `state.node.set(...)`). The store
+       * followed, the screen did not: measured at `dim = 0` where a
+       * click gave 3.
        *
-       * `adj` est l'adjacence du nœud, cuite par le serveur dans son
-       * `bz-class`. On teste donc « le sélectionné est-il MON voisin »
-       * plutôt que l'inverse — c'est le même prédicat, et il ne demande
-       * aucun état.
+       * `adj` is the node's adjacency, baked by the server into its
+       * `bz-class`. So we test "is the selected one MY neighbour" rather
+       * than the other way round — it is the same predicate, and it
+       * requires no state.
        */
       isLit(key, adj) {
         const sel = String(this._read() || "");
@@ -90,20 +91,20 @@
         this._write("");
       },
 
-      /* Armer le clic-hors-du-diagramme, une seule fois.
+      /* Arm the click-outside-the-diagram, once only.
        *
-       * Désigner un nœud est un geste de lecture : on doit pouvoir en
-       * sortir en cliquant n'importe où, pas seulement en retrouvant le
-       * nœud qu'on avait désigné. Sans ça on reste éclairé, et sur un
-       * écran tactile il n'y a même pas de survol pour s'en douter.
+       * Designating a node is a reading gesture: you must be able to get
+       * out of it by clicking anywhere, not only by finding the node you
+       * had designated. Without that you stay lit, and on a touch screen
+       * there is not even a hover to suspect it.
        *
-       * `$bz.helpers.clickOutside` plutôt qu'un écouteur maison : c'est
-       * lui que les overlays utilisent, il est en phase de CAPTURE (donc
-       * un `stopPropagation` intérieur ne l'étouffe pas) et il rend son
-       * désabonnement.
+       * `$bz.helpers.clickOutside` rather than a home-made listener: it
+       * is the one the overlays use, it is in the CAPTURE phase (so an
+       * inner `stopPropagation` does not smother it) and it returns its
+       * unsubscribe.
        *
-       * Idempotent : `bz-effect` est réévalué après chaque morph, et
-       * sans le drapeau on empilerait un écouteur par rafraîchissement.
+       * Idempotent: `bz-effect` is re-evaluated after every morph, and
+       * without the flag we would stack one listener per refresh.
        */
       arm(el) {
         if (!el || el._bzDiagramOff) return;
@@ -113,13 +114,14 @@
         });
       },
 
-      /* Une arête reste en avant si elle TOUCHE le nœud désigné.
+      /* An edge stays in the foreground if it TOUCHES the designated
+       * node.
        *
-       * « Incidente », et pas « ses deux extrémités sont éclairées » :
-       * deux voisins d'un même nœud sont tous deux en avant, mais
-       * l'arête qui les relie l'un à l'autre ne dit rien de ce qu'on a
-       * désigné. La garder allumée remplissait l'écran de ce qu'on
-       * cherchait justement à retirer. */
+       * "Incident", and not "both its ends are lit": two neighbours of
+       * one node are both in the foreground, but the edge linking them
+       * to each other says nothing about what was designated. Keeping it
+       * lit filled the screen with what we were precisely trying to
+       * remove. */
       isEdgeLit(a, b) {
         const sel = String(this._read() || "");
         return !sel || sel === a || sel === b;

@@ -1,9 +1,9 @@
-"""Ce qu'une règle rend, et ce que la commande en fait.
+"""What a rule returns, and what the command does with it.
 
-Séparé des règles pour une raison de fond : une règle ne décide **ni** de
-la gravité globale, **ni** du format, **ni** du code de sortie. Elle
-constate. C'est ce qui permet au même jeu de règles de servir une gate
-pytest, un CLI, et un consommateur en process.
+Separated from the rules for a fundamental reason: a rule decides
+**neither** the overall severity, **nor** the format, **nor** the exit
+code. It reports. That is what lets the same set of rules serve a pytest
+gate, a CLI, and an in-process consumer.
 """
 
 from __future__ import annotations
@@ -17,12 +17,13 @@ SCHEMA_VERSION = "1.0"
 
 @dataclass(frozen=True)
 class Finding:
-    """Un constat, localisé, avec de quoi agir.
+    """One finding, located, with enough to act on.
 
-    ``hint`` n'est pas décoratif : dans ce dépôt la norme d'un refus est
-    « le refus est une aide, pas un mur » (cf. ``reject_dead_alpine_attr``,
-    qui pointe l'équivalent ``bz-``). Un findings sans issue proposée fait
-    perdre le même temps que l'absence de message.
+    ``hint`` is not decorative: in this repository the norm for a refusal
+    is "the refusal is a help, not a wall" (cf.
+    ``reject_dead_alpine_attr``, which points at the ``bz-``
+    equivalent). A finding with no suggested way out wastes as much time
+    as no message at all.
     """
 
     rule: str
@@ -42,8 +43,8 @@ class Finding:
 
 @dataclass
 class Report:
-    """L'agrégat d'un passage. ``exit_code`` est la seule traduction en
-    verdict, et elle vit ici — pas dans une règle."""
+    """One pass's aggregate. ``exit_code`` is the only translation into a
+    verdict, and it lives here — not in a rule."""
 
     findings: list[Finding] = field(default_factory=list)
     files_scanned: int = 0
@@ -56,10 +57,10 @@ class Report:
     def format(self, *, root: Path | None = None) -> str:
         if not self.findings:
             return (
-                f"OK — {self.files_scanned} fichiers, {len(self.rules_run)} règles, aucun constat."
+                f"OK — {self.files_scanned} files, {len(self.rules_run)} rules, no finding."
             )
         body = "\n".join(f.format(root=root) for f in self.findings)
         return (
-            f"{body}\n\n{len(self.findings)} constat(s) sur "
-            f"{self.files_scanned} fichiers ({len(self.rules_run)} règles)."
+            f"{body}\n\n{len(self.findings)} finding(s) across "
+            f"{self.files_scanned} files ({len(self.rules_run)} rules)."
         )

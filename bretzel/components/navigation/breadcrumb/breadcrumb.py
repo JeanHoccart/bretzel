@@ -3,10 +3,10 @@
 A flat row of links separated by a marker (chevron by default), with
 the final entry rendered as plain text (the current location).
 
-Deux niveaux, et c'est **l'auteur qui possède la boucle**
-(``COLLECTION_OWNER = "author"``, cf. ``Component``) :
+Two tiers, and it is **the author who owns the loop**
+(``COLLECTION_OWNER = "author"``, cf. ``Component``):
 
-**Niveau 1 — le raccourci**, quand le fil n'est que du texte ::
+**Tier 1 — the shortcut**, when the trail is only text ::
 
     ui.breadcrumb([
         {"label": "Home", "href": "/"},
@@ -18,7 +18,7 @@ Items can be plain dicts, ``(label, href)`` tuples, or bare strings ;
 the last item becomes the ``current`` segment whether or not it has an
 ``href`` — the trail's last node is by definition where the user is.
 
-**Niveau 2 — les enfants**, dès qu'un segment veut du balisage ::
+**Tier 2 — the children**, as soon as a segment wants markup ::
 
     with ui.breadcrumb():
         ui.breadcrumb_item("Home", href="/")
@@ -27,13 +27,14 @@ the last item becomes the ``current`` segment whether or not it has an
             ui.text("Projects")
         ui.breadcrumb_item("Tracker")
 
-C'est la forme de :class:`~bretzel.components.inputs.ToggleGroup`, et
-l'idiome de dix des onze collections du catalogue. Le composant sait
-tout seul quel segment est le dernier — l'auteur n'a pas à le lui dire.
+It is :class:`~bretzel.components.inputs.ToggleGroup`'s shape, and the
+idiom of ten of the catalogue's eleven collections. The component knows
+by itself which segment is the last — the author does not have to tell
+it.
 
-Pour personnaliser le balisage d'un segment, utiliser
-:class:`BreadcrumbItem` plutôt qu'un callback de rendu : ses paramètres
-sont typés, autocomplétés et visibles dans ``bretzel describe``.
+To customise a segment's markup, use :class:`BreadcrumbItem` rather than
+a render callback: its parameters are typed, autocompleted and visible
+in ``bretzel describe``.
 
 The separator is a string (interpreted as an Icon name or a literal
 text) by default — pass ``separator="/"`` for a slash, or any
@@ -59,10 +60,10 @@ class Breadcrumb(Component):
     THEME: ClassVar[dict[str, Any]] = BREADCRUMB_THEME
     THEME_KEY: ClassVar[str] = "breadcrumb"
     DEFAULT_TAG: ClassVar[str] = "nav"
-    # Conteneur — c'est le défaut du socle, donc pas redéclaré ici :
-    # l'auteur écrit son ``for``, il lui faut un endroit où poser son
-    # balisage. ``items=`` reste le raccourci du cas texte, et
-    # matérialise les mêmes enfants.
+    # Container — it is the base layer's default, so not redeclared
+    # here: the author writes their ``for``, they need somewhere to put
+    # their markup. ``items=`` stays the text case's shortcut, and
+    # materialises the same children.
     COLLECTION_OWNER: ClassVar[str | None] = "author"
     # Pure structural display — items are a list rendered at server
     # time, no reactive props expected. Empty tuple = strict mode +
@@ -84,12 +85,12 @@ class Breadcrumb(Component):
         size: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(color=color, size=size, **kwargs)
-        # Le raccourci ``items=`` matérialise les MÊMES enfants que la
-        # forme container — un seul chemin de rendu ensuite. (Mixer les
-        # deux dans un même fil n'est pas supporté : c'est la règle de
-        # ``ToggleGroup``, pour la même raison.)
+        # The ``items=`` shortcut materialises the SAME children as the
+        # container form — a single render path afterwards. (Mixing the
+        # two in one trail is not supported: it is ``ToggleGroup``'s
+        # rule, for the same reason.)
         if items:
             with self:
                 for entry in items:
@@ -127,10 +128,10 @@ class Breadcrumb(Component):
         )
         separator_class = slots.get("separator", "")
 
-        # ``unwrap_transparent`` : un segment ENVELOPPÉ — zone
-        # ``@refreshable``, ``ui.fragment`` — n'est pas une instance de
-        # ``BreadcrumbItem``, donc il DISPARAISSAIT du fil d'Ariane.
-        # Mesuré le 2026-08-23 : 723 → 192 caractères, sans une erreur.
+        # ``unwrap_transparent``: a WRAPPED segment — a
+        # ``@refreshable`` zone, a ``ui.fragment`` — is not an instance
+        # of ``BreadcrumbItem``, so it DISAPPEARED from the breadcrumb.
+        # Measured on 2026-08-23: 723 → 192 characters, with no error.
         segments = [
             (child, rewrap)
             for child, rewrap in (unwrap_transparent(c) for c in self._children)
@@ -168,8 +169,8 @@ class BreadcrumbItem(Component):
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     NAMED_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
-    #: ``icon="book"`` plutôt que ``icon=ui.icon("book")`` — le raccourci
-    #: string que les dix pairs offrent aussi.
+    #: ``icon="book"`` rather than ``icon=ui.icon("book")`` — the string
+    #: shortcut the ten peers also offer.
     ICON_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
 
     def __init__(
@@ -180,31 +181,31 @@ class BreadcrumbItem(Component):
         href: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # ⚠️ Un ``icon="book"`` n'est PAS confié à ``ICON_SLOTS`` : le
-        # socle l'emballerait en ``ui.icon(nom)`` à la taille par défaut
-        # (``md`` = 18 px), calibrée pour un corps de page à 16 px. Le
-        # libellé d'un fil d'Ariane fait 12 px — l'icône y était donc à
-        # 1,50 fois son texte, le pire écart du catalogue (mesuré le
-        # 2026-08-18). On garde le NOM et on bâtit l'Icon au rendu, quand
-        # la taille du libellé est enfin connue.
+        # ⚠️ An ``icon="book"`` is NOT handed to ``ICON_SLOTS``: the
+        # base layer would wrap it as ``ui.icon(name)`` at the default
+        # size (``md`` = 18 px), calibrated for 16 px body text. A
+        # breadcrumb's label is 12 px — the icon was therefore at 1.50
+        # times its text, the catalogue's worst gap (measured on
+        # 2026-08-18). We keep the NAME and build the Icon at render,
+        # when the label's size is finally known.
         #
-        # Un Component passé à la main garde SA taille : l'auteur l'a
-        # choisie, ce n'est pas au composant de la corriger.
+        # A Component passed by hand keeps ITS size: the author chose it,
+        # it is not the component's business to correct it.
         self._icon_name = icon if isinstance(icon, str) else None
         super().__init__(icon=None if self._icon_name else icon, **kwargs)
         self._label = Component.adopt_slot(label)
         self._href = href
 
-    # ── Rendu interne — appelé par Breadcrumb ─────────────────────────
+    # ── Internal render — called by Breadcrumb ────────────────────────
 
     def _render_segment(
         self, *, is_last: bool, item_class: str, current_class: str
     ) -> Element:
-        """L'enveloppe appartient au composant, le contenu à l'auteur.
+        """The wrapper belongs to the component, the content to the author.
 
-        Le dernier segment est un ``<span aria-current="page">`` et non
-        un lien : c'est la page où l'on EST, la rendre cliquable
-        annoncerait une navigation qui n'a pas lieu.
+        The last segment is a ``<span aria-current="page">`` and not a
+        link: it is the page you ARE on, making it clickable would
+        announce a navigation that does not happen.
         """
         body: list[Node] = []
         icon = self._slot_components.get("icon")
@@ -212,9 +213,9 @@ class BreadcrumbItem(Component):
             from bretzel.components.base.sizes import icon_size_for
             from bretzel.components.primitives.icon import Icon
 
-            # La classe du segment porte la taille du libellé ; l'icône
-            # prend le cran juste au-dessus. Repli ``sm`` quand le
-            # segment est rendu hors d'un fil (aucune classe reçue).
+            # The segment's class carries the label's size; the icon
+            # takes the step just above. Fallback ``sm`` when the segment
+            # is rendered outside a trail (no class received).
             size = icon_size_for(current_class if is_last else item_class)
             icon = Icon(self._icon_name, size=size or "sm")
         if icon is not None:
@@ -239,11 +240,11 @@ class BreadcrumbItem(Component):
         )
 
     def render(self) -> Element:
-        """Hors d'un ``Breadcrumb``, un segment rend son contenu SANS les
-        classes du parent, plutôt que de lever : c'est le contrat de ses
-        pairs (``Tab``, ``Step``, ``TreeNode`` rendent vide hors de leur
-        parent), et lever au rendu casserait une page pour une faute de
-        composition qu'aucun test unitaire ne voit."""
+        """Outside a ``Breadcrumb``, a segment renders its content
+        WITHOUT the parent's classes, rather than raising: it is its
+        peers' contract (``Tab``, ``Step``, ``TreeNode`` render empty
+        outside their parent), and raising at render would break a page
+        for a composition mistake no unit test sees."""
         return self._render_segment(
             is_last=False, item_class="", current_class=""
         )
@@ -258,14 +259,14 @@ def _normalise_item(item: Any) -> tuple[Any, str | None, Any]:
     """Coerce a breadcrumb entry into ``(label, href, icon)``.
 
     Accepts dicts (``{"label", "href", "icon"}``), tuples
-    (``(label, href)`` ou ``(label,)``), ou une string nue (libellé
-    seul, sans lien).
+    (``(label, href)`` or ``(label,)``), or a bare string (label only,
+    with no link).
 
-    ``icon`` n'existe que sur la forme dict : c'est ce qui permet au
-    raccourci ``items=`` d'exprimer TOUT ce que les enfants expriment.
-    Sans lui, les deux niveaux de l'API divergeraient dès qu'on veut une
-    icône — et ``test_items_shortcut_materialises_the_same_children``
-    n'aurait plus rien à comparer.
+    ``icon`` only exists on the dict form: it is what lets the ``items=``
+    shortcut express EVERYTHING the children express. Without it, the
+    API's two tiers would diverge as soon as you want an icon — and
+    ``test_items_shortcut_materialises_the_same_children`` would have
+    nothing left to compare.
     """
     if isinstance(item, dict):
         return item.get("label", ""), item.get("href"), item.get("icon")

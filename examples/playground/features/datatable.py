@@ -1,24 +1,24 @@
 """``Datatable`` test bench.
 
-Cards (per ``playground-pattern.md``) : Reference / Edge cases /
+Cards (per ``playground-pattern.md``): Reference / Edge cases /
 Composability / A11y / Server playground / Server events / Client events.
 
 ``BINDABLE_PROPS = ()`` → **no Client playground card.** The whole query
-(sort / page / search) lives in a server ``DatatableState`` : a click
+(sort / page / search) lives in a server ``DatatableState``: a click
 mutates it and the enclosing ``@refreshable`` re-renders with the new
 query baked in. There is no client driver for anything here, by design —
 that is what makes the selection readable from Python.
 
-⚠️ La carte **Client events**, elle, est obligatoire — et cette ligne a
-dit le contraire pendant des mois. Elle amalgamait deux ClassVar : c'est
-``BINDABLE_PROPS`` qui décide de la carte Client PLAYGROUND, et
-``EVENTS`` qui décide des DEUX cartes d'events. Le composant accepte
-``on_item_click=`` — il le transmet à la ``ui.table`` qu'il compose —
-donc il accepte aussi une expression cliente, comme tout ``on_*`` du
-framework. Il l'a déclaré le 2026-09-07, dernier des quatre.
+⚠️ The **Client events** card, on the other hand, is mandatory — and this
+line said the opposite for months. It conflated two ClassVar: it is
+``BINDABLE_PROPS`` that decides the Client PLAYGROUND card, and
+``EVENTS`` that decides BOTH event cards. The component accepts
+``on_item_click=`` — it passes it to the ``ui.table`` it composes — so it
+also accepts a client expression, like every ``on_*`` in the framework.
+It declared so on 2026-09-07, last of the four.
 
 **Two rules this page demonstrates by obeying them**, both enforced at
-construction :
+construction:
 
 1. **One ``DatatableState`` subclass per table.** States are keyed by
    class, so two tables sharing one subclass would share one sort and
@@ -98,18 +98,18 @@ def priority_badge(value, _row):
 
 
 def assignee_avatar(value, _row):
-    # ``xs`` (24 px) et pas le defaut (40 px) : c'est l'avatar qui fixe la
-    # hauteur de ligne, et 40 px poussait la rangee a 61 px pour du texte
-    # de 14 px. A 24 px la ligne retombe a 44 px, la densite des tables de
-    # travail (Linear, GitHub, shadcn).
+    # ``xs`` (24 px) and not the default (40 px): it is the avatar that
+    # sets the row height, and 40 px pushed the row to 61 px for 14 px
+    # text. At 24 px the row falls back to 44 px, the density of working
+    # tables (Linear, GitHub, shadcn).
     return ui.avatar(initials=value, color="primary", size="xs")
 
 
 def row_actions(_value, row):
     dd = ui.dropdown(
-        # ``sm`` et pas le defaut : avec l'avatar ramene a 24 px, c'est ce
-        # bouton qui fixait seul la hauteur de ligne a 61 px. Meme
-        # raisonnement, meme cible de densite.
+        # ``sm`` and not the default: with the avatar brought back to
+        # 24 px, it was this button that alone set the row height at
+        # 61 px. The same reasoning, the same density target.
         trigger=ui.icon_button("more-horizontal", variant="ghost", size="xs",
                                aria_label=f"Actions for #{row['id']}"),
         align="end",
@@ -150,11 +150,11 @@ SORTABLE_COLUMNS = [
               filter=["open", "merged", "closed"], render=status_badge),
     ui.column("priority", label="Priority", sortable=True,
               filter=["high", "medium", "low"], render=priority_badge),
-    # Filtrable sur un domaine EXPLICITE de 12 personnes alors que les
-    # donnees n'en montrent que 5 : c'est la seule colonne du banc qui
-    # depasse le seuil de 8, donc la seule ou la RECHERCHE du popover
-    # apparaisse. Sans elle cette affordance n'etait exercee nulle part et
-    # ne pouvait se verifier qu'en test.
+    # Filterable on an EXPLICIT domain of 12 people although the data
+    # only shows 5: it is the bench's only column above the threshold of
+    # 8, hence the only one where the popover's SEARCH appears. Without
+    # it that affordance was exercised nowhere and could only be checked
+    # in a test.
     ui.column("assignee", label="Assignee", align="center",
               filter=["AL", "JD", "MH", "GH", "RF",
                       "BK", "CN", "DP", "ES", "FT", "IV", "LW"],
@@ -242,7 +242,7 @@ def reference_panel() -> None:
 
 
 def size_row(size: str, query) -> None:
-    """Un barreau de l'échelle. Partagé par les trois zones ci-dessous."""
+    """One rung of the ladder. Shared by the three zones below."""
     with ui.vstack(gap="xs"):
         ui.text(f"size={size}", color="muted", size="xs")
         ui.datatable(state=query, columns=SORTABLE_COLUMNS,
@@ -250,12 +250,12 @@ def size_row(size: str, query) -> None:
                      search_placeholder=f"Search ({size})…")
 
 
-# UNE zone par table, et pas une zone pour les trois. Une zone se
-# re-rend quand N'IMPORTE LEQUEL de ses `deps` bouge : avec
-# `deps=[SizeSmQuery, SizeMdQuery, SizeLgQuery]`, changer de page sur la
-# table `sm` re-rendait AUSSI `md` et `lg` — trois tableaux complets pour
-# un clic, ce qui se voit à l'écran. Les trois états sont indépendants,
-# donc les trois zones le sont.
+# ONE zone per table, and not one zone for the three. A zone re-renders
+# when ANY of its `deps` moves: with
+# `deps=[SizeSmQuery, SizeMdQuery, SizeLgQuery]`, changing page on the
+# `sm` table ALSO re-rendered `md` and `lg` — three complete tables for
+# one click, which shows on screen. The three states are independent, so
+# the three zones are.
 @refreshable(deps=[SizeSmQuery])
 def size_sm_panel() -> None:
     size_row("sm", SizeSmQuery)
@@ -272,10 +272,10 @@ def size_lg_panel() -> None:
 
 
 def size_ladder_panel() -> None:
-    """L'échelle entière — trois zones indépendantes empilées.
+    """The whole ladder — three independent zones stacked.
 
-    Volontairement PAS un `@refreshable` : ce n'est plus qu'une mise en
-    page. Le rafraîchissement vit au niveau de chaque barreau.
+    Deliberately NOT a `@refreshable`: it is nothing but layout any more.
+    The refreshing lives at each rung's level.
     """
     with ui.vstack(gap="lg"):
         size_sm_panel()
@@ -382,18 +382,18 @@ def build_preview(state: DatatablePlayground):
     return ui.datatable(**kwargs)
 
 
-# L'apercu depend des DEUX (il lit la config ET pagine) ; la grille de
-# quinze controles ne depend que de la config. Reunies, changer de page
-# dans l'apercu reconstruisait les quinze selects.
+# The preview depends on BOTH (it reads the config AND paginates); the
+# grid of fifteen controls depends only on the config. Joined, changing
+# page in the preview rebuilt the fifteen selects.
 @refreshable(deps=[DatatablePlayground, PreviewQuery])
 def preview_panel() -> None:
     state = DatatablePlayground()
     build_preview(state)
     ui.divider()
-    # Le HTML emis appartient a l'apercu, pas a la grille : il RECONSTRUIT
-    # un `ui.datatable(state=PreviewQuery)`, donc il doit vivre dans une
-    # zone qui surveille cet etat. Le garde de construction du datatable
-    # le dit lui-meme si on l'oublie — il l'a dit.
+    # The emitted HTML belongs to the preview, not to the grid: it
+    # REBUILDS a `ui.datatable(state=PreviewQuery)`, so it must live in a
+    # zone watching that state. The datatable's construction guard says
+    # so itself if one forgets — and it did.
     emitted_html_block(
         "Emitted HTML (truncated — large table)",
         serialize_html(build_preview(state)),
@@ -485,14 +485,13 @@ def clear_clicks() -> None:
     DatatableClicks().log = []
 
 
-# DEUX zones : la table repond a `EventsQuery` (tri / page / recherche),
-# le journal a `DatatableClicks` (les clics de ligne). Reunies, chaque
-# changement de page reconstruisait le journal, et chaque clic de ligne
-# reconstruisait le tableau — deux fois plus de travail que necessaire,
-# des deux cotes.
-# ``EventsQuery`` aussi : ce panneau est appelé DANS ``events_panel``,
-# donc un tri ou une page le redessine de toute façon. Le déclarer, ou
-# sortir le panneau — ici il est inline, entre la table et son HTML.
+# TWO zones: the table answers to `EventsQuery` (sort / page / search),
+# the log to `DatatableClicks` (the row clicks). Joined, every page
+# change rebuilt the log, and every row click rebuilt the table — twice
+# the work needed, on both sides.
+# ``EventsQuery`` too: this panel is called INSIDE ``events_panel``, so a
+# sort or a page redraws it anyway. Declare it, or take the panel out —
+# here it is inline, between the table and its HTML.
 @refreshable(deps=[DatatableClicks, EventsQuery])
 def click_log_panel() -> None:
     state = DatatableClicks()
@@ -512,34 +511,34 @@ def click_log_panel() -> None:
 
 # ── Card 7 — Client events ───────────────────────────────────────────
 class DatatableClientEvents(ClientState):
-    """Le journal de la carte Client events — côté navigateur."""
+    """The Client events card's log — on the browser side."""
 
     log: list = field(default_factory=list)
 
 
 class ClientEventsQuery(DatatableState):
-    """Une sous-classe par table — la règle du composant."""
+    """One subclass per table — the component's rule."""
 
 
 def client_events_panel() -> None:
-    """Le MÊME event, câblé sur une expression cliente.
+    """The SAME event, wired onto a client expression.
 
-    Pas de ``@refreshable`` : c'est le point. Le journal vit dans un
-    ``ClientState``, le texte se réévalue dans le navigateur, aucune
-    requête ne part.
+    No ``@refreshable``: that is the point. The log lives in a
+    ``ClientState``, the text is re-evaluated in the browser, no request
+    leaves.
 
-    ⚠️ Cette carte n'existait pas avant le 2026-09-07, et la raison
-    était la même que pour ``ui.table`` la veille : ``EVENTS`` était
-    vide, donc le gabarit lisait « ce composant n'a pas d'event » —
-    alors que la page portait déjà sa carte Server events. Le ClassVar
-    était faux, pas le composant.
+    ⚠️ This card did not exist before 2026-09-07, and the reason was the
+    same as for ``ui.table`` the day before: ``EVENTS`` was empty, so the
+    template read "this component has no event" — although the page
+    already carried its Server events card. The ClassVar was wrong, not
+    the component.
     """
     events = DatatableClientEvents()
     ui.text(
-        "``on_item_click`` câblé sur une expression cliente qui empile "
-        "dans un ClientState. Zéro requête — et le datatable ne câble "
-        "rien lui-même : il transmet à la table qu'il compose, donc les "
-        "trois formes d'un ``on_*`` valent ici comme là.",
+        '``on_item_click`` wired to a client expression that pushes onto '
+            'a ClientState. Zero requests — and the datatable wires nothing '
+            'itself: it passes through to the table it composes, so all three'
+            ' forms of an ``on_*`` hold here as they do there.',
         color="muted", size="sm",
     )
     clicked = ClientExpression("String($event.detail ?? 'item_click')")
@@ -555,13 +554,13 @@ def client_events_panel() -> None:
     ui.divider()
 
     with ui.hstack(justify="between", align="center"):
-        ui.text("Live log (client-réactif — aucun rafraîchissement)",
+        ui.text('Live log (client-reactive — no refresh at all)',
                 color="muted", size="sm")
         ui.button("Clear", variant="ghost", size="xs",
                   on_click=events.log.clear())
     log_text = ClientExpression(
-        r"($bz.state.DatatableClientEvents.default.log || []).join('\n')"
-        r" || '(aucun event — clique la démo ci-dessus)'"
+        "($bz.state.DatatableClientEvents.default.log || []).join('\\n') "
+            "|| '(no events yet — click the demo above)'"
     )
     ui.text(log_text, color="muted", size="sm",
             classes="font-mono whitespace-pre")

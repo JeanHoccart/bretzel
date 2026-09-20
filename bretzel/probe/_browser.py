@@ -1,33 +1,32 @@
-"""Le navigateur — un seul Chromium par processus, un contexte par fenêtre.
+"""The browser — one Chromium per process, one context per window.
 
-Promu depuis ``tests/audit/harness.py`` le 2026-09-10, avec ses mesures.
+Promoted from ``tests/audit/harness.py`` on 2026-09-10, with its
+measurements.
 
-⚠️ **Un seul ``sync_playwright()`` par processus.** L'API sync de
-Playwright n'est pas thread-safe et deux instances dans le même thread
-se marchent dessus : mesuré le 2026-08-27, ``-m browser`` est passé de
-286 verts à « 1 échec + 75 erreurs » dès qu'un fichier a ouvert le sien
-— et il passait toujours quand on le lançait SEUL, ce qui est le pire
-des symptômes. C'est la raison pour laquelle ce module porte le singleton, et
-pourquoi ``tests/audit/harness.py`` lui délègue au lieu d'en garder un
-second.
+⚠️ **One single ``sync_playwright()`` per process.** Playwright's sync
+API is not thread-safe and two instances in the same thread tread on
+each other: measured on 2026-08-27, ``-m browser`` went from 286 greens
+to "1 failure + 75 errors" as soon as one file opened its own — and it
+still passed when run ALONE, which is the worst of symptoms. That is why
+this module carries the singleton, and why ``tests/audit/harness.py``
+delegates to it instead of keeping a second one.
 
-⚠️ **Ce n'est pas encore une exclusivité de processus** :
-``tests/e2e/conftest.py`` ouvre toujours le sien. Sans conflit
-aujourd'hui — ``-m e2e`` a son propre créneau — mais la garantie
-n'est vraie que des suites qui passent par ici.
+⚠️ **It is not yet a process-wide exclusivity**:
+``tests/e2e/conftest.py`` still opens its own. No conflict today —
+``-m e2e`` has its own slot — but the guarantee only holds for the
+suites that come through here.
 
-Le navigateur est PARTAGÉ, le contexte est NEUF. Mesuré en A/B alterné
-dans un seul processus (un avant/après séquentiel ne vaut rien sur cette
-machine, qui dérive d'un facteur 2) : navigateur neuf **633 ms** de
-médiane, contexte neuf sur un navigateur partagé **408 ms**.
+The browser is SHARED, the context is FRESH. Measured in in-process A/B
+alternation (a sequential before/after is worth nothing on this machine,
+which drifts by a factor of 2): fresh browser **633 ms** median, fresh
+context on a shared browser **408 ms**.
 
-L'isolation ne change pas : cookies, stockage, cache et permissions sont
-par CONTEXTE, c'est la garantie de Playwright. Ce qui est partagé, c'est
-le processus Chromium — rien de ce qu'un probe peut observer. **C'est
-exactement pour ça que ``windows=`` ouvre des contextes et pas des
-onglets** : deux onglets d'un même contexte partagent les cookies, donc
-la même session, donc un scénario à deux utilisateurs ne mesurerait plus
-rien.
+Isolation does not change: cookies, storage, cache and permissions are
+per CONTEXT, that is Playwright's guarantee. What is shared is the
+Chromium process — nothing a probe can observe. **That is exactly why
+``windows=`` opens contexts and not tabs**: two tabs of the same context
+share cookies, hence the same session, so a two-user scenario would no
+longer measure anything.
 """
 
 from __future__ import annotations
@@ -42,10 +41,10 @@ _BROWSER: Any = None
 
 
 def shared_browser() -> Any:
-    """Le Chromium du processus — démarré à la première demande.
+    """The process's Chromium — started on the first request.
 
-    Relance si le navigateur s'est déconnecté : un probe qui le fait
-    planter ne doit pas condamner tous les suivants du même processus.
+    Restarted if the browser has disconnected: a probe that crashes it
+    must not condemn every following one in the same process.
     """
     global _PW, _BROWSER
     from playwright.sync_api import sync_playwright
@@ -65,17 +64,18 @@ def contexts(
     headed: bool = False,
     touch: bool = False,
 ) -> Iterator[list[Any]]:
-    """``count`` contextes neufs, fermés ensemble à la sortie.
+    """``count`` fresh contexts, closed together on exit.
 
-    ``headed=True`` sort du singleton : on lance un navigateur visible
-    pour l'appel et on le referme. Un Chromium visible partagé entre des
-    probes headless serait une surprise, pas une optimisation.
+    ``headed=True`` steps outside the singleton: a visible browser is
+    launched for the call and closed afterwards. A visible Chromium
+    shared between headless probes would be a surprise, not an
+    optimisation.
 
-    ``touch=True`` ouvre un contexte TACTILE. C'est le seul mode où le
-    navigateur applique vraiment ``touch-action`` : sans lui, un test
-    qui dispatche des ``PointerEvent`` synthétiques mesure notre code
-    et pas la décision du navigateur, donc il reste vert quel que soit
-    le ``touch-action`` du composant.
+    ``touch=True`` opens a TOUCH context. It is the only mode where the
+    browser really applies ``touch-action``: without it, a test
+    dispatching synthetic ``PointerEvent`` measures our code and not the
+    browser's decision, so it stays green whatever the component's
+    ``touch-action``.
     """
     if headed:
         from playwright.sync_api import sync_playwright

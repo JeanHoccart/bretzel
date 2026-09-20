@@ -1,15 +1,15 @@
-"""L'émetteur texte — deux granularités, et c'est le point du design.
+"""The text emitter — two granularities, and that is the design's point.
 
-Une fiche complète × 104 composants ne tient pas en contexte et ne se lit
-pas. D'où :
+A complete card × 104 components does not fit in context and does not
+read. Hence:
 
-- :func:`render_index` — **une ligne par symbole**, toute la surface.
-  C'est ce qui reste chargé en permanence : il répond à « est-ce que
-  ``justify`` existe sur ``hstack`` ? », qui est la question dont la
-  mauvaise réponse produit un contournement (``classes="justify-between"``).
-- :func:`render_detail` — la fiche entière d'UN symbole, à la demande.
+- :func:`render_index` — **one line per symbol**, the whole surface. It
+  is what stays loaded permanently: it answers "does ``justify`` exist on
+  ``hstack``?", which is the question whose wrong answer produces a
+  workaround (``classes="justify-between"``).
+- :func:`render_detail` — ONE symbol's whole card, on demand.
 
-L'index bon marché toujours présent, le détail à une commande.
+The cheap index always present, the detail one command away.
 """
 
 from __future__ import annotations
@@ -29,49 +29,8 @@ from bretzel.introspect.model import (
 
 _INDENT = " " * 4
 
-#: Au-delà, une ligne de doc cesse de tenir sur une ligne d'index.
+#: Beyond that, a doc line stops fitting on an index line.
 _DOC_CLIP = 62
-
-_ENGLISH_LABELS = {
-    "classe": "class",
-    "décorateur": "decorator",
-    "fonction": "function",
-    "valeur": "value",
-    "agir depuis un handler": "act from a handler",
-    "agir dans le navigateur": "act in the browser",
-    "choisir la langue": "choose the language",
-    "composer côté client": "compose on the client",
-    "composer des attributs": "compose attributes",
-    "déclarer au compilateur CSS": "declare to the CSS compiler",
-    "déclarer un champ": "declare a field",
-    "déclarer un état": "declare state",
-    "déclarer un état client": "declare client state",
-    "déclarer un état serveur": "declare server state",
-    "déclarer un routable": "declare a route",
-    "déclarer un thème": "declare a theme",
-    "décrire un diagramme": "describe a diagram",
-    "décrire un graphique": "describe a chart",
-    "décrire un tableau": "describe a table",
-    "décrire une piste de média": "describe a media track",
-    "en-tête HTTP": "HTTP header",
-    "échapper": "escape",
-    "identité d'un nœud": "node identity",
-    "introspecter la carte d'app": "inspect the app map",
-    "lire le contexte de rendu": "read the render context",
-    "lire un état ailleurs": "read state elsewhere",
-    "métadonnée d'un routable": "route metadata",
-    "métadonnée du paquet": "package metadata",
-    "rafraîchir une zone": "refresh a region",
-    "rattraper une erreur": "handle an error",
-    "réagir à un glisser-déposer": "handle drag and drop",
-    "recevoir la demande du lecteur": "receive a reader query",
-    "savoir qui est là": "identify the current user",
-    "servir les scripts tiers en local": "serve third-party scripts locally",
-    "suivre les dépendances": "track dependencies",
-    "temps réel (SSE)": "real time (SSE)",
-    "transporter un événement": "transport an event",
-    "vocabulaire des directives bz-*": "bz-* directive vocabulary",
-}
 
 
 def _names(params: tuple[ParamInfo, ...]) -> str:
@@ -79,8 +38,8 @@ def _names(params: tuple[ParamInfo, ...]) -> str:
 
 
 def render_index() -> str:
-    """Une ligne par symbole ``ui.*`` — plus une ligne de contrats quand
-    le composant en porte."""
+    """One line per ``ui.*`` symbol — plus a contracts line when the
+    component carries any."""
     catalogue = describe_components()
     components = [i for i in catalogue if isinstance(i, ComponentInfo)]
     helpers = [i for i in catalogue if isinstance(i, HelperInfo)]
@@ -128,18 +87,18 @@ def render_index() -> str:
 
 
 def render_detail(info: ComponentInfo | HelperInfo) -> str:
-    """La fiche complète d'un symbole."""
+    """A symbol's complete card."""
     if isinstance(info, HelperInfo):
         return _render_helper(info)
     return _render_component(info)
 
 
 def _prologue(title: str, doc: str | None, params: tuple[ParamInfo, ...]) -> list[str]:
-    """Le haut de fiche, commun aux composants et aux helpers.
+    """The card's head, common to components and helpers.
 
-    Les deux moitiés divergeaient d'une ligne vide finale — un oubli, pas
-    une décision, et tout ce qui suivait dans la fiche composant supposait
-    la ligne présente."""
+    The two halves diverged by a trailing blank line — an oversight, not
+    a decision, and everything that followed in the component card
+    assumed the line was there."""
     out = [title, ""]
     if doc:
         out.extend([doc, ""])
@@ -151,9 +110,9 @@ def _prologue(title: str, doc: str | None, params: tuple[ParamInfo, ...]) -> lis
 
 
 def _row(label: str, values: tuple[str, ...], suffix: str = "") -> str:
-    """Une ligne de contrat. L'alignement vit ICI et non dans quatre
-    littéraux comptés à l'œil — renommer « Impératif » ne peut plus
-    décaler la colonne en silence."""
+    """One contract line. The alignment lives HERE and not in four
+    literals counted by eye — renaming "Imperative" can no longer shift
+    the column silently."""
     return f"{label:<12}" + (", ".join(values) + suffix if values else "—")
 
 
@@ -186,16 +145,16 @@ def _render_component(info: ComponentInfo) -> str:
 
 
 def render_symbol(detail: SymbolDetail) -> str:
-    """La fiche d'un symbole hors ``ui.*``.
+    """The card of a symbol outside ``ui.*``.
 
-    Même forme que la fiche composant — titre, docstring, paramètres,
-    puis les contrats en lignes ``label / valeurs`` — pour qu'un lecteur
-    qui a vu l'une sache lire l'autre. Ce qui change est ce que la nature
-    du symbole permet de dire : une constante n'a qu'une valeur, une
-    classe a des méthodes, ``ClientBinding`` a son algèbre.
+    Same shape as the component card — title, docstring, parameters, then
+    the contracts as ``label / values`` lines — so that a reader who has
+    seen one knows how to read the other. What changes is what the
+    symbol's nature allows one to say: a constant has only a value, a
+    class has methods, ``ClientBinding`` has its algebra.
     """
-    kind = _ENGLISH_LABELS.get(detail.kind, detail.kind)
-    category = _ENGLISH_LABELS.get(detail.category, detail.category)
+    kind = detail.kind
+    category = detail.category
     title = f"{detail.name} → {detail.module}   ({kind}, {category})"
     out = _prologue(title, detail.doc, detail.signature.params if detail.signature else ())
 
@@ -217,49 +176,50 @@ def render_symbol(detail: SymbolDetail) -> str:
 
 
 def _state_url_lines(state: StateInfo) -> list[str]:
-    """Ce que l'état publie dans l'ADRESSE, et sous quel nom.
+    """What the state publishes in the ADDRESS, and under what name.
 
-    La question qu'aucune fiche ne savait répondre. Un lecteur qui écrit
-    ``class Issues(DatatableState, addressable=True)`` ne peut pas
-    deviner ``?tri=&sens=&p=`` : les noms sont écrits sur les champs du
-    PARENT, un fichier qu'il n'a aucune raison d'ouvrir. Mesuré le
-    2026-09-06 — la question a été posée, et la réponse a demandé de
-    lire ``state/datatable/state.py``.
+    The question no card could answer. A reader writing
+    ``class Issues(DatatableState, addressable=True)`` cannot guess
+    ``?sort=&dir=&p=``: the names are written on the PARENT's fields, a
+    file they have no reason to open. Measured on 2026-09-06 — the
+    question was asked, and the answer required reading
+    ``state/datatable/state.py``.
 
-    Trois états, et les distinguer EST l'information :
+    Three states, and distinguishing them IS the information:
 
-    - publié — la ligne nomme les paramètres, et dit que le reste ne
-      part pas (c'est la garantie qui tient ``filters`` hors de l'URL) ;
-    - nommé mais **éteint** — il ne manque qu'``addressable=True``, ce
-      qu'aucune autre lecture ne dirait ;
-    - rien du tout — le défaut de tout le framework, où on n'écrit pas
-      de ligne plutôt qu'un « Adressable — » qui se lirait comme une
-      lecture ratée.
+    - published — the line names the parameters, and says the rest does
+      not go out (that is the guarantee keeping ``filters`` out of the
+      URL);
+    - named but **off** — only ``addressable=True`` is missing, which no
+      other reading would say;
+    - nothing at all — the framework's default everywhere, where we write
+      no line rather than an "Addressable —" that would read as a failed
+      reading.
     """
     if state.url_error:
         return [_row("Addressable", (f"⚠ invalid declaration — {state.url_error}",))]
     if state.url_params:
         return [_row(
             "Addressable",
-            tuple(f"{champ}→{param}" for champ, param in state.url_params),
+            tuple(f"{field}→{param}" for field, param in state.url_params),
             "   (a field omitted from this line is NEVER written to the URL)",
         )]
     if state.url_named:
-        nommes = ", ".join(f"{champ}→{param}" for champ, param in state.url_named)
+        named = ", ".join(f"{field}→{param}" for field, param in state.url_named)
         return [_row(
             "Addressable",
             ("— disabled",),
-            f"   (`addressable=True` would publish {nommes})",
+            f"   (`addressable=True` would publish {named})",
         )]
     return []
 
 
 def _state_field_lines(state: StateInfo) -> list[str]:
-    """Les champs d'une classe d'état.
+    """A state class's fields.
 
-    Les cinq classes de BASE n'en ont aucun, et c'est l'attendu — leur
-    fiche s'arrête à la portée. Ne rien écrire dans ce cas plutôt qu'un
-    « Champs — » qui se lirait comme une lecture ratée."""
+    The five BASE classes have none, and that is expected — their card
+    stops at the scope. Write nothing in that case rather than a
+    "Fields —" that would read as a failed reading."""
     if not state.fields:
         return []
     out = ["Fields"]
@@ -282,11 +242,11 @@ def _state_field_lines(state: StateInfo) -> list[str]:
 
 
 def _method_lines(methods: tuple[MethodInfo, ...]) -> list[str]:
-    """Les méthodes publiques, une par ligne, avec leur signature.
+    """The public methods, one per line, with their signature.
 
-    Le nom seul ne suffit pas : ``Language.set`` et ``auth.login`` se
-    lisent à leurs arguments, et c'est précisément ce qu'aucune ligne
-    d'index ne pouvait porter."""
+    The name alone is not enough: ``Language.set`` and ``auth.login``
+    read from their arguments, and that is precisely what no index line
+    could carry."""
     if not methods:
         return []
     out = ["", "Methods"]
@@ -300,11 +260,11 @@ def _method_lines(methods: tuple[MethodInfo, ...]) -> list[str]:
 
 
 def _algebra_lines(ops: tuple[AlgebraOp, ...]) -> list[str]:
-    """L'algèbre Python→JS, groupée par catégorie.
+    """The Python→JS algebra, grouped by category.
 
-    Le JS montré est **capturé à l'exécution** par la sonde
-    d':mod:`~bretzel.introspect.algebra`, pas recopié : ce qui s'affiche
-    est ce que le composant émettra."""
+    The JS shown is **captured at runtime** by
+    :mod:`~bretzel.introspect.algebra`'s probe, not copied: what is
+    displayed is what the component will emit."""
     if not ops:
         return []
     out = ["", "Python → JS algebra (JavaScript captured at runtime)"]
@@ -319,16 +279,16 @@ def _algebra_lines(ops: tuple[AlgebraOp, ...]) -> list[str]:
 
 
 def _theme_lines(info: ComponentInfo) -> list[str]:
-    """Le vocabulaire de thème — une ligne par groupe.
+    """The theme vocabulary — one line per group.
 
-    Les VALEURS ne sont pas montrées : 70 855 caractères de classes
-    Tailwind sur l'ensemble du catalogue, que le code dit déjà mieux. Ce
-    qu'on ne pouvait lire nulle part, c'est la liste des noms qu'on a le
-    droit d'écrire dans ``Theme(components=…)``.
+    The VALUES are not shown: 70 855 characters of Tailwind classes
+    across the whole catalogue, which the code already says better. What
+    could be read nowhere is the list of names one is allowed to write in
+    ``Theme(components=…)``.
 
-    La clé est rappelée quand elle diffère du nom ``ui.*`` : trois
-    composants écrivent sous le thème d'un AUTRE (``sidebar_section`` →
-    ``sidebar``), et personne ne devine ça.
+    The key is repeated when it differs from the ``ui.*`` name: three
+    components write under ANOTHER's theme (``sidebar_section`` →
+    ``sidebar``), and nobody guesses that.
     """
     if not info.theme:
         return []
@@ -338,22 +298,22 @@ def _theme_lines(info: ComponentInfo) -> list[str]:
     out = ["", f"{head} — Theme(components={{{info.theme_key!r}: {{…}}}})"]
     for group, keys in info.theme:
         out.append(f"  {group:<14}" + (", ".join(keys) if keys else "— (single value)"))
-    # Les clés de ``sizes`` ne sont PAS les valeurs de ``size=`` : sur 33
-    # des 44 tables du catalogue elles nomment des SLOTS (``date_picker``
-    # affiche ``input_field, clear_button…``), et lire la ligne brute fait
-    # écrire ``size="input_field"``. C'est l'erreur exacte qu'une première
-    # version de la règle ``valeur-hors-table`` a commise en la lisant.
-    # La ligne résolue coupe court, et elle porte aussi les échelles
-    # étendues (``heading`` jusqu'à ``8xl``, ``avatar`` jusqu'à ``2xl``).
+    # The keys of ``sizes`` are NOT the values of ``size=``: on 33 of
+    # the catalogue's 44 tables they name SLOTS (``date_picker`` shows
+    # ``input_field, clear_button…``), and reading the raw line makes one
+    # write ``size="input_field"``. That is the exact mistake a first
+    # version of the ``value-outside-the-table`` rule made by reading it.
+    # The resolved line cuts that short, and it also carries the extended
+    # scales (``heading`` up to ``8xl``, ``avatar`` up to ``2xl``).
     if info.size_values and tuple(info.size_values) != tuple(dict(info.theme).get("sizes", ())):
         out.append(f"  {'size= values':<14}" + ", ".join(info.size_values))
     return out
 
 
 def _param_lines(params: tuple[ParamInfo, ...]) -> list[str]:
-    """Les paramètres alignés. Une prop réactive est marquée : son absence
-    de l'``__init__`` est une décision d'API, pas un accident, et le
-    lecteur doit savoir qu'elle passe par ``**kwargs``."""
+    """The parameters, aligned. A reactive prop is marked: its absence
+    from the ``__init__`` is an API decision, not an accident, and the
+    reader must know it goes through ``**kwargs``."""
     if not params:
         return []
     name_w = max(len(p.name) for p in params) + 2
@@ -367,11 +327,11 @@ def _param_lines(params: tuple[ParamInfo, ...]) -> list[str]:
 
 
 def render_module(section: ModuleSection) -> str:
-    """Une section de module, groupée par besoin.
+    """A module section, grouped by need.
 
-    Chaque symbole tient sur une ligne avec sa première ligne de
-    docstring, tronquée : l'index répond à « qu'est-ce qui existe et à
-    quoi ça sert », pas à « quelle est la signature exacte ».
+    Every symbol fits on one line with the first line of its docstring,
+    truncated: the index answers "what exists and what is it for", not
+    "what is the exact signature".
     """
     out: list[str] = [f"## {section.name}", ""]
     if not section.covered:
@@ -383,18 +343,18 @@ def render_module(section: ModuleSection) -> str:
     for symbol in section.symbols:
         if symbol.category != current:
             current = symbol.category
-            out.append(f"  {_ENGLISH_LABELS.get(current, current)}")
+            out.append(f"  {current}")
         doc = (symbol.summary or "").strip()
         if len(doc) > _DOC_CLIP:
             doc = doc[: _DOC_CLIP - 1].rstrip() + "…"
-        kind = _ENGLISH_LABELS.get(symbol.kind, symbol.kind)
+        kind = symbol.kind
         out.append(f"    {symbol.name:<{width}}{kind:<11} {doc}")
     out.append("")
     return "\n".join(out)
 
 
 def render_modules() -> str:
-    """Toutes les sections de modules, dans l'ordre de lecture."""
+    """Every module section, in reading order."""
     from bretzel.introspect.modules import describe_modules
 
     out = ["", "# Module API", ""]
@@ -403,12 +363,12 @@ def render_modules() -> str:
 
 
 def render_kwarg_routing() -> str:
-    """Le routage des kwargs, DÉRIVÉ des constantes du socle.
+    """Kwarg routing, DERIVED from the base layer's constants.
 
-    Cette table était écrite à la main dans ``kwarg-routing.md`` et y a
-    porté trois affirmations fausses simultanément. Générée, elle ne
-    peut plus en porter aucune — c'est le seul remède qui a survécu à la
-    mesure (trois candidats de gate sur la prose ont été écartés, cf.
+    This table was written by hand in ``kwarg-routing.md`` and carried
+    three false claims there simultaneously. Generated, it can no longer
+    carry any — it is the only remedy that survived the measurement
+    (three prose gate candidates were set aside, cf.
     :mod:`bretzel.introspect.routing`).
     """
     from bretzel.introspect.routing import describe_kwarg_routing
@@ -433,16 +393,16 @@ def render_kwarg_routing() -> str:
 
 
 def render_bindable_matrix() -> str:
-    """La surface bindable de chaque composant, DÉRIVÉE.
+    """Each component's bindable surface, DERIVED.
 
-    Cette matrice était écrite à la main dans ``kwarg-routing.md`` — 70
-    lignes, un composant par ligne, avec le sens du binding noté ``⇄`` /
-    ``→`` / ``∅``. ``test_bindable_surface`` la gardait indirectement : il
-    rougit quand le code change, ce qui **force à mettre à jour le
-    funnel** — il ne vérifie pas que la mise à jour a été faite juste.
+    This matrix was written by hand in ``kwarg-routing.md`` — 70 lines,
+    one component per line, with the binding's direction noted ``⇄`` /
+    ``→`` / ``∅``. ``test_bindable_surface`` guarded it indirectly: it
+    turns red when the code changes, which **forces the funnel to be
+    updated** — it does not check that the update was done correctly.
 
-    Dérivée, l'étape manuelle disparaît. ``⇄`` = le client écrit
-    (``TWO_WAY_PROPS``), ``→`` = lecture seule, absent = statique.
+    Derived, the manual step disappears. ``⇄`` = the client writes
+    (``TWO_WAY_PROPS``), ``→`` = read-only, absent = static.
     """
     from bretzel.introspect.components import describe_components
     from bretzel.introspect.model import ComponentInfo

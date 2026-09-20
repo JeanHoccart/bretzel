@@ -62,39 +62,41 @@ if TYPE_CHECKING:
 _log = logging.getLogger("bretzel.server.lifecycle")
 
 async def _check_state_backend(app: Bretzel) -> None:
-    """Échouer VITE si le backend d'état n'est pas joignable.
+    """Fail FAST when the state backend is unreachable.
 
-    Le contrat ``StateBackend.health()`` annonçait « Called once at app
-    startup » depuis toujours — sans aucun appelant (vérifié 2026-08-01). Une
-    URL Redis fausse produisait donc une erreur obscure à la PREMIÈRE requête
-    utilisateur, au lieu d'un refus de démarrage lisible.
+    The ``StateBackend.health()`` contract had announced "Called once at
+    app startup" forever — with no caller at all (verified 2026-08-01). A
+    wrong Redis URL therefore produced an obscure error on the FIRST user
+    request, instead of a readable refusal to start.
 
-    On ne lève PAS sur un backend qui répond ``False`` sans exception : un
-    ``health`` négatif peut être transitoire (Redis qui redémarre), et faire
-    tomber le process sur ça rendrait le boot plus fragile que le runtime. On
-    lève sur une **exception** — URL invalide, DNS mort, refus de connexion —
-    parce que celle-là ne se répare pas toute seule.
+    We do NOT raise on a backend answering ``False`` without an
+    exception: a negative ``health`` can be transient (Redis restarting),
+    and bringing the process down over it would make the boot more
+    fragile than the runtime. We raise on an **exception** — invalid URL,
+    dead DNS, connection refused — because that one does not repair
+    itself.
     """
     backend = getattr(app, "_state_backend", None)
 
-    # Le protocole est STRUCTUREL : rien à la définition n'oblige une
-    # implémentation à être complète, et le manque ne se manifeste qu'à
-    # l'appel — pour ``merge``, au commit de fin de requête, c'est-à-dire
-    # en production. ``Backend`` est ``runtime_checkable``, donc la
-    # vérification coûte une ligne et transforme un plantage en refus de
-    # démarrage. Elle ne mord que sur un backend TIERS : les deux du
-    # dépôt la passent par construction.
+    # The protocol is STRUCTURAL: nothing at definition time forces an
+    # implementation to be complete, and the gap only shows at call time
+    # — for ``merge``, at the end-of-request commit, that is to say in
+    # production. ``Backend`` is ``runtime_checkable``, so the check
+    # costs one line and turns a crash into a refusal to start. It only
+    # bites on a THIRD-PARTY backend: the repository's two pass it by
+    # construction.
     if backend is not None and not isinstance(backend, Backend):
-        manque = sorted(
-            nom
-            for nom in vars(Backend)
-            if not nom.startswith("_") and not hasattr(backend, nom)
+        missing = sorted(
+            name
+            for name in vars(Backend)
+            if not name.startswith("_") and not hasattr(backend, name)
         )
         raise RuntimeError(
-            f"Le backend d'état ({type(backend).__name__}) n'implémente pas "
-            f"tout le protocole Backend : il manque {manque}. Sans ce "
-            f"contrôle, l'absence n'aurait levé qu'au premier appel — pour "
-            f"``merge``, à la fin de la première requête qui écrit un état."
+            f"The state backend ({type(backend).__name__}) does not "
+            f"implement the whole Backend protocol: {missing} are missing. "
+            f"Without this check, the absence would only have raised on the "
+            f"first call — for ``merge``, at the end of the first request "
+            f"that writes a state."
         )
 
     check = getattr(backend, "health", None)
@@ -102,18 +104,18 @@ async def _check_state_backend(app: Bretzel) -> None:
         return
     try:
         ok = await check()
-    except Exception as exc:  # on re-lève enrichi juste après
+    except Exception as exc:  # re-raised enriched just below
         raise RuntimeError(
-            f"Le backend d'état ({type(backend).__name__}) est injoignable au "
-            f"démarrage : {exc!r}. Vérifie l'URL / les identifiants passés à "
-            f"`Bretzel(...)`. (Sans ce contrôle, l'erreur ne serait apparue "
-            f"qu'à la première requête.)"
+            f"The state backend ({type(backend).__name__}) is unreachable "
+            f"at startup: {exc!r}. Check the URL / credentials passed to "
+            f"`Bretzel(...)`. (Without this check, the error would only have "
+            f"appeared on the first request.)"
         ) from exc
     if not ok:
         _log.warning(
-            "Le backend d'état (%s) répond health()=False au démarrage — "
-            "l'app démarre quand même (ça peut être transitoire), mais les "
-            "états persistés risquent de ne pas survivre.",
+            "The state backend (%s) answers health()=False at startup — "
+            "the app starts anyway (it may be transient), but persisted "
+            "states risk not surviving.",
             type(backend).__name__,
         )
 
@@ -121,17 +123,17 @@ async def _check_state_backend(app: Bretzel) -> None:
 async def bretzel_startup(app: Bretzel) -> None:
     """Run framework-side startup. Call before user hooks.
 
-    Middleware registration is NOT done here — Starlette fige sa pile dès
-    le premier appel ASGI, lifespan compris, donc un hook de startup
-    arrive trop tard.
+    Middleware registration is NOT done here — Starlette freezes its
+    stack on the first ASGI call, lifespan included, so a startup hook
+    arrives too late.
 
-    ⚠️ La conclusion inverse — « donc le constructeur l'appelle » — a été
-    écrite ici et appliquée jusqu'au 2026-08-15. Elle figeait la pile
-    AVANT que le code utilisateur ait pu tourner, puisqu'on écrit
-    ``@app.middleware`` après ``app = Bretzel(...)``. Résultat :
-    ``@app.middleware`` était un **no-op complet**. La construction est
-    désormais différée à ``Bretzel.__call__``, seul moment où le module
-    utilisateur est importé et où Starlette n'a rien figé.
+    ⚠️ The opposite conclusion — "so the constructor calls it" — was
+    written here and applied until 2026-08-15. It froze the stack BEFORE
+    user code could run, since one writes ``@app.middleware`` after
+    ``app = Bretzel(...)``. Result: ``@app.middleware`` was a **complete
+    no-op**. Building is now deferred to ``Bretzel.__call__``, the only
+    moment when the user module is imported and Starlette has frozen
+    nothing.
     """
     _validate_theme(app)
     _resolve_theme(app)
@@ -176,26 +178,25 @@ async def bretzel_shutdown(app: Bretzel) -> None:
 
 
 def _validate_theme(app: Bretzel) -> None:
-    """Refuser une surcharge de thème que rien ne lira — **avant** tout.
+    """Refuse a theme override nothing will read — **before** anything else.
 
-    Premier appel du démarrage, et c'est délibéré : ce qui suit compile du
-    CSS, ouvre un backend d'état, monte des routes. Échouer après aurait
-    coûté ce travail pour rien, et surtout aurait mêlé le message à des
-    traces d'initialisation.
+    The first call of the startup, and that is deliberate: what follows
+    compiles CSS, opens a state backend, mounts routes. Failing later
+    would have cost that work for nothing, and above all would have mixed
+    the message into initialisation traces.
 
-    Pourquoi ici et pas dans ``Theme.__init__`` : le vocabulaire est
-    dérivé des classes de composants, et la couche ``theme`` n'a pas le
-    droit de les importer (contrat ``base-independent-of-app``). Le
-    démarrage est le premier endroit où les deux moitiés coexistent —
-    exactement comme ``color_shapes`` juste en dessous. Un ``Theme``
-    construit seul (un test, un script) reste donc valide sans la couche
-    composants : c'est ce qui le garde testable isolément, et c'est le
-    prix assumé de l'asymétrie avec ``semantic=``, qui lève, lui, dès la
-    construction.
+    Why here and not in ``Theme.__init__``: the vocabulary is derived
+    from the component classes, and the ``theme`` layer may not import
+    them (the ``base-independent-of-app`` contract). Startup is the first
+    place where both halves coexist — exactly like ``color_shapes`` just
+    below. A ``Theme`` built on its own (a test, a script) therefore stays
+    valid without the components layer: that is what keeps it testable in
+    isolation, and it is the accepted price of the asymmetry with
+    ``semantic=``, which does raise at construction.
 
-    Imports différés : ``introspect`` est la couche 7 et ne doit pas peser
-    sur l'ordre de chargement du serveur (idiome déjà appliqué à
-    ``components`` dans ``_resolve_theme``).
+    Deferred imports: ``introspect`` is layer 7 and must not weigh on the
+    server's load order (an idiom already applied to ``components`` in
+    ``_resolve_theme``).
     """
     from bretzel.introspect import theme_vocabulary
     from bretzel.introspect.packages import third_party_theme_vocabulary
@@ -204,39 +205,40 @@ def _validate_theme(app: Bretzel) -> None:
     theme = app.theme
     if theme is None:
         return
-    # ⚠️ Le vocabulaire est celui du framework **plus** celui des paquets
-    # installés. Sans la seconde moitié, une bibliothèque tierce peut
-    # publier des slots que l'app qui l'installe ne peut pas surcharger :
-    # il lui reste ``classes=`` au point d'appel, répété partout, sans
-    # cascade ni cohérence de thème sombre. C'est la différence entre un
-    # composant thémé et du HTML copié.
+    # ⚠️ The vocabulary is the framework's **plus** that of the
+    # installed packages. Without the second half, a third-party library
+    # can publish slots the app installing it cannot override: all it has
+    # left is ``classes=`` at the call site, repeated everywhere, with no
+    # cascade and no dark-theme consistency. That is the difference
+    # between a themed component and copied HTML.
     #
-    # L'ordre compte : les tiers écrasent — mais ils ne peuvent PAS
-    # entrer en collision, ``third_party_theme_vocabulary`` lève avant.
-    vocabulaire = {**theme_vocabulary(), **third_party_theme_vocabulary()}
-    validate_component_overrides(theme.get_component_overrides(), vocabulaire)
+    # The order matters: third parties override — but they CANNOT
+    # collide, ``third_party_theme_vocabulary`` raises first.
+    vocabulary = {**theme_vocabulary(), **third_party_theme_vocabulary()}
+    validate_component_overrides(theme.get_component_overrides(), vocabulary)
 
 
 def _resolve_theme(app: Bretzel) -> None:
     """Generate theme.css once and stash on the app.
 
-    C'est ici qu'on injecte ce que les thèmes composants savent et que le
-    scanner Tailwind ne peut pas deviner — gabarits couleur ET tokens des
-    props gradués : premier point de la pile autorisé à voir à la fois
-    ``theme`` (socle) et ``components`` (applicatif), cf.
+    This is where we inject what the component themes know and the
+    Tailwind scanner cannot guess — colour templates AND the tokens of
+    the graded props: the first point in the stack allowed to see both
+    ``theme`` (base) and ``components`` (application), cf.
     ``bretzel/components/color_shapes.py``.
 
-    Deux variantes sortent d'ici, parce que les deux consommateurs n'ont
-    pas les mêmes besoins :
+    Two variants come out of here, because the two consumers do not have
+    the same needs:
 
-    - ``_theme_css_content`` — avec la safelist. C'est ce que le
-      compilateur de prod ingère, et ce que sert ``/_bretzel/theme.css``.
-    - ``_theme_css_inline`` — sans la safelist. C'est le bloc
-      ``<style type="text/tailwindcss">`` inliné dans CHAQUE page en dev,
-      où le compilateur navigateur scanne le DOM et n'a donc aucun besoin
-      de la safelist. L'y laisser coûtait 69 Ko par page (66 % du
-      document) et autant de règles à générer avant le premier rendu
-      stylé.
+    - ``_theme_css_content`` — with the safelist. That is what the
+      production compiler ingests, and what ``/_bretzel/theme.css``
+      serves.
+    - ``_theme_css_inline`` — without the safelist. That is the
+      ``<style type="text/tailwindcss">`` block inlined into EVERY page
+      in dev, where the browser compiler scans the DOM and therefore has
+      no need of the safelist. Leaving it there cost 69 KB per page
+      (66 % of the document) and as many rules to generate before the
+      first styled render.
     """
     from bretzel.components import (
         dynamic_responsive_classes,
@@ -304,18 +306,18 @@ def _build_idempotency_store(app: Bretzel) -> None:
 
 
 def _mount_static_dir(app: Bretzel) -> None:
-    """Monter ``config.static_dir`` sur ``/static``, si l'app en déclare un.
+    """Mount ``config.static_dir`` at ``/static``, if the app declares one.
 
-    ``static_dir`` était accepté dans la signature de ``Bretzel(...)``,
-    stocké dans la config, et documenté « mounted at ``/static`` on the
-    underlying FastAPI » — sans qu'aucun ``.mount()`` n'existe dans le
-    dépôt (vérifié 2026-08-01). Un utilisateur qui le passait recevait
-    donc **rien**, en silence : pire qu'un kwarg absent, qui lui aurait
-    levé. Câblé plutôt que retiré — servir un favicon ou un logo est une
-    batterie qu'on demande au premier jour.
+    ``static_dir`` was accepted in ``Bretzel(...)``'s signature, stored
+    in the config, and documented as "mounted at ``/static`` on the
+    underlying FastAPI" — with no ``.mount()`` existing anywhere in the
+    repository (verified 2026-08-01). A user passing it therefore
+    received **nothing**, silently: worse than an absent kwarg, which
+    would have raised for them. Wired rather than removed — serving a
+    favicon or a logo is a battery one asks for on day one.
 
-    Un dossier déclaré mais introuvable **lève au démarrage** : c'est une
-    faute de frappe de chemin, et elle ne se répare pas toute seule.
+    A declared but missing folder **raises at startup**: it is a path
+    typo, and it does not repair itself.
     """
     raw = app.config.static_dir
     if not raw:
@@ -323,14 +325,14 @@ def _mount_static_dir(app: Bretzel) -> None:
     directory = Path(raw)
     if not directory.is_dir():
         raise RuntimeError(
-            f"`Bretzel(static_dir={raw!r})` ne pointe pas un dossier "
-            f"existant (résolu : {directory.resolve()}). Corrige le chemin, "
+            f"`Bretzel(static_dir={raw!r})` does not point at an existing "
+            f"folder (resolved: {directory.resolve()}). Fix the path, "
             f"ou retire l'argument."
         )
     from starlette.staticfiles import StaticFiles
 
-    # ``check_dir=False`` : on vient de le vérifier, avec un message plus
-    # utile que celui de Starlette.
+    # ``check_dir=False``: we have just checked it, with a more useful
+    # message than Starlette's.
     app.fastapi.mount(
         ROUTE_STATIC_DIR,
         StaticFiles(directory=directory, check_dir=False),
@@ -344,10 +346,10 @@ def _register_routes(app: Bretzel) -> None:
         Path(__file__).resolve().parent.parent / "runtime" / "runtime.js"
     )
 
-    # ``css_pipeline`` (et non le mode) décide : ``build`` compile
-    # ``style.css`` avec le binaire Tailwind et le sert en ``<link>`` ;
-    # ``browser`` laisse le compilateur navigateur faire le travail dans
-    # la page. Cf. ``config.css`` pour le compromis.
+    # ``css_pipeline`` (and not the mode) decides: ``build`` compiles
+    # ``style.css`` with the Tailwind binary and serves it as a
+    # ``<link>``; ``browser`` lets the browser compiler do the work in
+    # the page. Cf. ``config.css`` for the trade-off.
     style_css = ""
     app._css_browser_fallback = app.config.css_pipeline == "browser"
     if app.config.css_pipeline == "build" and app._theme_css_content:
@@ -355,42 +357,41 @@ def _register_routes(app: Bretzel) -> None:
         from bretzel.theme.compiler import CompilerError
 
         try:
-            # En dev, on recompile toujours. Le cache est clé sur
-            # l'empreinte du THÈME : une classe Tailwind fraîchement
-            # écrite dans le code utilisateur ne le change pas, donc le
-            # cache la ferait disparaître du CSS — silencieusement, ce
-            # qui est précisément le mode d'échec qu'on chasse. Qui
-            # demande ``css="build"`` en dev a déjà accepté de payer la
-            # compilation ; autant qu'elle soit juste.
+            # In dev, we always recompile. The cache is keyed on the
+            # THEME's fingerprint: a Tailwind class freshly written in
+            # user code does not change it, so the cache would make it
+            # disappear from the CSS — silently, which is precisely the
+            # failure mode we are hunting. Whoever asks for
+            # ``css="build"`` in dev has already accepted paying for the
+            # compilation; it may as well be correct.
             style_css = get_or_build_css(
                 app._theme_css_content, rebuild=app.config.is_dev
             )
         except CompilerError as exc:
-            # Le démarrage ne bloque pas, mais on ne sert PAS une page
-            # nue : on retombe explicitement sur le compilateur
-            # navigateur, en le disant. Un repli silencieux ferait
-            # diverger le rendu de la prod sans que personne le sache —
-            # c'est exactement comme ça qu'une safelist amputée est
-            # passée inaperçue pendant des mois.
+            # Startup does not block, but we do NOT serve a bare page:
+            # we fall back explicitly on the browser compiler, and say
+            # so. A silent fallback would make the render diverge from
+            # production without anyone knowing — that is exactly how a
+            # truncated safelist went unnoticed for months.
             app._css_browser_fallback = True
             print(
-                f"[bretzel] WARN : compilation Tailwind impossible — {exc}\n"
-                "[bretzel]        repli sur le compilateur navigateur : le "
-                "rendu peut différer de la prod.\n"
-                "[bretzel]        installe le binaire avec "
+                f"[bretzel] WARN: Tailwind compilation impossible — {exc}\n"
+                "[bretzel]        falling back on the browser compiler: the "
+                "render may differ from production.\n"
+                "[bretzel]        install the binary with "
                 "``pip install 'bretzel[css]'``."
             )
 
     register_static_routes(
         app.fastapi,
         runtime_js_path=runtime_js_path,
-        # ``strip_scan_roots`` : cette route est publique et sert le
-        # thème « pour l'inspection ». Les racines de balayage sont des
-        # chemins ABSOLUS du serveur — elles n'ont rien à faire dans une
-        # réponse HTTP, et le compilateur navigateur n'en fait rien.
+        # ``strip_scan_roots``: this route is public and serves the
+        # theme "for inspection". The scan roots are ABSOLUTE server
+        # paths — they have no business in an HTTP response, and the
+        # browser compiler does nothing with them.
         theme_css=strip_scan_roots(app._theme_css_content),
         style_css=style_css,
-        # En-têtes de cache = axe assets, pas diagnostics.
+        # Cache headers = assets axis, not diagnostics.
         dev=app.config.is_dev,
     )
     _mount_static_dir(app)
@@ -405,12 +406,12 @@ def _register_routes(app: Bretzel) -> None:
 
 
 def _mount_login_doors(app: Bretzel) -> None:
-    """Monte les portes déclarées par ``@auth.door``.
+    """Mount the doors declared with ``@auth.door``.
 
-    Ici et pas à ``include()`` pour la même raison que les pages : le
-    routeur se lit à chaque requête, mais la pile ASGI se fige au premier
-    appel — le startup est le dernier moment où tout le code utilisateur
-    a été importé et où rien n'est encore servi.
+    Here and not at ``include()`` for the same reason as the pages: the
+    router is read on every request, but the ASGI stack freezes on the
+    first call — startup is the last moment when all user code has been
+    imported and nothing is being served yet.
     """
     for door, on_user in app.doors:
         door.mount(app, on_user)
@@ -419,15 +420,15 @@ def _mount_login_doors(app: Bretzel) -> None:
 def build_middleware_stack(app: Bretzel) -> None:
     """Wrap the FastAPI app in framework + user middlewares.
 
-    Inbound flow (outermost → innermost) :
+    Inbound flow (outermost → innermost):
 
     - User middlewares (registration order, wrapped LIFO so first
       registered ends up outermost).
-    - ``GZipMiddleware`` (gzip niveau 6 ; le SSE en est exclu par type).
+    - ``GZipMiddleware`` (gzip level 6; SSE is excluded by content type).
     - Trusted hosts / CORS — Starlette stock, opt-in via config.
     - ``SessionMiddleware`` (mints / reads ``Bretzel_session``).
     - ``CSRFMiddleware`` (verifies ``X-Bretzel-CSRF`` on non-safe
-      methods using the session id Session just populated ;
+      methods using the session id Session just populated;
       short-circuits ``/_bretzel/action/*`` since those carry their
       own HMAC).
     - ``AuthMiddleware`` (reads the auth cookie).
@@ -469,7 +470,8 @@ def build_middleware_stack(app: Bretzel) -> None:
     app.fastapi.add_middleware(
         SessionMiddleware,
         max_age_seconds=config.session_max_age_days * 86400,
-        # ``None`` = le middleware déduit du scheme, par requête.
+        # ``None`` = the middleware derives it from the scheme, per
+        # request.
         secure=config.secure_cookies,
     )
 
@@ -487,38 +489,38 @@ def build_middleware_stack(app: Bretzel) -> None:
             allow_headers=["*"],
         )
 
-    # Compression — la couche framework la PLUS EXTERNE, donc elle voit
-    # le corps final, après que tout le reste ait écrit.
+    # Compression — the OUTERMOST framework layer, so it sees the final
+    # body, after everything else has written.
     #
-    # Le HTML de Bretzel est répétitif PAR CONSTRUCTION : la même chaîne
-    # de classes Tailwind sur chaque instance d'un composant, la même
-    # expression ``bz-*`` sur chaque contrôle du même genre. Mesuré sur
-    # ``/datatable`` du playground (2026-08-07) : 9 085 attributs
-    # ``class`` pour 328 chaînes distinctes, soit 97 % de doublons — et
-    # ``class=`` + ``bz-*`` font à eux deux ~80 % des octets d'une page.
-    # C'est exactement ce qu'un compresseur mange : 1 334 Ko → 91 Ko.
+    # Bretzel's HTML is repetitive BY CONSTRUCTION: the same Tailwind
+    # class string on every instance of a component, the same ``bz-*``
+    # expression on every control of the same kind. Measured on the
+    # playground's ``/datatable`` (2026-08-07): 9 085 ``class``
+    # attributes for 328 distinct strings, so 97 % duplicates — and
+    # ``class=`` + ``bz-*`` together make up ~80 % of a page's bytes.
+    # That is exactly what a compressor eats: 1 334 KB → 91 KB.
     #
-    # Niveau 6 et non 9 (le défaut de Starlette) : 5,9 ms de CPU pour
-    # cette page contre 113 ms pour la rendre, et le 9 ne gagne que 2 Ko
-    # de plus. L'échelle est plate au-delà de 6.
+    # Level 6 and not 9 (Starlette's default): 5.9 ms of CPU for this
+    # page against 113 ms to render it, and 9 only gains 2 KB more. The
+    # scale is flat beyond 6.
     #
-    # ⚠️ Le flux SSE ne doit JAMAIS être compressé — ``apply_compression``
-    # ne vide son tampon zlib qu'au dernier chunk, et un flux n'en a pas,
-    # donc chaque événement resterait retenu indéfiniment, sans erreur ni
-    # trace. Starlette 1.3 l'exclut déjà par type de contenu
-    # (``DEFAULT_EXCLUDED_CONTENT_TYPES``), ce qui vaut mieux qu'une
-    # exclusion par chemin : ça couvre aussi un flux qu'une app
-    # exposerait ailleurs. On en DÉPEND, donc on le GATE —
+    # ⚠️ The SSE stream must NEVER be compressed — ``apply_compression``
+    # only flushes its zlib buffer on the last chunk, and a stream has
+    # none, so every event would stay held indefinitely, with no error
+    # and no trace. Starlette 1.3 already excludes it by content type
+    # (``DEFAULT_EXCLUDED_CONTENT_TYPES``), which is better than a
+    # path-based exclusion: it also covers a stream an app would expose
+    # elsewhere. We DEPEND on it, so we GATE it —
     # ``tests/integration/server/test_compression.py``.
     app.fastapi.add_middleware(GZipMiddleware, compresslevel=6)
 
-    # En-têtes de sécurité — au-dessus de toute la pile framework (donc
-    # ajouté APRÈS elle) pour couvrir aussi les réponses que les couches
-    # du dessous produisent seules : un 403 CSRF, un 401 auth, une page
-    # d'erreur. Sous la compression, qui reste la plus externe.
+    # Security headers — above the whole framework stack (so added
+    # AFTER it) to also cover the responses the layers below produce on
+    # their own: a CSRF 403, an auth 401, an error page. Below
+    # compression, which stays the outermost.
     #
-    # Les en-têtes ennuyeux sont un défaut, la CSP non : cf.
-    # :mod:`bretzel.server.security` pour pourquoi la ligne passe là.
+    # The boring headers are a default, the CSP is not: cf.
+    # :mod:`bretzel.server.security` for why the line falls there.
     if config.security_headers or config.csp is not False:
         app.fastapi.add_middleware(
             SecurityHeadersMiddleware,
@@ -530,18 +532,17 @@ def build_middleware_stack(app: Bretzel) -> None:
 
     # 1 → user middlewares last so they wrap everything above.
     #
-    # ``reversed`` parce que ``add_middleware`` enregistre innermost-first
-    # (le DERNIER ajouté est le plus externe). En parcourant la liste dans
-    # l'ordre, le dernier ``@app.middleware`` écrit devenait le plus
-    # externe — l'inverse de ce que promet
-    # ``decorators/middleware.py`` : « first registered = outermost ».
-    # Personne ne l'avait vu parce qu'aucun middleware utilisateur ne
-    # tournait du tout avant le 2026-08-15.
+    # ``reversed`` because ``add_middleware`` registers innermost-first
+    # (the LAST added is the outermost). Walking the list in order, the
+    # last ``@app.middleware`` written became the outermost — the
+    # opposite of what ``decorators/middleware.py`` promises: "first
+    # registered = outermost". Nobody had seen it because no user
+    # middleware ran at all before 2026-08-15.
     #
-    # C'est la promesse qu'on tient, pas le hasard de l'implémentation :
-    # c'est la convention d'une liste écrite de haut en bas (le
-    # ``MIDDLEWARE`` de Django se lit ainsi), et c'est celle qui rend une
-    # garde d'auth écrite en premier réellement couvrante.
+    # It is the promise we hold, not the implementation's accident: it is
+    # the convention of a list written top to bottom (Django's
+    # ``MIDDLEWARE`` reads that way), and it is the one that makes an
+    # auth guard written first actually cover.
     for user_mw in reversed(getattr(app, "_user_middlewares", None) or []):
         if inspect.isclass(user_mw):
             app.fastapi.add_middleware(user_mw)
@@ -549,12 +550,12 @@ def build_middleware_stack(app: Bretzel) -> None:
             # Callable async dispatch — wrap with BaseHTTPMiddleware.
             from starlette.middleware.base import BaseHTTPMiddleware
 
-            # ``_mw=user_mw`` lie la valeur de CETTE itération. Une
-            # closure nue lirait ``user_mw`` à l'appel du dispatch, donc
-            # après la fin de la boucle : avec deux middlewares callables,
-            # les deux classes appelleraient le DERNIER, et le premier ne
-            # tournerait jamais. Silencieux — la requête passe, le
-            # middleware manquant ne se signale pas.
+            # ``_mw=user_mw`` binds THIS iteration's value. A bare
+            # closure would read ``user_mw`` when dispatch is called, so
+            # after the loop has ended: with two callable middlewares,
+            # both classes would call the LAST one, and the first would
+            # never run. Silent — the request goes through, the missing
+            # middleware does not report itself.
             class _UserMw(BaseHTTPMiddleware):
                 async def dispatch(self, request, call_next, _mw=user_mw):  # type: ignore[no-untyped-def]
                     return await _mw(request, call_next)
@@ -565,9 +566,9 @@ def build_middleware_stack(app: Bretzel) -> None:
 async def _run_user_hooks(app: Bretzel, hooks: list) -> None:
     for hook in hooks:
         try:
-            # Délesté si synchrone (cf. ``core/invoke``) : un hook de
-            # démarrage qui migre un schéma ou remplit un cache bloque
-            # sinon la boucle pendant que uvicorn dit être prêt.
+            # Offloaded when synchronous (cf. ``core/invoke``): a
+            # startup hook migrating a schema or filling a cache
+            # otherwise blocks the loop while uvicorn says it is ready.
             await call_without_blocking(hook)
         except Exception as exc:  # surface any startup failure
             raise BretzelError(

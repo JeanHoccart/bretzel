@@ -44,7 +44,7 @@ class Spinner(Component):
         color: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(size=size, color=color, **kwargs)
 
     def render(self) -> Element:

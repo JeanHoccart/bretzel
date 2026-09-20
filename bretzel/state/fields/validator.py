@@ -1,27 +1,27 @@
 """Validator declarations for typed state.
 
-Two flavours of validator are supported on a State subclass :
+Two flavours of validator are supported on a State subclass:
 
-- **Single-field** (``@validator("name")``) : runs whenever the field is
+- **Single-field** (``@validator("name")``): runs whenever the field is
   written via :py:meth:`Field.__set__`. The function receives the host
   instance and the incoming value, and returns the (possibly transformed)
   value to store. Raising aborts the assignment.
 
-- **Whole-instance** (``@validator``, no argument) : runs after any field
+- **Whole-instance** (``@validator``, no argument): runs after any field
   has been set, to enforce multi-field invariants. The function receives
   the host instance and returns ``None``. Raising rolls the most recent
   mutation back and re-raises.
 
 Validators raise standard :class:`ValueError` (or any subclass) on
-failure ; per-field handler conventions then route the message to the
+failure; per-field handler conventions then route the message to the
 matching ``state.errors[field_name]`` key. For *cross-field* failures
 (whole-instance validators that don't belong to any single field — e.g.
 "passwords don't match"), raise :class:`FormError` instead so the
 calling form-submit handler can route the message to a form-level key
-like ``state.errors["_"]`` — la clé réservée est un underscore SEUL, pas
-    ``"_form"`` (`server/routing/actions.py` écrit `errors["_"]`) — and
-    display it via ``ui.alert`` at the
-top of the form rather than under a specific field.
+like ``state.errors["_"]`` — the reserved key is a LONE underscore, not
+``"_form"`` (``server/routing/actions.py`` writes ``errors["_"]``) — and
+display it via ``ui.alert`` at the top of the form rather than under a
+specific field.
 
 This module provides only the *declarations* — the actual invocation is
 the responsibility of :class:`~bretzel.state.fields.descriptor.Field` and

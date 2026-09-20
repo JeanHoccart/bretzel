@@ -61,9 +61,10 @@ class _BretzelMarkdownRenderer(mistune.HTMLRenderer):
     ) -> None:
         super().__init__(escape=True)
         self._slots = theme_slots
-        # ``code_root`` = le slot root RÉSOLU de Code. Le renderer n'est pas un
-        # Component → pas de ``_resolved_theme`` : le call-site le passe. Lire
-        # ``CODE_THEME`` ici contournerait un ``Theme(components={"code": …})``.
+        # ``code_root`` = Code's RESOLVED root slot. The renderer is not
+        # a Component → no ``_resolved_theme``: the call site passes it.
+        # Reading ``CODE_THEME`` here would bypass a
+        # ``Theme(components={"code": …})``.
         self._code_root = code_root
 
     def _cls(self, name: str) -> str:
@@ -185,14 +186,13 @@ class Markdown(Component):
             owner="Markdown",
             prop="text",
             because=(
-                "``text`` est la SOURCE markdown, une string parsée par "
-                "mistune. Un Component y était silencieusement stringifié "
-                "en son repr Python et parsé comme du texte."
+                "``text`` is the markdown SOURCE, a string parsed by "
+                "mistune. A Component was silently stringified there as "
+                "its Python repr and parsed as text."
             ),
             instead=(
-                "Pour composer du markdown avec des composants, mets-les "
-                "AUTOUR : ``with ui.vstack(): ui.markdown(src) ; "
-                "ui.badge(…)``."
+                "To compose markdown with components, put them AROUND: "
+                "``with ui.vstack(): ui.markdown(src) ; ui.badge(…)``."
             ),
         )
         super().__init__(**kwargs)
@@ -209,9 +209,8 @@ class Markdown(Component):
 
         theme = self._resolved_theme()
         slots = theme.get("slots", {})
-        # Le thème de Code résolu AUSSI : un override de ``code`` doit
-        # atteindre les blocs fencés du markdown comme il atteint
-        # ``ui.code``.
+        # Code's theme resolved TOO: an override of ``code`` must reach
+        # markdown's fenced blocks as it reaches ``ui.code``.
         code_slots = self._resolved_theme("code", CODE_THEME).get("slots", {})
         renderer = _BretzelMarkdownRenderer(slots, code_slots.get("root", ""))
         md = mistune.create_markdown(

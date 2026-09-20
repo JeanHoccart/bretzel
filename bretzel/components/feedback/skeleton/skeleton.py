@@ -47,7 +47,7 @@ class Skeleton(Component):
         animated: bool | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             variant=variant, width=width,
             height=height, animated=animated,

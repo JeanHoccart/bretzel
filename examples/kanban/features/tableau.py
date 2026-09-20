@@ -1,23 +1,23 @@
-"""kanban/tableau — les colonnes, les cartes, et le fil d'activité.
+"""kanban/tableau — the columns, the cards, and the activity feed.
 
-Deux zones, et **le partage des deux listes de ``@refreshable`` est tout
-le sujet de cet exemple** :
+Two zones, and **how the two ``@refreshable`` lists are shared is this
+example's whole subject**:
 
-- ``deps=`` répond à « qu'est-ce qui me fait me re-rendre, MOI » — la
-  réponse arrive dans la réponse de mon action, un aller-retour.
-- ``broadcast=`` répond à « qu'est-ce que les AUTRES fenêtres doivent
-  refaire » — un signal SSE puis leur propre requête.
+- ``deps=`` answers "what makes ME re-render" — the answer arrives in the
+  response to my action, one round trip.
+- ``broadcast=`` answers "what must the OTHER windows redo" — an SSE
+  signal then their own request.
 
-Le tableau est dans les deux : je le change, et les autres doivent le
-voir. Les filtres ne sont que dans ``deps`` : ce que je masque ne regarde
-que moi, et le diffuser referait travailler tout le monde à chaque frappe
-d'une seule personne.
+The board is in both: I change it, and the others must see it. The
+filters are only in ``deps``: what I hide concerns only me, and
+broadcasting it would make everyone work again at every keystroke of a
+single person.
 
-**La colonne qui défile EST la zone de dépôt**, pas un conteneur autour
-d'elle. Poser la ``dropzone`` à l'intérieur du bloc qui défile ferait
-glisser sa boîte avec les cartes : son cadre couperait le milieu de la
-colonne, et le surlignage « ici, tu peux lâcher » sortirait de l'écran au
-moment précis où il sert (mesuré sur ``examples/crm``).
+**The column that scrolls IS the drop zone**, not a container around it.
+Putting the ``dropzone`` inside the scrolling block would make its box
+slide with the cards: its frame would cut the middle of the column, and
+the "here, you can let go" highlight would leave the screen at the
+precise moment it is useful (measured on ``examples/crm``).
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ from __future__ import annotations
 from functools import partial
 
 from bretzel import Feature, page, refreshable, ui
+from examples.kanban.core.i18n import tr
 from examples.kanban.features.donnees import (
-    COLONNES,
     COUL_ETIQUETTE,
     COULEURS,
     INITIALES,
@@ -35,6 +35,7 @@ from examples.kanban.features.donnees import (
     Tableau,
     avancement,
     colonne_de,
+    colonnes,
     depuis,
     echeance_lisible,
     occupation,
@@ -52,12 +53,11 @@ from examples.kanban.features.state import Affichage, Filtres
 
 
 def vignette(carte: dict) -> None:
-    """Une carte, telle qu'elle se lit sans l'ouvrir.
+    """A card, as it reads without opening it.
 
-    Le clic ouvre le tiroir et le glisser la déplace, sans se marcher
-    dessus : le socle n'arme un glissement qu'après un déplacement du
-    pointeur (ou un appui maintenu au doigt), donc un clic franc reste un
-    clic.
+    The click opens the drawer and the drag moves it, without treading on
+    each other: the base layer only arms a drag after a pointer movement
+    (or a long press with a finger), so a clean click stays a click.
     """
     faites, total = avancement(carte)
     with ui.card(padding="sm", hoverable=True,
@@ -98,7 +98,7 @@ def vignette(carte: dict) -> None:
 
 
 def colonne(cle: str, libelle: str, limite: int | None) -> None:
-    """Une colonne : son en-tête, sa limite, et sa zone de dépôt."""
+    """A column: its header, its limit, and its drop zone."""
     filtres = Filtres()
     cartes = colonne_de(cle, filtres.qui, filtres.etiquette, filtres.q)
     dedans = occupation(cle)
@@ -109,26 +109,33 @@ def colonne(cle: str, libelle: str, limite: int | None) -> None:
                        classes="px-1 shrink-0"):
             with ui.hstack(gap="xs", align="center"):
                 ui.heading(libelle, level=2, size="sm")
-                # ⚠️ Le ``tooltip=`` est posé sur TOUTES les colonnes, y
-                # compris celles sans limite. Il enveloppe le badge, donc
-                # n'en coiffer que deux décalait leurs en-têtes de deux
-                # pixels par rapport aux autres — visible à la capture.
+                # ⚠️ The ``tooltip=`` is set on ALL the columns,
+                # including those without a limit. It wraps the badge, so
+                # capping only two shifted their headers by two pixels
+                # relative to the others — visible on a screenshot.
                 ui.badge(
                     f"{dedans} / {limite}" if limite else str(dedans),
                     size="xs", variant="soft",
                     color="error" if saturee else "muted",
-                    tooltip=(f"Limite d'en-cours : {limite} cartes"
-                             if limite else "Pas de limite d'en-cours"),
+                    tooltip=(
+                        tr(f"Work-in-progress limit: {limite} cards",
+                           f"Limite d'en-cours : {limite} cartes")
+                        if limite else
+                        tr("No work-in-progress limit",
+                           "Pas de limite d'en-cours")
+                    ),
                 )
             if len(cartes) != dedans:
-                ui.text(f"{len(cartes)} affichée"
-                        + ("s" if len(cartes) > 1 else ""),
+                montrees = len(cartes)
+                ui.text(tr(f"{montrees} shown",
+                           f"{montrees} affichée"
+                           + ("s" if montrees > 1 else "")),
                         size="xs", color="muted")
 
-        # ⚠️ C'est la ZONE qui défile. ``min-h-0`` est ce qui autorise un
-        # enfant de flex à être PLUS PETIT que son contenu — sans lui,
-        # ``overflow-y-auto`` n'a rien à couper et la colonne pousse la
-        # page.
+        # ⚠️ It is the ZONE that scrolls. ``min-h-0`` is what lets a
+        # flex child be SMALLER than its content — without it,
+        # ``overflow-y-auto`` has nothing to cut and the column pushes
+        # the page.
         with ui.dropzone(
             name=cle, accepts=[GROUPE], on_move=deposer, color="primary",
             classes="flex-1 min-h-0 overflow-y-auto rounded-lg p-2 "
@@ -137,24 +144,26 @@ def colonne(cle: str, libelle: str, limite: int | None) -> None:
             for carte in ui.drag_each(cartes, group=GROUPE, key="id"):
                 vignette(carte)
             if not cartes:
-                ui.text("Rien ici. Lâche une carte.", size="xs",
-                        color="muted", classes="px-1 py-6 text-center")
+                ui.text(tr("Nothing here. Drop a card.",
+                           "Rien ici. Lâche une carte."),
+                        size="xs", color="muted",
+                        classes="px-1 py-6 text-center")
 
 
 def bande_archive() -> None:
-    """La sortie du tableau : une bande, sous les colonnes.
+    """The board's exit: a strip, under the columns.
 
-    ⚠️ **Sa hauteur est FIXE et son débordement coupé**, et ce n'est pas
-    de la coquetterie. Le moteur de glisser reparente le nœud déplacé
-    dans la zone survolée — c'est ce qui fait que l'ordre du DOM EST le
-    résultat au lâcher. Une zone qui se laisse dimensionner par ce
-    qu'elle héberge grandit donc de la taille d'une carte au survol, et
-    pousse tout ce qui l'entoure au moment précis où on vise. Mesuré :
-    la première version, posée dans le bandeau, passait de 104×32 à
-    362×105 et faisait sauter la barre entière de 93 à 166 px.
+    ⚠️ **Its height is FIXED and its overflow cut**, and that is not
+    fussiness. The drag engine reparents the moved node into the hovered
+    zone — it is what makes the DOM order BE the result on drop. A zone
+    that lets itself be sized by what it hosts therefore grows by the
+    size of a card on hover, and pushes everything around it at the
+    precise moment one is aiming. Measured: the first version, set in the
+    banner, went from 104×32 to 362×105 and made the whole bar jump from
+    93 to 166 px.
 
-    Ici la carte accueillie est simplement coupée : ce que le lecteur
-    regarde pendant le geste, c'est l'aperçu sous son pointeur.
+    Here the card received is simply cut off: what the reader watches
+    during the gesture is the preview under their pointer.
     """
     with ui.dropzone(
         name=ZONE_ARCHIVE, accepts=[GROUPE], locked=True, on_move=archiver,
@@ -164,59 +173,63 @@ def bande_archive() -> None:
                 "justify-center gap-2",
     ):
         ui.icon("archive", size="sm", color="muted")
-        ui.text("Lâche une carte ici pour l'archiver", size="xs",
-                color="muted")
+        ui.text(tr("Drop a card here to archive it",
+                   "Lâche une carte ici pour l'archiver"),
+                size="xs", color="muted")
 
 
-@refreshable(deps=[Tableau, Filtres], broadcast=[Tableau])
+@refreshable(deps=[Tableau, Filtres])
 def plateau() -> None:
-    """Les quatre colonnes. Diffusé : ce que je glisse, les autres le voient."""
+    """The four columns. Broadcast: what I drag, the others see."""
     with ui.vstack(gap="sm", classes="flex-1 min-h-0 min-w-0 p-4"):
         with ui.hstack(gap="md", align="stretch",
                        classes="flex-1 min-h-0 min-w-0 overflow-x-auto"):
-            for cle, libelle, limite in COLONNES:
+            for cle, libelle, limite in colonnes():
                 colonne(cle, libelle, limite)
         bande_archive()
 
 
-@refreshable(deps=[Tableau], broadcast=[Tableau])
+@refreshable(deps=[Tableau])
 def activite() -> None:
-    """Le fil d'activité — l'histoire du tableau, la plus récente en haut.
+    """The activity feed — the board's history, newest at the top.
 
-    C'est ce panneau qui rend le partage VISIBLE : dans la seconde
-    fenêtre, une ligne apparaît sans que personne n'y ait touché. Les
-    entrées déjà annulées restent affichées, en retrait — la pile est
-    devant le curseur, elle n'est pas effacée tant qu'on n'a rien réécrit.
+    It is this panel that makes the sharing VISIBLE: in the second
+    window, a line appears without anybody having touched it. Entries
+    already undone stay shown, set back — the stack is in front of the
+    cursor, it is not erased until something is rewritten.
 
-    ⚠️ **Le déploiement du panneau ne passe PLUS par le serveur.** Il
-    vivait dans ``Vue`` (état serveur), donc replier une colonne coûtait
-    un aller-retour, le re-rendu de cette zone, et l'attente — pour
-    basculer une classe. Les deux versions sont maintenant rendues et
-    ``visible=`` en cache une : zéro requête, et ``Vue`` sort des
-    dépendances de la zone.
+    ⚠️ **Unfolding the panel no longer goes through the server.** It
+    lived in ``Vue`` (a server state), so folding a column cost a round
+    trip, this zone's re-render, and the wait — to flip a class. Both
+    versions are now rendered and ``visible=`` hides one: zero requests,
+    and ``Vue`` leaves the zone's dependencies.
     """
     affichage = Affichage()
     tableau = Tableau()
 
-    # Le rail, quand le panneau est replié. Rendu en permanence — c'est
-    # ce qui permet de basculer sans rien demander à personne.
+    # The rail, when the panel is folded. Rendered permanently — it is
+    # what allows switching without asking anybody anything.
     with ui.vstack(align="center", visible=~affichage.activite,
                    classes="flex-none w-12 border-l border-text/10 pt-4"):
         ui.icon_button("panel-right-open", variant="ghost", size="sm",
                        on_click=affichage.activite.set(True),
-                       tooltip="Montrer l'activité")
+                       tooltip=tr("Show the activity",
+                                  "Montrer l'activité"))
 
     with ui.pane(padding="none", gap="none", visible=affichage.activite,
                  classes="flex-none w-80 border-l border-text/10"):
         with ui.hstack(justify="between", align="center",
                        classes="px-4 py-3 shrink-0"):
-            ui.heading("Activité", level=2, size="sm")
+            ui.heading(tr("Activity", "Activité"), level=2, size="sm")
             ui.icon_button("panel-right-close", variant="ghost", size="sm",
                            on_click=affichage.activite.set(False),
-                           tooltip="Cacher l'activité")
+                           tooltip=tr("Hide the activity",
+                                      "Cacher l'activité"))
         with ui.pane(padding="md", gap="sm", classes="flex-1 min-h-0"):
             if not tableau.journal:
-                ui.text("Personne n'a encore rien fait. Glisse une carte.",
+                ui.text(tr("Nobody has done anything yet. Drag a card.",
+                           "Personne n'a encore rien fait. Glisse une "
+                           "carte."),
                         size="xs", color="muted")
             for rang, entree in reversed(list(enumerate(tableau.journal))):
                 defaite = rang >= tableau.curseur
@@ -231,22 +244,23 @@ def activite() -> None:
                             ui.text(depuis(entree["t"]), size="xs",
                                     color="muted")
                             if defaite:
-                                ui.badge("annulé", size="xs", variant="soft",
+                                ui.badge(tr("undone", "annulé"),
+                                         size="xs", variant="soft",
                                          color="muted")
 
 
-@page("/", layout=shell, title="Tableau")
+@page("/", layout=shell, title="Board")
 def page_tableau() -> None:
-    # ⚠️ ``align="stretch"`` n'est pas décoratif : ``ui.hstack`` aligne en
-    # ``center`` par défaut — le choix juste pour une ligne de contrôles,
-    # et fatal pour une ligne de COLONNES. Sans lui, chaque enfant prend
-    # la hauteur de son contenu au lieu de celle du rang : la zone du
-    # tableau mesurait 878 px dans un ``<main>`` de 591, débordait par le
-    # bas, et comme le document est gelé (``ui.viewport``) rien ne
-    # défilait — ni la page, ni la colonne, dont l'``overflow-y-auto``
-    # n'avait plus rien à couper. Invisible sur un grand écran : à
-    # 1500×940 tout tenait, à 1280×700 les cartes disparaissaient sous le
-    # bord. Mesuré le 2026-09-09 sur une capture de l'utilisateur.
+    # ⚠️ ``align="stretch"`` is not decorative: ``ui.hstack`` aligns on
+    # ``center`` by default — the right choice for a row of controls, and
+    # fatal for a row of COLUMNS. Without it, each child takes the height
+    # of its content instead of the row's: the board's zone measured
+    # 878 px inside a 591 px ``<main>``, overflowed at the bottom, and as
+    # the document is frozen (``ui.viewport``) nothing scrolled — neither
+    # the page, nor the column, whose ``overflow-y-auto`` had nothing
+    # left to cut. Invisible on a big screen: at 1500×940 everything
+    # fitted, at 1280×700 the cards vanished under the edge. Measured on
+    # 2026-09-09 on a screenshot from the user.
     with ui.hstack(gap="none", align="stretch",
                    classes="flex-1 min-h-0 w-full"):
         plateau()
@@ -254,13 +268,13 @@ def page_tableau() -> None:
     tiroir()
 
 
-#: ⚠️ ``tiroir`` est déclaré ici alors qu'il vit dans ``fiche.py``, et
-#: c'est voulu : une ``Feature`` est le contrat d'une TRANCHE, pas d'un
-#: fichier. Le tiroir de détail est une région de cette page, il n'a ni
-#: route ni ``layout=`` — le vocabulaire des dix ``kind`` n'a d'ailleurs
-#: rien pour un fragment rendu qui ne soit ni l'un ni l'autre. Le socle
-#: capte le module de DÉFINITION de chaque symbole, donc la carte pointe
-#: quand même le bon fichier.
+#: ⚠️ ``tiroir`` is declared here although it lives in ``fiche.py``, and
+#: it is intended: a ``Feature`` is a SLICE's contract, not a file's. The
+#: detail drawer is a region of this page, it has neither a route nor a
+#: ``layout=`` — the vocabulary of the ten ``kind`` has nothing, as it
+#: happens, for a rendered fragment that is neither. The base layer
+#: captures each symbol's DEFINING module, so the map still points at
+#: the right file.
 feature = Feature(
     name="tableau", kind="page",
     provides=[page_tableau, plateau, activite, tiroir, colonne,

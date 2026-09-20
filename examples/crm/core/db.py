@@ -1,27 +1,27 @@
-"""core/db — infra : le fichier SQLite, son schéma, ses index et son seed.
+"""core/db — infra: the SQLite file, its schema, its indexes and its seed.
 
-Feature ``kind="infra"`` : elle ne rend rien et ne porte aucun ``State``
-Bretzel — elle POSSÈDE une ressource externe (le fichier SQLite) et expose
-les portes d'accès (``query`` / ``scalar`` en lecture, ``execute`` en
-écriture). Les features ``*_data`` requêtent par-dessus ; les pages ne la
-touchent jamais.
+A ``kind="infra"`` feature: it renders nothing and carries no Bretzel
+``State`` — it OWNS an external resource (the SQLite file) and exposes
+the access doors (``query`` / ``scalar`` for reads, ``execute`` for
+writes). The ``*_data`` features query on top of it; the pages never
+touch it.
 
-Cet exemple utilise ``sqlite3`` et des fonctions synchrones. Ce choix
-n'est pas une limite de ``@refreshable`` : le framework prend aussi en
-charge les corps de zone asynchrones.
+This example uses ``sqlite3`` and synchronous functions. That choice is
+not a limit of ``@refreshable``: the framework also supports
+asynchronous zone bodies.
 
-**Volumes.** ~262 000 lignes semées une fois (voir ``seed.py``), pas 20 : en
-dessous, la datatable en mode callable n'a aucune raison d'exister et aucune
-mise en page n'est contrainte.
+**Volumes.** ~262 000 rows seeded once (see ``seed.py``), not 20: below
+that, the datatable in callable mode has no reason to exist and no
+layout is under constraint.
 
-**Les comptes utilisateurs vivent dans la même base**, table ``users``. Le
-framework ne modélise pas d'utilisateur au-delà de son identifiant — il ne
-sait que « telle requête appartient à X », dans un cookie signé — donc le
-profil, le rôle et le mot de passe sont à l'app. ``owner`` y est la clé de
-jointure avec la donnée : c'est le nom qu'on lit dans ``accounts.owner``.
+**The user accounts live in the same database**, table ``users``. The
+framework does not model a user beyond their identifier — it only knows
+"this request belongs to X", in a signed cookie — so the profile, the
+role and the password belong to the app. ``owner`` there is the join key
+with the data: it is the name read in ``accounts.owner``.
 
-Pas d'état global mutable (anti-règle 2) : ``connect()`` ouvre une connexion
-neuve par appel.
+No mutable global state (anti-rule 2): ``connect()`` opens a fresh
+connection per call.
 """
 
 from __future__ import annotations
@@ -34,36 +34,36 @@ from bretzel import Feature
 
 DB_PATH = Path(__file__).with_name("crm.db")
 
-#: Bumpé quand le schéma ou le seed change — ``init_db`` reconstruit alors le
-#: fichier. Sans ce marqueur, semer 262 000 lignes à chaque démarrage rendrait
-#: ``reload=True`` inutilisable.
+#: Bumped when the schema or the seed changes — ``init_db`` then rebuilds
+#: the file. Without this marker, seeding 262 000 rows at every startup
+#: would make ``reload=True`` unusable.
 SEED_VERSION = 7
 
 
 def connect() -> sqlite3.Connection:
-    """Une connexion neuve au fichier SQLite (rows en accès dict-like)."""
+    """A fresh connection to the SQLite file (rows with dict-like access)."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def owner_scope(owner: str | None, clause: str) -> tuple[str, tuple]:
-    """``(fragment SQL, paramètres)`` pour cadrer une lecture — ou rien.
+    """``(SQL fragment, parameters)`` to scope a read — or nothing.
 
-    Onze lectures du CRM portaient les deux mêmes lignes, dont la seconde
-    était **identique au caractère près** partout. Ce qui varie — le
-    qualifieur de colonne, le ``AND`` ou le ``WHERE`` — reste écrit EN
-    CLAIR au call-site, exprès : le cadrage doit se voir dans la requête
-    qu'on relit, pas se cacher derrière un nom de fonction.
+    Eleven of the CRM's reads carried the same two lines, the second of
+    which was **identical to the character** everywhere. What varies —
+    the column qualifier, the ``AND`` or the ``WHERE`` — stays written
+    OUT IN THE OPEN at the call site, on purpose: the scoping must show
+    in the query one re-reads, not hide behind a function name.
 
-    ``owner=None`` veut dire **tous les propriétaires**, et c'est un
-    privilège (``access.visible_owner``). ``""`` ne matche personne.
+    ``owner=None`` means **every owner**, and it is a privilege
+    (``access.visible_owner``). ``""`` matches nobody.
     """
     return ("", ()) if owner is None else (clause, (owner,))
 
 
 def query(sql: str, params: tuple = ()) -> list[dict]:
-    """Exécute un SELECT et renvoie une liste de dicts — la porte de LECTURE."""
+    """Run a SELECT and return a list of dicts — the READ door."""
     conn = connect()
     try:
         return [dict(r) for r in conn.execute(sql, params)]
@@ -72,11 +72,12 @@ def query(sql: str, params: tuple = ()) -> list[dict]:
 
 
 def scalar(sql: str, params: tuple = ()) -> Any:
-    """La première colonne de la première ligne — pour les ``COUNT(*)``.
+    """The first column of the first row — for the ``COUNT(*)``.
 
-    Une porte à part plutôt qu'un ``query(...)[0]["count"]`` recopié partout :
-    le mode callable de la datatable réclame un total à CHAQUE rendu, et c'est
-    l'endroit où un ``dict`` construit pour un entier se verrait.
+    A separate door rather than a ``query(...)[0]["count"]`` copied
+    everywhere: the datatable's callable mode asks for a total at EVERY
+    render, and it is the place where a ``dict`` built for an integer
+    would show.
     """
     conn = connect()
     try:
@@ -86,28 +87,27 @@ def scalar(sql: str, params: tuple = ()) -> Any:
         conn.close()
 
 
-#: Les verbes SQL pour lesquels ``lastrowid`` veut dire quelque chose.
+#: The SQL verbs for which ``lastrowid`` means something.
 _ROWID_VERBS = frozenset({"INSERT", "REPLACE"})
 
 
 def execute(sql: str, params: tuple = ()) -> int:
-    """Exécute un INSERT / UPDATE / DELETE, commit, et renvoie le
-    ``lastrowid`` (INSERT) ou le nombre de lignes touchées — la porte
-    d'ÉCRITURE.
+    """Run an INSERT / UPDATE / DELETE, commit, and return the
+    ``lastrowid`` (INSERT) or the number of rows touched — the WRITE door.
 
-    ⚠️ **Le verbe est lu explicitement**, et c'est un correctif. Le code
-    disait ``lastrowid if lastrowid is not None else rowcount``, ce qui
-    paraît raisonnable et ne l'est pas : après un ``UPDATE``, sqlite3
-    laisse ``lastrowid`` à ``0`` sur une connexion neuve — jamais
-    ``None``. Donc un ``UPDATE`` rendait toujours ``0``, et la première
-    fonction à s'en servir pour dire « refusé » (``update_contact``)
-    refusait aussi ce qu'elle venait d'écrire. Le bug était latent depuis
-    la tranche 1 : personne ne lisait le retour d'un ``UPDATE``.
+    ⚠️ **The verb is read explicitly**, and it is a fix. The code said
+    ``lastrowid if lastrowid is not None else rowcount``, which looks
+    reasonable and is not: after an ``UPDATE``, sqlite3 leaves
+    ``lastrowid`` at ``0`` on a fresh connection — never ``None``. So an
+    ``UPDATE`` always returned ``0``, and the first function using it to
+    say "refused" (``update_contact``) also refused what it had just
+    written. The bug had been latent since slice 1: nobody read an
+    ``UPDATE``'s return.
 
-    Note réactivité : une écriture DB ne touche AUCUN ``State`` typé, donc le
-    moteur de re-render ne la « voit » pas. Les repos bumpent après coup un
-    jeton de révision ``AppState`` — c'est LUI que les zones
-    ``@refreshable(deps=[…Rev])`` observent.
+    Reactivity note: a DB write touches NO typed ``State``, so the
+    re-render engine does not "see" it. The repos bump a revision token
+    on an ``AppState`` afterwards — that is what the
+    ``@refreshable(deps=[…Rev])`` zones observe.
     """
     verb = sql.lstrip().split(None, 1)[0].upper()
     conn = connect()
@@ -152,14 +152,14 @@ CREATE TABLE contacts (
     phone      TEXT    NOT NULL,
     title      TEXT    NOT NULL,
     status     TEXT    NOT NULL,
-    -- Dénormalisé depuis ``accounts.owner``, comme ``activities`` porte
-    -- déjà son ``account_id``. ⚠️ Ce n'est PAS du confort : cadrer les
-    -- contacts par ``a.owner`` force la jointure dans le COUNT ET dans
-    -- le SELECT, et SQLite se met alors à conduire depuis ``accounts``
-    -- puis à trier les survivants. Mesuré sur la page 1 de l'écran 3 :
-    -- **4,8 ms → 100,5 ms**. Avec la colonne ici et son index :
-    -- **0,08 ms**. Le semis la remplit depuis le compte, donc les deux
-    -- ne peuvent pas diverger.
+    -- Denormalised from ``accounts.owner``, the way ``activities``
+    -- already carries its own ``account_id``. ⚠️ This is NOT comfort:
+    -- scoping contacts by ``a.owner`` forces the join into the COUNT AND
+    -- into the SELECT, and SQLite then starts driving from ``accounts``
+    -- and sorting the survivors. Measured on page 1 of screen 3:
+    -- **4.8 ms → 100.5 ms**. With the column here and its index:
+    -- **0.08 ms**. The seed fills it from the account, so the two cannot
+    -- diverge.
     owner      TEXT    NOT NULL,
     created_at TEXT    NOT NULL
 );
@@ -195,51 +195,52 @@ CREATE TABLE notes (
 );
 """
 
-#: Les index que les écrans réclament réellement, mesurés avec
-#: ``EXPLAIN QUERY PLAN`` plutôt que devinés.
+#: The indexes the screens really ask for, measured with
+#: ``EXPLAIN QUERY PLAN`` rather than guessed.
 #:
-#: **Un index par colonne triable de la datatable des comptes.** Sans eux,
-#: ``ORDER BY city`` planifie ``SCAN accounts`` + ``USE TEMP B-TREE`` : 50 000
-#: lignes triées pour en rendre 25, mesuré à 12-16 ms par clic de tri contre
-#: 0,3 ms avec. La liste doit rester égale à ``SORTABLE`` dans
-#: ``accounts_data`` — une colonne triable sans index est un scan silencieux.
+#: **One index per sortable column of the accounts datatable.** Without
+#: them, ``ORDER BY city`` plans ``SCAN accounts`` + ``USE TEMP B-TREE``:
+#: 50 000 rows sorted to return 25, measured at 12-16 ms per sort click
+#: against 0.3 ms with. The list must stay equal to ``SORTABLE`` in
+#: ``accounts_data`` — a sortable column without an index is a silent
+#: scan.
 #:
-#: **``activities(at, kind, owner)``** sert l'écran 6, qui lit toujours par
-#: fenêtre de dates : l'index par contact ne peut pas servir un ``BETWEEN``
-#: sur ``at``, il est ordonné par ``contact_id`` d'abord. Les trois colonnes,
-#: pas deux — l'écran offre un filtre par propriétaire, et sans lui dans
-#: l'index les trois zones perdent la couverture : 1,6 ms mesurés contre
-#: 24 ms.
+#: **``activities(at, kind, owner)``** serves screen 6, which always
+#: reads by date window: the per-contact index cannot serve a ``BETWEEN``
+#: on ``at``, it is ordered by ``contact_id`` first. Three columns, not
+#: two — the screen offers a filter by owner, and without it in the index
+#: the three zones lose the covering: 1.6 ms measured against 24 ms.
 #:
-#: **Les trois index ``COLLATE NOCASE``** sont ceux de la recherche globale,
-#: et ils ne font pas doublon avec leurs jumeaux binaires. ``LIKE`` est
-#: insensible à la casse par défaut dans SQLite (``case_sensitive_like``
-#: OFF), donc l'optimisation qui transforme ``LIKE 'mot%'`` en plage d'index
-#: exige un index NOCASE — un index BINARY ne peut pas la servir, et le plan
-#: retombe en ``SCAN``. Mesuré : la recherche de contacts passe de **898 ms
-#: à 43,7 ms**, celle des comptes de 7,65 ms à 0,05 ms. Les index binaires
-#: restent, eux, pour les ``ORDER BY``, qui sont bien binaires.
+#: **The three ``COLLATE NOCASE`` indexes** are the global search's, and
+#: they are not duplicates of their binary twins. ``LIKE`` is
+#: case-insensitive by default in SQLite (``case_sensitive_like`` OFF),
+#: so the optimisation turning ``LIKE 'word%'`` into an index range needs
+#: a NOCASE index — a BINARY index cannot serve it, and the plan falls
+#: back to ``SCAN``. Measured: the contact search goes from **898 ms to
+#: 43.7 ms**, the account one from 7.65 ms to 0.05 ms. The binary indexes
+#: stay, for their part, for the ``ORDER BY``, which are indeed binary.
 #:
-#: **``contacts(status, last_name, first_name)`` est composite**, et l'ordre
-#: des trois colonnes est le point : filtrer par statut puis trier par nom
-#: utilisait ``idx_contacts_status`` et retriait 30 000 lignes en mémoire —
-#: 147 ms. Le composite couvre le filtre ET l'ordre : 0,2 ms.
+#: **``contacts(status, last_name, first_name)`` is composite**, and the
+#: order of the three columns is the point: filtering by status then
+#: sorting by name used ``idx_contacts_status`` and re-sorted 30 000 rows
+#: in memory — 147 ms. The composite covers the filter AND the order:
+#: 0.2 ms.
 #:
-#: **Les sept index préfixés par ``owner``** datent de l'arrivée des
-#: comptes, et ils réparent une régression que le cadrage avait
-#: introduite : dès qu'un prédicat ``owner = ?`` se pose à côté d'un
-#: ``ORDER BY`` ou d'un ``LIKE``, l'index mono-colonne ne peut plus
-#: servir les deux, et le plan retombe en tri temporaire ou en scan.
-#: Mesuré, cadré, avant → après :
+#: **The seven indexes prefixed by ``owner``** date from the arrival of
+#: accounts, and they repair a regression the scoping had introduced: as
+#: soon as an ``owner = ?`` predicate sits beside an ``ORDER BY`` or a
+#: ``LIKE``, the single-column index can no longer serve both, and the
+#: plan falls back to a temporary sort or a scan. Measured, scoped,
+#: before → after:
 #:
-#: - liste des contacts, page 1 : 100,5 ms → 0,08 ms ;
-#: - recherche de contacts par préfixe : 93,7 ms → 6,1 ms ;
-#: - recherche de comptes par préfixe : 5,0 ms → 0,62 ms ;
-#: - datatable des comptes triée par nom : 9,04 ms → 0,08 ms.
+#: - contacts list, page 1: 100.5 ms → 0.08 ms;
+#: - contact prefix search: 93.7 ms → 6.1 ms;
+#: - account prefix search: 5.0 ms → 0.62 ms;
+#: - accounts datatable sorted by name: 9.04 ms → 0.08 ms.
 #:
-#: Le préfixe ``owner`` vient EN PREMIER dans chacun : c'est l'égalité,
-#: et un index ne sert un ``ORDER BY`` que si les colonnes d'égalité le
-#: précèdent. Les jumeaux non cadrés restent — la direction les utilise.
+#: The ``owner`` prefix comes FIRST in each: it is the equality, and an
+#: index only serves an ``ORDER BY`` if the equality columns precede it.
+#: The unscoped twins stay — the directorate uses them.
 _INDEXES = """
 CREATE INDEX idx_accounts_name      ON accounts(name);
 CREATE INDEX idx_accounts_arr       ON accounts(arr);
@@ -275,7 +276,7 @@ CREATE INDEX idx_contacts_own_mail  ON contacts(owner, email COLLATE NOCASE);
 
 
 def seeded_version(conn: sqlite3.Connection) -> int | None:
-    """La version du seed en place, ou ``None`` si le fichier n'en a pas."""
+    """The seed version in place, or ``None`` if the file has none."""
     try:
         row = conn.execute(
             "SELECT value FROM meta WHERE key = 'seed_version'"
@@ -286,13 +287,13 @@ def seeded_version(conn: sqlite3.Connection) -> int | None:
 
 
 def init_db(*, force: bool = False) -> bool:
-    """(Re)crée schéma + index + seed si nécessaire. Renvoie True si semé.
+    """(Re)create schema + indexes + seed if needed. Returns True if seeded.
 
-    Idempotent et déterministe : le même ``SEED_VERSION`` laisse le fichier
-    intact, y compris les écritures faites depuis l'app. C'est la différence
-    avec ``examples/mad``, qui repose son seed à chaque démarrage : à 262 000
-    lignes ce n'est plus gratuit, et un pipeline qu'on vient de réordonner
-    reviendrait à sa place à chaque ``reload``.
+    Idempotent and deterministic: the same ``SEED_VERSION`` leaves the
+    file intact, including the writes made from the app. It is the
+    difference with ``examples/mad``, which re-lays its seed at every
+    startup: at 262 000 rows that is no longer free, and a pipeline one
+    has just reordered would go back to its place at every ``reload``.
     """
     conn = connect()
     try:
@@ -306,15 +307,15 @@ def init_db(*, force: bool = False) -> bool:
     DB_PATH.unlink(missing_ok=True)
     conn = connect()
     try:
-        # WAL : lectures concurrentes pendant une écriture. Une app SDUI rend
-        # plusieurs zones par requête, chacune ouvrant sa connexion.
+        # WAL: concurrent reads during a write. An SDUI app renders
+        # several zones per request, each opening its own connection.
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(_SCHEMA)
         for table, rows in build_seed():
             placeholders = ",".join("?" * len(rows[0]))
             conn.executemany(f"INSERT INTO {table} VALUES ({placeholders})", rows)
-        # Index posés APRÈS l'insertion : les construire d'abord ferait payer
-        # un rééquilibrage d'arbre à chacune des 262 000 lignes.
+        # Indexes placed AFTER the insertion: building them first would
+        # make each of the 262 000 rows pay a tree rebalance.
         conn.executescript(_INDEXES)
         conn.execute(
             "INSERT INTO meta (key, value) VALUES ('seed_version', ?)",

@@ -1,17 +1,17 @@
 """``Image`` test bench.
 
-Six cartes visuelles : Reference / Ratios & fit / Edge cases /
-Composability / A11y / Server playground. ``BINDABLE_PROPS = ()`` donc
-aucune carte Client — il n'y a pas de surface réactive à exercer.
+Six visual cards: Reference / Ratios & fit / Edge cases / Composability /
+A11y / Server playground. ``BINDABLE_PROPS = ()`` so no Client card —
+there is no reactive surface to exercise.
 
-Quatre props (``src`` / ``alt`` / ``ratio`` / ``fit``), aucun event.
+Four props (``src`` / ``alt`` / ``ratio`` / ``fit``), no event.
 
-⚠️ **Toutes les images sont des SVG en ``data:``**, jamais une URL
-distante. Un banc qui dépend du réseau rend les probes Playwright
-intermittents et fait échouer la suite hors ligne — et on ne saurait pas
-si le rouge vient du composant ou du DNS. Les trois sources ont des
-ratios NATURELS différents (large, haute, carrée) : c'est ce qui rend la
-différence ``cover`` / ``contain`` visible à l'œil.
+⚠️ **Every image is an SVG in a ``data:``**, never a remote URL. A bench
+that depends on the network makes the Playwright probes intermittent and
+makes the suite fail offline — and one would not know whether the red
+comes from the component or from DNS. The three sources have different
+NATURAL ratios (wide, tall, square): it is what makes the ``cover`` /
+``contain`` difference visible to the eye.
 """
 
 from bretzel import refreshable, ui
@@ -28,12 +28,12 @@ FITS = ["cover", "contain"]
 
 
 def svg_source(width: int, height: int, fill: str, label: str) -> str:
-    """Un SVG inline en data: — une source d'image déterministe.
+    """An inline SVG in a data: — a deterministic image source.
 
-    Pas d'encodage base64 : un SVG lisible en clair dans le HTML se
-    débogue à l'œil, et l'URL reste courte. Les # sont échappés parce
-    qu'un # non échappé dans une data: URI coupe l'URL sur un
-    fragment — la moitié droite du SVG serait silencieusement perdue.
+    No base64 encoding: an SVG readable in the clear in the HTML is
+    debugged by eye, and the URL stays short. The # are escaped because
+    an unescaped # in a data: URI cuts the URL on a fragment — the SVG's
+    right half would be silently lost.
     """
     svg = (
         f"<svg xmlns='http://www.w3.org/2000/svg' width='{width}' "
@@ -46,24 +46,24 @@ def svg_source(width: int, height: int, fill: str, label: str) -> str:
     return "data:image/svg+xml;utf8," + svg.replace("#", "%23")
 
 
-# Ratios naturels contrastés — indispensable pour VOIR ce que fit= fait.
+# Contrasting natural ratios — essential to SEE what fit= does.
 WIDE_SRC = svg_source(480, 160, "#2563eb", "480x160")
 TALL_SRC = svg_source(160, 480, "#7c3aed", "160x480")
 SQUARE_SRC = svg_source(320, 320, "#059669", "320x320")
-# Une URL qui n'existe pas : montre que la boîte thémée reste en place.
-BROKEN_SRC = "/static/cette-image-nexiste-pas.png"
+# A URL that does not exist: shows the themed box stays in place.
+BROKEN_SRC = '/static/this-image-does-not-exist.png'
 
 
 class ImagePlayground(PageState):
-    """État du banc serveur — un champ par prop + par échappatoire
-    universelle. Une chaîne vide veut dire « ne passe pas le kwarg »,
-    pour que le composant prenne son propre défaut."""
+    """The server bench's state — one field per prop + per universal
+    escape hatch. An empty string means "do not pass the kwarg", so the
+    component takes its own default."""
 
     src: str = field(default="wide")
-    alt: str = field(default="Un rectangle bleu de 480 par 160")
+    alt: str = field(default='A blue rectangle 480 by 160')
     ratio: str = field(default="video")
     fit: str = field(default="cover")
-    # Échappatoires.
+    # Escape hatches.
     classes: str = field(default="")
     custom_id: str = field(default="")
     aria_label: str = field(default="")
@@ -83,9 +83,9 @@ SOURCES = {
 
 
 def server_changed(state: ImagePlayground) -> None:
-    # Param typé → le dispatcher hydrate la valeur du contrôle modifié
-    # dans state. Le deps=[ImagePlayground] de server_panel
-    # le re-rend.
+    # A typed param → the dispatcher hydrates the changed control's
+    # value into state. server_panel's deps=[ImagePlayground] re-renders
+    # it.
     pass
 
 
@@ -138,17 +138,17 @@ def server_panel() -> None:
     state = ImagePlayground()
 
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
-        with control("src — la SOURCE, pas la forme rendue"):
+        with control('src — the SOURCE, not the rendered shape'):
             ui.select(value=state.src,
                       options=[("wide", "source 480×160"),
                                ("tall", "source 160×480"),
                                ("square", "source 320×320"),
-                               ("broken", "URL cassée")],
+                               ("broken", 'Broken URL')],
                       on_change=server_changed)
         with control("alt (obligatoire)"):
-            ui.input(value=state.alt, placeholder="Décris l'image",
+            ui.input(value=state.alt, placeholder='Describe the image',
                      on_change=server_changed)
-        with control("ratio — c'est LUI qui décide de la forme"):
+        with control('ratio — IT is what decides the shape'):
             ui.select(value=state.ratio,
                       options=[("", "aucun (taille naturelle)")]
                       + [(r, r) for r in RATIOS],
@@ -169,28 +169,28 @@ def server_panel() -> None:
         with control("style"):
             ui.input(value=state.style, placeholder="opacity: 0.5",
                      on_change=server_changed)
-        with control("extra_attrs (un par ligne, clé=valeur)"):
+        with control('extra_attrs (one per line, key=value)'):
             ui.textarea(value=state.extra_attrs, rows=3,
                         placeholder="loading=eager\ndata-test=image",
                         on_change=server_changed)
         with control("tooltip"):
-            ui.input(value=state.tooltip, placeholder="Photo du produit",
+            ui.input(value=state.tooltip, placeholder='Product photo',
                      on_change=server_changed)
         with control("visible"):
             ui.select(value=state.visible,
-                      options=[("on", "True (défaut)"),
-                               ("off", "False (pas de rendu)")],
+                      options=[("on", 'True (default)'),
+                               ("off", 'False (nothing rendered)')],
                       on_change=server_changed)
 
     ui.divider()
 
-    # L'appel effectif, JUSTE au-dessus de l'aperçu. Sans cette ligne, on
-    # regarde une image carrée rendue en 16/9 et on conclut que le
-    # composant est cassé — alors que c'est ``ratio`` qui commande, et
-    # qu'il est resté 30 cm plus haut, hors du champ de vision. Le HTML
-    # émis le dirait aussi, mais il est replié derrière son toggle.
+    # The actual call, JUST above the preview. Without this line, one
+    # looks at a square image rendered in 16/9 and concludes the
+    # component is broken — whereas it is ``ratio`` that commands, and it
+    # stayed 30 cm higher up, out of the field of view. The emitted HTML
+    # would say so too, but it is folded away behind its toggle.
     natural = {"wide": "480×160", "tall": "160×480",
-               "square": "320×320", "broken": "URL cassée"}
+               "square": "320×320", "broken": 'Broken URL'}
     ui.text(
         f"source {natural.get(state.src, '?')}"
         f" → ratio={state.ratio or 'aucun'}"
@@ -199,14 +199,14 @@ def server_panel() -> None:
     )
     if state.ratio and state.src in ("wide", "tall", "square"):
         ui.text(
-            "La forme rendue vient du ratio, jamais de la source : "
-            "changez ratio pour changer la boîte, fit pour choisir "
-            "entre recadrer (cover) et tout montrer (contain).",
+            'The rendered shape comes from the ratio, never from the '
+                'source: change ratio to change the box, fit to choose '
+                'between cropping (cover) and showing everything (contain).',
             size="xs", color="muted",
         )
 
-    # Largeur bornée : sans ça, une image en ratio="wide" occupe toute
-    # la carte et on ne voit plus la boîte.
+    # Bounded width: without it, an image in ratio="wide" takes the
+    # whole card and the box is no longer visible.
     with ui.vstack(classes="max-w-sm"):
         build_preview(state)
 
@@ -223,11 +223,11 @@ def page() -> None:
         with ui.vstack():
             ui.heading("Image", level=1)
             ui.text(
-                "Une image, avec sa place réservée. ratio= est le "
-                "vrai apport : sans lui la page saute au chargement, "
-                "parce que chaque image pousse le contenu d'en dessous "
-                "en arrivant. alt= est obligatoire — une image "
-                "décorative se déclare alt=\"\", explicitement.",
+                'An image, with its space reserved. ratio= is the real '
+                    'contribution: without it the page jumps on load, because'
+                    ' every image pushes the content below as it arrives. '
+                    'alt= is mandatory — a decorative image is declared '
+                    'alt="", explicitly.',
                 color="muted",
             )
 
@@ -238,16 +238,15 @@ def page() -> None:
                     ui.text("Balayage visuel de chaque prop.",
                             color="muted", size="sm")
 
-                    ui.heading("Sans ratio — taille naturelle", level=3)
+                    ui.heading('With no ratio — natural size', level=3)
                     ui.image(WIDE_SRC, alt="Rectangle bleu 480 par 160")
 
-                    ui.heading("Les quatre ratios", level=3)
+                    ui.heading('The four ratios', level=3)
                     with ui.grid(cols={"base": 2, "md": 4}, gap="md"):
                         for name in RATIOS:
                             with ui.vstack(gap="xs"):
                                 ui.text(name, size="xs", color="muted")
-                                ui.image(SQUARE_SRC, alt=f"Carré vert, "
-                                                         f"ratio {name}",
+                                ui.image(SQUARE_SRC, alt=f"'Green square, ratio '{name}",
                                          ratio=name)
 
             # ── Carte 2 — Ratios & fit ──────────────────────────────
@@ -255,13 +254,13 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Ratio × fit", level=2)
                     ui.text(
-                        "La même source dans le même ratio, avec les "
-                        "deux fit. cover remplit et recadre ; "
-                        "contain montre tout et laisse voir le fond "
-                        "de la boîte sur les côtés. La différence n'est "
-                        "visible que si le ratio naturel de l'image "
-                        "diffère du ratio déclaré — d'où les sources "
-                        "480×160 et 160×480.",
+                        'The same source in the same ratio, with both '
+                            'fits. cover fills and crops; contain shows '
+                            "everything and lets the box's background show at"
+                            ' the sides. The difference is only visible if '
+                            "the image's natural ratio differs from the "
+                            'declared one — hence the 480×160 and 160×480 '
+                            'sources.',
                         color="muted", size="sm",
                     )
 
@@ -282,44 +281,44 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Edge cases", level=2)
                     ui.text(
-                        "Les entrées qui cassent des composants "
-                        "ailleurs. Reproductibles en direct dans le banc "
-                        "serveur plus bas.",
+                        'The inputs that break components elsewhere. '
+                            'Reproducible live in the server bench further '
+                            'down.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("URL cassée — la boîte reste", level=3)
+                    ui.heading('Broken URL — the box stays', level=3)
                     ui.text(
-                        "C'est le fallback, et il ne coûte aucun JS : le "
-                        "fond de l'image EST la boîte. La mise en page "
-                        "ne bouge pas, parce que le ratio a réservé la "
-                        "place avant même la requête.",
+                        'This is the fallback, and it costs no JS: the '
+                            "image's background IS the box. The layout does "
+                            'not move, because the ratio reserved the space '
+                            'before the request even left.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-xs"):
                         ui.image(BROKEN_SRC,
-                                 alt="Cette image ne se chargera pas",
+                                 alt='This image will not load',
                                  ratio="video")
 
-                    ui.heading("alt vide — image décorative", level=3)
+                    ui.heading('empty alt — a decorative image', level=3)
                     ui.text(
-                        "alt=\"\" fait IGNORER l'image par le "
-                        "lecteur d'écran. Ce n'est pas la même chose "
-                        "qu'omettre l'attribut, qui fait annoncer l'URL.",
+                        'alt="" makes the screen reader IGNORE the image.'
+                            ' That is not the same as omitting the attribute,'
+                            ' which makes it announce the URL.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-xs"):
                         ui.image(SQUARE_SRC, alt="", ratio="square")
 
-                    ui.heading("alt très long (120 caractères)", level=3)
+                    ui.heading('a very long alt (120 characters)', level=3)
                     with ui.vstack(classes="max-w-xs"):
                         ui.image(BROKEN_SRC, alt="D" * 120, ratio="video")
 
-                    ui.heading("alt avec caractères HTML (échappement)",
+                    ui.heading('alt with HTML characters (escaping)',
                                level=3)
                     ui.text(
-                        "Le framework échappe l'attribut — le script "
-                        "reste du texte littéral au lieu de s'exécuter.",
+                        'The framework escapes the attribute — the script'
+                            ' stays literal text instead of executing.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-xs"):
@@ -327,23 +326,23 @@ def page() -> None:
                                  alt="<script>alert(1)</script>",
                                  ratio="square")
 
-                    ui.heading("Image plus large que son parent", level=3)
+                    ui.heading('An image wider than its parent', level=3)
                     ui.text(
-                        "max-w-full au slot racine : elle se borne "
-                        "au parent au lieu de déborder.",
+                        'max-w-full on the root slot: it bounds itself to'
+                            ' the parent instead of overflowing.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(classes="max-w-[120px]"):
-                        ui.image(WIDE_SRC, alt="Bornée à 120 pixels")
+                        ui.image(WIDE_SRC, alt='Bounded to 120 pixels')
 
             # ── Carte 4 — Composability ─────────────────────────────
             with ui.card():
                 with ui.vstack():
                     ui.heading("Composability", level=2)
-                    ui.text("Image imbriquée dans d'autres composants.",
+                    ui.text('An image nested inside other components.',
                             color="muted", size="sm")
 
-                    ui.heading("Dans ui.card — vignette produit", level=3)
+                    ui.heading('In a ui.card — product thumbnail', level=3)
                     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
                         for label, src in (("Bleu", WIDE_SRC),
                                            ("Vert", SQUARE_SRC)):
@@ -355,22 +354,22 @@ def page() -> None:
                                     ui.text("12,00 €", color="muted",
                                             size="sm")
 
-                    ui.heading("Dans une cellule de grille contrainte",
+                    ui.heading('Inside a constrained grid cell',
                                level=3)
                     ui.text(
-                        "Le cas qui a piégé date_picker : un composant "
-                        "seul se comporte autrement qu'en cellule "
-                        "étroite.",
+                        'The case that caught date_picker out: a '
+                            'component on its own behaves differently from '
+                            'one in a narrow cell.',
                         color="muted", size="xs",
                     )
                     with ui.grid(cols={"base": 3}, gap="sm"):
                         for name in ("square", "video", "portrait"):
-                            ui.image(TALL_SRC, alt=f"En cellule, {name}",
+                            ui.image(TALL_SRC, alt=f"'In a cell, '{name}",
                                      ratio=name)
 
-                    ui.heading("Dans ui.tooltip", level=3)
+                    ui.heading('In a ui.tooltip', level=3)
                     with ui.vstack(classes="max-w-xs"):
-                        with ui.tooltip("Un visuel produit"):
+                        with ui.tooltip('A product visual'):
                             ui.image(SQUARE_SRC, alt="Survolez-moi",
                                      ratio="square")
 
@@ -379,24 +378,23 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("A11y", level=2)
                     ui.text(
-                        "alt est le SEUL kwarg d'accessibilité "
-                        "obligatoire du dépôt. L'omettre est une "
-                        "TypeError à l'appel, pas un rendu "
-                        "silencieusement inaccessible — parce qu'un alt "
-                        "manquant ne se voit ni à l'écran ni dans le "
-                        "HTML relu en diagonale, seulement au lecteur "
-                        "d'écran.",
+                        "alt is the repository's ONLY mandatory "
+                            'accessibility kwarg. Omitting it is a TypeError '
+                            'at call time, not a silently inaccessible render'
+                            ' — because a missing alt shows neither on screen'
+                            ' nor in HTML skimmed diagonally, only to a '
+                            'screen reader.',
                         color="muted", size="sm",
                     )
                     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
                         with ui.vstack(gap="xs"):
-                            ui.text("alt décrit — image informative",
+                            ui.text('alt describes — an informative image',
                                     size="xs", color="muted")
                             ui.image(SQUARE_SRC,
                                      alt="Logo vert de l'application",
                                      ratio="square")
                         with ui.vstack(gap="xs"):
-                            ui.text('alt="" — image décorative, ignorée',
+                            ui.text('alt="" — a decorative image, ignored',
                                     size="xs", color="muted")
                             ui.image(WIDE_SRC, alt="", ratio="square")
 
@@ -405,10 +403,9 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Server playground", level=2)
                     ui.text(
-                        "Le vrai banc d'essai. Chaque prop ET chaque "
-                        "échappatoire est câblée à un contrôle ; "
-                        "l'aperçu et le HTML émis se rafraîchissent à "
-                        "chaque changement.",
+                        'The real test bench. Every prop AND every escape'
+                            ' hatch is wired to a control; the preview and '
+                            'the emitted HTML both refresh on every change.',
                         color="muted", size="sm",
                     )
                     server_panel()

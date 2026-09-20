@@ -50,46 +50,45 @@ DATATABLE_THEME: dict[str, Any] = {
         "toolbar": "flex items-center gap-2 flex-wrap",
         # The search box shouldn't span the table — a full-width text
         # field reads as "type a lot here", which is the wrong promise
-        # for a filter. D'où le plafond à `max-w-xs` (320 px).
+        # for a filter. Hence the ceiling at `max-w-xs` (320 px).
         #
-        # `flex-1` et PAS `w-full`, et c'est la moitié qui compte. Sous
-        # `flex-wrap`, un débordement fait RETOURNER À LA LIGNE, il ne
-        # compresse pas : la recherche restait donc à 320 px à toutes les
-        # largeurs (mesuré de 1400 à 700 px — pas un pixel cédé) et
-        # c'est l'export qui se payait une rangée entière dès ~1000 px.
-        # `flex-1` (base 0) la fait tenir sur la ligne quoi qu'il arrive
-        # puis grandir dans la place restante, donc c'est ELLE qui absorbe
-        # l'étroitesse — c'est le contrôle le plus élastique de la barre,
-        # les autres ont une largeur que leur texte impose.
+        # `flex-1` and NOT `w-full`, and that is the half that counts.
+        # Under `flex-wrap`, an overflow makes things WRAP, it does not
+        # compress: the search therefore stayed at 320 px at every width
+        # (measured from 1400 to 700 px — not a pixel given) and it was
+        # the export that paid a whole row as soon as ~1000 px. `flex-1`
+        # (basis 0) makes it hold the line whatever happens then grow
+        # into the remaining space, so IT is what absorbs the narrowness
+        # — it is the bar's most elastic control, the others have a width
+        # their text imposes.
         #
-        # Le plancher vit dans `sizes[<size>]["search"]` : sous ~190 px
-        # (à `md`) le placeholder se tronque et le champ ne dit plus ce
-        # qu'il cherche, et un élastique SANS plancher rend un champ de
-        # 40 px avant de consentir à passer à la ligne. Il se met à
-        # l'échelle parce qu'un tableau `lg` écrit plus gros : le même
-        # nombre de pixels n'y tient pas le même nombre de caractères.
+        # The floor lives in `sizes[<size>]["search"]`: below ~190 px (at
+        # `md`) the placeholder truncates and the field no longer says
+        # what it searches, and an elastic WITH NO floor gives a 40 px
+        # field before consenting to wrap. It scales because an `lg`
+        # table writes bigger: the same number of pixels does not hold
+        # the same number of characters there.
         "search": "flex-1 max-w-xs",
-        # ``ml-auto`` : l'export part au bout de la barre. Ce n'est pas
-        # de la mise en page décorative — c'est ce qui sépare les deux
-        # natures de contrôle qui la peuplent. À gauche on RESTREINT
-        # (recherche, filtres, remise à zéro) ; à droite on SORT les
-        # données. Collé aux filtres, l'export se lisait comme l'un
-        # d'eux. C'est LA place à documenter : les call-sites lisent ce
-        # slot par son nom et n'ont rien à redire.
+        # ``ml-auto``: the export goes to the end of the bar. It is not
+        # decorative layout — it is what separates the two natures of
+        # control that populate it. On the left you NARROW (search,
+        # filters, reset); on the right you TAKE the data OUT. Stuck to
+        # the filters, the export read as one of them. THAT is the place
+        # to document: the call sites read this slot by its name and have
+        # nothing to say about it.
         #
-        # ``ml-auto`` et PAS le ``justify-between`` que ``footer`` emploie
-        # deux lignes plus bas, alors que c'est le même travail. La
-        # différence est ``flex-wrap`` : le footer a exactement deux
-        # enfants, la toolbar en a un nombre variable qui doit rester
-        # groupé. Sous ``justify-between`` la barre écarterait la
-        # recherche et les filtres à chaque bout dès qu'il reste de la
-        # place. ``ml-auto`` sur le dernier enfant pousse à droite de LA
-        # LIGNE OÙ IL ATTERRIT — mesuré de 1280 à 390 px : au large il
-        # termine la rangée des filtres, à l'étroit il occupe seule la
-        # sienne, toujours à ras du bord droit. La lecture « deux
-        # moitiés » vaut donc tant que la barre tient sur une ligne, et
-        # dégénère proprement — pas en désordre — quand elle passe à la
-        # ligne.
+        # ``ml-auto`` and NOT the ``justify-between`` ``footer`` uses two
+        # lines below, although it is the same work. The difference is
+        # ``flex-wrap``: the footer has exactly two children, the toolbar
+        # has a variable number that must stay grouped. Under
+        # ``justify-between`` the bar would push the search and the
+        # filters to each end whenever room is left. ``ml-auto`` on the
+        # last child pushes to the right of THE LINE IT LANDS ON —
+        # measured from 1280 to 390 px: wide, it ends the filters' row;
+        # narrow, it occupies its own alone, always flush with the right
+        # edge. The "two halves" reading therefore holds as long as the
+        # bar fits on one line, and degrades cleanly — not into disorder
+        # — when it wraps.
         "export": "ms-auto",
         "footer": "flex items-center justify-between gap-3 flex-wrap",
         # Type scale lives in ``sizes[<size>]["info"]`` — a ``text-xs``
@@ -107,20 +106,20 @@ DATATABLE_THEME: dict[str, Any] = {
         # the same pixel as the plain header above it in the column.
         # ``hover:!text-text`` is the affordance that says clickable ; the
         # colour at REST comes from the parent (``color="current"``).
-        # ⚠️ La casse suit ``Table.head_cell`` — les deux DOIVENT rester
-        # d'accord, sinon une colonne triable et sa voisine statique ne se
-        # lisent plus comme la même ligne d'en-tête. L'uppercase en 10-12 px
-        # a été retiré des deux le 2026-08-06 : illisible, et c'est
-        # exactement ce que le spec V1 demandait de remplacer par de la
-        # casse normale. Ce qui distingue un en-tête d'une donnée est
-        # désormais le POIDS et la couleur, pas la taille ni les capitales
-        # — la convention des bibliothèques actuelles.
-        # Ni ``flex-1`` ni ``min-w-0`` : ils servaient le ``head_group``
-        # qui partageait la cellule entre le titre et un déclencheur de
-        # filtre. Le filtre est parti dans la barre d'outils, le parent
-        # est redevenu un ``<th>`` nu (``table/theme.py`` § head_cell,
-        # sans ``display:flex``), et les deux tokens n'agissaient plus
-        # sur rien.
+        # ⚠️ The case follows ``Table.head_cell`` — the two MUST stay in
+        # agreement, otherwise a sortable column and its static neighbour
+        # no longer read as the same header row. The uppercase at 10-12 px
+        # was removed from both on 2026-08-06: illegible, and it is
+        # exactly what the V1 spec asked to replace with normal case.
+        # What distinguishes a header from data is now the WEIGHT and the
+        # colour, not the size nor the capitals — the convention of
+        # current libraries.
+        # Neither ``flex-1`` nor ``min-w-0``: they served the
+        # ``head_group`` that shared the cell between the title and a
+        # filter trigger. The filter moved to the toolbar, the parent
+        # became a bare ``<th>`` again (``table/theme.py`` § head_cell,
+        # with no ``display:flex``), and the two tokens no longer acted
+        # on anything.
         "head_button": (
             "!justify-start !h-auto !px-1 !py-0.5 -mx-1 "
             "!rounded !text-sm !font-semibold !normal-case !tracking-normal "
@@ -147,13 +146,12 @@ DATATABLE_THEME: dict[str, Any] = {
     # worse than an honest constant, because the test that "proves" it
     # only sees the class string.
     "sizes": {
-        # Un SEUL token `toolbar` alimente TOUS les contrôles de la barre
-        # — recherche, filtres, export — et il descend tel quel dans le
-        # `size=` du combobox de filtre, dont la propre table `sizes`
-        # met à l'échelle son panneau, ses options et sa recherche. Avant :
-        # la recherche prenait `size`, la pastille `toolbar_button` et la
-        # recherche interne `filter_check`, donc trois échelles côte à
-        # côte sur un tableau `lg`.
+        # A SINGLE `toolbar` token feeds ALL the bar's controls —
+        # search, filters, export — and it goes down as is into the
+        # filter combobox's `size=`, whose own `sizes` table scales its
+        # panel, its options and its search. Before: the search took
+        # `size`, the chip `toolbar_button` and the inner search
+        # `filter_check`, so three scales side by side on an `lg` table.
         "sm": {"pager": "sm", "info": "text-xs", "toolbar": "sm",
                "search": "min-w-44"},
         "md": {"pager": "sm", "info": "text-xs", "toolbar": "sm",

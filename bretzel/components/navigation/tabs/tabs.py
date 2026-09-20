@@ -88,10 +88,10 @@ def _build_x_data(
       the field also carries ``_serverSync: ['value']`` so the bridge
       re-adopts the fresh server value on a @refreshable morph
       (idiomorph preserves the live signal otherwise — cf.
-      ``03_scope.js`` ``resyncScopes`` and ``traps.md`` § "value
-      lié-serveur suit le refresh"). A plain literal (``value="a"``)
-      omits it so a user's tab click survives an unrelated section
-      refresh — same gate as Select / Slider.
+      ``03_scope.js`` ``resyncScopes`` and ``traps.md`` § "a
+      server-bound value follows the refresh"). A plain literal
+      (``value="a"``) omits it so a user's tab click survives an
+      unrelated section refresh — same gate as Select / Slider.
     - **Binding mode** : NO local field and — critically — **no
       ``get active()`` getter**. The scope's ``absorb`` (03_scope.js)
       evaluates every declared key ONCE and freezes it into a local
@@ -103,7 +103,7 @@ def _build_x_data(
       update. Instead the directives read ``$bz.state.<path>`` DIRECTLY
       (a tracked store cell) and ``setTab`` reads / writes the same
       path. Same idiom as Select — cf. its "No live ``get value()``"
-      docstring, and ``traps.md`` § "getter de scope figé par absorb".
+      docstring, and ``traps.md`` § "scope getter frozen by absorb".
       No ``_serverSync`` — the value lives in ``$bz._store``, patched by
       the envelope, never on a scope signal.
 
@@ -119,9 +119,9 @@ def _build_x_data(
     """
     initial_js = json.dumps(initial_value)
     if has_local_value:
-        # ``scope_key`` vient de ``_scope_keys`` — plus d'un littéral
-        # hardcodé, même source pour le signal ET le ``_serverSync``,
-        # ils ne peuvent plus diverger.
+        # ``scope_key`` comes from ``_scope_keys`` — no longer a
+        # hard-coded literal, the same source for the signal AND the
+        # ``_serverSync``, they can no longer diverge.
         sync = server_sync_marker(scope_key, enabled=server_synced)
         local_field = f"{scope_key}: {initial_js},{sync} "
         active_read = f"this.{scope_key}"
@@ -134,19 +134,19 @@ def _build_x_data(
         active_read = binding_path
         write_target = binding_path
 
-    # ``setTab`` vit une seule fois dans ``$bz.tabs.scope``
-    # (``bretzel/runtime/_src/16_accordion.js``) — il n'était pas gros,
-    # mais il était sérialisé par instance, et son ``_read``/``_write``
-    # est exactement l'indirection que Pagination et Accordion utilisent
-    # déjà pour couvrir champ local ET binding avec les mêmes méthodes.
+    # ``setTab`` lives once in ``$bz.tabs.scope``
+    # (``bretzel/runtime/_src/16_accordion.js``) — it was not big, but it
+    # was serialised per instance, and its ``_read``/``_write`` is
+    # exactly the indirection Pagination and Accordion already use to
+    # cover both a local field AND a binding with the same methods.
     #
-    # (La dispatch de ``change`` ne peut PAS vivre dans une méthode de
-    # scope : le proxy V3 n'y expose ni ``$refs`` ni ``$nextTick``. C'est
-    # le ``bz-effect`` de l'input caché qui la refait quand la valeur bouge.)
-    # ``_url`` : le nom du paramètre, pas sa valeur. ``setTab`` le lit
-    # pour pousser l'adresse après avoir écrit le signal, et ``_urlInit``
-    # pour recâbler le retour arrière. Absent quand personne n'a demandé
-    # d'adresse — donc tout le mécanisme reste inerte par défaut.
+    # (The ``change`` dispatch can NOT live in a scope method: the V3
+    # proxy exposes neither ``$refs`` nor ``$nextTick`` there. It is the
+    # hidden input's ``bz-effect`` that redoes it when the value moves.)
+    # ``_url``: the parameter's name, not its value. ``setTab`` reads it
+    # to push the address after writing the signal, and ``_urlInit`` to
+    # re-wire the back button. Absent when nobody asked for an address —
+    # so the whole mechanism stays inert by default.
     url_field = f"_url: {json.dumps(url_param)}," if url_param else ""
     return (
         "{...$bz.tabs.scope,"
@@ -159,17 +159,17 @@ def _build_x_data(
 
 
 def _tab_from_url(param: str) -> str:
-    """La valeur de ``param`` dans l'URL de la requête courante, ou ``""``.
+    """The value of ``param`` in the current request's URL, or ``""``.
 
-    Best-effort et jamais levant : hors requête (les tests unitaires
-    montent un composant sans contexte) il n'y a pas d'URL, et ce n'est
-    pas une faute — l'onglet retombe simplement sur son défaut.
+    Best-effort and never raising: outside a request (the unit tests
+    mount a component with no context) there is no URL, and that is not
+    a fault — the tab simply falls back on its default.
 
-    ⚠️ On ne VALIDE pas que la valeur désigne un onglet existant. À ce
-    point du rendu les enfants ne sont pas encore parcourus, donc la
-    liste des ids n'existe pas. Un ``?onglet=nimporte`` laisse alors
-    AUCUN onglet sélectionné — c'est visible, contrairement à un
-    silencieux retour au défaut, et ça reste réparable d'un clic.
+    ⚠️ We do NOT VALIDATE that the value designates an existing tab. At
+    this point in the render the children have not been walked yet, so
+    the list of ids does not exist. A ``?tab=whatever`` then leaves NO
+    tab selected — which is visible, unlike a silent fallback to the
+    default, and stays fixable in one click.
     """
     from bretzel.render.context import maybe_current_context
 
@@ -197,10 +197,10 @@ class Tabs(Component):
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value",)
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
 
-    # ``writes=True`` → la métaclasse dérive ``TWO_WAY_PROPS = ("value",)``
-    # et la clé de scope, qui vaut le NOM DE LA PROP. Elle s'appelait
-    # ``active`` et se déclarait en ``scope_keys=("active",)`` : un
-    # synonyme de plus dans les huit que le catalogue portait.
+    # ``writes=True`` → the metaclass derives ``TWO_WAY_PROPS =
+    # ("value",)`` and the scope key, which is the PROP'S NAME. It was
+    # called ``active`` and declared as ``scope_keys=("active",)``: one
+    # more synonym among the eight the catalogue carried.
     value: Any = reactive_prop(
         default="", emit_attr=False, writes=True, names_field=True
     )
@@ -212,17 +212,17 @@ class Tabs(Component):
     # pass ``name=`` explicitly for literal-valued Tabs that still
     # need a server handler. Same idiom as Pagination.
     name: str | None = reactive_prop(default=None, emit_attr=False)
-    #: Le nom du paramètre d'URL qui porte l'onglet ouvert —
-    #: ``ui.tabs(url="onglet")`` donne ``/contacts/5?onglet=activites``.
+    #: The name of the URL parameter that carries the open tab —
+    #: ``ui.tabs(url="tab")`` gives ``/contacts/5?tab=activity``.
     #:
-    #: **Design-time, jamais bindable** : c'est un nom, pas une valeur.
-    #: Le rendre réactif reviendrait à renommer un paramètre d'URL en
-    #: cours de route, ce qui casserait le retour arrière sur les entrées
-    #: déjà empilées.
+    #: **Design-time, never bindable**: it is a name, not a value.
+    #: Making it reactive would amount to renaming a URL parameter
+    #: mid-course, which would break the back button on the entries
+    #: already stacked.
     #:
-    #: Absent par défaut. Un onglet n'a d'adresse que si on la demande —
-    #: même opt-in que ``URL = {…}`` sur un état serveur, et pour la même
-    #: raison : ce qui est dans l'URL est PUBLIC.
+    #: Absent by default. A tab only has an address if you ask for one —
+    #: the same opt-in as ``URL = {…}`` on a server state, and for the
+    #: same reason: what is in the URL is PUBLIC.
     url: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
@@ -236,7 +236,7 @@ class Tabs(Component):
         on_change: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             value=value,
             size=size,
@@ -291,21 +291,21 @@ class Tabs(Component):
         # ``value="a"`` literal has no stamp and stays client-owned.
         value_server_backed = self._value_server_backed("value")
 
-        # ── L'onglet vient-il de l'URL ? ────────────────────────────
+        # ── Does the tab come from the URL? ─────────────────────────
         #
-        # Le SEMIS. Sans lui, ``/contacts/5?onglet=activites`` ouvrirait
-        # l'onglet par défaut et la barre d'adresse mentirait — un lien
-        # partagé montrerait autre chose que ce que l'expéditeur voyait.
+        # The SEEDING. Without it, ``/contacts/5?tab=activity`` would
+        # open the default tab and the address bar would lie — a shared
+        # link would show something other than what the sender saw.
         #
-        # C'est aussi ce qui fait marcher le bouton retour APRÈS un
-        # rechargement : le runtime restaure l'onglet depuis le scope tant
-        # que la page est vivante, le serveur le fait quand elle renaît.
+        # It is also what makes the back button work AFTER a reload: the
+        # runtime restores the tab from the scope as long as the page is
+        # alive, the server does it when it is born again.
         url_param = self._reactive_values.get("url") or None
         if url_param:
             from_url = _tab_from_url(url_param)
             if from_url:
                 initial_value = from_url
-        # Clé du signal de scope, déclarée sur la prop (« active »).
+        # Key of the scope signal, declared on the prop ("active").
         scope_key = self._scope_keys("value")[0]
 
         binding_path = (
@@ -337,15 +337,14 @@ class Tabs(Component):
         tab_nodes: list[Element] = []
         panel_nodes: list[Element] = []
         for raw in self._children:
-            # ``unwrap_transparent`` : un onglet est très souvent
-            # ENVELOPPÉ — dans une zone ``@refreshable`` pour se
-            # rafraîchir seul, ou dans un ``ui.fragment``. L'enveloppe
-            # n'est pas une instance de ``Tab``, donc le tri par type la
-            # ratait et l'onglet **disparaissait de la barre**, sans une
-            # erreur (mesuré le 2026-08-23 : 2 268 → 1 353 caractères).
-            # ``rewrap`` rend son ``bz-id`` à la zone sur le nœud qu'on
-            # vient de composer — sans lui l'onglet s'afficherait et ne
-            # se rafraîchirait plus jamais.
+            # ``unwrap_transparent``: a tab is very often WRAPPED — in
+            # a ``@refreshable`` zone to refresh alone, or in a
+            # ``ui.fragment``. The wrapper is not an instance of
+            # ``Tab``, so sorting by type missed it and the tab
+            # **disappeared from the bar**, with no error (measured on
+            # 2026-08-23: 2,268 → 1,353 characters). ``rewrap`` gives
+            # its ``bz-id`` back to the zone on the node just composed —
+            # without it the tab would display and never refresh again.
             child, rewrap = unwrap_transparent(raw)
             if isinstance(child, Tab):
                 tab_nodes.append(rewrap(
@@ -422,16 +421,15 @@ class Tabs(Component):
         )
         root_attrs["bz-data"] = x_data
         if url_param:
-            # Le RETOUR arrière. ``setTab`` pousse l'adresse ; sans ce
-            # pendant, la flèche du navigateur changerait l'URL et
-            # laisserait l'onglet en place — l'adresse affichée mentirait
-            # alors sur ce qui est à l'écran, ce qui est pire que de ne
-            # pas avoir d'adresse du tout.
+            # The BACK button. ``setTab`` pushes the address; without
+            # this counterpart, the browser's arrow would change the URL
+            # and leave the tab in place — the displayed address would
+            # then lie about what is on screen, which is worse than
+            # having no address at all.
             #
-            # ``bz-init`` et pas un ``bz-effect`` : on s'abonne UNE fois à
-            # un événement de ``window``, on n'observe pas un signal.
-            # C'est la voie que ``06_helpers.js`` documente pour
-            # ``popstate``.
+            # ``bz-init`` and not a ``bz-effect``: we subscribe ONCE to a
+            # ``window`` event, we do not watch a signal. It is the route
+            # ``06_helpers.js`` documents for ``popstate``.
             root_attrs["bz-init"] = "_urlInit()"
 
         tablist = Element(
@@ -505,7 +503,7 @@ class Tab(Component):
         disabled: bool | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             tab_id=tab_id,
             label=label,
@@ -525,8 +523,8 @@ class Tab(Component):
         initial_active: str,
     ) -> Element:
         tab_id = str(self._reactive_values.get("tab_id") or "")
-        # PAS de ``str(...)`` : ``label`` est un slot textuel (il accepte
-        # un Component), et ``emit_text_slot`` fait le tri en aval.
+        # NO ``str(...)``: ``label`` is a textual slot (it accepts a
+        # Component), and ``emit_text_slot`` sorts it out downstream.
         label = self._reactive_values.get("label") or ""
         disabled = bool(self._reactive_values.get("disabled"))
         id_js = json.dumps(tab_id)
@@ -538,7 +536,7 @@ class Tab(Component):
         # mode (NO scope getter — cf. ``_build_x_data``). Both resolve in
         # the directive's ``with($scope)`` wrap ; ``this.value`` would
         # read the DOM element, not the scope (cf. ``traps.md`` §
-        # "this.X dans une directive").
+        # "this.X in a directive").
         #
         # ``data-selected`` : the active-state driver. Rendered
         # STATIC server-side on the initial active tab so the
@@ -547,13 +545,12 @@ class Tab(Component):
         # up at first paint, BEFORE the runtime boots. Then
         # ``bz-attr:data-selected`` keeps it reactive on subsequent
         # clicks. The expression yields a ``'true'`` / ``'false'``
-        # STRING via ``bool_attr``, qui émet le ternaire stringifié — et
-        # NON ``.toString()``, qui lève
-        # sur ``null`` (dialecte unifié le 2026-07-30). A bare boolean
-        # would make
+        # STRING via ``bool_attr``, which emits the stringified ternary —
+        # and NOT ``.toString()``, which raises on ``null`` (dialect
+        # unified on 2026-07-30). A bare boolean would make
         # ``bz-attr`` strip the attribute on ``false`` and the
         # ``data-[selected=false]`` selectors would never match. Cf.
-        # ``traps.md`` § "bz-attr supprime l'attr sur false nu".
+        # ``traps.md`` § "bz-attr removes the attr on a bare false".
         attrs: dict[str, Any] = {
             "type": "button",
             "role": "tab",
@@ -614,7 +611,7 @@ class TabPanel(Component):
         tab: str = "",
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(tab=tab, **kwargs)
 
     # ── Internal render — invoked by Tabs ─────────────────────────────

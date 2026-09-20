@@ -1,18 +1,18 @@
 """Shared SVG primitives for the chart components.
 
-Fonctions pures, à UNE exception près, et elle est nommée ici parce que
-la docstring a menti le temps d'un commit : :func:`format_value` lit
-``text("chart.currency")`` pour le symbole monétaire, donc elle consulte
-le contexte de rendu. Tout le reste ne construit aucun ``Element`` et
-n'importe rien du framework — chaque graphique compose son ``<svg>`` en
-appelant ces helpers et en assemblant l'arbre lui-même.
+Pure functions, with ONE exception, and it is named here because the
+docstring lied for the length of a commit: :func:`format_value` reads
+``text("chart.currency")`` for the currency symbol, so it consults the
+render context. Everything else builds no ``Element`` and imports
+nothing from the framework — each chart composes its ``<svg>`` by
+calling these helpers and assembling the tree itself.
 
-L'exception reste testable en isolation : hors contexte,
-:func:`~bretzel.render.texts.text` retombe sur la table anglaise, donc un
-appel nu rend ce qu'il rendait avant. Ce qui a été pesé et écarté :
-passer le symbole depuis le composant appelant (qui a le contexte)
-aurait ajouté un paramètre à sept sites pour préserver une pureté que
-seul ce fichier revendique.
+The exception stays testable in isolation: outside a context,
+:func:`~bretzel.render.texts.text` falls back on the English table, so a
+bare call returns what it returned before. What was weighed and ruled
+out: passing the symbol from the calling component (which has the
+context) would have added a parameter to seven sites to preserve a
+purity only this file claims.
 
 Conventions :
 
@@ -53,11 +53,11 @@ def format_value(
       Sweet spot for KPI charts where the magnitude matters more than the
       decimals.
     - ``"percent"``    — ``0.42`` → ``"42%"`` (multiplies by 100).
-    - ``"currency"``   — ``1234.5`` → ``"$1,234.50"``. Le symbole et sa
-      place viennent de la clé de texte ``chart.currency``, donc une app
-      écrit ``texts={"chart.currency": "{value} €"}`` une fois pour
-      toutes. La séparation des milliers reste anglaise : c'est un axe de
-      formatage de nombres, pas un mot du framework.
+    - ``"currency"``   — ``1234.5`` → ``"$1,234.50"``. The symbol and its
+      place come from the ``chart.currency`` text key, so an app writes
+      ``texts={"chart.currency": "{value} €"}`` once and for all. The
+      thousands separator stays English: it is a number-formatting axis,
+      not a framework word.
 
     ``None`` falls back to terse ``"1234"`` (int-like) or ``"3.14"``
     (with decimals, trailing zeros stripped).

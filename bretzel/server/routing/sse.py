@@ -54,10 +54,10 @@ def register_sse_route(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
                 status_code=400,
             )
 
-        # ⚠️ Dans l'URL et pas dans un en-tête : ``EventSource`` n'a
-        # aucune façon d'en poser un. L'identité est tirée par le
-        # navigateur à chaque chargement de page, elle ne désigne rien
-        # côté serveur et ne survit pas à la fermeture de l'onglet.
+        # ⚠️ In the URL and not in a header: ``EventSource`` has no way
+        # of setting one. The identity is drawn by the browser on every
+        # page load, it designates nothing server-side and does not
+        # survive the tab being closed.
         tab_id = (request.query_params.get(SSE_TAB_PARAM) or "").strip()[:64]
 
         return StreamingResponse(

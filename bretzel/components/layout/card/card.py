@@ -51,8 +51,9 @@ class Card(Component):
         on_mouseleave: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive ``None``
-        # (garde le défaut) — plus de garde ``if x is not None`` à re-taper.
+        # Direct forward: the base layer drops reactive ``None`` kwargs
+        # (keeps the default) — no more ``if x is not None`` guard to
+        # retype.
         super().__init__(
             color=color,
             padding=padding,
@@ -63,18 +64,17 @@ class Card(Component):
             on_mouseleave=on_mouseleave,
             **kwargs,
         )
-        # ── La bascule de balise se décide ICI, pas au rendu ──────────
-        # Elle vivait dans ``render`` jusqu'au 2026-08-23, et un
-        # garde-fou neuf l'a révélé : ``emit_attrs`` retire désormais les
-        # attributs qu'une balise ne peut pas porter, et il voyait encore
-        # un ``<div>`` — donc il jetait le ``href`` qu'on venait de
-        # poser. Le symptôme (une carte-lien sans destination) était plus
-        # grave que le défaut d'origine.
+        # ── The tag switch is decided HERE, not at render ─────────────
+        # It lived in ``render`` until 2026-08-23, and a new guard
+        # revealed it: ``emit_attrs`` now removes the attributes a tag
+        # cannot carry, and it still saw a ``<div>`` — so it threw away
+        # the ``href`` we had just set. The symptom (a link card with no
+        # destination) was worse than the original defect.
         #
-        # Décider tôt est de toute façon plus juste : ``self._tag`` est
-        # lu par l'introspection et par les gates, et un composant dont
-        # la balise ne se connaît qu'au rendu ment à qui l'interroge.
-        # ``ui.button(href=…)`` fait pareil.
+        # Deciding early is more correct anyway: ``self._tag`` is read by
+        # introspection and by the gates, and a component whose tag only
+        # knows itself at render lies to whoever asks it.
+        # ``ui.button(href=…)`` does the same.
         if href is not None and "tag" not in kwargs:
             self._tag = "a"
 
@@ -97,8 +97,8 @@ class Card(Component):
             # panel (Select, Tooltip, Dropdown…) is repositioned
             # ``position: fixed`` at open time by ``floating()`` and
             # escapes the clip box natively — so no auto-swap to
-            # ``overflow-visible`` is needed. Cf. traps.md § « Card
-            # auto-swap (RETIRÉ) ».
+            # ``overflow-visible`` is needed. Cf. traps.md § "Card
+            # auto-swap (REMOVED)".
             parts.append(root_class)
         padding_class = theme.get("paddings", {}).get(padding)
         if padding_class:
@@ -107,9 +107,9 @@ class Card(Component):
             hoverable_class = theme.get("hoverable", "")
             if hoverable_class:
                 parts.append(hoverable_class)
-        # Les classes user (``classes=``) sont posées sur le vrai root par
-        # le wrap métaclasse ``_apply_universal_modifiers`` — ne PAS les
-        # ré-append ici (sinon doublon « X X »). Gardé par
+        # The user classes (``classes=``) are set on the real root by
+        # the ``_apply_universal_modifiers`` metaclass wrap — do NOT
+        # re-append them here (otherwise a "X X" duplicate). Guarded by
         # test_no_manual_user_class_append.py.
 
         attrs = self.emit_attrs()

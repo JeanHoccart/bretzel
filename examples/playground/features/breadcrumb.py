@@ -200,26 +200,26 @@ def page() -> None:
                     ui.heading("Enfants — icone, lien, contenu riche",
                                level=3)
                     with ui.vstack():
-                        ui.text("items= reste le raccourci du cas texte ; "
-                                "les enfants donnent la meme surface que "
-                                "ui.tab / ui.sidebar_item.",
+                        ui.text('items= stays the shorthand for the text case; '
+                            'the children give the same surface as ui.tab / '
+                            'ui.sidebar_item.',
                                 color="muted", size="xs")
                         with ui.breadcrumb():
                             ui.breadcrumb_item("Home", icon="house", href="/")
                             ui.breadcrumb_item("Docs", icon="book",
                                                href="/docs")
                             ui.breadcrumb_item("API")
-                        ui.text("label est un slot : il accepte un Component "
-                                "quand le texte ne suffit pas. Et le dernier "
-                                "segment recoit aria-current tout seul.",
+                        ui.text('label is a slot: it accepts a Component when '
+                            'text is not enough. And the last segment '
+                            'receives aria-current on its own.',
                                 color="muted", size="xs")
                         with ui.breadcrumb():
                             ui.breadcrumb_item("Projets", href="/p")
                             ui.breadcrumb_item(
                                 ui.badge(label="Tracker", color="primary")
                             )
-                        ui.text("items= exprime aussi l icone, via la forme "
-                                "dict — les deux niveaux restent equivalents.",
+                        ui.text('items= expresses the icon too, through the dict '
+                            'form — the two levels stay equivalent.',
                                 color="muted", size="xs")
                         ui.breadcrumb(items=[
                             {"label": "Home", "href": "/", "icon": "house"},

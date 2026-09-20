@@ -137,29 +137,26 @@ async def render_page(
     title = ctx.head_title or meta.title or "Bretzel"
 
     cfg = getattr(app, "config", None)
-    # Axe assets / cache (pipeline CSS, cache-bust, no-store), pas
-    # l'axe diagnostics : ``config.debug`` ne gouverne que la
-    # verbosité depuis la séparation des axes.
+    # Assets / cache axis (CSS pipeline, cache-bust, no-store), not the
+    # diagnostics axis: ``config.debug`` governs only verbosity since the
+    # axes were separated.
     dev = getattr(cfg, "is_dev", False)
-    # Le pipeline CSS effectif — ``browser`` inline le compilateur
-    # navigateur, ``build`` lie le style.css compilé. C'est le SEUL
-    # réglage qui change ce qui est rendu, d'où sa lecture explicite.
-    # ``_css_browser_fallback`` est posé au démarrage : il vaut le
-    # pipeline demandé, OU ``True`` si la compilation a échoué et qu'on
-    # est retombé sur le navigateur.
+    # The effective CSS pipeline — ``browser`` inlines the browser
+    # compiler, ``build`` links the compiled style.css. It is the ONLY
+    # setting that changes what is rendered, hence its explicit read.
+    # ``_css_browser_fallback`` is set at startup: it holds the requested
+    # pipeline, OR ``True`` if compilation failed and we fell back on the
+    # browser.
     browser_css = getattr(
         app, "_css_browser_fallback",
         getattr(cfg, "css_pipeline", "browser") == "browser",
     )
-    # Cache-busting : in dev, we already set ``Cache-Control: no-store``
-    # on runtime.js / theme.css, but a browser that previously cached
-    # those URLs as ``immutable`` (the old default) will refuse to
-    # refetch even on hard reload. Appending the process-start
-    # timestamp to the asset URL forces the browser to treat them as
-    # NEW resources and bypasses the stale ``immutable`` entry.
-    cache_bust = (
-        getattr(app, "_cache_bust", None) if dev else None
-    )
+    # Cache-busting is required in BOTH modes.  Production deliberately
+    # serves the framework bundle as immutable, so an unversioned URL would
+    # otherwise let a CDN pair fresh HTML with an old style.css/runtime.js
+    # after every deployment.  The process-start token makes each release a
+    # distinct resource while still allowing it to be cached indefinitely.
+    cache_bust = getattr(app, "_cache_bust", None)
 
     document = shell_fn(
         body_html,
@@ -167,26 +164,25 @@ async def render_page(
         page_uuid=ctx.page_uuid,
         title=title,
         description=meta.description,
-        # ``default_shell`` porte ce paramètre depuis toujours et
-        # PERSONNE ne le passait : toute page Bretzel expédiait
-        # ``<html lang="en">``, y compris les apps françaises — un
-        # lecteur d'écran y choisit sa voix, et le navigateur sa
-        # coupure de mots.
+        # ``default_shell`` has carried this parameter forever and
+        # NOBODY passed it: every Bretzel page shipped
+        # ``<html lang="en">``, French apps included — a screen reader
+        # picks its voice from it, and the browser its hyphenation.
         lang=ctx.lang,
         head_extras=ctx.head_extras,
         browser_css=browser_css,
-        # Variante SANS la safelist : ce bloc n'est lu que par le
-        # compilateur navigateur, qui scanne le DOM. Cf. ``_resolve_theme``.
+        # Variant WITHOUT the safelist: this block is only read by the
+        # browser compiler, which scans the DOM. Cf. ``_resolve_theme``.
         theme_css_content=getattr(app, "_theme_css_inline", "") or "",
         cache_bust=cache_bust,
-        # ``None`` = la marque du framework. Le ``getattr`` couvre les
-        # coques de test qui passent un faux ``app`` sans config.
+        # ``None`` = the framework's mark. The ``getattr`` covers test
+        # shells passing a fake ``app`` with no config.
         favicon=getattr(cfg, "favicon", None),
         mobile_breakpoint=getattr(cfg, "mobile_breakpoint", 768),
         nav_progress=getattr(cfg, "nav_progress", True),
-        # Le pipeline ne connaît PAS ``PWA`` (il est dans ``server``,
-        # au-dessus de ``render`` dans le DAG) : il reçoit deux
-        # chaînes, ce qui suffit et garde les couches séparées.
+        # The pipeline does NOT know ``PWA`` (it is in ``server``, above
+        # ``render`` in the DAG): it receives two strings, which is
+        # enough and keeps the layers apart.
         manifest_url=getattr(cfg, "_manifest_url", None),
         theme_color=getattr(getattr(cfg, "pwa", None), "theme_color", None),
     )
@@ -277,31 +273,31 @@ async def _invoke_page(
     else:
         layout_chain = full_chain
 
-    # ── L'identité ne dépend pas du chemin d'arrivée ──────────────────
+    # ── Identity does not depend on the arrival path ──────────────────
     #
-    # Un rendu partiel ne rend PAS les layouts extérieurs : ils sont déjà
-    # dans le navigateur. Sans rien sur ``parent_stack``, les composants
-    # de la page repartaient donc du littéral ``"root"``
-    # (``component.py``) au lieu de descendre de l'outlet visé — le même
-    # accordéon rendait ``outlet_shell_…_accordion_0`` au chargement
-    # direct et ``root_…_accordion_0`` après une navigation boostée.
+    # A partial render does NOT render the outer layouts: they are
+    # already in the browser. With nothing on ``parent_stack``, the
+    # page's components therefore started again from the literal
+    # ``"root"`` (``component.py``) instead of descending from the
+    # targeted outlet — the same accordion rendered
+    # ``outlet_shell_…_accordion_0`` on a direct load and
+    # ``root_…_accordion_0`` after a boosted navigation.
     #
-    # ``bz-id`` est la clé de DEUX mécanismes : l'appariement idiomorph
-    # et la résolution de scope. Un id qui change selon le chemin
-    # d'arrivée fait donc dégrader chaque navigation en REMPLACEMENT de
-    # sous-arbre — tout ``bz-data`` de la région échangée est détruit
-    # puis reconstruit au lieu d'être fusionné.
+    # ``bz-id`` is the key of TWO mechanisms: idiomorph pairing and scope
+    # resolution. An id that changes with the arrival path therefore
+    # degrades every navigation into a subtree REPLACEMENT — every
+    # ``bz-data`` in the swapped region is destroyed then rebuilt instead
+    # of being merged.
     #
-    # ⚠️ C'est une RÉCIDIVE : ``render/partials.py`` documente le même
-    # défaut, trouvé et réparé pour les partials de ``@refreshable``
-    # (« every child's ``Component.__init__`` fell back to the literal
-    # "root" ID prefix »). Le chemin de la NAVIGATION ne l'avait jamais
-    # reçu.
+    # ⚠️ It is a RELAPSE: ``render/partials.py`` documents the same flaw,
+    # found and fixed for ``@refreshable`` partials ("every child's
+    # ``Component.__init__`` fell back to the literal "root" ID prefix").
+    # The NAVIGATION path had never received it.
     #
-    # Le remède est le même : semer la pile avec un parent portant l'id
-    # de la cible. Le routeur l'a déjà résolue
-    # (``server/routing/pages.py`` pose ``ctx.partial_target`` depuis
-    # l'en-tête ``HX-Target``), donc on ne devine rien.
+    # The remedy is the same: seed the stack with a parent carrying the
+    # target's id. The router has already resolved it
+    # (``server/routing/pages.py`` sets ``ctx.partial_target`` from the
+    # ``HX-Target`` header), so nothing is guessed.
     seed = (
         _PartialRoot(ctx.partial_target, page_scope=ctx.child_scope_root)
         if ctx.is_partial and ctx.partial_target
@@ -316,16 +312,16 @@ async def _invoke_page(
             # return value so a function that yields a single Node (vs.
             # registering children via ``with`` / ui.*) still works.
             page_result = await _call(page_fn, kwargs)
-            # Les zones ``async`` posées par le corps ont laissé leur
-            # section dans l'arbre et leur coroutine en attente : c'est
-            # ici qu'on les attend, avant de descendre l'arbre en Nodes.
+            # The ``async`` zones set down by the body left their
+            # section in the tree and their coroutine pending: this is
+            # where we await them, before lowering the tree to Nodes.
             await drain_pending_async_zones(ctx)
-            # Le rabattage est DÉLESTÉ lui aussi : ``render()`` rappelle
-            # du code d'app (le ``rows=`` d'un ``ui.datatable``, le
-            # ``render=`` d'une colonne) et le framework EXIGE que ce
-            # ``rows=`` soit un ``def`` — il REFUSE une coroutine. Le
-            # laisser sur la boucle rendait donc bloquant, par
-            # construction, le cas le plus courant d'une vraie app.
+            # The flattening is OFFLOADED too: ``render()`` calls app
+            # code back (a ``ui.datatable``'s ``rows=``, a column's
+            # ``render=``) and the framework REQUIRES that ``rows=`` to
+            # be a ``def`` — it REFUSES a coroutine. Leaving it on the
+            # loop therefore made the most common case of a real app
+            # blocking, by construction.
             return await call_without_blocking(
                 _drain, ctx, roots=_roots(ctx, seed), trailing=page_result
             )
@@ -338,42 +334,42 @@ async def _invoke_page(
 
 
 class _PartialRoot:
-    """Le parent d'id que le rendu partiel n'a pas rendu.
+    """The id parent the partial render did not render.
 
-    Il **n'apparaît jamais dans la sortie** : htmx morphe l'``innerHTML``
-    de l'outlet, donc le fragment doit contenir ses ENFANTS, pas lui.
-    C'est ce qui le distingue de ``_RefreshableSection``, le stand-in
-    jumeau côté ``@refreshable``, qui doit se rendre parce que le swap
-    OOB vise son id à lui.
+    It **never appears in the output**: htmx morphs the outlet's
+    ``innerHTML``, so the fragment must contain its CHILDREN, not it.
+    That is what distinguishes it from ``_RefreshableSection``, the twin
+    stand-in on the ``@refreshable`` side, which must render because the
+    OOB swap targets its own id.
 
-    Le protocole d'un parent, lu dans ``component.py`` : ``id`` et
-    ``add_child`` pour l'enregistrement, **et ``_children``** — que
-    ``_detach_from_parent`` fouille pour retirer un composant adopté
-    comme slot. Ce troisième membre ne se voyait pas en cherchant
-    ``parent_stack[-1]`` : le détachement itère la pile ENTIÈRE. Sans
-    lui, toute page contenant un ``icon=``/``prefix=`` levait un
-    ``AttributeError`` au premier rendu partiel.
+    A parent's protocol, read in ``component.py``: ``id`` and
+    ``add_child`` for registration, **and ``_children``** — which
+    ``_detach_from_parent`` searches to remove a component adopted as a
+    slot. That third member did not show when looking at
+    ``parent_stack[-1]``: detachment iterates the WHOLE stack. Without
+    it, every page containing an ``icon=``/``prefix=`` raised an
+    ``AttributeError`` on the first partial render.
 
-    D'où un objet nu plutôt qu'un ``Component`` : construire un vrai
-    composant ici l'enregistrerait comme enfant de racine et le ferait
-    rendre — or ce parent-ci ne doit produire aucun octet.
+    Hence a bare object rather than a ``Component``: building a real
+    component here would register it as a root child and make it render —
+    and this parent must produce no bytes.
     """
 
     __slots__ = ("_children", "child_scope_id", "id")
 
     def __init__(self, outlet_id: str, *, page_scope: str = "") -> None:
         self.id = outlet_id
-        # ⚠️ Doit reproduire EXACTEMENT ce que ``Outlet.child_scope_id``
-        # calcule sur le chemin complet : c'est la condition pour que les
-        # deux chemins d'arrivée — chargement direct et navigation boostée
-        # — produisent les mêmes ``bz-id``, ce que
-        # ``test_partial_nav_keeps_identity`` garde.
+        # ⚠️ Must reproduce EXACTLY what ``Outlet.child_scope_id``
+        # computes on the full path: that is the condition for both
+        # arrival paths — direct load and boosted navigation — to produce
+        # the same ``bz-id``, which
+        # ``test_partial_nav_keeps_identity`` guards.
         self.child_scope_id = f"{outlet_id}{page_scope}"
         self._children: list[Any] = []
 
     @property
     def children(self) -> list[Any]:
-        """Alias lisible pour le drain — même liste, pas une copie."""
+        """A readable alias for the drain — the same list, not a copy."""
         return self._children
 
     def add_child(self, child: Any) -> None:
@@ -381,11 +377,11 @@ class _PartialRoot:
 
 
 def _roots(ctx: RenderContext, seed: _PartialRoot | None) -> list[Any]:
-    """Où les enfants de premier niveau ont atterri.
+    """Where the top-level children landed.
 
-    Avec une graine, tout ce que la page enregistre passe par son
-    ``add_child`` et ``ctx.root_children`` reste vide — le drain doit
-    donc lire la graine, sinon le fragment part vide.
+    With a seed, everything the page registers goes through its
+    ``add_child`` and ``ctx.root_children`` stays empty — so the drain
+    must read the seed, otherwise the fragment goes out empty.
     """
     return seed.children if seed is not None else ctx.root_children
 
@@ -398,12 +394,12 @@ async def _render_chain(
     *,
     seed: _PartialRoot | None,
 ) -> list[Node]:
-    """Rendre une chaîne de layouts non vide, puis la page dedans.
+    """Render a non-empty layout chain, then the page inside it.
 
-    Extrait de :func:`_invoke_page` le 2026-08-13, quand la
-    graine d'identité a rendu son corps conditionnel : la fonction
-    portait deux chemins de retour et un ``try`` de plus, et les
-    imbriquer aurait rendu illisible quel ``finally`` dépile quoi.
+    Extracted from :func:`_invoke_page` on 2026-08-13, when the identity
+    seed made its body conditional: the function carried two return paths
+    and one more ``try``, and nesting them would have made it unreadable
+    which ``finally`` pops what.
     """
     # Layout chain : outermost first. We run them one by one ; each
     # layout's ``ui.outlet()`` appears in the active parent_stack at
@@ -426,11 +422,10 @@ async def _render_chain(
         # once, attach successive bodies to it, then move to its
         # own Outlet (if it spawned one) for the next iteration.
         #
-        # ``_roots`` et non ``ctx.root_children`` : sous une graine
-        # d'identité, le layout le plus extérieur s'est enregistré chez
-        # ELLE, et chercher l'outlet à la racine ne trouverait rien —
-        # « Layout 'x' did not call ui.outlet() » sur un layout qui l'a
-        # parfaitement appelé.
+        # ``_roots`` and not ``ctx.root_children``: under an identity
+        # seed, the outermost layout registered with IT, and looking for
+        # the outlet at the root would find nothing — "Layout 'x' did not
+        # call ui.outlet()" on a layout that called it perfectly.
         current_outlet = _find_deepest_outlet(_roots(ctx, seed))
         if current_outlet is None:
             raise RuntimeError(
@@ -467,10 +462,10 @@ async def _render_chain(
         if isinstance(page_result, Node) or (page_result is not None and hasattr(page_result, "render")):
             current_outlet.add_child(page_result)
 
-        # DANS le ``try``, donc avant que le ``finally`` ne restaure
-        # ``layout_stack`` : un corps de zone construit des composants, et
-        # certains (Outlet, SidebarItem) dérivent leur id de cette pile.
-        # La drainer dehors leur donnerait des ids d'une autre profondeur.
+        # INSIDE the ``try``, so before the ``finally`` restores
+        # ``layout_stack``: a zone body builds components, and some
+        # (Outlet, SidebarItem) derive their id from that stack. Draining
+        # it outside would give them ids from another depth.
         await drain_pending_async_zones(ctx)
 
     finally:
@@ -484,17 +479,16 @@ async def _render_chain(
 async def _call(
     fn: Callable[..., Any], kwargs: dict[str, Any]
 ) -> Any:
-    """Invoke ``fn(**kwargs)`` — awaited if async, délesté si sync.
+    """Invoke ``fn(**kwargs)`` — awaited if async, offloaded if sync.
 
-    Un corps de page ou de layout SYNCHRONE part sur le threadpool (cf.
-    ``core/invoke``), sinon un ``def home()`` qui lit une base bloquante
-    gèle la boucle.
+    A SYNCHRONOUS page or layout body goes to the threadpool (cf.
+    ``core/invoke``), otherwise a ``def home()`` reading a blocking
+    database freezes the loop.
 
-    Un saut par CORPS, pas un par rendu : la chaîne de layouts passe ici
-    une fois chacun, la page une fois, et le rabattage une fois encore.
-    Les zones ``@refreshable``, elles, sont gratuites — leur ``__call__``
-    est synchrone par contrat, donc elles tournent dans le thread de
-    celui qui les appelle.
+    One hop per BODY, not one per render: the layout chain passes through
+    here once each, the page once, and the flattening once more. The
+    ``@refreshable`` zones are free — their ``__call__`` is synchronous
+    by contract, so they run in the thread of whoever calls them.
     """
     return await call_without_blocking(fn, **kwargs)
 
@@ -507,32 +501,33 @@ def _drain(
 ) -> list[Node]:
     """Walk the top-level children once and lower everything to Nodes.
 
-    ``roots`` défaut à ``ctx.root_children``. Il est explicite quand un
-    rendu partiel a semé un parent d'identité : les enfants sont alors
-    passés par ``add_child`` de la graine, et la racine est vide.
+    ``roots`` defaults to ``ctx.root_children``. It is explicit when a
+    partial render has seeded an identity parent: the children then went
+    through the seed's ``add_child``, and the root is empty.
 
     ``trailing`` is the page function's return value — pages that
     return a Node / Component directly (vs. registering children
     through ``with`` blocks) flow it in here so it lands in the
     final tree.
 
-    ``is_rendering=True`` for the walk : Components that nested
+    ``is_rendering=True`` for the walk: Components that nested
     helpers build inline (e.g. a ``ui.badge`` returned from a table's
     ``render=`` cell callback) must skip root-children registration
     so they don't appear twice. Restore the previous value on the
     way out so an outer pipeline pass isn't poisoned.
     """
-    # L'arbre de composants est complet ICI, et pas avant : le corps de
-    # la page a fini, les zones ``async`` sont drainées, et la chaîne de
-    # layouts est refermée sur l'outlet. C'est donc le seul point d'où
-    # une question de PLACEMENT se répond juste — une barre ``sticky``
-    # ne peut pas savoir à sa construction qu'un ``ui.viewport`` va
-    # venir, ni quel est son vrai parent de disposition.
+    # The component tree is complete HERE, and not before: the page body
+    # has finished, the ``async`` zones are drained, and the layout chain
+    # is closed onto the outlet. It is therefore the only point from
+    # which a PLACEMENT question is answered correctly — a ``sticky`` bar
+    # cannot know at construction time that a ``ui.viewport`` is coming,
+    # nor what its real layout parent is.
     #
-    # Le test tient en un ``if`` sur une liste vide : rien ne s'inscrit
-    # tant qu'une page n'a ni ``ui.bottom_bar`` ni ``ui.navbar(sticky=)``.
-    # Import différé — ``render`` ne remonte vers ``components`` qu'ici,
-    # au point d'usage (cf. principe 5 du charter).
+    # The test is an ``if`` on an empty list: nothing registers as long
+    # as a page has neither ``ui.bottom_bar`` nor
+    # ``ui.navbar(sticky=)``. Deferred import — ``render`` only reaches
+    # up to ``components`` here, at the point of use (cf. charter
+    # principle 5).
     if ctx.sticky_bars:
         from bretzel.components.base._wiring import (
             check_sticky_bar_placement,
@@ -543,10 +538,10 @@ def _drain(
             ctx.root_children if roots is None else roots, bars
         )
 
-    # Meme etage, meme raison : « a quelle barre ce declencheur
-    # parle-t-il ? » et « cette barre a-t-elle un moyen de revenir ? »
-    # ne se repondent qu'une fois la page batie. Resoudre d'abord —
-    # c'est la resolution qui rend une barre atteignable.
+    # Same floor, same reason: "which bar is this trigger speaking to?"
+    # and "does this bar have a way back?" are only answered once the
+    # page is built. Resolve first — it is the resolution that makes a
+    # bar reachable.
     if ctx.sidebars or ctx.sidebar_triggers:
         from bretzel.components.base._wiring import (
             check_sidebars_are_reachable,
@@ -612,22 +607,22 @@ def _slice_chain_for_partial(
 ) -> list[Callable[..., Any]]:
     """Return the sub-chain to render for a partial nav.
 
-    ``full_chain`` is outermost-first ; ``partial_target`` is the
+    ``full_chain`` is outermost-first; ``partial_target`` is the
     ``HX-Target`` value the browser sent (typically
     ``outlet_<layout>``). We slice off everything up to and including
     the matched layout — what remains are the inner sub-layouts (plus
     the page) that need to render INTO the targeted outlet.
 
-    Three common cases :
+    Three common cases:
 
-    - **Intra-section nav** : target is the innermost layout's outlet
+    - **Intra-section nav**: target is the innermost layout's outlet
       → match at the last index → slice returns ``[]`` (page-only
       render lands directly in the targeted outlet).
-    - **Cross-section nav** : target is an ancestor (e.g. a sidebar
+    - **Cross-section nav**: target is an ancestor (e.g. a sidebar
       in the outer ``shell`` jumping between ``admin_shell`` and
       ``billing_shell`` siblings) → slice returns the inner sub-chain
       so the sub-layout re-renders fresh under the shared outlet.
-    - **No match / empty target** : returns ``[]`` so the pipeline
+    - **No match / empty target**: returns ``[]`` so the pipeline
       degrades gracefully to a page-only render rather than 500ing.
     """
     if not partial_target:
@@ -668,13 +663,12 @@ def _build_envelope_json(app: BretzelApp, ctx: RenderContext) -> str:
     """Build the ``<bz-envelope>`` JSON payload.
 
     Pulls every :class:`ClientState` instance out of the active registry.
-    The runtime hydrate depuis ça au boot — il n'y lit que
+    The runtime hydrates from it at boot — it reads only
     ``client_state`` / ``csrf`` / ``endpoints`` (``00_index.js``).
 
-    ⚠️ Cette fonction extrayait aussi la ``palette`` du thème et la
-    poussait dans l'envelope : 2 197 octets par page que rien ne lisait.
-    Retiré le 2026-08-01 — cf. le commentaire du champ dans
-    ``runtime/envelope.py``.
+    ⚠️ This function also used to pull the theme's ``palette`` and push
+    it into the envelope: 2 197 bytes per page that nothing read. Removed
+    on 2026-08-01 — cf. the field's comment in ``runtime/envelope.py``.
     """
     clients: list[ClientState] = []
     if ctx.state_registry is not None:
@@ -691,21 +685,21 @@ def _build_envelope_json(app: BretzelApp, ctx: RenderContext) -> str:
 
 
 def _corrected_address(ctx: RenderContext) -> str:
-    """L'adresse JUSTE quand celle du navigateur est incomplète, sinon ``""``.
+    """The RIGHT address when the browser's is incomplete, else ``""``.
 
-    Le cas : un état de portée ``session`` se souvient d'un tri ou d'un
-    filtre par-delà les navigations. Revenir sur ``/comptes`` nu rend
-    alors une vue triée sous une adresse qui n'en dit rien — et le lien
-    copié montre autre chose chez qui le reçoit. Deux personnes « sur la
-    même page », rien qui le signale.
+    The case: a ``session``-scoped state remembers a sort or a filter
+    across navigations. Coming back to a bare ``/accounts`` then returns
+    a sorted view under an address that says nothing of it — and the
+    copied link shows something else to whoever receives it. Two people
+    "on the same page", with nothing to signal it.
 
-    On est APRÈS le rendu du corps, donc tout état que la page a monté
-    est déjà résolu : c'est ce qui rend le calcul possible ici et nulle
-    part avant.
+    We are AFTER the body's render, so every state the page mounted is
+    already resolved: that is what makes the computation possible here
+    and nowhere earlier.
 
-    ⚠️ Rien n'est corrigé quand l'adresse est déjà juste — ni entrée
-    d'historique, ni écriture. Et rien du tout pour une app qui n'a
-    déclaré aucun champ adressable, ce qui est le défaut.
+    ⚠️ Nothing is corrected when the address is already right — no
+    history entry, no write. And nothing at all for an app that declared
+    no addressable field, which is the default.
     """
     registry = ctx.state_registry
     request = getattr(ctx, "request", None)
@@ -714,9 +708,9 @@ def _corrected_address(ctx: RenderContext) -> str:
     try:
         declared = registry.addressable_param_names()
     except Exception:
-        # Une déclaration invalide lèvera au rendu, là où le message est
-        # utile — pas ici, où elle casserait la page entière pour une
-        # correction d'adresse.
+        # An invalid declaration will raise at render time, where the
+        # message is useful — not here, where it would break the whole
+        # page for an address correction.
         return ""
     if not declared:
         return ""

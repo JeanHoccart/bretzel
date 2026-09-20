@@ -28,20 +28,21 @@ from typing import Any
 
 CARD_THEME: dict[str, Any] = {
     "slots": {
-        # ``text-(--bz-on-solid)`` n'est pas décoratif : sans lui, ``color=``
-        # peignait un FOND sans son avant-plan, et le texte gardait la
-        # couleur héritée de la page. Mesuré le 2026-08-21 sur
-        # ``color="primary"`` : fond teal, texte rgb(15,23,42) —
-        # illisible, et c'est ce qui privait la liste sélectionnable du
-        # CRM de son signal. La convention ``<couleur>-foreground``
-        # existait déjà et Badge / Button / IconButton la tenaient ; la
-        # carte était la seule SURFACE à peindre à moitié.
-        # ⚠️ **Aucune ombre AU REPOS**, et c'est une décision du
-        # 2026-09-13 (adoptée du thème d'``examples/kanban``). Une carte
-        # posée dans le flux n'est pas un calque flottant : elle est
-        # délimitée par son filet. L'ombre reste le vocabulaire des vrais
-        # calques — dialog, popover, dropdown — et du SURVOL, où elle dit
-        # « ceci se clique ». Une ombre partout ne distingue plus rien.
+        # ``text-(--bz-on-solid)`` is not decorative: without it,
+        # ``color=`` painted a BACKGROUND with no foreground, and the
+        # text kept the colour inherited from the page. Measured on
+        # 2026-08-21 on ``color="primary"``: teal background, text
+        # rgb(15,23,42) — illegible, and it is what deprived the CRM's
+        # selectable list of its signal. The ``<colour>-foreground``
+        # convention already existed and Badge / Button / IconButton held
+        # it; the card was the only SURFACE painting itself halfway.
+        # ⚠️ **No shadow AT REST**, and it is a 2026-09-13 decision
+        # (adopted from ``examples/kanban``'s theme). A card placed in
+        # the flow is not a floating layer: it is bounded by its hairline.
+        # The shadow stays the vocabulary of real layers — dialog,
+        # popover, dropdown — and of HOVER, where it says "this is
+        # clickable". A shadow everywhere distinguishes nothing any
+        # more.
         "root": (
             "block w-full rounded-box overflow-hidden "
             "bg-(--bz-solid) text-(--bz-on-solid) border-(length:--bz-stroke) border-text/10"

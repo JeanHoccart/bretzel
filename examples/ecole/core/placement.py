@@ -1,30 +1,29 @@
-"""core/placement — asseoir une classe. Pur Python, testable seul.
+"""core/placement — seating a class. Pure Python, testable alone.
 
-EF-G7 et EF-G9. Deux choses, et la seconde est la seule de l'application
-qui ait le droit d'être aléatoire.
+EF-G7 and EF-G9. Two things, and the second is the application's only
+one entitled to be random.
 
-EF-G9 — la répartition, dans l'ordre où le cahier l'écrit
-----------------------------------------------------------
-1. **les élèves à mettre devant d'abord**, dans les deux premières
-   rangées, *de préférence la première* — qu'ils y soient pour un
-   aménagement, une vue fragile ou un choix manuel : **les trois se
-   cumulent** ;
-2. **tout premier remplissage** : par ordre alphabétique, en partant du
-   FOND de la salle. *« C'est prévisible, et un premier plan n'a pas
-   encore de raison d'être mélangé. »* ;
-3. **sinon** : tirage au sort, plusieurs essais pour éviter d'asseoir
-   côte à côte deux élèves à séparer.
+EF-G9 — the distribution, in the order the specification writes it
+-------------------------------------------------------------------
+1. **the pupils to put at the front first**, in the first two rows,
+   *preferably the first* — whether they are there for an accommodation,
+   fragile eyesight or a manual choice: **all three add up**;
+2. **the very first filling**: in alphabetical order, starting from the
+   BACK of the room. *"It is predictable, and a first plan has no reason
+   yet to be shuffled."*;
+3. **otherwise**: a random draw, several attempts to avoid seating two
+   pupils to be separated side by side.
 
-**Jamais d'échec bloquant.** Au pire, le tirage qui viole le moins de
-paires est retenu, et les conflits restants sont SIGNALÉS. Un plan qu'on
-refuse de rendre laisse le professeur sans plan du tout ; un plan
-imparfait qui se dit se corrige en deux glissers.
+**Never a blocking failure.** At worst, the draw violating the fewest
+pairs is kept, and the remaining conflicts are REPORTED. A plan one
+refuses to produce leaves the teacher with no plan at all; an imperfect
+plan that says so is corrected in two drags.
 
-EF-G7 — une table est CALCULÉE, pas saisie
--------------------------------------------
-*« Une table est deux élèves côte à côte : ils partagent une rangée avec
-des colonnes consécutives. »* Il n'y a pas d'entité « table » (EF-G1) ;
-l'allée qui sépare est ce qui coupe.
+EF-G7 — a desk is COMPUTED, not entered
+----------------------------------------
+*"A desk is two pupils side by side: they share a row with consecutive
+columns."* There is no "desk" entity (EF-G1); the aisle that separates is
+what cuts.
 """
 
 from __future__ import annotations
@@ -32,21 +31,21 @@ from __future__ import annotations
 import random
 from itertools import pairwise
 
-#: Combien de tirages on tente avant de garder le moins mauvais.
-#: Vingt : au-delà, le gain mesuré sur trente élèves et trois paires est
-#: nul, et le geste doit rester instantané.
+#: How many draws are attempted before keeping the least bad.
+#: Twenty: beyond that, the gain measured on thirty pupils and three
+#: pairs is nil, and the gesture must stay instant.
 ESSAIS = 20
 
-#: Jusqu'à quelle rangée « devant » veut dire devant (EF-G9).
+#: Up to which row "front" means front (EF-G9).
 RANGEES_DEVANT = 2
 
 
 def tables_de(places: list[dict]) -> list[tuple[int, int]]:
-    """Les paires ``(place_a, place_b)`` qui forment une table (EF-G7).
+    """The ``(seat_a, seat_b)`` pairs that form a desk (EF-G7).
 
-    Deux places font une table quand elles sont sur la MÊME rangée, à des
-    colonnes consécutives, et qu'**aucune allée ne les sépare** : c'est
-    l'allée qui coupe, puisqu'il n'existe pas d'entité « table ».
+    Two seats make a desk when they are on the SAME row, at consecutive
+    columns, and **no aisle separates them**: it is the aisle that cuts,
+    since there is no "desk" entity.
     """
     par_rangee: dict[int, list[dict]] = {}
     for place in places:
@@ -65,7 +64,7 @@ def tables_de(places: list[dict]) -> list[tuple[int, int]]:
 
 
 def voisins_de(places: list[dict]) -> dict[int, set[int]]:
-    """``place → places qui partagent sa table`` — l'entrée des conflits."""
+    """``seat → seats sharing its desk`` — the entry to the conflicts."""
     voisins: dict[int, set[int]] = {p["id"]: set() for p in places}
     for gauche, droite in tables_de(places):
         voisins[gauche].add(droite)
@@ -75,10 +74,10 @@ def voisins_de(places: list[dict]) -> dict[int, set[int]]:
 
 def conflits(assises: dict[int, int], places: list[dict],
              separations: list[tuple[int, int]]) -> list[tuple[int, int]]:
-    """Les paires à séparer qui se retrouvent quand même à la même table.
+    """The pairs to separate that end up at the same desk anyway.
 
-    ``assises`` : ``place_id → eleve_id``. Rend les paires d'ÉLÈVES en
-    conflit, pas les places : c'est ce que l'écran doit nommer.
+    ``assises``: ``place_id → eleve_id``. Returns the conflicting PUPIL
+    pairs, not the seats: it is what the screen must name.
     """
     par_place = voisins_de(places)
     a_separer = {frozenset(paire) for paire in separations}
@@ -100,15 +99,15 @@ def repartir(
     premier_remplissage: bool,
     graine: int | None = None,
 ) -> dict[int, int]:
-    """Assied la classe. Rend ``place_id → eleve_id``.
+    """Seat the class. Returns ``place_id → eleve_id``.
 
-    ``eleves`` doit porter ``id``, ``nom``, ``prenom``, ``amenagement``,
-    ``vue_fragile`` — les trois raisons d'être devant SE CUMULENT avec le
-    choix manuel de ``devants``.
+    ``eleves`` must carry ``id``, ``nom``, ``prenom``, ``amenagement``,
+    ``vue_fragile`` — the three reasons for being at the front ADD UP
+    with ``devants``' manual choice.
 
-    ``graine`` rend le tirage reproductible ; c'est ce qui permet de
-    tester « au pire, le moins mauvais » sans écrire un test qui passe
-    une fois sur trois.
+    ``graine`` makes the draw reproducible; it is what allows testing
+    "at worst, the least bad" without writing a test that passes one
+    time in three.
     """
     libres = sorted(places, key=lambda p: (p["rangee"], p["colonne"]))
     if not libres or not eleves:
@@ -121,14 +120,15 @@ def repartir(
     ]
     autres = [e for e in eleves if e not in a_devant]
 
-    # Les places du devant, la première rangée EN PREMIER — c'est
-    # « de préférence la première » d'EF-G9.
+    # The front seats, the first row FIRST — it is EF-G9's "preferably
+    # the first".
     devant = [p for p in libres if p["rangee"] <= RANGEES_DEVANT]
     reste = [p for p in libres if p["rangee"] > RANGEES_DEVANT]
 
     if premier_remplissage:
-        # *« Par ordre alphabétique, en partant du fond de la salle. »*
-        # Prévisible, et un premier plan n'a pas de raison d'être mélangé.
+        # *"In alphabetical order, starting from the back of the
+        # room."* Predictable, and a first plan has no reason to be
+        # shuffled.
         autres = sorted(autres, key=lambda e: (e["nom"].lower(),
                                                e["prenom"].lower()))
         reste = sorted(reste, key=lambda p: (-p["rangee"], p["colonne"]))
@@ -155,20 +155,20 @@ def asseoir_les_deux_groupes(
     a_devant: list[dict], autres: list[dict],
     devant: list[dict], reste: list[dict],
 ) -> dict[int, int]:
-    """Pose les deux groupes sur les deux jeux de places, dans l'ordre.
+    """Place both groups on the two sets of seats, in order.
 
-    ⚠️ **Le gros de la classe part du FOND, pas de l'avant**, et c'est ce
-    qui distingue cette fonction d'un remplissage naïf. EF-G9 dit deux
-    choses en même temps : ceux qui doivent être devant y vont, et *« le
-    tout premier remplissage se fait par ordre alphabétique **en partant
-    du fond de la salle** »*. Une première version asseyait tout le monde
-    à partir du premier rang : elle donnait le bon ORDRE alphabétique et
-    la mauvaise MOITIÉ de la salle, ce qui ne se voit pas dans une liste
-    et saute aux yeux sur un plan.
+    ⚠️ **The bulk of the class starts from the BACK, not the front**, and
+    it is what distinguishes this function from a naive filling. EF-G9
+    says two things at once: those who must be at the front go there,
+    and *"the very first filling is done in alphabetical order **starting
+    from the back of the room**"*. A first version seated everybody
+    starting from the first row: it gave the right alphabetical ORDER and
+    the wrong HALF of the room, which does not show in a list and leaps
+    out on a plan.
 
-    Les débordements se croisent, et jamais on ne refuse d'asseoir :
-    ce qui ne tient pas devant passe au fond, ce qui ne tient pas au fond
-    remonte devant.
+    The overflows cross over, and we never refuse to seat: what does not
+    fit at the front goes to the back, what does not fit at the back
+    comes forward.
     """
     assises: dict[int, int] = {}
     file_devant = list(a_devant)
@@ -184,9 +184,9 @@ def asseoir_les_deux_groupes(
             break
         assises[place["id"]] = file_autres.pop(0)["id"]
 
-    # Ce qui reste debout prend les places encore libres, où qu'elles
-    # soient. Le devant qui n'a pas tenu passe en premier : il reste plus
-    # près du tableau que s'il partait tout au fond.
+    # Whoever is left standing takes the seats still free, wherever
+    # they are. The front overflow goes first: it stays nearer the board
+    # than if it started right at the back.
     en_attente = file_devant + file_autres
     for place in [*devant, *reste]:
         if not en_attente:
@@ -199,15 +199,15 @@ def asseoir_les_deux_groupes(
 
 def rangees_du_gabarit(longueurs: list[int], allees: list[int],
                        largeur: int) -> list[dict]:
-    """Le tracé d'EF-G2 : ``[{rangee, colonne, allee_avant}, …]``.
+    """EF-G2's outline: ``[{rangee, colonne, allee_avant}, …]``.
 
-    ``allees`` donne les COLONNES devant lesquelles le passage s'ouvre —
-    et c'est le piège n° 6 : *« une allée est un COULOIR, pas une case »*.
-    Le stockage reste par place ; la décision est par colonne, donc elle
-    s'applique à toutes les rangées où cette colonne existe (EF-G4).
+    ``allees`` gives the COLUMNS in front of which the passage opens —
+    and it is trap no. 6: *"an aisle is a CORRIDOR, not a cell"*. The
+    storage stays per seat; the decision is per column, so it applies to
+    every row where that column exists (EF-G4).
 
-    **La colonne 1 est refusée** (EF-G5) : une allée devant la première
-    place ne sépare personne et décalerait la rangée entière.
+    **Column 1 is refused** (EF-G5): an aisle in front of the first seat
+    separates nobody and would shift the whole row.
     """
     ouvertes = {c for c in allees if c > 1}
     tracé: list[dict] = []
@@ -216,8 +216,8 @@ def rangees_du_gabarit(longueurs: list[int], allees: list[int],
             tracé.append({
                 "rangee": rangee,
                 "colonne": colonne,
-                # EF-G6 : la largeur vaut pour TOUTE la salle — une salle
-                # a un passage, pas dix largeurs.
+                # EF-G6: the width holds for the WHOLE room — a room
+                # has one passage, not ten widths.
                 "allee_avant": largeur if colonne in ouvertes else 0,
             })
     return tracé

@@ -191,7 +191,7 @@ class TestSidebarRoot:
         sidebar cesserait juste de se replier."""
         with render_isolated(), pytest.raises(ComponentUsageError) as err:
             Sidebar(collapsible=legacy)
-        assert "n'est plus un booléen" in str(err.value)
+        assert "is no longer a boolean" in str(err.value)
 
     def test_unknown_mode_raises(self) -> None:
         with render_isolated(), pytest.raises(ComponentUsageError):

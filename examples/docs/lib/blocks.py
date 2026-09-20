@@ -4,10 +4,10 @@ framework they document).
 - :func:`emitted_html_block` — a collapsible "what HTML did Bretzel
   emit" reveal, bound to a session-wide toggle (same idea as the
   playground's inspector).
-- :func:`state_mirror` — renders a live :class:`StateInfo` as a table :
+- :func:`state_mirror` — renders a live :class:`StateInfo` as a table:
   the anti-rot payoff, one call shows a State class exactly as it is in
   the code *right now*.
-- :func:`source_view` — a collapsible "voir le code Python" disclosure
+- :func:`source_view` — a collapsible "see the Python code" disclosure
   showing the REAL source of a demo (``inspect.getsource``), so the
   code the reader sees is the code that ran — it can't drift.
 """
@@ -21,6 +21,7 @@ import textwrap
 
 from bretzel import ui
 from bretzel.state import ClientState, field
+from examples.docs.lib.i18n import tr
 from bretzel.introspect import (
     ComponentInfo,
     HelperInfo,
@@ -40,19 +41,22 @@ def callable_signature(fn: object, *, title: str | None = None) -> None:
     reference."""
     info = describe_callable(fn)
     ui.text(title or f"{info.name}(…)", weight="bold", classes="font-mono")
-    # ⚠️ Une fonction SANS paramètre rendait un tableau vide de 200 px de
-    # haut avec « No data. » au milieu — vu sur capture de `/browser`,
-    # où `print_page()` et `fullscreen()` n'en prennent aucun. Le
-    # jumeau `params_table` avait déjà cette garde ; celui-ci ne l'avait
-    # pas, et les deux vivent dans ce fichier.
+    # ⚠️ A function with NO parameter rendered an empty 200 px-tall
+    # table with "No data." in the middle — seen on a screenshot of
+    # `/browser`, where `print_page()` and `fullscreen()` take none. The
+    # twin `params_table` already had this guard; this one did not, and
+    # both live in this file.
     if not info.params:
-        ui.text("Aucun paramètre.", color="muted", size="sm")
+        ui.text(tr('No parameter.',
+                   'Aucun paramètre.'), color="muted", size="sm")
         return
     ui.table(
         columns=[
-            ui.column("param", label="Paramètre"),
+            ui.column("param", label=tr('Parameter',
+                                        'Paramètre')),
             ui.column("type", label="Type"),
-            ui.column("default", label="Défaut"),
+            ui.column("default", label=tr('Default',
+                                          'Défaut')),
             ui.column("kind", label="Passage"),
         ],
         rows=[
@@ -86,11 +90,12 @@ def live_source(objects: tuple[object, ...]) -> str:
     return "\n\n\n".join(parts)
 
 
-def source_view(*objects: object, label: str = "Voir le code Python") -> None:
-    """Collapsible "voir le code" disclosure — the live source of each
-    object, hidden behind a toggle. Reusable across every chapter : wrap
-    a demo's building blocks (state class + handlers + zone) and the
-    reader can open the exact Python that produced it."""
+def source_view(*objects: object, label: str = tr('See the Python code',
+                                                  'Voir le code Python')) -> None:
+    """Collapsible "see the code" disclosure — each object's live source,
+    hidden behind a toggle. Reusable across every chapter: wrap a demo's
+    building blocks (state class + handlers + zone) and the reader can
+    open the exact Python that produced it."""
     source = live_source(objects)
     if not source:
         return
@@ -122,7 +127,8 @@ def emitted_html_block(label: str, html_source: str) -> None:
     inspector = DocsInspector()
     with ui.hstack(align="center", gap="sm"):
         ui.switch(checked=inspector.show_html)
-        ui.text("Voir le HTML émis", color="muted", size="sm")
+        ui.text(tr('See the emitted HTML',
+                   'Voir le HTML émis'), color="muted", size="sm")
     with ui.vstack(gap="xs", visible=inspector.show_html):
         ui.text(label, color="muted", size="xs")
         ui.code(html_source, lang="html")
@@ -158,14 +164,16 @@ def state_mirror(state_cls: type) -> None:
                 columns=[
                     ui.column("field", label="Champ"),
                     ui.column("type", label="Type"),
-                    ui.column("default", label="Défaut"),
+                    ui.column("default", label=tr('Default',
+                                                  'Défaut')),
                     ui.column("validators", label="@validator"),
                 ],
                 rows=rows,
                 size="sm",
             )
         else:
-            ui.text("(aucun champ déclaré)", color="muted", size="sm")
+            ui.text(tr('(no field declared)',
+                       '(aucun champ déclaré)'), color="muted", size="sm")
 
         url_line(info)
 
@@ -184,17 +192,17 @@ def state_mirror(state_cls: type) -> None:
 
 
 def url_line(info: StateInfo) -> None:
-    """Ce que l'état publie dans l'ADRESSE, ou ce qu'il publierait.
+    """What the state publishes in the ADDRESS, or what it would publish.
 
-    Trois états, comme la fiche de ``describe`` — et les distinguer EST
-    l'information : allumé, nommé mais éteint (il ne manque
-    qu'``addressable=True``), rien du tout. Un état qui ne déclare rien
-    n'écrit aucune ligne : la quasi-totalité en est là, et une ligne
-    vide se lirait comme une lecture ratée.
+    Three states, like ``describe``'s card — and telling them apart IS
+    the information: on, named but off (only ``addressable=True`` is
+    missing), nothing at all. A state declaring nothing writes no row:
+    almost all of them are there, and an empty row would read as a failed
+    read.
 
-    Un champ ABSENT de cette ligne ne part jamais dans l'URL. C'est la
-    garantie qui tient ``filters`` hors de l'adresse, et elle ne se voit
-    nulle part ailleurs dans cette page.
+    A field ABSENT from this row never goes into the URL. It is the
+    guarantee that keeps ``filters`` out of the address, and it shows
+    nowhere else on this page.
     """
     if info.url_error:
         ui.text(f"URL — déclaration refusée : {info.url_error}",
@@ -205,15 +213,20 @@ def url_line(info: StateInfo) -> None:
         return
     allume = bool(info.url_params)
     with ui.hstack(gap="xs", align="center", wrap=True):
-        ui.text("Dans l'URL :" if allume else "Nommés pour l'URL :",
+        ui.text(tr('In the URL:',
+                   "Dans l'URL :") if allume else tr('Named for the URL:',
+                                                 "Nommés pour l'URL :"),
                 color="muted", size="sm")
         for champ, param in publies:
             ui.badge(f"{champ} → {param}",
                      color="primary" if allume else "muted", variant="soft")
     ui.text(
-        "Un champ absent de cette ligne ne part jamais dans l'URL."
+        tr('A field missing from this row never goes into the URL.',
+           "Un champ absent de cette ligne ne part jamais dans l'URL.")
         if allume else
-        "Éteint : `addressable=True` sur la classe publierait ces champs-là.",
+        tr('Off: `addressable=True` on the class would publish those fields.',
+           'Éteint : `addressable=True` sur la classe publierait ces champs-'
+           'là.'),
         color="muted", size="xs",
     )
 
@@ -229,15 +242,17 @@ def first_line(doc: str | None) -> str:
 
 
 def params_table(params: tuple[ParamInfo, ...]) -> None:
-    """Compact paramètre / type / défaut table — shared by component and
-    helper mirrors (both read their params from :mod:`introspect`)."""
+    """Compact parameter / type / default table — shared by the component
+    and helper mirrors (both read their params from :mod:`introspect`)."""
     if not params:
         return
     ui.table(
         columns=[
-            ui.column("param", label="Paramètre"),
+            ui.column("param", label=tr('Parameter',
+                                        'Paramètre')),
             ui.column("type", label="Type"),
-            ui.column("default", label="Défaut"),
+            ui.column("default", label=tr('Default',
+                                          'Défaut')),
         ],
         rows=[
             {"param": p.name, "type": p.type_label,
@@ -283,7 +298,8 @@ def component_mirror(info: ComponentInfo) -> None:
         if info.bindable_audited:
             contract_chips("BINDABLE_PROPS", info.bindable, "success")
         else:
-            ui.text("BINDABLE_PROPS : non audité (mode legacy)",
+            ui.text(tr('BINDABLE_PROPS: not audited (legacy mode)',
+                       'BINDABLE_PROPS : non audité (mode legacy)'),
                     color="muted", size="xs", classes="font-mono")
         contract_chips("EVENTS", info.events, "info")
         contract_chips("IMPERATIVE", info.imperative, "primary")
@@ -309,7 +325,8 @@ def client_algebra_mirror() -> None:
             ui.table(
                 columns=[
                     ui.column("py", label="En Python"),
-                    ui.column("js", label="JS émis (live)"),
+                    ui.column("js", label=tr('Emitted JS (live)',
+                                             'JS émis (live)')),
                     ui.column("ret", label="→"),
                 ],
                 rows=[
@@ -328,7 +345,8 @@ def helper_mirror(info: HelperInfo) -> None:
     with ui.vstack(gap="sm"):
         with ui.hstack(gap="xs", align="center", wrap=True):
             ui.badge(info.kind, color="warning", variant="soft")
-            ui.text("pas un composant", color="muted", size="xs")
+            ui.text(tr('not a component',
+                       'pas un composant'), color="muted", size="xs")
         summary = first_line(info.doc)
         if summary:
             ui.text(summary, color="muted", size="sm")
@@ -336,14 +354,14 @@ def helper_mirror(info: HelperInfo) -> None:
 
 
 def toplevel_surface_mirror() -> None:
-    """Rendre ``bretzel.__all__`` groupé par BESOIN, lu en direct.
+    """Render ``bretzel.__all__`` grouped by NEED, read live.
 
-    Le classement par besoin est le point : savoir que ``refresh`` est une
-    fonction n'aide personne, savoir qu'elle vit à côté d'``abort`` et de
-    ``redirect`` dans « agir depuis un handler » répond à la vraie
-    question. La population vient du paquet — un nom ajouté à
-    ``__all__`` apparaît ici au prochain rendu, et ``test_docs_coverage``
-    exige qu'on lui ait donné une catégorie.
+    Grouping by need is the point: knowing ``refresh`` is a function
+    helps nobody, knowing it lives beside ``abort`` and ``redirect`` in
+    "acting from a handler" answers the real question. The population
+    comes from the package — a name added to ``__all__`` appears here at
+    the next render, and ``test_docs_coverage`` requires it to have been
+    given a category.
     """
     for category, group in itertools.groupby(
         describe_toplevel_surface(), key=lambda s: s.category
@@ -357,7 +375,8 @@ def toplevel_surface_mirror() -> None:
                 columns=[
                     ui.column("name", label="Nom"),
                     ui.column("kind", label="Nature"),
-                    ui.column("doc", label="Ce que ça fait"),
+                    ui.column("doc", label=tr('What it does',
+                                              'Ce que ça fait')),
                 ],
                 rows=[
                     {"name": s.name, "kind": s.kind, "doc": s.summary or "—"}
@@ -367,29 +386,29 @@ def toplevel_surface_mirror() -> None:
             )
 
 
-#: Les rôles Sphinx que les docstrings du dépôt emploient. Le premier
-#: groupe capture le nom, on jette le rôle.
+#: The Sphinx roles the repository's docstrings use. The first group
+#: captures the name, the role is thrown away.
 _ROLE = re.compile(r":(?:class|func|meth|mod|data|attr|exc):`~?([^`]+)`")
 
 
 def plain(texte: str) -> str:
-    """Une docstring RST → du texte lisible à l'ÉCRAN.
+    """An RST docstring → text readable ON SCREEN.
 
-    Les docstrings de ce dépôt sont écrites pour un développeur qui lit
-    le code : rôles Sphinx (``:class:`X```), double-backticks, gras RST.
-    Une gate impose même le rôle pour citer un symbole
-    (``test_prose_norm``). C'est juste, et ça ne se rend pas tel quel
-    dans une interface — mesuré le 2026-09-02 sur la page de l'arbre,
-    qui affichait « Voir :mod:`bretzel.cli.main` » et
-    « **façade utilisateur** » en toutes lettres.
+    This repository's docstrings are written for a developer reading the
+    code: Sphinx roles (``:class:`X```), double backticks, RST bold. A
+    gate even requires the role to quote a symbol (``test_prose_norm``).
+    That is right, and it does not render as is in an interface —
+    measured on 2026-09-02 on the tree page, which showed "Voir
+    :mod:`bretzel.cli.main`" and "**façade utilisateur**" in so many
+    characters.
 
-    Cette fonction ne FORMATE pas, elle DÉBALISE : le nom survit, le
-    marqueur part. Rendre le code en vrai monospace demanderait de
-    découper le texte en fragments, et un libellé d'arbre n'en vaut pas
-    le prix — le catalogue le fait déjà là où ça compte.
+    This function does not FORMAT, it UNMARKS: the name survives, the
+    marker goes. Rendering the code in real monospace would require
+    cutting the text into fragments, and a tree label is not worth the
+    price — the catalogue already does it where it counts.
 
-    ⚠️ L'ordre des remplacements compte : les rôles d'abord, sinon
-    ``:class:`X``` perdrait ses backticks et deviendrait ``:class:X``.
+    ⚠️ The order of the replacements matters: the roles first, otherwise
+    ``:class:`X``` would lose its backticks and become ``:class:X``.
     """
     sans_role = _ROLE.sub(r"\1", texte)
     sans_gras = re.sub(r"\*\*([^*]+)\*\*", r"\1", sans_role)

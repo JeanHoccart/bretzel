@@ -96,8 +96,15 @@ _KNOWN_MISSING = {
 #: apparu. C'est le cas d'école d'une gate verte pour la mauvaise
 #: raison : elle mesurait la présence d'une chaîne, pas la nature de
 #: la classe.
+#: ⚠️ ``nt`` (``Name.Tag``) a rejoint la liste le 2026-09-20, pour la
+#: MÊME raison et par la même porte : le corpus le contenait grâce à un
+#: ``voisine(nt)`` de ``lint/rules/sizes.py``, coupé en jeton par la
+#: parenthèse. La traduction du message en anglais a retiré l'accident,
+#: et le jeton est apparu. Deux fois le même mécanisme : la gate mesure
+#: une chaîne, et une chaîne de prose peut la satisfaire.
 _PYGMENTS_TOKENS = {
-    "c1", "kc", "kd", "mf", "nb", "nd", "nf", "nv", "s1", "s2", "sb", "sd",
+    "c1", "kc", "kd", "mf", "nb", "nd", "nf", "nt", "nv", "s1", "s2", "sb",
+    "sd",
 }
 
 

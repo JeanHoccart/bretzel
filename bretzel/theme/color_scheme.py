@@ -71,27 +71,26 @@ class ColorScheme(ClientState, persist="local"):
 
     @classmethod
     def toggle(cls) -> str:
-        """Flip the page between light and dark — contre CE QU'ON VOIT.
+        """Flip the page between light and dark — against WHAT IS SEEN.
 
-        Le bascule lit l'état RÉSOLU (``$bz._isDark()``, la fonction que
-        le runtime utilise lui-même pour peindre ``<html>.dark``) et non
-        le jeton stocké. Partir de ``"system"`` mène donc à ``"light"``
-        sur un OS sombre, et à ``"dark"`` sur un OS clair : le premier
-        clic change toujours quelque chose à l'écran.
+        The toggle reads the RESOLVED state (``$bz._isDark()``, the
+        function the runtime itself uses to paint ``<html>.dark``) and
+        not the stored token. Starting from ``"system"`` therefore leads
+        to ``"light"`` on a dark OS, and to ``"dark"`` on a light one:
+        the first click always changes something on screen.
 
-        ⚠️ Il a comparé le JETON jusqu'au 2026-09-04
-        (``mode === 'dark' ? 'light' : 'dark'``), et ça se défendait par
-        écrit — « strictement à deux états ». Mais un utilisateur en
-        ``"system"`` sur un OS sombre voyait son premier clic écrire
-        ``"dark"``, qui est *déjà* ce qui est peint : le contrôle ne
-        faisait rien une fois sur deux. Rapporté comme « le bouton ne
-        marche pas ». Mesuré sur les deux apps de démo.
+        ⚠️ It compared the TOKEN until 2026-09-04
+        (``mode === 'dark' ? 'light' : 'dark'``), and that was defensible
+        in writing — "strictly two states". But a user on ``"system"``
+        with a dark OS saw their first click write ``"dark"``, which is
+        *already* what is painted: the control did nothing one time in
+        two. Reported as "the button does not work". Measured on both
+        demo apps.
 
-        Il reste à deux états : après un clic, ``mode`` vaut
-        ``"light"`` ou ``"dark"``, et on ne revient pas dans
-        ``"system"``. Pour offrir les trois, câblez :meth:`set` sur trois
-        entrées — ce que font ``examples/playground`` et
-        ``examples/docs``.
+        It stays two-state: after a click, ``mode`` is ``"light"`` or
+        ``"dark"``, and there is no going back to ``"system"``. To offer
+        all three, wire :meth:`set` onto three entries — which is what
+        ``examples/playground`` and ``examples/docs`` do.
         """
         path = cls().mode.binding_path()
         return f"{path} = $bz._isDark() ? 'light' : 'dark'"

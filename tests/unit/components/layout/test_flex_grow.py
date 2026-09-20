@@ -125,7 +125,7 @@ def test_a_breakpoint_dict_raises() -> None:
     ``Flex._grow_class`` — il vaut donc pour tous les composants, et son
     message nomme la classe en plus du prop.
     """
-    with pytest.raises(ComponentUsageError, match="dict de paliers"):
+    with pytest.raises(ComponentUsageError, match="does not take a step dict"):
         classes(lambda: HStack(grow={"base": "16rem"}))
 
 

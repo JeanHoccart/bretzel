@@ -135,7 +135,7 @@ class TestClassNames:
         assert self.p.fg_class("tomato") == "ui-tomato-foreground"
 
     def test_unknown_color_raises(self) -> None:
-        with pytest.raises(ThemeError, match="Couleur inconnue"):
+        with pytest.raises(ThemeError, match="Unknown colour"):
             self.p.bg_class("doesnotexist")
 
     def test_the_refusal_says_what_is_accepted_and_why(self) -> None:

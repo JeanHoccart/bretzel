@@ -5,9 +5,9 @@ Tailwind v4's design lets you declare CSS custom properties under
 ``--color-primary`` becomes ``bg-primary``, ``text-primary``, ``ring-primary``,
 etc., free of charge.
 
-We emit two things :
+We emit two things:
 
-- The **theme block** itself : every semantic + palette color, plus a
+- The **theme block** itself: every semantic + palette color, plus a
   ``-foreground`` companion. RGB triples are space-separated (Tailwind
   v4 convention) so ``bg-primary/50`` works without further setup.
 - A **dark-mode override block** (``.dark { ... }``) carrying only the
@@ -71,16 +71,16 @@ def generate_theme_css(
 ) -> str:
     """Build the ``@import`` + ``@theme`` + ``.dark`` blocks.
 
-    ``fonts`` : les familles déclarées par ``Theme(fonts=…)``, clés dans
-    :data:`~bretzel.theme.tokens.FONT_SLOT_NAMES`. Émises DANS le bloc
-    ``@theme`` comme ``--font-<slot>``, donc lues par Tailwind au même
-    titre que ses propres tokens : les utilitaires ``font-sans`` /
-    ``font-serif`` / ``font-mono`` en héritent, et ``--font-sans``
-    redéfini change la fonte du document entier (le preflight v4 pose
-    ``html { font-family: var(--default-font-family, …) }`` et
-    ``--default-font-family: var(--font-sans)``). Une section absente
-    ou vide n'émet **rien** — les piles de Tailwind restent en place,
-    et aucun défaut n'est recopié de notre côté.
+    ``fonts``: the families declared by ``Theme(fonts=…)``, keyed in
+    :data:`~bretzel.theme.tokens.FONT_SLOT_NAMES`. Emitted INSIDE the
+    ``@theme`` block as ``--font-<slot>``, so read by Tailwind on the
+    same footing as its own tokens: the ``font-sans`` / ``font-serif`` /
+    ``font-mono`` utilities inherit from them, and a redefined
+    ``--font-sans`` changes the whole document's font (the v4 preflight
+    sets ``html { font-family: var(--default-font-family, …) }`` and
+    ``--default-font-family: var(--font-sans)``). An absent or empty
+    section emits **nothing** — Tailwind's stacks stay in place, and no
+    default is copied on our side.
 
     Output structure ::
 
@@ -105,7 +105,7 @@ def generate_theme_css(
           ...
         }
 
-    Note on ``@custom-variant dark`` : Tailwind v4 ships with
+    Note on ``@custom-variant dark``: Tailwind v4 ships with
     ``@media (prefers-color-scheme: dark)`` as the default ``dark:``
     variant. Bretzel uses class-based dark mode (``.dark`` on
     ``<html>``, written by the FOUC script + the ``ColorScheme``
@@ -114,15 +114,15 @@ def generate_theme_css(
     etc. silently fails to react to the user's toggle — they're
     bound to the OS preference instead.
 
-    Note on ``@custom-variant hover`` : Tailwind v4 wraps EVERY
+    Note on ``@custom-variant hover``: Tailwind v4 wraps EVERY
     ``hover:`` utility in ``@media (hover: hover)``. Where the primary
     pointer doesn't hover, that query is false and **the rule doesn't
     exist** — class in the DOM, selector in the stylesheet, nothing
     applied. Redefining the variant restores the v3 semantics (the
     escape hatch Tailwind documents for this case). The trade-off is
-    sticky hover on touch, taken deliberately : our hovers *enrich*, so
+    sticky hover on touch, taken deliberately: our hovers *enrich*, so
     a lingering tint is cosmetic where an invisible affordance is
-    functional breakage. Measurements and date in ``traps.md`` ;
+    functional breakage. Measurements and date in ``traps.md``;
     ``hover:`` must still never CARRY an affordance.
     """
     light_lines = list(_emit_block(palette, mode="light"))
@@ -136,11 +136,11 @@ def generate_theme_css(
         "",
         "@theme {",
     ]
-    # Les fontes AVANT les couleurs : l'ordre n'a aucun effet sur la
-    # cascade (ce sont des déclarations de custom properties dans le même
-    # bloc), il est là pour la lecture — la première chose qu'on cherche
-    # dans un thème généré est ce qui a été personnalisé, pas les 80
-    # lignes de palette.
+    # The fonts BEFORE the colours: the order has no effect on the
+    # cascade (they are custom-property declarations in the same block),
+    # it is there for reading — the first thing one looks for in a
+    # generated theme is what was customised, not the 80 lines of
+    # palette.
     parts.extend("  " + line for line in _emit_font_block(fonts))
     parts.extend("  " + line for line in _emit_scale_block(spacing, text))
     parts.extend("  " + line for line in _emit_shape_block(shape))
@@ -158,14 +158,14 @@ def generate_theme_css(
 
 
 def _emit_font_block(fonts: Mapping[str, str] | None) -> Iterable[str]:
-    """``--font-<slot>: <family>`` pour chaque slot déclaré.
+    """``--font-<slot>: <family>`` for each declared slot.
 
-    Itère sur :data:`FONT_SLOT_NAMES` et non sur les clés reçues : l'ordre
-    de sortie ne dépend donc pas de l'ordre d'écriture du dict de
-    l'utilisateur, et deux thèmes équivalents produisent le même CSS —
-    donc la même empreinte sha256, donc le même cache de compilation.
-    La validation des clés vit dans ``Theme.__init__`` (une clé inconnue
-    lève à la construction) ; ici on ignore simplement l'absent.
+    Iterates over :data:`FONT_SLOT_NAMES` and not over the received
+    keys: the output order therefore does not depend on the order the
+    user wrote their dict in, and two equivalent themes produce the same
+    CSS — hence the same sha256 fingerprint, hence the same compilation
+    cache. Key validation lives in ``Theme.__init__`` (an unknown key
+    raises at construction); here we simply ignore what is absent.
     """
     if not fonts:
         return
@@ -178,33 +178,33 @@ def _emit_font_block(fonts: Mapping[str, str] | None) -> Iterable[str]:
 def _emit_scale_block(
     spacing: str | None, text: Mapping[str, str] | None
 ) -> Iterable[str]:
-    """``--spacing`` et ``--text-<palier>`` — la BASE de l'échelle.
+    """``--spacing`` and ``--text-<step>`` — the BASE of the scale.
 
-    **Toujours émis**, comme les rayons et contrairement aux fontes.
-    Tailwind livre bien les deux, mais Bretzel ne les hérite plus : il
-    CHOISIT les siens (cf. :data:`DEFAULT_SPACING` et
-    :data:`DEFAULT_TEXT`), parce que l'échelle d'amont vise des pages et
-    que celle d'un outil est plus serrée. Se taire ici rendrait la page
-    à l'échelle d'un document sans que personne l'ait décidé.
+    **Always emitted**, like the radii and unlike the fonts. Tailwind
+    does ship both, but Bretzel no longer inherits them: it CHOOSES its
+    own (cf. :data:`DEFAULT_SPACING` and :data:`DEFAULT_TEXT`), because
+    the upstream scale targets pages and a tool's is tighter. Staying
+    silent here would return the page to a document's scale with nobody
+    having decided it.
 
-    Les paliers d'AFFICHE (``3xl`` et au-delà) restent absents de
-    :data:`DEFAULT_TEXT`, donc muets : aucun chrome ne les écrit, et les
-    compresser abîmerait une page d'accueil pour rien.
+    The DISPLAY steps (``3xl`` and above) stay absent from
+    :data:`DEFAULT_TEXT`, so mute: no chrome writes them, and
+    compressing them would spoil a landing page for nothing.
 
-    Un seul ``--spacing`` suffit à déplacer toute l'échelle
-    d'espacement : Tailwind v4 dérive ``h-10``, ``p-4``, ``gap-2``,
-    ``w-6`` en ``calc(var(--spacing) * n)``. Les paliers de texte, eux,
-    sont des jetons indépendants — d'où un dict, et non un facteur.
+    A single ``--spacing`` is enough to move the whole spacing scale:
+    Tailwind v4 derives ``h-10``, ``p-4``, ``gap-2``, ``w-6`` as
+    ``calc(var(--spacing) * n)``. The text steps, by contrast, are
+    independent tokens — hence a dict, and not a factor.
 
-    ⚠️ **La hauteur de ligne n'est pas touchée, et c'est voulu.** Tailwind
-    range chaque palier avec son ``--text-<palier>--line-height``, exprimé
-    en RAPPORT (``calc(1.5 / 1)``) : il suit donc la taille qu'on pose ici
-    sans qu'on l'écrive. Émettre la paire demanderait à l'app de décider
-    deux choses là où elle en décide une.
+    ⚠️ **Line height is not touched, and that is deliberate.** Tailwind
+    stores each step with its ``--text-<step>--line-height``, expressed
+    as a RATIO (``calc(1.5 / 1)``): it therefore follows the size set
+    here without our writing it. Emitting the pair would ask the app to
+    decide two things where it decides one.
 
-    Itère sur :data:`TEXT_SLOT_NAMES` et non sur les clés reçues : sortie
-    déterministe, donc empreinte sha256 stable, donc cache de compilation
-    stable. Même contrat que les fontes et les rayons.
+    Iterates over :data:`TEXT_SLOT_NAMES` and not over the received
+    keys: deterministic output, hence a stable sha256 fingerprint, hence
+    a stable compilation cache. Same contract as the fonts and the radii.
     """
     yield f"--spacing: {spacing or DEFAULT_SPACING};"
     merged = {**DEFAULT_TEXT, **(text or {})}
@@ -215,18 +215,17 @@ def _emit_scale_block(
 
 
 def _emit_shape_block(shape: Mapping[str, str] | None) -> Iterable[str]:
-    """``--radius-<famille>: <longueur>`` pour les trois familles.
+    """``--radius-<family>: <length>`` for the three families.
 
-    Toujours émis, contrairement aux fontes : une famille absente ne
-    laisse pas Tailwind retomber sur un défaut — elle rend
-    ``rounded-box`` INEXISTANT, donc tous les slots qui l'écrivent
-    perdent leur rayon d'un coup, en silence. Les fontes peuvent se
-    taire parce que Tailwind en a ; ces trois-là n'existent que si on
-    les écrit.
+    Always emitted, unlike the fonts: an absent family does not let
+    Tailwind fall back on a default — it makes ``rounded-box``
+    NON-EXISTENT, so every slot that writes it loses its radius at once,
+    silently. The fonts can stay silent because Tailwind has some; these
+    three only exist if we write them.
 
-    Itère sur :data:`SHAPE_SLOT_NAMES` et non sur les clés reçues, même
-    raison que pour les fontes : sortie déterministe, donc empreinte
-    sha256 stable, donc cache de compilation stable.
+    Iterates over :data:`SHAPE_SLOT_NAMES` and not over the received
+    keys, same reason as for the fonts: deterministic output, hence a
+    stable sha256 fingerprint, hence a stable compilation cache.
     """
     merged = {**DEFAULT_SHAPE, **(shape or {})}
     for slot in SHAPE_SLOT_NAMES:
@@ -234,12 +233,12 @@ def _emit_shape_block(shape: Mapping[str, str] | None) -> Iterable[str]:
 
 
 def _emit_stroke_block(stroke: str | None) -> Iterable[str]:
-    """``--bz-stroke`` et ses deux crans, dérivés en ``calc()``.
+    """``--bz-stroke`` and its two steps, derived with ``calc()``.
 
-    Dérivés et non réglés : voir :data:`DEFAULT_STROKE`. Un ``calc()``
-    plutôt qu'un calcul Python parce que la valeur peut être n'importe
-    quelle longueur CSS — ``0.5px``, ``2px``, ``0.0625rem`` — et que le
-    navigateur sait les multiplier alors que nous devrions les parser.
+    Derived and not tuned: see :data:`DEFAULT_STROKE`. A ``calc()``
+    rather than a Python computation because the value can be any CSS
+    length — ``0.5px``, ``2px``, ``0.0625rem`` — and the browser knows
+    how to multiply them where we would have to parse them.
     """
     base = stroke or DEFAULT_STROKE
     yield f"--bz-stroke: {base};"
@@ -308,22 +307,22 @@ def _with_suffix(stem: str) -> str:
 # ───────────────────────────────────────────────────────────────────────────
 
 
-#: Classes de LAYOUT dont la valeur est un scalaire d'exécution.
+#: LAYOUT classes whose value is a runtime scalar.
 #:
-#: ``ui.grid(cols=3)`` produit ``grid-cols-3`` par f-string, et
-#: ``ui.carousel(per_view=4)`` produit ``basis-1/4``. Ces chaînes
-#: n'existent dans AUCUN fichier source, donc le compilateur de prod ne
-#: les voit pas — comme les classes de couleur, et pour la même raison.
-#: Mesuré le 2026-08-07 : **la grille du playground retombait sur une
-#: colonne en mode compilé**, sans erreur ni trace, alors qu'elle était
-#: juste en dev (le compilateur navigateur scanne le DOM vivant).
+#: ``ui.grid(cols=3)`` produces ``grid-cols-3`` by f-string, and
+#: ``ui.carousel(per_view=4)`` produces ``basis-1/4``. Those strings
+#: exist in NO source file, so the production compiler does not see them
+#: — like the colour classes, and for the same reason. Measured on
+#: 2026-08-07: **the playground's grid fell back to one column in
+#: compiled mode**, with no error and no trace, while being correct in
+#: dev (the browser compiler scans the live DOM).
 #:
-#: Le domaine est BORNÉ, donc la clôture complète est écrivable — c'est
-#: exactement l'argument de la safelist couleur. Au-delà de 12 colonnes,
-#: Tailwind n'a de toute façon pas d'utilitaire : il faut l'échappatoire
-#: ``cols="grid-cols-[…]"``, littérale au call-site donc scannée.
+#: The domain is BOUNDED, so the complete closure is writable — that is
+#: exactly the colour safelist's argument. Beyond 12 columns, Tailwind
+#: has no utility anyway: one needs the ``cols="grid-cols-[…]"`` escape
+#: hatch, literal at the call site and therefore scanned.
 #:
-#: Gaté par ``tests/consistency/test_emitted_classes_exist_in_source.py``.
+#: Gated by ``tests/consistency/test_emitted_classes_exist_in_source.py``.
 _LAYOUT_CLASSES: tuple[str, ...] = (
     *(f"grid-cols-{n}" for n in range(1, 13)),
     "grid-cols-none", "grid-cols-auto",
@@ -333,64 +332,62 @@ _LAYOUT_CLASSES: tuple[str, ...] = (
 
 
 
-# Plancher : les gabarits que la safelist garantit même quand l'appelant
-# ne passe rien (``generate_safelist_comment(palette)`` nu — un Theme
-# utilisé hors app, un test). Ce plancher ÉTAIT toute la safelist ; il ne
-# suffit pas, d'où le paramètre ``shapes`` ci-dessous.
+# Floor: the templates the safelist guarantees even when the caller
+# passes nothing (a bare ``generate_safelist_comment(palette)`` — a Theme
+# used outside an app, a test). This floor WAS the whole safelist; it is
+# not enough, hence the ``shapes`` parameter below.
 def generate_safelist_comment(
     palette: Palette,
     responsive_classes: Sequence[str] = (),
 ) -> str:
     """Return a Tailwind v4 ``@source inline(...)`` directive.
 
-    Lightning CSS / le CDN v4 balaient les sources à la recherche de
-    motifs d'utilitaires. Une classe qu'aucun fichier n'écrit
-    LITTÉRALEMENT n'existera donc pas dans le CSS compilé — elle marche
-    en dev (le compilateur navigateur scanne le DOM vivant) et disparaît
-    en prod, sans erreur ni trace. La safelist nomme ce qui est dans ce
-    cas.
+    Lightning CSS / the v4 CDN scan the sources looking for utility
+    patterns. A class no file writes LITERALLY will therefore not exist
+    in the compiled CSS — it works in dev (the browser compiler scans
+    the live DOM) and disappears in production, with no error and no
+    trace. The safelist names what is in that situation.
 
-    ``responsive_classes`` : les tokens qu'un prop gradué peut ressortir
-    préfixés d'un breakpoint (``gap-6`` → ``md:gap-6``), fournis par
-    :func:`bretzel.components.dynamic_responsive_classes`. Ce paramètre
-    existe parce que le socle ``theme`` n'a pas le droit d'importer
-    ``components`` — c'est l'appelant qui fait le pont.
+    ``responsive_classes``: the tokens a graded prop can return prefixed
+    by a breakpoint (``gap-6`` → ``md:gap-6``), supplied by
+    :func:`bretzel.components.dynamic_responsive_classes`. This parameter
+    exists because the ``theme`` base layer may not import
+    ``components`` — it is the caller that bridges.
 
-    ⚠️ **La moitié COULEUR de cette fonction a été déposée le
-    2026-08-30** (phase 5 du chantier des jetons). Elle développait
-    chaque gabarit de thème (``bg-{bg_color}/10``) sur **toutes** les
-    couleurs de la palette : 3 791 classes, 576 Ko sur 717, **80 % de la
-    feuille**. Il n'y a plus rien à développer — un thème écrit
-    ``bg-(--bz-bg)``, une classe complète que le compilateur voit, et
-    c'est la classe-pont posée sur la racine qui dit la couleur (cf.
-    :mod:`bretzel.theme.bridges`). Mesuré : ``style.css`` passe de
-    758 268 à 354 778 octets.
+    ⚠️ **The COLOUR half of this function was dropped on 2026-08-30**
+    (phase 5 of the token project). It expanded every theme template
+    (``bg-{bg_color}/10``) over **all** the palette's colours: 3 791
+    classes, 576 KB out of 717, **80 % of the sheet**. There is nothing
+    left to expand — a theme writes ``bg-(--bz-bg)``, a complete class
+    the compiler sees, and it is the bridge class on the root that says
+    the colour (cf. :mod:`bretzel.theme.bridges`). Measured:
+    ``style.css`` goes from 758 268 to 354 778 bytes.
 
-    Ce qui reste ici est le domaine où le problème existe encore : les
-    classes de LAYOUT, qu'une f-string assemble depuis un scalaire
-    (``grid-cols-3``, ``basis-1/4``) ou qu'un prop gradué tire d'une
-    table de thème. Les deux moitiés sont nécessaires : la première seule
-    shippait le 2026-08-07 et laissait
-    ``ui.flex(direction={"base":"col","md":"row"})`` sans règle ``md:``
-    en prod — la feature entière morte, sans erreur ni trace.
+    What remains here is the domain where the problem still exists: the
+    LAYOUT classes, which an f-string assembles from a scalar
+    (``grid-cols-3``, ``basis-1/4``) or which a graded prop draws from a
+    theme table. Both halves are necessary: the first alone shipped on
+    2026-08-07 and left
+    ``ui.flex(direction={"base":"col","md":"row"})`` with no ``md:`` rule
+    in production — the whole feature dead, with no error and no trace.
 
-    Syntaxe v4 : ``@source inline("class-1 class-2 …");`` (une vraie
-    directive, pas un commentaire CSS — la forme ``/* @source ... */``
-    était silencieusement ignorée, ce qui est la raison pour laquelle les
-    utilitaires de couleur manquaient).
+    v4 syntax: ``@source inline("class-1 class-2 …");`` (a real
+    directive, not a CSS comment — the ``/* @source ... */`` form was
+    silently ignored, which is why the colour utilities were missing).
     """
     classes: list[str] = []
-    # Les classes de layout : domaine borné, et ``responsive_classes``
-    # peut préfixer n'importe laquelle par n'importe quel breakpoint —
-    # d'où la clôture sur les deux axes.
+    # The layout classes: a bounded domain, and ``responsive_classes``
+    # can prefix any of them with any breakpoint — hence the closure over
+    # both axes.
     #
-    # ``_LAYOUT_CLASSES`` couvre ce qu'une f-string assemble depuis un
-    # SCALAIRE (``grid-cols-3``, ``basis-1/4``) ; ``responsive_classes``
-    # couvre ce qu'un prop gradué tire d'une TABLE de thème (``gap-6``,
-    # ``flex-row``, ``hidden``). Les deux moitiés sont nécessaires : la
-    # première seule shippait le 2026-08-07 et laissait
-    # ``ui.flex(direction={"base":"col","md":"row"})`` sans règle ``md:``
-    # en prod — la feature entière morte, sans erreur ni trace.
+    # ``_LAYOUT_CLASSES`` covers what an f-string assembles from a
+    # SCALAR (``grid-cols-3``, ``basis-1/4``); ``responsive_classes``
+    # covers what a graded prop draws from a theme TABLE (``gap-6``,
+    # ``flex-row``, ``hidden``). Both halves are necessary: the first
+    # alone shipped on 2026-08-07 and left
+    # ``ui.flex(direction={"base":"col","md":"row"})`` with no ``md:``
+    # rule in production — the whole feature dead, with no error and no
+    # trace.
     for cls in (*_LAYOUT_CLASSES, *responsive_classes):
         classes.append(cls)
         classes.extend(f"{bp}:{cls}" for bp in BREAKPOINTS)

@@ -54,7 +54,7 @@ def register_realtime_route(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
     async def _refetch_zone(
         state_qualname: str,
         zone_qualname: str,
-        request: Request,  # non lu ici — le contexte est posé en amont
+        request: Request,  # unread here — the context is set upstream
     ) -> Response:
         try:
             target = resolve_handler(zone_qualname)
@@ -81,27 +81,25 @@ def register_realtime_route(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
             # The state segment isn't one of the zone's broadcast
             # channels — forged URL or stale client after a code change.
             #
-            # ⚠️ **``broadcast``, et pas ``deps``.** Cette ligne lisait
-            # ``deps`` jusqu'au 2026-09-09, et les deux coïncident tant
-            # que ``broadcast`` est un sous-ensemble de ``deps`` — ce que
-            # font les six déclarations réelles du dépôt. Elles divergent
-            # dans le cas que la doc met pourtant en avant :
+            # ⚠️ **``broadcast``, and not ``deps``.** This line read
+            # ``deps`` until 2026-09-09, and the two coincide as long as
+            # ``broadcast`` is a subset of ``deps`` — which the
+            # repository's six real declarations are. They diverge in the
+            # very case the documentation puts forward:
             #
-            #     @refreshable(broadcast=[FileAttente])   # je ne le
-            #                                            # change jamais
+            #     @refreshable(broadcast=[Queue])   # I never change it
             #
-            # ``deps`` est alors VIDE, donc la garde refusait toujours.
-            # Mesuré : la zone s'abonne, le signal arrive, le navigateur
-            # va chercher, le serveur répond **404**, et rien ne bouge —
-            # sans un mot, ni console ni journal. Une zone diffusée seule
-            # était morte depuis toujours.
+            # ``deps`` is then EMPTY, so the guard always refused.
+            # Measured: the zone subscribes, the signal arrives, the
+            # browser goes to fetch, the server answers **404**, and
+            # nothing moves — without a word, no console, no log. A zone
+            # that only broadcasts had been dead all along.
             #
-            # Le client s'abonne sur ``_broadcast_qualnames()`` (cf.
-            # ``refreshable._subscribe_url``) : valider contre la même
-            # liste est donc la seule qui puisse être vraie. C'est aussi
-            # plus SERRÉ — une zone ``deps=[A, B], broadcast=[B]``
-            # acceptait un refetch pour ``A``, qu'elle n'annonce nulle
-            # part.
+            # The client subscribes on ``_broadcast_qualnames()`` (cf.
+            # ``refreshable._subscribe_url``): validating against the
+            # same list is therefore the only one that can be true. It is
+            # also TIGHTER — a zone with ``deps=[A, B], broadcast=[B]``
+            # accepted a refetch for ``A``, which it announces nowhere.
             return HTMLResponse(
                 content="Zone / State mismatch.",
                 status_code=404,

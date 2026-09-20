@@ -1,67 +1,67 @@
-"""core/db — infra : le fichier SQLite, le schéma métier, ses index, le seed.
+"""core/db — infra: the SQLite file, the business schema, its indexes,
+the seed.
 
-Feature ``kind="infra"`` : elle ne rend rien et ne porte aucun ``State``
-Bretzel. Elle POSSÈDE une ressource externe — le fichier SQLite — et
-expose les portes d'accès (``query`` / ``scalar`` en lecture, ``execute``
-en écriture). Les features ``*_data`` requêtent par-dessus ; les pages ne
-la touchent jamais.
+A ``kind="infra"`` feature: it renders nothing and carries no Bretzel
+``State``. It OWNS an external resource — the SQLite file — and exposes
+the access doors (``query`` / ``scalar`` for reads, ``execute`` for
+writes). The ``*_data`` features query on top of it; the pages never
+touch it.
 
-**Sync, pas ``aiosqlite``**, pour la raison mesurée dans ``examples/crm``
-et écrite dans son ``core/db.py`` : une zone ``@refreshable`` ne peut pas
-être ``async``, et dans une app SDUI toute lecture vit dans une zone.
-Deux couches de données — une async pour les handlers, une sync pour les
-zones — serait exactement le « se dépanner » que ce chantier interdit.
+**Sync, not ``aiosqlite``**, for the reason measured in ``examples/crm``
+and written in its ``core/db.py``: a ``@refreshable`` zone cannot be
+``async``, and in an SDUI app every read lives in a zone. Two data layers
+— an async one for the handlers, a sync one for the zones — would be
+exactly the "working around it" this work forbids.
 
-Le schéma EST le § 5 du cahier
-------------------------------
-Chaque table vient d'un paragraphe du modèle métier, et deux formes
-portent des règles transverses plutôt que du confort :
-
-- **RT-2 · rien ne s'efface qui porte de l'histoire.** ``inscriptions``
-  est une table à part, avec un ``debut`` et un ``fin`` : un élève qui
-  part ne disparaît pas, sa ligne reçoit une fin. C'est la raison pour
-  laquelle ``eleves`` ne porte AUCUN ``classe_id`` — ce serait la même
-  information, mutable, et elle écraserait l'histoire à chaque
-  changement de classe.
-- **RT-1 · l'année en cours est la seule qu'on écrit.** Toute table
-  datée porte son ``annee_id`` (directement, ou par sa classe). C'est ce
-  qui permet à la garde de ``features/annees.py`` de répondre sans
-  deviner.
-
-Ce que le schéma REFUSE, et qui est du métier
----------------------------------------------
-Trois contraintes d'unicité valent des règles, parce qu'elles tiennent
-même quand l'écran se trompe (RT-8) :
-
-- ``classes(annee_id, code)`` — « la même classe d'une autre année est
-  une autre classe » (§ 4) ;
-- ``creneaux(annee_id, jour, horaire_id, semaine)`` — « une seule classe
-  par case » (§ 5.4) ;
-- ``heures_exceptionnelles(annee_id, jour, horaire_id)`` — « une case du
-  calendrier ne porte qu'une décision : reposer la même case remplace »
-  (§ 5.4), d'où le ``INSERT OR REPLACE`` que cette unicité rend possible.
-
-Une connexion PAR THREAD, pas par appel
+The schema IS § 5 of the specification
 ---------------------------------------
-``connect()`` a longtemps ouvert une connexion neuve à chaque lecture,
-au nom de l'anti-règle 2 (« zéro état global mutable »). Mesuré le
-2026-09-13 sur ``/plan/1`` : vider une place coûtait **26 connexions
-ouvertes puis refermées**, soit 18 ms des ~100 ms de la requête, et
-**52 ``execute``** là où 26 suffisaient — chaque ouverture repose son
-``PRAGMA foreign_keys``. Ouvrir un fichier n'est pas gratuit, et une
-app SDUI rend plusieurs zones par requête : le coût se paie autant de
-fois qu'il y a de lectures.
+Every table comes from a paragraph of the business model, and two shapes
+carry cross-cutting rules rather than convenience:
 
-La connexion vit donc dans un :class:`threading.local`. Ce n'est PAS
-l'état global que l'anti-règle interdit : rien n'est partagé entre
-deux threads, donc rien n'a besoin de verrou, et le plafond est celui
-du threadpool d'``anyio`` — 40 connexions au plus, réutilisées.
+- **RT-2 · nothing that carries history is erased.** ``inscriptions`` is
+  a separate table, with a ``debut`` and a ``fin``: a pupil who leaves
+  does not disappear, their row receives an end. It is why ``eleves``
+  carries NO ``classe_id`` — that would be the same information,
+  mutable, and it would overwrite the history at every class change.
+- **RT-1 · the current year is the only one written.** Every dated table
+  carries its ``annee_id`` (directly, or through its class). It is what
+  lets ``features/annees.py``'s guard answer without guessing.
 
-Deux conséquences qu'il faut tenir, et elles sont écrites sur les
-fonctions concernées : une écriture qui lève doit ``rollback``, sinon
-la transaction reste ouverte sur une connexion qui, elle, ne meurt
-plus ; et ``init_db`` doit fermer avant de supprimer le fichier, parce
-que Windows refuse d'effacer un fichier encore ouvert.
+What the schema REFUSES, and which is business
+-----------------------------------------------
+Three uniqueness constraints are worth rules, because they hold even
+when the screen is wrong (RT-8):
+
+- ``classes(annee_id, code)`` — "the same class of another year is
+  another class" (§ 4);
+- ``creneaux(annee_id, jour, horaire_id, semaine)`` — "one class per
+  cell only" (§ 5.4);
+- ``heures_exceptionnelles(annee_id, jour, horaire_id)`` — "a calendar
+  cell carries one decision only: setting the same cell again replaces"
+  (§ 5.4), hence the ``INSERT OR REPLACE`` this uniqueness makes
+  possible.
+
+One connection PER THREAD, not per call
+----------------------------------------
+``connect()`` long opened a fresh connection at every read, in the name
+of anti-rule 2 ("zero mutable global state"). Measured on 2026-09-13 on
+``/plan/1``: emptying one seat cost **26 connections opened then
+closed**, that is 18 ms of the request's ~100 ms, and **52 ``execute``**
+where 26 were enough — every opening re-sets its ``PRAGMA
+foreign_keys``. Opening a file is not free, and an SDUI app renders
+several zones per request: the cost is paid as many times as there are
+reads.
+
+So the connection lives in a :class:`threading.local`. That is NOT the
+global state the anti-rule forbids: nothing is shared between two
+threads, so nothing needs a lock, and the ceiling is ``anyio``'s
+threadpool — 40 connections at most, reused.
+
+Two consequences must be held, and they are written on the functions
+concerned: a write that raises must ``rollback``, otherwise the
+transaction stays open on a connection that no longer dies; and
+``init_db`` must close before deleting the file, because Windows refuses
+to erase a file that is still open.
 """
 
 from __future__ import annotations
@@ -75,31 +75,30 @@ from bretzel import Feature
 
 DB_PATH = Path(__file__).with_name("ecole.db")
 
-#: Bumpé quand le schéma ou le seed change — ``init_db`` reconstruit
-#: alors le fichier.
+#: Bumped when the schema or the seed changes — ``init_db`` then
+#: rebuilds the file.
 SEED_VERSION = 4
 
 
-#: La connexion de chaque thread. Un ``threading.local`` et pas un dict
-#: verrouillé : deux threads ne se voient pas, donc il n'y a rien à
-#: synchroniser à l'usage.
+#: Each thread's connection. A ``threading.local`` and not a locked
+#: dict: two threads do not see each other, so there is nothing to
+#: synchronise in use.
 _LOCALE = threading.local()
 
-#: Toutes les connexions ouvertes, tous threads confondus — la seule
-#: chose que :func:`fermer_les_connexions` peut fermer. Un ``set`` sous
-#: verrou, parce que celui-là, lui, traverse les threads.
+#: Every open connection, all threads together — the only thing
+#: :func:`fermer_les_connexions` can close. A ``set`` under a lock,
+#: because that one does cross threads.
 _OUVERTES: set[sqlite3.Connection] = set()
 _VERROU = threading.Lock()
 
 
 def connect() -> sqlite3.Connection:
-    """La connexion de CE thread, ouverte à la première demande.
+    """THIS thread's connection, opened on first demand.
 
-    ⚠️ ``check_same_thread=False`` n'autorise PAS le partage : chaque
-    thread garde la sienne, et c'est le ``threading.local`` qui le
-    garantit. Le drapeau ne sert qu'à :func:`fermer_les_connexions`,
-    qui doit pouvoir refermer celles des autres threads avant que
-    ``init_db`` n'efface le fichier.
+    ⚠️ ``check_same_thread=False`` does NOT allow sharing: each thread
+    keeps its own, and it is the ``threading.local`` that guarantees it.
+    The flag only serves :func:`fermer_les_connexions`, which must be
+    able to close the other threads' before ``init_db`` erases the file.
     """
     conn: sqlite3.Connection | None = getattr(_LOCALE, "conn", None)
     if conn is None:
@@ -113,10 +112,10 @@ def connect() -> sqlite3.Connection:
 
 
 def fermer_les_connexions() -> None:
-    """Referme toutes les connexions ouvertes, tous threads confondus.
+    """Close every open connection, all threads together.
 
-    Appelée avant de supprimer le fichier (``init_db``) : sous Windows,
-    un ``unlink`` sur une base encore ouverte lève ``PermissionError``.
+    Called before deleting the file (``init_db``): under Windows, an
+    ``unlink`` on a database still open raises ``PermissionError``.
     """
     with _VERROU:
         connexions = tuple(_OUVERTES)
@@ -127,49 +126,49 @@ def fermer_les_connexions() -> None:
 
 
 def query(sql: str, params: tuple = ()) -> list[dict]:
-    """Exécute un SELECT et renvoie une liste de dicts — porte de LECTURE."""
+    """Run a SELECT and return a list of dicts — the READ door."""
     return [dict(r) for r in connect().execute(sql, params)]
 
 
 def scalar(sql: str, params: tuple = ()) -> Any:
-    """La première colonne de la première ligne — pour les ``COUNT(*)``."""
+    """The first column of the first row — for the ``COUNT(*)``."""
     row = connect().execute(sql, params).fetchone()
     return row[0] if row is not None else None
 
 
-#: Les verbes pour lesquels ``lastrowid`` veut dire quelque chose. Après
-#: un ``UPDATE``, sqlite3 laisse ``lastrowid`` à ``0`` sur une connexion
-#: neuve — jamais ``None`` — donc un repli ``lastrowid or rowcount``
-#: rendrait toujours zéro et une écriture réussie se lirait « refusée ».
-#: Le piège est documenté dans ``examples/crm/core/db.py``, où il a
-#: réellement mordu.
+#: The verbs for which ``lastrowid`` means something. After an
+#: ``UPDATE``, sqlite3 leaves ``lastrowid`` at ``0`` on a fresh
+#: connection — never ``None`` — so a ``lastrowid or rowcount`` fallback
+#: would always return zero and a successful write would read as
+#: "refused". The trap is documented in ``examples/crm/core/db.py``,
+#: where it really bit.
 _ROWID_VERBS = frozenset({"INSERT", "REPLACE"})
 
 
 def execute(sql: str, params: tuple = ()) -> int:
-    """Exécute un INSERT / UPDATE / DELETE et commit — porte d'ÉCRITURE.
+    """Run an INSERT / UPDATE / DELETE and commit — the WRITE door.
 
-    Renvoie le ``lastrowid`` (INSERT) ou le nombre de lignes touchées.
+    Returns the ``lastrowid`` (INSERT) or the number of rows touched.
 
-    ⚠️ **Cette porte ne connaît pas RT-1.** Elle ne peut pas : l'année
-    concernée dépend de la table et parfois d'une jointure. La garde est
-    donc un cran au-dessus, dans ``features/annees.py``
-    (:func:`~examples.ecole.features.annees.garde_ecriture`), appelée par
-    chaque fonction d'écriture métier. Mettre le test ici donnerait
-    l'illusion d'une barrière à l'endroit où elle serait le plus facile à
-    contourner — un ``executescript`` suffirait.
+    ⚠️ **This door does not know RT-1.** It cannot: the year concerned
+    depends on the table and sometimes on a join. So the guard is one
+    level up, in ``features/annees.py``
+    (:func:`~examples.ecole.features.annees.garde_ecriture`), called by
+    every business write function. Putting the test here would give the
+    illusion of a barrier in the place where it would be easiest to work
+    around — an ``executescript`` would do.
     """
     verb = sql.lstrip().split(None, 1)[0].upper()
     conn = connect()
     try:
         cur = conn.execute(sql, params)
     except Exception:
-        # ⚠️ Le ``rollback`` est ce que la fermeture faisait pour nous
-        # quand chaque appel ouvrait sa connexion. Sans lui, une
-        # écriture qui lève — une contrainte d'unicité violée, RT-8 —
-        # laisse une transaction ouverte sur une connexion qui vit
-        # jusqu'à la fin du process : le verrou d'écriture reste pris et
-        # la requête SUIVANTE échoue, loin de la cause.
+        # ⚠️ The ``rollback`` is what closing did for us when every
+        # call opened its own connection. Without it, a write that
+        # raises — a uniqueness constraint violated, RT-8 — leaves a
+        # transaction open on a connection that now lives to the end of
+        # the process: the write lock stays taken and the NEXT request
+        # fails, far from the cause.
         conn.rollback()
         raise
     conn.commit()
@@ -541,12 +540,11 @@ CREATE TABLE notes_fiche (
 );
 """
 
-#: Les index que les écrans réclament. Cette app est à 473 élèves, pas à
-#: 50 000 comptes : aucun de ces index n'achète une milliseconde
-#: aujourd'hui. Ils sont là pour les CLÉS ÉTRANGÈRES qu'on suit dans les
-#: deux sens — un élève vers ses classes, une classe vers ses élèves —
-#: parce que SQLite n'en crée aucun tout seul, et qu'une lecture par clé
-#: étrangère non indexée est un scan.
+#: The indexes the screens ask for. This app is at 473 pupils, not
+#: 50 000 accounts: none of these indexes buys a millisecond today. They
+#: are there for the FOREIGN KEYS followed in both directions — a pupil
+#: to their classes, a class to its pupils — because SQLite creates none
+#: on its own, and a read by an unindexed foreign key is a scan.
 _INDEXES = """
 CREATE INDEX idx_classes_annee    ON classes(annee_id, rang);
 CREATE INDEX idx_inscr_classe     ON inscriptions(classe_id, fin);
@@ -570,7 +568,7 @@ CREATE INDEX idx_seances_chap     ON seances_chapitre(chapitre_id, numero);
 
 
 def marqueur(conn: sqlite3.Connection, cle: str) -> str | None:
-    """Une valeur de la table ``meta``, ou ``None`` sur un fichier vierge."""
+    """A value from the ``meta`` table, or ``None`` on a blank file."""
     try:
         row = conn.execute(
             "SELECT value FROM meta WHERE key = ?", (cle,)
@@ -581,16 +579,15 @@ def marqueur(conn: sqlite3.Connection, cle: str) -> str | None:
 
 
 def init_db(*, force: bool = False) -> bool:
-    """(Re)crée schéma + index + seed si nécessaire. Vrai si semé.
+    """(Re)create schema + indexes + seed if needed. True if seeded.
 
-    ⚠️ **Deux marqueurs, pas un**, et le second est propre à cette app :
-    la version du seed ET l'année de la rentrée. Le jeu semé est bâti
-    AUTOUR de la date du jour — l'année en cours doit contenir
-    aujourd'hui, sinon la grille de la semaine s'ouvre sur des vacances
-    et le cahier de texte ne propose rien. Une base semée en juin et
-    ouverte en septembre montrerait l'année précédente comme « en
-    cours ». Le marqueur ``rentree`` la fait se refaire toute seule, une
-    fois par an.
+    ⚠️ **Two markers, not one**, and the second is specific to this app:
+    the seed's version AND the school year. The seeded set is built
+    AROUND today's date — the current year must contain today, otherwise
+    the week's grid opens on holidays and the lesson log proposes
+    nothing. A database seeded in June and opened in September would show
+    the previous year as "current". The ``rentree`` marker makes it
+    rebuild itself, once a year.
     """
     from examples.ecole.core.seed import RENTREE, build_seed
 
@@ -602,15 +599,15 @@ def init_db(*, force: bool = False) -> bool:
     if a_jour and not force:
         return False
 
-    # Le fichier va disparaître sous les connexions ouvertes : on les
-    # ferme d'abord. Sous Windows, ``unlink`` lèverait.
+    # The file is about to disappear from under the open connections: we
+    # close them first. Under Windows, ``unlink`` would raise.
     fermer_les_connexions()
     DB_PATH.unlink(missing_ok=True)
     conn = connect()
     try:
-        # WAL : lectures concurrentes pendant une écriture. Une app SDUI
-        # rend plusieurs zones par requête, et chaque thread garde la
-        # sienne ouverte.
+        # WAL: concurrent reads during a write. An SDUI app renders
+        # several zones per request, and every thread keeps its own
+        # open.
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(_SCHEMA)
         for table, rows in build_seed():
@@ -620,8 +617,8 @@ def init_db(*, force: bool = False) -> bool:
             conn.executemany(
                 f"INSERT INTO {table} VALUES ({placeholders})", rows
             )
-        # Index posés APRÈS l'insertion : les construire d'abord ferait
-        # payer un rééquilibrage d'arbre à chaque ligne.
+        # Indexes placed AFTER the insertion: building them first would
+        # make every row pay a tree rebalance.
         conn.executescript(_INDEXES)
         conn.executemany(
             "INSERT INTO meta (key, value) VALUES (?, ?)",

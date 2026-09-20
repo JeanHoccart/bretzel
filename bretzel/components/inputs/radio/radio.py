@@ -41,11 +41,10 @@ class RadioGroup(Component):
     value: Any = reactive_prop(default=None, emit_attr=False, writes=True, names_field=True)
     direction: str = reactive_prop(default="col", emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
-    # Pas de ``steps=`` ici : le groupe n'a pas de table à lui, et
-    # celle de l'enfant ne se lit qu'À TRAVERS SA RÉSOLUTION (un
-    # ``Theme(components={"radio": …})`` de l'app la remplace). C'est
-    # l'enfant qui refuse la taille EFFECTIVE, au rendu — cf.
-    # ``Radio.render``.
+    # No ``steps=`` here: the group has no table of its own, and the
+    # child's is only read THROUGH ITS RESOLUTION (an app's
+    # ``Theme(components={"radio": …})`` replaces it). It is the child
+    # that refuses the EFFECTIVE size, at render — cf. ``Radio.render``.
     size: str = reactive_prop(default="md", emit_attr=False)
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
@@ -63,7 +62,7 @@ class RadioGroup(Component):
         on_change: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, value=value, direction=direction,
             color=color, size=size, disabled=disabled,
@@ -88,9 +87,10 @@ class RadioGroup(Component):
         theme = self._resolved_theme()
         direction = self._reactive_values.get("direction") or "col"
         direction_class = theme.get("directions", {}).get(direction, "")
-        # ``classes=`` posé sur le vrai root par le wrap métaclasse
-        # ``_apply_universal_modifiers`` — pas ici (sinon doublon). Gardé
-        # par test_no_manual_user_class_append.py.
+        # ``classes=`` set on the real root by the
+        # ``_apply_universal_modifiers`` metaclass wrap — not here
+        # (otherwise a duplicate). Guarded by
+        # test_no_manual_user_class_append.py.
         root_class = " ".join(
             p
             for p in (
@@ -170,35 +170,33 @@ class Radio(Component):
     # The radio's own ``value`` (the option's value, not the bound
     # value) — kept distinct from the group's ``value=binding``.
     option_value: str = reactive_prop(default="", emit_attr=False)
-    # Nourrie depuis le ``value`` positionnel de l'option. La passer
-    # explicitement est refusé par ``reject_sealed``, appelé en tête
-    # de ``__init__`` — il FAUT que ce soit là, avant le
-    # ``super().__init__`` : la collision de kwargs est levée par
-    # Python au moment de construire l'appel, donc le socle ne la
-    # voit jamais.
+    # Fed from the option's positional ``value``. Passing it explicitly
+    # is refused by ``reject_sealed``, called at the head of
+    # ``__init__`` — it MUST be there, before the ``super().__init__``:
+    # the kwarg collision is raised by Python when building the call, so
+    # the base layer never sees it.
     #
-    # ⚠️ Ce commentaire disait « produit un multiple values » et
-    # s'en contentait, jusqu'au 2026-09-04. C'était décrire un
-    # message illisible au lieu de le réparer — rien n'aurait
-    # rappelé d'y revenir.
+    # ⚠️ This comment said "produces a multiple values" and left it at
+    # that, until 2026-09-04. That was describing an unreadable message
+    # instead of fixing it — nothing would have prompted a return to it.
     SEALED_PROPS: ClassVar[tuple[str, ...]] = ("option_value",)
-    #: Le message du refus. Sans lui, le défaut de ``reject_sealed``
-    #: parle d'AXE — vrai pour une pile, faux ici.
+    #: The refusal's message. Without it, ``reject_sealed``'s default
+    #: speaks of an AXIS — true for a stack, false here.
     SEALED_REASONS: ClassVar[dict[str, str]] = {
         "option_value": (
-            "Radio(option_value=…) : ce prop est alimenté par le "
-            "``value`` positionnel de l'option — écrivez "
-            "``ui.radio(\"ma-valeur\")``. Le passer en plus produirait "
-            "deux valeurs pour le même champ, ce qui est une "
-            "ambiguïté, pas un raccourci."
+            "Radio(option_value=…): this prop is fed by the option's "
+            "positional ``value`` — write "
+            "``ui.radio(\"my-value\")``. Passing it as well would produce "
+            "two values for the same field, which is an ambiguity, not a "
+            "shortcut."
         ),
     }
     name: str | None = reactive_prop(default=None)
     color: str | None = reactive_prop(default=None, emit_attr=False)
-    # ``None`` = hériter du groupe, donc le refus générique ne peut pas
-    # lire cette table : c'est le DÉFAUT qui sert d'ancre pour savoir
-    # lequel des deux niveaux d'une table imbriquée porte les paliers.
-    # La taille effective est donc refusée au rendu — cf. ``render``.
+    # ``None`` = inherit from the group, so the generic refusal cannot
+    # read this table: it is the DEFAULT that serves as the anchor for
+    # knowing which of a nested table's two levels carries the steps. The
+    # effective size is therefore refused at render — cf. ``render``.
     size: str | None = reactive_prop(default=None, emit_attr=False)
     disabled: bool = reactive_prop(default=False)
     required: bool = reactive_prop(default=False)
@@ -219,9 +217,9 @@ class Radio(Component):
         **kwargs: Any,
     ) -> None:
         reject_sealed(kwargs, type(self))
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
-        # ``option_value`` (le ``value`` positionnel de l'option) est toujours
-        # transmis — ce n'est pas une garde None.
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
+        # ``option_value`` (the option's positional ``value``) is always
+        # passed on — it is not a None guard.
         super().__init__(
             option_value=value,
             name=name, color=color, size=size,
@@ -231,11 +229,12 @@ class Radio(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # ``adopt_slot`` + ``emit_text_slot`` sont un COUPLE (cf. le docstring
-        # d'emit_text_slot) : le 1er détache le Component (sinon rendu 2×), le
-        # 2nd le REND (sinon il file dans TextNode() qui attend une string →
-        # `'Text' object has no attribute 'replace'` au serialize). Faire l'un
-        # sans l'autre échange un bug contre un autre.
+        # ``adopt_slot`` + ``emit_text_slot`` are a COUPLE (cf.
+        # emit_text_slot's docstring): the 1st detaches the Component
+        # (otherwise rendered twice), the 2nd RENDERS it (otherwise it
+        # goes into TextNode() which expects a string → `'Text' object
+        # has no attribute 'replace'` at serialize). Doing one without
+        # the other swaps one bug for another.
         self._label = Component.adopt_slot(label)
         # Capture the enclosing RadioGroup at construction time : the
         # ``with RadioGroup(...) as rg`` block is still active here, so
@@ -247,41 +246,41 @@ class Radio(Component):
         # Inherit name / size / disabled / value-binding from the
         # enclosing RadioGroup captured at construction time.
         #
-        # ``color`` n'est PAS dans cette liste, et ce n'est pas un oubli :
-        # le groupe porte la classe-pont ``bz-c-<couleur>`` sur sa racine,
-        # et les onze paliers descendent en CSS sur tout le sous-arbre. La
-        # relire ici donnait une variable que personne n'utilisait —
-        # supprimée le 2026-09-07, vérifié par rendu : un groupe
-        # ``color="warning"`` rend bien ``bz-c-warning`` autour de ses
-        # radios.
+        # ``color`` is NOT in that list, and it is not an oversight: the
+        # group carries the ``bz-c-<colour>`` bridge class on its root,
+        # and the eleven steps flow down in CSS over the whole subtree.
+        # Re-reading it here gave a variable nobody used — removed on
+        # 2026-09-07, checked by render: a ``color="warning"`` group does
+        # render ``bz-c-warning`` around its radios.
         group = self._group
         size_key = self._reactive_values.get("size") or (
             group._reactive_values.get("size") if group else None
         ) or "md"
-        # Le refus hors-table, ICI et pas sur la prop — c'est le seul
-        # point où la taille EFFECTIVE existe. Deux raisons, mesurées le
-        # 2026-09-07 :
+        # The out-of-table refusal, HERE and not on the prop — it is
+        # the only point where the EFFECTIVE size exists. Two reasons,
+        # measured on 2026-09-07:
         #
-        # - ``Radio.size`` vaut ``None`` par défaut (« hériter »), et le
-        #   refus générique se sert du défaut comme ANCRE pour savoir
-        #   lequel des deux niveaux d'une table imbriquée porte les
-        #   paliers. Sans ancre il s'abstenait, et ``size="zzz"`` rendait
-        #   un radio SANS AUCUNE taille ;
-        # - la taille peut venir du GROUPE, qui n'a pas de table à lui.
-        #   ``ui.radio_group(size="zzz")`` traversait donc tout le rendu
-        #   sans un mot.
+        # - ``Radio.size`` is ``None`` by default ("inherit"), and the
+        #   generic refusal uses the default as an ANCHOR to know which
+        #   of a nested table's two levels carries the steps. With no
+        #   anchor it abstained, and ``size="zzz"`` rendered a radio WITH
+        #   NO SIZE AT ALL;
+        # - the size can come from the GROUP, which has no table of its
+        #   own. ``ui.radio_group(size="zzz")`` therefore went through
+        #   the whole render without a word.
         #
-        # La table est lue RÉSOLUE : un ``Theme(components={"radio": …})``
-        # de l'app remplace les paliers, et une liste figée au corps de
-        # classe refuserait alors une valeur juste.
-        paliers = self._resolved_theme().get("sizes", {})
-        if paliers and size_key not in paliers:
+        # The table is read RESOLVED: an app's ``Theme(components=
+        # {"radio": …})`` replaces the steps, and a list frozen in the
+        # class body would then refuse a correct value.
+        steps = self._resolved_theme().get("sizes", {})
+        if steps and size_key not in steps:
             raise ComponentUsageError(
-                f"ui.radio: size={size_key!r} n'est pas dans la table du "
-                f"thème. Valeurs connues : {', '.join(sorted(paliers))}.\n"
-                f"  Une valeur hors table ne lève pas d'elle-même : le "
-                f"radio rendrait sans aucune taille, sans un mot. La "
-                f"taille peut venir du radio ou de son groupe."
+                f"ui.radio: size={size_key!r} is not in the theme's "
+                f"table. Known values: {', '.join(sorted(steps))}.\n"
+                f"  A value outside the table does not raise by itself: "
+                f"the radio would render with no size at all, without a "
+                f"word. The size can come from the radio or from its "
+                f"group."
             )
         # Inherit the group's EFFECTIVE name (explicit ``name=`` OR the
         # autoname derived from its ``value=`` binding), stashed on the
@@ -308,12 +307,12 @@ class Radio(Component):
                 and "disabled" not in self._binding_metadata
             ):
                 self._binding_metadata["disabled"] = group_disabled_binding
-                # ``getattr(…, "value", False)`` : une ClientExpression n'a
-                # pas de valeur serveur (elle est calculée par le runtime) —
-                # même contrat que la base, qui stocke ``None`` pour le SSR
-                # et laisse le runtime trancher au boot. Sans le défaut, un
-                # ``ui.radio_group(disabled=expr)`` faisait planter le render
-                # de chaque Radio enfant.
+                # ``getattr(…, "value", False)``: a ClientExpression has
+                # no server value (it is computed by the runtime) — same
+                # contract as the base layer, which stores ``None`` for
+                # the SSR and lets the runtime decide at boot. Without
+                # the default, a ``ui.radio_group(disabled=expr)`` crashed
+                # the render of every child Radio.
                 self._reactive_values["disabled"] = bool(
                     getattr(group_disabled_binding, "value", False)
                 )

@@ -1,28 +1,28 @@
-"""Chat — démonstrateur du STREAMING serveur → navigateur.
+"""Chat — a demonstrator of server → browser STREAMING.
 
-Run : ``py -m examples.chat.main``.
+Run: ``py -m examples.chat.main``.
 
-Ce que cet exemple montre, et pourquoi il existe : Bretzel a deux façons
-de changer le DOM, et un texte qui se remplit progressivement est le cas
-qui oblige à choisir la bonne.
+What this example shows, and why it exists: Bretzel has two ways of
+changing the DOM, and a text filling up progressively is the case that
+forces you to pick the right one.
 
-- La **structure** (un message de plus dans le journal) ne peut changer
-  que par un re-rendu serveur → ``@refreshable``, ici en
-  ``broadcast=[Log]`` pour que les autres onglets suivent.
-- La **valeur** (le texte du message en cours qui grandit) n'a pas besoin
-  de HTML : le serveur réassigne un champ ``ClientState``, il redescend
-  dans un patch JSON, et le navigateur écrit dans un nœud de texte.
+- The **structure** (one more message in the log) can only change through
+  a server re-render → ``@refreshable``, here with ``broadcast=[Log]`` so
+  the other tabs follow.
+- The **value** (the growing text of the message in progress) needs no
+  HTML: the server reassigns a ``ClientState`` field, it comes back down
+  in a JSON patch, and the browser writes into a text node.
 
-Et la **cadence** est tirée par le client (``ui.interval`` gaté sur un
-``ClientBinding``), pas poussée par le serveur. Ce n'est pas un détail de
-performance, c'est ce qui rend le bouton *Stop* possible : une boucle
-``@background`` tourne sans contexte de requête, donc ne peut pas
-relire l'état qui lui dirait de s'arrêter (``handlers.md`` § *background*
-— le stepper du playground a fait exactement ce chemin en sens inverse).
+And the **cadence** is pulled by the client (``ui.interval`` gated on a
+``ClientBinding``), not pushed by the server. That is not a performance
+detail, it is what makes the *Stop* button possible: a ``@background``
+loop runs with no request context, so it cannot re-read the state that
+would tell it to stop (``handlers.md`` § *background* — the playground's
+stepper walked exactly that path in reverse).
 
-Le générateur de tokens est **simulé** : aucun appel LLM, aucune clé
-d'API. Le sujet est le transport ; brancher un vrai modèle ne changerait
-qu'``examples/chat/features/generator.py`` § ``answer_for``.
+The token generator is **simulated**: no LLM call, no API key. The
+subject is the transport; wiring a real model would change only
+``examples/chat/features/generator.py`` § ``answer_for``.
 """
 
 from bretzel import Bretzel
@@ -34,14 +34,15 @@ app = Bretzel(
     secret_key="dev-chat-secret-change-me",
     theme=THEME,
     mode="dev",
-    # L'app est écrite en français : la déclarer pose ``<html lang>`` et
-    # traduit les mots que le framework écrit lui-même. Le CRM en montre
-    # la table complète ; ici trois suffisent.
-    lang="fr",
+    # Declaring the language sets ``<html lang>`` and picks the words the
+    # framework writes itself. ``texts`` then overrides them one key at a
+    # time — here two labels that read better in this app than the
+    # defaults ("Toggle sidebar", "Collapse or expand the sidebar"). The
+    # CRM shows the full table; two are enough here.
+    lang="en",
     texts={
-        "sidebar.toggle": "Afficher ou masquer le menu",
-        "sidebar.rail_toggle": "Replier ou déplier la barre latérale",
-        "input.clear": "Effacer",
+        "sidebar.toggle": "Show or hide the menu",
+        "sidebar.rail_toggle": "Fold or unfold the side panel",
     },
 )
 

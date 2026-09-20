@@ -1,4 +1,4 @@
-"""``Carousel`` — défilement aimanté d'une série de contenus.
+"""``Carousel`` — snapping scroll through a series of contents.
 
 Usage ::
 
@@ -10,53 +10,53 @@ Usage ::
         for p in ui.each(products):
             ui.card(p.name)
 
-**Chaque enfant direct est une slide.** Contrairement à ``Tabs``, il n'y
-a qu'une sorte d'enfant : il n'y a donc rien à distinguer, donc rien à
-déclarer. Le bénéfice décisif est que ça compose avec ``ui.each`` sans
-une ligne de cérémonie — le cas d'usage numéro un. Une slide à plusieurs
-éléments se fait avec un ``ui.vstack``, comme partout ailleurs.
+**Every direct child is a slide.** Unlike ``Tabs``, there is only one
+kind of child: so there is nothing to tell apart, so nothing to declare.
+The decisive benefit is that it composes with ``ui.each`` without a line
+of ceremony — the number-one use case. A slide with several elements is
+made with a ``ui.vstack``, as everywhere else.
 
-**Le moteur est du CSS scroll-snap**, pas un ``translateX`` piloté. Le
-swipe tactile avec inertie, la molette, le clavier et l'aimantation sont
-ceux du navigateur ; le runtime ne fait qu'aller à un index et lire
-l'index depuis la position (``$bz.carousel.scope``,
-``runtime/_src/17_carousel.js``). C'est ce qui rend ``per_view``
-responsive gratuit : le JS ne connaît aucun breakpoint, il MESURE ce que
-CSS a décidé.
+**The engine is CSS scroll-snap**, not a driven ``translateX``. The touch
+swipe with inertia, the wheel, the keyboard and the snapping are the
+browser's; the runtime only goes to an index and reads the index back
+from the position (``$bz.carousel.scope``,
+``runtime/_src/17_carousel.js``). That is what makes a responsive
+``per_view`` free: the JS knows no breakpoint, it MEASURES what CSS
+decided.
 
-**Les contrôles ne sont pas des props.** Ils sont dérivés, parce que les
-rendre inconditionnellement serait faux dans deux cas réels :
+**The controls are not props.** They are derived, because rendering them
+unconditionally would be wrong in two real cases:
 
-- rien du tout quand il n'y a nulle part où aller (``len(slides) <=
-  per_view``) — et ça arrive pour de vrai, le contenu venant des données
-  (une liste à un seul élément) ;
-- les puces seulement là où ``per_view == 1``. Une puce dit « il y a N
-  slides, tu es à la k-ième » ; avec 3 slides visibles sur 12 elle n'a
-  plus de référent. Avec un ``per_view`` responsive, elles sortent en
-  ``md:hidden`` — la décision reste en CSS.
+- nothing at all when there is nowhere to go (``len(slides) <=
+  per_view``) — and it does happen for real, the content coming from
+  data (a single-item list);
+- the dots only where ``per_view == 1``. A dot says "there are N slides,
+  you are at the k-th"; with 3 slides visible out of 12 it has no
+  referent any more. With a responsive ``per_view``, they come out in
+  ``md:hidden`` — the decision stays in CSS.
 
-Les flèches, elles, se **désactivent aux bords** en lisant la géométrie
-réelle du navigateur (``scrollLeft`` vs ``scrollWidth - clientWidth``),
-donc sans le moindre calcul de breakpoint côté Python ou JS.
+The arrows, for their part, **disable themselves at the edges** by
+reading the browser's real geometry (``scrollLeft`` vs ``scrollWidth -
+clientWidth``), so without the slightest breakpoint computation in Python
+or JS.
 
-Un écart assumé : **les flèches butent, l'autoplay boucle.** Une flèche
-désactivée au bout apprend qu'il n'y a plus rien ; une rotation
-automatique qui s'arrête n'est plus une rotation.
+One accepted asymmetry: **the arrows stop, the autoplay loops.** An arrow
+disabled at the end teaches there is nothing left; an automatic rotation
+that stops is no longer a rotation.
 
-``autoplay`` porte l'activation ET la cadence en un seul prop
-(``autoplay=5`` → toutes les 5 s, ``None`` → éteint) : deux props
-rendraient représentable l'état absurde « éteint mais cadencé ». Il
-réutilise ``$bz._tick`` (``06_helpers.js``), le timer idempotent aux
-morphs déjà écrit pour ``ui.interval`` — l'autoplay n'ajoute donc aucun
-timer au runtime. Au premier geste de l'utilisateur il s'arrête
-DÉFINITIVEMENT : pas de reprise après délai (un contenu qui se remet à
-bouger pendant qu'on le lit est la plainte d'a11y numéro un sur les
-carrousels), et pas de pause au survol (elle n'existe pas sur un
-pointeur grossier).
+``autoplay`` carries the activation AND the cadence in a single prop
+(``autoplay=5`` → every 5 s, ``None`` → off): two props would make the
+absurd state "off but timed" representable. It reuses ``$bz._tick``
+(``06_helpers.js``), the morph-idempotent timer already written for
+``ui.interval`` — so the autoplay adds no timer to the runtime. At the
+user's first gesture it stops FOR GOOD: no resumption after a delay (a
+content that starts moving again while you are reading it is the
+number-one a11y complaint about carousels), and no pause on hover (it
+does not exist on a coarse pointer).
 
-Imperative API : ``.set(i)`` / ``.next()`` / ``.prev()`` — même famille,
-mêmes noms et même sémantique d'index que :class:`Stepper`. Deux
-composants qui se pilotent pareil se retiennent une fois.
+Imperative API : ``.set(i)`` / ``.next()`` / ``.prev()`` — same family,
+same names and same index semantics as :class:`Stepper`. Two components
+driven alike are remembered once.
 """
 
 from __future__ import annotations
@@ -86,13 +86,13 @@ from bretzel.render import text
 
 
 def _per_view_class(value: Any) -> str:
-    """Une valeur de ``per_view`` → la classe de largeur d'une slide.
+    """One ``per_view`` value → a slide's width class.
 
-    ``1`` → ``basis-full`` ; ``N`` → ``basis-1/N``. Une chaîne passe
-    verbatim (échappatoire Tailwind brute, même contrat que
-    ``Grid(cols=)``). Les breakpoints ne sont PAS gérés ici :
-    :func:`responsive_classes` enveloppe cette fonction et possède le
-    préfixage ``{bp}:`` pour tout prop gradué de la bibliothèque.
+    ``1`` → ``basis-full``; ``N`` → ``basis-1/N``. A string passes
+    verbatim (the raw Tailwind escape hatch, same contract as
+    ``Grid(cols=)``). Breakpoints are NOT handled here:
+    :func:`responsive_classes` wraps this function and owns the ``{bp}:``
+    prefixing for every graded prop in the library.
     """
     if value is None or isinstance(value, bool):
         return ""
@@ -103,22 +103,22 @@ def _per_view_class(value: Any) -> str:
 
 
 def _per_view_at_base(value: Any) -> int:
-    """Le ``per_view`` au plus petit breakpoint — celui qui décide si les
-    puces existent DU TOUT.
+    """The ``per_view`` at the smallest breakpoint — the one that decides
+    whether the dots exist AT ALL.
 
-    Les puces n'ont de sens qu'à ``per_view == 1``. Avec un dict
-    responsive, elles sont rendues dès que le breakpoint de base vaut 1,
-    puis masquées en CSS aux breakpoints où il monte (cf.
-    :meth:`Carousel._dots_hidden_class`) — la décision reste là où vit
-    l'information, dans la feuille de style.
+    Dots only make sense at ``per_view == 1``. With a responsive dict,
+    they are rendered as soon as the base breakpoint is 1, then hidden in
+    CSS at the breakpoints where it rises (cf.
+    :meth:`Carousel._dots_hidden_class`) — the decision stays where the
+    information lives, in the stylesheet.
 
-    ``BASE_KEYS`` et pas une liste écrite ici : la recopie à la main
-    avait déjà dérivé DANS LES DEUX SENS — elle inventait un ``DEFAULT``
-    majuscule (que ``responsive_classes`` refuse, donc branche morte) et
-    oubliait ``default`` (qu'il accepte). Résultat mesuré :
-    ``per_view={"default": 3}`` rendait une puce par slide en en
-    montrant trois — exactement l'état que la docstring du module
-    déclare impossible.
+    ``BASE_KEYS`` and not a list written here: copying it by hand had
+    already drifted IN BOTH DIRECTIONS — it invented an upper-case
+    ``DEFAULT`` (which ``responsive_classes`` refuses, so a dead branch)
+    and forgot ``default`` (which it accepts). Measured result:
+    ``per_view={"default": 3}`` rendered one dot per slide while showing
+    three — exactly the state the module's docstring declares
+    impossible.
     """
     if isinstance(value, dict):
         for key, raw in value.items():
@@ -139,31 +139,31 @@ def _build_bz_data(
     server_synced: bool,
     autoplay: bool,
 ) -> str:
-    """Le ``bz-data`` de l'instance : **des données, pas du code**.
+    """The instance's ``bz-data``: **data, not code**.
 
-    Les méthodes (géométrie, ``goTo``/``next``/``prev``, les deux ponts
-    position↔état) vivent une seule fois dans ``$bz.carousel.scope``.
+    The methods (geometry, ``goTo``/``next``/``prev``, the two
+    position↔state bridges) live once in ``$bz.carousel.scope``.
 
-    ``_track`` est déclaré ``null`` puis rempli par le ``bz-init`` du
-    root : une méthode de scope n'a pas accès à ``$refs``, seules les
-    directives en ont (même contrainte et même remède que Slider).
+    ``_track`` is declared ``null`` then filled by the root's
+    ``bz-init``: a scope method has no access to ``$refs``, only
+    directives do (same constraint and same remedy as Slider).
 
-    ``still`` n'est émis que si un autoplay existe, et c'est un SIGNAL
-    déclaré, pas un champ posé à la volée : c'est l'effet
-    ``$bz._tick($el, !still, ms)`` qui le lit, et un champ non déclaré
-    ne relancerait jamais cet effet — la rotation ne s'arrêterait
-    jamais.
+    ``still`` is only emitted if an autoplay exists, and it is a DECLARED
+    signal, not a field set on the fly: it is the
+    ``$bz._tick($el, !still, ms)`` effect that reads it, and an
+    undeclared field would never re-run that effect — the rotation would
+    never stop.
 
-    ``_geom`` est déclaré pour la MÊME raison, et il est ce qui rend les
-    flèches justes. La borne est MESURÉE (``scrollWidth -
-    clientWidth``), et une mesure n'est pas un signal : sans un champ
-    déclaré à lire, ``bz-attr:disabled="_atEnd()"`` s'évalue une fois au
-    scan et se fige. Hydraté avant que la feuille de style s'applique,
-    il mesure une piste qui n'est pas encore ``flex`` — donc rien à
-    faire défiler, donc les DEUX flèches désactivées, donc invisibles
-    (``disabled:opacity-0``), définitivement. Le champ doit être déclaré
-    ICI : posé à la volée côté JS, il n'existerait pas au premier
-    passage de l'effet, qui ne s'y abonnerait donc jamais.
+    ``_geom`` is declared for the SAME reason, and it is what makes the
+    arrows right. The bound is MEASURED (``scrollWidth - clientWidth``),
+    and a measurement is not a signal: without a declared field to read,
+    ``bz-attr:disabled="_atEnd()"`` evaluates once at scan time and
+    freezes. Hydrated before the stylesheet applies, it measures a track
+    that is not yet ``flex`` — so nothing to scroll, so BOTH arrows
+    disabled, so invisible (``disabled:opacity-0``), for good. The field
+    must be declared HERE: set on the fly on the JS side, it would not
+    exist at the effect's first pass, which would therefore never
+    subscribe to it.
     """
     if has_local_value:
         sync = server_sync_marker(scope_key, enabled=server_synced)
@@ -194,9 +194,10 @@ class Carousel(Component):
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value",)
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "next", "prev")
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
-    # ``per_view`` est le seul prop gradué, et sa classe est assemblée par
-    # ``_per_view_class`` (clôturée par ``_LAYOUT_CLASSES``). Reste le
-    # masquage des puces, dont la classe vit dans la table ``responsive``.
+    # ``per_view`` is the only graded prop, and its class is assembled by
+    # ``_per_view_class`` (closed by ``_LAYOUT_CLASSES``). What remains is
+    # the hiding of the dots, whose class lives in the ``responsive``
+    # table.
     RESPONSIVE_THEME_KEYS: ClassVar[tuple[str, ...]] = ("responsive",)
     RESPONSIVE_PROPS: ClassVar[frozenset[str]] = frozenset({"per_view"})
 
@@ -206,7 +207,7 @@ class Carousel(Component):
         writes=True,
         names_field=True,
     )
-    # ``Any`` et non ``int`` : prop gradué, il prend un dict de breakpoints.
+    # ``Any`` and not ``int``: a graded prop, it takes a breakpoint dict.
     per_view: Any = reactive_prop(default=1, emit_attr=False)
     autoplay: Any = reactive_prop(default=None, emit_attr=False)
     gap: str = reactive_prop(default="md", emit_attr=False)
@@ -227,7 +228,7 @@ class Carousel(Component):
         on_change: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             value=value,
             per_view=per_view,
@@ -240,22 +241,22 @@ class Carousel(Component):
             **kwargs,
         )
 
-    # ── API impérative ─────────────────────────────────────────────────
+    # ── Imperative API ─────────────────────────────────────────────────
     #
-    # Méthodes de classe ordinaires : aucun de ces noms n'est une
-    # ``reactive_prop``, donc le trick non-data-descriptor des overlays
-    # n'a rien à protéger ici — et il rendrait ces méthodes invisibles à
-    # ``test_imperative_classvar_is_complete``, qui ne lit que les
-    # méthodes publiques d'une ClassDef.
+    # Ordinary class methods: none of these names is a
+    # ``reactive_prop``, so the overlays' non-data-descriptor trick has
+    # nothing to protect here — and it would make these methods
+    # invisible to ``test_imperative_classvar_is_complete``, which only
+    # reads a ClassDef's public methods.
 
     def set(self, index: int) -> str:
-        """Aller à ``index``. Write-through binding s'il y en a une."""
+        """Go to ``index``. Write-through binding if there is one."""
         return self._value_command(coerce_index(index, minimum=0))
 
     def next(self) -> str:
-        # Toujours le dispatch, binding ou pas : la destination dépend de
-        # la géométrie VIVANTE (combien de slides tiennent à l'écran au
-        # breakpoint courant), que le serveur ne connaît pas au rendu.
+        # Always the dispatch, binding or not: the destination depends
+        # on the LIVE geometry (how many slides fit on screen at the
+        # current breakpoint), which the server does not know at render.
         return self._dispatch_command("bz-next")
 
     def prev(self) -> str:
@@ -284,7 +285,7 @@ class Carousel(Component):
         )
         active_expr = binding_path or scope_key
 
-        # ── Les slides = les enfants, un par un ──────────────────────
+        # ── The slides = the children, one by one ───────────────────
         slide_class = self.slot_class("slide", responsive_classes(per_view, _per_view_class)
         )
         slides: list[Element] = []
@@ -301,10 +302,10 @@ class Carousel(Component):
 
         count = len(slides)
         base_per_view = _per_view_at_base(per_view)
-        # Rien à piloter s'il n'y a nulle part où aller — et le cas
-        # arrive pour de vrai, le contenu venant des données.
+        # Nothing to drive if there is nowhere to go — and the case
+        # happens for real, the content coming from data.
         has_controls = count > base_per_view
-        # Les puces n'existent que là où elles ont un référent.
+        # The dots only exist where they have a referent.
         has_dots = has_controls and base_per_view == 1
 
         track = Element(
@@ -312,26 +313,27 @@ class Carousel(Component):
             attrs={
                 "class": self.slot_class("track", gaps.get(gap_key, "")),
                 "bz-ref": "bztrack",
-                # Ce qui fait re-mesurer les bornes quand la mise en page
-                # change APRÈS le scan (feuille de style tardive, panneau
-                # replié qui s'ouvre, breakpoint). Porté par la PISTE et
-                # pas par le ``bz-init`` du root : ``bz-init`` est one-shot
-                # par NŒUD et idiomorph morphe en place, donc un observer
-                # installé là ne reverrait jamais les slides. Un effet est
-                # refait à chaque rescan. (Raisonné depuis le code, pas
-                # prouvé par un test : la boîte de la piste suit celle de
-                # ses slides, donc l'observation de la piste couvre en
-                # pratique les cas qu'on a su fabriquer.)
+                # What makes the bounds be re-measured when the layout
+                # changes AFTER the scan (a late stylesheet, a collapsed
+                # panel that opens, a breakpoint). Carried by the TRACK
+                # and not by the root's ``bz-init``: ``bz-init`` is
+                # one-shot per NODE and idiomorph morphs in place, so an
+                # observer installed there would never see the slides
+                # again. An effect is redone at every rescan. (Reasoned
+                # from the code, not proved by a test: the track's box
+                # follows its slides', so observing the track covers in
+                # practice the cases we knew how to fabricate.)
                 "bz-effect": "_observeGeom()",
-                # Sans modificateur, et ce n'est pas un oubli : ``bz-on:``
-                # passe son suffixe VERBATIM à ``addEventListener``, donc
-                # un ``.passive`` écouterait un événement nommé
-                # « scroll.passive » et ce pont serait mort en silence.
-                # Payé ici même (traps.md § « bz-on: n'a AUCUN
-                # modificateur »), gaté depuis.
+                # With no modifier, and it is not an oversight:
+                # ``bz-on:`` passes its suffix VERBATIM to
+                # ``addEventListener``, so a ``.passive`` would listen
+                # for an event named "scroll.passive" and this bridge
+                # would be dead in silence. Paid right here (traps.md
+                # § "bz-on: has NO modifier"), gated since.
                 "bz-on:scroll": "_onScroll()",
-                # Le premier geste éteint l'autoplay. ``pointerdown``
-                # couvre doigt et souris, ``wheel`` la molette.
+                # The first gesture turns the autoplay off.
+                # ``pointerdown`` covers finger and mouse, ``wheel`` the
+                # scroll wheel.
                 **(
                     {
                         "bz-on:pointerdown": "_touch()",
@@ -344,17 +346,17 @@ class Carousel(Component):
             children=tuple(slides),
         )
 
-        # Les flèches s'ancrent sur le VIEWPORT, pas sur la root : leur
-        # ``top-1/2`` se calculerait sinon sur une hauteur qui comprend la
-        # rangée de puces, et elles tomberaient visiblement sous le centre
-        # de la piste (mesuré à 10 px sur un carousel à puces).
+        # The arrows anchor on the VIEWPORT, not on the root: their
+        # ``top-1/2`` would otherwise be computed on a height that
+        # includes the dot row, and they would visibly fall below the
+        # track's centre (measured at 10 px on a carousel with dots).
         viewport_children: list[Node] = [track]
         children: list[Node] = []
 
-        # Le préfixe qui éteint l'autoplay, une seule fois : flèches ET
-        # puces le portent, et ``has_dots`` implique ``has_controls`` —
-        # donc le définir dans la branche des flèches le rendait
-        # disponible aux puces par un effet de bord, ce qui se lit mal.
+        # The prefix that turns the autoplay off, once: arrows AND dots
+        # carry it, and ``has_dots`` implies ``has_controls`` — so
+        # defining it in the arrows' branch made it available to the dots
+        # by a side effect, which reads badly.
         touch = "_touch(); " if autoplay else ""
 
         if has_controls:
@@ -402,32 +404,33 @@ class Carousel(Component):
                     "type": "button",
                     "class": dot_class,
                     "aria-label": text("carousel.go_to_slide", n=index + 1),
-                    # ``bool_attr`` et pas un ternaire à la main : c'est
-                    # LE helper de la chaîne littérale ``"true"``/``"false"``
-                    # (un booléen nu ferait DROPPER l'attribut à false et
-                    # ``data-[selected=…]`` ne matcherait jamais). Dix-neuf
-                    # sites l'avaient réimplémenté avant son extraction,
-                    # dont dix sans parenthéser leur opérande.
+                    # ``bool_attr`` and not a hand-written ternary: it
+                    # is THE helper for the literal ``"true"``/``"false"``
+                    # string (a bare boolean would DROP the attribute at
+                    # false and ``data-[selected=…]`` would never match).
+                    # Nineteen sites had re-implemented it before its
+                    # extraction, ten of them without parenthesising
+                    # their operand.
                     "bz-attr:data-selected": bool_attr(
                         f"Number({active_expr}) === {index}"
                     ),
                     "bz-on:click": f"{touch}goTo({index})",
                 }
                 if index == initial_index:
-                    # SSR statique — la puce active est juste au premier
-                    # paint, avant que le runtime hydrate.
+                    # Static SSR — the active dot is right at the first
+                    # paint, before the runtime hydrates.
                     dot_attrs["data-selected"] = "true"
                 dot_nodes.append(
                     Element(tag="button", attrs=dot_attrs, children=())
                 )
             children.append(
-                # Pas de ``role="tablist"`` : le motif ARIA « carousel à
-                # onglets » exige AUSSI ``role="tab"`` sur chaque puce et
-                # ``role="tabpanel"`` sur chaque slide, avec les
-                # ``aria-controls`` qui les relient. Déclarer la moitié
-                # du motif annonce aux lecteurs d'écran une structure qui
-                # n'existe pas — pire que de n'en déclarer aucune. Des
-                # boutons étiquetés dans un groupe nommé disent la vérité.
+                # No ``role="tablist"``: the ARIA "tabbed carousel"
+                # pattern ALSO requires ``role="tab"`` on each dot and
+                # ``role="tabpanel"`` on each slide, with the
+                # ``aria-controls`` linking them. Declaring half the
+                # pattern announces to screen readers a structure that
+                # does not exist — worse than declaring none. Labelled
+                # buttons in a named group tell the truth.
                 Element(
                     tag="div",
                     attrs={
@@ -445,7 +448,7 @@ class Carousel(Component):
                 )
             )
 
-        # ── Input caché — form data + source du ``change`` ───────────
+        # ── Hidden input — form data + source of the ``change`` ─────
         root_attrs = self.emit_attrs()
         relocated = _pop_change_handler(root_attrs)
         name = self._reactive_values.get("name") or self._derive_field_name()
@@ -462,9 +465,10 @@ class Carousel(Component):
 
         # ── Assemblage ───────────────────────────────────────────────
         root_attrs["class"] = self.slot_class("root")
-        # Le rôle vit sur la ROOT et pas sur la piste : c'est elle qui
-        # contient AUSSI les flèches et les puces, donc c'est elle le
-        # « carousel » qu'un lecteur d'écran doit annoncer d'un bloc.
+        # The role lives on the ROOT and not on the track: it is the
+        # root that ALSO contains the arrows and the dots, so it is the
+        # root that is the "carousel" a screen reader must announce as
+        # one block.
         root_attrs["role"] = "group"
         root_attrs["aria-roledescription"] = "carousel"
         root_attrs["bz-data"] = _build_bz_data(
@@ -475,15 +479,15 @@ class Carousel(Component):
             server_synced=value_server_backed,
             autoplay=bool(autoplay),
         )
-        # Une méthode de scope n'a pas ``$refs`` — c'est ici, en contexte
-        # de directive, qu'on capture la piste dans le scope.
+        # A scope method has no ``$refs`` — it is here, in directive
+        # context, that we capture the track into the scope.
         root_attrs["bz-init"] = "_track = $refs.bztrack"
         effects = ["_syncFromValue()"]
         if autoplay:
             ms = max(1, int(float(autoplay) * 1000))
-            # ``$bz._tick`` est le timer de ``ui.interval`` : idempotent
-            # aux morphs, auto-nettoyé quand l'élément quitte le DOM.
-            # L'autoplay n'ajoute donc aucun timer au runtime.
+            # ``$bz._tick`` is ``ui.interval``'s timer:
+            # morph-idempotent, self-cleaned when the element leaves the
+            # DOM. So the autoplay adds no timer to the runtime.
             effects.append(f"$bz._tick($el, !still, {ms})")
             root_attrs["bz-on:tick"] = "next()"
         root_attrs["bz-effect"] = "; ".join(effects)
@@ -497,21 +501,21 @@ class Carousel(Component):
 
     @staticmethod
     def _dots_hidden_class(per_view: Any, hidden: str) -> str:
-        """Masquer les puces aux breakpoints où ``per_view`` dépasse 1.
+        """Hide the dots at the breakpoints where ``per_view`` exceeds 1.
 
-        Rendu seulement quand la base vaut 1 (sinon il n'y a pas de puce
-        du tout). Le masquage vit en CSS et non en Python parce que le
-        serveur ne sait pas quel breakpoint est actif — c'est la même
-        raison qui fait lire la géométrie au runtime plutôt que la
-        calculer.
+        Rendered only when the base is 1 (otherwise there is no dot at
+        all). The hiding lives in CSS and not in Python because the
+        server does not know which breakpoint is active — it is the same
+        reason that makes the geometry be read at runtime rather than
+        computed.
 
-        ``hidden`` vient de ``THEME["responsive"]["dots_hidden"]`` et
-        n'est PAS écrit en dur ici : seul un token présent dans une table
-        déclarée par ``RESPONSIVE_THEME_KEYS`` est clôturé sur les
-        breakpoints par la safelist. En dur, ``lg:hidden`` n'existait
-        dans aucune source, donc la règle manquait du CSS compilé et les
-        puces restaient visibles en prod — exactement le comportement que
-        cette méthode existe pour empêcher.
+        ``hidden`` comes from ``THEME["responsive"]["dots_hidden"]`` and
+        is NOT hard-coded here: only a token present in a table declared
+        by ``RESPONSIVE_THEME_KEYS`` is closed over the breakpoints by
+        the safelist. Hard-coded, ``lg:hidden`` existed in no source, so
+        the rule was missing from the compiled CSS and the dots stayed
+        visible in production — exactly the behaviour this method exists
+        to prevent.
         """
         if not isinstance(per_view, dict) or not hidden:
             return ""

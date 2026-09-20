@@ -19,27 +19,27 @@ COLORS = ["primary", "secondary", "success", "warning",
           "error", "info", "muted"]
 GAPS   = ["none", "xs", "sm", "md", "lg", "xl"]
 
-# Contenu de slide réutilisé partout : un bloc coloré numéroté, assez
-# grand pour qu'on voie où on est.
+# Slide content reused everywhere: a numbered coloured block, big
+# enough to see where one is.
 TINTS = ["primary", "success", "warning", "error", "info",
          "secondary", "muted"]
 
 
 def slide_block(index: int, height: str = "h-40") -> None:
-    """Une slide de démo — un bloc teinté qui porte son numéro.
+    """A demo slide — a tinted block carrying its number.
 
-    Au scope module parce qu'elle sert dans neuf cards ; c'est le seuil
-    du gabarit (une expression inline de 3 lignes reste inline, un bloc
-    répété neuf fois devient une fonction).
+    At module scope because it serves in nine cards; it is the
+    template's threshold (a 3-line inline expression stays inline, a
+    block repeated nine times becomes a function).
     """
     tint = TINTS[index % len(TINTS)]
-    # ⚠️ ``bz-c-<teinte>`` + le PALIER, et surtout PAS un
-    # ``f"bg-{tint}/15"``. Une classe assemblée n'existe que sous le
-    # compilateur de dev, qui scanne le DOM vivant ; en prod le
-    # compilateur ne lit que les sources, il ne verra jamais
-    # ``bg-info/15``. C'était rattrapé jusqu'ici par la clôture couleur
-    # de la safelist — qui n'existe plus depuis la phase 3 du chantier
-    # des jetons. Le pont, lui, est une classe complète.
+    # ⚠️ ``bz-c-<tint>`` + the STEP, and above all not an
+    # ``f"bg-{tint}/15"``. An assembled class only exists under the dev
+    # compiler, which scans the live DOM; in production the compiler
+    # only reads the sources, it will never see ``bg-info/15``. It was
+    # caught until now by the safelist's colour closure — which has not
+    # existed since phase 3 of the tokens work. The bridge, for its
+    # part, is a complete class.
     with ui.flex(justify="center", align="center",
                  classes=f"{height} w-full rounded-xl bg-(--bz-bg) "
                          f"bz-c-{tint}"):
@@ -130,7 +130,7 @@ def build_preview(state: CarouselPlayground) -> dict:
         "size": state.size,
         "color": state.color,
     }
-    # Chaîne vide = ne pas passer le kwarg (autoplay=None = éteint).
+    # An empty string = do not pass the kwarg (autoplay=None = off).
     if state.autoplay:
         kwargs["autoplay"] = float(state.autoplay)
     if state.name:
@@ -173,7 +173,7 @@ def server_panel() -> None:
     state = CarouselPlayground()
 
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
-        with control("value (index de la slide)"):
+        with control("value (the slide's index)"):
             ui.select(value=state.value,
                       options=[(i, str(i)) for i in range(8)],
                       on_change=server_changed)
@@ -185,16 +185,16 @@ def server_panel() -> None:
             ui.select(value=state.per_view,
                       options=[(i, str(i)) for i in (1, 2, 3, 4)],
                       on_change=server_changed)
-        with control("autoplay (secondes, vide = éteint)"):
+        with control('autoplay (seconds, empty = off)'):
             ui.select(value=state.autoplay,
-                      options=[("", "None (éteint)"), ("1", "1 s"),
+                      options=[("", 'None (off)'), ("1", "1 s"),
                                ("2", "2 s"), ("5", "5 s")],
                       on_change=server_changed)
         with control("gap"):
             ui.select(value=state.gap,
                       options=[(g, g) for g in GAPS],
                       on_change=server_changed)
-        with control("size (flèches + puces)"):
+        with control('size (arrows + dots)'):
             ui.select(value=state.size,
                       options=[(s, s) for s in SIZES],
                       on_change=server_changed)
@@ -222,7 +222,7 @@ def server_panel() -> None:
                         placeholder="data-test=carousel",
                         on_change=server_changed)
         with control("tooltip"):
-            ui.input(value=state.tooltip, placeholder="Faites défiler",
+            ui.input(value=state.tooltip, placeholder='Scroll it',
                      on_change=server_changed)
         with control("visible"):
             ui.select(value=state.visible,
@@ -251,7 +251,7 @@ def server_panel() -> None:
         for i in range(2):
             ui.text(f"slide {i}")
     emitted_html_block(
-        "Emitted HTML (Carousel + ses slides)",
+        'Emitted HTML (Carousel + its slides)',
         serialize_html(preview),
     )
 
@@ -261,10 +261,10 @@ def events_panel() -> None:
     state = CarouselEvents()
 
     ui.text(
-        "Carousel fires a single ``change`` when the current index "
-        "settles — l'écriture est débouncée à 120 ms, donc un "
-        "défilement de 0 à 3 émet UN change (3) et non trois. Faites "
-        "défiler à la main, cliquez une puce, ou utilisez les boutons.",
+        'Carousel fires a single ``change`` when the current index '
+            'settles — the write is debounced at 120 ms, so scrolling from 0 '
+            'to 3 emits ONE change (3) and not three. Scroll by hand, click a'
+            ' dot, or use the buttons.',
         color="muted", size="sm",
     )
 
@@ -276,7 +276,7 @@ def events_panel() -> None:
                 slide_block(i, height="h-28")
 
         with ui.hstack(gap="sm"):
-            ui.button("Précédent", variant="outline", on_click=car.prev())
+            ui.button('Previous', variant="outline", on_click=car.prev())
             ui.button("Suivant", on_click=car.next())
 
     ui.divider()
@@ -292,17 +292,16 @@ def events_panel() -> None:
                 ui.text(f"{i}. {evt}",
                         color="muted", size="sm", classes="font-mono")
     else:
-        ui.text("(no events yet — faites défiler le carousel ci-dessus)",
+        ui.text('(no events yet — scroll the carousel above)',
                 color="muted", size="sm")
 
     ui.divider()
 
     ui.text(
-        "L'autoname couvre le cas lié (``value=state.slide`` dérive "
-        "``name=\"slide\"``). Pour un carousel à valeur littérale qui "
-        "doit quand même poster son index, ``name=`` reste l'échappatoire "
-        "— c'est le seul moyen d'avoir un porteur de formulaire sans "
-        "binding.",
+        'Autoname covers the bound case (``value=state.slide`` derives '
+            '``name="slide"``). For a carousel with a literal value that must'
+            ' still post its index, ``name=`` stays the escape hatch — it is '
+            'the only way to have a form carrier without a binding.',
         color="muted", size="sm",
     )
     with ui.carousel(name="chosen_slide", on_change=log_change):
@@ -326,11 +325,11 @@ def page() -> None:
     with ui.container(), ui.vstack():
         ui.heading("Carousel", level=1)
         ui.text(
-            "Défilement aimanté d'une série de contenus. Chaque "
-            "enfant direct EST une slide — rien à déclarer, et ça "
-            "compose avec ui.each sans cérémonie. Le moteur est du "
-            "CSS scroll-snap : le swipe tactile avec inertie, la "
-            "molette et le clavier sont ceux du navigateur.",
+            'Snap scrolling over a series of contents. Every direct child'
+                ' IS a slide — nothing to declare, and it composes with '
+                'ui.each without ceremony. The engine is CSS scroll-snap: the'
+                ' touch swipe with inertia, the wheel and the keyboard are '
+                "the browser's own.",
             color="muted",
         )
 
@@ -347,10 +346,9 @@ def page() -> None:
 
             ui.heading("per_view", level=3)
             ui.text(
-                "Les puces disparaissent dès que per_view > 1 : "
-                "une puce dit « il y a N slides, tu es à la "
-                "k-ième », ce qui n'a plus de référent quand on "
-                "en voit trois à la fois.",
+                'The dots disappear as soon as per_view > 1: a dot says '
+                    '“there are N slides, you are on the k-th”, which has no '
+                    'referent left when you see three at a time.',
                 color="muted", size="xs",
             )
             for n in (1, 2, 3, 4):
@@ -366,7 +364,7 @@ def page() -> None:
                     for i in range(6):
                         slide_block(i, height="h-20")
 
-            ui.heading("Sizes (flèches + puces)", level=3)
+            ui.heading('Sizes (arrows + dots)', level=3)
             for s in SIZES:
                 ui.text(f"size={s}", color="muted", size="xs")
                 with ui.carousel(size=s):
@@ -382,9 +380,9 @@ def page() -> None:
 
             ui.heading("autoplay", level=3)
             ui.text(
-                "Avance toutes les 2 s, et s'arrête "
-                "DÉFINITIVEMENT au premier geste — un doigt sur "
-                "la piste, la molette, une flèche ou une puce.",
+                'Advances every 2 s, and stops FOR GOOD at the first '
+                    'gesture — a finger on the track, the wheel, an arrow or '
+                    'a dot.',
                 color="muted", size="xs",
             )
             with ui.carousel(autoplay=2):
@@ -395,19 +393,18 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Slots", level=2)
             ui.text(
-                "Il n'y a pas de ui.slide() : chaque enfant "
-                "direct est une slide, le carousel l'enveloppe "
-                "lui-même. Une slide à plusieurs éléments se "
-                "fait avec un vstack, comme partout ailleurs.",
+                'There is no ui.slide(): every direct child is a slide, '
+                    'the carousel wraps it itself. A slide with several '
+                    'elements is made with a vstack, as everywhere else.',
                 color="muted", size="sm",
             )
 
             ui.heading("Slides riches", level=3)
             with ui.carousel(per_view={"base": 1, "md": 2}):
                 for title, body, icon in (
-                    ("Aurora", "Le projet principal", "rocket"),
-                    ("Borealis", "En revue", "telescope"),
-                    ("Cascade", "Archivé", "archive"),
+                    ("Aurora", 'The main project', "rocket"),
+                    ("Borealis", 'In review', "telescope"),
+                    ("Cascade", 'Archived', "archive"),
                     ("Delta", "Brouillon", "pencil"),
                 ):
                     with ui.card(), ui.vstack(gap="sm"):
@@ -417,11 +414,10 @@ def page() -> None:
                         ui.button("Ouvrir", variant="outline",
                                   size="sm")
 
-            ui.heading("Composé avec ui.each", level=3)
+            ui.heading('Composed with ui.each', level=3)
             ui.text(
-                "Le cas d'usage numéro un, et la raison des "
-                "slides implicites : zéro ligne de cérémonie "
-                "dans la boucle.",
+                'The number one use case, and the reason slides are '
+                    'implicit: zero lines of ceremony in the loop.',
                 color="muted", size="xs",
             )
             with ui.carousel(per_view=3, gap="sm"):
@@ -439,18 +435,17 @@ def page() -> None:
             ui.text("Edge inputs and exotic combinations.",
                     color="muted", size="sm")
 
-            ui.heading("Une seule slide", level=3)
+            ui.heading('A single slide', level=3)
             ui.text(
-                "Aucun contrôle rendu : il n'y a nulle part où "
-                "aller. Le cas arrive pour de vrai, le contenu "
-                "venant des données.",
+                'No control rendered: there is nowhere to go. The case '
+                    'happens for real, the content coming from the data.',
                 color="muted", size="xs",
             )
             with ui.carousel():
                 slide_block(0)
 
-            ui.heading("Autant de slides que per_view", level=3)
-            ui.text("Idem — tout tient à l'écran, rien à piloter.",
+            ui.heading('As many slides as per_view', level=3)
+            ui.text('Same — everything fits on screen, nothing to drive.',
                     color="muted", size="xs")
             with ui.carousel(per_view=3):
                 for i in range(3):
@@ -458,47 +453,45 @@ def page() -> None:
 
             ui.heading("Beaucoup de slides (20 puces)", level=3)
             ui.text(
-                "La limite connue du choix « une puce par "
-                "slide » : au-delà d'une dizaine la rangée "
-                "devient une barre. À regarder ici pour "
-                "décider s'il faut la plafonner.",
+                'The known limit of the “one dot per slide” choice: '
+                    'beyond ten or so the row becomes a bar. Worth looking at'
+                    ' here to decide whether it should be capped.',
                 color="muted", size="xs",
             )
             with ui.carousel():
                 for i in range(20):
                     slide_block(i, height="h-24")
 
-            ui.heading("Slides de hauteurs inégales", level=3)
+            ui.heading('Slides of unequal heights', level=3)
             with ui.carousel():
                 slide_block(0, height="h-24")
                 slide_block(1, height="h-48")
                 slide_block(2, height="h-32")
 
-            ui.heading("value au-delà de la dernière slide",
+            ui.heading('value beyond the last slide',
                        level=3)
-            ui.text("Clampé à la borne réelle par le runtime.",
+            ui.text('Clamped to the real bound by the runtime.',
                     color="muted", size="xs")
             with ui.carousel(value=99):
                 for i in range(4):
                     slide_block(i, height="h-24")
 
             ui.heading("Aucune slide", level=3)
-            ui.text("Une piste vide, sans contrôle — pas une erreur.",
+            ui.text('An empty track, with no control — not an error.',
                     color="muted", size="xs")
             ui.carousel()
 
         # ── Card 4 — Composability ──────────────────────────────
         with ui.card(), ui.vstack():
             ui.heading("Composability", level=2)
-            ui.text("Carousel dans ses contextes habituels.",
+            ui.text('The carousel in its usual contexts.',
                     color="muted", size="sm")
 
-            ui.heading("Dans une Card étroite (contexte contraint)",
+            ui.heading('In a narrow Card (constrained context)',
                        level=3)
             ui.text(
-                "Le test qui compte : une piste scrollable dans "
-                "une cellule de grille ne doit pas déborder de "
-                "sa colonne ni pousser la page.",
+                'The test that counts: a scrollable track in a grid cell '
+                    'must not overflow its column nor push the page.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
@@ -508,19 +501,19 @@ def page() -> None:
                 ui.text("Cellule voisine.", color="muted")
                 ui.text("Autre voisine.", color="muted")
 
-            ui.heading("Dans un ui.dialog", level=3)
+            ui.heading('Inside a ui.dialog', level=3)
             with ui.dialog(title="Galerie", width="lg") as dlg, \
                             ui.vstack():
                 with ui.carousel() as gal:
                     for i in range(4):
                         slide_block(i)
                 ui.button("Suivante", on_click=gal.next())
-            ui.button("Ouvrir la galerie", on_click=dlg.open())
+            ui.button('Open the gallery', on_click=dlg.open())
 
-            ui.heading("Deux carousels indépendants", level=3)
+            ui.heading('Two independent carousels', level=3)
             ui.text(
-                "Chacun a son propre scope : faire défiler l'un "
-                "ne doit pas bouger l'autre.",
+                'Each has its own scope: scrolling one must not move the '
+                    'other.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
@@ -535,16 +528,14 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("A11y", level=2)
             ui.text(
-                "La root porte role=\"group\" + "
-                "aria-roledescription=\"carousel\" (c'est elle "
-                "qui contient AUSSI les contrôles). Les flèches "
-                "et les puces sont de vrais <button> étiquetés, "
-                "donc dans le tab order et activables au "
-                "clavier ; aux bords la flèche est réellement "
-                "disabled, pas seulement grisée. Les puces ne "
-                "prétendent PAS être un tablist : déclarer la "
-                "moitié du motif ARIA « carousel à onglets » "
-                "annoncerait une structure qui n'existe pas.",
+                'The root carries role="group" + aria-'
+                    'roledescription="carousel" (it is what ALSO contains the'
+                    ' controls). The arrows and dots are real labelled '
+                    '<button>s, hence in the tab order and keyboard-'
+                    'activatable; at the edges the arrow is really disabled, '
+                    'not merely greyed out. The dots do NOT pretend to be a '
+                    'tablist: declaring half of the “tabbed carousel” ARIA '
+                    'pattern would announce a structure that does not exist.',
                 color="muted", size="sm",
             )
             with ui.carousel(aria_label="Demo carousel"):
@@ -571,10 +562,10 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Client playground", level=2)
             ui.text(
-                "Mirror of Carousel's BINDABLE_PROPS = "
-                "('value',). L'index est lié à un ClientState : "
-                "le select le pilote, et faire défiler la piste "
-                "le remonte — sans aller-retour.",
+                "Mirror of Carousel's BINDABLE_PROPS = ('value',). The "
+                    'index is bound to a ClientState: the select drives it, '
+                    'and scrolling the track pushes it back up — with no '
+                    'round trip.',
                 color="muted", size="sm",
             )
             client = CarouselClient()
@@ -605,10 +596,9 @@ def page() -> None:
                 ui.text("A")
                 ui.text("B")
             emitted_html_block(
-                "Emitted HTML — les directives lisent la cellule "
-                "du store directement ; la piste défile quand "
-                "elle bouge, et la remonte quand l'utilisateur "
-                "fait défiler.",
+                'Emitted HTML — the directives read the store cell '
+                    'directly; the track scrolls when it moves, and pushes it'
+                    ' back up when the user scrolls.',
                 serialize_html(preview),
             )
 
@@ -616,13 +606,11 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("External controls — the 3 modes", level=2)
             ui.text(
-                ".next() et .prev() dispatchent TOUJOURS un "
-                "event DOM, binding ou pas : leur destination "
-                "dépend de la géométrie vivante — combien de "
-                "slides tiennent à l'écran au breakpoint "
-                "courant — que le serveur ne connaît pas au "
-                "rendu. .set(i) écrit dans la binding quand il "
-                "y en a une.",
+                '.next() and .prev() ALWAYS dispatch a DOM event, binding'
+                    ' or not: where they land depends on the live geometry — '
+                    'how many slides fit on screen at the current breakpoint '
+                    '— which the server does not know at render time. .set(i)'
+                    ' writes into the binding when there is one.',
                 color="muted", size="sm",
             )
 
@@ -632,19 +620,18 @@ def page() -> None:
                 for i in range(5):
                     slide_block(i, height="h-28")
             with ui.hstack(gap="sm"):
-                ui.button("Précédent", variant="outline",
+                ui.button('Previous', variant="outline",
                           on_click=m1.prev())
                 ui.button("Suivant", on_click=m1.next())
-                ui.button("Début", variant="ghost",
+                ui.button('Start', variant="ghost",
                           on_click=m1.set(0))
 
             ui.divider()
 
             ui.heading("Mode 2 — ClientBinding only", level=3)
             ui.text(
-                "À utiliser quand un AUTRE composant doit lire "
-                "la position — un compteur, un titre qui suit "
-                "la slide.",
+                'To be used when ANOTHER component has to read the '
+                    'position — a counter, a title that follows the slide.',
                 color="muted", size="sm",
             )
             bound = CarouselClient(key="binding_only")
@@ -654,8 +641,8 @@ def page() -> None:
             ui.text(
                 ClientExpression(
                     "'slide ' + "
-                    "(($bz.state.CarouselClient.binding_only.slide "
-                    "?? 0) + 1) + ' sur 5'"
+                        '(($bz.state.CarouselClient.binding_only.slide ?? 0) '
+                        "+ 1) + ' of 5'"
                 ),
                 color="muted", size="sm",
             )
@@ -668,10 +655,10 @@ def page() -> None:
                 for i in range(5):
                     slide_block(i, height="h-28")
             with ui.hstack(gap="sm", align="center"):
-                ui.button("Précédent", variant="outline",
+                ui.button('Previous', variant="outline",
                           on_click=m3.prev())
                 ui.button("Suivant", on_click=m3.next())
-                ui.button("Aller à 3", variant="ghost",
+                ui.button('Go to 3', variant="ghost",
                           on_click=m3.set(2))
                 ui.text(
                     ClientExpression(
@@ -689,9 +676,9 @@ def page() -> None:
                 ui.text("A")
                 ui.text("B")
             emitted_html_block(
-                "Emitted HTML — la root porte bz-on:bz-set / "
-                "bz-next / bz-prev, les trois récepteurs vers "
-                "lesquels les méthodes impératives dispatchent.",
+                'Emitted HTML — the root carries bz-on:bz-set / bz-next /'
+                    ' bz-prev, the three receivers the imperative methods '
+                    'dispatch to.',
                 serialize_html(imperative_preview),
             )
 
@@ -735,9 +722,8 @@ def page() -> None:
                 ui.text("A")
                 ui.text("B")
             emitted_html_block(
-                "Emitted HTML — le handler bz-on:change est "
-                "relocalisé sur l'input caché, dont le "
-                "bz-effect re-tire un change à chaque fois que "
-                "la position s'arrête.",
+                'Emitted HTML — the bz-on:change handler is relocated '
+                    'onto the hidden input, whose bz-effect re-fires a change'
+                    ' every time the position settles.',
                 serialize_html(preview),
             )

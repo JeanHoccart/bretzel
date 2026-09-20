@@ -66,9 +66,10 @@ BANNER_THEME: dict[str, Any] = {
         "md": {"root": "py-3 text-sm", "title": "text-base"},
         "lg": {"root": "py-4 text-base", "title": "text-lg"},
     },
-    # Auto-icon par couleur sémantique (comme Alert's ``color_icons``) —
-    # dans le thème pour être overridable via ``Theme(components=…)``, pas
-    # une constante module figée. ``muted`` / ``primary`` n'ont pas d'icône.
+    # An auto-icon per semantic colour (like Alert's ``color_icons``) —
+    # in the theme so it is overridable through ``Theme(components=…)``,
+    # not a frozen module constant. ``muted`` / ``primary`` have no
+    # icon.
     "color_icons": {
         "info":    "info",
         "success": "check-circle-2",

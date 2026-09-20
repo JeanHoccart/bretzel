@@ -45,29 +45,29 @@ class TooltipPlayground(PageState):
 class TooltipClient(ClientState, persist="memory"):
     """Mirror of Tooltip's BINDABLE_PROPS = ('text',).
 
-    ``enabled`` n'est PAS dans ``BINDABLE_PROPS`` mais accepte un
-    ``ClientBinding`` quand même (cf. la signature). Ce banc ne le liait
-    nulle part — c'est exactement pour ça que sa réactivité a pu mourir
-    en silence pendant deux jours. Il est lié ici, maintenant.
+    ``enabled`` is NOT in ``BINDABLE_PROPS`` but accepts a
+    ``ClientBinding`` anyway (cf. the signature). This bench bound it
+    nowhere — which is exactly why its reactivity could die in silence
+    for two days. It is bound here, now.
     """
 
     text: str = field(default="Live hint — edit me")
     enabled: bool = field(default=True)
 
 
-#: Le texte du panneau de la carte « Dans une zone qui se rafraîchit ».
-#: Nommé plutôt qu'écrit en clair : ``tests/probes/probe_tooltip.py`` le
-#: LIT ici pour retrouver le panneau téléporté, et deux littéraux
-#: divergeraient — c'est la copie manuelle qui a tué quatre probes le
+#: The panel text of the "Inside a zone that refreshes" card. Named
+#: rather than written in the clear: ``tests/probes/probe_tooltip.py``
+#: READS it here to find the teleported panel, and two literals would
+#: diverge — it is manual copying that killed four probes on
 #: 2026-08-30.
-REFRESHED_ZONE_TIP = "Ce panneau doit se cacher APRÈS le clic"
+REFRESHED_ZONE_TIP = 'This panel must hide AFTER the click'
 
 
 class RefreshedZone(PageState):
-    """L'état de la zone qui se rafraîchit sous le tooltip.
+    """The state of the zone that refreshes under the tooltip.
 
-    Un seul compteur : ce qui compte n'est pas ce qu'il affiche mais le
-    fait que le cliquer REMPLACE le sous-arbre où vit le déclencheur.
+    A single counter: what matters is not what it shows but the fact
+    that clicking it REPLACES the subtree the trigger lives in.
     """
 
     clicks: int = field(default=0)
@@ -79,28 +79,27 @@ def bump(state: RefreshedZone) -> None:
 
 @refreshable(deps=[RefreshedZone])
 def tooltip_in_a_refreshed_zone() -> None:
-    """Le déclencheur est DANS la zone que son propre clic rafraîchit.
+    """The trigger is INSIDE the zone its own click refreshes.
 
-    Pourquoi cette carte existe. Le panneau d'un tooltip est **téléporté**
-    sous ``<body>`` : il ne vit donc pas dans le sous-arbre que le morph
-    remplace. Si le nouveau déclencheur ne retrouve pas son panneau, le
-    panneau reste affiché pour toujours — un rectangle de texte collé à
-    l'écran, que plus rien ne peut fermer.
+    Why this card exists. A tooltip's panel is **teleported** under
+    ``<body>``: so it does not live in the subtree the morph replaces. If
+    the new trigger does not find its panel again, the panel stays shown
+    for ever — a rectangle of text stuck to the screen that nothing can
+    close any more.
 
-    C'est une régression RÉELLE, réparée le 2026-08-19. Son garde-fou
-    (``tests/probes/probe_tooltip.py``) pilotait un banc qui a été
-    supprimé avec la famille ``/matrix`` le 2026-08-30, et la moitié
-    « il se cache après un morph » est restée nue depuis. Cette carte la
-    rhabille — et elle a sa place ici de toute façon : aucun banc ne
-    montrait un tooltip dans une zone rafraîchissable, alors que c'est
-    la configuration ordinaire d'une barre d'outils.
+    It is a REAL regression, fixed on 2026-08-19. Its guard rail
+    (``tests/probes/probe_tooltip.py``) drove a bench that was deleted
+    with the ``/matrix`` family on 2026-08-30, and the "it hides after a
+    morph" half has been bare since. This card dresses it again — and it
+    belongs here anyway: no bench showed a tooltip inside a refreshable
+    zone, although it is a toolbar's ordinary configuration.
     """
     state = RefreshedZone()
     with ui.hstack(align="center"):
         with ui.tooltip(REFRESHED_ZONE_TIP):
-            ui.button("Rafraîchir la zone", id="tip-refresh-trigger",
+            ui.button('Refresh the zone', id="tip-refresh-trigger",
                       icon_left="refresh-cw", on_click=bump)
-        ui.text(f"{state.clicks} rafraîchissement(s)",
+        ui.text(f"{state.clicks}' refresh(es)'",
                 color="muted", size="sm")
 
 
@@ -249,7 +248,7 @@ def page() -> None:
                     with ui.hstack():
                         with ui.tooltip("Instant — delay=0", delay=0):
                             ui.button("0ms")
-                        with ui.tooltip("Défaut — delay=150",
+                        with ui.tooltip('Default — delay=150',
                                         delay=150):
                             ui.button("300ms")
                         with ui.tooltip("Lazy — delay=1000",
@@ -411,15 +410,14 @@ def page() -> None:
                             ui.button("Tab to focus me",
                                       icon_left="keyboard")
 
-                    ui.heading("Dans une zone qui se rafraîchit", level=3)
+                    ui.heading('In a refreshing zone', level=3)
                     ui.text(
-                        "Le panneau est téléporté sous <body>, donc il "
-                        "ne vit PAS dans le sous-arbre que le morph "
-                        "remplace. Survolez le bouton, cliquez-le (la "
-                        "zone se rafraîchit), puis quittez-le : le "
-                        "panneau doit disparaître. S'il restait, plus "
-                        "rien ne pourrait le fermer — ni la souris ni "
-                        "le clavier.",
+                        'The panel is teleported under <body>, so it does'
+                            ' NOT live in the subtree the morph replaces. '
+                            'Hover the button, click it (the zone refreshes),'
+                            ' then leave it: the panel must disappear. If it '
+                            'stayed, nothing could close it any more — '
+                            'neither the mouse nor the keyboard.',
                         color="muted", size="xs",
                     )
                     tooltip_in_a_refreshed_zone()

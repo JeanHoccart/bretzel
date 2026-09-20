@@ -11,18 +11,19 @@ Slots :
 - ``nav``      : the prev / next chevron buttons (extra padding)
 
 Per-size dicts carry one entry per slot that needs its own dimension —
-``item`` and ``nav``. **Pas** ``ellipsis`` : cette couche est composée
-PAR-DESSUS ``item``, qui porte déjà la taille.
+``item`` and ``nav``. **Not** ``ellipsis``: that layer is composed ON TOP
+of ``item``, which already carries the size.
 
-⚠️ Les couches ``active`` / ``ellipsis`` ne doivent JAMAIS répéter un
-token de ``item``. Elles partent en ``bz-class`` sur le même ``<button>``
-que la couche statique, et le runtime ne retire que ce que l'expression
-cesse de produire : un token partagé est retiré du ``class=`` statique en
-même temps. ``ellipsis`` re-déclarait ``flex items-center justify-center``
-+ ``w-10 text-sm`` — le bouton qui cessait d'être une ellipse s'effondrait
-de 40 px à 8 px, hauteur intacte. Le runtime protège désormais sa baseline
-(``02_directives.js``), et ``test_bz_class_never_repeats_static_tokens``
-garde la règle côté thème.
+⚠️ The ``active`` / ``ellipsis`` layers must NEVER repeat a token of
+``item``. They leave as ``bz-class`` on the same ``<button>`` as the
+static layer, and the runtime only removes what the expression stops
+producing: a shared token is removed from the static ``class=`` at the
+same time. ``ellipsis`` re-declared ``flex items-center justify-center``
++ ``w-10 text-sm`` — the button that stopped being an ellipsis collapsed
+from 40 px to 8 px, its height intact. The runtime now protects its
+baseline (``02_directives.js``), and
+``test_bz_class_never_repeats_static_tokens`` keeps the rule on the theme
+side.
 """
 
 from __future__ import annotations
@@ -47,7 +48,7 @@ PAGINATION_THEME: dict[str, Any] = {
             "bg-(--bz-solid) text-(--bz-on-solid) shadow-sm scale-110 z-10 "
             "not-disabled:hover:!bg-(--bz-solid)/80"
         ),
-        # Composé par-dessus ``item`` : ni flex/centrage ni taille ici.
+        # Composed on top of ``item``: no flex/centring and no size here.
         "ellipsis": "text-muted pointer-events-none",
         "nav": "text-text/70 not-disabled:hover:text-(--bz-text)",
     },

@@ -1,15 +1,15 @@
-"""``Diagram`` — un graphe orienté, placé en couches côté serveur.
+"""``Diagram`` — a directed graph, laid out in layers on the server.
 
-Usage, niveau 1 — on ne déclare que les arêtes, les nœuds s'en
-déduisent dans leur ordre d'apparition ::
+Usage, tier 1 — you declare only the edges, the nodes follow in their
+order of appearance ::
 
     ui.diagram(edges=[("planning", "planning_engine"),
-                      ("tournees", "planning_engine"),
+                      ("tours", "planning_engine"),
                       ("planning_engine", "geo")])
 
-Niveau 2 — chaque nœud est décrit, et le rendu d'un nœud t'appartient ::
+Tier 2 — each node is described, and a node's render is yours ::
 
-    def carte(node):
+    def card(node):
         with ui.card(padding="sm") as c:
             with ui.hstack(gap="sm", align="center"):
                 ui.icon(node.icon, color=node.color)
@@ -20,46 +20,45 @@ Niveau 2 — chaque nœud est décrit, et le rendu d'un nœud t'appartient ::
         nodes=[ui.node("geo", label="geo", icon="map-pin", color="warning")],
         edges=[ui.edge("planning", "geo", label="uses", style="dashed")],
         focus=state.selected,
-        render=carte,
+        render=card,
         on_item_click=select,
     )
 
-Pourquoi des DESCRIPTEURS et pas des sous-composants
------------------------------------------------------
-``ui.tree_node`` existe parce que la contenance s'imbrique : un bloc
-``with`` dit « dedans ». Un graphe ne s'imbrique pas — une arête relie
-deux nœuds quelconques, et aucun ``with`` n'exprime ça. Et le composant
-possède la boucle : c'est LUI qui casse les cycles, assigne les couches
-et décide quels nœuds sont dessinés selon ``focus``. L'auteur n'a donc
-aucun endroit où écrire son balisage, d'où ``render=`` — même contrat
-que ``ui.column(render=)``. Cf. ``Component.COLLECTION_OWNER``.
+Why DESCRIPTORS and not subcomponents
+---------------------------------------
+``ui.tree_node`` exists because containment nests: a ``with`` block says
+"inside". A graph does not nest — an edge links any two nodes, and no
+``with`` expresses that. And the component owns the loop: it is IT that
+breaks the cycles, assigns the layers and decides which nodes are drawn
+according to ``focus``. The author therefore has nowhere to write their
+markup, hence ``render=`` — the same contract as ``ui.column(render=)``.
+Cf. ``Component.COLLECTION_OWNER``.
 
-⚠️ ``render=`` est rappelé pendant le rabattage de l'arbre, comme le
-``render=`` d'une colonne : il doit être **synchrone**. Une coroutine y
-est refusée par le socle.
+⚠️ ``render=`` is called back during the flattening of the tree, like a
+column's ``render=``: it must be **synchronous**. A coroutine is refused
+there by the base layer.
 
-Le partage HTML / SVG
----------------------
-Les nœuds sont du HTML positionné en absolu ; seules les arêtes vivent
-dans un ``<svg>`` posé derrière eux. C'est ce que retient React Flow, et
-pour la même raison : un nœud dessiné en ``<rect>`` + ``<text>`` perdrait
-tout ce que le reste du framework lui donne gratuitement — la troncature,
-l'anneau de focus, une icône thémée, un badge, l'ordre de tabulation.
-L'ordre du DOM suit les couches, donc la tabulation suit le sens de
-lecture.
+The HTML / SVG split
+--------------------
+The nodes are absolutely positioned HTML; only the edges live in an
+``<svg>`` placed behind them. It is what React Flow settles on, and for
+the same reason: a node drawn as ``<rect>`` + ``<text>`` would lose
+everything the rest of the framework gives it for free — truncation, the
+focus ring, a themed icon, a badge, the tab order. The DOM order follows
+the layers, so tabbing follows the reading direction.
 
-La vue par défaut
------------------
-``focus=None`` montre tout le graphe : il n'y a rien sur quoi se
-centrer. Dès que ``focus`` nomme un nœud, la vue se resserre sur son
-voisinage à ``depth`` sauts — parce qu'un graphe d'app réelle est dense
-(22 nœuds et 61 arêtes, mesurés sur une app depuis retirée) et qu'un enchevêtrement
-ne répond à aucune question, alors que le voisinage répond à celle
-qu'on a : « qui touche à ça ».
+The default view
+----------------
+``focus=None`` shows the whole graph: there is nothing to centre on. As
+soon as ``focus`` names a node, the view tightens onto its neighbourhood
+at ``depth`` hops — because a real app's graph is dense (22 nodes and 61
+edges, measured on an app since removed) and a tangle answers no
+question, whereas the neighbourhood answers the one you have: "what
+touches this".
 
-Le placement, lui, ne vit pas ici : :mod:`bretzel.components.data.diagram.layout`
-est pur, sans import du framework, et c'est ce qui rend la moitié
-difficile testable sans navigateur.
+The layout itself does not live here:
+:mod:`bretzel.components.data.diagram.layout` is pure, with no framework
+import, and that is what makes the hard half testable without a browser.
 """
 
 from __future__ import annotations
@@ -95,20 +94,20 @@ from bretzel.components.data.diagram.theme import DIAGRAM_THEME
 from bretzel.core.tree import Element, Node, TextNode
 from bretzel.render.context import current_context
 
-#: Un clic sur un enfant interactif d'un nœud (un bouton posé par un
-#: ``render=``, un lien) ne déclenche PAS le clic du nœud.
+#: A click on an interactive child of a node (a button placed by a
+#: ``render=``, a link) does NOT fire the node's click.
 #:
-#: Même construction que celle de ``Table`` pour les lignes cliquables,
-#: et pour la même contrainte de parseur : HTMX découpe ``hx-trigger``
-#: sur les virgules et referme le filtre au premier ``]``, donc pas de
-#: ``closest('a,button')`` — on conjugue des ``closest()`` à une balise.
+#: Same construction as ``Table``'s for clickable rows, and for the same
+#: parser constraint: HTMX splits ``hx-trigger`` on commas and closes the
+#: filter at the first ``]``, so no ``closest('a,button')`` — we combine
+#: ``closest()`` calls on one tag each.
 _NODE_INTERACTIVE_TAGS = ("button", "a", "input", "select", "textarea", "label")
 _NODE_CLICK_GUARD = " && ".join(
     f"!event.target.closest('{tag}')" for tag in _NODE_INTERACTIVE_TAGS
 )
 _NODE_CLICK_KEYDOWN = activate_keydown("$el.click();")
 
-#: Les styles d'arête, et le nom du slot de thème qui les porte.
+#: The edge styles, and the name of the theme slot that carries them.
 _EDGE_STYLES = {"solid": "edge", "dashed": "edge_flipped"}
 
 
@@ -173,7 +172,7 @@ def edge(
 
 
 def _as_pair(item: Any) -> tuple[str, str]:
-    """``("a", "b")`` ou ``ui.edge("a", "b")`` — la même paire."""
+    """``("a", "b")`` or ``ui.edge("a", "b")`` — the same pair."""
     if isinstance(item, GraphEdge):
         return (item.source, item.target)
     source, target = item
@@ -181,7 +180,7 @@ def _as_pair(item: Any) -> tuple[str, str]:
 
 
 def _as_node(item: Any) -> GraphNode:
-    """``"a"`` ou ``ui.node("a")`` — le même descripteur."""
+    """``"a"`` or ``ui.node("a")`` — the same descriptor."""
     return item if isinstance(item, GraphNode) else GraphNode(key=str(item))
 
 
@@ -195,40 +194,39 @@ class Diagram(Component):
 
     THEME: ClassVar[dict[str, Any]] = DIAGRAM_THEME
     THEME_KEY: ClassVar[str] = "diagram"
-    #: Le composant possède la boucle : cycles cassés, couches
-    #: assignées, croisements réduits, et ``focus`` décide même QUELS
-    #: nœuds sont dessinés. L'auteur ne peut pas écrire cette boucle —
-    #: d'où le rappel ``render=``, seul point d'entrée possible.
+    #: The component owns the loop: cycles broken, layers assigned,
+    #: crossings reduced, and ``focus`` even decides WHICH nodes are
+    #: drawn. The author cannot write that loop — hence the ``render=``
+    #: callback, the only possible entry point.
     COLLECTION_OWNER: ClassVar[str | None] = "component"
-    #: ``item_click`` est un VRAI event, pas un paramètre bricolé.
+    #: ``item_click`` is a REAL event, not a jury-rigged parameter.
     #:
-    #: La conséquence n'est pas cosmétique : `on_item_click=` accepte
-    #: désormais les trois formes de tout `on_*` du framework — un
-    #: callable serveur, une chaîne d'expression cliente, ou une LISTE
-    #: des deux. Tant qu'il n'était pas déclaré, il n'acceptait qu'un
-    #: callable, et le gabarit du playground lisait « ce composant n'a
-    #: pas d'event » — donc pas de carte Server events ni Client events.
+    #: The consequence is not cosmetic: `on_item_click=` now accepts the
+    #: three shapes of any framework `on_*` — a server callable, a client
+    #: expression string, or a LIST of both. As long as it was not
+    #: declared, it accepted only a callable, and the playground template
+    #: read "this component has no event" — so no Server events card and
+    #: no Client events card.
     #:
-    #: ⚠️ Le routage reste MANUEL, contrairement au cas courant. Le socle
-    #: pose l'`hx-post` d'un event déclaré sur la RACINE, or ici chaque
-    #: nœud porte le sien, avec sa clé. `on_item_click` est donc un
-    #: paramètre nommé de l'``__init__`` — le socle ne le voit jamais
-    #: passer — et `_click_attrs` fait le travail. Même situation que le
-    #: `on_item_click` de `ui.table`.
+    #: ⚠️ The routing stays MANUAL, unlike the common case. The base
+    #: layer sets the `hx-post` of a declared event on the ROOT, whereas
+    #: here each node carries its own, with its key. `on_item_click` is
+    #: therefore a named parameter of the ``__init__`` — the base layer
+    #: never sees it go by — and `_click_attrs` does the work. Same
+    #: situation as `ui.table`'s `on_item_click`.
     EVENTS: ClassVar[tuple[str, ...]] = ("item_click",)
     IS_CONTAINER: ClassVar[bool] = False
-    #: ``value`` = le nœud SÉLECTIONNÉ, et il est ⇄ two-way.
+    #: ``value`` = the SELECTED node, and it is ⇄ two-way.
     #:
-    #: La règle de `client-reactive-surface.md` § *La règle* est
-    #: explicite au premier temps du test : « l'utilisateur édite-t-il
-    #: cette valeur en interagissant avec CE composant ? … la
-    #: sélection → ⇄ two-way ». Le pilote client existe — c'est le clic
-    #: sur un nœud — donc `@refreshable` seul ne suffit pas.
+    #: `client-reactive-surface.md` § *The rule* is explicit at the
+    #: test's first step: "does the user edit this value by interacting
+    #: with THIS component? … the selection → ⇄ two-way". The client
+    #: driver exists — it is the click on a node — so `@refreshable`
+    #: alone is not enough.
     #:
-    #: ⚠️ Ce composant a livré une surface bindable VIDE pendant une
-    #: journée, sur l'intuition « affichage pur ». L'intuition était
-    #: fausse et la règle écrite disait le contraire : un diagramme
-    #: n'est pas un affichage, c'est un SÉLECTEUR.
+    #: ⚠️ This component shipped an EMPTY bindable surface for a day, on
+    #: the hunch "pure display". The hunch was wrong and the written rule
+    #: said the opposite: a diagram is not a display, it is a SELECTOR.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value",)
 
     value: Any = reactive_prop(
@@ -258,20 +256,20 @@ class Diagram(Component):
         empty: Callable[[], Any] | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None.
+        # Direct forward: the base layer drops reactive None kwargs.
         super().__init__(value=value, size=size, color=color, **kwargs)
         if direction not in ("right", "down"):
             raise ComponentUsageError(
-                f"ui.diagram: direction={direction!r} — attendu 'right' "
-                f"(les couches sont des colonnes) ou 'down'."
+                f"ui.diagram: direction={direction!r} — expected 'right' "
+                f"(the layers are columns) or 'down'."
             )
         self._edges = [e if isinstance(e, GraphEdge) else GraphEdge(*_as_pair(e))
                        for e in edges]
         self._pairs = [_as_pair(e) for e in self._edges]
         declared = [_as_node(n) for n in nodes]
         self._declared = {n.key: n for n in declared}
-        # Niveau 1 : sans ``nodes=``, les clés viennent des arêtes, dans
-        # leur ordre de première apparition — donc déterministe.
+        # Tier 1: with no ``nodes=``, the keys come from the edges, in
+        # their order of first appearance — so deterministic.
         self._keys = (
             [n.key for n in declared] if declared else keys_from_edges(self._pairs)
         )
@@ -287,15 +285,15 @@ class Diagram(Component):
         self._reject_unknown_endpoints()
 
     def _reject_unknown_endpoints(self) -> None:
-        """Une arête qui cite un nœud non déclaré est refusée, nommée.
+        """An edge that cites an undeclared node is refused, by name.
 
-        Seulement quand ``nodes=`` est donné : sans lui les clés SORTENT
-        des arêtes, donc rien ne peut être inconnu. Le moteur de
-        placement, lui, ignore silencieusement — c'est le bon
-        comportement pour une fonction pure appelée dans un rendu, mais
-        au niveau du composant on peut nommer le fautif, donc on le
-        nomme. Un nœud qui manque produit sinon un dessin amputé qu'on
-        relit dix minutes avant de comprendre.
+        Only when ``nodes=`` is given: without it the keys COME OUT of
+        the edges, so nothing can be unknown. The layout engine, for its
+        part, ignores silently — that is the right behaviour for a pure
+        function called in a render, but at the component level we can
+        name the culprit, so we name it. A missing node otherwise
+        produces an amputated drawing you re-read for ten minutes before
+        understanding.
         """
         if not self._declared:
             return
@@ -305,61 +303,61 @@ class Diagram(Component):
         )
         if missing:
             raise ComponentUsageError(
-                f"ui.diagram: les arêtes citent {', '.join(missing)}, qui "
-                f"n'est pas dans nodes=. Ajoute le nœud, corrige la clé, ou "
-                f"retire nodes= pour que les nœuds se déduisent des arêtes."
+                f"ui.diagram: the edges cite {', '.join(missing)}, which "
+                f"is not in nodes=. Add the node, fix the key, or remove "
+                f"nodes= so the nodes are inferred from the edges."
             )
 
     def _build_empty(self, size_key: str) -> tuple[Node, ...]:
-        """L'état vide : ``empty=`` s'il est donné, sinon l'auto.
+        """The empty state: ``empty=`` if given, otherwise the automatic one.
 
-        Même API que ``ui.table`` et ``ui.datatable`` — trois props de
-        confort plus une échappatoire, et les deux branches passent par
-        ``coerce_children``. Sans elle, un ``empty=`` qui rend ``None``
-        écrit la chaîne ``"None"`` à l'écran ; c'est le bug qu'a payé
-        ``ui.table`` le 2026-08-18.
+        Same API as ``ui.table`` and ``ui.datatable`` — three convenience
+        props plus an escape hatch, and both branches go through
+        ``coerce_children``. Without it, an ``empty=`` that returns
+        ``None`` writes the string ``"None"`` on screen; that is the bug
+        ``ui.table`` paid for on 2026-08-18.
         """
         if self._empty is not None:
             return coerce_children(self._empty())
 
-        # `ui.empty_state`, comme `ui.table` — pas un texte gris centré
-        # à la main. Il porte l'icône, la hiérarchie de titre et
-        # l'espacement du thème ; les réécrire ici en donnerait une
-        # deuxième version qui dériverait.
+        # `ui.empty_state`, like `ui.table` — not a grey centred text
+        # written by hand. It carries the icon, the title hierarchy and
+        # the theme's spacing; rewriting them here would give a second
+        # version that would drift.
         from bretzel.components.feedback.empty_state import EmptyState
 
-        # ⚠️ `_detach_from_parent` AVANT `render()`. Un Component
-        # construit dans un `render()` s'auto-enregistre au parent ACTIF
-        # et fuit quand le composant est détaché — le piège « Icon
-        # construit dans render() sans detach » de traps.md.
+        # ⚠️ `_detach_from_parent` BEFORE `render()`. A Component built
+        # in a `render()` registers itself with the ACTIVE parent and
+        # leaks when the component is detached — traps.md's "Icon built
+        # in render() without detach" trap.
         empty = EmptyState(
             self._empty_text,
             icon=self._empty_icon,
             description=self._empty_description,
-            # L'état vide suit le palier du diagramme : sans ça un
-            # `size=` ne change RIEN sur un graphe vide, ce qui est
-            # exactement le kwarg mort que ce dépôt traque.
+            # The empty state follows the diagram's step: without that
+            # a `size=` changes NOTHING on an empty graph, which is
+            # exactly the dead kwarg this repository hunts.
             size=size_key,
         )
         Component._detach_from_parent(empty)
         return (empty.render(),)
 
-    # ── Sélection de la vue ─────────────────────────────────────────────
+    # ── View selection ──────────────────────────────────────────────────
 
     def _drawn(self) -> tuple[list[str], list[GraphEdge]]:
-        """Les nœuds et arêtes effectivement dessinés.
+        """The nodes and edges actually drawn.
 
-        ``_drawn`` et pas ``_visible`` : ``visible`` est un kwarg
-        universel, et le socle range le sien dans ``self._visible``. La
-        méthode l'écrasait — le composant levait « NoneType is not
-        callable » au rendu, pas à la construction.
+        ``_drawn`` and not ``_visible``: ``visible`` is a universal
+        kwarg, and the base layer files its own in ``self._visible``. The
+        method overwrote it — the component raised "NoneType is not
+        callable" at render, not at construction.
 
-        ``focus=None`` rend tout : il n'y a rien sur quoi se centrer.
-        Sinon on se resserre sur le voisinage — et un ``focus`` qui ne
-        désigne aucun nœud connu retombe sur le graphe entier plutôt que
-        sur un dessin vide, parce qu'une clé périmée dans un état
-        d'interface est un accident banal (une feature renommée, un id
-        gardé en session) et qu'un écran blanc n'en dit rien.
+        ``focus=None`` renders everything: there is nothing to centre on.
+        Otherwise we tighten onto the neighbourhood — and a ``focus``
+        that designates no known node falls back on the whole graph
+        rather than on an empty drawing, because a stale key in an
+        interface state is a commonplace accident (a renamed feature, an
+        id kept in session) and a blank screen says nothing about it.
         """
         if self._focus is None or self._focus not in set(self._keys):
             return list(self._keys), list(self._edges)
@@ -371,16 +369,15 @@ class Diagram(Component):
     def _adjacency(
         self, keys: list[str], edges: list[GraphEdge]
     ) -> dict[str, list[str]]:
-        """``{clé: elle-même + ce qui la touche}``, dans les deux sens.
+        """``{key: itself + what touches it}``, both ways.
 
-        Calculé UNE fois au rendu et cuit dans le DOM : c'est ce qui rend
-        la mise en évidence gratuite côté client. Le navigateur n'a rien
-        à parcourir, il lit un tableau.
+        Computed ONCE at render and baked into the DOM: that is what
+        makes the highlighting free on the client side. The browser has
+        nothing to walk, it reads an array.
 
-        Trié, parce que le HTML de deux rendus du même graphe doit être
-        identique à l'octet — sinon idiomorph remplace au lieu de
-        fusionner, et toute comparaison de non-régression devient du
-        bruit.
+        Sorted, because the HTML of two renders of the same graph must be
+        byte-identical — otherwise idiomorph replaces instead of merging,
+        and any non-regression comparison becomes noise.
         """
         near: dict[str, set[str]] = {k: {k} for k in keys}
         for edge in edges:
@@ -392,7 +389,7 @@ class Diagram(Component):
     # ── Rendu ───────────────────────────────────────────────────────────
 
     def _node_body(self, spec: GraphNode, step: dict, slots: dict) -> tuple[Node, ...]:
-        """Le contenu d'un nœud — le ``render=`` de l'auteur, ou le défaut."""
+        """A node's content — the author's ``render=``, or the default."""
         if self._render is not None:
             return coerce_children(self._render(spec))
 
@@ -429,27 +426,26 @@ class Diagram(Component):
         )
 
     def _click_attrs(self, key: str, lit: str) -> dict[str, Any]:
-        """Le câblage de ``item_click`` pour CE nœud.
+        """The ``item_click`` wiring for THIS node.
 
-        L'action est par NŒUD, pas sur la racine — donc elle passe par
-        ``item_action_attrs``, le routeur partagé des quatre composants
-        dans ce cas (une ligne de ``ui.table``, une barre, une part, un
-        nœud). Il rend les trois formes d'un ``on_*`` du framework : un
-        callable serveur, une chaîne d'expression cliente, ou une liste
-        des deux.
+        The action is per NODE, not on the root — so it goes through
+        ``item_action_attrs``, the shared router of the four components
+        in that case (a ``ui.table`` row, a bar, a slice, a node). It
+        renders the three shapes of a framework ``on_*``: a server
+        callable, a client expression string, or a list of both.
 
-        ⚠️ Ce site RECOPIAIT ce routeur au lieu de l'appeler, et il a
-        payé les deux choses que le routeur savait déjà faire : le
-        trigger réécrit à la main juste après ``action_attrs``, et une
-        expression cliente NON gardée — donc un ``on_item_click="…"``
-        partait aussi quand on cliquait un bouton posé par ``render=``,
-        là où la même expression sur ``ui.table`` ne part pas. Adopté le
-        2026-09-07 ; c'est le mode d'échec « primitive livrée, jamais
-        adoptée aux call-sites » que l'audit de cohérence nomme.
+        ⚠️ This site COPIED that router instead of calling it, and it
+        paid for the two things the router already knew how to do: the
+        trigger rewritten by hand right after ``action_attrs``, and an
+        UNGUARDED client expression — so an ``on_item_click="…"`` also
+        fired when you clicked a button placed by ``render=``, where the
+        same expression on ``ui.table`` does not. Adopted on 2026-09-07;
+        it is the "primitive shipped, never adopted at the call sites"
+        failure mode the coherence audit names.
 
-        ``lit`` est l'expression d'éclairage. Elle vient EN PREMIER pour
-        que la mise en évidence soit visible avant que la requête parte,
-        et elle est la SEULE chose que ce site ajoute au routeur.
+        ``lit`` is the highlighting expression. It comes FIRST so the
+        highlight is visible before the request leaves, and it is the
+        ONLY thing this site adds to the router.
         """
         attrs = item_action_attrs(
             self._click,
@@ -457,18 +453,18 @@ class Diagram(Component):
             bind=lambda fn: functools.partial(fn, key),
             owner_id=self.id,
             ctx=current_context(),
-            # L'event DÉCLARÉ est `item_click`, celui du DOM est `click`.
+            # The DECLARED event is `item_click`, the DOM one is `click`.
             dom_event="click",
             guard=_NODE_CLICK_GUARD,
-            # `debounce=` / `throttle=` : le socle ne les
-            # applique qu'à l'action de la RACINE.
+            # `debounce=` / `throttle=`: the base layer applies them
+            # only to the ROOT's action.
             modifier=self._trigger_modifier,
         )
-        # L'ÉCLAIRAGE vient en premier, et il n'est PAS gardé — c'est la
-        # seule chose que ce site ajoute au routeur partagé. La mise en
-        # évidence doit être visible avant que la requête parte, et un
-        # clic sur un bouton posé par `render=` doit quand même désigner
-        # le nœud, même s'il ne déclenche pas l'action.
+        # The HIGHLIGHT comes first, and it is NOT guarded — it is the
+        # only thing this site adds to the shared router. The highlight
+        # must be visible before the request leaves, and a click on a
+        # button placed by `render=` must still designate the node, even
+        # if it does not fire the action.
         handler_side = attrs.get(client_event_attr("click"), "")
         attrs[client_event_attr("click")] = (
             f"{lit}; {handler_side}" if handler_side else lit
@@ -477,9 +473,9 @@ class Diagram(Component):
             list(self._click) if isinstance(self._click, (list, tuple))
             else [self._click]
         )
-        # Un nœud sur lequel il y a quelque chose à faire s'annonce comme
-        # tel. L'éclairage seul ne suffit pas à en faire un bouton — il
-        # se déclenche par le clic, pas par le clavier.
+        # A node on which there is something to do announces itself as
+        # such. The highlight alone is not enough to make it a button —
+        # it fires on the click, not on the keyboard.
         if any(callable(h) for h in handlers if h is not None):
             attrs["role"] = "button"
             attrs["tabindex"] = "0"
@@ -493,15 +489,15 @@ class Diagram(Component):
         size_key = self._reactive_values.get("size") or "md"
         step = sizes.get(size_key, sizes.get("md", {}))
 
-        # ⚠️ Le scope et l'input caché se bâtissent AVANT la branche
-        # vide, et sont posés sur la racine dans LES DEUX cas.
+        # ⚠️ The scope and the hidden input are built BEFORE the empty
+        # branch, and set on the root in BOTH cases.
         #
-        # La première version sortait tôt sur un graphe vide, donc sa
-        # racine n'avait ni `bz-data` ni porteur : un `value=` lié y
-        # perdait sa cellule, et `_serverSync` disparaissait avec. Le
-        # contrat d'un composant ne doit pas changer de forme avec ses
-        # DONNÉES — c'est ce que `test_server_sync_completeness` a
-        # attrapé, en le construisant sans arête.
+        # The first version exited early on an empty graph, so its root
+        # had neither `bz-data` nor a carrier: a bound `value=` lost its
+        # cell there, and `_serverSync` disappeared with it. A
+        # component's contract must not change shape with its DATA —
+        # that is what `test_server_sync_completeness` caught, by
+        # building it with no edge.
         root_attrs, carrier = self._selection_wiring(slots)
 
         keys, edges = self._drawn()
@@ -536,11 +532,11 @@ class Diagram(Component):
             widths=widths,
         )
 
-        # ── Le calque d'arêtes ──────────────────────────────────────
-        # Le marqueur de flèche est identifié par l'id de l'instance :
-        # deux diagrammes sur une page partageraient sinon un ``<defs>``
-        # et le second réutiliserait la flèche du premier — même forme
-        # ici, mais un ``color=`` différent la ferait diverger.
+        # ── The edge layer ──────────────────────────────────────────
+        # The arrow marker is identified by the instance's id: two
+        # diagrams on one page would otherwise share a ``<defs>`` and the
+        # second would reuse the first's arrow — same shape here, but a
+        # different ``color=`` would make it diverge.
         marker = f"{self.id or 'bz-diagram'}__arrow"
         by_pair = {(e.source, e.target): e for e in edges}
         paths: list[Node] = []
@@ -553,10 +549,10 @@ class Diagram(Component):
                 "d": route.path,
                 "class": theme.get(slot, theme.get("edge", "")),
                 "marker-end": f"url(#{marker})",
-                # Une arête ne reste en avant que si ses DEUX extrémités
-                # le sont — sinon l'écran se remplit des liaisons qui
-                # partent du voisinage vers l'extérieur, c'est-à-dire de
-                # ce qu'on cherchait justement à retirer.
+                # An edge stays in the foreground only if BOTH its ends
+                # are — otherwise the screen fills with the links that
+                # leave the neighbourhood towards the outside, that is to
+                # say with what we were precisely trying to remove.
                 "bz-class": (
                     f"isEdgeLit({json.dumps(route.source)}, "
                     f"{json.dumps(route.target)}) ? '' : "
@@ -589,10 +585,11 @@ class Diagram(Component):
                         "id": marker,
                         "viewBox": "0 0 8 8",
                         "refX": "7", "refY": "4",
-                        # 5 et non 7 : la pointe portait autant d'encre
-                        # que le nœud qu'elle désigne. Le sens est déjà
-                        # dit par les couches (on lit vers la droite) —
-                        # la flèche le CONFIRME, elle ne l'annonce pas.
+                        # 5 and not 7: the arrowhead carried as much
+                        # ink as the node it designates. The direction is
+                        # already said by the layers (you read towards
+                        # the right) — the arrow CONFIRMS it, it does not
+                        # announce it.
                         "markerWidth": "5", "markerHeight": "5",
                         "orient": "auto-start-reverse",
                     },
@@ -614,25 +611,25 @@ class Diagram(Component):
                 "viewBox": f"0 0 {placed.width:.0f} {placed.height:.0f}",
                 "width": f"{placed.width:.0f}",
                 "height": f"{placed.height:.0f}",
-                # Le tracé est décoratif : ce que le lecteur d'écran doit
-                # parcourir, ce sont les nœuds, dans l'ordre des couches.
+                # The path is decorative: what the screen reader must
+                # walk is the nodes, in layer order.
                 "aria-hidden": "true",
             },
             children=(arrow, *paths),
         )
 
-        # ── Les nœuds ───────────────────────────────────────────────
-        # Dans l'ordre des COUCHES, pas dans celui d'entrée : l'ordre du
-        # DOM est l'ordre de tabulation, et on veut lire le graphe dans
-        # le sens des flèches.
+        # ── The nodes ───────────────────────────────────────────────
+        # In LAYER order, not in input order: the DOM order is the tab
+        # order, and we want to read the graph in the direction of the
+        # arrows.
         boxes = {b.key: b for b in placed.boxes}
         near = self._adjacency(keys, edges)
         node_els: list[Node] = []
         for layer in placed.layers:
             for key in layer:
                 box = boxes.get(key)
-                if box is None:  # pragma: no cover — une couche ne cite
-                    continue     # que des nœuds placés
+                if box is None:  # pragma: no cover — a layer only cites
+                    continue     # nodes that were placed
                 spec = self._declared.get(key, GraphNode(key=key))
                 node_class = slots.get("node", "")
                 if key == self._focus:
@@ -641,36 +638,36 @@ class Diagram(Component):
                     )
                 attrs: dict[str, Any] = {
                     "class": node_class,
-                    # ⚠️ Position et taille en style INLINE. Une classe
-                    # assemblée (`left-[240px]`) n'existe qu'en dev : le
-                    # compilateur de prod ne balaie que des littéraux, et
-                    # la page se disloque en prod seulement.
+                    # ⚠️ Position and size as INLINE styles. An
+                    # assembled class (`left-[240px]`) only exists in
+                    # dev: the production compiler only sweeps literals,
+                    # and the page falls apart in production only.
                     "style": (
                         f"left:{box.x:.2f}px;top:{box.y:.2f}px;"
                         f"width:{box.width:.2f}px;height:{box.height:.2f}px"
                     ),
                     "data-bz-node": key,
-                # L'adjacence reste EXPOSÉE en donnée : le prédicat la
-                # reçoit en argument, mais un `render=` maison ou un
-                # sélecteur CSS peut vouloir la lire.
+                # The adjacency stays EXPOSED as data: the predicate
+                # receives it as an argument, but a home-made `render=`
+                # or a CSS selector may want to read it.
                 "data-bz-adj": json.dumps(near.get(key, [key])),
                 }
                 if spec.group:
                     attrs["data-bz-group"] = spec.group
-                # Désigner un nœud éclaire ce qui le touche. Zéro
-                # requête : l'adjacence est cuite ici, le navigateur ne
-                # parcourt rien. C'est un geste de LECTURE, il n'a rien
-                # à demander au serveur.
+                # Designating a node lights up what touches it. Zero
+                # requests: the adjacency is baked here, the browser
+                # walks nothing. It is a READING gesture, it has nothing
+                # to ask the server.
                 #
-                # Sur le clic et pas sur le survol : un écran tactile n'a
-                # pas de survol, et un `hover` est aussi mort sur un
-                # poste dont le pointeur est grossier.
+                # On the click and not on hover: a touch screen has no
+                # hover, and a `hover` is equally dead on a machine whose
+                # pointer is coarse.
                 adj = json.dumps(near.get(key, [key]))
                 lit_expr = f"light({json.dumps(key)})"
-                # L'adjacence voyage dans le PRÉDICAT, pas dans un état :
-                # `isLit` dérive de la sélection, donc l'éclairage suit
-                # une écriture venue de dehors (un contrôle lié au même
-                # champ) exactement comme un clic.
+                # The adjacency travels in the PREDICATE, not in a
+                # state: `isLit` derives from the selection, so the
+                # highlight follows a write coming from outside (a
+                # control bound to the same field) exactly like a click.
                 attrs["bz-class"] = (
                     f"isLit({json.dumps(key)}, {adj}) ? '' : "
                     f"{json.dumps(slots.get('node_dim', 'opacity-25'))}"
@@ -684,14 +681,14 @@ class Diagram(Component):
                     )
                 )
 
-        # Le scope de mise en évidence, posé sur la toile pour que le
-        # calque d'arêtes ET les nœuds en héritent — c'est un seul scope,
-        # comme la disclosure d'un `ui.tree`.
+        # The highlight scope, set on the canvas so that the edge layer
+        # AND the nodes inherit it — it is a single scope, like a
+        # `ui.tree`'s disclosure.
         #
-        # Les méthodes sortent de `$bz.diagram.scope` plutôt que d'être
-        # sérialisées ici : leur corps est rigoureusement le même d'un
-        # nœud à l'autre, seule l'ADJACENCE diffère, et elle voyage sur
-        # le nœud.
+        # The methods come out of `$bz.diagram.scope` rather than being
+        # serialised here: their body is rigorously the same from one
+        # node to the next, only the ADJACENCY differs, and that travels
+        # on the node.
         canvas = Element(
             tag="div",
             attrs={
@@ -711,23 +708,23 @@ class Diagram(Component):
     def _selection_wiring(
         self, slots: dict
     ) -> tuple[dict[str, Any], Element | None]:
-        """Les attributs de la racine, et l'input caché s'il en faut un.
+        """The root's attributes, and the hidden input if one is needed.
 
-        ⚠️ Ce littéral de scope rejoint la dette n°1 du socle (14 → 15
-        fichiers, `test_scope_literal_debt_only_shrinks`), et c'est une
-        DÉCISION, pas un oubli. Une prop ⇄ two-way exige la bascule
-        « valeur locale → cellule du magasin » ; les 13 composants qui
-        ont à la fois un slab runtime et une sélection la portent tous.
-        Le prix de l'éviter serait de réinliner les cinq méthodes de
-        `$bz.diagram.scope` dans CHAQUE nœud.
+        ⚠️ This scope literal joins the base layer's debt no. 1 (14 → 15
+        files, `test_scope_literal_debt_only_shrinks`), and it is a
+        DECISION, not an oversight. A ⇄ two-way prop requires the "local
+        value → store cell" switch; the 13 components that have both a
+        runtime slab and a selection all carry it. The price of avoiding
+        it would be to re-inline the five methods of `$bz.diagram.scope`
+        into EVERY node.
         """
         binding = self._binding_metadata.get("value")
         initial = str(self._reactive_values.get("value") or "")
         (scope_key,) = self._scope_keys("value")
         if binding is not None:
-            # Lié : la cellule du magasin EST la vérité, on ne la
-            # duplique pas localement (ça courserait l'application du
-            # delta par le framework).
+            # Bound: the store cell IS the truth, we do not duplicate
+            # it locally (that would race the framework's application of
+            # the delta).
             path = self.path_of(binding)
             scope = (
                 "{...$bz.diagram.scope,"
@@ -746,10 +743,10 @@ class Diagram(Component):
                 + "}"
             )
 
-        # ── L'input caché — intégration formulaire / action serveur ──
-        # Un `<div>` ne porte ni `name`/`value` ni `change` natif : le
-        # porteur fait les deux, comme chez les 11 autres composants
-        # dont la racine n'est pas un contrôle de formulaire.
+        # ── The hidden input — form / server-action integration ─────
+        # A `<div>` carries neither `name`/`value` nor a native `change`:
+        # the carrier does both, as in the 11 other components whose root
+        # is not a form control.
         carrier: Element | None = None
         name = self._reactive_values.get("name") or self._derive_field_name()
         if name:
@@ -763,13 +760,14 @@ class Diagram(Component):
         return (
             {
                 "class": slots.get("root", ""),
-                # Le scope vit sur la RACINE et non sur la toile : c'est
-                # elle qui doit pouvoir répondre au clic tombé À CÔTÉ
-                # d'un nœud, dans le blanc du dessin.
+                # The scope lives on the ROOT and not on the canvas: it
+                # is the root that must be able to answer a click that
+                # lands NEXT TO a node, in the drawing's white space.
                 "bz-data": scope,
-                # Cliquer dans le vide rallume tout. Le clic HORS du
-                # composant aussi — c'est ce qu'arme `arm($el)`, via le
-                # `clickOutside` partagé des overlays.
+                # Clicking in the void lights everything back up. So
+                # does a click OUTSIDE the component — that is what
+                # `arm($el)` arms, through the overlays' shared
+                # `clickOutside`.
                 "bz-on:click": (
                     "if (!$event.target.closest('[data-bz-node]')) reset()"
                 ),

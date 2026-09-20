@@ -180,28 +180,29 @@ class Combobox(Component):
 
     THEME: ClassVar[dict[str, Any]] = COMBOBOX_THEME
     THEME_KEY: ClassVar[str] = "combobox"
-    #: C'est le COMPOSANT qui possède la boucle : il itère ``options=``
-    #: et rend un ``<button role="option">`` par entrée, côté SERVEUR.
-    #: L'auteur n'écrit pas cette boucle, donc il n'a aucun endroit où
-    #: poser son balisage — d'où ``render=``, son seul point d'entrée.
+    #: It is the COMPONENT that owns the loop: it iterates ``options=``
+    #: and renders one ``<button role="option">`` per entry, on the
+    #: SERVER side. The author does not write that loop, so they have
+    #: nowhere to put their markup — hence ``render=``, their only entry
+    #: point.
     #:
-    #: ⚠️ Déclaré ``"client"`` par erreur le 2026-08-18, sur une lecture
-    #: TRONQUÉE d'un commentaire de ``combobox.py`` (« built once
-    #: server-side so the JS filter only does a… »), lu comme « le client
-    #: possède la liste » alors qu'il dit l'inverse. Le filtre JS est un
-    #: ``bz-show`` : il MASQUE des boutons déjà rendus, il n'en crée
-    #: aucun. La distinction se lit en un mot de vocabulaire —
-    #: ``bz-for`` clone (c'est ``file_upload``), ``bz-show`` masque.
+    #: ⚠️ Declared ``"client"`` by mistake on 2026-08-18, on a TRUNCATED
+    #: reading of a ``combobox.py`` comment ("built once server-side so
+    #: the JS filter only does a…"), read as "the client owns the list"
+    #: while it says the opposite. The JS filter is a ``bz-show``: it
+    #: HIDES already rendered buttons, it creates none. The distinction
+    #: reads in one word of vocabulary — ``bz-for`` clones (that is
+    #: ``file_upload``), ``bz-show`` hides.
     #: Cf. ``Component.COLLECTION_OWNER``.
     COLLECTION_OWNER: ClassVar[str | None] = "component"
     IS_CONTAINER: ClassVar[bool] = False
     # Curated reactive surface — picked value + lock flag.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
-    #: ⚠️ ``open`` / ``close`` / ``toggle`` ajoutés le 2026-09-03, EN
-    #: MÊME TEMPS que sur les six pickers. Combobox est un panneau
-    #: ancré qui porte une valeur — exactement leur forme — et il
-    #: n'exposait que la moitié champ. Les leur donner sans les lui
-    #: donner aurait fait deux conventions pour une seule forme.
+    #: ⚠️ ``open`` / ``close`` / ``toggle`` added on 2026-09-03, AT THE
+    #: SAME TIME as on the six pickers. Combobox is an anchored panel
+    #: carrying a value — exactly their shape — and it exposed only the
+    #: field half. Giving it to them without giving it to this one would
+    #: have made two conventions for a single shape.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle",
         "set", "clear", "focus", "blur",
@@ -219,9 +220,10 @@ class Combobox(Component):
     placeholder: str | None = reactive_prop(default=None, emit_attr=False)
     multiple: bool = reactive_prop(default=False, emit_attr=False)
     bulk_actions: bool = reactive_prop(default=False, emit_attr=False)
-    # ``None`` et pas la phrase anglaise : un défaut de ``reactive_prop``
-    # est évalué à l'IMPORT du module, donc avant qu'une app ait déclaré
-    # sa langue — il figerait l'anglais. La valeur se lit au rendu.
+    # ``None`` and not the English sentence: a ``reactive_prop``
+    # default is evaluated at the module's IMPORT, so before an app has
+    # declared its language — it would freeze English. The value is read
+    # at render.
     empty_text: str | None = reactive_prop(default=None, emit_attr=False)
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
@@ -251,7 +253,7 @@ class Combobox(Component):
         on_close: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, value=value,
             placeholder=placeholder,
@@ -269,12 +271,13 @@ class Combobox(Component):
         )
         self._options = list(options)
         self._render = render
-        # Détaché de la pile parente à la CONSTRUCTION — un composant
-        # s'enregistre chez le parent actif dans son propre ``__init__``,
-        # et sans ça il peindrait une fois en frère avant qu'on l'adopte
-        # (cf. ``test_slot_adoption``). Même geste que Popover.trigger.
+        # Detached from the parent stack at CONSTRUCTION — a component
+        # registers with the active parent in its own ``__init__``, and
+        # without that it would paint once as a sibling before we adopt
+        # it (cf. ``test_slot_adoption``). Same gesture as
+        # Popover.trigger.
         self._trigger: Component | None = Component.adopt_slot(trigger)
-        # APRÈS `super().__init__` : l'installeur lit `_binding_metadata`.
+        # AFTER `super().__init__`: the installer reads `_binding_metadata`.
         install_open_close_toggle(self)
 
     # ── Imperative write-only API ─────────────────────────────────────
@@ -346,17 +349,17 @@ class Combobox(Component):
         for opt_value, opt_label, opt_disabled in normalised:
             v_str = str(opt_value)
             l_str = str(opt_label)
-            # Le libellé PUIS la valeur, sauf quand ils se normalisent
-            # pareil — ce qui est le cas courant : ``options=["open",
-            # "merged"]`` donne label == value, et la meule partait en
-            # « open open ». Elle paie DEUX fois (dans ``_options``, et
-            # dans le ``bz-show`` de chaque option), donc c'est ~4 × la
-            # valeur par option, pour rien.
+            # The label THEN the value, except when they normalise
+            # alike — which is the common case: ``options=["open",
+            # "merged"]`` gives label == value, and the haystack came out
+            # as "open open". It pays TWICE (in ``_options``, and in each
+            # option's ``bz-show``), so that is ~4 × the value per
+            # option, for nothing.
             #
-            # Dédupliquer ne change AUCUN verdict : ``_matches`` teste
-            # ``haystack.includes(token)`` sur des tokens découpés aux
-            # espaces, donc aucun ne peut chevaucher la jointure — le
-            # seul endroit où « X X » dit oui quand « X » dit non.
+            # Deduplicating changes NO verdict: ``_matches`` tests
+            # ``haystack.includes(token)`` on tokens split at spaces, so
+            # none can straddle the join — the only place where "X X"
+            # says yes when "X" says no.
             norm_label = _normalise_text(l_str)
             norm_value = _normalise_text(v_str)
             haystack = (
@@ -395,8 +398,8 @@ class Combobox(Component):
         # - **method shorthand bodies** (``_pick(v) { ... }``) are NOT
         #   wrapped → bare ``value`` would create a global on
         #   ``window`` instead of touching ``this.value``. Cf.
-        #   ``traps.md`` § "open = false dans une méthode shorthand
-        #   d'un scope ``bz-data``".
+        #   ``traps.md`` § "open = false in a shorthand method of a
+        #   ``bz-data`` scope".
         if value_binding is not None:
             value_expr = self.path_of(value_binding)
             value_method = value_expr  # full path works in both surfaces
@@ -415,12 +418,12 @@ class Combobox(Component):
         # ``hx-trigger`` names the event it serves. Pop the whole
         # bundle once and route it by event — ``change`` → hidden
         # input, ``search`` → search input (re-pinned to ``input``).
-        # L'EVENT, pas la chaîne : ``hx-trigger`` porte les
-        # modificateurs d'un ``debounce=`` / ``throttle=``. Comparer
-        # la chaîne entière faisait échouer les trois tests ci-dessous
-        # dès qu'un ``debounce=`` était posé, et le bundle popé plus
-        # bas n'était alors re-stampé NULLE PART — ``hx-post`` perdu,
-        # ``on_change`` mort en silence.
+        # The EVENT, not the string: ``hx-trigger`` carries the
+        # modifiers of a ``debounce=`` / ``throttle=``. Comparing the
+        # whole string made the three tests below fail as soon as a
+        # ``debounce=`` was set, and the bundle popped below was then
+        # re-stamped NOWHERE — ``hx-post`` lost, ``on_change`` dead in
+        # silence.
         server_event = trigger_event(root_attrs)
         action_bundle: dict[str, Any] = {}
         # ``close`` is the exception : it is dispatched ON the root by
@@ -445,9 +448,9 @@ class Combobox(Component):
                 "bz-on:change"
             )
         if server_event == "change":
-            # ``hx-trigger`` voyage DANS ``action_bundle`` : le re-pin qui
-            # vivait ici le réécrivait en ``"change"`` nu et jetait le
-            # ``debounce=`` de l'appelant.
+            # ``hx-trigger`` travels IN ``action_bundle``: the re-pin
+            # that lived here rewrote it to a bare ``"change"`` and threw
+            # away the caller's ``debounce=``.
             relocated_to_hidden.update(action_bundle)
         for ev_attr in ("bz-on:focus", "bz-on:blur"):
             if ev_attr in root_attrs:
@@ -465,10 +468,11 @@ class Combobox(Component):
             )
         if server_event == "search":
             relocated_to_input_search.update(action_bundle)
-            # ``search`` change d'EVENT (``search`` → ``input`` natif), donc
-            # ici le trigger se réécrit vraiment. Le débounce de l'appelant
-            # gagne sur le défaut du composant — sinon ``debounce=`` était
-            # accepté puis ignoré, ce qui est pire que refusé.
+            # ``search`` changes EVENT (``search`` → native ``input``),
+            # so here the trigger really is rewritten. The caller's
+            # debounce beats the component's default — otherwise
+            # ``debounce=`` was accepted then ignored, which is worse
+            # than refused.
             relocated_to_input_search["hx-trigger"] = "input changed " + (
                 self._trigger_modifier or f"delay:{self.SEARCH_DEBOUNCE_MS}ms"
             )
@@ -495,8 +499,9 @@ class Combobox(Component):
         # Select (cf. traps.md). Binding mode never emits ``_serverSync``.
         # ``derived_name`` (above) already carries the field_name stamp in
         # local mode — reuse it rather than re-reading the value.
-        # Regle unique — cf. Component._value_server_backed (l'autoname
-        # ne repond pas a cette question : il perdait ``[state.champ]``).
+        # A single rule — cf. Component._value_server_backed (the
+        # autoname does not answer this question: it lost
+        # ``[state.field]``).
         value_server_backed = self._value_server_backed("value")
 
         hidden_nodes: list[Node] = []
@@ -570,9 +575,9 @@ class Combobox(Component):
         )
 
         # Trigger pills (multi only, CLOSED state). When the panel is
-        # open the picks move to the panel header (le slot ``header_bar``,
-        # construit par ``_build_header_bar`` — il n'y a aucun
-        # « selected_bar » dans le dépôt
+        # open the picks move to the panel header (the ``header_bar``
+        # slot, built by ``_build_header_bar`` — there is no
+        # "selected_bar" anywhere in the repository
         # below the input) so the trigger becomes a clean search
         # field. Pattern : Notion / Linear / GitHub user picker.
         #
@@ -631,9 +636,9 @@ class Combobox(Component):
             # ``_value()`` is the mode-aware reader (local field OR
             # binding path) — a method works in any surface, unlike a
             # bare ``value`` which only resolves the local field in
-            # literal mode. ``_labelOf`` lit le libellé dans
-            # ``_options`` — qui le porte déjà, d'où la disparition de
-            # la carte ``_labels`` (2026-08-28).
+            # literal mode. ``_labelOf`` reads the label in
+            # ``_options`` — which already carries it, hence the
+            # disappearance of the ``_labels`` map (2026-08-28).
             value_display_expr = "open ? query : _labelOf(_value())"
         # Keyboard handler — every per-key handler is fused into ONE
         # ``bz-on:keydown`` with explicit ``$event.key`` guards + inlined
@@ -874,20 +879,20 @@ class Combobox(Component):
             opt_v_js = json.dumps(opt["value"])
             haystack_js = json.dumps(opt["haystack"])
             label_str = opt["label"]
-            # ⚠️ QUATRE directives ont quitté cette option le
-            # 2026-09-02 — ``bz-class``, ``bz-attr:aria-selected`` et
-            # les deux ``bz-on:``. Elles vivent maintenant UNE fois sur
-            # le panneau : un effet qui repeint, deux écouteurs
-            # délégués. Mesuré avant : 461 o par option, dont 177 rien
-            # que pour ces directives, recopiées à l'identique N fois.
+            # ⚠️ FOUR directives left this option on 2026-09-02 —
+            # ``bz-class``, ``bz-attr:aria-selected`` and the two
+            # ``bz-on:``. They now live ONCE on the panel: one effect
+            # that repaints, two delegated listeners. Measured before:
+            # 461 B per option, of which 177 for those directives alone,
+            # copied identically N times.
             #
-            # ``bz-show`` RESTE par option : c'est le filtre de
-            # recherche, et le runtime a sa propre machinerie de
-            # masquage (garde anti-FOUC comprise).
+            # ``bz-show`` STAYS per option: it is the search filter, and
+            # the runtime has its own hiding machinery (anti-FOUC guard
+            # included).
             #
-            # ``aria-selected`` est posé au SSR en plus d'être repeint :
-            # l'arbre d'accessibilité doit être juste au premier paint,
-            # avant que l'effet passe.
+            # ``aria-selected`` is set at SSR in addition to being
+            # repainted: the accessibility tree must be right at the
+            # first paint, before the effect runs.
             picked_at_ssr = opt["value"] in (
                 initial_value if isinstance(initial_value, list)
                 else [initial_value]
@@ -898,8 +903,8 @@ class Combobox(Component):
                 # The form-data value the option represents — distinct
                 # from the user-facing label. Standard ARIA listbox.
                 "data-value": opt["value"],
-                # L'index, lu par le survol délégué pour poser
-                # ``_highlight``. Le clavier s'en sert déjà.
+                # The index, read by the delegated hover to set
+                # ``_highlight``. The keyboard already uses it.
                 "data-bz-i": str(index),
                 "class": option_class_base,
                 "aria-selected": "true" if picked_at_ssr else "false",
@@ -907,10 +912,10 @@ class Combobox(Component):
             }
             if opt["disabled"]:
                 opt_attrs["disabled"] = True
-            # Multi : une coche à droite dit « pris ». L'accent seul ne
-            # suffit pas — ``option_active`` (survol / clavier) est lui
-            # aussi accentué, et une liste ouverte tout entière prise
-            # (le cas normal d'un filtre de colonne) ne se lit plus.
+            # Multi: a tick on the right says "picked". The accent
+            # alone is not enough — ``option_active`` (hover / keyboard)
+            # is accented too, and a whole open list that is picked (the
+            # normal case of a column filter) no longer reads.
             opt_children: tuple[Node, ...] = option_body(self._render,
                 opt["value"], label_str
             )
@@ -963,31 +968,30 @@ class Combobox(Component):
             "class": panel_class,
             "role": "listbox",
             "bz-ref": "bzpanel",
-            # Deux effets composés par ``;`` — l'ancrage, puis la
-            # peinture des options. Le picker compose déjà comme ça
-            # (``_picker_field.anchored_panel(extra_effect=…)``).
+            # Two effects composed with ``;`` — the anchoring, then the
+            # painting of the options. The picker already composes like
+            # that (``_picker_field.anchored_panel(extra_effect=…)``).
             "bz-effect": anchored_panel_effect(
                 "open", "bottom-start", match_width=not detached,
             ) + (
                 "; $bz.combobox.paintOptions("
                 "$el, _highlight, (v) => _isPicked(v))"
             ),
-            # Les deux chaînes de classe voyagent UNE fois ici, au lieu
-            # d'être recopiées dans le ``bz-class`` de chaque option.
+            # The two class strings travel ONCE here, instead of being
+            # copied into each option's ``bz-class``.
             "data-bz-opt-active": option_active_cls,
             "data-bz-opt-picked": option_selected_cls,
-            # Le clic passe TOUJOURS par ``_togglePick``, dans les deux
-            # modes : le multi bascule l'appartenance au tableau, le
-            # simple dé-sélectionne quand on re-clique l'option déjà
-            # prise. C'est l'usage qu'on attend d'un contrôle de
-            # sélection à état. Entrée (clavier) appelle ``_pick`` en
-            # mode simple — Entrée CONFIRME le surligné, elle ne
-            # bascule pas.
+            # The click ALWAYS goes through ``_togglePick``, in both
+            # modes: multi flips membership in the array, single
+            # deselects when you re-click the already picked option. It
+            # is the use one expects of a stateful selection control.
+            # Enter (keyboard) calls ``_pick`` in single mode — Enter
+            # CONFIRMS the highlighted one, it does not toggle.
             #
-            # Le clic et le survol, DÉLÉGUÉS. ⚠️ ``mouseover`` et pas
-            # ``mouseenter`` : ce dernier NE REMONTE PAS, donc il ne peut
-            # pas se déléguer — un ``bz-on:mouseenter`` sur le panneau ne
-            # verrait jamais les options.
+            # The click and the hover, DELEGATED. ⚠️ ``mouseover`` and
+            # not ``mouseenter``: the latter DOES NOT BUBBLE, so it
+            # cannot be delegated — a ``bz-on:mouseenter`` on the panel
+            # would never see the options.
             "bz-on:click": (
                 "((o) => { if (o) { $event.stopPropagation(); "
                 "_togglePick(o.getAttribute('data-value')); } })"
@@ -1028,22 +1032,22 @@ class Combobox(Component):
         #   hidden input's own ``_change_emit_effect``, not by a scope
         #   method.
         root_attrs["bz-effect"] = dispatch_root_effect("open")
-        # ── ``on_close=`` : ne rien envoyer si rien n'a bougé ─────────
+        # ── ``on_close=``: send nothing if nothing moved ─────────────
         #
-        # Ouvrir un panneau pour VOIR ce qu'il propose, puis le refermer,
-        # est un geste normal — et il coûtait un aller-retour complet plus
-        # un re-rendu de zone. Le filtre d'événement HTMX (``close[…]``)
-        # gate la REQUÊTE, pas l'événement : ``close`` continue de partir,
-        # donc un ``on_close="…"`` client-side le voit toujours. C'est la
-        # bonne coupure — « le panneau s'est fermé » reste vrai, seule
-        # l'action serveur devient conditionnelle.
+        # Opening a panel to SEE what it offers, then closing it, is a
+        # normal gesture — and it cost a full round trip plus a zone
+        # re-render. The HTMX event filter (``close[…]``) gates the
+        # REQUEST, not the event: ``close`` still fires, so a client-side
+        # ``on_close="…"`` still sees it. It is the right cut — "the
+        # panel closed" stays true, only the server action becomes
+        # conditional.
         if server_event == "close":
             root_attrs["bz-effect"] = (
                 changed_since_open_effect("open", "_picked()")
                 + "; " + root_attrs["bz-effect"]
             )
-            # ``retrigger`` : le filtre d'événement remplace l'event,
-            # pas les modificateurs qui le suivent.
+            # ``retrigger``: the event filter replaces the event, not
+            # the modifiers that follow it.
             root_attrs["hx-trigger"] = retrigger(
                 root_attrs.get("hx-trigger", ""), f"close[this.{CHANGED_FLAG}]"
             )
@@ -1079,8 +1083,8 @@ class Combobox(Component):
                 "hx-include", f"#{self.id} input[bz-ref=bzhidden]",
             )
 
-        # Les récepteurs open/close/toggle — sans eux, `.open()`
-        # dispatcherait un événement que personne n'écoute.
+        # The open/close/toggle receivers — without them, `.open()`
+        # would dispatch an event nobody listens to.
         for _ev, _handler in imperative_listeners("open").items():
             root_attrs.setdefault(_ev, _handler)
         root_attrs["bz-on:bz-set"] = "_setValue($event.detail.value)"
@@ -1096,10 +1100,11 @@ class Combobox(Component):
     # ── Render sub-helpers ────────────────────────────────────────────
 
     def _render_chevron(self, chevron_class: str, icon_size: str) -> Element:
-        # ``with_slot_class`` : clone + préfixe la classe de slot sans
-        # écraser celle de l'enfant. Idem select — les deux derniers
-        # call-sites du clone-et-fusionne inline (audit F56).
-        # ``bz-class`` MERGE la rotation ; ``bz-attr:class`` REMPLACERAIT.
+        # ``with_slot_class``: clones + prepends the slot class without
+        # overwriting the child's. Same as select — the last two call
+        # sites of the inline clone-and-merge (audit F56).
+        # ``bz-class`` MERGES the rotation; ``bz-attr:class`` would
+        # REPLACE it.
         return Component.with_slot_class(
             Component.render_detached(Icon("chevron-down", size=icon_size)),
             chevron_class,
@@ -1118,10 +1123,10 @@ class Combobox(Component):
         initial_value: Any,
         lead: Element | None = None,
     ) -> Element:
-        """Le header partagé. Combobox compare aux options VISIBLES : la
-        requête en masque, donc « tout sélectionner » reste actif tant
-        qu'il reste un visible non pris (et inactif sur une liste filtrée
-        à vide, d'où le garde ``c > 0``)."""
+        """The shared header. Combobox compares against the VISIBLE
+        options: the query hides some, so "select all" stays active as
+        long as one visible unpicked one remains (and inactive on a list
+        filtered to empty, hence the ``c > 0`` guard)."""
         return build_header_bar(
             slots=slots, size_map=size_map, resolve=resolve,
             badge_theme=self._resolved_theme("badge", BADGE_THEME),
@@ -1144,9 +1149,9 @@ class Combobox(Component):
         server_backed: bool,
     ) -> str:
         """The big bz-data blob — single source of truth for the
-        Combobox's runtime behaviour. Assemblé par ``json.dumps`` +
-        f-strings + concaténation. (Le ``%``-formatting annoncé ici jusqu'au
-        2026-08-01 n'est utilisé nulle part dans ce fichier — zéro ``%s``.)
+        Combobox's runtime behaviour. Assembled by ``json.dumps`` +
+        f-strings + concatenation. (The ``%``-formatting announced here
+        until 2026-08-01 is used nowhere in this file — zero ``%s``.)
 
         Two read shapes (mirrors Select / Tabs / Accordion idiom) :
 
@@ -1207,11 +1212,11 @@ class Combobox(Component):
             # ``_serverSync`` adopts ``value`` from the server on a
             # @refreshable swap — ONLY when server-backed (cf. render() ;
             # an unbound / literal combobox keeps its client pick).
-            # La liste d'options est de la CONFIG server-owned : le
-            # client ne l'écrit jamais, et elle change en vrai (un select
-            # rechargé depuis la base à chaque refresh). Re-semée SANS
-            # condition — sinon elle reste figée à celle du premier
-            # montage, à vie. La VALEUR, elle, reste gatée.
+            # The options list is server-owned CONFIG: the client never
+            # writes it, and it does change for real (a select reloaded
+            # from the database at every refresh). Re-seeded
+            # UNCONDITIONALLY — otherwise it stays frozen at the first
+            # mount's, for life. The VALUE, for its part, stays gated.
             _keys = (["value", "_options"] if server_backed
                      else ["_options"])
             sync_marker = server_sync_marker(*_keys, enabled=True)

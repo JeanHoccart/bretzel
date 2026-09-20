@@ -541,17 +541,16 @@ def page() -> None:
                     ui.text("Unusual usage patterns.",
                             color="muted", size="sm")
 
-                    ui.heading("name= — le champ nommé à la main",
+                    ui.heading('name= — the field named by hand',
                                level=3)
                     ui.text(
-                        "form_field dérive normalement son name du "
-                        "binding de son contrôle. name= est "
-                        "l'échappatoire quand il n'y a pas de "
-                        "binding : c'est alors la seule façon "
-                        "d'apparaître dans la form data.",
+                        'form_field normally derives its name from its '
+                            "control's binding. name= is the escape hatch "
+                            'when there is no binding: it is then the only '
+                            'way to appear in the form data.',
                         color="muted", size="xs",
                     )
-                    with ui.form_field(label="Référence interne",
+                    with ui.form_field(label='Internal reference',
                                        name="internal_ref"):
                         ui.input(placeholder="REF-2026-…")
 

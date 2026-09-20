@@ -1,11 +1,11 @@
-"""RÉFÉRENCE — Carte de l'app (le squelette vivant).
+"""REFERENCE — The app map (the living skeleton).
 
-``describe_app()`` lit les contrats ``Feature()`` → le graphe de l'app,
-en direct. Cette page l'exécute sur une app de démo (le mini-SaaS du doc
-de design) et rend le résultat : les features par ``kind``, leurs
-``provides`` classés, les dépendances ``uses`` / ``reads``, les routes,
-et l'export JSON — la carte lisible par une IA. La même chose tourne sur
-n'importe quelle app via ``describe_app(app.features)``.
+``describe_app()`` reads the ``Feature()`` contracts → the app's graph,
+live. This page runs it on a demo app (the design doc's mini SaaS) and
+renders the result: the features by ``kind``, their classified
+``provides``, the ``uses`` / ``reads`` dependencies, the routes, and the
+JSON export — the map an AI can read. The same thing runs on any app
+through ``describe_app(app.features)``.
 """
 
 from __future__ import annotations
@@ -17,23 +17,25 @@ from bretzel.components import GraphEdge, GraphNode
 from bretzel.server import describe_app
 
 from examples.docs.features.shell import shell
+from examples.docs.lib.i18n import tr
 
 PATH = "/app-map"
 
 
 def page_stub(name: str, path: str):
-    """Un provide de page pour l'illustration — jamais monté.
+    """A page provide for the illustration — never mounted.
 
-    ``@page`` MARQUE la fonction sans l'enregistrer (c'est l'anti-règle 4
-    du charter : rien ne s'enregistre à l'import, ``create_app`` seul
-    monte) ; le jeu de démo n'étant jamais inclus, la route n'existe pas.
+    ``@page`` MARKS the function without registering it (it is the
+    charter's anti-rule 4: nothing registers at import, ``create_app``
+    alone mounts); the demo set never being included, the route does not
+    exist.
 
-    Cette fonction fabriquait le marquage à la main jusqu'au 2026-08-23 —
-    un ``SimpleNamespace`` portant ``_bz_page``, l'attribut privé que
-    ``describe_app`` lit. Ça marchait, et c'était deux fois faux : la doc
-    montrait une écriture qu'aucune app ne doit copier, et le jour où la
-    forme de ``PageMeta`` bouge, la contrefaçon casse en silence. Utiliser
-    le vrai décorateur donne le vrai marquage.
+    This function forged the marking by hand until 2026-08-23 — a
+    ``SimpleNamespace`` carrying ``_bz_page``, the private attribute
+    ``describe_app`` reads. It worked, and it was wrong twice over: the
+    docs showed a form no app must copy, and the day ``PageMeta``'s shape
+    moves, the forgery breaks in silence. Using the real decorator gives
+    the real marking.
     """
     stub = fn(name)
     return page(path)(stub)
@@ -45,7 +47,7 @@ def fn(name: str):
     return f
 
 
-# The demo feature set — le mini-SaaS de gestion de projets du doc de design.
+# The demo feature set — the design doc's project-management mini SaaS.
 _DEMO: list[Feature] = [
     Feature(name="shell", kind="shell"),
     Feature(name="errors", kind="error"),
@@ -119,11 +121,16 @@ def app_map_page() -> None:
         with ui.vstack(gap="lg"):
             ui.heading("Carte de l'app", level=1, size="3xl")
             ui.text(
-                "`describe_app()` lit les contrats `Feature()` d'une app → son "
-                "graphe, en direct. Cette page l'exécute sur une app de démo. "
-                "La même chose tourne sur la tienne via "
-                "`describe_app(app.features)` — elle ne peut pas se "
-                "désynchroniser, c'est le code qui tourne, lu.",
+                tr("`describe_app()` reads an app's `Feature()` contracts → "
+                   'its graph, live. This page runs it on a demo app. The '
+                   'same thing runs on yours through '
+                   '`describe_app(app.features)` — it cannot fall out of '
+                   'step, it is the running code, read.',
+                   "`describe_app()` lit les contrats `Feature()` d'une app →"
+                   " son graphe, en direct. Cette page l'exécute sur une app "
+                   'de démo. La même chose tourne sur la tienne via '
+                   '`describe_app(app.features)` — elle ne peut pas se '
+                   "désynchroniser, c'est le code qui tourne, lu."),
                 color="muted", size="lg",
             )
             with ui.hstack(gap="sm", wrap=True):
@@ -136,13 +143,19 @@ def app_map_page() -> None:
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("Le même graphe, DESSINÉ", level=2)
+                    ui.heading(tr('The same graph, DRAWN',
+                                  'Le même graphe, DESSINÉ'), level=2)
                     ui.text(
-                        "`ui.diagram` place un graphe orienté en couches, "
-                        "rendu côté serveur — aucune bibliothèque de dessin, "
-                        "aucun canvas. Les mêmes nœuds et les mêmes arêtes "
-                        "que les tableaux ci-dessous : c'est `describe_app()` "
-                        "qui les fournit, pas une saisie.",
+                        tr('`ui.diagram` lays a directed graph out in layers,'
+                           ' rendered on the server — no drawing library, no '
+                           'canvas. The same nodes and the same edges as the '
+                           'tables below: it is `describe_app()` that '
+                           'supplies them, not a hand entry.',
+                           '`ui.diagram` place un graphe orienté en couches, '
+                           'rendu côté serveur — aucune bibliothèque de '
+                           'dessin, aucun canvas. Les mêmes nœuds et les '
+                           "mêmes arêtes que les tableaux ci-dessous : c'est "
+                           '`describe_app()` qui les fournit, pas une saisie.'),
                         color="muted", size="sm",
                     )
                     ui.diagram(
@@ -161,21 +174,31 @@ def app_map_page() -> None:
                         size="sm",
                     )
                     ui.text(
-                        "Cliquer un nœud l'ÉCLAIRE avec ce qui le touche, "
-                        "sans une requête — la mise en avant est client. "
-                        "`value=` rend le nœud désigné à double sens, donc "
-                        "un handler serveur peut le lire ou le poser ; "
-                        "`on_item_click=` déclenche une action ; `focus=` et "
-                        "`depth=` réduisent l'affichage au voisinage d'un "
-                        "nœud, ce qui est le seul remède quand le graphe "
-                        "grossit. Une arête pointillée est un `reads` : on "
-                        "lit sans dépendre.",
+                        tr('Clicking a node LIGHTS IT UP with what touches '
+                           'it, with no request — the highlighting is client '
+                           'side. `value=` makes the designated node two-way,'
+                           ' so a server handler can read it or set it; '
+                           '`on_item_click=` triggers an action; `focus=` and'
+                           " `depth=` reduce the display to a node's "
+                           'neighbourhood, which is the only remedy when the '
+                           'graph grows. A dashed edge is a `reads`: one '
+                           'reads without depending.',
+                           "Cliquer un nœud l'ÉCLAIRE avec ce qui le touche, "
+                           'sans une requête — la mise en avant est client. '
+                           '`value=` rend le nœud désigné à double sens, donc'
+                           ' un handler serveur peut le lire ou le poser ; '
+                           '`on_item_click=` déclenche une action ; `focus=` '
+                           "et `depth=` réduisent l'affichage au voisinage "
+                           "d'un nœud, ce qui est le seul remède quand le "
+                           'graphe grossit. Une arête pointillée est un '
+                           '`reads` : on lit sans dépendre.'),
                         color="muted", size="sm",
                     )
 
             with ui.card(color="surface"):
                 with ui.vstack(gap="lg"):
-                    ui.heading("Les features, par kind", level=2)
+                    ui.heading(tr('The features, by kind',
+                                  'Les features, par kind'), level=2)
                     for kind in _KIND_ORDER:
                         nodes = by_kind.get(kind)
                         if not nodes:
@@ -193,7 +216,8 @@ def app_map_page() -> None:
             if graph.routes:
                 with ui.card():
                     with ui.vstack(gap="sm"):
-                        ui.heading("Routes montées", level=2)
+                        ui.heading(tr('Mounted routes',
+                                      'Routes montées'), level=2)
                         ui.table(
                             columns=[
                                 ui.column("path", label="Path"),
@@ -205,11 +229,15 @@ def app_map_page() -> None:
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading("La carte, lisible par une machine", level=2)
+                    ui.heading(tr('The map, machine-readable',
+                                  'La carte, lisible par une machine'), level=2)
                     ui.text(
-                        "`describe_app(app.features).to_dict()` — ce qu'une IA "
-                        "lit pour comprendre la forme de l'app, au lieu de "
-                        "grepper.",
+                        tr('`describe_app(app.features).to_dict()` — what an '
+                           "AI reads to understand the app's shape, instead "
+                           'of grepping.',
+                           '`describe_app(app.features).to_dict()` — ce '
+                           "qu'une IA lit pour comprendre la forme de l'app, "
+                           'au lieu de grepper.'),
                         color="muted", size="sm",
                     )
                     ui.code(

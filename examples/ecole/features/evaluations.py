@@ -1,14 +1,13 @@
-"""features/evaluations — l'onglet « Évaluations » d'une classe.
+"""features/evaluations — a class's "Évaluations" tab.
 
-EF-D1 et EF-D2 : la liste d'un trimestre, et la création — y compris
-*« donner le même devoir à plusieurs classes d'un même niveau d'un
-coup »*.
+EF-D1 and EF-D2: a term's list, and creation — including *"giving the
+same test to several classes of the same level at once"*.
 
-⚠️ Ce n'est pas une PAGE. C'est le panneau que ``features/classe.py``
-monte dans son second onglet, et son contrat le dit : ``kind="logic"``,
-aucun ``@page``. Le découper ainsi évite que ``classe.py`` grossisse d'un
-lot à l'autre jusqu'à devenir illisible — ce que le cahier appelle *une
-feature qu'on n'a pas nommée*.
+⚠️ It is not a PAGE. It is the panel ``features/classe.py`` mounts in its
+second tab, and its contract says so: ``kind="logic"``, no ``@page``.
+Cutting it this way stops ``classe.py`` growing from one batch to the
+next until it becomes unreadable — what the specification calls *a
+feature one has not named*.
 """
 
 from __future__ import annotations
@@ -34,7 +33,7 @@ from examples.ecole.features.vue_classe import VueClasse
 
 
 class EvaluationDraft(PageState):
-    """Le brouillon de création d'un devoir (EF-D2)."""
+    """The draft for creating a test (EF-D2)."""
 
     ouvert: bool = field(default=False)
     classe_id: int = field(default=0)
@@ -65,12 +64,12 @@ def fermer_creation(draft: EvaluationDraft) -> None:
 
 
 def enregistrer_creation(draft: EvaluationDraft) -> None:
-    """Crée le devoir — dans une classe, ou dans tout son niveau.
+    """Create the test — in one class, or across its whole level.
 
-    *« Chacune garde la sienne, reliées entre elles »* (EF-D2) : la date
-    peut différer d'une classe à l'autre et les moyennes se calculent par
-    classe, donc ce ne sont pas une évaluation partagée mais N évaluations
-    qui se savent sœurs.
+    *"Each keeps its own, linked to each other"* (EF-D2): the date may
+    differ from one class to another and the averages are computed per
+    class, so these are not one shared assessment but N assessments that
+    know they are siblings.
     """
     annee = annee_regardee()
     classe_id = int(draft.classe_id)
@@ -91,8 +90,8 @@ def enregistrer_creation(draft: EvaluationDraft) -> None:
             c["id"] for c in classes_de(annee["id"])
             if niveau_du_code(c["code"]) == niveau
         ]
-        # La classe d'origine EN PREMIER : c'est son identifiant qui
-        # devient le lien commun, et c'est celle qu'on ouvre après.
+        # The original class FIRST: it is its identifier that becomes
+        # the common link, and it is the one opened afterwards.
         soeurs = [classe_id, *(c for c in soeurs if c != classe_id)]
         identifiants = donner_a_plusieurs(soeurs, annee["id"], champs)
         draft.ouvert = False
@@ -107,7 +106,8 @@ def enregistrer_creation(draft: EvaluationDraft) -> None:
 
 
 def ligne_evaluation(ligne: dict) -> None:
-    """Une ligne d'EF-D1 : tout ce qu'on regarde le soir, sans ouvrir."""
+    """A row of EF-D1: everything looked at in the evening, without
+    opening."""
     with (
         ui.card(padding="sm", href=f"/evaluation/{ligne['id']}"),
         ui.hstack(gap="md", align="center", justify="between", wrap=True),
@@ -127,8 +127,8 @@ def ligne_evaluation(ligne: dict) -> None:
                 ui.badge(label="commune au niveau", variant="outline",
                          color="secondary", size="xl",
                          tooltip="Le même devoir dans plusieurs classes")
-            # L'avancement de la saisie : la seule colonne de cette liste
-            # qui soit un calcul, et celle qu'on cherche des yeux.
+            # The entry's progress: the only column of this list that
+            # is a computation, and the one the eye looks for.
             ui.text(f"{ligne['saisies']}/{ligne['effectif']} saisies",
                     color="success" if ligne["saisies"] >= ligne["effectif"]
                     else "muted")
@@ -141,16 +141,16 @@ def ligne_evaluation(ligne: dict) -> None:
                          variant="soft", size="xl")
 
 
-# ``VueClasse`` dans les deps, et ce n'est pas facultatif : sans lui,
-# changer de trimestre dans le sélecteur laisserait cette liste sur
-# le trimestre précédent — l'écran montrerait deux trimestres à la
-# fois sans le signaler. C'est le silence B2 de `livrer-une-app.md`.
+# ``VueClasse`` in the deps, and it is not optional: without it,
+# changing term in the selector would leave this list on the previous
+# term — the screen would show two terms at once without flagging it. It
+# is `livrer-une-app.md`'s silence B2.
 @refreshable(deps=[AnneeVue, VueClasse, EvaluationDraft])
 def panneau_evaluations() -> None:
-    """Le panneau de l'onglet. Il lit la classe et le trimestre dans
-    ``VueClasse``, qui vit dans sa PROPRE feature : la partager avec
-    ``classe.py`` par un import croisé aurait fait un cycle de contrat,
-    et ``check --deep`` l'a dit avant qu'il ne s'installe.
+    """The tab's panel. It reads the class and the term from
+    ``VueClasse``, which lives in its OWN feature: sharing it with
+    ``classe.py`` through a cross import would have made a contract
+    cycle, and ``check --deep`` said so before it settled in.
     """
     vue = VueClasse()
     classe_id = int(vue.classe_id)

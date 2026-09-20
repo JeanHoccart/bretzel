@@ -65,18 +65,16 @@ SELECT_THEME: dict[str, Any] = {
             "absolute z-40 mt-1 overflow-y-auto "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface "
             "shadow-lg "
-            # Le fondu entrant, à la cadence des CHAMPS — moitié de
-            # celle des menus. Le mécanisme des trois classes est
-            # expliqué en un seul exemplaire dans
-            # ``overlay/dropdown/theme.py``.
+            # The enter fade, at the FIELD cadence — half the menus'.
+            # The mechanism of the three classes is explained in a single
+            # copy in ``overlay/dropdown/theme.py``.
             #
-            # Pourquoi 75 et pas 150 : un menu est un DÉTOUR (on
-            # l'ouvre, on regarde, on choisit) et 150 ms s'y lisent
-            # comme du soin ; un champ est sur le CHEMIN, souvent
-            # rempli à la chaîne, et la même durée s'y lit comme de
-            # la latence. Rapporté à l'usage le 2026-09-04, sur les
-            # deux à la fois — donc c'est bien la CLASSE de
-            # composant qui décide, pas le composant.
+            # Why 75 and not 150: a menu is a DETOUR (you open it, you
+            # look, you choose) and 150 ms read there as care; a field is
+            # on the PATH, often filled in series, and the same duration
+            # reads there as latency. Reported from use on 2026-09-04, on
+            # both at once — so it is indeed the CLASS of component that
+            # decides, not the component.
             "transition-[opacity,display] transition-discrete duration-75 "
             "starting:opacity-0"
         ),
@@ -90,10 +88,10 @@ SELECT_THEME: dict[str, Any] = {
         # Highlighted state — applied via ``bz-attr:class`` when
         # the keyboard cursor or hover lands on the option.
         "option_active": "bg-(--bz-bg) text-(--bz-text)",
-        # La coche d'une option prise (mode multi). ``ml-auto`` la pousse
-        # au bord droit sans toucher l'alignement du libellé. La taille du
-        # glyphe vit dans ``sizes[<size>]["check_icon_size"]`` — une icône
-        # se taille en ``text-*``, jamais en ``w-``/``h-`` (traps.md).
+        # A picked option's tick (multi mode). ``ml-auto`` pushes it to
+        # the right edge without touching the label's alignment. The
+        # glyph's size lives in ``sizes[<size>]["check_icon_size"]`` — an
+        # icon is sized in ``text-*``, never in ``w-``/``h-`` (traps.md).
         "option_check": "shrink-0 ms-auto text-(--bz-text)",
         # Selected state — applied to the option whose value matches
         # the current binding.
@@ -120,8 +118,8 @@ SELECT_THEME: dict[str, Any] = {
             "border-b-(length:--bz-stroke) border-text/10 sticky top-0 "
             "bg-interface/95 backdrop-blur z-10"
         ),
-        # Taille de texte dans ``sizes[<size>]["header_counter"]`` — ne PAS
-        # la remettre ici (slot + table = collision Tailwind, traps.md).
+        # Text size in ``sizes[<size>]["header_counter"]`` — do NOT put
+        # it back here (slot + table = a Tailwind collision, traps.md).
         "header_counter": (
             "shrink-0 text-muted tabular-nums"
         ),
@@ -158,29 +156,29 @@ SELECT_THEME: dict[str, Any] = {
             "focus-visible:ring-2 focus-visible:ring-(--bz-focus)"
         ),
     },
-    # Échelle alignée sur ``COMBOBOX_THEME["sizes"]`` : Select-multi et
-    # Combobox-multi doivent se lire comme une seule famille dans un même
-    # formulaire. Ils partagent déjà ``_badge_pill_classes`` ; toute
-    # retouche ici va en paire.
+    # A scale aligned on ``COMBOBOX_THEME["sizes"]``: Select-multi and
+    # Combobox-multi must read as a single family in one form. They
+    # already share ``_badge_pill_classes``; any retouching here goes in
+    # pairs.
     #
-    # ⚠️ « Alignée », PAS « identique » — le commentaire disait « mêmes
-    # clés, mêmes tokens », ce qui est faux et empêchait toute gate de
-    # s'appuyer dessus (mesuré 2026-07-28). Trois écarts sont
-    # STRUCTURELS : combobox porte ``input`` et ``empty`` que select n'a
-    # pas (pas de filtre client → jamais d'état « aucun résultat »), et
-    # son ``trigger`` utilise ``min-h-[2.5rem]`` là où select fige
-    # ``h-10`` — même hauteur, exprimée autrement parce que le trigger du
-    # combobox grandit avec ses pills.
+    # ⚠️ "Aligned", NOT "identical" — the comment said "same keys, same
+    # tokens", which is false and stopped any gate leaning on it
+    # (measured 2026-07-28). Three gaps are STRUCTURAL: combobox carries
+    # ``input`` and ``empty`` which select does not have (no client
+    # filter → never a "no results" state), and its ``trigger`` uses
+    # ``min-h-[2.5rem]`` where select freezes ``h-10`` — the same height,
+    # expressed differently because the combobox's trigger grows with its
+    # pills.
     #
-    # Ce qui EST gardé mécaniquement, c'est l'apparence du panneau
-    # (ombre / décalage / rayon), cf.
+    # What IS kept mechanically is the panel's look (shadow / offset /
+    # radius), cf.
     # ``tests/consistency/test_anchored_panels_match.py``.
     #
-    # Les clés en ``*_size`` ne sont pas des classes mais les tokens de
-    # taille des sous-composants (Badge, Icon) — convention ``BADGE_THEME``.
-    # Une icône se taille en ``text-*``, jamais en ``w-``/``h-`` (traps.md).
+    # The ``*_size`` keys are not classes but the subcomponents' size
+    # tokens (Badge, Icon) — the ``BADGE_THEME`` convention. An icon is
+    # sized in ``text-*``, never in ``w-``/``h-`` (traps.md).
     #
-    # ``md`` = l'apparence historique, inchangée.
+    # ``md`` = the historical look, unchanged.
     "sizes": {
         "xs": {
             "trigger": "h-7 px-2 text-xs",

@@ -27,16 +27,16 @@ from __future__ import annotations
 import pytest
 
 from examples.atelier.core.ingest import target_of
-from examples.atelier.core.perimetre import (
+from examples.atelier.core.scope import (
     APP,
-    BROUILLON,
     DOC,
     FRAMEWORK,
+    SCRATCH,
     TESTS,
     dominant,
-    sans_aiguilles,
     scope_of,
     scopes_in,
+    without_needles,
 )
 
 #: La commande réelle qui a fait ranger « non je préfère crm » dans
@@ -67,7 +67,7 @@ def test_le_motif_cherche_ne_compte_pas_comme_cible():
 def test_la_coupe_n_emporte_pas_les_vraies_cibles(commande, attendu):
     """Le versant licite : sans lui, la règle pourrait tout couper.
 
-    C'est le plancher de cette gate. Une :func:`sans_aiguilles` qui
+    C'est le plancher de cette gate. Une :func:`without_needles` qui
     renverrait la chaîne vide passerait le test du dessus et ne dirait
     plus rien de personne.
     """
@@ -76,7 +76,7 @@ def test_la_coupe_n_emporte_pas_les_vraies_cibles(commande, attendu):
 
 def test_seul_le_motif_est_coupe():
     """La coupe est chirurgicale : le reste de la commande survit."""
-    coupe = sans_aiguilles(CHERCHE_ECOLE)
+    coupe = without_needles(CHERCHE_ECOLE)
     assert "--include=*.py" in coupe
     assert "examples/ecole" not in coupe
 
@@ -95,13 +95,13 @@ def test_le_grep_outil_vise_son_chemin_pas_son_motif():
 
 def test_le_brouillon_ne_gagne_que_seul():
     """Un jetable est un moyen ; il ne devient un sujet que s'il est tout."""
-    assert dominant([BROUILLON] * 9 + [FRAMEWORK]) == FRAMEWORK
-    assert dominant([BROUILLON, BROUILLON]) == BROUILLON
+    assert dominant([SCRATCH] * 9 + [FRAMEWORK]) == FRAMEWORK
+    assert dominant([SCRATCH, SCRATCH]) == SCRATCH
     # Et il ne fait pas gagner « autre » : sans lui il resterait un vote.
-    assert dominant([BROUILLON] * 3 + [TESTS, DOC, DOC]) == DOC
+    assert dominant([SCRATCH] * 3 + [TESTS, DOC, DOC]) == DOC
 
 
 def test_le_vote_reste_majoritaire_hors_brouillon():
     """Le reste de l'arbitrage est inchangé — c'est le plus fréquent."""
     assert dominant([FRAMEWORK, FRAMEWORK, TESTS]) == FRAMEWORK
-    assert dominant([]) == "autre"
+    assert dominant([]) == "other"

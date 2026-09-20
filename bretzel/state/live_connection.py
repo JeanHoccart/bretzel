@@ -1,20 +1,19 @@
-"""``LiveConnection`` — l'état de la liaison SSE, tenu par le runtime.
+"""``LiveConnection`` — the state of the SSE link, held by the runtime.
 
-Même forme que ``ColorScheme`` : une app ne l'instancie jamais pour le
-PILOTER — le runtime bascule ``connected`` sur les événements ``open`` /
-``error`` de l'EventSource. Elle ne fait que le LIRE, pour afficher un
-témoin en ligne / hors ligne ::
+Same shape as ``ColorScheme``: an app never instantiates it to DRIVE it —
+the runtime flips ``connected`` on the EventSource's ``open`` / ``error``
+events. The app only READS it, to show an online / offline indicator ::
 
     from bretzel import LiveConnection
 
     ui.badge("LIVE",    color="success", visible=LiveConnection().connected)
     ui.badge("offline", color="muted",   visible=~LiveConnection().connected)
 
-``connected`` part à ``False`` et passe à ``True`` dès que l'EventSource
-paresseux du runtime — ouvert seulement quand une zone ``broadcast=[State]``
-est sur la page — s'établit ; il retombe à ``False`` sur une coupure
-passagère et remonte à la reconnexion. Rien à câbler côté serveur, le
-runtime possède tout le cycle (``bretzel/runtime/_src/00_index.js``,
+``connected`` starts at ``False`` and turns ``True`` as soon as the
+runtime's lazy EventSource — opened only when a ``broadcast=[State]`` zone
+is on the page — is established; it drops back to ``False`` on a transient
+cut and comes back up on reconnection. Nothing to wire server-side, the
+runtime owns the whole cycle (``bretzel/runtime/_src/00_index.js``,
 ``ensureSse``).
 
 """

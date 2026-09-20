@@ -78,7 +78,7 @@ class Dropdown(Component):
         on_close: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             open=open,
             position=position,
@@ -89,10 +89,10 @@ class Dropdown(Component):
             **kwargs,
         )
         self._trigger: Component | None = Component.adopt_slot(trigger)
-        # API impérative write-only ``.open()`` / ``.close()`` /
-        # ``.toggle()`` — installée en attributs d'instance (shadow le
-        # descripteur ``open``) par le helper base, identique sur les 4
-        # overlays open-driven. Cf. `imperative-api.md`.
+        # Write-only imperative API ``.open()`` / ``.close()`` /
+        # ``.toggle()`` — installed as instance attributes (shadowing the
+        # ``open`` descriptor) by the base helper, identical on the 4
+        # open-driven overlays. Cf. `imperative-api.md`.
         install_open_close_toggle(self)
 
 
@@ -103,8 +103,8 @@ class Dropdown(Component):
             role="menu",
             haspopup="menu",
             default_align="start",
-            # Les items dispatchent ``bz-dropdown-pick`` en se faisant
-            # choisir : c'est ce qui referme le menu.
+            # The items dispatch ``bz-dropdown-pick`` when they are
+            # picked: that is what closes the menu.
             close_on_event="bz-dropdown-pick",
         )
 

@@ -76,23 +76,22 @@ def fuse_or_wrap(
     # Otherwise — wrap (multi-root, non-Element, or inner already
     # carries its own bz-id which we mustn't clobber).
     #
-    # ``display:contents`` : la boîte disparaît, l'ÉLÉMENT reste. Une
-    # zone est une frontière de TRANSPORT — HTMX vise son ``id``,
-    # idiomorph la retrouve — et rien de tout ça ne demande une boîte.
-    # Tant qu'elle en avait une, ses N enfants comptaient pour UN dans la
-    # disposition du parent : le ``gap`` s'arrêtait à elle, mais aussi
-    # ``align``, ``justify``, ``flex-1``, qui atteignent désormais les
-    # vrais éléments au lieu du paquet.
+    # ``display:contents``: the box disappears, the ELEMENT stays. A zone
+    # is a TRANSPORT boundary — HTMX targets its ``id``, idiomorph finds
+    # it again — and none of that asks for a box. As long as it had one,
+    # its N children counted as ONE in the parent's layout: the ``gap``
+    # stopped at it, but so did ``align``, ``justify``, ``flex-1``, which
+    # now reach the real elements instead of the parcel.
     #
-    # Pourquoi PAS un gap à nous : il faudrait en choisir la valeur, et
-    # sous un ``vstack(gap="lg")`` on rendrait « lg dehors, md dedans » —
-    # une incohérence pour une autre. ``contents`` n'invente aucune
-    # politique, il laisse passer celle du parent.
+    # Why NOT a gap of our own: we would have to pick its value, and
+    # under a ``vstack(gap="lg")`` we would render "lg outside, md
+    # inside" — one inconsistency for another. ``contents`` invents no
+    # policy, it lets the parent's through.
     #
-    # ⚠️ Sur CETTE branche seulement — la branche splice fusionne les
-    # attrs DANS l'élément de l'appelant.
+    # ⚠️ On THIS branch only — the splice branch merges the attrs INTO
+    # the caller's element.
     #
-    # Mesures, contre-exemples et le pourquoi du garde ci-dessus :
+    # Measurements, counter-examples and the why of the guard above:
     # ``tests/consistency/test_zone_box_is_transparent.py``.
     wrapper_attrs = dict(framework_attrs)
     wrapper_attrs.setdefault("class", "contents")

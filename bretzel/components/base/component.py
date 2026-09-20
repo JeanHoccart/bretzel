@@ -47,20 +47,20 @@ from bretzel.runtime.protocol import (
 )
 from bretzel.state.scopes.client import ClientBinding, ClientExpression, _to_js
 
-#: Les kwargs que TOUT composant accepte, retirés par
-#: :meth:`Component.__init__` **avant** ``split_kwargs`` — ils ne sont
-#: jamais dans une signature (règle « pas de kwargs universels dans la
-#: signature d'API »).
+#: The kwargs EVERY component accepts, removed by
+#: :meth:`Component.__init__` **before** ``split_kwargs`` — they are
+#: never in a signature (the "no universal kwargs in an API signature"
+#: rule).
 #:
-#: Cette liste a existé en **cinq** exemplaires jusqu'au 2026-08-16 : les
-#: ``kwargs.pop`` ci-dessous, la prose de ``split_kwargs``, deux gates de
-#: ``tests/consistency/`` et ``bretzel.introspect``. Deux avaient déjà
-#: dérivé — l'une avait perdu ``key``, l'autre avait ajouté ``slots`` un
-#: an trop tard, après avoir fait rougir du code correct. C'est ici la
-#: source, et ``test_reserved_kwargs_match_the_socle`` vérifie par AST
-#: qu'elle colle aux ``pop`` réels : les ``pop`` restent hétérogènes (chacun
-#: fait un travail différent de sa valeur), donc on ne peut pas boucler
-#: dessus — mais on peut refuser qu'ils divergent d'une déclaration.
+#: This list existed in **five** copies until 2026-08-16: the
+#: ``kwargs.pop`` below, ``split_kwargs``'s prose, two gates in
+#: ``tests/consistency/`` and ``bretzel.introspect``. Two had already
+#: drifted — one had lost ``key``, the other had added ``slots`` a year
+#: too late, after making correct code turn red. This is the source, and
+#: ``test_reserved_kwargs_match_the_socle`` checks by AST that it matches
+#: the real ``pop``: the ``pop`` stay heterogeneous (each does a
+#: different job with its value), so one cannot loop over them — but one
+#: can refuse that they diverge from a declaration.
 RESERVED_KWARGS: Final[tuple[str, ...]] = (
     "classes",
     "style",
@@ -125,76 +125,76 @@ class _ComponentMeta(type):
             if ann is not None:
                 descriptor.declared_type = ann
 
-        # ── TWO_WAY_PROPS dérivé + carte des clés de scope ─────────────
-        # « Ce que le client fait de cette prop » vit SUR la prop
-        # (``reactive_prop(writes=, scope_keys=)``), pas dans un ClassVar
-        # à tenir en phase. La métaclasse en dérive :
-        #   - ``TWO_WAY_PROPS`` = les props ``writes=True`` (quand au moins
-        #     une existe ; sinon on respecte un éventuel ClassVar explicite
-        #     — coexistence le temps de la migration) ;
-        #   - ``__scope_keys__`` = prop → clés de scope (défaut ``(prop,)``,
-        #     override quand la clé diffère du nom : Tabs value→active).
+        # ── Derived TWO_WAY_PROPS + the scope-key map ─────────────────
+        # "What the client does with this prop" lives ON the prop
+        # (``reactive_prop(writes=, scope_keys=)``), not in a ClassVar to
+        # keep in phase. The metaclass derives from it:
+        #   - ``TWO_WAY_PROPS`` = the ``writes=True`` props (when at least
+        #     one exists; otherwise an explicit ClassVar is respected —
+        #     coexistence for the duration of the migration);
+        #   - ``__scope_keys__`` = prop → scope keys (default ``(prop,)``,
+        #     overridden when the key differs from the name: Tabs value→active).
         writes_props = tuple(n for n, d in collected.items() if getattr(d, "writes", False))
-        # Assignation INCONDITIONNELLE. Il y avait ici un ``if writes_props:``
-        # — l'échafaudage de coexistence pendant la migration, qui laissait
-        # un ClassVar écrit à la main survivre à côté de la dérivation. Les
-        # deux façons de déclarer le même fait, c'est le principe 4 du
-        # charter qui saute. La migration étant finie, la branche disparaît
-        # et la déclaration manuelle lève (ci-dessous).
+        # UNCONDITIONAL assignment. There used to be an
+        # ``if writes_props:`` here — the coexistence scaffolding during
+        # the migration, which let a hand-written ClassVar survive beside
+        # the derivation. Two ways of declaring the same fact is the
+        # charter's principle 4 going away. The migration being over, the
+        # branch disappears and a manual declaration raises (below).
         cls.TWO_WAY_PROPS = writes_props  # type: ignore[attr-defined]
 
-        # Une déclaration à la main de l'un des deux ClassVar dérivés ne
-        # peut plus coexister avec la dérivation : elle est refusée à la
-        # CRÉATION DE CLASSE, donc à l'import, avec le remplaçant nommé.
+        # A hand declaration of either derived ClassVar can no longer
+        # coexist with the derivation: it is refused at CLASS CREATION,
+        # so at import, with the replacement named.
         for _derived, _param in (
             ("TWO_WAY_PROPS", "writes=True"),
             ("AUTONAME_FROM", "names_field=True"),
         ):
             if name != "Component" and _derived in namespace:
                 raise ComponentDefinitionError(
-                    f"{name} déclare ``{_derived}`` à la main. Ce ClassVar "
-                    f"est DÉRIVÉ des props : pose ``{_param}`` sur la prop "
-                    f"concernée (``reactive_prop(...)``) et retire la "
-                    f"ligne. Deux endroits pour un seul fait, c'est la "
-                    f"dérive que la dérivation existe pour empêcher."
+                    f"{name} declares ``{_derived}`` by hand. That "
+                    f"ClassVar is DERIVED from the props: set ``{_param}`` "
+                    f"on the prop concerned (``reactive_prop(...)``) and "
+                    f"remove the line. Two places for one fact is the "
+                    f"drift the derivation exists to prevent."
                 )
         cls.__scope_keys__ = {  # type: ignore[attr-defined]
             n: (d.scope_keys or (n,)) for n, d in collected.items() if getattr(d, "writes", False)
         }
 
-        # ── AUTONAME_FROM dérivé ───────────────────────────────────────
-        # Troisième fait à quitter le ClassVar pour la prop, même patron
-        # que ``writes=`` / ``scope_keys=``. Le ClassVar RESTE la surface
-        # de lecture (``type(self).AUTONAME_FROM``) — seule la déclaration
-        # bouge, donc aucun lecteur ni aucun test n'a à changer.
+        # ── Derived AUTONAME_FROM ──────────────────────────────────────
+        # The third fact to leave the ClassVar for the prop, same pattern
+        # as ``writes=`` / ``scope_keys=``. The ClassVar REMAINS the
+        # reading surface (``type(self).AUTONAME_FROM``) — only the
+        # declaration moves, so no reader and no test has to change.
         naming = tuple(n for n, d in collected.items() if getattr(d, "names_field", False))
         if len(naming) > 1:
             raise ComponentDefinitionError(
                 f"{name} : {len(naming)} props portent ``names_field=True`` "
-                f"({naming}). Un composant n'a qu'UN ``name=`` HTML — une "
-                f"seule prop peut le nommer."
+                f"({naming}). A component has only ONE HTML ``name=`` — "
+                f"only one prop can name it."
             )
         if naming:
             prop = naming[0]
-            # ``names_field`` implique ``writes`` : un champ dont le client
-            # n'écrit pas la valeur n'a pas de ``name=`` à dériver. C'est
-            # l'inclusion AUTONAME ⊆ TWO_WAY que la gate
-            # ``test_two_way_props`` imposait déjà après coup ; ici elle
-            # devient impossible à violer.
+            # ``names_field`` implies ``writes``: a field whose value
+            # the client does not write has no ``name=`` to derive. It is
+            # the AUTONAME ⊆ TWO_WAY inclusion the ``test_two_way_props``
+            # gate imposed after the fact; here it becomes impossible to
+            # violate.
             if not getattr(collected[prop], "writes", False):
                 raise ComponentDefinitionError(
-                    f"{name}.{prop} porte ``names_field=True`` sans "
-                    f"``writes=True``. Un champ de formulaire dont le client "
-                    f"n'écrit pas la valeur n'a pas de ``name=`` à dériver — "
-                    f"ajoute ``writes=True``."
+                    f"{name}.{prop} carries ``names_field=True`` without "
+                    f"``writes=True``. A form field whose value the client "
+                    f"does not write has no ``name=`` to derive — add "
+                    f"``writes=True``."
                 )
             declared = namespace.get("AUTONAME_FROM")
             if declared is not None and declared != prop:
                 raise ComponentDefinitionError(
-                    f"{name} déclare ``AUTONAME_FROM = {declared!r}`` alors "
-                    f"que ``{prop}`` porte ``names_field=True``. Les deux "
-                    f"racontent deux histoires — retire le ClassVar, la "
-                    f"déclaration vit sur la prop."
+                    f"{name} declares ``AUTONAME_FROM = {declared!r}`` "
+                    f"while ``{prop}`` carries ``names_field=True``. The "
+                    f"two tell two stories — remove the ClassVar, the "
+                    f"declaration lives on the prop."
                 )
             cls.AUTONAME_FROM = prop  # type: ignore[attr-defined]
 
@@ -233,46 +233,46 @@ class _ComponentMeta(type):
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# LA précédence des attributs — un seul contrat, écrit une fois
+# THE attribute precedence — one contract, written once
 # ───────────────────────────────────────────────────────────────────────────
 
-# Attributs dont plusieurs sources se COMPOSENT au lieu de s'écraser. Ils
-# ont une sémantique de liste : deux classes, c'est les deux classes ; deux
-# déclarations de style, c'est les deux.
+# Attributes whose several sources COMPOSE instead of overwriting. They
+# have list semantics: two classes is both classes; two style
+# declarations is both.
 _COMPOSABLE_ATTRS: Final[dict[str, str]] = {"class": " ", "style": "; "}
 
 
 def merge_attr(attrs: dict[str, Any], name: str, value: Any) -> None:
-    """Poser ``value`` sur ``attrs[name]`` **selon le contrat de précédence**.
+    """Set ``value`` on ``attrs[name]`` **per the precedence contract**.
 
-    Le contrat, en une phrase : *rien de ce que l'utilisateur écrit ne
-    disparaît en silence*.
+    The contract, in one sentence: *nothing the user writes disappears
+    silently*.
 
-    - ``class`` / ``style`` **se composent** — chaque source s'ajoute à la
-      précédente, dans l'ordre d'application (thème, puis attrs bruts, puis
-      la couche universelle, qui passe donc en dernier et gagne en cas de
-      conflit Tailwind).
-    - tout le reste **s'écrase** — un élément n'a qu'un ``id``, qu'un
-      ``role``, qu'un ``name``.
+    - ``class`` / ``style`` **compose** — each source is added to the
+      previous one, in application order (theme, then raw attrs, then the
+      universal layer, which therefore comes last and wins a Tailwind
+      conflict).
+    - everything else **overwrites** — an element has only one ``id``,
+      one ``role``, one ``name``.
 
-    Pourquoi ça existe (audit du socle, item 6). Il y avait **quatre**
-    résolutions différentes pour la même collision, produit de l'ordre des
-    ``attrs.update`` et jamais énoncé comme contrat. Mesuré avant le fix,
-    sur un ``ui.card(id=…, classes=…, class_=…, attrs={…}, style=…)`` :
+    Why it exists (base layer audit, item 6). There were **four**
+    different resolutions for the same collision, a product of the order
+    of the ``attrs.update`` and never stated as a contract. Measured
+    before the fix, on a
+    ``ui.card(id=…, classes=…, class_=…, attrs={…}, style=…)``:
 
     ===========================  ====================================
-    collision                    résultat
+    collision                    result
     ===========================  ====================================
-    ``id=`` + ``attrs["id"]``    ``attrs`` gagnait, le kwarg nommé
-                                 disparaissait
-    ``classes=`` + ``attrs``     l'un des deux disparaissait
-    ``classes=`` + ``class_=``   ``class_`` disparaissait
-    ``style=`` + ``attrs``       les deux survivaient (seul cas correct)
+    ``id=`` + ``attrs["id"]``    ``attrs`` won, the named kwarg
+                                 disappeared
+    ``classes=`` + ``attrs``     one of the two disappeared
+    ``classes=`` + ``class_=``   ``class_`` disappeared
+    ``style=`` + ``attrs``       both survived (the only correct case)
     ===========================  ====================================
 
-    Trois entrées utilisateur perdues, sans un mot. ``kwarg-routing.md``
-    documentait le *stockage* de chaque bucket, jamais l'*ordre
-    d'application*.
+    Three user inputs lost, without a word. ``kwarg-routing.md``
+    documented each bucket's *storage*, never the *application order*.
     """
     if value is None:
         return
@@ -281,9 +281,9 @@ def merge_attr(attrs: dict[str, Any], name: str, value: Any) -> None:
     if sep is None or not existing or not isinstance(existing, str) or not isinstance(value, str):
         attrs[name] = value
         return
-    # Composable ET les deux côtés sont des chaînes : on concatène, sans
-    # dupliquer une valeur déjà présente (un composant qui recompose son
-    # slot ne doit pas faire enfler ``class=``).
+    # Composable AND both sides are strings: we concatenate, without
+    # duplicating a value already present (a component recomposing its
+    # slot must not make ``class=`` swell).
     if value in existing.split(sep.strip() or None):
         return
     attrs[name] = f"{existing}{sep}{value}"
@@ -320,43 +320,42 @@ class Component(metaclass=_ComponentMeta):
     THEME_KEY: ClassVar[str] = ""
     DEFAULT_TAG: ClassVar[str] = "div"
     IS_CONTAINER: ClassVar[bool] = True
-    #: **Qui possède la boucle**, pour un composant qui rend une
-    #: COLLECTION — c'est ce qui décide de son API, et ce n'est pas un
-    #: goût. Quatre valeurs, quatre conséquences forcées :
+    #: **Who owns the loop**, for a component rendering a COLLECTION —
+    #: it is what decides its API, and it is not a matter of taste. Four
+    #: values, four forced consequences:
     #:
-    #: - ``"author"`` — l'auteur écrit son ``for`` lui-même. Le composant
-    #:   DOIT accepter des enfants (``IS_CONTAINER = True``), sinon
-    #:   l'auteur n'a nulle part où mettre son balisage. Un paramètre de
-    #:   données (``options=``) reste bienvenu comme raccourci du cas
-    #:   simple — c'est la forme de ``toggle_group``, et les deux
-    #:   niveaux de la mémoire « two-tier API ».
-    #: - ``"component"`` — le composant possède la boucle et l'auteur ne
-    #:   PEUT pas l'écrire : ``datatable`` cherche, filtre, trie et
-    #:   pagine. Il DOIT donc exposer un rappel de contenu (``render=``),
-    #:   seul point d'entrée possible pour du balisage.
-    #: - ``"client"`` — c'est le NAVIGATEUR qui re-rend la liste au
-    #:   runtime (``combobox`` : « built once server-side so the JS filter
-    #:   only does a… »). Ni les enfants ni un rappel Python ne
-    #:   l'atteignent ; il faut un mécanisme propre, et la docstring doit
-    #:   dire lequel.
-    #: - ``"data"`` — les éléments n'ont AUCUN balisage à porter : ce
-    #:   sont des attributs. ``ui.video(tracks=[…])`` rend un ``<track>``
-    #:   par piste, cinq attributs et rien d'autre. Ni des enfants ni un
-    #:   rappel de contenu n'auraient de destinataire, donc le composant
-    #:   reste une feuille et n'expose pas de rappel — les deux
-    #:   conséquences sont vérifiées par la gate, pour que la case ne
-    #:   devienne pas celle où l'on range ce qu'on n'a pas voulu
-    #:   trancher. Ajoutée le 2026-08-31 : ``tracks=`` est le premier cas
-    #:   du catalogue qu'aucune des trois autres ne décrivait sans
-    #:   mentir.
+    #: - ``"author"`` — the author writes their own ``for``. The
+    #:   component MUST accept children (``IS_CONTAINER = True``),
+    #:   otherwise the author has nowhere to put their markup. A data
+    #:   parameter (``options=``) is still welcome as a shortcut for the
+    #:   simple case — that is ``toggle_group``'s shape, and the two
+    #:   tiers of the "two-tier API" memory.
+    #: - ``"component"`` — the component owns the loop and the author
+    #:   CANNOT write it: ``datatable`` searches, filters, sorts and
+    #:   paginates. It MUST therefore expose a content callback
+    #:   (``render=``), the only possible entry point for markup.
+    #: - ``"client"`` — it is the BROWSER that re-renders the list at
+    #:   runtime (``combobox``: "built once server-side so the JS filter
+    #:   only does a…"). Neither children nor a Python callback reach it;
+    #:   it needs a mechanism of its own, and the docstring must say
+    #:   which.
+    #: - ``"data"`` — the items have NO markup to carry: they are
+    #:   attributes. ``ui.video(tracks=[…])`` renders one ``<track>`` per
+    #:   track, five attributes and nothing else. Neither children nor a
+    #:   content callback would have a recipient, so the component stays
+    #:   a leaf and exposes no callback — both consequences are checked
+    #:   by the gate, so that the box does not become the one where one
+    #:   files what one did not want to decide. Added on 2026-08-31:
+    #:   ``tracks=`` is the catalogue's first case none of the other
+    #:   three described without lying.
     #:
-    #: ``None`` = ce composant ne rend pas de collection. La gate
-    #: ``test_collection_owner_decides_the_api`` DÉTECTE les collections
-    #: (le rendu grandit-il quand la donnée grandit ?) et exige la
-    #: déclaration — écrite ici plutôt que devinée, parce qu'une IA qui
-    #: lit le catalogue copie le premier motif qu'elle croise : c'est
-    #: exactement comme ça que ``breadcrumb`` a reçu un ``render=`` alors
-    #: que ses 10 pairs prennent des enfants.
+    #: ``None`` = this component renders no collection. The
+    #: ``test_collection_owner_decides_the_api`` gate DETECTS collections
+    #: (does the render grow when the data grows?) and requires the
+    #: declaration — written here rather than guessed, because an AI
+    #: reading the catalogue copies the first pattern it meets: that is
+    #: exactly how ``breadcrumb`` got a ``render=`` when its 10 peers
+    #: take children.
     COLLECTION_OWNER: ClassVar[str | None] = None
     NAMED_SLOTS: ClassVar[tuple[str, ...]] = ()
     # Subset of ``NAMED_SLOTS`` whose values should accept a string
@@ -367,61 +366,60 @@ class Component(metaclass=_ComponentMeta):
     # the only special case here.
     ICON_SLOTS: ClassVar[tuple[str, ...]] = ()
     EVENTS: ClassVar[tuple[str, ...]] = ()
-    # Props réactives déclarées sur la classe mais que l'``__init__``
-    # REFUSE à l'appel. Le cas type est un raccourci dont l'axe est
-    # l'identité même : ``HStack`` déclare ``direction`` (héritée de
-    # ``Flex``, épinglée à ``"row"``) et lève si on la passe.
+    # Reactive props declared on the class but which the ``__init__``
+    # REFUSES at the call site. The typical case is a shortcut whose axis
+    # is its very identity: ``HStack`` declares ``direction`` (inherited
+    # from ``Flex``, pinned to ``"row"``) and raises if it is passed.
     #
-    # Sans cette déclaration, la seule façon de connaître l'ensemble
-    # réellement accepté serait de lire le CORPS de l'``__init__`` — ce
-    # qu'aucune introspection ne fait. ``bretzel.introspect`` les
-    # soustrait donc de la fiche : les lister annoncerait un paramètre
-    # qui lève, ce qui est la même faute que d'en cacher un qui marche.
-    # Gardé dans les deux sens par
-    # ``tests/consistency/test_introspect_sees_inherited_props.py`` :
-    # une prop scellée doit VRAIMENT être refusée, sinon la déclaration
-    # deviendrait un moyen commode de faire taire la gate.
+    # Without this declaration, the only way to know the actually
+    # accepted set would be to read the ``__init__``'s BODY — which no
+    # introspection does. ``bretzel.introspect`` therefore subtracts them
+    # from the card: listing them would announce a parameter that raises,
+    # which is the same fault as hiding one that works. Guarded in both
+    # directions by
+    # ``tests/consistency/test_introspect_sees_inherited_props.py``: a
+    # sealed prop must REALLY be refused, otherwise the declaration would
+    # become a convenient way of silencing the gate.
     SEALED_PROPS: ClassVar[tuple[str, ...]] = ()
 
-    # Les clés de ``THEME`` dont les valeurs peuvent ressortir PRÉFIXÉES
-    # par un breakpoint, parce qu'un prop gradué les traverse via
+    # The ``THEME`` keys whose values can come back PREFIXED by a
+    # breakpoint, because a graded prop goes through them via
     # :func:`responsive_classes` (``gap={"base": "sm", "md": "lg"}`` →
     # ``gap-2 md:gap-6``).
     #
-    # C'est une DÉCLARATION, pas de l'introspection : le préfixage se
-    # décide dans ``render()``, que la safelist ne peut pas exécuter. Sans
-    # elle, ``md:gap-6`` n'existe littéralement dans aucun fichier — donc
-    # n'atteint jamais le ``style.css`` compilé, donc le gap disparaît en
-    # PROD alors qu'il est juste en dev (le compilateur navigateur scanne
-    # le DOM vivant). Mesuré le 2026-08-08 : ``ui.flex(direction=…)``
-    # gradué ne changeait pas d'axe en mode compilé, et les puces du
-    # carousel restaient visibles là où ``per_view`` monte.
+    # It is a DECLARATION, not introspection: the prefixing is decided in
+    # ``render()``, which the safelist cannot execute. Without it,
+    # ``md:gap-6`` exists literally in no file — so it never reaches the
+    # compiled ``style.css``, so the gap disappears in PRODUCTION while
+    # being correct in dev (the browser compiler scans the live DOM).
+    # Measured on 2026-08-08: a graded ``ui.flex(direction=…)`` did not
+    # change axis in compiled mode, and the carousel's dots stayed
+    # visible where ``per_view`` goes up.
     #
-    # Même mécanique que les gabarits couleur, même bridge : c'est
-    # ``components`` qui déclare, ``theme`` qui clôture (cf.
-    # ``components/color_shapes.py`` et le contrat import-linter).
-    # Les valeurs qui ne viennent PAS d'une table de thème mais d'une
-    # f-string sur un scalaire (``grid-cols-N``, ``basis-1/N``) restent
-    # dans ``_LAYOUT_CLASSES`` — leur domaine n'est pas énumérable ici.
+    # Same mechanics as the colour templates, same bridge: it is
+    # ``components`` that declares and ``theme`` that closes (cf.
+    # ``components/color_shapes.py`` and the import-linter contract).
+    # The values that do NOT come from a theme table but from an f-string
+    # over a scalar (``grid-cols-N``, ``basis-1/N``) stay in
+    # ``_LAYOUT_CLASSES`` — their domain is not enumerable here.
     #
-    # Gaté par ``tests/consistency/test_responsive_classes_are_safelisted.py``.
+    # Gated by ``tests/consistency/test_responsive_classes_are_safelisted.py``.
     RESPONSIVE_THEME_KEYS: ClassVar[tuple[str, ...]] = ()
 
-    #: Les props qui acceptent un dict de paliers ``{"base": …, "md": …}``.
+    #: The props that accept a step dict ``{"base": …, "md": …}``.
     #:
-    #: ⚠️ Ne pas confondre avec ``RESPONSIVE_THEME_KEYS`` juste au-dessus,
-    #: qui nomme des tables de THÈME et sert à la safelist. Celui-ci
-    #: nomme des PROPS et sert au refus : un dict de paliers sur un prop
-    #: absent d'ici est une erreur d'usage, et le socle la dit —
+    #: ⚠️ Not to be confused with ``RESPONSIVE_THEME_KEYS`` just above,
+    #: which names THEME tables and serves the safelist. This one names
+    #: PROPS and serves the refusal: a step dict on a prop absent from
+    #: here is a usage error, and the base layer says so —
     #: :func:`~bretzel.components.base.responsive.reject_stray_breakpoints`,
-    #: appelé par ce constructeur.
+    #: called by this constructor.
     #:
-    #: Vide par défaut, et c'est le bon défaut : cinq props sur ~600 sont
-    #: graduées (``flex.direction``/``gap``, ``grid.cols``/``gap``,
-    #: ``resizable.gap``, ``carousel.per_view``). Tout le reste est un
-    #: choix STRUCTUREL qui appartient à ``if Screen().is_mobile:`` dans
-    #: la mise en page, pas à un prop — cf. l'en-tête de
-    #: ``base/responsive.py``.
+    #: Empty by default, and that is the right default: five props out of
+    #: ~600 are graded (``flex.direction``/``gap``, ``grid.cols``/``gap``,
+    #: ``resizable.gap``, ``carousel.per_view``). Everything else is a
+    #: STRUCTURAL choice belonging to ``if Screen().is_mobile:`` in the
+    #: layout, not to a prop — cf. the header of ``base/responsive.py``.
     RESPONSIVE_PROPS: ClassVar[frozenset[str]] = frozenset()
 
     # A root element hosts a SINGLE ``hx-post`` (one server handler).
@@ -446,16 +444,16 @@ class Component(metaclass=_ComponentMeta):
     AUTONAME_FROM: ClassVar[str | None] = None
 
     # Whitelist of reactive_props + slot kwargs that accept a
-    # ``ClientBinding`` / ``ClientExpression``. The contract is :
+    # ``ClientBinding`` / ``ClientExpression``. The contract is:
     #
-    # - **Default = ``()``** → aucune binding acceptée. Un composant qui
-    #   oublie de déclarer refuse donc TOUTE ``ClientBinding``, bruyamment,
-    #   au premier usage.
-    # - **Declared as a tuple** → seules les props/slots listés acceptent
-    #   ``ClientBinding`` ; tout le reste lève ``ComponentUsageError`` à
-    #   l'``__init__``.
+    # - **Default = ``()``** → no binding accepted. A component that
+    #   forgets to declare therefore refuses EVERY ``ClientBinding``,
+    #   loudly, on the first use.
+    # - **Declared as a tuple** → only the listed props/slots accept
+    #   ``ClientBinding``; everything else raises ``ComponentUsageError``
+    #   at ``__init__``.
     # - Subclasses declare the curated set of props that genuinely
-    #   need to update at runtime (typically : the data field, the
+    #   need to update at runtime (typically: the data field, the
     #   disabled flag, the loading flag, the open flag for overlays).
     # - Visual configuration (variant / size / color / type, etc.)
     #   stays out — set once at design time. Conditional server-side
@@ -466,25 +464,25 @@ class Component(metaclass=_ComponentMeta):
     #   before the check and not subject to it.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
 
-    # Props que le CLIENT ÉCRIT — l'utilisateur tape, coche, ouvre, pique.
-    # Sous-ensemble de ``BINDABLE_PROPS`` : leur chemin client sert de
-    # CIBLE D'ASSIGNATION dans le JS émis (``bz-model`` compile
-    # ``<path> = $value`` ; les overlays émettent ``<path> = false`` ;
-    # les scopes riches ont un ``_write(v) { <path> = v }``).
+    # The props the CLIENT WRITES — the user types, ticks, opens, picks.
+    # A subset of ``BINDABLE_PROPS``: their client path is the
+    # ASSIGNMENT TARGET in the JS emitted (``bz-model`` compiles
+    # ``<path> = $value``; the overlays emit ``<path> = false``; the rich
+    # scopes have a ``_write(v) { <path> = v }``).
     #
-    # Conséquence directe : une ``ClientExpression`` y est structurellement
-    # invalide — ``(a || b) = $value`` est une SyntaxError, levée par le
-    # navigateur **au bind**, pas au premier clic. Le constructeur la
-    # rejette donc tôt, avec un message qui explique quoi faire.
+    # Direct consequence: a ``ClientExpression`` is structurally invalid
+    # there — ``(a || b) = $value`` is a SyntaxError, raised by the
+    # browser **at bind time**, not on the first click. The constructor
+    # therefore rejects it early, with a message explaining what to do.
     #
-    # ⚠️ Ce n'est PAS ``AUTONAME_FROM``. ``AUTONAME_FROM`` répond « d'où je
-    # dérive mon name= HTML » ; ceci répond « qu'est-ce que le client
-    # écrit ». Emprunter l'un pour l'autre est précisément ce qui a couplé
-    # le server-sync au form-naming (cf. todo.md § A3).
+    # ⚠️ This is NOT ``AUTONAME_FROM``. ``AUTONAME_FROM`` answers "where
+    # do I derive my HTML name= from"; this answers "what does the client
+    # write". Borrowing one for the other is precisely what coupled
+    # server-sync to form naming (cf. todo.md § A3).
     #
-    # ``AUTONAME_FROM`` est un sous-ensemble conceptuel : certains composants
-    # écrivent une valeur sans participer à une soumission de formulaire.
-    # Le serveur ne peut ré-adopter que ce que le client écrit.
+    # ``AUTONAME_FROM`` is a conceptual subset: some components write a
+    # value without taking part in a form submission. The server can only
+    # re-adopt what the client writes.
     TWO_WAY_PROPS: ClassVar[tuple[str, ...]] = ()
 
     # Names of the write-only imperative methods this component exposes
@@ -505,10 +503,10 @@ class Component(metaclass=_ComponentMeta):
     # the root onto the element carrying ``bz-ref="<value>"``.
     #
     # Use case (the "wrapper-vs-carrier" trap, cf. ``traps.md``) —
-    # FileUpload, **le seul déclarant du dépôt** :
-    # ``{"disabled": "nativeInput"}`` → la directive atterrit sur l'
-    # ``<input type="file">`` interne, où ``disabled`` désactive vraiment
-    # le picker, et pas sur le ``<div>`` wrapper où elle serait un no-op.
+    # FileUpload, **the repository's only declarer**:
+    # ``{"disabled": "nativeInput"}`` → the directive lands on the inner
+    # ``<input type="file">``, where ``disabled`` really disables the
+    # picker, and not on the wrapper ``<div>`` where it would be a no-op.
     #
     # Declaring this map AND adding ``bz-ref="<value>"`` to the carrier
     # element in ``render()`` is enough — no manual ``forward_binding``
@@ -519,42 +517,43 @@ class Component(metaclass=_ComponentMeta):
     # directive in place as fallback and the carrier-landing audit
     # surfaces the mismatch.
     #
-    # ── Choisir le mécanisme de déplacement d'une binding ───────────────
+    # ── Choosing the mechanism for moving a binding ────────────────────
     #
-    # Trois mécanismes amènent un binding sur un autre élément que la root.
-    # La règle de choix est centralisée ici.
+    # Three mechanisms bring a binding onto an element other than the
+    # root. The choice rule is centralised here.
     #
-    #   1. ``BINDABLE_CARRIERS``  — déclaratif, 1 prop → 1 porteur.
-    #      Quand : le porteur est UNIQUE, son ``bz-ref`` est libre, et
-    #      l'attribut garde son nom. Le socle fait le reste post-render.
+    #   1. ``BINDABLE_CARRIERS``  — declarative, 1 prop → 1 carrier.
+    #      When: the carrier is UNIQUE, its ``bz-ref`` is free, and the
+    #      attribute keeps its name. The base layer does the rest
+    #      post-render.
     #
-    #   2. ``forward_binding``    — impératif, appelé dans ``render()``.
-    #      Quand : 1 prop → **N** porteurs, ou l'attribut doit être RENOMMÉ
-    #      (``disabled`` sur un ``<button>`` mais ``aria-disabled`` sur un
-    #      ``<div>``, qui ignore ``disabled``), ou le forward est
-    #      CONDITIONNEL.
+    #   2. ``forward_binding``    — imperative, called in ``render()``.
+    #      When: 1 prop → **N** carriers, or the attribute must be
+    #      RENAMED (``disabled`` on a ``<button>`` but ``aria-disabled``
+    #      on a ``<div>``, which ignores ``disabled``), or the forward is
+    #      CONDITIONAL.
     #
-    #   3. ``release_root_attr``  — retirer sans reposer ailleurs.
+    #   3. ``release_root_attr``  — remove without setting elsewhere.
     #
-    # Ce ne sont PAS trois routes concurrentes pour un même travail, et
-    # c'est ce que la mesure a montré : ``date_picker`` appelle
-    # ``forward_binding("disabled", …)`` **trois fois** — champ visible,
-    # bouton clear, trigger. Une carte ``1 prop → 1 ref`` ne peut
-    # structurellement pas exprimer ça.
+    # These are NOT three competing routes for one job, and that is what
+    # the measurement showed: ``date_picker`` calls
+    # ``forward_binding("disabled", …)`` **three times** — visible field,
+    # clear button, trigger. A ``1 prop → 1 ref`` map structurally cannot
+    # express that.
     #
-    # L'audit du socle proposait de supprimer (1) : « 107 lignes de socle
-    # pour 1 déclarant ». Le ratio est réel, la conclusion non — l'adoption
-    # basse n'est pas un échec d'adoption, c'est la taille de la population
-    # éligible. Un seul composant du dépôt a aujourd'hui un porteur unique
-    # à nom conservé. Supprimer (1) perdrait aussi son filet post-render :
-    # le socle constate qu'un porteur DÉCLARÉ est introuvable, ce qu'un
-    # appel impératif ne peut pas signaler.
+    # The base layer's audit suggested removing (1): "107 lines of base
+    # layer for 1 declarer". The ratio is real, the conclusion is not —
+    # low adoption is not an adoption failure, it is the size of the
+    # eligible population. Only one component in the repository today has
+    # a unique carrier with a preserved name. Removing (1) would also
+    # lose its post-render net: the base layer reports that a DECLARED
+    # carrier cannot be found, which an imperative call cannot signal.
     BINDABLE_CARRIERS: ClassVar[Mapping[str, str] | None] = None
 
     # Populated by the metaclass.
     __reactive_props__: ClassVar[dict[str, ReactivePropDescriptor]] = {}
-    # prop → clés de scope ``bz-data`` (dérivé de ``reactive_prop(
-    # scope_keys=)`` par la métaclasse ; défaut ``(prop,)``).
+    # prop → ``bz-data`` scope keys (derived from ``reactive_prop(
+    # scope_keys=)`` by the metaclass; default ``(prop,)``).
     __scope_keys__: ClassVar[dict[str, tuple[str, ...]]] = {}
 
     # ── Construction ───────────────────────────────────────────────────
@@ -603,9 +602,10 @@ class Component(metaclass=_ComponentMeta):
         # ``raw_html`` as a single ``attrs="..."`` literal — instead
         # we merge its key/value pairs into the raw-attrs bag below.
         # ``None`` or empty dict → no-op.
-        # ``outlet=<layout>`` — QUELLE région ce lien remplace. La
-        # primitive vit dans ``_wiring`` : c'est là que sont les autres,
-        # et c'est le seul endroit du socle autorisé à écrire du ``hx-``.
+        # ``outlet=<layout>`` — WHICH region this link replaces. The
+        # primitive lives in ``_wiring``: that is where the others are,
+        # and it is the only place in the base layer allowed to write
+        # ``hx-``.
         _outlet = kwargs.pop("outlet", None)
         if _outlet is not None:
             from bretzel.components.base._wiring import outlet_target_attrs
@@ -622,10 +622,11 @@ class Component(metaclass=_ComponentMeta):
                 "'y'}}`` to pass arbitrary HTML attributes."
             )
         if explicit_attrs:
-            # Même refus que dans ``split_kwargs`` : ``attrs=`` court-circuite
-            # le dispatcher, donc sans ce contrôle un ``@click`` refusé en
-            # ``**kwargs`` passerait en silence par ``attrs={...}``. Un
-            # attribut Alpine est aussi inerte par une voie que par l'autre.
+            # Same refusal as in ``split_kwargs``: ``attrs=``
+            # short-circuits the dispatcher, so without this check an
+            # ``@click`` refused in ``**kwargs`` would pass silently
+            # through ``attrs={...}``. An Alpine attribute is as inert by
+            # one route as by the other.
             for _attr_name in explicit_attrs:
                 reject_dead_alpine_attr(type(self).__name__, str(_attr_name))
         # ``visible`` and ``tooltip`` are universal modifiers applied
@@ -670,26 +671,26 @@ class Component(metaclass=_ComponentMeta):
 
             self._tooltip_wrapper = Component.adopt_slot(Tooltip(_tt))
 
-        # ── List-valued event handlers : compose server + client ───────
+        # ── List-valued event handlers: compose server + client ───────
         #
         # ``on_<event>=[…]`` lets a caller chain handlers on a single
         # event without dropping into client-expression string territory. Items
-        # in the list can be :
+        # in the list can be:
         #
         # - a callable → routed as the server action (native ``hx-post`` +
         #   HMAC stamp, only one allowed per event — cf. ``action_attrs``)
         # - a string   → a client-side expression to fire alongside,
         #   joined with ``;`` and emitted as ``bz-on:<event>``
         #
-        # Use case : optimistic close on a dialog confirm button —
+        # Use case: optimistic close on a dialog confirm button —
         # ``on_click=[delete_account, dlg.close()]`` runs the server
         # action AND closes the dialog client-side in one click.
-        # Le test de type d'ABORD, le regex ensuite : on ne cherche ici que
-        # les events à valeur de LISTE, or presque aucun kwarg n'est une
-        # liste. Tester ``isinstance`` (C, immédiat) avant ``EVENT_PATTERN
-        # .match`` évite de passer le regex sur les ~5 kwargs de chaque
-        # instance — et ``split_kwargs`` les re-matchera de toute façon
-        # juste après. Mesuré sur un rendu de /tabs : 0.50 ms → 0.05 ms.
+        # The type test FIRST, the regex afterwards: we only look here
+        # for LIST-valued events, and almost no kwarg is a list. Testing
+        # ``isinstance`` (C, immediate) before ``EVENT_PATTERN.match``
+        # avoids running the regex over each instance's ~5 kwargs — and
+        # ``split_kwargs`` will re-match them right afterwards anyway.
+        # Measured on a render of /tabs: 0.50 ms → 0.05 ms.
         for ev_key in [
             k for k, v in kwargs.items() if isinstance(v, (list, tuple)) and EVENT_PATTERN.match(k)
         ]:
@@ -731,19 +732,19 @@ class Component(metaclass=_ComponentMeta):
         # built but never rendered would otherwise never report the typo.
         if self._user_slots:
             _reject_unknown_slot_keys(self, self._user_slots)
-        # Validées → ``_resolved_theme`` peut désormais les fusionner dans
-        # les slots, ce qui les rend visibles aux 164 lectures manuelles de
-        # ``theme["slots"][X]``. Avant validation, la fusion rendrait toute
-        # faute de frappe « connue » et le refus ne lèverait jamais.
+        # Validated → ``_resolved_theme`` can now merge them into the
+        # slots, which makes them visible to the 164 manual reads of
+        # ``theme["slots"][X]``. Before validation, merging would make
+        # every typo "known" and the refusal would never raise.
         self._user_slots_validated: bool = True
 
         # ── Bindable-props gate ─────────────────────────────────────────
-        # Reject ``ClientBinding`` on props/slots absent de
-        # ``BINDABLE_PROPS``. Tue la classe de bug « SSR figé en silence »
-        # et rend la surface reactive explicite à la définition.
+        # Reject ``ClientBinding`` on props/slots absent from
+        # ``BINDABLE_PROPS``. Kills the "silently frozen SSR" class of bug
+        # and makes the reactive surface explicit at definition time.
         #
-        # Le défaut est le tuple vide : un composant qui oublie de déclarer
-        # sa surface refuse toute binding au premier usage.
+        # The default is the empty tuple: a component that forgets to
+        # declare its surface refuses every binding on the first use.
         #
         # Universal modifiers (visible/tooltip/classes/style) are
         # popped before split_kwargs and not subject to this check.
@@ -763,12 +764,13 @@ class Component(metaclass=_ComponentMeta):
                     f"no client-side binding needed."
                 )
 
-        # ── Two-way props : une expression n'est pas assignable ────────────
-        # Le chemin client de ces props sert de CIBLE D'ASSIGNATION dans le
-        # JS émis. Une ClientExpression y compile ``(a || b) = $value`` →
-        # SyntaxError levée par le navigateur AU BIND (``compile(expr,
-        # "set")``, 02_directives.js), donc le composant est mort avant
-        # toute interaction. On refuse à la construction, avec l'issue.
+        # ── Two-way props: an expression is not assignable ────────────────
+        # These props' client path is the ASSIGNMENT TARGET in the JS
+        # emitted. A ClientExpression compiles there to
+        # ``(a || b) = $value`` → a SyntaxError raised by the browser AT
+        # BIND TIME (``compile(expr, "set")``, 02_directives.js), so the
+        # component is dead before any interaction. We refuse at
+        # construction, with the way out.
         if cls.TWO_WAY_PROPS:
             two_way = set(cls.TWO_WAY_PROPS)
             for kw_name, kw_value in reactive.items():
@@ -776,37 +778,37 @@ class Component(metaclass=_ComponentMeta):
                     continue
                 if isinstance(kw_value, ClientExpression):
                     raise ComponentUsageError(
-                        f"{cls.__name__}.{kw_name} est une prop two-way : "
-                        f"le client écrit dedans, donc elle exige un champ "
-                        f"ClientState assignable — une expression calculée "
-                        f"({kw_value.binding_path()!r}) n'est pas une cible "
-                        f"d'assignation valide. Passe le champ directement "
-                        f"({kw_name}=state.champ) et calcule l'expression "
-                        f"là où tu la LIS (visible=, disabled=, tooltip=…)."
+                        f"{cls.__name__}.{kw_name} is a two-way prop: the "
+                        f"client writes into it, so it requires an "
+                        f"assignable ClientState field — a computed "
+                        f"expression ({kw_value.binding_path()!r}) is not a "
+                        f"valid assignment target. Pass the field directly "
+                        f"({kw_name}=state.field) and compute the expression "
+                        f"where you READ it (visible=, disabled=, tooltip=…)."
                     )
-                # ── …et une cible assignable qui ne REMONTE pas ────────────
-                # Même famille que ci-dessus : la prop est écrite par le
-                # client, donc sa valeur n'existe QUE dans le navigateur.
-                # Sur un état ``send_to_server=False`` elle n'est jamais
-                # postée — l'utilisateur tape, le handler lit le défaut de
-                # classe, et rien ne signale rien. C'est la seule perte de
-                # données silencieuse que le réglage rend possible, et elle
-                # est décidable ici : le binding porte le drapeau de sa
-                # classe (cf. ``ClientBinding.sends_to_server``).
+                # ── …and an assignable target that does not TRAVEL BACK ───
+                # Same family as above: the prop is written by the client,
+                # so its value exists ONLY in the browser. On a
+                # ``send_to_server=False`` state it is never posted — the
+                # user types, the handler reads the class default, and
+                # nothing reports anything. It is the only silent data
+                # loss the setting makes possible, and it is decidable
+                # here: the binding carries its class's flag (cf.
+                # ``ClientBinding.sends_to_server``).
                 if isinstance(kw_value, ClientBinding) and not kw_value.sends_to_server:
                     raise ComponentUsageError(
-                        f"{cls.__name__}.{kw_name} est une prop two-way — le "
-                        f"client écrit sa valeur — mais "
-                        f"{kw_value.class_name} est déclaré "
-                        f"``send_to_server=False``, donc cette valeur ne "
-                        f"remonterait jamais : le handler lirait le défaut "
-                        f"de classe de ``{kw_value.field_name}``.\n\n"
-                        f"``send_to_server=False`` est fait pour un état "
-                        f"DESCENDANT (le serveur écrit, le client affiche). "
-                        f"Quand les deux directions cohabitent, scinde en "
-                        f"deux états plutôt que d'arbitrer — ce sont deux "
-                        f"flux, pas un compromis. Cf. le docstring de "
-                        f"``ClientState``."
+                        f"{cls.__name__}.{kw_name} is a two-way prop — the "
+                        f"client writes its value — but "
+                        f"{kw_value.class_name} is declared "
+                        f"``send_to_server=False``, so that value would "
+                        f"never travel back: the handler would read "
+                        f"``{kw_value.field_name}``'s class default.\n\n"
+                        f"``send_to_server=False`` is meant for DOWNWARD "
+                        f"state (the server writes, the client displays). "
+                        f"When both directions coexist, split into two "
+                        f"states rather than arbitrating — they are two "
+                        f"flows, not a compromise. Cf. ``ClientState``'s "
+                        f"docstring."
                     )
 
         # ── Reactive prop storage : split static / binding / client-expr ────
@@ -817,15 +819,15 @@ class Component(metaclass=_ComponentMeta):
 
         for name, value in reactive.items():
             if value is None:
-                # ``prop=None`` signifie « non fourni » — on garde le défaut
-                # du descripteur (rempli plus bas). C'est EXACTEMENT ce que
-                # le dict ``forwarded`` / la garde ``if x is not None`` de
-                # chaque ``__init__`` faisait à la main (dans 50+ composants).
-                # Centralisé ici : un composant peut désormais forwarder ses
-                # kwargs directement (``super().__init__(size=size, …)``)
-                # sans re-taper la garde. Une ``ClientBinding`` /
-                # ``ClientExpression`` n'est jamais ``None`` — seul le
-                # littéral None est traité comme absent. Gardé par
+                # ``prop=None`` means "not supplied" — we keep the
+                # descriptor's default (filled below). It is EXACTLY what
+                # the ``forwarded`` dict / the ``if x is not None`` guard
+                # of every ``__init__`` did by hand (in 50+ components).
+                # Centralised here: a component can now forward its
+                # kwargs directly (``super().__init__(size=size, …)``)
+                # without retyping the guard. A ``ClientBinding`` /
+                # ``ClientExpression`` is never ``None`` — only the None
+                # literal is treated as absent. Guarded by
                 # test_none_kwarg_keeps_default.py.
                 continue
             if isinstance(value, ClientBinding):
@@ -844,11 +846,11 @@ class Component(metaclass=_ComponentMeta):
                     )
                 # Keep the underlying Python value too so the SSR
                 # output ships a sensible default before the runtime
-                # binds reactively. Une ClientExpression, elle, n'a PAS
-                # de valeur serveur (elle est calculée par le runtime à
-                # partir d'autres champs) → ``None``, exactement le
-                # contrat déjà établi pour une string client-expr juste
-                # en dessous. ``emit_attrs`` skippe les valeurs ``None``.
+                # binds reactively. A ClientExpression, by contrast, has
+                # NO server value (it is computed by the runtime from
+                # other fields) → ``None``, exactly the contract already
+                # established for a client-expr string just below.
+                # ``emit_attrs`` skips ``None`` values.
                 self._reactive_values[name] = (
                     None if isinstance(value, ClientExpression) else value.value
                 )
@@ -869,8 +871,8 @@ class Component(metaclass=_ComponentMeta):
                 # whole framework behaves uniformly, once, here.
                 if isinstance(value, Component):
                     Component._detach_from_parent(value)
-                # Sinon le dict meurt sur ``unhashable type: 'dict'``,
-                # trois frames plus bas. Le garde vit dans ``responsive``.
+                # Otherwise the dict dies on ``unhashable type: 'dict'``,
+                # three frames down. The guard lives in ``responsive``.
                 reject_stray_breakpoints(cls.__name__, name, value,
                                          self.RESPONSIVE_PROPS)
                 self._reactive_values[name] = value
@@ -928,9 +930,9 @@ class Component(metaclass=_ComponentMeta):
         if explicit_id is not None:
             self.id: str = str(explicit_id)
         else:
-            # ⚠️ ``child_scope_id`` et non ``id`` : l'outlet REND un id
-            # stable (htmx le renvoie en ``HX-Target``) mais DONNE à ses
-            # enfants un id qualifié par la page. Cf. ``page_scope``.
+            # ⚠️ ``child_scope_id`` and not ``id``: the outlet RENDERS a
+            # stable id (htmx sends it back as ``HX-Target``) but GIVES
+            # its children a page-qualified id. Cf. ``page_scope``.
             _p = ctx.parent_stack[-1] if ctx.parent_stack else None
             parent_id = "root" if _p is None else (
                 getattr(_p, "child_scope_id", None) or _p.id
@@ -1031,9 +1033,9 @@ class Component(metaclass=_ComponentMeta):
             else:
                 ctx.root_children.append(self)
 
-        # Children container — leaves stay empty forever. ``IS_CONTAINER``
-        # est lu par ``__enter__`` / ``add_child`` pour refuser un bloc
-        # ``with`` sur une feuille.
+        # Children container — leaves stay empty forever.
+        # ``IS_CONTAINER`` is read by ``__enter__`` / ``add_child`` to
+        # refuse a ``with`` block on a leaf.
         self._children: list[Any] = []
 
     # ── Context-manager protocol (with-block children) ──────────────────
@@ -1148,53 +1150,55 @@ class Component(metaclass=_ComponentMeta):
     # ── Rendering helpers ──────────────────────────────────────────────
 
     def _scope_keys(self, prop: str = "value") -> tuple[str, ...]:
-        """Clé(s) sous laquelle ``prop`` vit dans le ``bz-data``.
+        """The key(s) under which ``prop`` lives in the ``bz-data``.
 
-        Dérivé de ``reactive_prop(scope_keys=)`` par la métaclasse ; défaut
-        ``(prop,)`` quand la clé de scope EST le nom de la prop. C'est
-        l'info qui manquait et était hardcodée dans chaque
-        ``server_sync_marker("active"/"picked"/…, …)`` — la divergence de
-        nommage (value/picked/active/expanded/sel) qui a causé 5 des 8
-        oublis ``_serverSync``. Désormais déclarée au même endroit que la
-        prop. Cf. todo.md § « mécanisme de fond ».
+        Derived from ``reactive_prop(scope_keys=)`` by the metaclass;
+        default ``(prop,)`` when the scope key IS the prop's name. It is
+        the information that was missing and hard-coded in every
+        ``server_sync_marker("active"/"picked"/…, …)`` — the naming
+        divergence (value/picked/active/expanded/sel) that caused 5 of
+        the 8 missed ``_serverSync``. Now declared in the same place as
+        the prop. Cf. todo.md § "the underlying mechanism".
         """
         return type(self).__scope_keys__.get(prop, (prop,))
 
     def _value_server_backed(self, prop: str = "value") -> bool:
-        """``prop`` tient-elle une valeur qui vient du SERVEUR, en mode local ?
+        """Does ``prop`` hold a value coming from the SERVER, in local mode?
 
-        C'est la condition — et la SEULE — pour émettre ``_serverSync``
-        (cf. ``base/_wiring.server_sync_marker``) : au prochain swap, le
-        bridge ré-adoptera ce signal de scope depuis l'attribut fraîchement
-        morphé, parce que le serveur fait foi.
+        It is the condition — and the ONLY one — for emitting
+        ``_serverSync`` (cf. ``base/_wiring.server_sync_marker``): on the
+        next swap, the bridge will re-adopt that scope signal from the
+        freshly morphed attribute, because the server is authoritative.
 
-        Trois cas, dans l'ordre :
+        Three cases, in order:
 
-        1. **Mode client-binding** → ``False``. La valeur vit dans
-           ``$bz._store``, que l'envelope patche déjà : rien à ré-adopter,
-           et ré-écrire le signal écraserait l'édition du client.
-        2. **Scalaire ou liste stampés** (``_BoundStr`` / ``_BoundInt`` /
-           ``_BoundList``… posés par ``state/scopes/server._stamp``) →
+        1. **Client-binding mode** → ``False``. The value lives in
+           ``$bz._store``, which the envelope already patches: nothing to
+           re-adopt, and rewriting the signal would overwrite the
+           client's edit.
+        2. **Stamped scalar or list** (``_BoundStr`` / ``_BoundInt`` /
+           ``_BoundList``… set by ``state/scopes/server._stamp``) →
            ``True``.
-        3. **``[state.champ]``** — une liste littérale dont un ÉLÉMENT porte
-           le stamp (un multi alimenté par un pick serveur scalaire, le
-           pattern du playground) → ``True``.
+        3. **``[state.field]``** — a literal list one of whose ITEMS
+           carries the stamp (a multi fed by a scalar server pick, the
+           playground's pattern) → ``True``.
 
-        ⚠️ **Ceci n'est PAS ``_derive_field_name``**, et la confusion coûte
-        cher. Ce helper-là répond « d'où je dérive mon ``name=`` HTML » ;
-        celui-ci répond « d'où vient ma valeur ». Ils coïncident sur les
-        inputs de formulaire, d'où la tentation de réutiliser l'un pour
-        l'autre — ``select.py`` le faisait (« reuse it rather than
-        re-reading the value »), et ça produisait DEUX défauts : le cas 3
-        était perdu (un multi nourri par ``[state.champ]`` ne
-        ré-adoptait pas), et le server-sync mourait en silence si on
-        retirait ``AUTONAME_FROM``. Un composant sans ``name=`` (Tabs,
-        Accordion, Tree, les overlays) a quand même une valeur serveur.
+        ⚠️ **This is NOT ``_derive_field_name``**, and the confusion is
+        expensive. That helper answers "where do I derive my HTML
+        ``name=`` from"; this one answers "where does my value come
+        from". They coincide on form inputs, hence the temptation to
+        reuse one for the other — ``select.py`` did ("reuse it rather
+        than re-reading the value"), and it produced TWO flaws: case 3
+        was lost (a multi fed by ``[state.field]`` did not re-adopt), and
+        the server-sync died silently if ``AUTONAME_FROM`` was removed. A
+        component with no ``name=`` (Tabs, Accordion, Tree, the overlays)
+        still has a server value.
 
-        Avant ce helper, la décision était re-tapée dans 5 dialectes
-        divergents pour 12 call-sites — cause mécanique des 8 oublis de
-        ``_serverSync``. Cf. todo.md § A3 et traps.md § « Input lié-serveur
-        ne reflète PAS une valeur changée par le SERVEUR ».
+        Before this helper, the decision was retyped in 5 diverging
+        dialects across 12 call sites — the mechanical cause of the 8
+        missed ``_serverSync``. Cf. todo.md § A3 and traps.md § "A
+        server-bound input does NOT reflect a value changed by the
+        SERVER".
         """
         if self._binding_metadata.get(prop) is not None:
             return False
@@ -1233,16 +1237,15 @@ class Component(metaclass=_ComponentMeta):
     def emit_attrs(self) -> dict[str, Any]:
         """Build the HTML attribute dict for this component's root.
 
-        Framework attrs (``id`` / ``bz-id`` — **pas** ``bz-version``, mort
-        en V3, cf. le commentaire de la branche 100 lignes plus bas) are
-        emitted **conditionally** — only when the component carries
-        something the runtime actually needs to track : a reactive
-        binding, a client expression, an event handler, or a raw
-        ``bz-*`` directive the user wired by hand. Pure static nodes
-        (``ui.text("Hello")`` with no props) stay anonymous, exactly
-        like in v1. The rule keeps the DOM clean and skips the
-        per-instance version hash for the 90 % of nodes that don't
-        need identity.
+        Framework attrs (``id`` / ``bz-id`` — **not** ``bz-version``, dead
+        in V3, cf. the branch comment 100 lines below) are emitted
+        **conditionally** — only when the component carries something the
+        runtime actually needs to track: a reactive binding, a client
+        expression, an event handler, or a raw ``bz-*`` directive the
+        user wired by hand. Pure static nodes (``ui.text("Hello")`` with
+        no props) stay anonymous, exactly like in v1. The rule keeps the
+        DOM clean and skips the per-instance version hash for the 90 % of
+        nodes that don't need identity.
         """
         attrs: dict[str, Any] = {}
 
@@ -1252,11 +1255,11 @@ class Component(metaclass=_ComponentMeta):
             descriptor = descriptors.get(name)
             cosmetic = descriptor is not None and not getattr(descriptor, "emit_attr", True)
 
-            # ⚠️ La sortie PRÉCÈDE ``normalize_attr_name``, c'est le
-            # propos : une prop cosmétique n'atteint le DOM que par une
-            # expression client (branche 2), jamais par sa binding ni son
-            # littéral. Normaliser d'abord, c'était jeter le résultat pour
-            # 80 à 89 % des props réactives d'une page (mesuré).
+            # ⚠️ The exit PRECEDES ``normalize_attr_name``, and that is
+            # the point: a cosmetic prop only reaches the DOM through a
+            # client expression (branch 2), never through its binding nor
+            # its literal. Normalising first meant throwing the result
+            # away for 80 to 89 % of a page's reactive props (measured).
             if cosmetic and name not in self._client_expressions:
                 continue
 
@@ -1272,7 +1275,7 @@ class Component(metaclass=_ComponentMeta):
             #    refresh. We just emit the literal ``value`` attr
             #    below (skipping the reactive branch).
             if name in self._binding_metadata:
-                if cosmetic:  # liée ET cosmétique : rien n'est émis
+                if cosmetic:  # bound AND cosmetic: nothing is emitted
                     continue
                 binding = self._binding_metadata[name]
                 if isinstance(binding, ClientBinding):
@@ -1299,10 +1302,10 @@ class Component(metaclass=_ComponentMeta):
                 attrs[f"{BZ_ATTR_PREFIX}{attr_name}"] = self._client_expressions[name]
                 continue
 
-            # 3. Static literal. La garde ``cosmetic`` qui vivait ici
-            #    est devenue INATTEIGNABLE (sortie en tête de boucle,
-            #    sauf expression client, qui ``continue`` en branche 2) —
-            #    et une garde morte se lit comme une protection.
+            # 3. Static literal. The ``cosmetic`` guard that lived here
+            #    has become UNREACHABLE (exit at the head of the loop,
+            #    except for a client expression, which ``continue`` in
+            #    branch 2) — and a dead guard reads as a protection.
             if value is None or value is False:
                 continue
             if value is True:
@@ -1340,23 +1343,24 @@ class Component(metaclass=_ComponentMeta):
         elif self._user_provided_id:
             attrs["id"] = self.id
 
-        # ── Attrs bruts, posés selon LE contrat de précédence ──────────
-        # ``merge_attr`` et non ``attrs.update`` : l'update écrasait, donc
-        # un ``attrs={"class": …}`` effaçait ce qui était déjà là et un
-        # ``attrs={"id": …}`` battait le kwarg nommé ``id=``. Cf.
-        # ``merge_attr`` pour le tableau des quatre résolutions divergentes
-        # que ça produisait.
+        # ── Raw attrs, set per THE precedence contract ─────────────────
+        # ``merge_attr`` and not ``attrs.update``: the update overwrote,
+        # so an ``attrs={"class": …}`` erased what was already there and
+        # an ``attrs={"id": …}`` beat the named ``id=`` kwarg. Cf.
+        # ``merge_attr`` for the table of the four diverging resolutions
+        # that produced.
         for _name, _value in self._raw_attrs.items():
-            # ``id`` est le seul cas où le kwarg NOMMÉ gagne sur ``attrs=`` :
-            # l'API explicite bat l'échappatoire brute. Pour tout le reste
-            # ``attrs=`` reste le dernier mot, c'est sa raison d'être.
+            # ``id`` is the only case where the NAMED kwarg wins over
+            # ``attrs=``: the explicit API beats the raw escape hatch.
+            # For everything else ``attrs=`` stays the last word, that is
+            # its reason to exist.
             if _name == "id" and self._user_provided_id:
                 continue
-            # ``class`` ne passe PAS par ici : un composant qui reconstruit
-            # sa ``class=`` dans ``render()`` (``attrs["class"] = …``)
-            # l'écraserait. Elle est posée post-render par le wrap
-            # métaclasse, au même endroit que ``slots={"root"}`` et
-            # ``classes=``. Cf. ``_raw_class_str``.
+            # ``class`` does NOT go through here: a component that
+            # rebuilds its ``class=`` in ``render()``
+            # (``attrs["class"] = …``) would overwrite it. It is set
+            # post-render by the metaclass wrap, in the same place as
+            # ``slots={"root"}`` and ``classes=``. Cf. ``_raw_class_str``.
             if _name == "class":
                 continue
             merge_attr(attrs, _name, _value)
@@ -1388,8 +1392,8 @@ class Component(metaclass=_ComponentMeta):
                 attrs["name"] = field_name
 
         # ``style=`` kwarg → ``style="..."`` (literal) or
-        # ``bz-attr:style="..."`` (le ``:style`` d'antan est du dialecte
-        # Alpine mort ; et le littéral n'est PAS posé ici mais post-render)
+        # ``bz-attr:style="..."`` (the old ``:style`` is dead Alpine
+        # dialect; and the literal is NOT set here but post-render)
         # (ClientBinding) on the root attrs. Every component that uses
         # ``emit_attrs()`` to build its root dict gets the user's
         # ``style=`` for free — without this, the kwarg was silently
@@ -1397,8 +1401,8 @@ class Component(metaclass=_ComponentMeta):
         # called ``apply_class_attrs`` manually).
         self.apply_style_attr(attrs)
 
-        # Ce que la balise ne peut pas porter (``type`` sur un ``<a>``…).
-        # Import différé — ``component`` dépend de ``_wiring``.
+        # What the tag cannot carry (``type`` on an ``<a>``…). Deferred
+        # import — ``component`` depends on ``_wiring``.
         from bretzel.components.base._wiring import drop_tag_bound_attrs
 
         drop_tag_bound_attrs(self._tag, attrs, spare=self._author_written_attrs())
@@ -1406,7 +1410,7 @@ class Component(metaclass=_ComponentMeta):
         return attrs
 
     def _author_written_attrs(self) -> set[str]:
-        """Les noms d'attributs que l'APPELANT a écrits lui-même."""
+        """The attribute names the CALLER wrote themselves."""
         return self._raw_attrs.keys() | self._passthrough_attrs.keys()
 
     def slot_class(self, slot: str, *extra: str) -> str:
@@ -1436,22 +1440,22 @@ class Component(metaclass=_ComponentMeta):
         ``_apply_universal_modifiers`` (the metaclass render wrap), so
         cosmetic overrides still win in source order (see step 5 below).
 
-        Parameters :
-        - ``slot`` : key in ``theme["slots"]``. Defaults to ``"root"``.
+        Parameters:
+        - ``slot``: key in ``theme["slots"]``. Defaults to ``"root"``.
           Multi-slot components (checkbox with root/input/label,
           dropdown with backdrop/panel/item, …) call this once per
           slot they want to compose.
-        La couleur est portée par la classe-pont posée sur la racine rendue
-        (cf. :mod:`bretzel.theme.bridges`) ; la composition du slot ne dépend
-        donc pas directement de la couleur.
-        - ``apply_variant_size_modifiers`` : when True (default),
+        The colour is carried by the bridge class set on the rendered
+        root (cf. :mod:`bretzel.theme.bridges`); composing the slot
+        therefore does not depend directly on the colour.
+        - ``apply_variant_size_modifiers``: when True (default),
           appends ``theme["variants"][<variant>]`` +
           ``theme["sizes"][<size>]`` + every truthy modifier from
           ``theme["modifiers"]``. Set to False on non-root slots
           where these don't apply (the user's ``classes=`` and
           variants belong to root only).
 
-        ~85 % of components fit this template ; complex composites
+        ~85 % of components fit this template; complex composites
         (datatable cells, dropdown items inheriting from parent
         context) override or skip it.
         """
@@ -1518,14 +1522,14 @@ class Component(metaclass=_ComponentMeta):
 
     @property
     def _raw_class_str(self) -> str:
-        """La ``class`` écrite en HTML brut — ``class_="x"`` ou
-        ``attrs={"class": "x"}``, que ``split_kwargs`` normalise vers la
-        même clé et qui atterrissent donc tous deux dans ``_raw_attrs``.
+        """The ``class`` written as raw HTML — ``class_="x"`` or
+        ``attrs={"class": "x"}``, which ``split_kwargs`` normalises to the
+        same key and which therefore both land in ``_raw_attrs``.
 
-        Lue par le wrap métaclasse, PAS par ``emit_attrs`` : un composant
-        qui reconstruit sa ``class=`` dans ``render()`` écraserait ce que
-        ``emit_attrs`` y aurait posé. C'est la même raison qui a fait
-        remonter ``classes=`` et ``slots={"root"}`` au wrap.
+        Read by the metaclass wrap, NOT by ``emit_attrs``: a component
+        that rebuilds its ``class=`` in ``render()`` would overwrite what
+        ``emit_attrs`` had set there. It is the same reason that moved
+        ``classes=`` and ``slots={"root"}`` up to the wrap.
         """
         raw = self._raw_attrs.get("class")
         return raw if isinstance(raw, str) else ""
@@ -1554,61 +1558,63 @@ class Component(metaclass=_ComponentMeta):
     ) -> None:
         """Set the composed ``class=`` on ``attrs``.
 
-        Le ``classes=`` de l'utilisateur — littéral **comme** binding —
-        n'est PAS l'affaire de ce helper : ``_apply_universal_modifiers``
-        (le wrap métaclasse) le pose sur le vrai root de tout composant,
-        donc les 55 en bénéficient et pas seulement ceux qui appellent
-        ici. Ce helper ne compose que le slot du thème.
+        The user's ``classes=`` — literal **as well as** binding — is NOT
+        this helper's business: ``_apply_universal_modifiers`` (the
+        metaclass wrap) sets it on every component's true root, so all 55
+        benefit and not only those that call here. This helper only
+        composes the theme's slot.
 
-        (Historique : la branche réactive vivait ici et émettait
-        ``:class="…"`` — syntaxe Alpine morte en V3 — en supprimant le
-        ``class=`` statique au passage. Deux composants l'appelaient, et
-        ils rendaient donc sans aucune classe dès qu'on leur passait un
-        ``classes=binding``. Cf. gate
-        ``tests/consistency/test_reactive_classes_universal.py``.)
+        (History: the reactive branch lived here and emitted
+        ``:class="…"`` — Alpine syntax, dead in V3 — dropping the static
+        ``class=`` on the way. Two components called it, so they rendered
+        with no class at all as soon as they were passed a
+        ``classes=binding``. Cf. the
+        ``tests/consistency/test_reactive_classes_universal.py`` gate.)
 
-        Note : reactive variant/size/color axes are NOT supported.
+        Note: reactive variant/size/color axes are NOT supported.
         Those are design-time configuration per the ``BINDABLE_PROPS``
         contract — if a use case for dynamic theme axes appears,
         server-side conditional render at the call site covers it
         (``ui.button(label, color="error" if state.failed else
         "success")``).
 
-        ``style=`` is NOT handled here ; it's materialised by
+        ``style=`` is NOT handled here; it's materialised by
         :meth:`emit_attrs` so every component gets it for free, not
         just the ones that call this helper.
 
         """
         cls_string = self.compose_class(slot)
         if cls_string:
-            # ``merge_attr`` et non ``attrs["class"] = …`` : un ``class_=``
-            # ou un ``attrs={"class": …}`` déjà posé par ``emit_attrs`` doit
-            # SURVIVRE à la composition du thème, pas être remplacé par elle.
+            # ``merge_attr`` and not ``attrs["class"] = …``: a
+            # ``class_=`` or an ``attrs={"class": …}`` already set by
+            # ``emit_attrs`` must SURVIVE the theme's composition, not be
+            # replaced by it.
             merge_attr(attrs, "class", cls_string)
 
     @staticmethod
     def with_slot_class(node: Node, slot_class: str, **extra_attrs: Any) -> Node:
         """Clone ``node`` with ``slot_class`` PREPENDED to its ``class``.
 
-        Le geste : un composant reçoit un sous-composant en slot
-        (l'icône d'un item de nav, l'affixe d'un Input, le séparateur
-        d'un Breadcrumb, le badge d'une Sidebar), le rend, puis doit lui
-        poser sa classe de slot **sans** écraser celle que l'enfant s'est
-        composée. ``Element`` étant immuable, ça veut dire cloner.
+        The gesture: a component receives a subcomponent as a slot (a nav
+        item's icon, an Input's affix, a Breadcrumb's separator, a
+        Sidebar's badge), renders it, then must set its slot class on it
+        **without** overwriting the one the child composed for itself.
+        ``Element`` being immutable, that means cloning.
 
-        Préfixé, pas suffixé : les classes de l'enfant restent en
-        dernier, donc gagnent à spécificité Tailwind égale — le slot
-        habille, l'enfant décide.
+        Prepended, not appended: the child's classes stay last, so they
+        win at equal Tailwind specificity — the slot dresses, the child
+        decides.
 
-        ``extra_attrs`` couvre le cas Breadcrumb, qui pose un
-        ``aria-hidden`` sur le même clone (sinon il en faudrait deux).
+        ``extra_attrs`` covers the Breadcrumb case, which sets an
+        ``aria-hidden`` on the same clone (otherwise two would be
+        needed).
 
-        Un ``node`` qui n'est pas un ``Element`` (FragmentNode, TextNode) ressort
-        tel quel : il n'a pas d'attributs où poser la classe.
+        A ``node`` that is not an ``Element`` (FragmentNode, TextNode)
+        comes back as-is: it has no attributes to set the class on.
 
-        Quatre composants portaient ce clone-et-fusionne inline (audit
-        F56), dont un seul gérait proprement la branche « classe
-        existante vide ».
+        Four components carried this clone-and-merge inline (audit F56),
+        of which only one handled the "empty existing class" branch
+        properly.
         """
         if not isinstance(node, Element):
             return node
@@ -1645,10 +1651,10 @@ class Component(metaclass=_ComponentMeta):
         Used by every component that emits BOTH branches of a reactive
         structural toggle in the DOM and lets the runtime pick which to
         show via ``bz-show`` (Button.loading spinner ↔ icon, IconButton
-        same). ⚠️ PAS Alert : il n'appelle jamais ``_cloak_show``, et
-        ``dismissible`` n'est dans aucun ``BINDABLE_PROPS`` (les deux seuls
-        appelants sont Button et ``actions/_wiring``). FOUC strategy (spec
-        .claude/bretzel/runtime.md) : the server pre-stamps ``style="display:none"``
+        same). ⚠️ NOT Alert: it never calls ``_cloak_show``, and
+        ``dismissible`` is in no ``BINDABLE_PROPS`` (the only two callers
+        are Button and ``actions/_wiring``). FOUC strategy (spec
+        .claude/bretzel/runtime.md): the server pre-stamps ``style="display:none"``
         on the branch whose ``initial`` evaluation is falsy, so nothing
         flashes before the runtime's first effect takes over.
 
@@ -1679,7 +1685,7 @@ class Component(metaclass=_ComponentMeta):
     ) -> Node | None:
         """Render a textual slot — literal string, binding, or absent.
 
-        Returns :
+        Returns:
 
         - ``None`` when the slot is empty (``None`` or ``""``). The
           caller skips appending it to the children list and the slot
@@ -1692,59 +1698,58 @@ class Component(metaclass=_ComponentMeta):
           server round-trip.
 
         Why a wrapper ``<span>`` for the reactive form rather than
-        mutating the text node directly : the runtime's ``bz-text`` directive
+        mutating the text node directly: the runtime's ``bz-text`` directive
         binds against elements, not raw DOM text nodes (browser API
         limitation). The wrap is ``display: inline`` by default so it
         doesn't shift layout. V1 used the same trick.
 
-        Les DEUX façons légitimes de traiter le ``None``
+        The TWO legitimate ways of handling the ``None``
         ------------------------------------------------
-        ``serialize`` **lève** sur un ``None`` dans ``children``
-        (« Cannot serialize unknown Node type : NoneType »), donc chaque
-        appelant doit s'en occuper. Il y a deux stratégies, et elles ne
-        sont pas interchangeables — recensement du 2026-08-19 sur les
-        **37 appels** du catalogue :
+        ``serialize`` **raises** on a ``None`` in ``children`` ("Cannot
+        serialize unknown Node type: NoneType"), so every caller must
+        deal with it. There are two strategies, and they are not
+        interchangeable — census of 2026-08-19 over the catalogue's **37
+        calls**:
 
-        1. **garder le RÉSULTAT** — ``node = emit_text_slot(v)`` puis
-           ``if node is not None:`` (20 sites). Dont **10 gardent la
-           construction d'un wrapper** (`<h3>`, `<div class="title">`,
-           `<span class="label">`…) et pas seulement l'ajout : sans le
-           garde, le composant émettrait un wrapper VIDE, soit un trou
-           visible dans une rangée ``flex gap-*`` ;
-        2. **garder la VALEUR en amont** — ``if v:`` avant même de bâtir
-           le wrapper (12 sites), l'appel n'ayant alors jamais lieu sur
-           un slot vide.
+        1. **keep the RESULT** — ``node = emit_text_slot(v)`` then
+           ``if node is not None:`` (20 sites). Of these, **10 guard the
+           construction of a wrapper** (`<h3>`, `<div class="title">`,
+           `<span class="label">`…) and not merely the append: without
+           the guard, the component would emit an EMPTY wrapper, that is
+           to say a visible hole in a ``flex gap-*`` row;
+        2. **keep the VALUE upstream** — ``if v:`` before even building
+           the wrapper (12 sites), the call then never happening on an
+           empty slot.
 
-        Trois variantes de plein droit complètent le tableau : le wrapper
-        obligatoire dont seul le CONTENU est optionnel
-        (``date_range_picker`` : le ``<span>`` sépare deux champs et doit
-        exister), le ``or TextNode("")`` de ``tooltip`` (le panneau existe
-        toujours), et le préfixe de ``link``.
+        Three legitimate variants complete the picture: the mandatory
+        wrapper whose CONTENT alone is optional (``date_range_picker``:
+        the ``<span>`` separates two fields and must exist),
+        ``tooltip``'s ``or TextNode("")`` (the panel always exists), and
+        ``link``'s prefix.
 
-        ⚠️ **Le piège** : garder la valeur brute avec ``is not None``.
-        ``""`` le franchit, le wrapper se bâtit, l'appel rend ``None`` et
-        ``serialize`` lève. C'est ce qui a cassé ``toggle_button``. La
-        forme sûre sur la valeur brute est le test de vérité (``if v:``) ;
-        ``is not None`` ne vaut que sur le RÉSULTAT. Mesuré : zéro
-        occurrence du piège aujourd'hui.
+        ⚠️ **The trap**: keeping the raw value with ``is not None``.
+        ``""`` passes it, the wrapper is built, the call returns ``None``
+        and ``serialize`` raises. That is what broke ``toggle_button``.
+        The safe form on the raw value is the truth test (``if v:``);
+        ``is not None`` only holds on the RESULT. Measured: zero
+        occurrences of the trap today.
 
-        La classe est gardée par
-        ``tests/consistency/test_text_slot_contract_universal.py``, dont
-        la population est DÉRIVÉE : il rejoue chaque paramètre textuel du
-        catalogue avec ``""``, donc un site neuf qui oublie son garde
-        rougit sans qu'on ait à l'inscrire nulle part.
+        The class is guarded by
+        ``tests/consistency/test_text_slot_contract_universal.py``, whose
+        population is DERIVED: it replays every textual parameter of the
+        catalogue with ``""``, so a new site that forgets its guard turns
+        red with nothing to register anywhere.
 
-        **Pourquoi le ``None`` ne se filtre pas chez ``Element``** (idée
-        écartée le 2026-08-19, après mesure) : un filtre dans
-        ``Element.__post_init__`` retirerait 9 gardes sur 20 — et
-        casserait les 10 autres en silence, puisqu'ils gardent le
-        wrapper, pas l'ajout. Pour 479 sites de construction d'``Element``
-        touchés.
+        **Why the ``None`` is not filtered in ``Element``** (idea set
+        aside on 2026-08-19, after measurement): a filter in
+        ``Element.__post_init__`` would remove 9 guards out of 20 — and
+        would break the other 10 silently, since they guard the wrapper,
+        not the append. For 479 ``Element`` construction sites touched.
         """
-        # ``path_of`` couvre les deux sous-types : un ClientExpression
-        # porte déjà le préfixe ``$bz.state.`` dans son expression, un
-        # ClientBinding ne porte qu'un chemin court. Le re-préfixer à la
-        # main produit ``$bz.state.($bz.state.…``.
+        # ``path_of`` covers both subtypes: a ClientExpression already
+        # carries the ``$bz.state.`` prefix in its expression, a
+        # ClientBinding carries only a short path. Re-prefixing it by
+        # hand produces ``$bz.state.($bz.state.…``.
         if isinstance(value, ClientBinding):
             return Element(
                 tag="span",
@@ -1821,25 +1826,25 @@ class Component(metaclass=_ComponentMeta):
         prop: str = "value",
         event: str = "bz-set",
     ) -> str:
-        """Le corps de ``.set(value)`` : write-through, sinon dispatch.
+        """The body of ``.set(value)``: write-through, otherwise dispatch.
 
-        Une méthode impérative qui porte une valeur a exactement deux
-        chemins — écrire dans la :class:`ClientBinding` passée à la
-        construction (source de vérité unique), ou, à défaut, dispatcher
-        une commande DOM que la root du composant rattrape. C'est la
-        même bascule que :func:`base._wiring.install_open_close_toggle`
-        factorise pour la famille overlay.
+        An imperative method carrying a value has exactly two paths —
+        writing into the :class:`ClientBinding` passed at construction
+        (the single source of truth), or, failing that, dispatching a DOM
+        command the component's root catches. It is the same switch that
+        :func:`base._wiring.install_open_close_toggle` factors out for
+        the overlay family.
 
-        Elle était recopiée telle quelle dans **onze** composants (audit
-        F11, F12) : Input, Textarea, NumberInput, Slider, Calendar,
-        Radio, Select, Combobox, ToggleGroup (sur ``value``), Checkbox et
-        Switch (sur ``checked``, avec coercition booléenne). Un
-        changement du contrat — un nouveau sous-type de binding, un autre
-        nom d'événement — devait donc être répliqué onze fois.
+        It was copied as-is into **eleven** components (audit F11, F12):
+        Input, Textarea, NumberInput, Slider, Calendar, Radio, Select,
+        Combobox, ToggleGroup (on ``value``), Checkbox and Switch (on
+        ``checked``, with boolean coercion). A change to the contract — a
+        new binding subtype, another event name — therefore had to be
+        replicated eleven times.
 
-        Ce qui reste per-composant, à raison : ``.clear()`` (la valeur de
-        remise à zéro est sémantique — ``""``, ``[]``, ``min``, ``None``)
-        et ``.focus()`` / ``.blur()`` (la surface focusable diffère).
+        What stays per-component, rightly: ``.clear()`` (the reset value
+        is semantic — ``""``, ``[]``, ``min``, ``None``) and ``.focus()``
+        / ``.blur()`` (the focusable surface differs).
         """
         binding = self._binding_metadata.get(prop)
         if binding is not None:
@@ -1852,10 +1857,11 @@ class Component(metaclass=_ComponentMeta):
         prop: str = "checked",
         event: str = "bz-toggle",
     ) -> str:
-        """Le corps de ``.toggle()`` — même bascule que
-        :meth:`_value_command`, avec ``binding.toggle()`` côté binding.
+        """The body of ``.toggle()`` — same switch as
+        :meth:`_value_command`, with ``binding.toggle()`` on the binding
+        side.
 
-        Recopié à l'identique dans Checkbox et Switch.
+        Copied identically into Checkbox and Switch.
         """
         binding = self._binding_metadata.get(prop)
         if binding is not None:
@@ -1869,14 +1875,14 @@ class Component(metaclass=_ComponentMeta):
 
         - :class:`ClientBinding` → ``$bz.state.Class.key.field`` (the
           full form, ready to interpolate into a client expression
-          like ``bz-attr:disabled="…"`` or ``bz-on:click="… = …"`` — les
-          formes ``:``/``@`` sont du dialecte Alpine mort).
+          like ``bz-attr:disabled="…"`` or ``bz-on:click="… = …"`` — the
+          ``:``/``@`` forms are dead Alpine dialect).
         - :class:`ClientExpression` → the verbatim JS expression the
           builder accumulated (no ``$bz.state.`` prefix is added —
           the expression already contains the path fragments).
 
         This unifies the if/else ladder that lived in every component
-        rendering a bz-attr binding manually : ``isinstance(b,
+        rendering a bz-attr binding manually: ``isinstance(b,
         ClientExpression) ? b.binding_path() : f"$bz.state.{b.serialize_path()}"``.
         The forms are equivalent because :py:meth:`ClientExpression.binding_path`
         returns the same string as :py:meth:`ClientExpression.serialize_path`
@@ -1953,16 +1959,17 @@ class Component(metaclass=_ComponentMeta):
             return None
         attr = as_attr or prop
         attr_name = normalize_attr_name(attr)
-        # ⚠️ ARIA veut la CHAÎNE "true"/"false", pas la sémantique des
-        # attributs booléens natifs. ``bz-attr`` traite un booléen comme
-        # HTML le veut — ``true`` → attribut VIDE, ``false`` → attribut
-        # retiré (02_directives.js) — ce qui est correct pour ``disabled``
-        # / ``checked``, et FAUX pour ``aria-*`` : la variante Tailwind
-        # ``aria-disabled:`` compile vers ``[aria-disabled="true"]``, qu'un
-        # attribut vide ne matche pas, et un lecteur d'écran ne lit rien.
-        # Le ternaire était écrit à la main dans nav/_wiring et calendar,
-        # avec le commentaire à chaque fois ; select et combobox sont
-        # passés au travers. Dérivé ici, on ne peut plus l'oublier.
+        # ⚠️ ARIA wants the STRING "true"/"false", not the semantics of
+        # native boolean attributes. ``bz-attr`` treats a boolean the way
+        # HTML wants — ``true`` → EMPTY attribute, ``false`` → attribute
+        # removed (02_directives.js) — which is correct for ``disabled``
+        # / ``checked``, and WRONG for ``aria-*``: the Tailwind
+        # ``aria-disabled:`` variant compiles to
+        # ``[aria-disabled="true"]``, which an empty attribute does not
+        # match, and a screen reader reads nothing. The ternary was
+        # written by hand in nav/_wiring and calendar, with the comment
+        # each time; select and combobox slipped through. Derived here,
+        # it can no longer be forgotten.
         from bretzel.components.base._wiring import bool_attr
 
         path = self.path_of(binding)
@@ -2023,13 +2030,13 @@ class Component(metaclass=_ComponentMeta):
     ) -> dict[str, Any]:
         """Merge the user's app-level override onto ``cls.THEME``.
 
-        ``key`` / ``shipped`` par défaut = les siens. Les passer résout
-        le thème d'un AUTRE composant — cas réel : Combobox et Select
-        composent leurs pills depuis ``BADGE_THEME`` (ils rendent les
-        pills dans un template ``bz-for`` client, ils ne peuvent donc pas
-        instancier de vrais ``ui.badge``). Lire la constante de module
-        directement contournerait l'override utilisateur : un
-        ``Theme(components={"badge": …})`` ne toucherait pas les pills.
+        ``key`` / ``shipped`` default to its own. Passing them resolves
+        ANOTHER component's theme — a real case: Combobox and Select
+        compose their pills from ``BADGE_THEME`` (they render the pills
+        in a client ``bz-for`` template, so they cannot instantiate real
+        ``ui.badge``). Reading the module constant directly would bypass
+        the user's override: a ``Theme(components={"badge": …})`` would
+        not touch the pills.
 
         ``Theme.merged_component_theme(name, shipped)`` deep-merges the
         user override (``Theme(components={<THEME_KEY>: {...}})``) onto
@@ -2037,7 +2044,7 @@ class Component(metaclass=_ComponentMeta):
         merge inputs are immutable after boot, and ``compose_class``
         calls this once PER SLOT. Dict levels merge key-by-key so
         overriding one slot never drops the sibling slots, variants or
-        sizes ; a string leaf REDEFINES that entry wholesale (full
+        sizes; a string leaf REDEFINES that entry wholesale (full
         template — unlike the per-instance ``slots=`` kwarg, which
         appends). Falls back to the bare ``cls.THEME`` when no render
         context is active (typical in unit tests) or when no override
@@ -2055,29 +2062,29 @@ class Component(metaclass=_ComponentMeta):
             getter = getattr(theme_obj, "merged_component_theme", None) if theme_obj else None
             if callable(getter):
                 resolved = getter(name, default)
-        # ``slots={"panel": …}`` — l'override d'instance, pour les slots
-        # NON-root — s'ajoute ici, au point où les 164 lectures de
-        # ``theme["slots"][X]`` puisent déjà.
+        # ``slots={"panel": …}`` — the per-instance override, for
+        # NON-root slots — is added here, at the point where the 164
+        # reads of ``theme["slots"][X]`` already draw from.
         #
-        # Pourquoi ici et pas dans ``compose_class`` : 35 fichiers seulement
-        # composent via ``compose_class`` ; les 164 autres lectures se font
-        # à la main (``slots.get("item")``). Un override posé dans le
-        # compositeur ne les atteindrait donc pas, et
-        # ``ui.toggle_group(slots={"item": …})`` était mesuré **perdu en
-        # silence**. Le socle ne peut pas patcher un descendant profond
-        # après coup — mais il peut donner le bon thème AVANT.
+        # Why here and not in ``compose_class``: only 35 files compose
+        # through ``compose_class``; the other 164 reads are done by hand
+        # (``slots.get("item")``). An override set in the composer would
+        # therefore not reach them, and
+        # ``ui.toggle_group(slots={"item": …})`` was measured **lost
+        # silently**. The base layer cannot patch a deep descendant after
+        # the fact — but it can hand it the right theme BEFORE.
         #
-        # ⚠️ ``root`` est EXCLU : il est appliqué post-render par le wrap
-        # métaclasse (le seul à connaître le vrai root quel que soit le slot
-        # qui l'a composé). L'ajouter ici le doublerait.
+        # ⚠️ ``root`` is EXCLUDED: it is applied post-render by the
+        # metaclass wrap (the only one that knows the true root whatever
+        # slot composed it). Adding it here would double it.
         #
-        # Sémantique conservée : le kwarg d'instance AJOUTE, l'override
-        # applicatif ``Theme(components=…)`` REMPLACE.
-        # ``_user_slots_validated`` : posé par ``_reject_unknown_slot_keys``
-        # une fois les clés vérifiées. Sans cette garde, le validateur — qui
-        # lit lui-même ce thème — verrait ses propres clés injectées et
-        # déclarerait CONNUE n'importe quelle faute de frappe. Circularité
-        # attrapée par ``test_unknown_slot_key_croaks_at_construction``.
+        # Semantics preserved: the per-instance kwarg ADDS, the app-level
+        # ``Theme(components=…)`` override REPLACES.
+        # ``_user_slots_validated``: set by ``_reject_unknown_slot_keys``
+        # once the keys are checked. Without that guard, the validator —
+        # which reads this very theme — would see its own keys injected
+        # and would declare any typo KNOWN. Circularity caught by
+        # ``test_unknown_slot_key_croaks_at_construction``.
         user_slots = (
             getattr(self, "_user_slots", None)
             if getattr(self, "_user_slots_validated", False)
@@ -2094,31 +2101,32 @@ class Component(metaclass=_ComponentMeta):
         return resolved
 
     def _needs_identity(self) -> bool:
-        """Should this component carry ``id`` / ``bz-id`` ?
+        """Should this component carry ``id`` / ``bz-id``?
 
-        Mirrors the v1 rule (``V1/bretzel/ui/core/component.py:176``) :
+        Mirrors the v1 rule (``V1/bretzel/ui/core/component.py:176``):
         emit identity only when the runtime or HTMX actually
         needs to find this element again. Static nodes stay anonymous.
 
-        Triggers :
+        Triggers:
         - any reactive prop carries a :class:`ClientBinding` (the
           runtime has to patch the resolved attribute on this element
           when the bound state changes),
         - any reactive prop is a client expression string (the runtime
           rebinds ``bz-attr:`` directives by element identity),
         - any DOM event handler is wired (the dispatcher sends the
-          source element ; identity is harmless but useful for tooling),
+          source element; identity is harmless but useful for tooling),
         - the user attached raw ``bz-*`` directives (caller knows
           what they're doing),
-        - **the component exposes the imperative API** (``IMPERATIVE`` non
-          vide) : ``.open()`` / ``.set()`` / … visent leur cible par
-          ``getElementById(self.id)`` — sans id rendu le dispatch trouve
-          ``null`` et échoue **en silence** (cf. traps.md § « API imperative
-          sans id »). Ce comportement est dérivé de ``IMPERATIVE`` et gardé
-          par ``test_imperative_component_needs_identity``.
+        - **the component exposes the imperative API** (``IMPERATIVE``
+          non-empty): ``.open()`` / ``.set()`` / … target by
+          ``getElementById(self.id)`` — with no rendered id the dispatch
+          finds ``null`` and fails **silently** (cf. traps.md §
+          "imperative API with no id"). That behaviour is derived from
+          ``IMPERATIVE`` and guarded by
+          ``test_imperative_component_needs_identity``.
 
         ``fuse_or_wrap`` adds the ``bz-id`` of a refreshable section
-        on its OWN wrapper ; nodes nested inside don't need their own.
+        on its OWN wrapper; nodes nested inside don't need their own.
         """
         if type(self).IMPERATIVE:
             return True
@@ -2217,13 +2225,13 @@ class Component(metaclass=_ComponentMeta):
 
 # ───────────────────────────────────────────────────────────────────────────
 # Universal modifiers — applied to every component's render() via the
-# ``_ComponentMeta`` wrap. Two kwargs are recognised here :
+# ``_ComponentMeta`` wrap. Two kwargs are recognised here:
 #
 #   visible=False                  → ``FragmentNode(())`` (skip render entirely)
 #   visible=True / None            → no-op (default)
 #   visible=ClientBinding          → ``bz-show="$bz.state.<path>"`` +
-#                                     prestamp ``display:none`` (le V3 n'a
-#                                     plus de ``x-cloak``) sur la root ;
+#                                     prestamped ``display:none`` (V3 has
+#                                     no ``x-cloak`` any more) on the root;
 #                                     SSR fallback
 #                                     honours the binding's current value.
 #
@@ -2234,7 +2242,7 @@ class Component(metaclass=_ComponentMeta):
 # The wrap is idempotent (a marker on the wrapped function prevents
 # double-wrap when a subclass inherits a render that was already wrapped
 # at a parent class). Subclasses that don't override ``render()`` just
-# inherit the wrapped version from their parent ; subclasses that DO
+# inherit the wrapped version from their parent; subclasses that DO
 # override get their own wrap on top.
 # ───────────────────────────────────────────────────────────────────────────
 
@@ -2242,8 +2250,8 @@ class Component(metaclass=_ComponentMeta):
 def _find_x_ref(node: Node, ref_value: str) -> tuple[Element, list[tuple[Element, int]]] | None:
     """Locate the descendant Element with ``bz-ref="<ref_value>"``.
 
-    Le nom est conservé pour la stabilité des appels internes ; le marqueur
-    recherché est ``bz-ref``.
+    The name is kept for the stability of internal calls; the marker
+    looked for is ``bz-ref``.
 
     Returns ``(found, path)`` where ``path`` is the list of
     ``(ancestor, child_index)`` pairs from the root to (but not
@@ -2363,27 +2371,27 @@ def stamp_display_none(attrs: dict[str, Any]) -> None:
 
 
 def coerce_children(rendered: Any) -> tuple[Node, ...]:
-    """Normaliser ce qu'une échappatoire `render=` a renvoyé, en enfants.
+    """Normalise what a `render=` escape hatch returned, into children.
 
-    L'autre bout du contrat des composants qui rendent une COLLECTION :
-    le composant possède l'enveloppe (le ``<td>`` d'une cellule, le
-    ``<a href>`` d'un fil d'Ariane, son ``aria-current``), l'auteur
-    remplit le CORPS. Cette fonction est le passage de l'un à l'autre, et
-    elle accepte les quatre formes qu'un rappel peut rendre :
+    The other end of the contract for components rendering a COLLECTION:
+    the component owns the wrapper (a cell's ``<td>``, a breadcrumb's
+    ``<a href>``, its ``aria-current``), the author fills the BODY. This
+    function is the crossing from one to the other, and it accepts the
+    four shapes a callback can return:
 
-    - ``None`` → aucun enfant. Le composant garde son enveloppe vide
-      plutôt que d'afficher ``"None"``.
-    - un :class:`Component` → **détaché puis rendu**, via
-      :meth:`Component.render_detached`. C'est la moitié du contrat qu'on
-      oublie : un Component bâti dans le corps du rappel s'auto-enregistre
-      auprès du parent actif, donc sans le détachement il rend DEUX fois —
-      une fois ici, une fois en frère. Gaté par
+    - ``None`` → no children. The component keeps its wrapper empty
+      rather than displaying ``"None"``.
+    - a :class:`Component` → **detached then rendered**, through
+      :meth:`Component.render_detached`. It is the half of the contract
+      one forgets: a Component built in the callback's body registers
+      itself with the active parent, so without the detachment it renders
+      TWICE — once here, once as a sibling. Gated by
       ``test_render_never_orphans``.
-    - un :class:`Node` déjà bâti → passé tel quel.
-    - tout le reste → ``str()`` dans un :class:`TextNode`.
+    - an already-built :class:`Node` → passed through as-is.
+    - everything else → ``str()`` inside a :class:`TextNode`.
 
-    Ce comportement partagé vit dans ``base/`` afin que les composants de
-    plusieurs familles puissent l'utiliser sans import transversal.
+    This shared behaviour lives in ``base/`` so that components from
+    several families can use it without a cross-cutting import.
     """
     if rendered is None:
         return ()
@@ -2402,43 +2410,43 @@ def reject_component(
     because: str,
     instead: str,
 ) -> None:
-    """Refuser un Component sur un paramètre qui n'est PAS un slot.
+    """Refuse a Component on a parameter that is NOT a slot.
 
-    L'autre moitié du contrat que porte :meth:`Component.emit_text_slot`
-    juste au-dessus : un slot textuel accepte ``str | ClientBinding |
-    Component``, mais tous les paramètres textuels ne sont pas des slots.
-    Une source à parser (``markdown.text``), une chaîne de balisage
-    (``ui.html.content``), une donnée sérialisée en JSON
-    (``file_upload.accept``), ou un texte qui **double en attribut HTML**
-    — un ``aria-label`` ne porte qu'une string, donc un Component y
-    serait annoncé au lecteur d'écran sous son ``repr`` Python.
+    The other half of the contract :meth:`Component.emit_text_slot`
+    carries just above: a textual slot accepts ``str | ClientBinding |
+    Component``, but not every textual parameter is a slot. A source to
+    parse (``markdown.text``), a markup string (``ui.html.content``),
+    data serialised as JSON (``file_upload.accept``), or a text that
+    **doubles as an HTML attribute** — an ``aria-label`` carries only a
+    string, so a Component there would be announced to the screen reader
+    under its Python ``repr``.
 
-    Le refus est un état **légitime** du contrat, à une condition : qu'il
-    soit dit. Avant cette fonction, ces paramètres tombaient dans un
-    ``str(value)`` et expédiaient ``<bretzel…object at 0x…>`` dans la
-    page, ou plantaient au fond d'``escape_html`` sur ``'TextNode' object has
-    no attribute 'replace'`` — une erreur sans aucun rapport visible avec
-    ce que l'auteur avait écrit.
+    The refusal is a **legitimate** state of the contract, on one
+    condition: that it be said. Before this function, those parameters
+    fell into a ``str(value)`` and shipped ``<bretzel…object at 0x…>``
+    into the page, or crashed deep in ``escape_html`` on ``'TextNode'
+    object has no attribute 'replace'`` — an error with no visible
+    relation to what the author had written.
 
-    ``because`` dit ce que le paramètre est vraiment, ``instead`` dit par
-    quoi composer à la place. Les deux sont obligatoires : un refus qui
-    n'explique pas se lit comme un bug du framework, et la gate
-    ``test_text_slot_contract_universal`` exige que le message nomme le
-    paramètre et justifie.
+    ``because`` says what the parameter really is, ``instead`` says what
+    to compose with in its place. Both are mandatory: a refusal that does
+    not explain reads as a framework bug, and the
+    ``test_text_slot_contract_universal`` gate requires the message to
+    name the parameter and justify.
 
-    Levé à la CONSTRUCTION, jamais au rendu — c'est le contrat de
-    :class:`ComponentUsageError` (« raised at instantiation time ») et la
-    seule façon qu'un composant bâti puis écarté par une branche
-    conditionnelle remonte quand même la faute.
+    Raised at CONSTRUCTION, never at render — that is
+    :class:`ComponentUsageError`'s contract ("raised at instantiation
+    time") and the only way a component built then dropped by a
+    conditional branch still surfaces the fault.
 
-    La fonction vit auprès de :class:`Component`, disponible en portée
-    lexicale, et ne dépend pas de la discipline propre aux bindings.
+    The function lives next to :class:`Component`, available in lexical
+    scope, and does not depend on the discipline proper to bindings.
     """
     if not isinstance(value, Component):
         return
     raise ComponentUsageError(
-        f"{owner} n'accepte pas un Component pour ``{prop}=`` — {because} "
-        f"Ce n'est pas un slot de contenu : passe une string. {instead}"
+        f"{owner} does not accept a Component for ``{prop}=`` — {because} "
+        f"It is not a content slot: pass a string. {instead}"
     )
 
 
@@ -2474,23 +2482,23 @@ def _ensure_scope_identity(component: Component, node: Node) -> Node:
     )
 
 
-#: Un utilitaire de LARGEUR, variantes comprises.
+#: A WIDTH utility, variants included.
 #:
-#: Le préfixe de variante (``md:``, ``dark:hover:``…) est capturé pour que
-#: seules deux déclarations de MÊME portée entrent en conflit : un
-#: ``md:w-1/2`` passé par l'appelant ne doit pas effacer le ``w-full`` de
-#: base du thème, sinon le composant perdrait sa largeur sous le
-#: breakpoint.
+#: The variant prefix (``md:``, ``dark:hover:``…) is captured so that
+#: only two declarations of the SAME scope conflict: an ``md:w-1/2``
+#: passed by the caller must not erase the theme's base ``w-full``,
+#: otherwise the component would lose its width below the breakpoint.
 #:
-#: ``max-w-`` / ``min-w-`` sont exclus **naturellement** : variantes
-#: retirées, leur base commence par ``max-w-`` / ``min-w-``, pas ``w-``.
-#: C'est le bon comportement et pas un heureux hasard — ce sont d'autres
-#: propriétés CSS, qui composent avec ``width`` au lieu de la contredire.
+#: ``max-w-`` / ``min-w-`` are excluded **naturally**: with the variants
+#: removed, their base starts with ``max-w-`` / ``min-w-``, not ``w-``.
+#: That is the right behaviour and not a happy accident — they are other
+#: CSS properties, which compose with ``width`` instead of contradicting
+#: it.
 _WIDTH_UTILITY = re.compile(r"^(?P<variants>(?:[^\s:]+:)*)!?w-")
 
 
 def _width_scopes(classes: str) -> set[str]:
-    """Les portées de variante pour lesquelles ``classes`` fixe une largeur."""
+    """The variant scopes for which ``classes`` sets a width."""
     scopes: set[str] = set()
     for token in classes.split():
         match = _WIDTH_UTILITY.match(token)
@@ -2500,7 +2508,7 @@ def _width_scopes(classes: str) -> set[str]:
 
 
 def _drop_widths(existing: str, scopes: set[str]) -> str:
-    """Ôter d'``existing`` les largeurs redéclarées dans ``scopes``."""
+    """Remove from ``existing`` the widths redeclared in ``scopes``."""
     if not scopes:
         return existing
     kept = [
@@ -2519,13 +2527,13 @@ def _append_attr(node: Element, key: str, value: str) -> Element:
     prepends by contract so a child's own classes stay last.) ``Element``
     is immutable, hence the clone.
 
-    **L'ordre dans l'attribut ``class`` ne décide de rien.** Ce qui tranche
-    entre deux utilitaires Tailwind concurrents, c'est leur ordre dans la
-    feuille générée. Quand la valeur entrante déclare une
-    largeur, celles de même portée sont ÔTÉES de l'existant. Le conflit est
-    résolu dans le HTML, où on le maîtrise, au lieu d'être délégué à un
-    ordre de feuille qu'on ne contrôle pas. La règle vaut pour ``class``
-    seulement — les autres attributs sont concaténés tels quels.
+    **The order inside the ``class`` attribute decides nothing.** What
+    settles two competing Tailwind utilities is their order in the
+    generated sheet. When the incoming value declares a width, those of
+    the same scope are REMOVED from the existing one. The conflict is
+    resolved in the HTML, where we control it, instead of being delegated
+    to a sheet order we do not control. The rule holds for ``class``
+    only — the other attributes are concatenated as-is.
     """
     existing = str(node.attrs.get(key, ""))
     if key == "class" and existing:
@@ -2571,41 +2579,42 @@ def _reject_unknown_slot_keys(component: Component, user_slots: Mapping[str, Any
 
 
 def finish_render(component: Component, node: Node) -> Node:
-    """Les trois passes que TOUT nœud de composant doit subir après son
-    ``render()``, dans l'ordre.
+    """The three passes EVERY component node must undergo after its
+    ``render()``, in order.
 
-    1. **``BINDABLE_CARRIERS``** — quand la sous-classe déclare une carte
-       ``{prop: bz-ref}``, le socle marche l'arbre rendu, localise le
-       porteur et y transfère le ``bz-attr:<attr>``. La directive doublonne
-       sur la root est retirée une fois le porteur trouvé, donc un seul
-       écrivain par attribut. Porteur introuvable → la directive de la root
-       reste (repli sûr) et l'audit de carrier-landing le signale.
-    2. **``_ensure_scope_identity``** — ``id`` / ``bz-id`` quand un scope
-       ``bz-data`` doit survivre au morph.
+    1. **``BINDABLE_CARRIERS``** — when the subclass declares a
+       ``{prop: bz-ref}`` map, the base layer walks the rendered tree,
+       locates the carrier and transfers the ``bz-attr:<attr>`` onto it.
+       The duplicate directive on the root is removed once the carrier is
+       found, so there is one writer per attribute. Carrier not found →
+       the root's directive stays (safe fallback) and the carrier-landing
+       audit reports it.
+    2. **``_ensure_scope_identity``** — ``id`` / ``bz-id`` when a
+       ``bz-data`` scope must survive the morph.
     3. **``_apply_universal_modifiers``** — ``classes=``, ``style=``,
-       ``visible=``, ``tooltip=``, ``slots={"root"}`` et les classes brutes,
-       sur le VRAI root quel que soit le slot qui l'a composé.
+       ``visible=``, ``tooltip=``, ``slots={"root"}`` and the raw
+       classes, on the TRUE root whatever slot composed it.
 
-    Pourquoi c'est une fonction et plus le corps de la closure
-    -----------------------------------------------------------
-    Un parent qui **rebâtit** ses enfants au lieu d'appeler leur
-    ``render()`` court-circuite le wrap métaclasse — et donc les trois
-    passes. Mesuré : ``ui.toggle_button(..., classes=…, style=…,
-    slots={"root": …})`` dans un ``ui.toggle_group`` perdait **les trois**,
-    parce que ``ToggleGroup`` appelle ``child._render_button(...)``.
+    Why it is a function and no longer the closure's body
+    -----------------------------------------------------
+    A parent that **rebuilds** its children instead of calling their
+    ``render()`` bypasses the metaclass wrap — and therefore the three
+    passes. Measured: ``ui.toggle_button(..., classes=…, style=…,
+    slots={"root": …})`` inside a ``ui.toggle_group`` lost **all three**,
+    because ``ToggleGroup`` calls ``child._render_button(...)``.
 
-    En extrayant, le chemin « je rebâtis mon enfant » peut finir par le même
-    passage obligé que le chemin normal. Il y a UN endroit qui décrit ce que
-    « rendre un composant » veut dire, et les deux chemins y passent.
+    By extracting it, the "I rebuild my child" path can end at the same
+    obligatory crossing as the normal path. There is ONE place that
+    describes what "rendering a component" means, and both paths go
+    through it.
     """
-    # ⚠️ ICI, et pas dans `compose_class`. Premier essai : la
-    # validation vivait dans le compositeur de classes — et elle ne
-    # couvrait que 17 composants sur 57, parce que ceux dont les
-    # paliers sont des dicts multi-slots résolvent leur taille
-    # eux-mêmes et ne passent jamais par cette branche. Une validation
-    # partielle est PIRE que l'absence : elle rend le comportement
-    # dépendant du composant. `finish_render` est le seul point par où
-    # tout rendu passe.
+    # ⚠️ HERE, and not in `compose_class`. First attempt: the
+    # validation lived in the class composer — and it covered only 17
+    # components out of 57, because those whose steps are multi-slot
+    # dicts resolve their size themselves and never go through that
+    # branch. A partial validation is WORSE than none: it makes the
+    # behaviour depend on the component. `finish_render` is the only
+    # point every render goes through.
     from bretzel.components.base._wiring import refuse_a_value_off_the_table
 
     refuse_a_value_off_the_table(component)
@@ -2630,11 +2639,11 @@ def _apply_universal_modifiers(component: Component, node: Node) -> Node:
     if visible is False:
         return FragmentNode(children=())
 
-    # ── Le PONT de couleur : bz-c-<couleur> sur la vraie racine ───────
-    # Ici et pas dans ``compose_class`` pour la raison qui a déjà fait
-    # remonter ``classes=`` et ``slots={"root"}`` : un composant dont la
-    # racine est composée par un AUTRE slot, ou qui fabrique sa ``class=``
-    # à la main, ne passe pas par le composeur.
+    # ── The colour BRIDGE: bz-c-<colour> on the true root ─────────────
+    # Here and not in ``compose_class`` for the reason that already moved
+    # ``classes=`` and ``slots={"root"}`` up: a component whose root is
+    # composed by ANOTHER slot, or which builds its ``class=`` by hand,
+    # does not go through the composer.
     from bretzel.components.base._wiring import color_bridge_class
 
     if (bridge := color_bridge_class(component, node)) is not None:
@@ -2660,17 +2669,17 @@ def _apply_universal_modifiers(component: Component, node: Node) -> Node:
     if root_slot and isinstance(node, Element):
         node = _append_attr(node, "class", str(root_slot))
 
-    # ── Classes brutes (``class_=`` / ``attrs={"class": …}``) ─────────
-    # Même raison d'être ici que ``slots={"root"}`` juste au-dessus : un
-    # composant qui fabrique sa ``class=`` à la main dans ``render()`` —
-    # ``attrs["class"] = " ".join(parts)``, ce que fait Card — ÉCRASE tout
-    # ce que ``emit_attrs`` avait posé. Mesuré avant ce fix : un
-    # ``ui.card(class_="c2", attrs={"class": "c3"})`` perdait les deux
-    # sans un mot.
+    # ── Raw classes (``class_=`` / ``attrs={"class": …}``) ────────────
+    # Same reason to be here as ``slots={"root"}`` just above: a
+    # component that builds its ``class=`` by hand in ``render()`` —
+    # ``attrs["class"] = " ".join(parts)``, which Card does — OVERWRITES
+    # everything ``emit_attrs`` had set. Measured before this fix: a
+    # ``ui.card(class_="c2", attrs={"class": "c3"})`` lost both without a
+    # word.
     #
-    # Appliqué post-render, donc aucun composant ne peut plus l'écraser, et
-    # AVANT ``classes=`` : l'ordre documenté reste « thème, puis brut, puis
-    # les classes cosmétiques de l'utilisateur en dernier ».
+    # Applied post-render, so no component can overwrite it any more, and
+    # BEFORE ``classes=``: the documented order stays "theme, then raw,
+    # then the user's cosmetic classes last".
     raw_cls = component._raw_class_str
     if raw_cls and isinstance(node, Element):
         node = _append_attr(node, "class", raw_cls)
@@ -2687,16 +2696,16 @@ def _apply_universal_modifiers(component: Component, node: Node) -> Node:
     if user_cls and isinstance(node, Element):
         node = _append_attr(node, "class", user_cls)
 
-    # ── Universal classes=ClientBinding : same root, reactive ─────────
+    # ── Universal classes=ClientBinding: same root, reactive ─────────
     # ``bz-class`` accepts a plain string and — by contract — NEVER
     # touches the statically-emitted ``class=`` (it tracks the classes it
     # adds, per bind). So the theme composition survives and the binding
     # simply layers on top.
     #
     # This lives HERE, at the universal choke point, and not in
-    # ``apply_class_attrs`` : only 2 of ~55 components ever called that
-    # helper, so the documented "bindable sur tous les composants"
-    # contract held nowhere. The old emission was ``:class="…"`` — Alpine
+    # ``apply_class_attrs``: only 2 of ~55 components ever called that
+    # helper, so the documented "bindable on every component" contract
+    # held nowhere. The old emission was ``:class="…"`` — Alpine
     # syntax the V3 runtime doesn't read at all — and it dropped the
     # static ``class=`` on the way out, leaving those 2 components
     # completely unstyled. Cf. gate
@@ -2741,11 +2750,11 @@ def _apply_universal_modifiers(component: Component, node: Node) -> Node:
         if isinstance(node, Element):
             new_attrs = {**node.attrs}
             new_attrs[BZ_SHOW_PREFIX] = Component.path_of(visible)
-            # ``getattr(…, "value", True)`` — défensif À DESSEIN : un
-            # ClientExpression n'a pas de ``.value`` (rien à évaluer côté
-            # serveur), donc pas de garde FOUC pour lui. Limite assumée,
-            # pas un oubli : il n'existe aucune valeur SSR correcte pour
-            # une expression calculée côté client.
+            # ``getattr(…, "value", True)`` — defensive ON PURPOSE: a
+            # ClientExpression has no ``.value`` (nothing to evaluate
+            # server-side), so no FOUC guard for it. An accepted limit,
+            # not an oversight: there is no correct SSR value for an
+            # expression computed on the client.
             if not getattr(visible, "value", True):
                 stamp_display_none(new_attrs)
             node = Element(tag=node.tag, attrs=new_attrs, children=node.children)

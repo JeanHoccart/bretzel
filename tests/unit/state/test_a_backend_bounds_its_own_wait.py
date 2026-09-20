@@ -126,7 +126,7 @@ class _ClientQuiSeTait:
     ("levee", "attendu"),
     [
         (redis_exceptions.TimeoutError("timed out"), "socket_timeout"),
-        (redis_exceptions.ConnectionError("refusée"), "injoignable"),
+        (redis_exceptions.ConnectionError("refusée"), "unreachable"),
     ],
 )
 def test_a_transport_failure_says_what_to_do(

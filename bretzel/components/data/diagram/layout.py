@@ -1,40 +1,39 @@
-"""Placement en couches d'un graphe orienté — pur, sans rendu.
+"""Layered layout of a directed graph — pure, with no rendering.
 
-Aucun import du framework : ce module prend des clés et des arêtes, il
-rend des coordonnées. C'est délibéré, et c'est ce qui rend la moitié
-difficile du diagramme testable sans navigateur — un test unitaire peut
-affirmer « aucune arête ne traverse un nœud » ou « le placement est
-stable d'un run à l'autre » sans monter une page.
+No framework import: this module takes keys and edges, it returns
+coordinates. It is deliberate, and it is what makes the diagram's hard
+half testable without a browser — a unit test can assert "no edge crosses
+a node" or "the layout is stable from one run to the next" without
+mounting a page.
 
-Les quatre passes (Sugiyama, 1981) :
+The four passes (Sugiyama, 1981):
 
-1. **Casser les cycles.** Un parcours en profondeur, dans l'ordre
-   d'entrée ; toute arête qui pointe vers un nœud encore sur la pile est
-   inversée et mémorisée. On dessine ensuite la flèche dans le sens
-   d'origine — l'inversion sert au placement, pas à l'affichage.
-2. **Assigner les couches** — plus long chemin : ``couche(n) = 1 + max``
-   des couches de ses prédécesseurs. La couche EST l'ordre de lecture :
-   un nœud est toujours après ce qu'il consomme.
-3. **Réduire les croisements** — l'heuristique de la médiane, quatre
-   balayages aller-retour. Minimiser les croisements est NP-difficile ;
-   la médiane en enlève l'essentiel pour vingt lignes. On garde le
-   meilleur ordre rencontré, mesuré par un comptage réel.
-4. **Poser les coordonnées** — chaque nœud tiré vers la médiane de ses
-   voisins, puis on écarte ce qui se chevauche.
+1. **Break the cycles.** A depth-first walk, in input order; any edge
+   pointing at a node still on the stack is reversed and remembered. We
+   then draw the arrow in the original direction — the reversal serves
+   the layout, not the display.
+2. **Assign the layers** — longest path: ``layer(n) = 1 + max`` of its
+   predecessors' layers. The layer IS the reading order: a node always
+   comes after what it consumes.
+3. **Reduce the crossings** — the median heuristic, four back-and-forth
+   sweeps. Minimising crossings is NP-hard; the median removes the bulk
+   of them in twenty lines. We keep the best order encountered, measured
+   by a real count.
+4. **Set the coordinates** — each node pulled towards the median of its
+   neighbours, then we push apart what overlaps.
 
-Les **nœuds fantômes** ne sont pas un détail d'implémentation. Une arête
-qui saute deux couches sans eux passe en ligne droite PAR-DESSUS les
-nœuds intermédiaires : c'est le défaut visuel n°1 d'un moteur en
-couches écrit à la va-vite, et il est invisible tant qu'on ne teste que
-des graphes à deux niveaux. Une arête longue est donc découpée en
-segments d'une couche, chaque segment passant par un fantôme qui
-participe à l'ordonnancement et au placement comme un vrai nœud.
+The **ghost nodes** are not an implementation detail. An edge that jumps
+two layers without them goes in a straight line OVER the intermediate
+nodes: it is the number-one visual defect of a hastily written layered
+engine, and it is invisible as long as you only test two-level graphs. A
+long edge is therefore cut into one-layer segments, each segment passing
+through a ghost that takes part in ordering and placement like a real
+node.
 
-⚠️ **Déterminisme.** Tout part de l'ORDRE d'entrée : les clés sont une
-séquence, jamais un ensemble, et chaque égalité se départage par la
-clé. Sans ça, deux rendus du même graphe diffèrent, et ni la
-comparaison à l'octet près ni les captures de référence ne valent plus
-rien.
+⚠️ **Determinism.** Everything starts from the input ORDER: the keys are
+a sequence, never a set, and every tie is broken by the key. Without
+that, two renders of the same graph differ, and neither byte-exact
+comparison nor reference screenshots are worth anything any more.
 """
 
 from __future__ import annotations
@@ -42,36 +41,36 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Iterable, Sequence
 
-#: Le nombre de balayages de la passe 3. Quatre est la valeur classique :
-#: mesuré sur les graphes d'app de ce dépôt (9 à 25 nœuds), le gain
-#: s'annule dès le troisième — au-delà on paie sans rien gagner.
+#: The number of sweeps of pass 3. Four is the classic value: measured
+#: on this repository's app graphs (9 to 25 nodes), the gain vanishes
+#: from the third onwards — beyond that you pay without gaining.
 _SWEEPS = 4
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Metrics:
-    """Les distances du placement, en pixels.
+    """The layout's distances, in pixels.
 
-    Elles viennent du thème (``sizes``), pas d'ici : ce module ne
-    connaît aucune valeur de design. ``node_width`` est FIXE par palier
-    — le serveur ne mesure pas le texte, donc la seule façon de placer
-    sans mesurer côté client est de décider la largeur à l'avance. Un
-    nœud qui doit respirer passe par ``Node.width``.
+    They come from the theme (``sizes``), not from here: this module
+    knows no design value. ``node_width`` is FIXED per step — the server
+    does not measure text, so the only way to lay out without measuring
+    on the client is to decide the width in advance. A node that needs
+    room goes through ``Node.width``.
     """
 
     node_width: float = 160.0
     node_height: float = 44.0
-    #: Entre deux couches — c'est la longueur visible des arêtes.
+    #: Between two layers — it is the visible length of the edges.
     layer_gap: float = 72.0
-    #: Entre deux nœuds d'une même couche.
+    #: Between two nodes of the same layer.
     lane_gap: float = 20.0
-    #: Marge autour du dessin, pour que rien ne colle au bord.
+    #: Margin around the drawing, so nothing sticks to the edge.
     padding: float = 16.0
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Box:
-    """Un nœud placé — coin haut-gauche, plus sa taille effective."""
+    """A placed node — top-left corner, plus its effective size."""
 
     key: str
     x: float
@@ -82,12 +81,12 @@ class Box:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Route:
-    """Une arête placée.
+    """A placed edge.
 
-    ``path`` est le ``d`` d'un ``<path>`` SVG. ``flipped`` dit que
-    l'arête remontait le graphe et a été inversée en passe 1 : le tracé
-    va toujours de ``source`` à ``target``, c'est seulement sa forme qui
-    tient compte du fait qu'elle revient en arrière.
+    ``path`` is an SVG ``<path>``'s ``d``. ``flipped`` says the edge went
+    back up the graph and was reversed in pass 1: the path always goes
+    from ``source`` to ``target``, only its shape takes account of the
+    fact that it goes backwards.
     """
 
     source: str
@@ -98,14 +97,14 @@ class Route:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Placement:
-    """Ce que rend le moteur, et tout ce qu'il rend."""
+    """What the engine returns, and all it returns."""
 
     boxes: tuple[Box, ...]
     routes: tuple[Route, ...]
     width: float
     height: float
-    #: Les couches dans l'ordre de lecture, fantômes retirés. C'est
-    #: l'ordre du DOM, donc l'ordre de tabulation.
+    #: The layers in reading order, ghosts removed. It is the DOM's
+    #: order, so the tab order.
     layers: tuple[tuple[str, ...], ...]
 
     def box(self, key: str) -> Box | None:
@@ -116,20 +115,19 @@ class Placement:
 
 
 # ───────────────────────────────────────────────────────────────────────
-# 1 — casser les cycles
+# 1 — break the cycles
 # ───────────────────────────────────────────────────────────────────────
 
 
 def break_cycles(
     keys: Sequence[str], edges: Sequence[tuple[str, str]]
 ) -> tuple[list[tuple[str, str]], frozenset[tuple[str, str]]]:
-    """``(arêtes acycliques, arêtes inversées)``.
+    """``(acyclic edges, reversed edges)``.
 
-    Parcours en profondeur dans l'ordre d'entrée. Une arête vers un nœud
-    encore SUR LA PILE ferme un cycle : on l'inverse. Une arête vers un
-    nœud déjà fini n'en ferme aucun — c'est la distinction que rate un
-    « déjà vu » naïf, et elle inverserait des arêtes parfaitement
-    saines.
+    A depth-first walk in input order. An edge towards a node still ON
+    THE STACK closes a cycle: we reverse it. An edge towards an already
+    finished node closes none — it is the distinction a naive "already
+    seen" misses, and it would reverse perfectly healthy edges.
     """
     outgoing: dict[str, list[str]] = {k: [] for k in keys}
     for source, target in edges:
@@ -166,20 +164,20 @@ def break_cycles(
 
 
 # ───────────────────────────────────────────────────────────────────────
-# 2 — assigner les couches
+# 2 — assign the layers
 # ───────────────────────────────────────────────────────────────────────
 
 
 def assign_layers(
     keys: Sequence[str], edges: Sequence[tuple[str, str]]
 ) -> dict[str, int]:
-    """``{clé: index de couche}`` — plus long chemin depuis les racines.
+    """``{key: layer index}`` — longest path from the roots.
 
-    Sur un graphe acyclique, l'ordre topologique suffit : la couche d'un
-    nœud est un de plus que la plus profonde de ses sources. Une boucle
-    sur soi-même (``a → a``) est ignorée plutôt que refusée — elle ne
-    contraint aucune couche, et lever dessus punirait un graphe légitime
-    (une feature qui se cite elle-même) pour une raison cosmétique.
+    On an acyclic graph, the topological order is enough: a node's layer
+    is one more than the deepest of its sources. A self-loop (``a → a``)
+    is ignored rather than refused — it constrains no layer, and raising
+    on it would punish a legitimate graph (a feature that cites itself)
+    for a cosmetic reason.
     """
     incoming: dict[str, list[str]] = {k: [] for k in keys}
     outgoing: dict[str, list[str]] = {k: [] for k in keys}
@@ -202,10 +200,10 @@ def assign_layers(
             if pending[nxt] == 0:
                 queue.append(nxt)
 
-    # Un reste signifie un cycle non cassé : impossible si `break_cycles`
-    # a tourné, mais ce module s'appelle aussi tout seul dans les tests.
-    # On empile les survivants derrière tout le monde plutôt que de
-    # lever — un diagramme dégradé reste plus utile qu'une exception.
+    # A remainder means an unbroken cycle: impossible if `break_cycles`
+    # has run, but this module is also called on its own in the tests. We
+    # stack the survivors behind everybody else rather than raise — a
+    # degraded diagram is still more useful than an exception.
     if seen < len(keys):
         floor = max(layer.values(), default=0) + 1
         for key in keys:
@@ -215,16 +213,16 @@ def assign_layers(
 
 
 # ───────────────────────────────────────────────────────────────────────
-# 3 — réduire les croisements
+# 3 — reduce the crossings
 # ───────────────────────────────────────────────────────────────────────
 
 
 def _median(positions: list[int], fallback: float) -> float:
-    """La médiane, et le nœud SANS voisin garde sa place.
+    """The median, and a node WITH no neighbour keeps its place.
 
-    Rendre 0 pour un nœud isolé le catapulterait en tête de couche à
-    chaque balayage : il n'a aucune raison de bouger, donc son rang
-    courant fait office de médiane.
+    Returning 0 for an isolated node would catapult it to the head of the
+    layer at every sweep: it has no reason to move, so its current rank
+    serves as its median.
     """
     if not positions:
         return fallback
@@ -238,12 +236,12 @@ def _median(positions: list[int], fallback: float) -> float:
 def _crossings(
     upper: Sequence[str], lower: Sequence[str], pairs: Sequence[tuple[str, str]]
 ) -> int:
-    """Les croisements entre deux couches adjacentes.
+    """The crossings between two adjacent layers.
 
-    Comptage par paires : deux arêtes se croisent quand leurs extrémités
-    sont dans l'ordre inverse d'un côté à l'autre. C'est quadratique en
-    nombre d'arêtes, ce qui est sans conséquence ici — le plus dense des
-    graphes du dépôt fait 61 arêtes.
+    Counted pairwise: two edges cross when their ends are in the reverse
+    order from one side to the other. It is quadratic in the number of
+    edges, which is of no consequence here — the repository's densest
+    graph has 61 edges.
     """
     rank_upper = {k: i for i, k in enumerate(upper)}
     rank_lower = {k: i for i, k in enumerate(lower)}
@@ -263,12 +261,12 @@ def _crossings(
 def order_layers(
     layers: Sequence[Sequence[str]], edges: Sequence[tuple[str, str]]
 ) -> tuple[tuple[str, ...], ...]:
-    """Ordonne chaque couche pour réduire les croisements.
+    """Order each layer so as to reduce the crossings.
 
-    Quatre balayages, descendant puis montant, et on GARDE le meilleur
-    ordre rencontré — pas le dernier. La médiane n'est pas monotone :
-    un balayage peut dégrader, et sans cette mémoire on livrerait
-    parfois un ordre pire que celui de départ.
+    Four sweeps, downward then upward, and we KEEP the best order
+    encountered — not the last. The median is not monotone: a sweep can
+    make things worse, and without that memory we would sometimes ship
+    an order worse than the starting one.
     """
     current = [list(layer) for layer in layers]
     by_pair = [
@@ -299,9 +297,9 @@ def order_layers(
                 moving, anchor = (b, a) if descending else (a, b)
                 if moving in neighbours and anchor in rank:
                     neighbours[moving].append(rank[anchor])
-            # L'égalité se départage par le rang COURANT puis par la clé :
-            # deux nœuds de même médiane doivent se classer pareil à
-            # chaque exécution, sinon le placement n'est plus stable.
+            # Ties are broken by the CURRENT rank then by the key: two
+            # nodes with the same median must rank alike at every run,
+            # otherwise the layout is no longer stable.
             order = {k: j for j, k in enumerate(current[i])}
             current[i] = sorted(
                 current[i],
@@ -316,7 +314,7 @@ def order_layers(
 
 
 # ───────────────────────────────────────────────────────────────────────
-# 4 — poser les coordonnées
+# 4 — set the coordinates
 # ───────────────────────────────────────────────────────────────────────
 
 
@@ -326,12 +324,12 @@ def _cross_positions(
     sizes: dict[str, float],
     metrics: Metrics,
 ) -> dict[str, float]:
-    """La position de chaque nœud SUR l'axe transverse.
+    """Each node's position ON the cross axis.
 
-    Deux temps par couche : chacun vise la moyenne de ses voisins déjà
-    placés, puis un balayage écarte les chevauchements en respectant
-    l'ordre décidé en passe 3 — on ne réordonne jamais ici, sinon on
-    défait les croisements qu'on vient d'enlever.
+    Two steps per layer: each aims at the mean of its already placed
+    neighbours, then a sweep pushes apart the overlaps while respecting
+    the order decided in pass 3 — we never reorder here, otherwise we
+    would undo the crossings we have just removed.
     """
     incoming: dict[str, list[str]] = {}
     for source, target in edges:
@@ -355,8 +353,8 @@ def _cross_positions(
                 wanted.append(centre - sizes.get(key, metrics.node_height) / 2)
             cursor += sizes.get(key, metrics.node_height) + metrics.lane_gap
 
-        # Écartement : on remonte le premier à 0 puis on pousse vers
-        # l'avant. Un seul sens suffit — l'ordre est déjà figé.
+        # Pushing apart: we bring the first back up to 0 then push
+        # forward. One direction is enough — the order is already fixed.
         placed: list[float] = []
         edge_of_previous = float("-inf")
         for key, want in zip(layer, wanted, strict=True):
@@ -366,8 +364,8 @@ def _cross_positions(
         for key, value in zip(layer, placed, strict=True):
             pos[key] = value
 
-    # Recentrer chaque couche sur l'étendue globale : sans ça, une
-    # couche courte reste collée en haut et le dessin part en escalier.
+    # Re-centre each layer on the overall extent: without that, a short
+    # layer stays stuck at the top and the drawing goes staircase.
     spans = []
     for layer in layers:
         if not layer:
@@ -398,12 +396,11 @@ def _is_dummy(key: str) -> bool:
 
 
 def _spline(points: Sequence[tuple[float, float]], horizontal: bool) -> str:
-    """Une courbe lisse passant par ``points``.
+    """A smooth curve through ``points``.
 
-    Cubique par segment, avec des poignées posées à mi-distance sur
-    l'axe des couches : la courbe part et arrive perpendiculaire au
-    nœud, ce qui la rend lisible même quand deux arêtes se rejoignent
-    au même endroit.
+    Cubic per segment, with handles set halfway along the layer axis: the
+    curve leaves and arrives perpendicular to the node, which keeps it
+    readable even when two edges meet at the same place.
     """
     if len(points) < 2:
         return ""
@@ -426,27 +423,27 @@ def layout(
     direction: str = "right",
     widths: dict[str, float] | None = None,
 ) -> Placement:
-    """Placer un graphe orienté.
+    """Lay out a directed graph.
 
-    ``keys`` donne l'ordre d'entrée — c'est lui qui rend le résultat
-    reproductible. ``direction`` vaut ``"right"`` (les couches sont des
-    colonnes, on lit de gauche à droite) ou ``"down"``.
+    ``keys`` gives the input order — it is what makes the result
+    reproducible. ``direction`` is ``"right"`` (the layers are columns,
+    you read left to right) or ``"down"``.
 
-    Les arêtes qui citent une clé inconnue sont ignorées : un diagramme
-    amputé vaut mieux qu'une exception au milieu d'un rendu, et le
-    composant, lui, refuse en amont ce qu'il peut nommer.
+    Edges citing an unknown key are ignored: an amputated diagram is
+    better than an exception in the middle of a render, and the
+    component, for its part, refuses upstream what it can name.
     """
     metrics = metrics or Metrics()
     widths = widths or {}
-    keys = list(dict.fromkeys(keys))  # dédoublonne en gardant l'ordre
+    keys = list(dict.fromkeys(keys))  # dedupe while keeping the order
     known = set(keys)
     pairs = [(a, b) for a, b in edges if a in known and b in known]
 
     acyclic, flipped = break_cycles(keys, pairs)
     depth = assign_layers(keys, acyclic)
 
-    # Fantômes : une arête qui saute des couches est découpée, sinon
-    # elle passe en droite ligne par-dessus ce qu'il y a entre.
+    # Ghosts: an edge that jumps layers is cut, otherwise it goes in a
+    # straight line over whatever is in between.
     routed: list[tuple[str, list[str]]] = []
     expanded: list[tuple[str, str]] = []
     ghosts: list[tuple[str, int]] = []
@@ -469,8 +466,9 @@ def layout(
     for ghost, level in ghosts:
         depth[ghost] = level
 
-    # `max(..., default=0) + 1` donnerait UNE couche vide sur un graphe
-    # sans nœud, et `layers` cesserait d'être le témoin fiable du vide.
+    # `max(..., default=0) + 1` would give ONE empty layer on a graph
+    # with no node, and `layers` would stop being a reliable witness of
+    # emptiness.
     height = (max(depth.values(), default=0) + 1) if keys else 0
     layers: list[list[str]] = [[] for _ in range(height)]
     for key in keys:
@@ -480,14 +478,14 @@ def layout(
 
     ordered = order_layers(layers, expanded)
 
-    # Un fantôme réserve une VOIE ENTIÈRE, comme un vrai nœud.
+    # A ghost reserves a WHOLE LANE, like a real node.
     #
-    # Il ne se dessine pas, donc le réduire à un point est tentant — et
-    # c'est faux. Un point se retrouve collé au bord d'un nœud voisin,
-    # et le tracé qui en repart bombe dans la boîte de ce voisin : une
-    # arête PASSE ALORS SUR un nœud, le défaut n°1 d'un moteur en
-    # couches. Mesuré par `test_no_edge_passes_through_a_node`, qui
-    # rougissait exactement là-dessus avant ce correctif.
+    # It is not drawn, so reducing it to a point is tempting — and it is
+    # wrong. A point ends up stuck to a neighbouring node's edge, and the
+    # path leaving it bulges into that neighbour's box: an edge THEN
+    # PASSES OVER a node, the number-one defect of a layered engine.
+    # Measured by `test_no_edge_passes_through_a_node`, which went red on
+    # exactly that before this fix.
     horizontal = direction != "down"
 
     def _cross_extent(key: str) -> float:
@@ -498,8 +496,8 @@ def layout(
     cross_size = {k: _cross_extent(k) for layer in ordered for k in layer}
     cross = _cross_positions(ordered, expanded, cross_size, metrics)
 
-    # L'axe des couches : chaque couche est posée après la plus large de
-    # la précédente, pour que `width=` sur un nœud ne chevauche rien.
+    # The layer axis: each layer is placed after the widest of the
+    # previous one, so a `width=` on a node overlaps nothing.
     along: dict[int, float] = {}
     extent: dict[int, float] = {}
     cursor = metrics.padding
@@ -517,14 +515,14 @@ def layout(
     boxes: list[Box] = []
     centres: dict[str, tuple[float, float]] = {}
     spans: dict[str, tuple[float, float]] = {}
-    #: Un fantôme n'est pas un POINT mais un SEGMENT : l'arête traverse
-    #: la couche à plat sur sa voie, et ne remonte ou ne descend que dans
-    #: l'écart entre deux couches, où il n'y a rien.
+    #: A ghost is not a POINT but a SEGMENT: the edge crosses the layer
+    #: flat along its lane, and only rises or falls in the gap between
+    #: two layers, where there is nothing.
     #:
-    #: Le point seul plaçait l'entrée du fantôme au bord GAUCHE de la
-    #: couche : la courbe qui en repartait balayait alors toute la
-    #: largeur du nœud voisin en descendant, et le traversait. Mesuré :
-    #: `a→d` entrait dans `b` à x≈408 sur le losange du test.
+    #: The point alone placed the ghost's entry at the LEFT edge of the
+    #: layer: the curve leaving it then swept the whole width of the
+    #: neighbouring node on its way down, and went through it. Measured:
+    #: `a→d` entered `b` at x≈408 on the test's diamond.
     ghosts_line: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {}
     for index, layer in enumerate(ordered):
         for key in layer:
@@ -560,7 +558,7 @@ def layout(
                 points.append((high, cy) if horizontal else (cx, high))
             elif position == len(chain) - 1:
                 points.append((low, cy) if horizontal else (cx, low))
-            else:  # pragma: no cover — un vrai nœud n'est jamais au milieu
+            else:  # pragma: no cover — a real node is never in the middle
                 points.append((cx, cy))
         was_flipped = (target, source) in flipped
         head, tail = (target, source) if was_flipped else (source, target)
@@ -570,13 +568,13 @@ def layout(
             Route(source=head, target=tail, path=_spline(points, horizontal), flipped=was_flipped)
         )
 
-    # La toile doit contenir les ARETES aussi, pas seulement les boites.
+    # The canvas must contain the EDGES too, not only the boxes.
     #
-    # Un fantome n'est pas une boite : mesurer sur `boxes` seul rendait
-    # une toile trop courte, et une arete longue — dont la voie est
-    # justement HORS des couches occupees — sortait par le bas du cadre
-    # et disparaissait. Invisible a toute lecture de HTML, invisible aux
-    # sondes qui ne regardent que les noeuds ; vu sur la capture.
+    # A ghost is not a box: measuring on `boxes` alone gave a canvas that
+    # was too short, and a long edge — whose lane is precisely OUTSIDE
+    # the occupied layers — left through the bottom of the frame and
+    # disappeared. Invisible to any reading of the HTML, invisible to
+    # probes that only look at the nodes; seen on the screenshot.
     edge_points = [pt for line in ghosts_line.values() for pt in line]
     width = max(
         [b.x + b.width for b in boxes] + [x for x, _y in edge_points],
@@ -598,12 +596,12 @@ def layout(
 def neighbourhood(
     focus: str, edges: Sequence[tuple[str, str]], *, depth: int = 1
 ) -> set[str]:
-    """``focus`` plus ce qu'il touche, à ``depth`` sauts, les deux sens.
+    """``focus`` plus what it touches, at ``depth`` hops, both ways.
 
-    C'est la vue par défaut du composant. Le graphe entier d'une app
-    réelle est dense — 61 arêtes pour 22 nœuds, mesurés sur une app depuis retirée —
-    et un enchevêtrement ne répond à aucune question ; le voisinage
-    répond à celle qu'on a effectivement : « qui touche à ça ».
+    It is the component's default view. A real app's whole graph is dense
+    — 61 edges for 22 nodes, measured on an app since removed — and a
+    tangle answers no question; the neighbourhood answers the one you
+    actually have: "what touches this".
     """
     reached = {focus}
     frontier = {focus}
@@ -620,10 +618,11 @@ def neighbourhood(
 
 
 def keys_from_edges(edges: Iterable[tuple[str, str]]) -> list[str]:
-    """L'ensemble des nœuds cités, dans l'ordre de première apparition.
+    """The set of cited nodes, in order of first appearance.
 
-    C'est le niveau 1 de l'API : ``ui.diagram(edges=[…])`` sans déclarer
-    les nœuds. L'ordre vient des arêtes, donc il reste déterministe.
+    It is the API's tier 1: ``ui.diagram(edges=[…])`` without declaring
+    the nodes. The order comes from the edges, so it stays
+    deterministic.
     """
     out: list[str] = []
     for source, target in edges:

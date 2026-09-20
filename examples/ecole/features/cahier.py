@@ -1,30 +1,30 @@
-"""features/cahier — page : la saisie du soir, la progression, les fiches.
+"""features/cahier — page: the evening entry, the progression, the sheets.
 
-EF-K1 à EF-K12, EF-L1 à EF-L3, EF-M1 à EF-M4.
+EF-K1 to EF-K12, EF-L1 to EF-L3, EF-M1 to EF-M4.
 
-Le moment d'usage, et ce qu'il décide
----------------------------------------
-*« Le soir, 10 minutes : saisir les notes d'un devoir, remplir le cahier
-de texte. La frappe est l'ennemi. »* Tout l'écran est construit autour de
-cette phrase : la classe est déjà choisie, le chapitre aussi, la séance
-suivante aussi, et le texte est déjà écrit. Ce qui reste à faire est de
-LIRE et de corriger.
+The moment of use, and what it decides
+----------------------------------------
+*"In the evening, 10 minutes: entering a test's marks, filling in the
+lesson log. Typing is the enemy."* The whole screen is built around that
+sentence: the class is already chosen, so is the chapter, so is the next
+session, and the text is already written. What is left to do is to READ
+and correct.
 
-Les deux boutons de copie d'EF-K3
------------------------------------
-Un par champ d'École Directe — « contenu de séance » et « travail à
-faire ». Deux et pas un : ce sont deux champs distincts là-bas, et une
-copie unique obligerait à découper à la main dans le presse-papiers.
+EF-K3's two copy buttons
+--------------------------
+One per École Directe field — "session content" and "homework". Two and
+not one: they are two distinct fields over there, and a single copy would
+force cutting by hand in the clipboard.
 
-Les trois regards d'EF-M1, et pourquoi ils ne se confondent pas
-----------------------------------------------------------------
+EF-M1's three viewpoints, and why they do not merge
+-----------------------------------------------------
 ====================  =================================================
-le **chapitre**       ce qui est PRÉVU
-le **cahier**         ce qui a été FAIT
-la **fiche**          ce que la séance VAUT
+the **chapter**       what is PLANNED
+the **log**           what was DONE
+the **sheet**         what the session is WORTH
 ====================  =================================================
 
-Les fondre donnerait un seul texte qui répond mal aux trois questions.
+Merging them would give a single text answering all three badly.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ from examples.ecole.features.shell import shell
 
 PATH = "/cahier"
 
-#: Les deux carnets d'EF-M2, lus de part et d'autre du cours.
+#: EF-M2's two notebooks, read on either side of the lesson.
 CARNETS: tuple[tuple[str, str, str], ...] = (
     ("preparer", "À préparer", "avant le cours"),
     ("reflexions", "Réflexions", "après le cours"),
@@ -71,11 +71,12 @@ CARNETS: tuple[tuple[str, str, str], ...] = (
 
 
 class VueCahier(PageState, addressable=True):
-    """La classe et la date du cahier — **et l'adresse en fait foi**.
+    """The class and the log's date — **and the address is
+    authoritative**.
 
-    *« Ce qu'un lien doit retenir : la classe, la date »* (§ 8). C'est ce
-    qui permet à une case de la grille d'ouvrir le cahier sur le bon jour
-    (EF-B14), et c'est le second des deux chemins que le cahier promet.
+    *"What a link must keep: the class, the date"* (§ 8). It is what lets
+    a grid cell open the log on the right day (EF-B14), and it is the
+    second of the two paths the specification promises.
     """
 
     classe_id: int = field(default=0, url="classe")
@@ -83,7 +84,7 @@ class VueCahier(PageState, addressable=True):
 
 
 class SaisieCahier(PageState):
-    """Le brouillon du soir : ce que la proposition a déjà rempli."""
+    """The evening draft: what the proposal has already filled in."""
 
     classe_id: int = field(default=0)
     jour: str = field(default="")
@@ -96,7 +97,7 @@ class SaisieCahier(PageState):
 
 
 class FicheDraft(PageState):
-    """Une fiche de séance en cours d'écriture (EF-M2)."""
+    """A session sheet being written (EF-M2)."""
 
     ouvert: bool = field(default=False)
     chapitre_id: int = field(default=0)
@@ -107,11 +108,11 @@ class FicheDraft(PageState):
 
 
 def classe_du_moment(annee: dict) -> int:
-    """EF-K2 § 1 — *« la classe DU MOMENT est déjà choisie »*.
+    """EF-K2 § 1 — *"the class OF THE MOMENT is already chosen"*.
 
-    Elle vient de l'emploi du temps, pas d'un sélecteur : la première
-    heure à venir sur les sept prochains jours. À défaut, la première
-    classe de l'année — un écran vide ne répond à aucune question.
+    It comes from the timetable, not from a selector: the first hour
+    coming up over the next seven days. Failing that, the year's first
+    class — an empty screen answers no question.
     """
     heures = prochaines_heures(annee, date.today())
     if heures:
@@ -123,14 +124,13 @@ def classe_du_moment(annee: dict) -> int:
 
 
 def amorcer(vue: VueCahier, saisie: SaisieCahier) -> None:
-    """Remplit le brouillon depuis la proposition (EF-K2).
+    """Fill the draft from the proposal (EF-K2).
 
-    ⚠️ ``amorce`` retient POUR QUI la proposition a été faite. Sans lui,
-    changer de classe garderait le texte de la précédente — et le
-    professeur recopierait sur École Directe un contenu qui n'est pas
-    celui de cette classe. C'est la même famille que le ``classe_id``
-    des autres brouillons, et c'est la seule qui écrirait une faute
-    ailleurs que dans l'app.
+    ⚠️ ``amorce`` keeps WHO the proposal was made for. Without it,
+    changing class would keep the previous one's text — and the teacher
+    would copy onto École Directe a content that is not this class's. It
+    is the same family as the other drafts' ``classe_id``, and it is the
+    only one that would write a mistake outside the app.
     """
     annee = annee_regardee()
     classe_id = int(vue.classe_id) or classe_du_moment(annee)
@@ -155,7 +155,8 @@ def amorcer(vue: VueCahier, saisie: SaisieCahier) -> None:
 # ── Les handlers ─────────────────────────────────────────────────────
 
 def changer_classe(vue: VueCahier) -> None:
-    """Vide : la mutation seule re-rend les zones ``deps=[VueCahier]``."""
+    """Empty: the mutation alone re-renders the ``deps=[VueCahier]``
+    zones."""
 
 
 def enregistrer(saisie: SaisieCahier) -> None:
@@ -177,11 +178,11 @@ def reporter(entree_id: int) -> None:
 
 
 def reprendre_de_la_soeur(contenu: str, travail: str) -> None:
-    """EF-K10 — on reprend ce qu'une classe sœur a noté.
+    """EF-K10 — one picks up what a sister class recorded.
 
-    **Le texte est AJUSTÉ, jamais recalculé** (EF-K9) : seule la ligne
-    d'annonce du chapitre bouge, parce que la règle « le chapitre n'est
-    annoncé qu'une fois » est PAR CLASSE.
+    **The text is ADJUSTED, never recomputed** (EF-K9): only the
+    chapter-announcement line moves, because the rule "the chapter is
+    announced only once" is PER CLASS.
     """
     saisie = SaisieCahier()
     donnees = classe(int(saisie.classe_id))
@@ -294,17 +295,17 @@ def formulaire_du_soir() -> None:
 
 def champ_copiable(libelle: str, liaison, valeur: str, fige: bool,
                    lignes: int) -> None:
-    """EF-K3 — **deux boutons de copie, un par champ d'École Directe.**
+    """EF-K3 — **two copy buttons, one per École Directe field.**
 
-    Deux et pas un : ce sont deux champs distincts là-bas, et une copie
-    unique obligerait à découper à la main dans le presse-papiers.
+    Two and not one: they are two distinct fields over there, and a
+    single copy would force cutting by hand in the clipboard.
 
-    ⚠️ **Le bouton copie la valeur SERVEUR**, celle du dernier rendu.
-    Copier ce que le champ contient à l'instant du clic demanderait de
-    lire le DOM, et ``copy()`` prend une valeur. La conséquence est
-    qu'une correction non enregistrée ne part pas dans le presse-papiers
-    — c'est un finding, noté au chantier, et c'est pour ça que l'écran
-    dit de consigner d'abord.
+    ⚠️ **The button copies the SERVER value**, that of the last render.
+    Copying what the field contains at the instant of the click would
+    require reading the DOM, and ``copy()`` takes a value. The
+    consequence is that an unsaved correction does not go into the
+    clipboard — it is a finding, noted in the work, and it is why the
+    screen says to record first.
     """
     with ui.form_field(label=libelle):
         ui.textarea(value=liaison, rows=lignes, disabled=fige)
@@ -316,7 +317,7 @@ def champ_copiable(libelle: str, liaison, valeur: str, fige: bool,
 
 
 def panneau_des_soeurs(soeurs: list[dict], fige: bool) -> None:
-    """EF-K10 — *« on est sur la 4e2, on cherche ce que la 4e1 a fait »*."""
+    """EF-K10 — *"we are on 4e2, we look for what 4e1 did"*."""
     with ui.card(padding="md", color="secondary"), ui.vstack(gap="sm"):
         ui.heading("Une classe sœur a déjà noté cette séance", level=3,
                    size="md")
@@ -333,7 +334,7 @@ def panneau_des_soeurs(soeurs: list[dict], fige: bool) -> None:
 
 @refreshable(deps=[AnneeVue, VueCahier, CahierRev])
 def liste_des_entrees() -> None:
-    """EF-K8 — **la séance du jour en tête.**"""
+    """EF-K8 — **the day's session at the head.**"""
     saisie = SaisieCahier()
     classe_id = int(saisie.classe_id)
     if not classe_id:
@@ -362,13 +363,12 @@ def liste_des_entrees() -> None:
 
 @refreshable(deps=[AnneeVue, CahierRev])
 def tableau_de_progression() -> None:
-    """EF-L1, EF-L2 — **un tableau, pas une liste.**
+    """EF-L1, EF-L2 — **a table, not a list.**
 
-    *« Cinq classes sur un même programme dérivent l'une de l'autre sans
-    qu'on s'en aperçoive, et on le découvre en juin quand il est trop
-    tard. »* Le décalage se lit COLONNE PAR COLONNE : une colonne où une
-    seule classe est à zéro saute aux yeux, cinq cahiers lus l'un après
-    l'autre non.
+    *"Five classes on the same syllabus drift apart without anybody
+    noticing, and one discovers it in June when it is too late."* The gap
+    reads COLUMN BY COLUMN: a column where a single class is at zero
+    leaps out, five logs read one after the other do not.
     """
     annee = annee_regardee()
     with ui.vstack(gap="lg"):
@@ -384,13 +384,12 @@ def tableau_de_progression() -> None:
                 ):
                     ui.text("", color="muted")
                     for chapitre in table["chapitres"]:
-                        # ⚠️ PAS de `truncate=True` : `ui.text` rend un
-                        # `<span>`, donc en ligne — la coupure ne le
-                        # borne pas dans sa piste de grille, et les
-                        # titres se peignent LES UNS SUR LES AUTRES.
-                        # Vu à l'écran le 2026-09-12, illisible. Un
-                        # titre qui passe à la ligne coûte une rangée
-                        # plus haute et se lit.
+                        # ⚠️ NO `truncate=True`: `ui.text` renders a
+                        # `<span>`, hence inline — the cut does not bound
+                        # it in its grid track, and the titles paint ON
+                        # TOP OF each other. Seen on screen on
+                        # 2026-09-12, unreadable. A title that wraps
+                        # costs a taller row and reads.
                         ui.text(chapitre["titre"], color="muted",
                                 size="sm", tooltip=chapitre["titre"])
                     for ligne in table["classes"]:
@@ -409,11 +408,11 @@ def tableau_de_progression() -> None:
 
 @refreshable(deps=[FicheDraft, CahierRev])
 def dialogue_fiche() -> None:
-    """EF-M2 — **un résumé qu'on RÉÉCRIT, deux carnets où l'on AJOUTE.**
+    """EF-M2 — **a summary one REWRITES, two notebooks one ADDS to.**
 
-    *« Chaque note est datée et ne remplace pas la précédente : la même
-    séance donnée à la 3e2 puis à la 3e9, ce sont deux observations. »*
-    Les deux moitiés sont donc deux formulaires, pas un.
+    *"Every note is dated and does not replace the previous one: the same
+    session given to 3e2 then to 3e9 makes two observations."* So the two
+    halves are two forms, not one.
     """
     draft = FicheDraft()
     existante = fiche_seance(int(draft.chapitre_id), str(draft.titre))
@@ -429,9 +428,9 @@ def dialogue_fiche() -> None:
             color="muted",
         )
         if orphelines:
-            # EF-M4 : celles qu'on n'a pas pu rattacher sont DITES, pas
-            # reposées au hasard — c'est le piège n° 10, vu de l'autre
-            # côté.
+            # EF-M4: those that could not be reattached are SAID, not
+            # put back at random — it is trap no. 10, seen from the other
+            # side.
             ui.banner(
                 message=f"{len(orphelines)} fiche(s) de ce chapitre ne "
                         f"correspondent à aucune séance : "

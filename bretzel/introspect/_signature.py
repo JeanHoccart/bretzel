@@ -1,14 +1,14 @@
-"""Lecture d'une signature Python vivante — la primitive partagée.
+"""Reading a live Python signature — the shared primitive.
 
-Sortie de ``examples/docs/lib/introspect.py`` le 2026-08-16, en même temps
-que le reste du moteur : tant qu'il vivait dans un exemple, ni le
-framework, ni un CLI, ni un outillage tiers ne pouvait en dépendre (un
-module de ``bretzel/`` ne peut pas importer ``examples/``).
+Taken out of ``examples/docs/lib/introspect.py`` on 2026-08-16, at the
+same time as the rest of the engine: as long as it lived in an example,
+neither the framework, nor a CLI, nor third-party tooling could depend on
+it (a module in ``bretzel/`` cannot import ``examples/``).
 
-Nommé ``_signature`` et non ``_labels`` — il ne porte pas que des
-étiquettes, il porte :func:`describe_callable`, que toutes les sections de
-:mod:`bretzel.introspect` réutiliseront (state, config, server…). Le
-réutiliser AVANT de relister à la main les paramètres d'un appelable.
+Named ``_signature`` and not ``_labels`` — it carries more than labels,
+it carries :func:`describe_callable`, which every section of
+:mod:`bretzel.introspect` will reuse (state, config, server…). Reuse it
+BEFORE re-listing a callable's parameters by hand.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ REQUIRED_LABEL = "— (requis)"
 
 
 def type_label(hint: object) -> str:
-    """Étiquette compacte et lisible pour un type résolu."""
+    """A compact, readable label for a resolved type."""
     if hint is None:
         return "?"
     name = getattr(hint, "__name__", None)
@@ -40,16 +40,16 @@ def type_label(hint: object) -> str:
 
 
 def default_label(value: object) -> str:
-    """Étiquette d'une valeur par défaut déjà connue (hors signature)."""
+    """The label of an already-known default value (outside a signature)."""
     return repr(value)
 
 
 @cache
 def describe_callable(fn: object) -> CallableInfo:
-    """Lit la signature vivante d'un appelable.
+    """Read a callable's live signature.
 
-    Mis en cache sur ``fn`` : une signature est fixe pour la durée du
-    process. ``self`` est retiré — la fiche se lit comme le site d'appel.
+    Cached on ``fn``: a signature is fixed for the process's lifetime.
+    ``self`` is removed — the card reads like the call site.
     """
     sig = inspect.signature(fn)
     params: list[ParamInfo] = []

@@ -1,30 +1,29 @@
-"""Le corps partagé d'un item de navigation — NavbarItem, SidebarItem,
+"""The shared body of a navigation item — NavbarItem, SidebarItem,
 BottomBarItem.
 
-Les trois composants sont des **variantes visuelles d'un même
-comportement** : résoudre l'état actif, brancher le partial-nav HTMX,
-neutraliser un item désactivé, rendre un badge. Seuls le thème et deux
-extras propres à la sidebar (le scroll-into-view au montage, le tooltip
-du rail replié) diffèrent réellement.
+The three components are **visual variants of one behaviour**: resolve
+the active state, wire the HTMX partial-nav, neutralise a disabled item,
+render a badge. Only the theme and two sidebar-specific extras (the
+scroll-into-view on mount, the collapsed rail's tooltip) really differ.
 
-⚠️ Ce docstring est le SEUL endroit où la promesse « ces composants se
-comportent à l'identique » est écrite — leurs docstrings s'appuient dessus.
-Un quatrième consommateur s'ajoute ici, pas seulement dans les imports.
+⚠️ This docstring is the ONLY place where the promise "these components
+behave identically" is written — their docstrings lean on it. A fourth
+consumer is added here, not only in the imports.
 
-Tout ça vivait en double (audit F15, F16, F54), et la dérive **avait
-déjà eu lieu** — c'est ce qui rend le finding concret plutôt que
-théorique :
+All of this lived in duplicate (audit F15, F16, F54), and the drift **had
+already happened** — that is what makes the finding concrete rather than
+theoretical:
 
-- l'``aria-disabled`` réactif s'écrivait ``'true' : null`` côté navbar et
-  ``'true' : 'false'`` côté sidebar (F88) — sans conséquence aujourd'hui,
-  une variante Tailwind ``aria-disabled:*`` ne matchant que ``="true"``,
-  mais les deux composants auraient divergé le jour où un thème
-  sélectionnerait ``aria-disabled=false`` ;
-- le badge réactif de la sidebar rendait une pastille **vide** au premier
-  paint, là où celui de la navbar peignait la valeur SSR en attendant le
-  boot du runtime, et savait accepter un Component.
+- the reactive ``aria-disabled`` was written ``'true' : null`` on the
+  navbar side and ``'true' : 'false'`` on the sidebar side (F88) — with
+  no consequence today, a Tailwind ``aria-disabled:*`` variant only
+  matching ``="true"``, but the two components would have diverged the
+  day a theme selected ``aria-disabled=false``;
+- the sidebar's reactive badge rendered an **empty** chip at the first
+  paint, where the navbar's painted the SSR value while waiting for the
+  runtime's boot, and knew how to accept a Component.
 
-Les deux sont réconciliés ici sur la meilleure des deux versions.
+Both are reconciled here on the better of the two versions.
 """
 
 from __future__ import annotations
@@ -38,26 +37,26 @@ from bretzel.core.tree import Element
 from bretzel.render.context import maybe_current_context
 from bretzel.runtime.protocol import outlet_id_for
 
-# Les canaux par lesquels un clic peut partir. Un item désactivé les perd
-# TOUS : ``href`` (nav navigateur), ``hx-*`` (swap partiel), et le flip
-# optimiste de ``current_path`` (sinon le surlignage se désynchronise de
-# l'URL sans navigation pour le réconcilier).
+# The channels through which a click can leave. A disabled item loses
+# them ALL: ``href`` (browser nav), ``hx-*`` (partial swap), and the
+# optimistic flip of ``current_path`` (otherwise the highlight goes out
+# of sync with the URL with no navigation to reconcile it).
 _CLICK_CHANNELS = (
     "href", "hx-get", "hx-target", "hx-swap", "hx-push-url", "bz-on:click",
 )
 
 
 def capture_layout() -> str | None:
-    """Le nom du layout englobant, lu **au construct**.
+    """The enclosing layout's name, read **at construction**.
 
-    Le ``with @layout(): …`` est encore ouvert pendant le ``__init__`` d'un
-    item ; ``ctx.layout_stack`` est vide au moment du ``render()``. C'est
-    donc ici, et nulle part ailleurs, qu'on peut savoir dans quel outlet le
-    partial-nav devra taper.
+    The ``with @layout(): …`` is still open during an item's
+    ``__init__``; ``ctx.layout_stack`` is empty at ``render()`` time. So
+    it is here, and nowhere else, that we can know which outlet the
+    partial-nav will have to hit.
 
-    Son SEUL consommateur est :func:`apply_partial_nav`, juste en dessous —
-    d'où sa place ici plutôt qu'en trois copies dont chacune tirait un import
-    de ``bretzel.render.context`` pour trois lignes.
+    Its ONLY consumer is :func:`apply_partial_nav`, just below — hence
+    its place here rather than in three copies each of which pulled an
+    import from ``bretzel.render.context`` for three lines.
     """
     ctx = maybe_current_context()
     stack = list(getattr(ctx, "layout_stack", ()) or ()) if ctx else []
@@ -65,38 +64,38 @@ def capture_layout() -> str | None:
 
 
 def current_path_scope(extra: str = "") -> str:
-    """Le littéral ``bz-data`` qui déclare le signal ``current_path``.
+    """The ``bz-data`` literal that declares the ``current_path`` signal.
 
-    La moitié « resync » de ce mécanisme est partagée depuis toujours
-    (:func:`current_path_resync_init`) ; la DÉCLARATION, elle, était recopiée
-    à la main dans navbar, sidebar (deux fois, en concaténation) et
-    bottom_bar. Or la clé est porteuse : :func:`apply_partial_nav` écrit
-    ``current_path = "…"`` en identifiant nu, et le resync compare
-    ``current_path !== p``. Un renommage dans une seule copie tuait le
-    surlignage de CETTE nav en silence.
+    The "resync" half of this mechanism has always been shared
+    (:func:`current_path_resync_init`); the DECLARATION, for its part,
+    was copied by hand into navbar, sidebar (twice, by concatenation) and
+    bottom_bar. Yet the key is load-bearing: :func:`apply_partial_nav`
+    writes ``current_path = "…"`` as a bare identifier, and the resync
+    compares ``current_path !== p``. A rename in a single copy killed
+    THAT nav's highlighting in silence.
 
-    ``extra`` ajoute les champs propres au composant (la sidebar y met son
-    ``open`` et les trois champs de son tooltip de rail).
+    ``extra`` adds the component's own fields (the sidebar puts its
+    ``open`` and the three fields of its rail tooltip there).
     """
     base = "current_path: window.location.pathname"
     return "{ " + (f"{base}, {extra}" if extra else base) + " }"
 
 
 class NavItemWiring(NamedTuple):
-    """Ce que :func:`wire_nav_item` a résolu — le comportement, pas le rendu.
+    """What :func:`wire_nav_item` resolved — the behaviour, not the render.
 
-    ``tag`` et ``attrs`` sont prêts à être posés sur l'``Element`` racine ;
-    les autres champs sont les valeurs déjà lues, pour que l'appelant compose
-    ses enfants sans relire ``_reactive_values``.
+    ``tag`` and ``attrs`` are ready to be set on the root ``Element``;
+    the other fields are the already-read values, so the caller composes
+    its children without re-reading ``_reactive_values``.
     """
 
     tag: str
     attrs: dict[str, Any]
-    #: ``Any``, pas ``str`` : ``label`` est un slot textuel, donc il
-    #: porte ``str | ClientBinding | Component``. L'annoter ``str`` avait
-    #: pour pendant un ``str(...)`` à la lecture, qui expédiait le repr
-    #: Python d'un Component dans la page — sur les TROIS items de nav
-    #: d'un coup, puisque ce corps est partagé.
+    #: ``Any``, not ``str``: ``label`` is a textual slot, so it carries
+    #: ``str | ClientBinding | Component``. Annotating it ``str`` had as
+    #: its counterpart a ``str(...)`` at read time, which shipped a
+    #: Component's Python repr into the page — on ALL THREE nav items at
+    #: once, since this body is shared.
     label: Any
     href: Any
     color: str
@@ -106,22 +105,24 @@ class NavItemWiring(NamedTuple):
 
 
 def wire_nav_item(item: Component, slots: dict[str, Any]) -> NavItemWiring:
-    """Le prologue de ``render()`` d'un item de nav — lecture + câblage.
+    """The prologue of a nav item's ``render()`` — reading + wiring.
 
-    Les trois items (Navbar / Sidebar / BottomBar) faisaient exactement ces
-    45 lignes, à l'identique : les huit lectures de valeurs et de bindings,
-    le choix du tag, la résolution des deux chaînes de classes, ``emit_attrs``,
-    puis les trois ``apply_*``. Ce qui les distingue vraiment commence APRÈS —
-    la composition des enfants, et deux extras de la sidebar.
+    The three items (Navbar / Sidebar / BottomBar) had exactly these 45
+    lines, identically: the eight reads of values and bindings, the
+    choice of tag, the resolution of the two class strings,
+    ``emit_attrs``, then the three ``apply_*``. What really sets them
+    apart begins AFTER — the composition of the children, and two
+    sidebar extras.
 
-    ⚠️ Ce n'est pas de l'esthétique : l'en-tête de ce module raconte que cette
-    duplication a **déjà dérivé deux fois** (l'``aria-disabled`` réactif écrit
-    de deux façons, le badge réactif qui peignait une pastille vide d'un seul
-    côté). La troisième copie est arrivée avec ``bottom_bar``.
+    ⚠️ It is not aesthetics: this module's header tells how this
+    duplication has **already drifted twice** (the reactive
+    ``aria-disabled`` written two ways, the reactive badge that painted
+    an empty chip on one side only). The third copy arrived with
+    ``bottom_bar``.
 
-    L'ordre des trois ``apply_*`` est celui d'avant, et il compte :
-    ``apply_disabled`` passe en DERNIER parce qu'il retire les canaux de clic
-    que les deux précédents viennent de poser.
+    The order of the three ``apply_*`` is the one from before, and it
+    matters: ``apply_disabled`` comes LAST because it removes the click
+    channels the previous two have just set.
     """
     values = item._reactive_values
     bindings = item._binding_metadata
@@ -132,12 +133,12 @@ def wire_nav_item(item: Component, slots: dict[str, Any]) -> NavItemWiring:
     disabled = bool(values.get("disabled"))
     disabled_binding = bindings.get("disabled")
 
-    # Ancre si l'item navigue, tag par défaut du composant sinon.
+    # An anchor if the item navigates, the component's default tag otherwise.
     tag = "a" if href else item._tag
 
-    # ``bz-class`` n'ajoute/retire que ce que son expression produit — le
-    # ``class=`` statique n'est jamais touché. Les classes de base vivent
-    # donc dans ``class=`` seul, l'expression ne porte que la couche active.
+    # ``bz-class`` only adds/removes what its expression produces — the
+    # static ``class=`` is never touched. The base classes therefore live
+    # in ``class=`` alone, the expression carries only the active layer.
     base_class = slots.get("root", "")
     active_class = slots.get("active", "")
 
@@ -171,10 +172,10 @@ def wire_nav_item(item: Component, slots: dict[str, Any]) -> NavItemWiring:
 
 
 def is_external_href(href: Any) -> bool:
-    """Un href qui sort du site — jamais partial-nav-é.
+    """An href that leaves the site — never partial-nav'd.
 
-    HTMX irait XHR-fetch l'hôte externe (bloqué par CORS) et le clic
-    échouerait en silence.
+    HTMX would XHR-fetch the external host (blocked by CORS) and the
+    click would fail in silence.
     """
     return bool(href) and (
         "://" in href or href.startswith(("mailto:", "tel:"))
@@ -190,22 +191,22 @@ def apply_active_state(
     base_class: str,
     active_class: str,
 ) -> None:
-    """Pose l'état actif sur ``attrs`` — trois sources, dans l'ordre.
+    """Set the active state on ``attrs`` — three sources, in order.
 
-    1. binding explicite → ``bz-attr:data-active`` réactif ;
-    2. booléen littéral → ``data-active`` statique ;
-    3. ``None`` (auto) → comparaison réactive à ``current_path``, le
-       signal que le Navbar / la Sidebar possède dans son ``bz-data``.
+    1. explicit binding → reactive ``bz-attr:data-active``;
+    2. literal boolean → static ``data-active``;
+    3. ``None`` (auto) → reactive comparison with ``current_path``, the
+       signal the Navbar / Sidebar owns in its ``bz-data``.
 
-    Les expressions data-attr sont des ternaires **stringifiés** à
-    dessein : ``bz-attr`` SUPPRIME l'attribut sur un ``false`` nu, et les
-    styles ``data-[active=false]:hover:*`` du thème ont besoin de la
-    chaîne littérale (cf. traps.md § data-attrs stringifiés).
+    The data-attr expressions are **stringified** ternaries on purpose:
+    ``bz-attr`` REMOVES the attribute on a bare ``false``, and the
+    theme's ``data-[active=false]:hover:*`` styles need the literal
+    string (cf. traps.md § stringified data-attrs).
 
-    ``bz-class`` n'ajoute/retire que les classes que son expression
-    produit — le ``class=""`` statique émis par le serveur n'est jamais
-    touché. L'expression ne porte donc QUE la couche active (ne pas y
-    répéter les classes de base).
+    ``bz-class`` only adds/removes the classes its expression produces —
+    the static ``class=""`` emitted by the server is never touched. The
+    expression therefore carries ONLY the active layer (do not repeat the
+    base classes in it).
     """
     active_js = json.dumps(active_class)
     if active_binding is not None:
@@ -218,20 +219,20 @@ def apply_active_state(
     elif active_value is False:
         attrs["data-active"] = "false"
     elif href:
-        # Auto : ``/`` ne doit matcher QUE la racine, pas tout chemin qui
-        # commence par ``/``.
+        # Auto: ``/`` must match ONLY the root, not every path starting
+        # with ``/``.
         #
-        # Tout ce qui est constant AU RENDU est évalué ici, en Python, pas
-        # 186 fois par page dans le navigateur : ``href !== '/'`` compare
-        # deux littéraux dont le serveur connaît déjà le verdict, et
-        # ``href + '/'`` est une concaténation de constantes. L'expression
-        # passe de ~150 à ~62 caractères, et elle est recopiée sur trois
-        # attributs par entrée (cf. todo.md § sidebar).
+        # Everything constant AT RENDER is evaluated here, in Python, not
+        # 186 times per page in the browser: ``href !== '/'`` compares
+        # two literals whose verdict the server already knows, and
+        # ``href + '/'`` is a concatenation of constants. The expression
+        # goes from ~150 to ~62 characters, and it is copied onto three
+        # attributes per entry (cf. todo.md § sidebar).
         #
-        # La garde ``current_path !== '/'`` disparaît avec eux, et c'est
-        # sûr : elle ne protégeait que le cas ``href == '/'``, désormais
-        # traité par sa propre branche. Pour tout autre href,
-        # ``'/'.startsWith('/text/')`` est déjà faux.
+        # The ``current_path !== '/'`` guard disappears with them, and it
+        # is safe: it only protected the ``href == '/'`` case, now
+        # handled by its own branch. For any other href,
+        # ``'/'.startsWith('/text/')`` is already false.
         if href == "/":
             condition = "(current_path === '/')"
         else:
@@ -250,12 +251,12 @@ def apply_partial_nav(
     href: Any,
     captured_layout: Any,
 ) -> None:
-    """Branche le swap d'outlet HTMX quand l'item porte un href ET qu'un
-    layout a été capturé.
+    """Wire the HTMX outlet swap when the item carries an href AND a
+    layout was captured.
 
-    Sans layout, le lien retombe sur une ancre simple (rechargement
-    complet, ce qui est correct). Un href externe garde ``target=_blank``
-    + la paire ``rel`` de sécurité.
+    With no layout, the link falls back to a plain anchor (full reload,
+    which is correct). An external href keeps ``target=_blank`` + the
+    security ``rel`` pair.
     """
     if not href:
         return
@@ -265,11 +266,11 @@ def apply_partial_nav(
         attrs.setdefault("hx-target", f"#{outlet_id_for(captured_layout)}")
         attrs.setdefault("hx-swap", "morph:innerHTML")
         attrs.setdefault("hx-push-url", "true")
-        # Feedback optimiste : bascule ``current_path`` de façon
-        # synchrone pour que le surlignage bouge au clic, avant l'aller-
-        # retour. L'item n'a pas de ``bz-data`` à lui, donc l'expression
-        # résout (et écrit) dans le scope du parent. Identifiant nu, sans
-        # ``this.`` — dans une directive, ``this`` serait l'élément DOM.
+        # Optimistic feedback: flip ``current_path`` synchronously so
+        # the highlight moves on the click, before the round trip. The
+        # item has no ``bz-data`` of its own, so the expression resolves
+        # (and writes) in the parent's scope. A bare identifier, with no
+        # ``this.`` — in a directive, ``this`` would be the DOM element.
         attrs.setdefault("bz-on:click", f"current_path = {json.dumps(href)}")
         return
     attrs["href"] = href
@@ -284,41 +285,41 @@ def apply_disabled(
     disabled: bool,
     disabled_path: str | None,
 ) -> None:
-    """Neutralise l'item — a11y, ordre de tabulation, canaux de clic.
+    """Neutralise the item — a11y, tab order, click channels.
 
-    Le thème habille l'état verrouillé entièrement via les variantes
-    ``aria-disabled:*`` (``opacity-50``, ``cursor-not-allowed``,
-    ``pointer-events-none``), donc basculer ce seul attribut change
-    l'apparence ET l'interactivité.
+    The theme dresses the locked state entirely through the
+    ``aria-disabled:*`` variants (``opacity-50``, ``cursor-not-allowed``,
+    ``pointer-events-none``), so flipping that single attribute changes
+    the appearance AND the interactivity.
 
-    Deux couches complémentaires :
+    Two complementary layers:
 
-    - ``disabled_path`` (un binding) → directives ``bz-attr:`` pour que
-      le runtime suive les changements sans aller-retour serveur ;
-    - ``disabled`` (l'instantané SSR) → verrouillage statique, y compris
-      le strip des canaux de clic, pour qu'un item né désactivé ne
-      navigue pas avant le boot du runtime.
+    - ``disabled_path`` (a binding) → ``bz-attr:`` directives so the
+      runtime follows the changes with no server round trip;
+    - ``disabled`` (the SSR snapshot) → a static lock, including the
+      stripping of the click channels, so an item born disabled does not
+      navigate before the runtime boots.
 
-    Le strip de ``href`` / ``hx-*`` reste SSR-only : les routes sont
-    design-time, les re-cuire côté client se battrait avec le moteur de
-    partial-nav. Une fois le binding passé à vrai, **c'est le socle
-    runtime qui bloque** — ``$bz._inert`` dérive l'inertie du seul
-    ``aria-disabled="true"`` et refuse le clic, la navigation native et
-    l'action serveur (``02_directives.js`` + ``05_bridge.js``). Aucun
-    ``hx-get`` périmé ne peut partir.
+    Stripping ``href`` / ``hx-*`` stays SSR-only: the routes are
+    design-time, re-baking them on the client would fight the partial-nav
+    engine. Once the binding turns true, **it is the runtime base layer
+    that blocks** — ``$bz._inert`` derives the inertness from
+    ``aria-disabled="true"`` alone and refuses the click, native
+    navigation and the server action (``02_directives.js`` +
+    ``05_bridge.js``). No stale ``hx-get`` can leave.
 
-    ⚠️ Deux versions de ce docstring ont menti avant celle-ci, dans deux
-    directions opposées, et ça vaut d'être gardé : la première décrivait
-    ``pointer-events-none`` comme toujours présent — il l'était, dans
-    ``root``, et c'était le bug (sur le même élément que
-    ``cursor-not-allowed`` il annule le curseur) ; la seconde annonçait
-    une classe ``locked_live`` posée ici, solution intermédiaire qui
-    laissait le curseur mort dans le cas réactif. Les deux ont disparu
-    quand l'inertie est devenue une propriété du socle.
+    ⚠️ Two versions of this docstring lied before this one, in two
+    opposite directions, and that is worth keeping: the first described
+    ``pointer-events-none`` as always present — it was, in ``root``, and
+    that was the bug (on the same element as ``cursor-not-allowed`` it
+    cancels the cursor); the second announced a ``locked_live`` class set
+    here, an intermediate solution that left the cursor dead in the
+    reactive case. Both disappeared when inertness became a property of
+    the base layer.
     """
     if disabled_path is not None:
-        # Ternaire stringifié : sur un booléen faux nu, ``bz-attr``
-        # retirerait l'attribut au lieu d'écrire ``"false"``.
+        # Stringified ternary: on a bare false boolean, ``bz-attr``
+        # would remove the attribute instead of writing ``"false"``.
         attrs["bz-attr:aria-disabled"] = bool_attr(disabled_path)
         attrs["bz-attr:tabindex"] = f"({disabled_path}) ? '-1' : null"
     if disabled:
@@ -334,17 +335,17 @@ def render_badge(
     *,
     reactive_path: str | None = None,
 ) -> Element:
-    """La pastille de badge d'un item de nav.
+    """A nav item's badge chip.
 
-    Accepte un Component (rendu tel quel, la classe de slot fusionnée
-    dans ses attrs) ou un scalaire (rendu en petite pastille).
+    Accepts a Component (rendered as is, the slot class merged into its
+    attrs) or a scalar (rendered as a small chip).
 
-    Avec ``reactive_path`` (le chemin JS d'une ``ClientBinding`` portée
-    par la prop ``badge``), la pastille devient un compteur vivant :
-    ``bz-text`` y écrit la valeur courante et ``bz-show`` la replie quand
-    le compte est falsy (0 / "" / null) — un « 0 non lus » disparaît au
-    lieu d'afficher un zéro périmé. La valeur SSR peint quand même la
-    première frame avant le boot du runtime.
+    With ``reactive_path`` (the JS path of a ``ClientBinding`` carried by
+    the ``badge`` prop), the chip becomes a live counter: ``bz-text``
+    writes the current value there and ``bz-show`` folds it away when the
+    count is falsy (0 / "" / null) — a "0 unread" disappears instead of
+    showing a stale zero. The SSR value still paints the first frame
+    before the runtime boots.
     """
     if isinstance(value, Component):
         Component._detach_from_parent(value)
@@ -356,19 +357,19 @@ def render_badge(
             )
             return Component.with_slot_class(node, slot_class, **extra)
 
-    # ── Scalaire → une VRAIE pastille ────────────────────────────────
-    # Import différé : ``primitives`` est en dessous de ``navigation``
-    # dans le DAG, mais l'importer en tête ferait remonter le module de
-    # badge à chaque chargement de nav pour un cas qui n'arrive qu'au
-    # rendu. (Le socle autorise l'import ; c'est le coût qu'on évite.)
+    # ── Scalar → a REAL chip ─────────────────────────────────────────
+    # Deferred import: ``primitives`` is below ``navigation`` in the DAG,
+    # but importing it at the top would pull the badge module in on every
+    # nav load for a case that only happens at render. (The base layer
+    # allows the import; it is the cost we avoid.)
     #
-    # Les slots ``badge`` des familles de navigation ne sont que des
-    # positionneurs ; le composant Badge fournit l'aspect de la pastille.
-    # ``error`` + ``xs`` : rouge est l'idiome du compteur de non-lus, et
-    # ``xs`` ne fait pas grossir une ligne de nav de 36px. Un appelant qui
-    # veut autre chose passe un ``ui.badge(...)`` complet — c'est la
-    # branche Component ci-dessus, et le contrat à deux étages du
-    # framework (magie par défaut, échappatoire pour les 20 %).
+    # The navigation families' ``badge`` slots are only positioners; the
+    # Badge component provides the chip's look. ``error`` + ``xs``: red
+    # is the unread-counter idiom, and ``xs`` does not grow a 36px nav
+    # row. A caller who wants something else passes a full
+    # ``ui.badge(...)`` — that is the Component branch above, and the
+    # framework's two-tier contract (magic by default, escape hatch for
+    # the 20 %).
     if value is not None:
         from bretzel.components.feedback.badge import Badge
 
@@ -382,13 +383,13 @@ def render_badge(
             )
             return Component.with_slot_class(node, slot_class, **extra)
 
-    # Valeur nulle : l'enveloppe vide reste, elle porte le ``bz-show`` qui
-    # la fera apparaître quand le binding se remplira.
+    # Null value: the empty wrapper stays, it carries the ``bz-show``
+    # that will make it appear when the binding fills.
     attrs: dict[str, Any] = {"class": slot_class}
     if reactive_path is not None:
-        # ``bz-text`` possède le textContent au runtime : l'enfant SSR
-        # n'est que l'échafaudage du premier paint (omis quand il n'y a
-        # pas de valeur SSR, pour éviter un flash de pastille vide).
+        # ``bz-text`` owns the textContent at runtime: the SSR child is
+        # only the first paint's scaffolding (omitted when there is no
+        # SSR value, to avoid a flash of an empty chip).
         attrs["bz-text"] = reactive_path
         attrs["bz-show"] = reactive_path
     return Element(tag="span", attrs=attrs, children=())
@@ -409,32 +410,32 @@ __all__ = [
 
 
 def current_path_resync_init() -> str:
-    """``bz-init`` qui garde ``current_path`` collé à l'URL réelle.
+    """``bz-init`` that keeps ``current_path`` stuck to the real URL.
 
-    Le scope ``current_path`` (que Navbar et Sidebar possèdent chacun
-    dans son ``bz-data``) pilote le surlignage actif. Le clic sur un item
-    le bascule de façon optimiste, mais **tout ce qui navigue autrement**
-    le laisserait périmé : le back/forward du navigateur, et une nav
-    partielle déclenchée ailleurs dans la page (un item de sidebar quand
-    une navbar est montée à côté, un lien in-page).
+    The ``current_path`` scope (which Navbar and Sidebar each own in
+    their ``bz-data``) drives the active highlighting. A click on an item
+    flips it optimistically, but **anything that navigates otherwise**
+    would leave it stale: the browser's back/forward, and a partial nav
+    triggered elsewhere in the page (a sidebar item when a navbar is
+    mounted beside it, an in-page link).
 
-    Deux écoutes, donc : ``popstate`` et ``htmx:after-request`` — la
-    seconde couvre le succès ET le rollback d'erreur en un seul handler
-    (htmx saute ``hx-push-url`` sur 4xx/5xx, donc l'URL est déjà revenue
-    quand on la relit).
+    Two listeners, then: ``popstate`` and ``htmx:after-request`` — the
+    second covers both success AND the error rollback in one handler
+    (htmx skips ``hx-push-url`` on 4xx/5xx, so the URL is already back
+    when we re-read it).
 
-    ⚠️ Elles passent par ``$bz.helpers.onWindow`` : ``bz-on:`` écoute sur
-    l'ÉLÉMENT et n'a pas de modificateur ``.window``. ``popstate`` ne
-    fire que sur window, et un événement htmx déclenché hors du composant
-    ne remonte jamais à travers lui.
+    ⚠️ They go through ``$bz.helpers.onWindow``: ``bz-on:`` listens on
+    the ELEMENT and has no ``.window`` modifier. ``popstate`` only fires
+    on window, and an htmx event triggered outside the component never
+    walks up through it.
 
-    ⚠️ Le garde compare-puis-assigne n'est pas cosmétique : sans lui,
-    CHAQUE événement htmx de la page ré-évaluerait les
-    ``bz-attr:data-active`` / ``bz-class`` de tous les items — une
-    cascade réactive en O(N) pour rien.
+    ⚠️ The compare-then-assign guard is not cosmetic: without it, EVERY
+    htmx event on the page would re-evaluate every item's
+    ``bz-attr:data-active`` / ``bz-class`` — an O(N) reactive cascade for
+    nothing.
 
-    Les deux sources sont nécessaires pour garder le surlignage synchronisé
-    avec l'URL, y compris après une navigation dans l'historique.
+    Both sources are necessary to keep the highlighting in sync with the
+    URL, including after a history navigation.
     """
     guard = (
         "const p = window.location.pathname; "

@@ -18,7 +18,7 @@ Trois volets
 1. **Population identique** à ``available_rules()`` — les deux portes
    décrivent le même ensemble, sinon l'une des deux ment sur ce que
    l'outil couvre.
-2. **Aucune phrase vide**, et aucune qui garde son préfixe ``Règle :``
+2. **Aucune phrase vide**, et aucune qui garde son préfixe ``Rule:``
    ni son balisage : le nettoyage doit avoir eu lieu, sans quoi la
    phrase part telle quelle dans une page.
 3. **La lecture MORD** — sur un module fabriqué, la phrase sort ; sur un
@@ -39,7 +39,7 @@ def summaries_that_say_nothing() -> list[str]:
     fautives: list[str] = []
     for slug, phrase in rule_summaries().items():
         nettoyee = phrase.strip()
-        if not nettoyee or nettoyee.startswith("Règle"):
+        if not nettoyee or nettoyee.startswith("Rule"):
             fautives.append(f"{slug} → {phrase!r}")
         elif "``" in phrase or "**" in phrase:
             fautives.append(f"{slug} → balisage restant : {phrase!r}")
@@ -71,7 +71,7 @@ def test_no_rule_states_nothing() -> None:
 def test_the_reading_catches_a_stated_module_and_goes_empty_on_a_mute_one() -> None:
     """Volet 3 — la mutation, dans les deux sens."""
     parlant = types.ModuleType("parlant")
-    parlant.__doc__ = "Règle : un ``kwarg`` **inconnu** part en attribut inerte."
+    parlant.__doc__ = "Rule: an **unknown** ``kwarg`` goes out as an inert attribute."
 
     def check_parlant() -> None: ...
     check_parlant.__module__ = "parlant"
@@ -79,7 +79,7 @@ def test_the_reading_catches_a_stated_module_and_goes_empty_on_a_mute_one() -> N
     sys.modules["parlant"] = parlant
     try:
         assert _stated_by(check_parlant) == (
-            "un `kwarg` inconnu part en attribut inerte"
+            "an unknown `kwarg` goes out as an inert attribute"
         )
     finally:
         del sys.modules["parlant"]

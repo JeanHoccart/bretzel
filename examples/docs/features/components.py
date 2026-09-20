@@ -1,13 +1,13 @@
-"""RÉFÉRENCE — Catalogue ui.*.
+"""REFERENCE — The ui.* catalogue.
 
-Toute la surface ``ui.*`` lue en direct dans le code. Chaque composant
-est introspecté au render (``describe_ui_symbol``) : signature, props
-bindables, events, slots, méthodes impératives — la page ne peut pas se
-désynchroniser du framework.
+The whole ``ui.*`` surface read live from the code. Every component is
+introspected at render time (``describe_ui_symbol``): signature, bindable
+props, events, slots, imperative methods — the page cannot go out of sync
+with the framework.
 
-Le namespace ``ui.*`` est hétérogène : à côté des composants vivent des
-helpers (itération ``ui.each``, toast ``ui.notification``, descripteur
-``ui.column``). Ils n'ont ni props ni events — listés à part.
+The ``ui.*`` namespace is heterogeneous: alongside the components live
+helpers (iteration ``ui.each``, toast ``ui.notification``, descriptor
+``ui.column``). They have neither props nor events — listed separately.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from bretzel import page, ui
 
 from examples.docs.features.shell import shell
 from examples.docs.lib.blocks import component_mirror, helper_mirror
+from examples.docs.lib.i18n import tr
 from bretzel.introspect import (
     ComponentInfo,
     HelperInfo,
@@ -67,10 +68,14 @@ def components_page() -> None:
         with ui.vstack(gap="lg"):
             ui.heading("Catalogue ui.*", level=1, size="3xl")
             ui.text(
-                "Toute la surface `ui.*` lue en direct dans le code — "
-                "signature, props bindables, events, slots, méthodes "
-                "impératives. Cette page introspecte les classes au render : "
-                "elle ne peut pas se désynchroniser du framework.",
+                tr('The whole `ui.*` surface read live from the code — '
+                   'signature, bindable props, events, slots, imperative '
+                   'methods. This page introspects the classes at render '
+                   'time: it cannot fall out of step with the framework.',
+                   'Toute la surface `ui.*` lue en direct dans le code — '
+                   'signature, props bindables, events, slots, méthodes '
+                   'impératives. Cette page introspecte les classes au render'
+                   ' : elle ne peut pas se désynchroniser du framework.'),
                 color="muted", size="lg",
             )
             with ui.hstack(gap="sm", wrap=True):
@@ -83,12 +88,19 @@ def components_page() -> None:
                 with ui.vstack(gap="xs"):
                     ui.heading("Composant ou helper ?", level=3)
                     ui.text(
-                        "`ui.*` n'est pas homogène. Un composant se rend et "
-                        "porte un contrat (props bindables, events, slots, "
-                        "méthodes impératives). Un helper — `ui.each` "
-                        "(itération), `ui.notification` (toast), `ui.column` "
-                        "(descripteur de colonne) — n'est qu'une fonction. "
-                        "Les deux sont listés, mais pas mélangés.",
+                        tr('`ui.*` is not homogeneous. A component renders '
+                           'and carries a contract (bindable props, events, '
+                           'slots, imperative methods). A helper — `ui.each` '
+                           '(iteration), `ui.notification` (toast), '
+                           '`ui.column` (a column descriptor) — is only a '
+                           'function. Both are listed, but not mixed.',
+                           "`ui.*` n'est pas homogène. Un composant se rend "
+                           'et porte un contrat (props bindables, events, '
+                           'slots, méthodes impératives). Un helper — '
+                           '`ui.each` (itération), `ui.notification` (toast),'
+                           " `ui.column` (descripteur de colonne) — n'est "
+                           "qu'une fonction. Les deux sont listés, mais pas "
+                           'mélangés.'),
                         color="muted", size="sm",
                     )
 
@@ -105,8 +117,10 @@ def components_page() -> None:
                         ui.badge(str(len(helpers)), color="muted",
                                  variant="outline")
                     ui.text(
-                        "Ces symboles vivent dans `ui.*` mais ne sont PAS des "
-                        "composants — pas de props, pas d'events.",
+                        tr('These symbols live in `ui.*` but are NOT '
+                           'components — no props, no events.',
+                           'Ces symboles vivent dans `ui.*` mais ne sont PAS '
+                           "des composants — pas de props, pas d'events."),
                         color="muted", size="sm",
                     )
                     with ui.accordion(multiple=True):

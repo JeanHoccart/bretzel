@@ -56,19 +56,19 @@ class PieChart(Component):
 
     THEME: ClassVar[dict[str, Any]] = PIE_CHART_THEME
     THEME_KEY: ClassVar[str] = "pie_chart"
-    #: L'event est DÉCLARÉ, et ce n'est pas de la métadonnée.
+    #: The event is DECLARED, and it is not metadata.
     #:
-    #: Tant qu'il ne l'était pas, `on_item_click=` n'acceptait qu'un callable :
-    #: la forme « chaîne d'expression cliente », que tout `on_*` du
-    #: framework accepte, y levait un `TypeError` remonté nu de
-    #: `functools.partial`, sans nommer le composant ni la prop. Mesuré
-    #: le 2026-09-06 sur trois composants livrés
+    #: As long as it was not, `on_item_click=` accepted only a callable:
+    #: the "client expression string" shape, which every framework `on_*`
+    #: accepts, raised a `TypeError` surfaced bare from
+    #: `functools.partial`, naming neither the component nor the prop.
+    #: Measured on 2026-09-06 on three shipped components
     #: (`.claude/work/audit-declaration-2026-09-06.md`).
     #:
-    #: Le routage reste MANUEL — le socle pose l'`hx-post` d'un event
-    #: déclaré sur la RACINE, or ici c'est chaque PART qui porte le sien,
-    #: avec sa donnée. D'où `item_action_attrs`, le routeur partagé des
-    #: quatre composants dans ce cas.
+    #: The routing stays MANUAL — the base layer sets a declared event's
+    #: `hx-post` on the ROOT, yet here it is each SLICE that carries its
+    #: own, with its data. Hence `item_action_attrs`, the shared router
+    #: of the four components in that case.
     EVENTS: ClassVar[tuple[str, ...]] = ("item_click",)
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
@@ -77,8 +77,8 @@ class PieChart(Component):
     # ``grouped`` / ``stacked``. ``"pie"`` (default) is a solid disc ;
     # ``"donut"`` hollows out the centre (and unlocks ``center_text`` for
     # a KPI ring).
-    # ``steps=`` : un mode de tracé, pas un palier — aucune table à
-    # lire, donc ``variant="zzz"`` retombait sur ``"pie"`` sans un mot.
+    # ``steps=``: a plotting mode, not a step — no table to read, so
+    # ``variant="zzz"`` fell back on ``"pie"`` without a word.
     variant: str = reactive_prop(
         default="pie", emit_attr=False, steps=("pie", "donut"),
     )
@@ -115,7 +115,7 @@ class PieChart(Component):
         self._value_format = value_format
         self._value_unit = value_unit
         self._on_item_click = on_item_click
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             size=size, variant=variant,
             show_labels=show_labels, show_legend=show_legend,
@@ -147,9 +147,9 @@ class PieChart(Component):
         slices = _coerce_slices(self._data)
 
         def slot(name: str, override: str | None = None) -> str:
-            # ``coloured_slot`` ajoute le PONT de la couleur : la
-            # classe du palier est la même pour toutes les séries,
-            # c'est le pont qui dit laquelle est laquelle.
+            # ``coloured_slot`` adds the colour's BRIDGE: the step's
+            # class is the same for every series, it is the bridge that
+            # says which is which.
             return coloured_slot(self, name, override, palette[0])
 
         wrapper_attrs = self.emit_attrs()
@@ -228,15 +228,15 @@ class PieChart(Component):
                 "bz-on:mouseleave": "hide()",
             }
             if self._on_item_click:
-                # Les trois formes d'un `on_*`, par le routeur partagé.
-                # Ce site n'acceptait qu'un callable : une chaîne y
-                # levait un `TypeError` nu depuis `partial`.
+                # The three shapes of an `on_*`, through the shared
+                # router. This site accepted only a callable: a string
+                # raised a bare `TypeError` from `partial`.
                 slice_attrs.update(item_action_attrs(
                     self._on_item_click,
                     event="item_click",
                     dom_event="click",
-                    # `debounce=` / `throttle=` : le socle ne les
-                    # applique qu'à l'action de la RACINE.
+                    # `debounce=` / `throttle=`: the base layer applies
+                    # them only to the ROOT's action.
                     modifier=self._trigger_modifier,
                     bind=lambda fn, _l=str(label), _v=float(value): partial(
                         fn, _l, _v),

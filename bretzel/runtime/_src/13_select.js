@@ -32,13 +32,13 @@
 
   $bz.select = {
     single: {
-      // Le libellé d'une valeur. Select GARDE sa carte ``_labels``
-      // (son ``_options`` ne porte que des valeurs, donc elle n'y
-      // est pas redondante) ; ce qui a disparu le 2026-08-28, c'est
-      // la carte RÉ-INLINÉE dans le ``bz-text`` de chaque gabarit de
-      // pastille — un troisième exemplaire de la même table. Le
-      // gabarit partagé (``_picker.build_pills_template``) appelle
-      // désormais cette méthode, que Combobox définit à sa façon.
+      // A value's label. Select KEEPS its ``_labels`` map (its
+      // ``_options`` carries only values, so it is not redundant
+      // there); what disappeared on 2026-08-28 is the map RE-INLINED
+      // in each pill template's ``bz-text`` — a third copy of the
+      // same table. The shared template
+      // (``_picker.build_pills_template``) now calls this method,
+      // which Combobox defines its own way.
       _labelOf(v) { return this._labels[String(v)] || ""; },
       _pick(v) { this._write(v); this.open = false; },
       _isPicked(v) { return String(this._read() || "") === String(v); },
@@ -48,19 +48,19 @@
     },
     multi: {
       ...$bz.multiSelect,
-      // Le libellé d'une valeur. Select GARDE sa carte ``_labels``
-      // (son ``_options`` ne porte que des valeurs, donc elle n'y
-      // est pas redondante) ; ce qui a disparu le 2026-08-28, c'est
-      // la carte RÉ-INLINÉE dans le ``bz-text`` de chaque gabarit de
-      // pastille — un troisième exemplaire de la même table. Le
-      // gabarit partagé (``_picker.build_pills_template``) appelle
-      // désormais cette méthode, que Combobox définit à sa façon.
+      // A value's label. Select KEEPS its ``_labels`` map (its
+      // ``_options`` carries only values, so it is not redundant
+      // there); what disappeared on 2026-08-28 is the map RE-INLINED
+      // in each pill template's ``bz-text`` — a third copy of the
+      // same table. The shared template
+      // (``_picker.build_pills_template``) now calls this method,
+      // which Combobox defines its own way.
       _labelOf(v) { return this._labels[String(v)] || ""; },
       _value() { const v = this._read(); return v == null ? [] : v; },
       // Select-specific : every option is always visible (no query).
-      // ``_clearAll`` n'est PAS redéclaré — celui du mixin fait
-      // exactement ça, et le redire ici est comment les deux pickers
-      // divergeaient (audit F19).
+      // ``_clearAll`` is NOT redeclared — the mixin's does exactly that,
+      // and repeating it here is how the two pickers diverged (audit
+      // F19).
       _selectAll() { this._write(this._options.slice()); },
       _highlightFromValue() {
         const picks = this._picked();

@@ -1,10 +1,11 @@
-"""Le seul vrai global : le thème.
+"""The only real global: the theme.
 
-L'échelle vient du framework — contrôles à 30 px, texte médian à 14 px,
-c'est le DÉFAUT livré depuis le 2026-09-13. C'est l'app qu'on utilise pour de vrai — onze routes, 262 000
-lignes semées, des tableaux qui doivent tenir à l'écran.
+The scale comes from the framework — controls at 30 px, median text at
+14 px, the DEFAULT shipped since 2026-09-13. This is the app used for
+real — eleven routes, 262 000 rows seeded, tables that must fit on
+screen.
 
-Ne reste ici que ce que le framework ne peut pas décider : la teinte.
+All that stays here is what the framework cannot decide: the hue.
 """
 
 from bretzel.theme import Theme

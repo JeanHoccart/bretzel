@@ -30,15 +30,15 @@ import pytest
 
 from bretzel.components import Query
 from examples.atelier.core import db
-from examples.atelier.core.epoque import JALON, est_jugeable
-from examples.atelier.features import outils_data, taches_data
+from examples.atelier.core.era import MILESTONE, is_judgeable
+from examples.atelier.features import tasks_data, tools_data
 
 #: Les fichiers où toute lecture de la base a lieu. Les pages ne
 #: requêtent jamais — c'est le découpage de l'app, et s'il change, le
 #: plancher ci-dessous le dira en ne trouvant plus assez de lectures.
 SOURCES = (
-    Path(taches_data.__file__),
-    Path(outils_data.__file__),
+    Path(tasks_data.__file__),
+    Path(tools_data.__file__),
 )
 
 #: ``FROM x`` / ``JOIN x`` — ce qu'une requête lit.
@@ -70,7 +70,7 @@ def test_aucune_lecture_ne_court_circuite_le_jalon():
     nues = [
         (fichier, table)
         for fichier, table in toutes_les_lectures()
-        if table in {"taches", "appels", "sessions"}
+        if table in {"tasks", "calls", "sessions"}
     ]
     assert not nues, f"lectures hors vue : {nues}"
 
@@ -91,19 +91,19 @@ def base(tmp_path, monkeypatch):
             ("recente", "2026-09-11T09:00:00.000Z", 1),
         ):
             conn.execute(
-                "INSERT INTO sessions (id, fichier, debut, fin, taches) "
+                "INSERT INTO sessions (id, file, started, ended, tasks) "
                 "VALUES (?, ?, ?, ?, 1)",
                 (session, f"{session}.jsonl", debut, debut),
             )
             cur = conn.execute(
-                "INSERT INTO taches (session_id, ordre, debut, demande, "
-                "appels, cycles, verdict, perimetre, surface) "
-                "VALUES (?, 1, ?, ?, 1, ?, 'corrigé', 'app:crm', 1)",
+                "INSERT INTO tasks (session_id, rank, started, request, "
+                "calls, cycles, verdict, scope, surface) "
+                "VALUES (?, 1, ?, ?, 1, ?, 'corrected', 'app:crm', 1)",
                 (session, debut, f"demande {session}", cycles),
             )
             conn.execute(
-                "INSERT INTO appels (tache_id, ordre, horaire, outil, phase) "
-                "VALUES (?, 1, ?, 'Bash', 'ecriture')",
+                "INSERT INTO calls (task_id, rank, at, tool, phase) "
+                "VALUES (?, 1, ?, 'Bash', 'writing')",
                 (cur.lastrowid, debut),
             )
     return tmp_path
@@ -111,12 +111,12 @@ def base(tmp_path, monkeypatch):
 
 def test_une_tache_d_avant_le_jalon_ne_compte_pas(base):
     """Le versant qui mord — c'est la demande de l'utilisateur."""
-    assert taches_data.resume()["taches"] == 1
-    lignes, total = taches_data.load_taches(Query())
+    assert tasks_data.summary()["tasks"] == 1
+    lignes, total = tasks_data.load_tasks(Query())
     assert total == 1
     assert [ligne["session_id"] for ligne in lignes] == ["recente"]
     # Et la moyenne ne traîne plus les neuf cycles de la vieille.
-    assert taches_data.resume()["cycles_moyens"] == 1.0
+    assert tasks_data.summary()["mean_cycles"] == 1.0
 
 
 def test_les_appels_et_les_sessions_suivent_leur_tache(base):
@@ -126,9 +126,9 @@ def test_les_appels_et_les_sessions_suivent_leur_tache(base):
     l'écran des tâches n'affiche pas — deux chiffres qui se contredisent
     sur la même page.
     """
-    assert sum(p["appels"] for p in taches_data.par_phase()) == 1
-    assert [s["id"] for s in outils_data.profil_session()] == ["recente"]
-    assert taches_data.resume()["sessions"] == 1
+    assert sum(p["calls"] for p in tasks_data.by_phase()) == 1
+    assert [s["id"] for s in tools_data.session_profile()] == ["recente"]
+    assert tasks_data.summary()["sessions"] == 1
 
 
 def test_la_tache_d_avant_reste_dans_la_table(base):
@@ -139,12 +139,12 @@ def test_la_tache_d_avant_reste_dans_la_table(base):
     revoir, sans ré-aspirer 516 Mo de transcripts.
     """
     with db.connect() as conn:
-        assert conn.execute("SELECT COUNT(*) FROM taches").fetchone()[0] == 2
-        assert conn.execute("SELECT COUNT(*) FROM appels").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM calls").fetchone()[0] == 2
 
 
 def test_la_porte_python_dit_la_meme_chose_que_les_vues():
     """Deux expressions d'une règle qui doivent rester d'accord."""
-    assert not est_jugeable("2026-09-09T23:59:59.000Z")
-    assert est_jugeable(f"{JALON}T00:00:00.000Z")
-    assert not est_jugeable(None)
+    assert not is_judgeable("2026-09-09T23:59:59.000Z")
+    assert is_judgeable(f"{MILESTONE}T00:00:00.000Z")
+    assert not is_judgeable(None)

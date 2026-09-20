@@ -1,16 +1,16 @@
 """``FileUpload`` — dropzone or compact-button file picker.
 
-Deux axes INDÉPENDANTS : ``variant=`` habille le DÉCLENCHEUR,
-``list=`` la liste des fichiers déposés.
+Two INDEPENDENT axes: ``variant=`` dresses the TRIGGER, ``list=`` the
+list of dropped files.
 
-- ``list="tiles"`` (défaut) — une tuile par fichier : vignette, nom,
-  taille, et un × en badge de coin. La forme « pièces jointes ».
-- ``list="chips"`` — une puce par fichier : icône, nom, × **inline**,
-  qui s'enroulent sur plusieurs lignes. La forme « composer ».
+- ``list="tiles"`` (default) — one tile per file: thumbnail, name,
+  size, and a × as a corner badge. The "attachments" shape.
+- ``list="chips"`` — one chip per file: icon, name, **inline** ×,
+  wrapping over several lines. The "composer" shape.
 
-Ce n'est pas un axe de style : les deux structures diffèrent dans le
-DOM (la puce n'émet ni vignette ni taille, et son × est dans le flux).
-Aucun override de ``slots=`` ne fait passer de l'un à l'autre.
+It is not a style axis: the two structures differ in the DOM (the chip
+emits neither thumbnail nor size, and its × is in the flow). No
+``slots=`` override takes you from one to the other.
 
 Two trigger variants share the same file-management plumbing :
 
@@ -75,12 +75,13 @@ Runtime notes :
   on the root — the slab dispatches on the root and events bubble. The
   ``upload_*`` names are renamed to kebab (the slab dispatches
   ``upload-start`` etc.). ``on_focus`` / ``on_blur`` relocate onto the
-  focusable wrapper — **dans les deux formes** (string ET callable) :
-  ``focus``/``blur`` ne bullent pas, donc un ``hx-trigger`` posé sur la
-  racine ne partirait jamais.
-- Le ``change`` NATIF de l'input caché est stoppé (``stopPropagation``) :
-  il bulle sinon jusqu'à la racine, qui écoute déjà le ``change`` que le
-  slab y dispatche — deux events, donc deux POST pour une sélection.
+  focusable wrapper — **in both shapes** (string AND callable):
+  ``focus``/``blur`` do not bubble, so an ``hx-trigger`` set on the root
+  would never fire.
+- The hidden input's NATIVE ``change`` is stopped
+  (``stopPropagation``): otherwise it bubbles up to the root, which
+  already listens for the ``change`` the slab dispatches there — two
+  events, so two POSTs for one selection.
 """
 
 from __future__ import annotations
@@ -116,41 +117,43 @@ _KEBAB_EVENTS = {
     "upload_error": "upload-error",
 }
 
-# Enter / Space ouvrent le sélecteur. Le garde (trois noms de touche + la
-# cible) vit dans ``_wiring.activate_keydown`` — ce fichier était le seul
-# des trois sites à gérer le legacy ``Spacebar``, et le seul à NE PAS
-# garder la cible.
+# Enter / Space open the picker. The guard (three key names + the
+# target) lives in ``_wiring.activate_keydown`` — this file was the only
+# one of the three sites to handle the legacy ``Spacebar``, and the only
+# one NOT to guard the target.
 _ACTIVATE_KEYDOWN = activate_keydown("openPicker();")
 
-#: Les présentations de la liste de fichiers — ``list=``.
+#: The presentations of the file list — ``list=``.
 #:
-#: Ce n'est PAS un axe de style : les deux structures diffèrent dans le
-#: DOM. La tuile est une colonne avec vignette et un × en badge de coin
-#: (``absolute -top-2 -right-2``) ; la puce est une ligne sans vignette,
-#: dont le × est **inline**. Aucun override de ``slots=`` ne fait passer
-#: de l'un à l'autre — mesuré le 2026-08-17 : +78 px après avoir réécrit
-#: cinq slots, et le × flottait toujours. C'est la thèse « le thème
-#: RESTYLE, il ne RESTRUCTURE pas ».
+#: It is NOT a style axis: the two structures differ in the DOM. The
+#: tile is a column with a thumbnail and a × as a corner badge
+#: (``absolute -top-2 -right-2``); the chip is a row with no thumbnail,
+#: whose × is **inline**. No ``slots=`` override takes you from one to
+#: the other — measured on 2026-08-17: +78 px after rewriting five
+#: slots, and the × was still floating. It is the thesis "the theme
+#: RESTYLES, it does not RESTRUCTURE".
 #:
-#: Pourquoi deux présentations livrées plutôt qu'une échappatoire : la
-#: liste est peuplée par le JS (``<template bz-for>`` cloné au dépôt de
-#: fichier), donc ``COLLECTION_OWNER = "client"`` — ni des enfants Python
-#: ni un rappel Python ne l'atteignent. Cf. ``Component.COLLECTION_OWNER``.
+#: Why two shipped presentations rather than an escape hatch: the list
+#: is populated by the JS (``<template bz-for>`` cloned when a file is
+#: dropped), so ``COLLECTION_OWNER = "client"`` — neither Python
+#: children nor a Python callback reach it. Cf.
+#: ``Component.COLLECTION_OWNER``.
 LIST_PRESENTATIONS: tuple[str, ...] = ("tiles", "chips")
 
-#: ⚠️ Le kwarg public s'appelle ``list=``, donc il MASQUE le builtin
-#: ``list`` dans le corps d'``__init__``. Les types séquence y sont donc
-#: lus via cette constante — sinon ``isinstance(accept, (list, tuple))``
-#: lève ``arg 2 must be a type`` sur la string ``"tiles"``, à trois cents
-#: lignes du nom fautif. (Mesuré en écrivant la prop.)
+#: ⚠️ The public kwarg is called ``list=``, so it SHADOWS the ``list``
+#: builtin in the body of ``__init__``. Sequence types are therefore
+#: read through this constant — otherwise ``isinstance(accept, (list,
+#: tuple))`` raises ``arg 2 must be a type`` on the string ``"tiles"``,
+#: three hundred lines from the offending name. (Measured while writing
+#: the prop.)
 _SEQUENCE_TYPES: tuple[type, ...] = (list, tuple)
 
-#: Les slots que la présentation « chips » substitue à ceux des tuiles.
-#: Table finie et littérale des DEUX côtés — jamais un nom assemblé :
-#: une classe Tailwind que rien n'écrit en toutes lettres n'atteint pas
-#: le CSS compilé (memory ``assembled_tailwind_class_dev_only``). Ici
-#: c'est le NOM DE SLOT qu'on choisit, pas la classe, et les deux jeux
-#: de classes sont écrits en entier dans le thème.
+#: The slots the "chips" presentation substitutes for the tiles'. A
+#: finite and literal table on BOTH sides — never an assembled name: a
+#: Tailwind class nothing writes out in full does not reach the compiled
+#: CSS (memory ``assembled_tailwind_class_dev_only``). Here it is the
+#: SLOT NAME that is chosen, not the class, and both sets of classes are
+#: written out in full in the theme.
 _CHIP_SLOTS: dict[str, str] = {
     "file_list": "chip_list",
     "file_item": "chip_item",
@@ -169,14 +172,14 @@ class FileUpload(Component):
     THEME: ClassVar[dict[str, Any]] = FILE_UPLOAD_THEME
     THEME_KEY: ClassVar[str] = "file_upload"
     IS_CONTAINER: ClassVar[bool] = False
-    #: C'est le NAVIGATEUR qui possède la liste : elle est peuplée au
-    #: dépôt de fichier, en clonant un ``<template bz-for>``. Ni des
-    #: enfants Python ni un rappel ``render=`` ne l'atteignent — ils
-    #: s'exécuteraient au rendu serveur, quand la liste est vide.
+    #: It is the BROWSER that owns the list: it is populated when a file
+    #: is dropped, by cloning a ``<template bz-for>``. Neither Python
+    #: children nor a ``render=`` callback reach it — they would run at
+    #: server render, when the list is empty.
     #:
-    #: Le mécanisme que l'auteur obtient à la place est donc
-    #: ``list="tiles" | "chips"`` : deux présentations LIVRÉES, pas une
-    #: échappatoire. Cf. ``Component.COLLECTION_OWNER`` et
+    #: The mechanism the author gets instead is therefore
+    #: ``list="tiles" | "chips"``: two SHIPPED presentations, not an
+    #: escape hatch. Cf. ``Component.COLLECTION_OWNER`` and
     #: :data:`LIST_PRESENTATIONS`.
     COLLECTION_OWNER: ClassVar[str | None] = "client"
     # ``value`` is never bindable : browsers forbid programmatic
@@ -253,22 +256,22 @@ class FileUpload(Component):
             owner="FileUpload",
             prop="label",
             because=(
-                "le label sert AUSSI d'``aria-label`` sur la dropzone et le "
-                "bouton, et un attribut HTML ne peut porter qu'une string "
-                "(le Component y était sérialisé en son repr Python, et "
-                "annoncé tel quel au lecteur d'écran)."
+                "the label ALSO serves as ``aria-label`` on the dropzone "
+                "and the button, and an HTML attribute can only carry a "
+                "string (the Component was serialised there as its Python "
+                "repr, and announced as such to the screen reader)."
             ),
-            instead="Pour un contenu riche, compose autour du FileUpload.",
+            instead="For rich content, compose around the FileUpload.",
         )
         reject_component(
             accept,
             owner="FileUpload",
             prop="accept",
             because=(
-                "``accept`` est un filtre MIME — il part dans l'attribut "
-                "``accept`` de l'``<input type=file>`` ET dans le littéral "
-                "JSON que lit le runtime, où un Component n'est même pas "
-                "sérialisable (``Object of type TextNode is not JSON "
+                "``accept`` is a MIME filter — it goes into the "
+                "``<input type=file>``'s ``accept`` attribute AND into the "
+                "JSON literal the runtime reads, where a Component is not "
+                "even serialisable (``Object of type TextNode is not JSON "
                 "serializable``)."
             ),
             instead=(
@@ -289,7 +292,7 @@ class FileUpload(Component):
         if isinstance(accept, _SEQUENCE_TYPES):
             accept = ",".join(accept)
 
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name,
             multiple=multiple,
@@ -371,7 +374,7 @@ class FileUpload(Component):
         #   1. the ``upload_*`` event names are renamed to kebab (both
         #      the ``bz-on:`` string form and the ``hx-trigger`` form) ;
         #   2. ``focus`` / ``blur`` relocate onto the focusable wrapper
-        #      (the only element that fires them) — DANS LES DEUX FORMES.
+        #      (the only element that fires them) — IN BOTH SHAPES.
         for under, kebab in _KEBAB_EVENTS.items():
             bz_key = f"bz-on:{under}"
             if bz_key in root_attrs:
@@ -379,18 +382,18 @@ class FileUpload(Component):
         if root_attrs.get("hx-trigger") in _KEBAB_EVENTS:
             root_attrs["hx-trigger"] = _KEBAB_EVENTS[root_attrs["hx-trigger"]]
         relocated_to_wrapper: dict[str, Any] = {}
-        # Forme CALLABLE : le bundle HTMX est routé par l'event qu'il
-        # écoute VRAIMENT. ``focus`` / ``blur`` ne BULLENT PAS (seuls
-        # ``focusin`` / ``focusout`` le font) et la racine est un ``<div>``
-        # sans ``tabindex`` — un ``hx-trigger="focus"`` posé là ne peut
-        # donc jamais partir, en silence. Le wrapper ``role="button"
-        # tabindex="0"`` est le seul hôte de focus. ``select.py`` avait
-        # déjà corrigé exactement ça chez lui ; la leçon n'avait pas
-        # circulé jusqu'ici. Les events ``change`` / ``upload-*`` restent
-        # sur la racine : c'est le slab qui les y dispatche.
-        # L'EVENT, pas la chaîne : un ``debounce=`` faisait échouer ce
-        # test, le bundle restait sur la racine — un ``<div>`` sans
-        # ``tabindex``, qui ne reçoit jamais ``focus``. Handler mort.
+        # CALLABLE shape: the HTMX bundle is routed by the event it
+        # REALLY listens to. ``focus`` / ``blur`` do NOT BUBBLE (only
+        # ``focusin`` / ``focusout`` do) and the root is a ``<div>`` with
+        # no ``tabindex`` — so an ``hx-trigger="focus"`` set there can
+        # never fire, in silence. The ``role="button" tabindex="0"``
+        # wrapper is the only focus host. ``select.py`` had already fixed
+        # exactly that in its own file; the lesson had not travelled
+        # here. The ``change`` / ``upload-*`` events stay on the root:
+        # it is the slab that dispatches them there.
+        # The EVENT, not the string: a ``debounce=`` made this test
+        # fail, the bundle stayed on the root — a ``<div>`` with no
+        # ``tabindex``, which never receives ``focus``. Dead handler.
         if "hx-post" in root_attrs and trigger_event(root_attrs) in (
             "focus", "blur",
         ):
@@ -425,13 +428,13 @@ class FileUpload(Component):
             "name": str(input_name),
             "tabindex": "-1",
             "aria-hidden": "true",
-            # ``stopPropagation`` : sans lui, le ``change`` NATIF de
-            # l'input bulle jusqu'à la racine, qui porte déjà
-            # ``hx-trigger="change"`` — et le slab y dispatche ENSUITE
-            # son propre ``change``. Deux events sur la racine = DEUX
-            # POST pour une seule sélection. On garde une seule source :
-            # le dispatch du slab, qui couvre aussi le retrait de fichier
-            # (l'input natif, lui, ne notifie rien quand on retire).
+            # ``stopPropagation``: without it, the input's NATIVE
+            # ``change`` bubbles up to the root, which already carries
+            # ``hx-trigger="change"`` — and the slab THEN dispatches its
+            # own ``change`` there. Two events on the root = TWO POSTs
+            # for a single selection. We keep a single source: the
+            # slab's dispatch, which also covers file removal (the
+            # native input notifies nothing when you remove).
             "bz-on:change": (
                 "$event.stopPropagation(); onNativeChange($event)"
             ),
@@ -568,8 +571,9 @@ class FileUpload(Component):
                 )),),
             ))
         if multiple:
-            # Deux phrases ENTIÈRES plutôt qu'un suffixe recollé : une
-            # traduction ne met pas forcément le plafond à la fin.
+            # Two WHOLE sentences rather than a re-glued suffix: a
+            # translation does not necessarily put the ceiling at the
+            # end.
             hint = (
                 text("file_upload.multiple_capped", max=self._max_files)
                 if self._max_files is not None
@@ -642,12 +646,12 @@ class FileUpload(Component):
         # dynamic toggles onto the static ``class=`` (``bz-attr:class``
         # would REPLACE it — cf. ``traps.md`` § ":class → bz-class").
         wrapper_base = s("dropzone_wrapper")
-        # ⚠️ Le padding est coupé par AXE (cf. le thème) : l'horizontal est
-        # statique, le vertical est EXCLUSIVEMENT dans le ``bz-class``.
-        # Poser ``py-8`` en statique et ``py-3`` en dynamique ne marchait
-        # pas — même spécificité, c'est la feuille Tailwind qui tranche, et
-        # l'état compact ne s'appliquait jamais (mesuré : 32 px au lieu
-        # de 12).
+        # ⚠️ The padding is split by AXIS (cf. the theme): the
+        # horizontal one is static, the vertical one is EXCLUSIVELY in
+        # the ``bz-class``. Setting ``py-8`` statically and ``py-3``
+        # dynamically did not work — same specificity, the Tailwind sheet
+        # decides, and the compact state never applied (measured: 32 px
+        # instead of 12).
         pad_x = sz("dropzone_padding_x")
         pad_empty = sz("dropzone_padding_y")
         pad_compact = sz("dropzone_padding_with_files")
@@ -764,10 +768,10 @@ class FileUpload(Component):
         ``bz-attr`` branches don't need FOUC pre-stamps — the rows are
         cloned + bound fresh by ``bz-for`` (no SSR-rendered instance to
         flash)."""
-        # ``slot`` substitue les noms de slot de la présentation choisie.
-        # Le NOM est choisi ici ; les CLASSES sont écrites en entier dans
-        # le thème des deux côtés — jamais assemblées, sinon elles
-        # n'atteindraient pas le CSS compilé de prod.
+        # ``slot`` substitutes the slot names of the chosen
+        # presentation. The NAME is chosen here; the CLASSES are written
+        # out in full in the theme on both sides — never assembled,
+        # otherwise they would not reach production's compiled CSS.
         chips = self._list == "chips"
 
         def slot(name: str) -> str:
@@ -862,12 +866,13 @@ class FileUpload(Component):
             ),
         )
 
-        # Émission single-sourcée dans ``_wiring.dismiss_button`` (le même
-        # x que Alert / Badge / Banner). Il apporte l'``Icon`` DÉTACHÉ — donc
-        # le set d'icônes du thème et le traitement FOUC — là où ce fichier
-        # écrivait un ``<iconify-icon icon="lucide:x">`` en dur. Seul le
-        # geste diffère : ici on retire UNE entrée, pas le composant.
-        # ``.stop`` inliné (``bz-on`` n'a pas de modificateurs).
+        # Single-sourced emission in ``_wiring.dismiss_button`` (the
+        # same × as Alert / Badge / Banner). It brings the DETACHED
+        # ``Icon`` — so the theme's icon set and the FOUC treatment —
+        # where this file wrote an ``<iconify-icon icon="lucide:x">`` by
+        # hand. Only the gesture differs: here we remove ONE entry, not
+        # the component.
+        # ``.stop`` inlined (``bz-on`` has no modifiers).
         remove_btn = dismiss_button(
             button_class=" ".join(
                 p for p in (slot("remove_btn"), sz("remove_btn")) if p
@@ -885,9 +890,9 @@ class FileUpload(Component):
             },
             children=tuple(
                 child for child in (
-                # Une puce n'a pas de vignette (pas la place) ni de
-                # taille (elle tiendrait sur deux lignes). Ce ne sont pas
-                # des classes qu'on masque : les nœuds ne sont pas émis.
+                # A chip has no thumbnail (no room) and no size (it
+                # would take two lines). These are not classes we hide:
+                # the nodes are not emitted.
                 None if chips else thumb,
                 icon_fallback,
                 status_done,

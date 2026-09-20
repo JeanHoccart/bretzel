@@ -1,17 +1,17 @@
-"""features/accounts — écran 2 : les comptes, 50 000 lignes, mode callable.
+"""features/accounts — screen 2: the accounts, 50 000 rows, callable mode.
 
-Ce que cet écran met sous contrainte : ``ui.datatable`` avec un ``rows=``
-**callable**. Tri, recherche, filtres de colonne et export CSV sont traduits
-en SQL par :func:`~examples.crm.features.accounts_data.load_accounts` ; la
-page ne charge jamais plus de vingt lignes.
+What this screen puts under constraint: ``ui.datatable`` with a
+**callable** ``rows=``. Sorting, searching, column filters and CSV export
+are translated into SQL by
+:func:`~examples.crm.features.accounts_data.load_accounts`; the page
+never loads more than twenty rows.
 
-Deux choses que le tier liste n'exige pas et que celui-ci impose :
+Two things the list tier does not require and this one imposes:
 
-- le domaine de chaque filtre est **déclaré** (``filter=[…]``) — le composant
-  ne détient aucune ligne pour le dériver, et lève si on lui passe
-  ``filter=True`` ;
-- ``exportable=True`` **exige** le tier callable, parce que le CSV rejoue la
-  requête hors du rendu qui a jeté les lignes.
+- every filter's domain is **declared** (``filter=[…]``) — the component
+  holds no row to derive it from, and raises if given ``filter=True``;
+- ``exportable=True`` **requires** the callable tier, because the CSV
+  replays the query outside the render that threw the rows away.
 """
 
 from __future__ import annotations
@@ -23,11 +23,11 @@ from bretzel import (
     ui,
 )
 from bretzel.state import field
-# ``DatatableState`` s'importe depuis ``bretzel.components``, pas depuis
-# ``bretzel`` : le fichier est descendu dans ``bretzel/state/`` mais la
-# PORTE est restée celle du composant (6baaf918). Les deux autres sites
-# du dépôt qui l'utilisent — ``crm/features/import_screen.py`` et
-# ``playground/features/datatable.py`` — l'écrivaient déjà comme ça.
+# ``DatatableState`` is imported from ``bretzel.components``, not from
+# ``bretzel``: the file moved down into ``bretzel/state/`` but the DOOR
+# stayed the component's (6baaf918). The repository's two other sites
+# using it — ``crm/features/import_screen.py`` and
+# ``playground/features/datatable.py`` — already wrote it that way.
 from bretzel.components import DatatableState
 from examples.crm.core.domain import (
     COUNTRY_KEYS,
@@ -43,19 +43,19 @@ from examples.crm.features.shell import shell
 
 
 class AccountsTable(DatatableState, scope="session", addressable=True):
-    """La requête de CETTE table. Une sous-classe par table : les états sont
-    clés par classe, donc partager la base ferait partager tri et page.
+    """THIS table's query. One subclass per table: states are keyed by
+    class, so sharing the base would share the sort and the page.
 
-    ``addressable=True`` : **la vue a une adresse.** Trier, paginer ou
-    chercher réécrit l'URL, donc le lien se partage, se met en favori, et
-    les flèches du navigateur font l'aller-retour. Les noms viennent de
-    ``DatatableState`` (``tri`` / ``sens`` / ``p`` / ``q``) ; un
-    ``URL = {…}`` les renommerait.
+    ``addressable=True``: **the view has an address.** Sorting,
+    paginating or searching rewrites the URL, so the link shares,
+    bookmarks, and the browser's arrows go back and forth. The names come
+    from ``DatatableState`` (``tri`` / ``sens`` / ``p`` / ``q``); a
+    ``URL = {…}`` would rename them.
 
-    ``filters`` n'est PAS de la partie, et le socle le garantit — il n'a
-    pas de nom d'URL, donc l'opt-in ne peut pas l'allumer. Le tri d'une
-    liste de comptes n'a rien de sensible ; les filtres posés sur un
-    portefeuille client, si.
+    ``filters`` is NOT part of it, and the base layer guarantees it — it
+    has no URL name, so the opt-in cannot turn it on. Sorting a list of
+    accounts has nothing sensitive about it; filters set on a client
+    portfolio do.
     """
 
     per_page: int = field(default=25)
@@ -74,82 +74,82 @@ def size_cell(value, _row):
 
 
 def name_cell(value, row):
-    """Le nom du compte, en LIEN vers sa fiche.
+    """The account's name, as a LINK to its sheet.
 
-    ⚠️ Un lien, pas un ``on_item_click=`` qui redirige. Les deux ouvrent
-    la fiche et ils ne naviguent pas pareil : l'action fait répondre
-    ``HX-Redirect``, qu'htmx applique en ``window.location`` — le
-    document est détruit, la coque repeinte, en deux requêtes. Mesuré le
-    2026-09-12 sur ``examples/atelier`` : un témoin posé sur ``window``
-    avant le clic n'y survivait pas. Un ``<a>`` passe par le
-    ``hx-boost`` de la coque : une requête, seule la région change.
+    ⚠️ A link, not an ``on_item_click=`` that redirects. Both open the
+    sheet and they do not navigate alike: the action makes the server
+    answer ``HX-Redirect``, which htmx applies as ``window.location`` —
+    the document is destroyed, the shell repainted, in two requests.
+    Measured on 2026-09-12 on ``examples/atelier``: a marker set on
+    ``window`` before the click did not survive it. An ``<a>`` goes
+    through the shell's ``hx-boost``: one request, only the region
+    changes.
 
-    C'est ce que dit la docstring de :func:`bretzel.redirect` — « pour
-    un menu, une ligne cliquable, un fil d'Ariane, la navigation reste
-    un ``ui.link`` ». Elle réserve ``redirect()`` aux adresses qui
-    n'existent qu'APRÈS une mutation.
+    It is what :func:`bretzel.redirect`'s docstring says — "for a menu, a
+    clickable row, a breadcrumb, navigation stays a ``ui.link``". It
+    reserves ``redirect()`` for addresses that only exist AFTER a
+    mutation.
     """
-    return ui.link(value, href=f"/comptes/{row['id']}", variant="hover")
+    return ui.link(value, href=f"/accounts/{row['id']}", variant="hover")
 
 
 COLUMNS = [
-    ui.column("name", label="Compte", sortable=True, render=name_cell),
-    ui.column("industry", label="Secteur", sortable=True,
+    ui.column("name", label="Account", sortable=True, render=name_cell),
+    ui.column("industry", label="Industry", sortable=True,
               filter=list(INDUSTRIES)),
-    ui.column("country", label="Pays", sortable=True,
+    ui.column("country", label="Country", sortable=True,
               filter=list(COUNTRY_KEYS)),
-    ui.column("city", label="Ville", sortable=True),
-    ui.column("size", label="Taille", sortable=True, filter=list(SIZES),
+    ui.column("city", label="City", sortable=True),
+    ui.column("size", label="Size", sortable=True, filter=list(SIZES),
               render=size_cell),
     ui.column("arr", label="ARR", sortable=True, align="right",
               render=arr_cell),
-    ui.column("owner", label="Propriétaire", sortable=True,
+    ui.column("owner", label="Owner", sortable=True,
               filter=list(OWNERS)),
 ]
 
 
 def columns_for(owner: str | None) -> list:
-    """Les colonnes de la table, selon le cadrage.
+    """The table's columns, according to the scoping.
 
-    ⚠️ La colonne « Propriétaire » perd son filtre quand on est cadré :
-    cinq de ses six valeurs rendraient zéro ligne et la sixième ne ferait
-    rien. C'est le même raisonnement que les trois sélecteurs retirés
-    ailleurs — un contrôle qui ne peut prendre qu'une valeur légale n'est
-    pas un contrôle — mais il se voyait moins ici, parce que l'affordance
-    est une donnée dans une constante, pas un ``ui.select`` dans un corps
-    de fonction.
+    ⚠️ The "Owner" column loses its filter when scoped: five of
+    its six values would return zero rows and the sixth would do nothing.
+    It is the same reasoning as the three selectors removed elsewhere — a
+    control that can take only one legal value is not a control — but it
+    showed less here, because the affordance is data in a constant, not a
+    ``ui.select`` in a function body.
     """
     if owner is None:
         return COLUMNS
     return [c for c in COLUMNS if c.key != "owner"]
 
 
-# Une seule dep : l'écran 2 ne fait que LIRE. Un jeton de révision déclaré
-# ici serait un chemin de réactivité qui n'existe pas — le prochain lecteur
-# le recopierait sur une table qui écrit et croirait le bump automatique.
+# A single dep: screen 2 only READS. A revision token declared here
+# would be a reactivity path that does not exist — the next reader would
+# copy it onto a table that writes and believe the bump automatic.
 def scoped_rows(q):
-    """Le ``rows=`` que la datatable appelle, cadré au portefeuille.
+    """The ``rows=`` the datatable calls, scoped to the portfolio.
 
-    ⚠️ Le composant appelle son callable avec le SEUL ``Query`` — il n'a
-    aucune façon de lui passer un contexte. Un repo cadré prend donc un
-    paramètre de plus, et l'écran doit fournir cette fermeture. C'est le
-    prix du choix « le cadrage est un paramètre » (cf. ``access.py``), et
-    il est payé ici, une fois, visiblement.
+    ⚠️ The component calls its callable with the ``Query`` ONLY — it has
+    no way of passing it a context. A scoped repo therefore takes one
+    more parameter, and the screen must supply this closure. It is the
+    price of the choice "the scoping is a parameter" (cf. ``access.py``),
+    and it is paid here, once, visibly.
     """
     return load_accounts(q, visible_owner())
 
 
-# ``ViewerPrefs`` dans les ``deps`` : sans lui, changer de portefeuille
-# dans la barre latérale laisserait la zone sur la donnée de l'ancien.
+# ``ViewerPrefs`` in the ``deps``: without it, changing portfolio in the
+# sidebar would leave the zone on the previous one's data.
 @refreshable(deps=[AccountsTable, ViewerPrefs])
 def accounts_table() -> None:
     ui.datatable(
         state=AccountsTable,
         columns=columns_for(visible_owner()),
         rows=scoped_rows,
-        search_placeholder="Nom, ville, secteur, propriétaire…",
+        search_placeholder="Name, city, industry, owner…",
         exportable=True,
-        export_filename="comptes.csv",
+        export_filename="accounts.csv",
         max_height="calc(100vh - 20rem)",
         row_key="id",
     )
@@ -159,17 +159,17 @@ def summary_header() -> None:
     scope = visible_owner()
     stats = accounts_summary(scope)
     with ui.grid(cols={"base": 1, "sm": 3}, gap="md"):
-        kpi("Comptes", f"{stats['total']:,}".replace(",", " "),
+        kpi("Accounts", f"{stats['total']:,}".replace(",", " "),
             "building-2", "primary")
-        kpi("ARR cumulé", euros(stats["arr"]), "banknote", "success")
-        kpi("Propriétaires", "1" if scope else str(len(OWNERS)),
+        kpi("Cumulative ARR", euros(stats["arr"]), "banknote", "success")
+        kpi("Owners", "1" if scope else str(len(OWNERS)),
             "user-round", "info")
 
 
-@page("/comptes", layout=shell, title="Comptes")
+@page("/accounts", layout=shell, title="Accounts")
 def accounts_page() -> None:
     with ui.vstack(gap="lg"):
-        ui.heading("Comptes", level=1, size="2xl")
+        ui.heading("Accounts", level=1, size="2xl")
         summary_header()
         accounts_table()
 

@@ -3,7 +3,7 @@
 Adds the ``scope=`` class kwarg on top of :class:`State` to declare which
 of the four scopes (``page`` / ``session`` / ``user`` / ``app``) the
 state lives in. The scope is what the registry consults to pick a
-backend, an identity, and a TTL ; this class itself is just the schema.
+backend, an identity, and a TTL; this class itself is just the schema.
 
 The actual identity resolution (session id, hashed user id, …) and TTL
 defaults are owned by the registry layer (:mod:`bretzel.state.registry`).
@@ -21,14 +21,14 @@ clean ::
         coupon: str = field(default="")
 
     ui.input(value=cart.coupon)
-    # → renders ``<input name="coupon" value=""/>`` ; submit handler
+    # → renders ``<input name="coupon" value=""/>``; the submit handler
     #   receives ``coupon=…`` as a kwarg, no manual ``name="coupon"``.
 
-Les valeurs prises en charge par ``_stamp`` portent leur champ d'origine
-pendant le rendu, y compris les listes, tuples, dates et booléens. Les
-dictionnaires restent bruts. Une opération qui produit une nouvelle valeur
-(comparaison, conversion, calcul) peut perdre cette provenance : elle ne
-garantit donc plus la liaison du contrôle au champ serveur.
+The values ``_stamp`` handles carry their source field during the render,
+including lists, tuples, dates and booleans. Dictionaries stay raw. An
+operation that produces a new value (comparison, conversion, computation)
+may lose that provenance: it then no longer guarantees the control is
+bound to the server field.
 
 Outside a render scope (action handlers, validators, computed bodies),
 field reads return raw values. Only the render layer sees the stamped
@@ -79,8 +79,8 @@ class _BoundStr(str):
 class _BoundInt(int):
     """``int`` subclass carrying its source field's name.
 
-    ``_stamp`` réserve cette classe aux ``int`` exacts. Les booléens
-    passent par :class:`_BoundBool`.
+    ``_stamp`` reserves this class for exact ``int``. Booleans go through
+    :class:`_BoundBool`.
     """
 
     field_name: str
@@ -301,24 +301,24 @@ class ServerState(State):
 
     __scope__: ClassVar[ServerScope] = "session"
 
-    #: Cet état publie-t-il ses champs nommés dans l'URL ?
+    #: Does this state publish its named fields in the URL?
     #:
-    #: ``class Issues(DatatableState, addressable=True)`` — un opt-in
-    #: d'UNE ligne, qui allume tous les champs portant un ``field(url=…)``.
+    #: ``class Issues(DatatableState, addressable=True)`` — a ONE-line
+    #: opt-in, which lights up every field carrying a ``field(url=…)``.
     #:
-    #: **Décision et nommage sont séparés, et c'est le cœur du design.**
-    #: Le nom peut être fourni par le framework (``DatatableState`` nomme
-    #: déjà tri / sens / page / recherche) ; la décision de PUBLIER, non.
-    #: Ce qui est dans une URL part dans l'historique du navigateur, les
-    #: logs d'accès du serveur et l'en-tête ``Referer`` de chaque lien
-    #: sortant — ça ne s'obtient jamais par défaut.
+    #: **Decision and naming are separate, and that is the heart of the
+    #: design.** The name can be supplied by the framework
+    #: (``DatatableState`` already names sort / direction / page /
+    #: search); the decision to PUBLISH cannot. What is in a URL goes into
+    #: the browser history, the server access logs and the ``Referer``
+    #: header of every outgoing link — that is never obtained by default.
     __addressable__: ClassVar[bool] = False
 
     @classmethod
     async def load(cls, *, key: str = "default") -> Self:
         """Hydrate this state asynchronously from its configured backend."""
-        # Import différé : ``registry`` importe ce module au chargement,
-        # l'inverse au niveau module ferait un cycle.
+        # Deferred import: ``registry`` imports this module at load time,
+        # the reverse at module level would make a cycle.
         from bretzel.state.registry import current_registry
 
         registry = current_registry()
@@ -340,9 +340,9 @@ class ServerState(State):
         registry = current_registry()
         if registry is None:
             raise RuntimeError(
-                f"{cls.__name__}.lock() demande un registre de requête : il "
-                f"n'y en a pas ici (script, test hors requête). Le verrou "
-                f"protège une ligne du magasin, il n'a pas de sens sans elle."
+                f"{cls.__name__}.lock() needs a request registry: there "
+                f"is none here (script, test outside a request). The lock "
+                f"protects one store row, it is meaningless without it."
             )
         return registry.lock(cls, key, ttl=ttl, timeout=timeout)
 

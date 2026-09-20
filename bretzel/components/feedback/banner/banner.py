@@ -79,16 +79,17 @@ class Banner(Component):
         on_close: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             color=color, size=size,
             dismissible=dismissible,
             on_close=on_close,
             **kwargs,
         )
-        # ``adopt_slot`` détache un Component passé en slot (sinon il rend
-        # deux fois) ; une string / un ClientBinding traversent intacts.
-        # Cf. traps.md § « Slot Component stocké sans adopt_slot ».
+        # ``adopt_slot`` detaches a Component passed as a slot (otherwise
+        # it renders twice); a string / a ClientBinding pass through
+        # intact. Cf. traps.md § "A Component slot stored without
+        # adopt_slot".
         self._title = Component.adopt_slot(title)
         self._message = Component.adopt_slot(message)
         # Explicit icon wins over the auto-pick. ``adopt_slot`` detaches a
@@ -102,15 +103,16 @@ class Banner(Component):
         variants = theme.get("variants", {})
 
         dismissible_lit = bool(self._reactive_values.get("dismissible"))
-        # ⚠️ ``emit_attrs()`` résolu ICI, avant la décision, pour PEEK le
-        # handler câblé (cf. Badge § « Peek at the wired close handler »).
-        # Sans lui, un ``on_close=`` sans bouton × serait un dead-letter :
-        # déclarer un handler DOIT faire apparaître l'affordance.
+        # ⚠️ ``emit_attrs()`` resolved HERE, before the decision, to PEEK
+        # at the wired handler (cf. Badge § "Peek at the wired close
+        # handler"). Without it, an ``on_close=`` with no × button would
+        # be a dead letter: declaring a handler MUST bring out the
+        # affordance.
         root_attrs = self.emit_attrs()
         close_wired = close_handler_wired(root_attrs)
-        # Le × apparaît quand ``dismissible=True`` OU qu'un ``on_close=``
-        # est câblé — déclarer un handler DOIT faire apparaître
-        # l'affordance qui le déclenche, sinon c'est un dead-letter.
+        # The × appears when ``dismissible=True`` OR an ``on_close=``
+        # is wired — declaring a handler MUST bring out the affordance
+        # that fires it, otherwise it is a dead letter.
         show_close = dismissible_lit or close_wired
 
         variant_cfg = variants.get(color, {})
@@ -195,11 +197,11 @@ class Banner(Component):
         # The ``on_close=`` wiring stays on the root : the button's
         # ``$dispatch('close')`` bubbles up to the root listener
         # (``hx-trigger="close"`` for a server callable, ``bz-on:close``
-        # for a client expression). (``root_attrs`` résolu plus haut.)
+        # for a client expression). (``root_attrs`` resolved above.)
         if show_close:
-            # Pure-client dismiss : le × flippe le flag local ``open`` ; le
-            # root ``bz-show="open"`` démonte le banner. Émission +
-            # detach + gating single-sourcés dans ``dismiss_button``.
+            # Pure-client dismiss: the × flips the local ``open`` flag;
+            # the root's ``bz-show="open"`` unmounts the banner. Emission
+            # + detach + gating single-sourced in ``dismiss_button``.
             children.append(dismiss_button(
                 button_class=_resolve(slots.get("close", "")),
                 aria_label=text("banner.dismiss"),

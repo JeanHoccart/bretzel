@@ -13,19 +13,19 @@ callable — one shape to learn for the whole framework ::
 exception to raise : a handler that mutates nothing leaves the card where
 the finger dropped it *for one frame*, and the runtime undoes the gesture.
 
-⚠️ Ce paragraphe a dit pendant des mois que le morph suffisait — « a
-handler that does not mutate leaves the server's next render disagreeing
-with the DOM, and the morph puts the card back ». C'était faux : un
-handler qui ne mute rien ne fait re-rendre AUCUNE zone, donc il n'y a
-pas de rendu suivant et rien ne contredit le DOM. Le serveur répond zéro
-octet et la carte reste dans la colonne qui l'a refusée (mesuré le
-2026-09-09 sur ``examples/kanban``). Le snap-back est depuis un
-**témoin** posé par ``19_dnd.js`` sur l'item déposé : le serveur ne rend
-jamais cet attribut, donc le morph l'efface s'il ré-apparie le nœud, et
-son survivant dit que personne n'a répondu. Gaté par
+⚠️ This paragraph said for months that the morph was enough — "a handler
+that does not mutate leaves the server's next render disagreeing with the
+DOM, and the morph puts the card back". That was false: a handler that
+mutates nothing makes NO zone re-render, so there is no next render and
+nothing contradicts the DOM. The server answers zero bytes and the card
+stays in the column that refused it (measured on 2026-09-09 on
+``examples/kanban``). The snap-back is since a **witness** set by
+``19_dnd.js`` on the dropped item: the server never renders that
+attribute, so the morph erases it if it re-pairs the node, and its
+survival says nobody answered. Gated by
 ``tests/runtime_js/test_a_refusal_that_mutates_nothing_snaps_back.py``,
-dans les deux sens — le versant licite y refuse qu'un dépôt ACCEPTÉ soit
-défait.
+in both directions — its legitimate side refuses that an ACCEPTED drop be
+undone.
 
 **``item_key`` is a string, never the object.** The browser can only send
 back the key the item was rendered with, so the handler does its own
@@ -36,8 +36,9 @@ not in ``from_index``/``to_index`` — the roadmap's own analysis puts lists
 and grids at *opposite* corners, not in a parent/child relation. And
 ``to_index`` is already opaque : a fixed grid addresses its cell as
 ``y * columns + x``, the same integer. It is the component that decides
-what the integer means, which is exactly the freedom the cadrage asked for.
-An optional coordinate would have been a field that is always ``None``.
+what the integer means, which is exactly the freedom the framing asked
+for. An optional coordinate would have been a field that is always
+``None``.
 """
 
 from __future__ import annotations

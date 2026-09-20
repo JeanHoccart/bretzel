@@ -1,9 +1,9 @@
-"""features/login — la page publique : mot de passe, et les portes.
+"""features/login — the public page: password, and the doors.
 
-Elle ne touche aucun ``UserState`` : celui-ci lèverait ``AuthRequiredError``
-tant que personne n'est connecté, ce qui est exactement ce que le
-framework garantit — et une page de connexion qui s'appuierait dessus
-rendrait 401 avant d'avoir pu connecter qui que ce soit.
+It touches no ``UserState``: that would raise ``AuthRequiredError`` as
+long as nobody is signed in, which is exactly what the framework
+guarantees — and a login page leaning on it would return 401 before
+having signed anybody in.
 """
 
 from __future__ import annotations
@@ -26,24 +26,24 @@ from examples.auth.features.access import DOORS
 class Credentials(PageState):
     email: str = field(default='')
     password: str = field(default='')
-    erreur: str = field(default='')
+    error: str = field(default='')
 
 
 def sign_in(form: Credentials) -> None:
-    """La preuve, puis la session — deux gestes, et seul le second est
-    du framework.
+    """The proof, then the session — two gestures, and only the second
+    belongs to the framework.
 
-    ``form.password`` est vidé avant tout retour : un mot de passe refusé
-    ne doit pas revenir dans le HTML du champ au re-rendu.
+    ``form.password`` is cleared before any return: a refused password
+    must not come back in the field's HTML on re-render.
     """
     user = authenticate(str(form.email), str(form.password))
     form.password = ""
     if user is None:
-        # On ne dit pas laquelle des deux causes a échoué — sinon on offre
-        # la liste des comptes qui existent.
-        form.erreur = "Adresse ou mot de passe incorrect."
+        # We do not say which of the two causes failed — otherwise we
+        # hand out the list of accounts that exist.
+        form.error = "Wrong address or password."
         return
-    form.erreur = ""
+    form.error = ""
     auth.login(user["id"])
     redirect("/")
 
@@ -52,88 +52,91 @@ def sign_in(form: Credentials) -> None:
 def sign_in_form() -> None:
     form = Credentials()
     with ui.form(on_submit=sign_in), ui.vstack(gap="md"):
-        with ui.form_field(label="Adresse", required=True):
+        with ui.form_field(label="Address", required=True):
             ui.input(value=form.email, icon_left="mail",
                      placeholder="jean@macorp.fr", autocomplete="username")
-        with ui.form_field(label="Mot de passe", required=True):
+        with ui.form_field(label="Password", required=True):
             ui.input(value=form.password, type="password", icon_left="lock",
                      autocomplete="current-password")
-        if form.erreur:
-            ui.alert(form.erreur, color="error", icon="triangle-alert",
-                     # ``ui.alert`` ne pose PAS ``role="alert"`` tout seul
-                     # (sémantique « interromps » injustifiée pour un
-                     # panneau d'info). Ici on la veut : un lecteur
-                     # d'écran doit annoncer le refus.
+        if form.error:
+            ui.alert(form.error, color="error", icon="triangle-alert",
+                     # ``ui.alert`` does NOT set ``role="alert"`` by
+                     # itself ("interrupt" semantics are unjustified for
+                     # an info panel). Here we want it: a screen reader
+                     # must announce the refusal.
                      role="alert")
-        ui.button("Se connecter", type="submit", color="primary",
+        ui.button("Sign in", type="submit", color="primary",
                   icon_left="log-in")
 
 
 def doors_block() -> None:
-    """Un bouton par porte montée — un simple lien vers sa route.
+    """One button per mounted door — a plain link to its route.
 
-    Rien à câbler : ``@auth.door`` a monté ``/auth/<nom>``, et cette
-    route est publique par construction (``app.public_paths``), donc la
-    garde la laisse passer sans que l'app ait à la nommer.
+    Nothing to wire: ``@auth.door`` mounted ``/auth/<name>``, and that
+    route is public by construction (``app.public_paths``), so the guard
+    lets it through without the app having to name it.
     """
     if not DOORS:
         return
     with ui.vstack(gap="sm"):
-        ui.divider(label="ou")
+        ui.divider(label="or")
         for door in DOORS:
-            ui.link(f"Continuer avec {door.name}", href=door.path,  # type: ignore[attr-defined]
+            ui.link(f"Continue with {door.name}", href=door.path,  # type: ignore[attr-defined]
                     classes="w-full")
-        # Sans cette ligne, le refus se lit comme une panne : on clique,
-        # on revient sur cet écran, et RIEN ne dit pourquoi. C'est arrivé
-        # au premier essai réel — la personne a cru que la porte était
-        # cassée alors qu'elle faisait exactement son travail.
+        # Without this line, the refusal reads as a failure: you click,
+        # you come back to this screen, and NOTHING says why. It happened
+        # on the first real attempt — the person thought the door was
+        # broken when it was doing exactly its job.
         ui.text(
-            f"Le fournisseur de test propose deux comptes. « jean@macorp.fr » "
-            f"entre. « someone@ailleurs.com » est REFUSÉ et te ramène ici : "
-            f"c'est voulu, l'app n'accepte que le domaine {ALLOWED_DOMAIN} "
-            f"(la fonction on_user, dans features/access.py). Une porte "
-            f"prouve une adresse ; c'est l'app qui décide.",
+            f"The test provider offers two accounts. "
+            f"“jean@macorp.fr” gets in. "
+            f"“someone@elsewhere.com” is REFUSED and brings you "
+            f"back here: that is on purpose, the app only accepts the "
+            f"{ALLOWED_DOMAIN} domain (the on_user function, in "
+            f"features/access.py). A door proves an address; the app is "
+            f"what decides.",
             size="xs", color="muted",
         )
 
 
 def ways_panel() -> None:
-    """L'état des quatre façons d'entrer, lu à l'exécution.
+    """The state of the four ways in, read at run time.
 
-    Cet écran existe pour qu'on n'ait pas à relire le code pour savoir ce
-    qui est branché : chaque ligne dit ce qu'elle vaut ICI, maintenant,
-    avec la variable qui l'allume.
+    This screen exists so nobody has to re-read the code to know what is
+    wired: every line says what it is worth HERE, now, with the variable
+    that turns it on.
     """
     token = next(iter(API_TOKENS))
     base = f"http://127.0.0.1:{APP_PORT}/"
     ways = [
-        ("Mot de passe", True, "le formulaire ci-dessus"),
+        ("Password", True, "the form above"),
         (
-            "Porte OAuth / OIDC",
+            "OAuth / OIDC door",
             bool(DOORS),
-            "le bouton ci-dessus" if DOORS
-            else "éteinte — il manque BZ_OIDC_ISSUER + CLIENT_ID + CLIENT_SECRET",
+            "the button above" if DOORS
+            else "off — BZ_OIDC_ISSUER + CLIENT_ID + CLIENT_SECRET "
+                 "are missing",
         ),
         (
-            "Jeton de machine",
+            "Machine token",
             True,
-            f'curl.exe -s -H "Authorization: Bearer {token}" {base}moi',
+            f'curl.exe -s -H "Authorization: Bearer {token}" {base}me',
         ),
         (
-            "En-tête d'un proxy SSO",
+            "Header from an SSO proxy",
             trusted_proxy(),
-            f'curl.exe -s -H "{PROXY_HEADER}: jean@macorp.fr" {base}moi'
+            f'curl.exe -s -H "{PROXY_HEADER}: jean@macorp.fr" {base}me'
             if trusted_proxy()
-            else "éteinte — il manque BZ_TRUST_PROXY_HEADER=1",
+            else "off — BZ_TRUST_PROXY_HEADER=1 is missing",
         ),
     ]
     with ui.vstack(gap="xs"):
-        ui.divider(label="Les quatre façons — toutes déjà actives")
+        ui.divider(label="The four ways — all already live")
         ui.text(
-            "Rien à démarrer une par une : ce qui est coché marche "
-            "maintenant. Les deux dernières n'ont pas d'écran — colle leur "
-            "commande dans un terminal pendant que l'app tourne, elle "
-            "répond trois lignes qui disent qui tu es.",
+            "Nothing to start one by one: what is ticked works right "
+            "now. The last two have no screen — paste their command "
+            "in a terminal while the app runs, and it answers three lines "
+            "that say who you are.",
             size="xs", color="muted",
         )
         for label, active, detail in ways:
@@ -144,29 +147,30 @@ def ways_panel() -> None:
                     ui.text(label, size="sm", weight="medium")
                 ui.text(detail, size="xs", color="muted", classes="pl-6 break-all")
         ui.text(
-            "⚠️ Le « jeton de machine » de cette démo est une chaîne dans un "
-            "dict, pas un JWT. Une vraie app vérifierait ici une signature "
-            "— ça ne change rien au reste : la fonction rend un identifiant "
-            "ou None, et le framework ne sait pas d'où il vient.",
+            "⚠️ The “machine token” of this demo is a "
+            "string in a dict, not a JWT. A real app would check a "
+            "signature here — which changes nothing else: the "
+            "function returns an identifier or None, and the framework "
+            "does not know where it came from.",
             size="xs", color="muted",
         )
 
 
-@page(LOGIN_PATH, title="Connexion")
+@page(LOGIN_PATH, title="Sign in")
 def login_page() -> None:
     with ui.viewport(), ui.pane(align="center", justify="center", padding="md"):
         with ui.vstack(gap="lg", classes="w-full max-w-sm"):
             with ui.hstack(gap="sm", align="center", justify="center"):
                 ui.icon("key-round", color="primary", size="lg")
-                ui.heading("Quatre façons d'entrer", level=1, size="xl")
+                ui.heading("Four ways in", level=1, size="xl")
             with ui.card(padding="lg"), ui.vstack(gap="lg"):
                 sign_in_form()
                 doors_block()
                 ways_panel()
             ui.text(
-                "Comptes de démonstration : jean@macorp.fr ou ada@macorp.fr, "
-                "mot de passe « demo ». Les commandes des quatre façons "
-                "sont dans examples/auth/README.md.",
+                "Demo accounts: jean@macorp.fr or ada@macorp.fr, "
+                "password “demo”. The commands of the four ways "
+                "are in examples/auth/README.md.",
                 color="muted", size="xs",
             )
 

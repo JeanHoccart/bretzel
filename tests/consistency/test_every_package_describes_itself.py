@@ -149,7 +149,7 @@ def test_the_symbol_reader_still_reads_something() -> None:
     # …et il doit distinguer les deux genres. Un lecteur qui ne verrait
     # que les fonctions passerait les deux comptes ci-dessus.
     genres = {s.kind for s in symboles}
-    assert genres == {"fonction", "classe"}, (
+    assert genres == {"function", "class"}, (
         f"genres vus : {genres} — le lecteur AST en rate un."
     )
 

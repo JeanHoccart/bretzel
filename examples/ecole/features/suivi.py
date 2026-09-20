@@ -1,20 +1,21 @@
-"""features/suivi — le travail à vérifier, les rappels, l'entrée en cours.
+"""features/suivi — the work to check, the reminders, entering a lesson.
 
-EF-H1 à EF-H4, EF-I1 à EF-I5, EF-B15. Trois surfaces, et elles
-correspondent à trois moments d'usage différents du § 2 :
+EF-H1 to EF-H4, EF-I1 to EF-I5, EF-B15. Three surfaces, and they match
+three different moments of use from § 2:
 
-- **les cadres d'entrée en cours**, en tête de l'emploi du temps :
-  *« sur le pas de la porte, 20 secondes »* ;
-- **le panneau de vérifications** d'une fiche d'élève : *« en cours, sur
-  tablette »*, où la note se pose d'un doigt ;
-- **les deux rappels**, sur l'accueil : ce qu'on regarde le soir.
+- the **start-of-lesson frames**, at the head of the timetable: *"on the
+  doorstep, 20 seconds"*;
+- a pupil sheet's **checks panel**: *"in class, on a tablet"*, where the
+  note is set with one finger;
+- the **two reminders**, on the home page: what one looks at in the
+  evening.
 
-EF-B16 tient toujours : pas de bandeau « Maintenant »
-------------------------------------------------------
-Le cadre d'entrée en cours n'est PAS le bandeau retiré deux fois. La
-différence est qu'il porte quelque chose qu'on ne peut lire nulle part
-ailleurs — la dernière séance faite et le travail à vérifier — là où le
-bandeau répétait ce que la grille disait déjà en mieux.
+EF-B16 still holds: no "Maintenant" banner
+-------------------------------------------
+The start-of-lesson frame is NOT the banner removed twice. The difference
+is that it carries something readable nowhere else — the last session
+held and the work to check — where the banner repeated what the grid
+already said better.
 """
 
 from __future__ import annotations
@@ -46,9 +47,9 @@ from examples.ecole.features.suivi_data import (
     verifications_eleve,
 )
 
-#: Les motifs d'EF-H2 — *« se coche d'un doigt, là où on y pense »*.
-#: Une liste fermée et courte : un menu de quinze entrées coûterait plus
-#: de temps que d'écrire le motif à la main.
+#: EF-H2's reasons — *"ticked with one finger, where one thinks of it"*.
+#: A closed and short list: a menu of fifteen entries would cost more
+#: time than writing the reason by hand.
 MOTIFS: tuple[str, ...] = (
     "cahier incomplet", "cahier mal tenu", "travail non fait",
     "exercice à refaire", "signature des parents",
@@ -56,7 +57,7 @@ MOTIFS: tuple[str, ...] = (
 
 
 class VerifDraft(PageState):
-    """L'élève pour qui on pose un rappel."""
+    """The pupil a reminder is being set for."""
 
     ouvert: bool = field(default=False)
     eleve_id: int = field(default=0)
@@ -66,12 +67,12 @@ class VerifDraft(PageState):
 
 
 def debut_du_trimestre(annee: dict, cycle: str) -> tuple[int, date]:
-    """Le trimestre en cours et sa date de début (EF-I4).
+    """The current term and its start date (EF-I4).
 
-    Le début d'un trimestre n'est jamais saisi : il se lit comme le
-    lendemain du précédent (EF-A3). C'est ici que cette règle sert pour
-    de vrai — le décompte de séances doit partir de là, pas de la
-    rentrée.
+    A term's start is never entered: it reads as the day after the
+    previous one (EF-A3). It is here that this rule really serves — the
+    session count must start from there, not from the start of the school
+    year.
     """
     debut_annee = date.fromisoformat(annee["debut"])
     fin_annee = date.fromisoformat(annee["fin"])
@@ -85,8 +86,8 @@ def debut_du_trimestre(annee: dict, cycle: str) -> tuple[int, date]:
     if numero == 1:
         return 1, debut_annee
     precedent = fins.get(numero - 1)
-    # Le début d'un trimestre est le LENDEMAIN de la fin du précédent
-    # (EF-A3) : jamais saisi, toujours dérivé.
+    # A term's start is the DAY AFTER the end of the previous one
+    # (EF-A3): never entered, always derived.
     return numero, (precedent + timedelta(days=1) if precedent
                     else debut_annee)
 
@@ -113,10 +114,10 @@ def enregistrer_verification(draft: VerifDraft) -> None:
 
 
 def poser_vite(eleve_id: int, classe_id: int, motif: str) -> None:
-    """EF-H2 — *« d'un seul geste sur un motif courant »*.
+    """EF-H2 — *"in a single gesture on a common reason"*.
 
-    Pas de dialogue : c'est le geste qu'on fait en classe, debout, et
-    chaque écran intermédiaire est une note qu'on ne prend pas.
+    No dialog: it is the gesture one makes in class, standing up, and
+    every intermediate screen is a note one does not take.
     """
     poser_verification(eleve_id, classe_id, annee_regardee()["id"], motif)
 
@@ -129,10 +130,10 @@ def retirer(verification_id: int) -> None:
     supprimer_verification(verification_id, annee_regardee()["id"])
 
 
-# ── Le panneau d'un élève (EF-H1, EF-H2, EF-H3) ──────────────────────
+# ── A pupil's panel (EF-H1, EF-H2, EF-H3) ────────────────────────────
 
 class VueSuiviEleve(PageState):
-    """L'élève dont on montre les vérifications. La page sème."""
+    """The pupil whose checks are shown. The page seeds."""
 
     eleve_id: int = field(default=0)
 
@@ -172,8 +173,8 @@ def panneau_verifications() -> None:
                         color="muted")
                 ui.button("C'est fait", variant="ghost", disabled=fige,
                           on_click=partial(cocher_faite, ligne["id"]))
-                # EF-H3 : *« une ligne posée PAR ERREUR se supprime — la
-                # cocher "fait" serait un mensonge »*.
+                # EF-H3: *"a row set BY MISTAKE is deleted — ticking it
+                # 'done' would be a lie"*.
                 ui.icon_button("trash-2", variant="ghost", disabled=fige,
                                aria_label="Posée par erreur",
                                tooltip="Posée par erreur",
@@ -202,20 +203,20 @@ def dialogue_verification() -> None:
             ui.button("Poser le rappel", type="submit", color="primary")
 
 
-# ── Les cadres d'entrée en cours (EF-B15) ────────────────────────────
+# ── The start-of-lesson frames (EF-B15) ──────────────────────────────
 
 @refreshable(deps=[AnneeVue, SuiviRev])
 def cadres_du_jour() -> None:
-    """Les cadres d'EF-B15 : la classe de l'heure, et la suivante.
+    """EF-B15's frames: the hour's class, and the next.
 
-    Deux choses par cadre, et **rien d'autre** :
+    Two things per frame, and **nothing else**:
 
-    - *« ce qui a été vu la dernière fois, en une ligne : le numéro et le
-      titre de la SÉANCE »*. Ni la date, ni le chapitre, ni le travail
-      donné — *« le chapitre est le même pendant six semaines et ne situe
-      pas la classe »* ;
-    - *« le travail à vérifier, qui se coche d'un doigt, là où on y
-      pense »*.
+    - *"what was covered last time, in one line: the SESSION's number and
+      title"*. Neither the date, nor the chapter, nor the homework set —
+      *"the chapter is the same for six weeks and does not situate the
+      class"*;
+    - *"the work to check, ticked with one finger, where one thinks of
+      it"*.
     """
     from examples.ecole.features.grille_data import (
         lundi_affiche,
@@ -258,8 +259,8 @@ def cadre_de_classe(code: str, annee: dict) -> None:
                 weight="medium",
             )
         elif derniere and derniere["chapitre"]:
-            # Le SECOURS, et rien d'autre : une heure notée sans séance
-            # choisie.
+            # The FALLBACK, and nothing else: an hour recorded with no
+            # session chosen.
             ui.text(derniere["chapitre"], color="muted")
         else:
             ui.text("Aucune séance consignée pour l'instant.", color="muted")
@@ -274,20 +275,20 @@ def cadre_de_classe(code: str, annee: dict) -> None:
 
 
 def classes_de_lannee(annee_id: int) -> list[dict]:
-    """Les classes de l'année — importé ici pour éviter un cycle."""
+    """The year's classes — imported here to avoid a cycle."""
     from examples.ecole.features.eleves_data import classes_de
 
     return classes_de(annee_id)
 
 
-# ── Les deux rappels (EF-I) ──────────────────────────────────────────
+# ── The two reminders (EF-I) ─────────────────────────────────────────
 
 @refreshable(deps=[AnneeVue, SuiviRev])
 def bandeau_des_rappels() -> None:
-    """EF-I1, EF-I2 — **calculés à la demande**, jamais stockés.
+    """EF-I1, EF-I2 — **computed on demand**, never stored.
 
-    *« Deux oublis que l'application voit venir, calculés à la demande et
-    non tenus dans une liste qui divergerait de la réalité. »*
+    *"Two oversights the application sees coming, computed on demand and
+    not kept in a list that would diverge from reality."*
     """
     annee = annee_regardee()
     a_reporter = notes_non_reportees(annee["id"])
@@ -324,11 +325,11 @@ def bandeau_des_rappels() -> None:
 
 
 def message_sans_observation(signalee: dict, trimestre: int) -> str:
-    """EF-I5 — *« au-delà de huit élèves, le nombre et un lien, pas trente
-    noms »*.
+    """EF-I5 — *"beyond eight pupils, the number and a link, not thirty
+    names"*.
 
-    *« En début de trimestre toute la classe est sans observation, et la
-    liste noierait les quelques oubliés qu'on cherche. »*
+    *"At the start of term the whole class has no observation, and the
+    list would drown the few forgotten ones one is looking for."*
     """
     oublies = signalee["eleves"]
     debut = (f"{signalee['code']} · vue {signalee['vues']} fois au "

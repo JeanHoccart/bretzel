@@ -56,42 +56,42 @@ from bretzel.theme.tokens import (
     SemanticColors as SemanticColors,
 )
 
-#: **Ce que l'utilisateur écrit.** Les outils internes de génération,
-#: résolution et sérialisation restent importables par leur chemin précis.
+#: **What the user writes.** The internal generation, resolution and
+#: serialisation tools stay importable by their precise path.
 __all__ = [
-    # Point d'entrée : on en construit un, on le passe à Bretzel(theme=…)
+    # Entry point: you build one and pass it to Bretzel(theme=…)
     "Theme",
-    # Mode clair/sombre courant — un ClientState fourni par le framework
+    # Current light/dark mode — a ClientState supplied by the framework
     "ColorScheme",
-    # Sections de configuration qu'on passe au constructeur
+    # Configuration sections passed to the constructor
     "IconConfig",
     "ScrollbarConfig",
-    # Ce qu'on nomme dans un slot : les couleurs sémantiques
+    # What you name in a slot: the semantic colours
     "SEMANTIC_COLOR_NAMES",
-    # Les teintes nommées de la palette livrée.
+    # The named hues of the shipped palette.
     "DEFAULT_PALETTE_NAMES",
-    # Ce qu'accepte ``Theme(fonts=…)`` — trois slots, fermés
+    # What ``Theme(fonts=…)`` accepts — three slots, closed
     "FONT_SLOT_NAMES",
-    # Ce qu'accepte ``Theme(shape=…)`` — trois familles, fermées
+    # What ``Theme(shape=…)`` accepts — three families, closed
     "SHAPE_SLOT_NAMES",
-    # Ce qu'accepte ``Theme(text=…)`` — les paliers de Tailwind, fermés.
-    # Le palier médian s'y dit ``base`` et non ``md`` : c'est le seul
-    # endroit du framework où les deux échelles se touchent.
+    # What ``Theme(text=…)`` accepts — Tailwind's steps, closed.
+    # The middle step is called ``base`` there and not ``md``: it is the
+    # one place in the framework where the two scales touch.
     "TEXT_SLOT_NAMES",
-    # Le pas d'espacement en PIXELS, pour une app qui compose une
-    # géométrie en Python (la hauteur d'un bloc de N heures dans une
-    # grille) — une classe Tailwind ne sait pas additionner.
+    # The spacing step in PIXELS, for an app composing geometry in
+    # Python (the height of an N-hour block in a grid) — a Tailwind class
+    # cannot add up.
     "DEFAULT_SPACING_PX",
-    # L'erreur qu'un thème malformé lève
+    # The error a malformed theme raises
     "ThemeError",
 ]
 
-#: **Ré-exporté pour les AUTRES COUCHES, pas pour l'auteur d'une app.**
+#: **Re-exported for the OTHER LAYERS, not for an app author.**
 #:
-#: Chaque nom d'ici porte l'alias redondant ``X as X`` à l'import : c'est le
-#: marqueur PEP 484 du ré-export intentionnel. La liste est vérifiée par
-#: ``tests/consistency/test_public_surface_is_classified.py`` : rien n'entre
-#: dans une façade sans être classé d'un côté ou de l'autre.
+#: Every name here carries the redundant ``X as X`` alias at import: that
+#: is the PEP 484 marker of an intentional re-export. The list is checked
+#: by ``tests/consistency/test_public_surface_is_classified.py``: nothing
+#: enters a facade without being classified on one side or the other.
 _INTERNAL = [
     "Palette",
     "ResolvedColor",
@@ -171,38 +171,38 @@ class Theme:
         self._components = _deep_merge_dicts(
             _section(base_theme, "_components"), components
         )
-        # Merges ``cls.THEME`` ↔ override, mémoïsés par THEME_KEY (cf.
-        # ``merged_component_theme``). Les deux entrées sont immuables
-        # après le boot, le merge est donc calculé UNE fois — sans
-        # cache, ``compose_class`` re-mergait à chaque slot de chaque
-        # render (mesuré : +76 % sur un render de Select overridé).
+        # Merges ``cls.THEME`` ↔ override, memoised by THEME_KEY (cf.
+        # ``merged_component_theme``). Both inputs are immutable after
+        # boot, so the merge is computed ONCE — without the cache,
+        # ``compose_class`` re-merged on every slot of every render
+        # (measured: +76 % on a render of an overridden Select).
         self._merged_components: dict[str, dict[str, Any]] = {}
         self._fonts = _merge_fonts(_section(base_theme, "_fonts"), fonts)
-        # L'échelle : sa base est un SCALAIRE (un seul réglage, comme le
-        # trait), ses paliers de texte un dict de slots fermés (comme les
-        # fontes). Les deux sont muets par défaut — cf. ``_emit_scale_block``.
+        # The scale: its base is a SCALAR (a single setting, like the
+        # stroke), its text steps a dict of closed slots (like the
+        # fonts). Both are mute by default — cf. ``_emit_scale_block``.
         self._spacing = _merge_spacing(_scalar(base_theme, "_spacing"), spacing)
         self._text = _merge_text(_section(base_theme, "_text"), text)
         self._shape = _merge_shape(_section(base_theme, "_shape"), shape)
-        # ``_scalar`` et pas ``_section`` : le trait est UNE chaîne,
-        # pas un dict de slots — il n'a qu'une question à régler.
+        # ``_scalar`` and not ``_section``: the stroke is ONE string,
+        # not a dict of slots — it has only one question to settle.
         self._stroke = _merge_stroke(
             _scalar(base_theme, "_stroke"), stroke
         )
-        # La porte CSS s'AJOUTE à celle de la base, elle ne la remplace pas.
+        # The CSS door ADDS to the base's, it does not replace it.
         #
-        # La première version remplaçait, au motif qu'hériter de règles
-        # invisibles depuis ``base=`` est désagréable. Mesuré, ça donnait une
-        # moitié de thème : ``Theme(base=marque, css=…)`` gardait le
-        # ``--font-sans`` de la marque (les sections dict, elles, se mergent)
-        # et perdait le ``@font-face`` qui rendait cette fonte chargeable.
-        # La page retombait sur la pile système **sans rien dire** — le mode
-        # de défaillance exact que cette section existe pour fermer.
+        # The first version replaced, on the grounds that inheriting
+        # invisible rules from ``base=`` is unpleasant. Measured, that
+        # gave half a theme: ``Theme(base=brand, css=…)`` kept the
+        # brand's ``--font-sans`` (the dict sections do merge) and lost
+        # the ``@font-face`` that made that font loadable. The page fell
+        # back on the system stack **saying nothing** — the exact failure
+        # mode this section exists to close.
         #
-        # En chaînes, le dernier morceau gagne à spécificité égale, donc
-        # « ajouter » suffit aussi à surcharger : la cascade CSS EST le
-        # mécanisme de retrait. Reste la remise à zéro, qu'un ``css=""``
-        # explicite assure — même sortie que ``scrollbar=None``.
+        # In strings, the last piece wins at equal specificity, so
+        # "adding" is enough to override too: the CSS cascade IS the
+        # removal mechanism. What remains is the reset, which an explicit
+        # ``css=""`` provides — same way out as ``scrollbar=None``.
         self._css = _merge_css(_section_tuple(base_theme, "_css"), css)
         self._scrollbar = _coerce_scrollbar(
             scrollbar,
@@ -221,9 +221,9 @@ class Theme:
             palette_dark=self._palette_dark,
         )
         # CSS is generated lazily — first call to ``generate_css()``
-        # caches it. Theme is immutable post-init, mais la safelist
-        # dépend des gabarits passés à l'appel : le cache est un dict
-        # clé par ces gabarits.
+        # caches it. Theme is immutable post-init, but the safelist
+        # depends on the templates passed to the call: the cache is a
+        # dict keyed by those templates.
         self._css_cache: dict[tuple[str, ...], str] = {}
 
     # ── Read-only accessors ─────────────────────────────────────────────
@@ -280,16 +280,16 @@ class Theme:
     ) -> str:
         """The full ``theme.css`` Lightning CSS will ingest. Cached.
 
-        ``responsive_classes`` : les tokens des tables graduées (cf.
-        :func:`bretzel.components.dynamic_responsive_classes`), injectés
-        au démarrage.
+        ``responsive_classes``: the tokens of the graded tables (cf.
+        :func:`bretzel.components.dynamic_responsive_classes`), injected
+        at startup.
 
-        Le cache est clé par la liste — deux appels avec des listes
-        différentes doivent produire deux CSS différents, sinon le
-        premier appel (souvent un appel nu dans un test) figerait une
-        safelist amputée pour tout le process. C'est aussi pourquoi la
-        nouvelle liste entre dans la clé plutôt que de s'y ajouter en
-        silence : sinon le CSS servi dépendrait de l'ordre des appels.
+        The cache is keyed by the list — two calls with different lists
+        must produce two different CSS outputs, otherwise the first call
+        (often a bare call in a test) would freeze a truncated safelist
+        for the whole process. That is also why the new list enters the
+        key rather than being added to it silently: otherwise the CSS
+        served would depend on the order of the calls.
 
         """
         key = tuple(responsive_classes)
@@ -402,17 +402,17 @@ def _section_tuple(base: Theme | None, attr: str) -> tuple[str, ...]:
 def _merge_shape(
     base: Mapping[str, str], override: Mapping[str, str] | None
 ) -> dict[str, str]:
-    """Merge shallow, **et refuse une famille inconnue** — même porte que
-    :func:`_merge_fonts`, pour le même silence.
+    """Shallow merge, **and refuse an unknown family** — same door as
+    :func:`_merge_fonts`, for the same silence.
 
-    ``Theme(shape={"card": "1rem"})`` n'est pas une extension : c'est un
-    jeton que rien n'émettra et qu'aucune classe ne lira. Sans la garde,
-    la section serait acceptée, le rayon ne bougerait pas, et il n'y
-    aurait rien à voir.
+    ``Theme(shape={"card": "1rem"})`` is not an extension: it is a token
+    nothing will emit and no class will read. Without the guard, the
+    section would be accepted, the radius would not move, and there
+    would be nothing to see.
 
-    Le message nomme les trois familles ET dit où aller pour un
-    composant seul, parce que c'est la question réelle derrière une clé
-    inventée : « je veux juste arrondir mes cartes davantage ».
+    The message names the three families AND says where to go for a
+    single component, because that is the real question behind an
+    invented key: "I just want to round my cards more".
     """
     merged = {**DEFAULT_SHAPE, **base}
     if not override:
@@ -420,46 +420,46 @@ def _merge_shape(
     unknown = sorted(set(override) - set(SHAPE_SLOT_NAMES))
     if unknown:
         raise ThemeError(
-            f"Theme(shape=…) : famille(s) inconnue(s) {unknown}. "
-            f"Les trois familles sont {list(SHAPE_SLOT_NAMES)} — `box` pour "
-            f"ce qui contient, `field` pour un contrôle qu'on vise, "
-            f"`selector` pour une petite marque ou un contrôle imbriqué. "
-            f"Pour le rayon d'UN composant, surcharge son thème : "
+            f"Theme(shape=…): unknown family/families {unknown}. "
+            f"The three families are {list(SHAPE_SLOT_NAMES)} — `box` for "
+            f"what contains, `field` for a control you aim at, `selector` "
+            f"for a small mark or a nested control. "
+            f"For ONE component's radius, override its theme: "
             f'Theme(components={{"card": {{"slots": {{"root": …}}}}}}).'
         )
     for slot, length in override.items():
         if not isinstance(length, str) or not length.strip():
             raise ThemeError(
-                f"Theme(shape={{{slot!r}: {length!r}}}) : attendu une longueur "
-                f'CSS non vide, par exemple "0.75rem" ou "0". Pour ne pas '
-                f"surcharger cette famille, omets la clé."
+                f"Theme(shape={{{slot!r}: {length!r}}}): expected a "
+                f'non-empty CSS length, for example "0.75rem" or "0". To '
+                f"leave this family alone, omit the key."
             )
     merged.update(override)
     return merged
 
 
 def _merge_spacing(base: str | None, override: str | None) -> str:
-    """Le pas d'espacement : une chaîne, et elle peut rester absente.
+    """The spacing step: a string, and it may stay absent.
 
-    Absente, c'est :data:`DEFAULT_SPACING` qui sort — Bretzel CHOISIT son
-    échelle au lieu d'hériter de celle de Tailwind, qui vise des pages.
-    C'est l'inverse de la règle des fontes, et la différence est nette :
-    recopier une valeur d'amont ne peut que diverger d'elle, en choisir
-    une dit quelque chose.
+    Absent, it is :data:`DEFAULT_SPACING` that comes out — Bretzel
+    CHOOSES its scale instead of inheriting Tailwind's, which targets
+    pages. That is the opposite of the fonts' rule, and the difference is
+    clean: copying an upstream value can only diverge from it, choosing
+    one says something.
 
-    Une longueur CSS et non un nombre, pour la raison qui vaut déjà pour
-    le trait : la valeur peut être ``3px``, ``0.1875rem`` ou ``0.2em``, et
-    c'est le navigateur qui sait les multiplier là où nous devrions les
-    parser.
+    A CSS length and not a number, for the reason that already holds for
+    the stroke: the value can be ``3px``, ``0.1875rem`` or ``0.2em``, and
+    it is the browser that knows how to multiply them where we would have
+    to parse them.
     """
     if override is None:
         return base or DEFAULT_SPACING
     if not isinstance(override, str) or not override.strip():
         raise ThemeError(
-            f"Theme(spacing={override!r}) : attendu une longueur CSS non "
-            f'vide, par exemple "0.1875rem" (3 px, le défaut livré) ou '
-            f'"0.25rem" (celui de Tailwind, soit une échelle de document). '
-            f"Pour ne pas surcharger, omets le mot-clé."
+            f"Theme(spacing={override!r}): expected a non-empty CSS "
+            f'length, for example "0.1875rem" (3 px, the shipped default) '
+            f'or "0.25rem" (Tailwind\'s, that is to say a document '
+            f"scale). To leave it alone, omit the keyword."
         )
     return override.strip()
 
@@ -467,19 +467,19 @@ def _merge_spacing(base: str | None, override: str | None) -> str:
 def _merge_text(
     base: Mapping[str, str], override: Mapping[str, str] | None
 ) -> dict[str, str]:
-    """Les paliers de texte — mêmes gardes que les fontes, même raison.
+    """The text steps — same guards as the fonts, same reason.
 
-    Un palier inconnu est refusé plutôt qu'ignoré : ``--text-md`` n'existe
-    pas chez Tailwind, donc ``Theme(text={"md": "14px"})`` n'émettrait un
-    jeton que personne ne lit — rien à voir, ni erreur, ni CSS, ni indice.
-    C'est la famille de silences que la couche thème ferme à la porte
-    depuis le 2026-08-16.
+    An unknown step is refused rather than ignored: ``--text-md`` does
+    not exist in Tailwind, so ``Theme(text={"md": "14px"})`` would emit a
+    token nobody reads — nothing to see, no error, no CSS, no hint. It is
+    the family of silences the theme layer has turned away at the door
+    since 2026-08-16.
 
-    ⚠️ ``base`` est le nom Tailwind du palier médian, là où le ``size=``
-    d'un composant dit ``md``. Les deux échelles ne se confondent pas :
-    celle-ci est celle des jetons CSS, celle-là est celle des paliers d'un
-    composant, et c'est le thème du composant qui traduit l'une en
-    l'autre (``"md": "text-base"``).
+    ⚠️ ``base`` is Tailwind's name for the middle step, where a
+    component's ``size=`` says ``md``. The two scales are not the same:
+    this one is the CSS tokens', that one is a component's steps', and it
+    is the component's theme that translates one into the other
+    (``"md": "text-base"``).
     """
     merged = {**DEFAULT_TEXT, **base}
     if not override:
@@ -487,40 +487,39 @@ def _merge_text(
     unknown = sorted(set(override) - set(TEXT_SLOT_NAMES))
     if unknown:
         raise ThemeError(
-            f"Theme(text=…) : palier(s) inconnu(s) {unknown}. Les paliers "
-            f"sont {list(TEXT_SLOT_NAMES)} — ceux de Tailwind, donc les "
-            f"seuls que les utilitaires `text-*` lisent. Attention : le "
-            f"palier médian se dit `base`, pas `md` (`md` est un nom de "
-            f"`size=`, pas un jeton CSS)."
+            f"Theme(text=…): unknown step(s) {unknown}. The steps are "
+            f"{list(TEXT_SLOT_NAMES)} — Tailwind's, so the only ones the "
+            f"`text-*` utilities read. Note: the middle step is called "
+            f"`base`, not `md` (`md` is a `size=` name, not a CSS token)."
         )
     for slot, size in override.items():
         if not isinstance(size, str) or not size.strip():
             raise ThemeError(
-                f"Theme(text={{{slot!r}: {size!r}}}) : attendu une longueur "
-                f'CSS non vide, par exemple "13px" ou "0.8125rem". Pour ne '
-                f"pas surcharger ce palier, omets la clé."
+                f"Theme(text={{{slot!r}: {size!r}}}): expected a "
+                f'non-empty CSS length, for example "13px" or "0.8125rem". '
+                f"To leave this step alone, omit the key."
             )
     merged.update({s: v.strip() for s, v in override.items()})
     return merged
 
 
 def _merge_stroke(base: str | None, override: str | None) -> str:
-    """La largeur de trait : une chaîne, pas un dict.
+    """The stroke width: a string, not a dict.
 
-    Une seule valeur parce qu'il n'y a qu'une question — les deux autres
-    crans en dérivent (cf. :data:`DEFAULT_STROKE`). La garde est la même
-    que pour les fontes et les familles : une valeur vide ne peut vouloir
-    dire que « je retire ma surcharge », et la façon de le dire est de ne
-    pas écrire le mot-clé.
+    One single value because there is only one question — the two other
+    steps derive from it (cf. :data:`DEFAULT_STROKE`). The guard is the
+    same as for the fonts and the families: an empty value can only mean
+    "I am removing my override", and the way to say that is not to write
+    the keyword.
     """
     if override is None:
         return base or DEFAULT_STROKE
     if not isinstance(override, str) or not override.strip():
         raise ThemeError(
-            f"Theme(stroke={override!r}) : attendu une longueur CSS non "
-            f'vide, par exemple "1px" ou "0.5px". Pour ne pas surcharger, '
-            f"omets le mot-clé. Pour un composant seul, surcharge son "
-            f'thème : Theme(components={{"card": {{"slots": {{…}}}}}}).'
+            f"Theme(stroke={override!r}): expected a non-empty CSS "
+            f'length, for example "1px" or "0.5px". To leave it alone, '
+            f"omit the keyword. For a single component, override its "
+            f'theme: Theme(components={{"card": {{"slots": {{…}}}}}}).'
         )
     return override
 
@@ -528,11 +527,12 @@ def _merge_stroke(base: str | None, override: str | None) -> str:
 def _merge_css(
     base: tuple[str, ...], css: str | Path | None
 ) -> tuple[str, ...]:
-    """Ajoute le morceau de l'appelant à ceux de la base.
+    """Add the caller's piece to the base's.
 
-    Stocké en morceaux plutôt qu'en une chaîne recollée pour que la remise à
-    zéro reste exprimable : une fois concaténé, on ne sait plus où finit la
-    base. ``css=None`` hérite, ``css=""`` efface, tout le reste ajoute.
+    Stored as pieces rather than as one glued string so that resetting
+    stays expressible: once concatenated, one no longer knows where the
+    base ends. ``css=None`` inherits, ``css=""`` clears, everything else
+    adds.
     """
     if css is None:
         return base
@@ -545,74 +545,75 @@ def _merge_css(
 def _merge_fonts(
     base: Mapping[str, str], override: Mapping[str, str] | None
 ) -> dict[str, str]:
-    """Merge shallow, **et refuse un slot inconnu**.
+    """Shallow merge, **and refuse an unknown slot**.
 
-    Les trois slots sont ceux de Tailwind (:data:`FONT_SLOT_NAMES`), donc
-    ``Theme(fonts={"body": …})`` n'est pas une extension : c'est un token
-    que rien n'émettra et qu'aucune classe ne lira. Sans cette garde, la
-    section serait acceptée, la fonte ne changerait pas, et il n'y aurait
-    **rien à voir** — ni erreur, ni CSS, ni indice. C'est la famille de
-    silences relevée le 2026-08-16 sur la couche thème (composant inconnu,
-    slot mal orthographié, variante inexistante) ; celle-ci naît fermée
-    plutôt que d'attendre sa règle de lint.
+    The three slots are Tailwind's (:data:`FONT_SLOT_NAMES`), so
+    ``Theme(fonts={"body": …})`` is not an extension: it is a token
+    nothing will emit and no class will read. Without this guard, the
+    section would be accepted, the font would not change, and there would
+    be **nothing to see** — no error, no CSS, no hint. It is the family
+    of silences noted on 2026-08-16 on the theme layer (unknown
+    component, misspelled slot, non-existent variant); this one is born
+    closed rather than waiting for its lint rule.
 
-    Une famille vide (``{"sans": ""}``) est refusée par la même porte : la
-    seule chose qu'elle puisse vouloir dire est « je retire ma
-    surcharge », et la façon de le dire est de ne pas écrire la clé.
+    An empty family (``{"sans": ""}``) is refused by the same door: the
+    only thing it can mean is "I am removing my override", and the way to
+    say that is not to write the key.
     """
     if not override:
         return dict(base)
     unknown = sorted(set(override) - set(FONT_SLOT_NAMES))
     if unknown:
         raise ThemeError(
-            f"Theme(fonts=…) : slot(s) inconnu(s) {unknown}. "
-            f"Les trois slots sont {list(FONT_SLOT_NAMES)} — ce sont ceux de "
-            f"Tailwind, donc les seuls que les utilitaires `font-*` lisent. "
-            f"Pour une fonte de titre distincte, surcharge le thème du "
-            f'composant : Theme(components={{"heading": {{"slots": {{…}}}}}}).'
+            f"Theme(fonts=…): unknown slot(s) {unknown}. "
+            f"The three slots are {list(FONT_SLOT_NAMES)} — they are "
+            f"Tailwind's, so the only ones the `font-*` utilities read. "
+            f"For a distinct heading font, override the component's "
+            f'theme: Theme(components={{"heading": {{"slots": {{…}}}}}}).'
         )
     for slot, family in override.items():
         if not isinstance(family, str) or not family.strip():
             raise ThemeError(
-                f"Theme(fonts={{{slot!r}: {family!r}}}) : attendu une valeur "
-                f"CSS `font-family` non vide, par exemple "
-                f'"Inter, ui-sans-serif, system-ui, sans-serif". Pour ne pas '
-                f"surcharger ce slot, omets la clé."
+                f"Theme(fonts={{{slot!r}: {family!r}}}): expected a "
+                f"non-empty CSS `font-family` value, for example "
+                f'"Inter, ui-sans-serif, system-ui, sans-serif". To leave '
+                f"this slot alone, omit the key."
             )
-    # Le merge lui-même passe par ``_merge_dict``, le contrat des quatre
-    # sections couleur : deux implémentations d'un merge plat à 40 lignes
-    # d'écart finiraient par diverger, et c'est cette section-ci qui
-    # garderait l'ancien comportement en silence.
+    # The merge itself goes through ``_merge_dict``, the contract of the
+    # four colour sections: two implementations of a flat merge 40 lines
+    # apart would end up diverging, and it is this section that would
+    # keep the old behaviour silently.
     return _merge_dict(base, {s: f.strip() for s, f in override.items()})
 
 
 def _read_css(css: str | Path) -> str:
-    """Rend le CSS de ``Theme(css=…)`` — chaîne littérale ou fichier.
+    """Return the CSS of ``Theme(css=…)`` — literal string or file.
 
-    Les deux formes existent parce que les deux usages existent : trois
-    règles s'écrivent bien dans le source, une vraie feuille (``@font-face``
-    + keyframes) veut un ``.css`` avec sa coloration syntaxique et son
-    formateur. Le discriminant est le **type**, pas une heuristique sur le
-    contenu — deviner qu'une chaîne « ressemble à un chemin » ferait
-    dépendre le comportement de la présence d'une accolade.
+    Both forms exist because both uses exist: three rules are fine
+    written in the source, a real sheet (``@font-face`` + keyframes)
+    wants a ``.css`` with its syntax highlighting and its formatter. The
+    discriminant is the **type**, not a heuristic on the content —
+    guessing that a string "looks like a path" would make behaviour
+    depend on the presence of a brace.
 
-    Un fichier absent LÈVE : le mode de défaillance qu'on refuse est
-    précisément celui d'un style qui ne s'applique pas sans rien dire.
+    A missing file RAISES: the failure mode we refuse is precisely that
+    of a style that does not apply while saying nothing.
     """
     if isinstance(css, Path):
         try:
             return css.read_text(encoding="utf-8")
         except OSError as exc:
             raise ThemeError(
-                f"Theme(css={str(css)!r}) : fichier illisible — {exc}. "
-                f"Le chemin est résolu tel quel (relatif au dossier de "
-                f"travail du processus, pas au module qui déclare le thème)."
+                f"Theme(css={str(css)!r}): unreadable file — {exc}. "
+                f"The path is resolved as-is (relative to the process's "
+                f"working directory, not to the module declaring the "
+                f"theme)."
             ) from exc
     if isinstance(css, str):
         return css
     raise ThemeError(
-        f"Theme(css={css!r}) : attendu une chaîne CSS ou un `pathlib.Path` "
-        f"vers un fichier `.css`."
+        f"Theme(css={css!r}): expected a CSS string or a `pathlib.Path` "
+        f"to a `.css` file."
     )
 
 

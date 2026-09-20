@@ -20,13 +20,13 @@ Two flavours, one per control family :
 to the root scope (bare names resolve to JS globals, and these
 expressions only touch ``$el`` / ``$event``).
 
-Group-internal module (``inputs/``). L'ancienne anti-règle 5
-(« aucun import cross-groupe ») a été **relâchée le 2026-06-23** en
-« zéro cycle » : un autre groupe PEUT importer d'ici tant que ça
-n'introduit pas de cycle (cf. CLAUDE.md anti-règle 5). En pratique
-ces helpers restent input-spécifiques ; si un besoin partagé émerge,
-le promouvoir dans ``components/base`` reste le bon réflexe — non par
-interdiction, mais parce que c'est le socle commun.
+Group-internal module (``inputs/``). The old anti-rule 5 ("no
+cross-group import") was **relaxed on 2026-06-23** to "no cycles":
+another group MAY import from here as long as it introduces no cycle
+(cf. CLAUDE.md anti-rule 5). In practice these helpers stay
+input-specific; if a shared need emerges, promoting it into
+``components/base`` remains the right reflex — not out of prohibition,
+but because that is the common base layer.
 """
 
 from __future__ import annotations
@@ -85,10 +85,10 @@ def add_local_value_scope(
         return False  # ClientBinding : store-backed, survives natively.
     if not component._event_attrs:
         return False  # not interactive → keep it a thin native wrapper.
-    # Règle unique — cf. ``Component._value_server_backed``. Elle couvre
-    # aussi le mode binding (redondant ici : on a bail plus haut) et le
-    # cas ``[state.champ]``, que la lecture directe du ``field_name``
-    # ratait.
+    # A single rule — cf. ``Component._value_server_backed``. It also
+    # covers the binding mode (redundant here: we bailed above) and the
+    # ``[state.field]`` case, which reading the ``field_name`` directly
+    # missed.
     sync = server_sync_marker(
         prop, enabled=component._value_server_backed(prop)
     )
@@ -144,40 +144,40 @@ def force_boolean_form_vals(
 
 
 def false_companion_input(name: str, *, disabled: bool = False) -> Element:
-    """L'autre moitié de « une case décochée transmet quand même son faux ».
+    """The other half of "an unticked box still sends its false".
 
-    :func:`force_boolean_form_vals` couvre la requête que la case tire
-    ELLE-MÊME (son ``on_change``) : htmx évalue son ``hx-vals`` à l'envoi
-    et écrase la valeur native. Il n'existe que s'il y a un ``hx-post``
-    sur l'input, et il lit ``event.target.checked``.
+    :func:`force_boolean_form_vals` covers the request the box pulls
+    ITSELF (its ``on_change``): htmx evaluates its ``hx-vals`` at send
+    time and overrides the native value. It only exists if there is an
+    ``hx-post`` on the input, and it reads ``event.target.checked``.
 
-    Cette fonction couvre l'autre requête : la **soumission du formulaire
-    parent**, où l'événement ne vient pas de la case et où
-    ``event.target.checked`` ne désigne rien. Un champ caché de même
-    ``name`` portant ``"false"``, placé AVANT la case : les deux partent
-    quand elle est cochée, et le serveur garde la dernière valeur
-    (``FormData`` comme ``parse_qsl`` : le dernier gagne).
+    This function covers the other request: the **parent form's
+    submission**, where the event does not come from the box and where
+    ``event.target.checked`` designates nothing. A hidden field of the
+    same ``name`` carrying ``"false"``, placed BEFORE the box: both
+    leave when it is ticked, and the server keeps the last value
+    (``FormData`` like ``parse_qsl``: the last one wins).
 
-    Les deux sont nécessaires — aucune ne couvre le cas de l'autre.
+    Both are necessary — neither covers the other's case.
 
-    ⚠️ Ce n'est PAS un :func:`hidden_carrier_attrs`. Un porteur reflète
-    une valeur vivante : il a un ``bz-ref`` par lequel le scope le
-    retrouve et un ``bz-attr:value`` qui le tient à jour. Celui-ci est
-    inerte — sa valeur est la constante ``"false"``, personne ne le lit
-    côté client, et lui donner les quatre invariants du porteur lui
-    donnerait deux attributs qui ne désigneraient rien (le défaut pour
-    lequel ``dropzone`` est déclaré en dette de squelette).
+    ⚠️ It is NOT a :func:`hidden_carrier_attrs`. A carrier reflects a
+    live value: it has a ``bz-ref`` by which the scope finds it again
+    and a ``bz-attr:value`` that keeps it up to date. This one is inert
+    — its value is the constant ``"false"``, nobody reads it on the
+    client side, and giving it the carrier's four invariants would give
+    it two attributes designating nothing (the defect for which
+    ``dropzone`` is declared in skeleton debt).
 
-    ⚠️ ``disabled`` se propage, et l'oublier INVERSE le bug. Un contrôle
-    désactivé ne soumet rien — ni htmx (``shouldInclude`` saute un
-    ``elt.disabled``) ni le navigateur. Un compagnon resté actif serait
-    alors le SEUL à partir, et un réglage désactivé-mais-vrai s'écrirait
-    ``False`` au premier enregistrement : exactement la panne que cette
-    fonction existe pour empêcher, à l'envers.
+    ⚠️ ``disabled`` propagates, and forgetting it INVERTS the bug. A
+    disabled control submits nothing — neither htmx (``shouldInclude``
+    skips an ``elt.disabled``) nor the browser. A companion left active
+    would then be the ONLY one to leave, and a disabled-but-true setting
+    would be written ``False`` at the first save: exactly the failure
+    this function exists to prevent, inverted.
 
-    Mesuré le 2026-08-19 sur l'écran Paramètres du CRM : un ``ui.switch``
-    sans ``on_change`` se décochait à l'écran et revenait coché après
-    « Enregistrer ».
+    Measured on 2026-08-19 on the CRM's Settings screen: a ``ui.switch``
+    with no ``on_change`` unticked itself on screen and came back ticked
+    after "Save".
     """
     attrs: dict[str, Any] = {"type": "hidden", "name": name, "value": "false"}
     if disabled:

@@ -15,9 +15,9 @@ This is the Web Component escape hatch documented in
 custom elements with their own attribute observers. Iconify-icon
 already follows this pattern.
 
-DatePicker et DateRangePicker ne sont pas des custom elements : leur racine
-est un ``<div>`` qui héberge un ``<bz-calendar>`` et se synchronise avec lui
-par ``bz-effect`` + ``setAttribute``.
+DatePicker and DateRangePicker are not custom elements: their root is a
+``<div>`` that hosts a ``<bz-calendar>`` and syncs with it through
+``bz-effect`` + ``setAttribute``.
 
 Two modes :
 
@@ -165,33 +165,33 @@ def rotate_weekday_names(
 
 def _date_to_iso(value: Any) -> str:
     """``Calendar``'s date coercion — the shared one, bound to this
-    component's name for the error message (audit F50 : les trois
-    composants de la famille date en portaient une copie identique)."""
+    component's name for the error message (audit F50: the three
+    components of the date family each carried an identical copy)."""
     return date_to_iso(value, owner="Calendar")
 
 
-#: Le format que la grille compare : ``YYYY-MM-DD``, exactement.
+#: The format the grid compares: ``YYYY-MM-DD``, exactly.
 _ISO_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def normalise_marks(marks: Any) -> dict[str, int]:
-    """``marks=`` → ``{"2026-08-14": 3}``, sous ses deux formes d'appel.
+    """``marks=`` → ``{"2026-08-14": 3}``, in both of its call shapes.
 
-    Deux formes parce que les deux besoins existent, et que la plus
-    simple ne doit pas payer pour l'autre :
+    Two shapes because both needs exist, and the simpler one must not
+    pay for the other:
 
-    - un ITÉRABLE de dates — « ces jours-là ont quelque chose » ;
-    - un DICTIONNAIRE date → entier — « ce jour-là en a trois ».
+    - an ITERABLE of dates — "those days have something";
+    - a DICTIONARY date → integer — "that day has three".
 
-    L'entier couvre le booléen, donc une seule prop suffit : c'est
-    l'arbitrage pris avec l'utilisateur le 2026-08-25. Il n'est pas
-    dessiné (une pastille reste une pastille, à 24 px de cellule un
-    chiffre de plus serait illisible) mais il est ANNONCÉ — le nom
-    accessible de la case le porte, et un survol le montre.
+    The integer covers the boolean, so a single prop is enough: that is
+    the decision taken with the user on 2026-08-25. It is not drawn (a
+    dot stays a dot, at a 24 px cell one more digit would be
+    illegible) but it is ANNOUNCED — the cell's accessible name carries
+    it, and a hover shows it.
 
-    Un compte nul retire la marque plutôt que d'en poser une vide : un
-    dictionnaire construit par un ``Counter`` en contient, et lever
-    dessus obligerait chaque appelant à le filtrer.
+    A zero count removes the mark rather than setting an empty one: a
+    dictionary built by a ``Counter`` contains some, and raising on them
+    would force every caller to filter it.
     """
     if not marks:
         return {}
@@ -202,30 +202,28 @@ def normalise_marks(marks: Any) -> dict[str, int]:
     out: dict[str, int] = {}
     for day, count in pairs:
         iso = _date_to_iso(day)
-        # ⚠️ ``date_to_iso`` rend une chaîne TELLE QUELLE — c'est ce qui
-        # laisse passer un binding client, et c'est voulu là-bas. Ici la
-        # clé finit dans un dictionnaire indexé par date : une chaîne
-        # libre n'y correspondrait à aucune case, en silence. On vérifie
-        # donc la FORME.
+        # ⚠️ ``date_to_iso`` returns a string AS IS — that is what lets
+        # a client binding through, and it is intended over there. Here
+        # the key ends up in a dictionary indexed by date: a free string
+        # would match no cell there, in silence. So we check the SHAPE.
         if not _ISO_DAY.fullmatch(iso or ""):
             raise ComponentDefinitionError(
-                f"marks : {day!r} n'est pas une date. Attendu un "
-                f"``datetime.date`` ou une chaîne ISO ``YYYY-MM-DD``."
+                f"marks: {day!r} is not a date. Expected a "
+                f"``datetime.date`` or an ISO ``YYYY-MM-DD`` string."
             )
         if not isinstance(count, int) or isinstance(count, bool):
-            # ``bool`` est un ``int`` en Python, et ``{jour: True}`` est
-            # une faute de frappe crédible pour ``[jour]``. La laisser
-            # passer donnerait « 1 » à l'écran sans que personne le
-            # veuille.
+            # ``bool`` is an ``int`` in Python, and ``{day: True}`` is a
+            # credible typo for ``[day]``. Letting it through would put
+            # "1" on screen without anybody wanting it.
             raise ComponentDefinitionError(
-                f"marks[{day!r}] doit être un entier, reçu {count!r}. "
-                f"Pour un simple « il se passe quelque chose », passe une "
-                f"liste de dates plutôt qu'un dictionnaire."
+                f"marks[{day!r}] must be an integer, got {count!r}. "
+                f"For a plain \"something happens here\", pass a list of "
+                f"dates rather than a dictionary."
             )
         if count < 0:
             raise ComponentDefinitionError(
-                f"marks[{day!r}] = {count} : un compte négatif n'a pas de "
-                f"rendu possible."
+                f"marks[{day!r}] = {count}: a negative count has no "
+                f"possible render."
             )
         if count:
             out[iso] = count
@@ -243,26 +241,26 @@ def _disabled_dates_to_iso(
 # ───────────────────────────────────────────────────────────────────────────
 
 
-# ``week`` (août 2026) rend une DATE SCALAIRE comme ``picker`` — le
-# premier jour de la semaine cliquée, selon ``weekstart``. Il emprunte
-# donc la même branche de sérialisation, et se distingue uniquement par
-# ce que le custom element fait du clic (recalage sur le début de
-# semaine) et par son surlignage (la ligne entière, rendue avec le
-# vocabulaire de bande DÉJÀ écrit pour ``range`` — une semaine EST une
-# plage fermée de sept jours).
+# ``week`` (August 2026) returns a SCALAR DATE like ``picker`` — the
+# first day of the clicked week, according to ``weekstart``. It
+# therefore borrows the same serialisation branch, and differs only in
+# what the custom element does with the click (snapping to the start of
+# the week) and in its highlighting (the whole row, rendered with the
+# band vocabulary ALREADY written for ``range`` — a week IS a closed
+# range of seven days).
 #
-# ``month`` (août 2026) est le seul mode qui ne rend PAS des jours : une
-# grille d'année de 12 cellules, et une valeur en ``"YYYY-MM"``. Les
-# flèches du header y avancent d'un AN, et le sélecteur de mois y est
-# retiré — il ferait doublon avec la grille elle-même.
-#: Plafond du menu de saut d'année. Le défaut, sans ``min`` ni ``max``,
-#: est aujourd'hui ± 10 ans — soit 21 entrées. 200 laisse passer TOUS les
-#: usages réels (une date de naissance remonte à ~120 ans, un registre
-#: historique à quelques siècles) et coupe le cas pathologique, qui n'est
-#: pas un usage : une étendue de 1 900 ans vient d'un ``min`` mal formé,
-#: pas de quelqu'un qui veut ces années-là.
+# ``month`` (August 2026) is the only mode that does NOT render days: a
+# 12-cell year grid, and a value in ``"YYYY-MM"``. The header's arrows
+# move by a YEAR there, and the month selector is removed — it would
+# duplicate the grid itself.
+#: Ceiling of the year-jump menu. The default, with no ``min`` and no
+#: ``max``, is today ± 10 years — that is 21 entries. 200 lets through
+#: ALL real uses (a birth date goes back ~120 years, a historical
+#: register a few centuries) and cuts the pathological case, which is
+#: not a use: a 1,900-year span comes from a malformed ``min``, not from
+#: somebody who wants those years.
 #:
-#: Gardé par ``tests/consistency/test_a_year_dropdown_stays_bounded.py``.
+#: Guarded by ``tests/consistency/test_a_year_dropdown_stays_bounded.py``.
 MAX_YEARS_IN_DROPDOWN = 200
 
 _VALID_MODES = ("picker", "range", "week", "month")
@@ -285,10 +283,10 @@ class Calendar(Component):
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = (
         "value", "month", "min", "max", "disabled",
     )
-    # ``next_month`` / ``prev_month`` étaient livrées et câblées mais pas
-    # déclarées — donc absentes du catalogue ``ui.*`` de la doc, qui
-    # énumère cette ClassVar (audit F20/F21). Même idiome que les
-    # ``increment`` / ``decrement`` de NumberInput.
+    # ``next_month`` / ``prev_month`` were shipped and wired but not
+    # declared — so absent from the documentation's ``ui.*`` catalogue,
+    # which enumerates this ClassVar (audit F20/F21). Same idiom as
+    # NumberInput's ``increment`` / ``decrement``.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "set", "clear", "focus", "blur", "next_month", "prev_month",
     )
@@ -347,12 +345,12 @@ class Calendar(Component):
             raise ComponentDefinitionError(
                 f"Calendar mode={mode!r} not in {_VALID_MODES}"
             )
-        # ``None`` quand l'appelant n'a rien dit — et surtout PAS la
-        # table anglaise. Ce défaut-là rendait « August / MON TUE WED »
-        # à toute app quelle que soit sa langue, et la seule prise était
-        # de repasser les 19 chaînes À CHAQUE MONTAGE (trois fois sur un
-        # seul écran du CRM). Sans liste explicite, c'est le navigateur
-        # qui nomme, depuis ``<html lang>`` — cf. ``06_locale.js``.
+        # ``None`` when the caller said nothing — and most certainly
+        # NOT the English table. That default rendered "August / MON TUE
+        # WED" to every app whatever its language, and the only handle
+        # was to pass the 19 strings AT EVERY MOUNT (three times on a
+        # single CRM screen). With no explicit list, it is the browser
+        # that names, from ``<html lang>`` — cf. ``06_locale.js``.
         self._weekday_names = list(weekday_names) if weekday_names else None
         self._month_names = list(month_names) if month_names else None
         if self._weekday_names is not None and len(self._weekday_names) != 7:
@@ -368,7 +366,7 @@ class Calendar(Component):
         self._disabled_dates = list(disabled_dates or [])
         self._marks = normalise_marks(marks)
 
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, value=value, month=month,
             mode=mode, min=min, max=max,
@@ -515,9 +513,9 @@ class Calendar(Component):
             "day_cell": cell_class,
             "day_mark": mark_class,
             "chevron_class": chevron_class,
-            # Grille d'année du mode ``month``. Composées ici comme les
-            # autres — Python compose, JS exécute — pour que la même
-            # source de vérité serve les deux types de grille.
+            # ``month`` mode's year grid. Composed here like the
+            # others — Python composes, JS executes — so that the same
+            # source of truth serves both kinds of grid.
             "month_grid": slots.get("month_grid", ""),
             "month_cell": " ".join(p for p in (
                 _resolve(slots.get("month_cell", "")),
@@ -565,11 +563,11 @@ class Calendar(Component):
                 initial_value_attr = ""
             initial_picker = ""
         elif mode == "month":
-            # Valeur en ``"YYYY-MM"``. Une ``date`` est acceptée et
-            # TRONQUÉE — le développeur qui passe ``date(2026, 8, 14)``
-            # veut visiblement « août 2026 », et refuser lui coûterait un
-            # ``.strftime`` pour rien. La chaîne, elle, passe telle
-            # quelle : c'est la forme canonique.
+            # Value in ``"YYYY-MM"``. A ``date`` is accepted and
+            # TRUNCATED — the developer who passes ``date(2026, 8, 14)``
+            # visibly wants "August 2026", and refusing would cost them
+            # a ``.strftime`` for nothing. The string, on the other hand,
+            # passes as is: it is the canonical form.
             if isinstance(raw_value, _dt.date):
                 initial_picker = f"{raw_value.year:04d}-{raw_value.month:02d}"
             else:
@@ -622,9 +620,9 @@ class Calendar(Component):
         #                      the kebab ``month-change`` CustomEvent ;
         #   ``focus`` / ``blur`` → stay on the root with their native
         #                      trigger.
-        # L'EVENT, pas la chaîne : ``hx-trigger`` porte les modificateurs
-        # d'un ``debounce=`` / ``throttle=``. Les deux branches nommées
-        # ci-dessous les écrasaient en réécrivant le trigger entier.
+        # The EVENT, not the string: ``hx-trigger`` carries the modifiers
+        # of a ``debounce=`` / ``throttle=``. Both named branches below
+        # used to overwrite them by rewriting the whole trigger.
         server_trigger = root_attrs.get("hx-trigger", "")
         server_event = trigger_event(root_attrs)
         if "hx-post" in root_attrs:
@@ -675,13 +673,13 @@ class Calendar(Component):
         # outline paints immediately, the grid cells appear ~50 ms later
         # when the runtime script runs.
         #
-        # ⚠️ La ligne des JOURS a changé de camp le 2026-08-24 : sans
-        # ``weekday_names=`` explicite, elle part en sept ``<div>`` VIDES
-        # portant un ``bz-text`` — leurs noms viennent d'``Intl``, que
-        # seul le navigateur a. Elle apparaît donc avec la grille, pas
-        # avant. C'est le prix pour qu'un calendrier parle la langue de
-        # l'app, et il ne se paie que sur le chemin par défaut : une
-        # liste explicite se rend toujours côté serveur.
+        # ⚠️ The WEEKDAY row changed sides on 2026-08-24: with no
+        # explicit ``weekday_names=``, it leaves as seven EMPTY ``<div>``
+        # carrying a ``bz-text`` — their names come from ``Intl``, which
+        # only the browser has. It therefore appears with the grid, not
+        # before. That is the price of a calendar that speaks the app's
+        # language, and it is only paid on the default path: an explicit
+        # list is always rendered server-side.
         min_raw = self._reactive_values.get("min")
         max_raw = self._reactive_values.get("max")
         min_iso = _date_to_iso(min_raw)
@@ -723,43 +721,44 @@ class Calendar(Component):
         year_min_hd = min(year_min_hd, initial_displayed.year)
         year_max_hd = max(year_max_hd, initial_displayed.year)
 
-        # ── La grille d'années est BORNÉE ────────────────────────────
+        # ── The year grid is BOUNDED ────────────────────────────────
         #
-        # Le menu ci-dessous rend un ``<button>`` par année, en dur dans
-        # le DOM. Sans plafond, l'étendue vient telle quelle de ``min`` /
-        # ``max`` — et ``int("137".split("-")[0])`` vaut l'an 137.
+        # The menu below renders one ``<button>`` per year, hard in the
+        # DOM. With no ceiling, the span comes as is from ``min`` /
+        # ``max`` — and ``int("137".split("-")[0])`` is the year 137.
         #
-        # Mesuré le 2026-08-27 :
+        # Measured on 2026-08-27:
         #
-        #     ui.date_picker(min="2026-01-01")  ->  17 622 o,    29 <button>
-        #     ui.date_picker(min="137")         -> 463 581 o, 1 918 <button>
+        #     ui.date_picker(min="2026-01-01")  ->  17,622 B,    29 <button>
+        #     ui.date_picker(min="137")         -> 463,581 B, 1,918 <button>
         #
-        # Le rendu serveur reste instantané (0,01 s) — c'est le NAVIGATEUR
-        # qui met ~114 s à avaler le résultat, ce qui faisait pendre
-        # ``pytest -m audit`` sur ce composant.
+        # The server render stays instant (0.01 s) — it is the BROWSER
+        # that takes ~114 s to swallow the result, which made
+        # ``pytest -m audit`` hang on this component.
         #
-        # ⚠️ Borner ne change RIEN à la contrainte : ``min`` / ``max``
-        # continuent de décider quelles dates sont sélectionnables. Ce
-        # menu est une affordance de SAUT, et un saut ne se choisit pas
-        # dans une liste de 1 900 boutons — au-delà, on tape la date.
+        # ⚠️ Bounding changes NOTHING about the constraint: ``min`` /
+        # ``max`` still decide which dates are selectable. This menu is a
+        # JUMP affordance, and a jump is not chosen from a list of 1,900
+        # buttons — beyond that, you type the date.
         #
-        # La fenêtre est CENTRÉE sur l'année affichée, pas tronquée d'un
-        # bout : tronquer la fin rendrait le menu inutile pour qui vient
-        # d'ouvrir le calendrier sur 1912.
+        # The window is CENTRED on the displayed year, not truncated at
+        # one end: truncating the end would make the menu useless for
+        # somebody who has just opened the calendar on 1912.
         span = year_max_hd - year_min_hd + 1
         if span > MAX_YEARS_IN_DROPDOWN:
             half = MAX_YEARS_IN_DROPDOWN // 2
             anchor = initial_displayed.year
             lo = max(year_min_hd, anchor - half)
             hi = min(year_max_hd, lo + MAX_YEARS_IN_DROPDOWN - 1)
-            # Si l'ancre est près du haut de l'étendue, ``hi`` a été
-            # rogné par ``year_max_hd`` : on récupère la place en bas.
+            # If the anchor is near the top of the span, ``hi`` has
+            # been clipped by ``year_max_hd``: we take the room back at
+            # the bottom.
             lo = max(year_min_hd, hi - MAX_YEARS_IN_DROPDOWN + 1)
             year_min_hd, year_max_hd = lo, hi
 
-        # En mode ``month`` la grille montre une ANNÉE entière, donc les
-        # flèches avancent d'un an — sinon elles ne changeraient rien de
-        # visible, la grille ne dépendant pas du mois affiché.
+        # In ``month`` mode the grid shows a whole YEAR, so the arrows
+        # move by a year — otherwise they would change nothing visible,
+        # the grid not depending on the displayed month.
         prev_step = "year -= 1" if is_month_mode else (
             "month === 0 ? (year -= 1, month = 11) : (month -= 1)"
         )
@@ -772,20 +771,20 @@ class Calendar(Component):
             size=size_key,
             color=color,
             disabled=disabled_prop,
-            # ``shrink-0`` : sans lui la flèche RÉTRÉCIT quand le libellé
-            # du mois est long — mesuré le 2026-08-25, 40 px en « août »
-            # contre 31,6 px en « septembre ». Son bord droit est fixe,
-            # donc c'est son bord GAUCHE qui bougeait de 8,4 px : on
-            # clique, la cible se dérobe. C'est le libellé qui doit
-            # céder (il a ``truncate``), jamais la commande.
-            # La taille vient du thème du CALENDRIER, pas de celui
-            # d'IconButton : son palier ``md`` fait 40 px quand ce
-            # thème-ci déclare 32 (``nav_button: w-8``). Le jeton était
-            # donc honoré par le rendu JS et ignoré par le rendu Python,
-            # et ces 2 × 8 px de trop faisaient déborder l'en-tête —
-            # les 16,8 px mesurés. Les ``!`` sont nécessaires : à
-            # spécificité égale, Tailwind tranche par l'ordre de sa
-            # feuille, donc sans eux le gagnant est imprévisible.
+            # ``shrink-0``: without it the arrow SHRINKS when the
+            # month's label is long — measured on 2026-08-25, 40 px on
+            # "août" against 31.6 px on "septembre". Its right edge is
+            # fixed, so it was its LEFT edge that moved by 8.4 px: you
+            # click, the target slips away. It is the label that must
+            # give (it has ``truncate``), never the command.
+            # The size comes from the CALENDAR's theme, not from
+            # IconButton's: its ``md`` step is 40 px where this theme
+            # declares 32 (``nav_button: w-8``). The token was therefore
+            # honoured by the JS render and ignored by the Python one,
+            # and those 2 × 8 px too many made the header overflow — the
+            # 16.8 px measured. The ``!`` are necessary: at equal
+            # specificity, Tailwind decides by its sheet's order, so
+            # without them the winner is unpredictable.
             classes="shrink-0 " + size_map.get("nav_button", ""),
             **{
                 "bz-on:click": prev_step,
@@ -802,20 +801,20 @@ class Calendar(Component):
             size=size_key,
             color=color,
             disabled=disabled_prop,
-            # ``shrink-0`` : sans lui la flèche RÉTRÉCIT quand le libellé
-            # du mois est long — mesuré le 2026-08-25, 40 px en « août »
-            # contre 31,6 px en « septembre ». Son bord droit est fixe,
-            # donc c'est son bord GAUCHE qui bougeait de 8,4 px : on
-            # clique, la cible se dérobe. C'est le libellé qui doit
-            # céder (il a ``truncate``), jamais la commande.
-            # La taille vient du thème du CALENDRIER, pas de celui
-            # d'IconButton : son palier ``md`` fait 40 px quand ce
-            # thème-ci déclare 32 (``nav_button: w-8``). Le jeton était
-            # donc honoré par le rendu JS et ignoré par le rendu Python,
-            # et ces 2 × 8 px de trop faisaient déborder l'en-tête —
-            # les 16,8 px mesurés. Les ``!`` sont nécessaires : à
-            # spécificité égale, Tailwind tranche par l'ordre de sa
-            # feuille, donc sans eux le gagnant est imprévisible.
+            # ``shrink-0``: without it the arrow SHRINKS when the
+            # month's label is long — measured on 2026-08-25, 40 px on
+            # "août" against 31.6 px on "septembre". Its right edge is
+            # fixed, so it was its LEFT edge that moved by 8.4 px: you
+            # click, the target slips away. It is the label that must
+            # give (it has ``truncate``), never the command.
+            # The size comes from the CALENDAR's theme, not from
+            # IconButton's: its ``md`` step is 40 px where this theme
+            # declares 32 (``nav_button: w-8``). The token was therefore
+            # honoured by the JS render and ignored by the Python one,
+            # and those 2 × 8 px too many made the header overflow — the
+            # 16.8 px measured. The ``!`` are necessary: at equal
+            # specificity, Tailwind decides by its sheet's order, so
+            # without them the winner is unpredictable.
             classes="shrink-0 " + size_map.get("nav_button", ""),
             **{
                 "bz-on:click": next_step,
@@ -842,15 +841,15 @@ class Calendar(Component):
         )
         # Panel : absolute under the trigger, scrollable.
         #
-        # ⚠️ Ce commentaire annonçait « with a transition on
-        # open/close » et il n'y en avait AUCUNE — pas même la
-        # classe morte que portaient les six autres panneaux.
-        # Corrigé en la posant pour de vrai le 2026-09-04.
+        # ⚠️ This comment announced "with a transition on open/close"
+        # and there was NONE — not even the dead class the six other
+        # panels carried. Corrected by setting it for real on
+        # 2026-09-04.
         #
-        # Cadence des CHAMPS (75 ms) : ces deux menus s'ouvrent DANS
-        # un panneau déjà ouvert, donc à la cadence des menus (150)
-        # ils paraîtraient plus lourds que la surface qui les porte.
-        # Mécanisme des trois classes : un seul exemplaire, dans
+        # FIELD cadence (75 ms): these two menus open INSIDE an already
+        # open panel, so at the menu cadence (150) they would look
+        # heavier than the surface carrying them.
+        # Mechanism of the three classes: a single copy, in
         # ``overlay/dropdown/theme.py``.
         panel_cls = (
             "absolute top-full left-0 mt-1 z-10 min-w-[120px] "
@@ -891,14 +890,14 @@ class Calendar(Component):
                 tag="button",
                 attrs={
                     "type": "button",
-                    # ``min-w-0`` sur le DÉCLENCHEUR, pas seulement sur
-                    # son enveloppe : ``truncate`` sur le libellé ne fait
-                    # rien tant que la boîte qui le contient garde sa
-                    # taille de contenu. Mesuré à ``xs`` en français, le
-                    # libellé faisait 67,7 px dans un bouton de 61,2 —
-                    # il DÉBORDAIT sur le sélecteur d'année, qui se
-                    # retrouvait écrasé à 38,8 px : « septembre2026 »
-                    # collés, chevron du mois avalé.
+                    # ``min-w-0`` on the TRIGGER, not only on its
+                    # wrapper: ``truncate`` on the label does nothing as
+                    # long as the box containing it keeps its content
+                    # size. Measured at ``xs`` in French, the label was
+                    # 67.7 px in a 61.2 px button — it OVERFLOWED onto
+                    # the year selector, which ended up squeezed to
+                    # 38.8 px: "septembre2026" stuck together, month
+                    # chevron swallowed.
                     "class": trigger_cls + " min-w-0",
                     "aria-label": aria_label,
                     "bz-on:click": "$event.stopPropagation(); open = !open",
@@ -927,12 +926,12 @@ class Calendar(Component):
                     "class": item_cls,
                     "bz-on:click": f"{on_click}; open = false",
                 }
-                # Un DRAPEAU plutôt qu'un type de libellé : discriminer
-                # sur ``isinstance`` ici ressemblait, à la lettre, au
-                # tri d'enfants par classe que
+                # A FLAG rather than a label type: discriminating on
+                # ``isinstance`` here looked, to the letter, like the
+                # sorting of children by class that
                 # ``test_a_parent_that_sorts_children_unwraps_them``
-                # interdit — et elle avait raison de le dire, le motif
-                # est le même à un cheveu près.
+                # forbids — and it was right to say so, the pattern is
+                # the same to within a hair.
                 if item_labels_are_expressions:
                     item_attrs["bz-text"] = lbl
                     item_children: tuple[Node, ...] = ()
@@ -945,19 +944,19 @@ class Calendar(Component):
                 "class": panel_cls,
                 "bz-show": "open",
                 "role": "menu",
-                # Contrat de ``anchored_dismiss_init`` : tout overlay qui
-                # l'appelle DOIT nommer son panneau ``bzpanel``, sinon
-                # ``$refs.bzpanel`` remonte la chaîne de prototypes du scope
-                # et résout le panneau d'un ANCÊTRE.
+                # ``anchored_dismiss_init``'s contract: every overlay
+                # that calls it MUST name its panel ``bzpanel``,
+                # otherwise ``$refs.bzpanel`` walks up the scope's
+                # prototype chain and resolves an ANCESTOR's panel.
                 #
-                # Bug reproduit au navigateur le 2026-07-29 : ces dropdowns
-                # vivent dans un ``<bz-calendar>`` qui vit lui-même dans le
-                # panneau d'un ``date_picker``. Sans cette ref, le
-                # ``clickOutside`` du dropdown mois considérait le panneau
-                # DU PICKER comme « dedans » → un clic sur l'en-tête du
-                # calendrier ne le fermait pas. Contrôle : un clic sur
-                # ``<body>``, sur un ``<h1>`` ou Escape le fermaient bien —
-                # donc le dismiss était câblé, il visait la mauvaise cible.
+                # Bug reproduced in the browser on 2026-07-29: these
+                # dropdowns live in a ``<bz-calendar>`` which itself
+                # lives in a ``date_picker``'s panel. Without this ref,
+                # the month dropdown's ``clickOutside`` considered THE
+                # PICKER's panel as "inside" → a click on the calendar's
+                # header did not close it. Control: a click on
+                # ``<body>``, on an ``<h1>`` or Escape did close it — so
+                # the dismiss was wired, it aimed at the wrong target.
                 "bz-ref": "bzpanel",
             }
             # FOUC pre-stamp : the dropdown starts closed at SSR.
@@ -970,11 +969,11 @@ class Calendar(Component):
             return Element(
                 tag="div",
                 attrs={
-                    # ``min-w-0`` : c'est ce qui autorise le libellé à
-                    # céder. Sans lui, un reste de 0,8 px suffisait à
-                    # repousser la flèche — la garantie doit être
-                    # STRUCTURELLE (la commande ne bouge jamais), pas
-                    # « ça tient de justesse dans cette langue-ci ».
+                    # ``min-w-0``: that is what allows the label to
+                    # give. Without it, a remainder of 0.8 px was enough
+                    # to push the arrow away — the guarantee must be
+                    # STRUCTURAL (the command never moves), not "it just
+                    # about fits in this language".
                     "class": "relative inline-block min-w-0",
                     "bz-data": "{open: false}",
                     "bz-init": anchored_dismiss_init("open"),
@@ -982,12 +981,12 @@ class Calendar(Component):
                 children=(trigger, panel),
             )
 
-        # Sans liste explicite, les douze noms sont CALCULÉS par le
-        # client : le serveur ne peut pas les produire (le module
-        # ``locale`` de Python est un état global au processus, et Babel
-        # serait une dépendance). Le panneau reste invisible jusqu'à
-        # ``.bz-ready``, donc aucun scintillement — c'est la même
-        # garantie qui couvre déjà la grille, remplie en JS.
+        # With no explicit list, the twelve names are COMPUTED by the
+        # client: the server cannot produce them (Python's ``locale``
+        # module is process-global state, and Babel would be a
+        # dependency). The panel stays invisible until ``.bz-ready``, so
+        # no flicker — it is the same guarantee that already covers the
+        # grid, filled in JS.
         client_months = self._month_names is None
         if client_months:
             month_expr = "$bz.locale.monthName(month)"
@@ -1019,10 +1018,10 @@ class Calendar(Component):
                 "data-bz-cal-header": "",
                 "class": slots.get("header", ""),
             },
-            # En mode ``month``, le sélecteur de MOIS disparaît : la
-            # grille EST le sélecteur de mois. Le garder ferait deux
-            # chemins pour le même geste, dont un qui n'aurait aucun
-            # effet visible sur la grille affichée.
+            # In ``month`` mode, the MONTH selector disappears: the
+            # grid IS the month selector. Keeping it would make two
+            # paths for the same gesture, one of which would have no
+            # visible effect on the displayed grid.
             children=tuple(
                 el for el in (
                     prev_btn.render(),
@@ -1033,14 +1032,14 @@ class Calendar(Component):
             ),
         )
 
-        # Même partage que les mois : nommés par le client faute de
-        # liste explicite. L'index est celui de ``Date.getDay()``
-        # (dimanche = 0), tourné ici pour ``weekstart`` — c'est le
-        # composant qui tourne, jamais la liste (piège [14]).
+        # Same split as the months: named by the client for want of an
+        # explicit list. The index is ``Date.getDay()``'s (Sunday = 0),
+        # rotated here for ``weekstart`` — it is the component that
+        # rotates, never the list (trap [14]).
         if self._weekday_names is None:
-            # Les INDICES tournent, exactement comme les noms tournent
-            # sur l'autre branche — même helper, donc une seule
-            # implémentation du contrat dimanche-premier (piège [14]).
+            # The INDICES rotate, exactly as the names rotate on the
+            # other branch — same helper, so a single implementation of
+            # the Sunday-first contract (trap [14]).
             weekday_html_parts = [
                 f'<div class="{weekday_class}" '
                 f'bz-text="$bz.locale.weekdayNames()[{i}]">'
@@ -1058,18 +1057,19 @@ class Calendar(Component):
             f'</div>'
         )
         # Empty grid container — JS fills via insertAdjacentHTML at
-        # connectedCallback. Un morph le RE-VIDE (les enfants reviennent
-        # à la version serveur) sans réveiller aucun callback du custom
-        # element : c'est le ``bz-init`` posé plus bas sur la racine qui
-        # rattrape, en appelant ``rehydrate()`` après chaque rescan.
+        # connectedCallback. A morph RE-EMPTIES it (the children go back
+        # to the server version) without waking any callback of the
+        # custom element: it is the ``bz-init`` set further down on the
+        # root that catches up, by calling ``rehydrate()`` after each
+        # rescan.
         grid_html = (
             f'<div data-bz-cal-grid class="{slots.get("week_row", "")}"></div>'
         )
 
-        # Mode ``month`` : ni ligne de jours ni grille de jours. Émettre
-        # la ligne de jours quand même la ferait CLIGNOTER — elle serait
-        # peinte au premier rendu puis retirée par le premier
-        # ``_replaceBody`` du custom element.
+        # ``month`` mode: neither a weekday row nor a day grid.
+        # Emitting the weekday row anyway would make it FLICKER — it
+        # would be painted at the first render then removed by the
+        # custom element's first ``_replaceBody``.
         ssr_html = HtmlNode(
             f'<div data-bz-cal-months class="{slots.get("month_grid", "")}">'
             f"</div>"
@@ -1078,12 +1078,12 @@ class Calendar(Component):
         )
 
         # ── Root attributes on <bz-calendar> ──────────────────────
-        # La LARGEUR vient de la table de tailles, pas du slot : elle
-        # dépend du palier (7 cellules + les deux bords), et la mettre
-        # dans le slot la ferait empiler avec la table sur le même
-        # élément — la collision que ``traps.md`` § « size= : collision
-        # slot ↔ table » décrit, dont Tailwind tranche l'issue par
-        # l'ordre de sa feuille.
+        # The WIDTH comes from the sizes table, not from the slot: it
+        # depends on the step (7 cells + the two edges), and putting it
+        # in the slot would stack it with the table on the same element
+        # — the collision ``traps.md`` § "size=: slot ↔ table collision"
+        # describes, whose outcome Tailwind decides by its sheet's
+        # order.
         root_attrs["class"] = " ".join(filter(None, (
             slots.get("root", ""),
             size_map.get("root", ""),
@@ -1103,20 +1103,20 @@ class Calendar(Component):
             )
         elif disabled:
             root_attrs["aria-disabled"] = "true"
-        # Le hook « après CHAQUE rescan » du framework, et c'est
-        # ``bz-effect``, PAS ``bz-init`` : celui-ci est one-shot par NŒUD
-        # (``el._bzInitDone``, qui survit au rebind), or idiomorph morphe
-        # en place — le nœud survit, donc un ``bz-init`` ne re-tournerait
-        # jamais. Un ``bz-effect`` est disposé puis refait à chaque
-        # ``bindEl``, donc son corps re-tourne à chaque swap. Même choix
-        # et même raison que ``_observe()`` du SignaturePad.
+        # The framework's "after EVERY rescan" hook, and it is
+        # ``bz-effect``, NOT ``bz-init``: that one is one-shot per NODE
+        # (``el._bzInitDone``, which survives a rebind), yet idiomorph
+        # morphs in place — the node survives, so a ``bz-init`` would
+        # never run again. A ``bz-effect`` is disposed then redone at
+        # every ``bindEl``, so its body runs again on every swap. Same
+        # choice and same reason as SignaturePad's ``_observe()``.
         #
-        # Ce qu'il rattrape : un refresh de la zone qui contient le
-        # calendrier remet ses enfants à la version serveur — c'est-à-dire
-        # la grille VIDE (mesuré le 2026-08-21 : 42 cellules au premier
-        # rendu, 0 après un refresh, et définitivement). ``rehydrate()``
-        # ne repeint que si le corps a vraiment été effacé, donc un swap
-        # sans rapport ne coûte qu'un ``querySelector``.
+        # What it catches up: a refresh of the zone containing the
+        # calendar puts its children back to the server version — that
+        # is to say the EMPTY grid (measured on 2026-08-21: 42 cells at
+        # the first render, 0 after a refresh, and for good).
+        # ``rehydrate()`` only repaints if the body was really wiped, so
+        # an unrelated swap costs only a ``querySelector``.
         root_attrs["bz-effect"] = "$el.rehydrate && $el.rehydrate()"
         root_attrs["mode"] = mode
         root_attrs["weekstart"] = str(weekstart)
@@ -1135,11 +1135,11 @@ class Calendar(Component):
             )
         if self._marks:
             root_attrs["marks"] = json.dumps(self._marks)
-            # Le gabarit du nom accessible part d'ici, RÉSOLU côté
-            # serveur : la grille est bâtie en JavaScript, et la table
-            # des mots du framework n'existe qu'en Python. Sans ce
-            # passage, une case marquée s'annoncerait en anglais quelle
-            # que soit la langue de l'app.
+            # The accessible name's template leaves from here,
+            # RESOLVED server-side: the grid is built in JavaScript, and
+            # the framework's word table exists only in Python. Without
+            # this hand-off, a marked cell would announce itself in
+            # English whatever the app's language.
             root_attrs["data-bz-mark-label"] = template("calendar.marked")
         if self._weekday_names is not None:
             root_attrs["weekday-names"] = json.dumps(self._weekday_names)
@@ -1210,12 +1210,12 @@ class Calendar(Component):
         # Without these the Client playground / Client events stay
         # silent — the framework's ``bz-attr:<attr>`` only flows state →
         # attribute, this closes the round-trip.
-        # ⚠️ Ces deux chemins sont ASSIGNABLES : ``07_calendar.js::_writeBinding``
-        # les split sur ``.`` puis walk jusqu'à la feuille pour y écrire. Une
-        # ClientExpression y est structurellement invalide (elle n'est pas un
-        # chemin dotté) — d'où ``value``/``month`` dans ``TWO_WAY_PROPS``, qui
-        # la rejette à la construction. ``path_of`` reste correct pour le
-        # binding simple.
+        # ⚠️ Both paths are ASSIGNABLE: ``07_calendar.js::_writeBinding``
+        # splits them on ``.`` then walks to the leaf to write there. A
+        # ClientExpression is structurally invalid there (it is not a
+        # dotted path) — hence ``value``/``month`` in ``TWO_WAY_PROPS``,
+        # which rejects it at construction. ``path_of`` stays correct for
+        # the plain binding.
         if value_binding is not None:
             root_attrs["data-bz-value-path"] = self.path_of(value_binding)
         if month_binding is not None:

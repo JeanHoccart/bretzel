@@ -1,22 +1,23 @@
-"""features/eleves_data — data : les élèves, leurs inscriptions, leurs mouvements.
+"""features/eleves_data — data: the pupils, their enrolments, their
+movements.
 
-``kind="data"``. C'est ici que **RT-2 devient du code** : rien ne s'efface
-qui porte de l'histoire.
+``kind="data"``. It is here that **RT-2 becomes code**: nothing that
+carries history is erased.
 
-- un élève qui part reçoit une **date de fin d'inscription**. Il sort des
-  listes, ses notes restent, on peut le réinscrire ;
-- un transfert est une **sortie plus une entrée**, pas une colonne qu'on
-  réécrit — sans quoi le parcours d'EF-C9 n'aurait rien à montrer ;
-- **en revanche**, supprimer une classe emporte les élèves qui
-  n'appartiennent qu'à elle. Sinon ils resteraient en base sans classe,
-  invisibles — ce qui est pire que supprimés.
+- a pupil who leaves receives an **enrolment end date**. They leave the
+  lists, their marks stay, they can be re-enrolled;
+- a transfer is a **departure plus an entry**, not a column one rewrites
+  — without which EF-C9's path would have nothing to show;
+- **on the other hand**, deleting a class takes with it the pupils
+  belonging only to it. Otherwise they would stay in the database with no
+  class, invisible — which is worse than deleted.
 
-Le nom et le prénom restent DISTINCTS
---------------------------------------
-EF-C7 : *« un élève qui s'appelle LEA de son nom ne doit pas se
-confondre avec une Léa de prénom »*. La recherche compare donc les deux
-colonnes séparément, et la comparaison ignore les accents et la casse
-sans jamais fondre les deux champs en un.
+The surname and the first name stay DISTINCT
+---------------------------------------------
+EF-C7: *"a pupil whose surname is LEA must not be confused with a Léa by
+first name"*. So the search compares the two columns separately, and the
+comparison ignores accents and case without ever merging the two fields
+into one.
 """
 
 from __future__ import annotations
@@ -27,11 +28,12 @@ from examples.ecole.features.annees import garde_ecriture
 
 
 def eleves_de(classe_id: int) -> list[dict]:
-    """Les élèves EN COURS d'inscription, par ordre alphabétique.
+    """The pupils with a CURRENT enrolment, in alphabetical order.
 
-    ``i.fin IS NULL`` : un élève sorti garde sa ligne (RT-2) et quitte
-    les listes. C'est la même clause partout, et c'est elle qui fait la
-    différence entre « il n'est plus là » et « il n'a jamais existé ».
+    ``i.fin IS NULL``: a pupil who has left keeps their row (RT-2) and
+    leaves the lists. It is the same clause everywhere, and it is what
+    makes the difference between "they are no longer here" and "they
+    never existed".
     """
     return query(
         """
@@ -47,11 +49,10 @@ def eleves_de(classe_id: int) -> list[dict]:
 
 
 def sortis_de(classe_id: int) -> list[dict]:
-    """Ceux qui sont partis, avec leur date de sortie (EF-C5).
+    """Those who have left, with their departure date (EF-C5).
 
-    *« La liste des sortis est consultable »* : sans cet écran,
-    l'historique est conservé et invisible — ce qui revient à ne pas
-    l'avoir.
+    *"The list of leavers can be consulted"*: without this screen, the
+    history is kept and invisible — which amounts to not having it.
     """
     return query(
         """
@@ -80,10 +81,10 @@ def eleve(eleve_id: int) -> dict | None:
 
 
 def parcours_de(eleve_id: int) -> list[dict]:
-    """Les classes traversées, d'une année à l'autre (EF-C9).
+    """The classes gone through, from one year to the next (EF-C9).
 
-    *« Les inscriptions sont datées précisément pour cela ; sans l'écran
-    qui les montre, l'historique est conservé et invisible. »*
+    *"The enrolments are dated precisely for that; without the screen
+    that shows them, the history is kept and invisible."*
     """
     return query(
         """
@@ -100,7 +101,7 @@ def parcours_de(eleve_id: int) -> list[dict]:
 
 
 def classe_courante_de(eleve_id: int) -> dict | None:
-    """La classe où l'élève est inscrit AUJOURD'HUI, s'il y en a une."""
+    """The class the pupil is enrolled in TODAY, if there is one."""
     lignes = query(
         """
         SELECT c.id, c.code, c.libelle, c.cycle, c.annee_id
@@ -115,17 +116,17 @@ def classe_courante_de(eleve_id: int) -> dict | None:
 
 
 def chercher(annee_id: int, texte: str) -> list[dict]:
-    """Cherche par NOM ou par PRÉNOM sur toute l'année (EF-C7).
+    """Search by SURNAME or by FIRST NAME over the whole year (EF-C7).
 
-    ⚠️ **Les deux colonnes sont comparées SÉPARÉMENT**, et c'est
-    l'exigence : *« un élève qui s'appelle LEA de son nom ne doit pas se
-    confondre avec une Léa de prénom »*. Un ``nom || prenom LIKE`` les
-    fondrait, et « lea martin » trouverait aussi « Martin Léa » — ce qui
-    est peut-être pratique et n'est pas ce qui est demandé.
+    ⚠️ **The two columns are compared SEPARATELY**, and it is the
+    requirement: *"a pupil whose surname is LEA must not be confused with
+    a Léa by first name"*. A ``nom || prenom LIKE`` would merge them, and
+    "lea martin" would also find "Martin Léa" — which may be convenient
+    and is not what is asked for.
 
-    ``COLLATE NOCASE`` gère la casse ; les accents sont gérés par le
-    repli sur la forme sans accents, calculé en Python — SQLite ne sait
-    pas le faire seul sans extension.
+    ``COLLATE NOCASE`` handles the case; the accents are handled by
+    falling back on the accent-free form, computed in Python — SQLite
+    cannot do it alone without an extension.
     """
     motif = f"%{texte.strip()}%"
     if not texte.strip():
@@ -147,17 +148,17 @@ def chercher(annee_id: int, texte: str) -> list[dict]:
 
 
 def classes_de(annee_id: int) -> list[dict]:
-    """Les classes d'une année — pour les sélecteurs de mouvement."""
+    """A year's classes — for the movement selectors."""
     return query(
         "SELECT id, code, libelle FROM classes WHERE annee_id = ? "
         "ORDER BY rang, code", (annee_id,))
 
 
-# ── Les écritures. Toutes gardées par RT-1 ───────────────────────────
+# ── The writes. All guarded by RT-1 ──────────────────────────────────
 
 def regler_particularites(eleve_id: int, annee_id: int,
                           champs: dict) -> None:
-    """Les quatre particularités d'un élève (EF-C4)."""
+    """A pupil's four particularities (EF-C4)."""
     garde_ecriture(annee_id)
     execute(
         "UPDATE eleves SET amenagement = ?, vue_fragile = ?, gaucher = ?, "
@@ -168,7 +169,7 @@ def regler_particularites(eleve_id: int, annee_id: int,
 
 
 def regler_prof_principal(classe_id: int, annee_id: int, nom: str) -> None:
-    """EF-C6 — et son nom ouvre un lien de courrier, côté écran."""
+    """EF-C6 — and their name opens a mail link, on the screen side."""
     garde_ecriture(annee_id)
     execute("UPDATE classes SET prof_principal = ? WHERE id = ?",
             (nom.strip()[:60], classe_id))
@@ -176,7 +177,7 @@ def regler_prof_principal(classe_id: int, annee_id: int, nom: str) -> None:
 
 def ajouter_eleve(classe_id: int, annee_id: int, nom: str, prenom: str,
                   debut: str) -> int:
-    """Crée un élève et l'inscrit (EF-C5)."""
+    """Create a pupil and enrol them (EF-C5)."""
     garde_ecriture(annee_id)
     eleve_id = execute(
         "INSERT INTO eleves (nom, prenom) VALUES (?, ?)",
@@ -189,7 +190,7 @@ def ajouter_eleve(classe_id: int, annee_id: int, nom: str, prenom: str,
 
 def faire_sortir(eleve_id: int, classe_id: int, annee_id: int,
                  fin: str) -> None:
-    """L'élève quitte les listes, **et rien ne s'efface** (RT-2)."""
+    """The pupil leaves the lists, **and nothing is erased** (RT-2)."""
     garde_ecriture(annee_id)
     execute(
         "UPDATE inscriptions SET fin = ? WHERE eleve_id = ? AND classe_id = ? "
@@ -198,10 +199,10 @@ def faire_sortir(eleve_id: int, classe_id: int, annee_id: int,
 
 def faire_revenir(eleve_id: int, classe_id: int, annee_id: int,
                   debut: str) -> None:
-    """Il revient : une inscription NEUVE, pas une fin qu'on efface.
+    """They come back: a NEW enrolment, not an end one erases.
 
-    Effacer la date de fin ferait disparaître le fait qu'il est parti, et
-    le parcours d'EF-C9 rendrait un séjour continu qui n'a pas eu lieu.
+    Erasing the end date would make the fact that they left disappear,
+    and EF-C9's path would return a continuous stay that did not happen.
     """
     garde_ecriture(annee_id)
     execute(
@@ -211,21 +212,22 @@ def faire_revenir(eleve_id: int, classe_id: int, annee_id: int,
 
 def transferer(eleve_id: int, depuis: int, vers: int, annee_id: int,
                jour: str) -> None:
-    """Un transfert est une SORTIE plus une ENTRÉE (EF-C5, RT-2)."""
+    """A transfer is a DEPARTURE plus an ENTRY (EF-C5, RT-2)."""
     garde_ecriture(annee_id)
     faire_sortir(eleve_id, depuis, annee_id, jour)
     faire_revenir(eleve_id, vers, annee_id, jour)
 
 
 def supprimer_classe(classe_id: int, annee_id: int) -> int:
-    """Supprime la classe et **les élèves qui n'appartiennent qu'à elle**.
+    """Delete the class and **the pupils belonging only to it**.
 
-    RT-2 a deux moitiés, et c'est ici que la seconde s'applique : *« en
-    revanche, supprimer une classe emporte les élèves qui n'appartiennent
-    qu'à elle — sinon ils resteraient en base sans classe, invisibles »*.
+    RT-2 has two halves, and it is here that the second applies: *"on the
+    other hand, deleting a class takes with it the pupils belonging only
+    to it — otherwise they would stay in the database with no class,
+    invisible"*.
 
-    Rend le nombre d'élèves emportés, pour que l'écran puisse le dire
-    avant de le faire (EF-C8 : confirmation explicite).
+    Returns the number of pupils taken, so the screen can say it before
+    doing it (EF-C8: explicit confirmation).
     """
     garde_ecriture(annee_id)
     orphelins = [
@@ -278,10 +280,10 @@ def supprimer_classe(classe_id: int, annee_id: int) -> int:
 
 
 def eleves_emportes_par(classe_id: int) -> int:
-    """Combien d'élèves une suppression emporterait — AVANT de le faire.
+    """How many pupils a deletion would take — BEFORE doing it.
 
-    EF-C8 demande une confirmation explicite ; une confirmation qui ne
-    dit pas ce qu'elle coûte n'en est pas une.
+    EF-C8 asks for an explicit confirmation; a confirmation that does not
+    say what it costs is not one.
     """
     return scalar(
         """

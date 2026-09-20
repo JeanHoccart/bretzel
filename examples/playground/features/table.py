@@ -46,7 +46,7 @@ ISSUES = [
 
 # ── Cell renderers — reused by RICH_COLUMNS across several cards ──────
 class TableClientEvents(ClientState, persist="memory"):
-    """Le journal de la carte Client events — cote navigateur."""
+    """The Client events card's log — on the browser side."""
 
     log: list = field(default_factory=list)
 
@@ -307,22 +307,22 @@ def server_panel() -> None:
 
 
 def client_events_panel() -> None:
-    """Le MEME event, cable sur une expression cliente.
+    """The SAME event, wired onto a client expression.
 
-    Pas de ``@refreshable`` : c'est le point. Le journal vit dans un
-    ``ClientState``, le texte se re-evalue dans le navigateur, aucune
-    requete ne part.
+    No ``@refreshable``: that is the point. The log lives in a
+    ``ClientState``, the text is re-evaluated in the browser, no request
+    leaves.
 
-    ATTENTION : cette carte n'existait pas avant le 2026-09-06, et la
-    raison etait mecanique. ``EVENTS`` etait vide, donc le gabarit lisait
-    « ce composant n'a pas d'event » — alors que la page portait deja sa
-    carte Server events. Le ClassVar etait faux, pas le composant. Cf.
+    WARNING: this card did not exist before 2026-09-06, and the reason
+    was mechanical. ``EVENTS`` was empty, so the template read "this
+    component has no event" — although the page already carried its
+    Server events card. The ClassVar was wrong, not the component. Cf.
     ``.claude/work/audit-declaration-2026-09-06.md``.
     """
     events = TableClientEvents()
     ui.text(
-        "``on_item_click`` cable sur une expression cliente qui empile dans "
-        "un ClientState. Zero requete.",
+        '``on_item_click`` wired to a client expression that pushes onto '
+            'a ClientState. Zero requests.',
         color="muted", size="sm",
     )
     clicked = ClientExpression("String($event.detail ?? 'item_click')")
@@ -338,8 +338,8 @@ def client_events_panel() -> None:
         ui.button("Clear", variant="ghost", size="xs",
                   on_click=events.log.clear())
     log_text = ClientExpression(
-        r"($bz.state.TableClientEvents.default.log || []).join('\n')"
-        r" || '(aucun event — clique la demo ci-dessus)'"
+        "($bz.state.TableClientEvents.default.log || []).join('\\n') || "
+            "'(no events yet — click the demo above)'"
     )
     ui.text(log_text, color="muted", size="sm",
             classes="font-mono whitespace-pre")

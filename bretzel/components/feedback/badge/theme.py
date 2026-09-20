@@ -7,11 +7,12 @@ trailing ``×`` button (``dismissible=True`` or ``on_close``).
 Slots :
 - ``root``        : the pill itself
 - ``label``       : the inline text (truncates on long labels)
-- ``close``       : the ``×`` button (rendu dès que ``dismissible=True``
-                    OU ``on_close`` est passé — pas seulement ``on_close``)
+- ``close``       : the ``×`` button (rendered as soon as
+                    ``dismissible=True`` OR ``on_close`` is passed — not
+                    only ``on_close``)
 
-Le dimensionnement de l'icône du bouton close n'est PAS un slot : il vit
-dans ``sizes[size]["close_icon_size"]``.
+The sizing of the close button's icon is NOT a slot: it lives in
+``sizes[size]["close_icon_size"]``.
 
 Note : no ``icon`` slot — Badge's leading/trailing icons are pre-built
 :class:`Icon` instances sized via the theme's ``sizes[size].icon_size``
@@ -46,24 +47,24 @@ BADGE_THEME: dict[str, Any] = {
         # back to its content regardless of container. Same class of bug —
         # and same fix — as the date_picker ``w-fit`` overflow.
         "root": (
-            # ``min(16rem,100%)`` et non ``max-w-[16rem]`` seul : un
-            # plafond FIXE ne connaît pas son conteneur, donc il laisse
-            # la pastille en sortir dès que la colonne est plus étroite
-            # que lui. Mesuré le 2026-08-25 dans une cellule de 240 px :
-            # 256 px rendus, **17 px dehors**, par-dessus le voisin. Les
-            # six autres racines à plafond du catalogue écrivent
-            # ``max-w-full`` ; celle-ci était la seule à ne pas le faire.
+            # ``min(16rem,100%)`` and not ``max-w-[16rem]`` alone: a
+            # FIXED ceiling does not know its container, so it lets the
+            # chip out of it as soon as the column is narrower than it.
+            # Measured on 2026-08-25 in a 240 px cell: 256 px rendered,
+            # **17 px outside**, over the neighbour. The catalogue's six
+            # other capped roots write ``max-w-full``; this one was the
+            # only one not to.
             #
-            # Une CLASSE, pas deux : ``max-w-full max-w-[16rem]`` posent
-            # toutes deux ``max-width`` et le vainqueur dépend de l'ordre
-            # de la FEUILLE, pas de celui des classes.
-            # ``tabular-nums`` : un badge porte presque toujours un
-            # COMPTEUR, et des chiffres proportionnels n'ont pas la même
-            # largeur — le « 1 » est plus étroit que le « 8 ». La pastille
-            # change donc de largeur à chaque incrément, et la ligne qui
-            # la contient sautille. Adopté du thème d'``examples/kanban``
-            # le 2026-09-13, où il vivait en surcharge d'app : le besoin
-            # n'a rien de propre à un tableau de cartes.
+            # ONE class, not two: ``max-w-full max-w-[16rem]`` both set
+            # ``max-width`` and the winner depends on the SHEET's order,
+            # not on the classes'.
+            # ``tabular-nums``: a badge almost always carries a COUNTER,
+            # and proportional digits do not have the same width — the
+            # "1" is narrower than the "8". So the chip changes width at
+            # every increment, and the line containing it jitters.
+            # Adopted from ``examples/kanban``'s theme on 2026-09-13,
+            # where it lived as an app override: the need has nothing
+            # specific to a board of cards.
             "inline-flex w-fit items-center gap-1 max-w-[min(16rem,100%)] "
             "rounded-selector font-medium leading-normal tabular-nums "
             "whitespace-nowrap "

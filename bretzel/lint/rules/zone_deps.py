@@ -1,62 +1,61 @@
-"""Règle : une zone qui écoute pour le compte d'une zone IMBRIQUÉE.
+"""Rule: a zone listening on behalf of a NESTED zone.
 
-Le silence qu'elle ferme
-------------------------
+The silence it closes
+---------------------
 
-Rien ne casse, et c'est pire qu'une panne : **ça marche, dix fois trop
-cher**. ::
+Nothing breaks, and that is worse than a failure: **it works, ten times
+too expensively**. ::
 
     @refreshable(deps=[TraceDraft])
-    def dialogue_trace() -> None:        # lit TraceDraft : c'est sa vie
+    def trace_dialog() -> None:          # reads TraceDraft: that is its life
         ...
 
-    @refreshable(deps=[VuePlan, PlanRev, TraceDraft])
-    def panneau_plan() -> None:
-        ...                              # ne lit jamais TraceDraft
-        dialogue_trace()                 # …mais appelle celui qui le lit
+    @refreshable(deps=[PlanView, PlanRev, TraceDraft])
+    def plan_panel() -> None:
+        ...                              # never reads TraceDraft
+        trace_dialog()                   # …but calls the one that does
 
-``TraceDraft`` est le brouillon d'un dialogue, et le dialogue est **déjà
-une zone** : il se rafraîchit tout seul. Le déclarer chez la parente veut
-dire *« quand on ouvre le dialogue, redessine tout le panneau »*.
+``TraceDraft`` is a dialog's draft, and the dialog is **already a zone**:
+it refreshes by itself. Declaring it on the parent means *"when the
+dialog opens, redraw the whole panel"*.
 
-Mesuré sur ``examples/ecole`` le 2026-09-12 : ouvrir « Tracer la salle »
-— mettre un booléen à vrai — coûtait **679 ms et 15 451 octets**, parce
-que la réponse contenait la salle entière, toutes les places, toutes les
-vignettes de glisser et la liste d'attente. Sans la dépendance de trop :
-**20 ms et 3 094 octets**. Trente fois moins, pour le même écran.
+Measured on ``examples/ecole`` on 2026-09-12: opening "Trace the room" —
+setting a boolean to true — cost **679 ms and 15 451 bytes**, because the
+response contained the whole room, every seat, every drag thumbnail and
+the waiting list. Without the one dependency too many: **20 ms and 3 094
+bytes**. Thirty times less, for the same screen.
 
-Ce qui rend la faute facile à commettre : le dialogue est ÉCRIT dans le
-corps de la zone parente, donc déclarer sa dépendance au même endroit
-paraît cohérent. La forme ne rappelle pas que l'enfant est autonome.
+What makes the fault easy to commit: the dialog is WRITTEN in the parent
+zone's body, so declaring its dependency in the same place looks
+coherent. The form does not remind you that the child is autonomous.
 
-Ce que la règle exige — les TROIS conditions
-----------------------------------------------
+What the rule requires — the THREE conditions
+---------------------------------------------
 
-1. la zone déclare ``X`` dans ses ``deps=`` ;
-2. **son corps ne lit jamais ``X``**, ni directement ni par un helper
-   ordinaire du module (le balayage suit les appels) ;
-3. **une zone qu'elle APPELLE lit ``X``**.
+1. the zone declares ``X`` in its ``deps=``;
+2. **its body never reads ``X``**, neither directly nor through an
+   ordinary module helper (the sweep follows the calls);
+3. **a zone it CALLS reads ``X``**.
 
-⚠️ **La troisième condition n'est pas un raffinement, c'est la règle.**
-Sans elle, le constat tombe sur le patron le plus courant du dépôt : un
-JETON DE RÉVISION. Une écriture en base ne touche aucun état typé, donc
-rien ne se rafraîchit ; le remède documenté est un ``AppState`` compteur
-(``ContactsRev``, ``PlanRev``) qu'on incrémente à l'écriture et qu'on
-déclare en dépendance — **et que personne ne lit, jamais**. Mesuré sur
-``examples/`` : la version « déclaré et non lu » rendait une trentaine de
-constats, et ils étaient tous ce patron-là. Une règle qui condamne
-l'idiome recommandé ne mesure pas ce qu'elle croit.
+⚠️ **The third condition is not a refinement, it is the rule.** Without
+it, the finding falls on the repository's most common pattern: a REVISION
+TOKEN. A database write touches no typed state, so nothing refreshes; the
+documented remedy is an ``AppState`` counter (``ContactsRev``,
+``PlanRev``) one increments on the write and declares as a dependency —
+**and which nobody ever reads**. Measured over ``examples/``: the
+"declared and not read" version produced about thirty findings, and they
+were all that pattern. A rule that condemns the recommended idiom does not
+measure what it thinks it does.
 
-⚠️ Ce que la règle ne dit PAS
-------------------------------
+⚠️ What the rule does NOT say
+-----------------------------
 
-Qu'une zone parente ne doive jamais partager une dépendance avec son
-enfant. Si elle la LIT aussi, les deux ont raison — c'est la condition 2
-qui tranche, et elle se lit sur le code.
+That a parent zone must never share a dependency with its child. If it
+READS it too, both are right — it is condition 2 that settles it, and it
+reads off the code.
 
-Elle ne voit pas au-delà du module : une zone imbriquée importée
-d'ailleurs n'est pas reconnue comme zone, donc le cas est silencieux
-plutôt que faux.
+It does not see beyond the module: a nested zone imported from elsewhere
+is not recognised as a zone, so the case is silent rather than wrong.
 """
 
 from __future__ import annotations
@@ -66,8 +65,8 @@ import ast
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-#: Le nom de la règle, tel qu'il s'affiche dans un constat.
-RULE = "zone-qui-ecoute-trop"
+#: The rule's name, as it appears in a finding.
+RULE = "zone-listening-too-widely"
 
 _MARKS = frozenset({"refreshable"})
 
@@ -99,12 +98,12 @@ def _declared_deps(call: ast.Call) -> list[ast.Name]:
 
 
 def _names_read(func: _Func) -> set[str]:
-    """Les noms lus dans le CORPS — décorateurs exclus.
+    """The names read in the BODY — decorators excluded.
 
-    ⚠️ ``ast.walk`` sur la fonction descend aussi dans sa liste de
-    décorateurs, donc chaque nom de ``deps=[…]`` s'y retrouverait lu par
-    lui-même et la règle serait muette sur 100 % des cas. Mesuré : elle
-    l'était, sur son propre cas d'école.
+    ⚠️ ``ast.walk`` over the function descends into its decorator list
+    too, so every name in ``deps=[…]`` would be found there read by
+    itself and the rule would be mute on 100 % of cases. Measured: it
+    was, on its own textbook case.
     """
     return {
         n.id
@@ -117,34 +116,34 @@ def _names_read(func: _Func) -> set[str]:
 def _reachable(
     start: _Func, functions: dict[str, _Func], zones: frozenset[str]
 ) -> tuple[set[str], set[str]]:
-    """``(noms lus, zones appelées)`` depuis ``start``.
+    """``(names read, zones called)`` from ``start``.
 
-    Le parcours suit les helpers ordinaires et **s'arrête aux zones** —
-    ce qu'une zone imbriquée lit lui appartient. Les zones rencontrées
-    sont rendues à part : ce sont elles qui décident du constat.
+    The walk follows ordinary helpers and **stops at zones** — what a
+    nested zone reads belongs to it. The zones met are returned
+    separately: they are what decides the finding.
     """
-    lus: set[str] = set()
-    enfants: set[str] = set()
-    a_faire = [start]
-    vues = {start.name}
-    while a_faire:
-        courante = a_faire.pop()
-        noms = _names_read(courante)
-        lus |= noms
-        for nom in noms:
-            if nom in zones and nom != start.name:
-                enfants.add(nom)
+    read_names: set[str] = set()
+    children: set[str] = set()
+    todo = [start]
+    seen = {start.name}
+    while todo:
+        current = todo.pop()
+        names = _names_read(current)
+        read_names |= names
+        for name in names:
+            if name in zones and name != start.name:
+                children.add(name)
                 continue
-            suivante = functions.get(nom)
-            if suivante is None or nom in vues:
+            nxt = functions.get(name)
+            if nxt is None or name in seen:
                 continue
-            vues.add(nom)
-            a_faire.append(suivante)
-    return lus, enfants
+            seen.add(name)
+            todo.append(nxt)
+    return read_names, children
 
 
 def check(module: Module) -> list[Finding]:
-    """Les dépendances qu'une zone porte pour le compte d'une autre."""
+    """The dependencies a zone carries on another's behalf."""
     functions: dict[str, _Func] = {}
     zones: set[str] = set()
     for node in ast.walk(module.tree):
@@ -153,20 +152,20 @@ def check(module: Module) -> list[Finding]:
             if _decorator_call(node) is not None:
                 zones.add(node.name)
 
-    gelees = frozenset(zones)
-    portee = {nom: _reachable(functions[nom], functions, gelees) for nom in gelees}
+    frozen = frozenset(zones)
+    scope = {name: _reachable(functions[name], functions, frozen) for name in frozen}
 
     findings: list[Finding] = []
-    for nom in sorted(gelees):
-        deco = _decorator_call(functions[nom])
+    for name in sorted(frozen):
+        deco = _decorator_call(functions[name])
         if deco is None:  # pragma: no cover — `zones` le garantit
             continue
-        lus, enfants = portee[nom]
+        read_names, children = scope[name]
         for dep in _declared_deps(deco):
-            if dep.id in lus:
+            if dep.id in read_names:
                 continue
-            porteurs = sorted(e for e in enfants if dep.id in portee[e][0])
-            if not porteurs:
+            carriers = sorted(e for e in children if dep.id in scope[e][0])
+            if not carriers:
                 continue
             findings.append(
                 Finding(
@@ -174,18 +173,18 @@ def check(module: Module) -> list[Finding]:
                     path=module.path,
                     line=dep.lineno,
                     message=(
-                        f"`{nom}` déclare `{dep.id}` sans jamais le lire, "
-                        f"pour le compte de `{porteurs[0]}()` — qui est une "
-                        f"zone et le déclare déjà."
+                        f"`{name}` declares `{dep.id}` without ever "
+                        f"reading it, on behalf of `{carriers[0]}()` — which "
+                        f"is a zone and already declares it."
                     ),
                     hint=(
-                        "Une zone imbriquée se rafraîchit toute seule : la "
-                        "parente n'a besoin de suivre que l'EFFET, par un "
-                        "jeton de révision. La dépendance de trop ne LÈVE "
-                        "pas et ne s'affiche pas — elle rend la zone "
-                        "entière à chaque frappe dans l'enfant (mesuré : "
-                        "679 ms et 15 ko au lieu de 20 ms et 3 ko). "
-                        f"Retire `{dep.id}` des `deps=` de `{nom}`."
+                        "A nested zone refreshes by itself: the parent only "
+                        "needs to follow the EFFECT, through a revision "
+                        "token. The dependency too many does not RAISE and "
+                        "does not show — it renders the whole zone on every "
+                        "keystroke in the child (measured: 679 ms and 15 kB "
+                        "instead of 20 ms and 3 kB). "
+                        f"Remove `{dep.id}` from `{name}`'s `deps=`."
                     ),
                 )
             )

@@ -139,7 +139,7 @@ class LineChart(Component):
         self._y_unit = y_unit
         self._x_unit = x_unit
         self._reference_lines = _coerce_references(reference_lines)
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             color=color, size=size, width=width,
             smooth=smooth, area_fill=area_fill,
@@ -184,9 +184,9 @@ class LineChart(Component):
         )
 
         def slot(name: str, override: str | None = None) -> str:
-            # ``coloured_slot`` ajoute le PONT de la couleur : la
-            # classe du palier est la même pour toutes les séries,
-            # c'est le pont qui dit laquelle est laquelle.
+            # ``coloured_slot`` adds the colour's BRIDGE: the step's
+            # class is the same for every series, it is the bridge that
+            # says which is which.
             return coloured_slot(self, name, override, color)
 
         # Unified hover pattern : both single and multi ride full-column
@@ -365,8 +365,8 @@ class LineChart(Component):
 
         # Vertical crosshair line at the active column. Connects the
         # cursor's column to the data so the active dots read as "a
-        # slice" instead of scattered points — the fix for "je ne vois
-        # pas les points". ``active`` starts at -1 → hidden at first
+        # slice" instead of scattered points — the fix for "I cannot
+        # see the points". ``active`` starts at -1 → hidden at first
         # paint : pre-stamp ``display:none`` to dodge the FOUC.
         crosshair_attrs: dict[str, Any] = {
             "class": slot("crosshair"),
@@ -497,18 +497,17 @@ def _auto_date_format(span_seconds: float):
 
 
 def as_date_formatter(fn):
-    """Faire recevoir un ``datetime`` à un formateur d'axe temporel.
+    """Make a time-axis formatter receive a ``datetime``.
 
-    Sur un axe de dates, les x sont convertis en timestamps POSIX avant
-    d'être mis à l'échelle, et ``x_format=`` recevait donc un
-    **flottant** — la seule prise sur la langue de l'axe, et elle
-    obligeait l'appelant à refaire ``datetime.fromtimestamp`` lui-même
-    avant de pouvoir formater quoi que ce soit (finding [11] du chantier
-    CRM). Le composant sait que c'est une date : c'est à lui de la
-    rendre.
+    On a date axis, the x values are converted to POSIX timestamps
+    before being scaled, so ``x_format=`` received a **float** — the only
+    handle on the axis's language, and it forced the caller to redo
+    ``datetime.fromtimestamp`` themselves before being able to format
+    anything (finding [11] of the CRM work). The component knows it is a
+    date: it is its job to return it.
 
-    Ne s'applique QUE quand l'axe est détecté comme temporel. Sur un axe
-    numérique, ``x_format=`` reçoit toujours le nombre.
+    Applies ONLY when the axis is detected as temporal. On a numeric
+    axis, ``x_format=`` still receives the number.
     """
     def _wrapped(ts: float) -> str:
         return str(fn(datetime.fromtimestamp(ts)))
@@ -516,28 +515,28 @@ def as_date_formatter(fn):
 
 
 def resolve_date_axis_format(data: Any, series: list[Series], x_format: Any):
-    """Le formateur d'axe x effectif, et si l'axe est temporel.
+    """The effective x-axis formatter, and whether the axis is temporal.
 
-    Partagé par LineChart et ScatterChart, qui en avaient chacun une
-    copie mot pour mot — et cette copie a dû être éditée des deux côtés
-    dans le même commit, ce qui est le signal.
+    Shared by LineChart and ScatterChart, which each had a copy of it
+    word for word — and that copy had to be edited on both sides in the
+    same commit, which is the signal.
 
-    Trois règles, dans cet ordre :
+    Three rules, in that order:
 
-    1. axe non temporel → on ne touche à rien, ``x_format=`` reçoit le
-       nombre comme toujours ;
-    2. rien de fourni → le formateur automatique, choisi sur l'ÉTENDUE
-       visible (HH:MM sous la journée, « Mon DD » sous l'année…) ;
-    3. un *callable* — le sien ou le nôtre — reçoit un ``datetime`` et
-       non le timestamp POSIX de la mise à l'échelle.
+    1. a non-temporal axis → we touch nothing, ``x_format=`` receives the
+       number as always;
+    2. nothing supplied → the automatic formatter, chosen on the visible
+       SPAN (HH:MM under a day, "Mon DD" under a year…);
+    3. a *callable* — theirs or ours — receives a ``datetime`` and not
+       the scaling's POSIX timestamp.
 
-    ⚠️ Le point qui a coûté un défaut : ``x_format=`` accepte AUSSI les
-    raccourcis en chaîne (``"abbreviated"``, ``"percent"``,
-    ``"currency"``). Une première version ne gardait la valeur de
-    l'appelant que si elle était appelable — donc une chaîne était
-    **jetée en silence** sur un axe de dates, et les ticks sortaient
-    identiques à ceux du défaut. Une chaîne n'a pas grand sens sur un
-    axe temporel, mais l'ignorer sans rien dire est pire que l'honorer.
+    ⚠️ The point that cost a defect: ``x_format=`` ALSO accepts the
+    string shortcuts (``"abbreviated"``, ``"percent"``, ``"currency"``).
+    A first version only kept the caller's value if it was callable — so
+    a string was **thrown away in silence** on a date axis, and the ticks
+    came out identical to the default's. A string does not make much
+    sense on a temporal axis, but ignoring it without a word is worse
+    than honouring it.
     """
     if not _detect_date_axis(data):
         return x_format, False

@@ -16,8 +16,8 @@ caller passed prefix / suffix slots :
   layout where the frame and the focus ring live on the WRAPPER, and
   the ``<input>`` itself goes transparent (``input_inner`` slot).
 
-Slot ``clear_button`` : le ``×`` de ``clearable=True``, même bord droit
-que ``icon_right``.
+Slot ``clear_button`` : the ``×`` of ``clearable=True``, on the same
+right edge as ``icon_right``.
 
 Icon slots ``icon_left`` / ``icon_right`` overlay the input absolute-
 positioned and shift their colour on ``group-focus-within`` so the
@@ -54,11 +54,11 @@ INPUT_THEME: dict[str, Any] = {
             "read-only:cursor-default read-only:bg-interface/50"
         ),
         # Affixes architecture : the wrapper carries the frame + ring.
-        # ``relative`` : le ``×`` de ``clearable=True`` se positionne en
-        # ``absolute right-3`` comme dans l'autre disposition — une SEULE
-        # écriture du slot pour les deux. Sans ancre ici, il irait se
-        # caler sur le premier ancêtre positionné, c'est-à-dire n'importe
-        # où dans la page.
+        # ``relative``: the ``×`` of ``clearable=True`` positions itself
+        # at ``absolute right-3`` as in the other layout — a SINGLE
+        # writing of the slot for both. With no anchor here, it would go
+        # and settle on the first positioned ancestor, that is to say
+        # anywhere in the page.
         "prefix_root": (
             "relative flex items-center w-full rounded-field "
             "border-(length:--bz-stroke) border-text/10 "
@@ -95,22 +95,22 @@ INPUT_THEME: dict[str, Any] = {
             "transition-colors pointer-events-none "
             "flex items-center justify-center"
         ),
-        # Le ``×`` de ``clearable=True``. Il occupe le MÊME bord droit que
-        # ``icon_right`` (et que ``suffix`` dans l'autre disposition) —
-        # les deux ensemble se superposeraient, et c'est à l'appelant de
-        # choisir lequel il veut là.
+        # The ``×`` of ``clearable=True``. It occupies the SAME right
+        # edge as ``icon_right`` (and as ``suffix`` in the other layout)
+        # — the two together would overlap, and it is up to the caller to
+        # choose which they want there.
         #
-        # ``peer-placeholder-shown:hidden`` : la visibilité est du CSS
-        # PUR, sans scope ni JS. ``:placeholder-shown`` matche exactement
-        # quand le champ est vide, donc la croix n'existe que lorsqu'il y
-        # a quelque chose à effacer, et elle réagit à la frappe sans
-        # qu'aucun signal ne soit impliqué. C'est ce qui permet d'ajouter
-        # l'affordance SANS toucher au scope de valeur qui vit sur
-        # l'``<input>`` (et qui y vit pour une raison : son ``bz-id``
-        # stable fait survivre le texte tapé à un morph).
+        # ``peer-placeholder-shown:hidden``: the visibility is PURE CSS,
+        # with no scope and no JS. ``:placeholder-shown`` matches exactly
+        # when the field is empty, so the cross only exists when there is
+        # something to clear, and it reacts to typing without any signal
+        # being involved. It is what allows adding the affordance WITHOUT
+        # touching the value scope that lives on the ``<input>`` (and
+        # lives there for a reason: its stable ``bz-id`` makes the typed
+        # text survive a morph).
         #
-        # PAS ``pointer-events-none`` contrairement aux deux icônes : lui
-        # se clique.
+        # NOT ``pointer-events-none``, unlike the two icons: this one is
+        # clicked.
         "clear_button": (
             "absolute right-3 text-muted/60 "
             "not-disabled:hover:text-text cursor-pointer "

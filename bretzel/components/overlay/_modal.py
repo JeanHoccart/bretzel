@@ -1,34 +1,32 @@
-"""Le rendu commun des deux overlays modaux — ``Dialog`` et ``Drawer``.
+"""The shared render of the two modal overlays — ``Dialog`` and ``Drawer``.
 
-Ce que la mesure a montré
---------------------------
-Le 2026-08-19 : ``Dialog.render`` = 181 lignes, ``Drawer.render`` = 176,
-**139 identiques (76 %)**. Ce ne sont pas deux composants qui se
-ressemblent, c'est un composant rendu deux fois, dont toute la
-différence tient en trois valeurs de style : la classe de largeur (le
-drawer la choisit sur DEUX axes selon le côté), ce que le côté ajoute au
-panneau, ce qu'il ajoute au conteneur.
+What the measurement showed
+----------------------------
+On 2026-08-19: ``Dialog.render`` = 181 lines, ``Drawer.render`` = 176,
+**139 identical (76 %)**. They are not two components that resemble each
+other, it is one component rendered twice, whose whole difference fits
+in three style values: the width class (the drawer picks it on TWO axes
+depending on the side), what the side adds to the panel, what it adds to
+the container.
 
-⚠️ **Le reste de l'écart n'était pas du code, c'étaient les
-commentaires.** Les deux fichiers expliquaient la même mécanique — la
-résolution de l'état ouvert, pourquoi le backdrop porte le clic et pas
-le conteneur, pourquoi le scope local doit se resynchroniser quand
-``open=`` est backé serveur — avec des mots différents, à des niveaux de
-détail différents. Un lecteur ne pouvait donc pas savoir si les deux se
-comportent pareil sans relire les deux. C'est le coût que la duplication
-fait payer AVANT même de produire un bug.
+⚠️ **The rest of the gap was not code, it was the comments.** Both files
+explained the same mechanics — the resolution of the open state, why the
+backdrop carries the click and not the container, why the local scope
+must resync when ``open=`` is server-backed — in different words, at
+different levels of detail. A reader therefore could not know whether
+the two behave alike without re-reading both. It is the cost duplication
+makes you pay BEFORE it even produces a bug.
 
-Ce qui reste chez l'appelant
------------------------------
-Les chaînes de style. Elles restent par composant
-(`feedback_no_shared_style_tokens`) et arrivent ici **déjà composées** :
-ce module ne lit jamais un thème, il assemble des nœuds.
+What stays with the caller
+---------------------------
+The style strings. They stay per-component
+(`feedback_no_shared_style_tokens`) and arrive here **already
+composed**: this module never reads a theme, it assembles nodes.
 
-⚠️ La classe de translation fermée du drawer
-(``data-[open=false]:translate-x-full``) est déjà COMPLÈTE dans son
-thème et ne peut pas être assemblée ici — une classe Tailwind assemblée
-à l'exécution n'existe qu'en dev
-(`project_assembled_tailwind_class_dev_only`).
+⚠️ The drawer's closed translation class
+(``data-[open=false]:translate-x-full``) is already COMPLETE in its theme
+and cannot be assembled here — a Tailwind class assembled at runtime only
+exists in dev (`project_assembled_tailwind_class_dev_only`).
 """
 
 from __future__ import annotations
@@ -56,38 +54,37 @@ def render_modal_overlay(
     panel_extra: tuple[str, ...] = (),
     container_extra: tuple[str, ...] = (),
 ) -> Element:
-    """Backdrop + conteneur + panneau (en-tête, corps) + racine câblée.
+    """Backdrop + container + panel (header, body) + wired root.
 
-    ``panel_extra`` est ce qui suit ``slots["panel"]`` sur le panneau —
-    la classe de largeur pour un dialog, plus les deux classes de côté
-    pour un drawer. **L'ordre appartient à l'appelant** : deux
-    utilitaires de même famille et même spécificité sont départagés par
-    l'ordre de la FEUILLE, pas par celui du ``class=``, mais l'ordre
-    reste ce que le composant a écrit et une gate le surveille
-    (``test_no_same_specificity_conflict``).
+    ``panel_extra`` is what follows ``slots["panel"]`` on the panel — the
+    width class for a dialog, plus the two side classes for a drawer.
+    **The order belongs to the caller**: two utilities of the same family
+    and the same specificity are decided by the SHEET's order, not by the
+    ``class=``'s, but the order stays what the component wrote and a gate
+    watches it (``test_no_same_specificity_conflict``).
     """
     title = component._reactive_values.get("title")
     dismissible = bool(component._reactive_values.get("dismissible"))
     persistent = bool(component._reactive_values.get("persistent"))
 
-    # ── L'état ouvert : ClientBinding ou booléen littéral ─────────────
-    # Quand l'utilisateur passe un ClientBinding, le socle l'a rangé dans
-    # ``_binding_metadata`` et a laissé le bool brut dans
-    # ``_reactive_values`` pour le SSR. On branche ici.
+    # ── The open state: ClientBinding or literal boolean ─────────────
+    # When the user passes a ClientBinding, the base layer filed it in
+    # ``_binding_metadata`` and left the raw bool in ``_reactive_values``
+    # for the SSR. We branch here.
     open_binding = component._binding_metadata.get("open")
     bound_open = open_binding is not None
-    # ``$bz.state.<Classe>.<clé>.<champ>`` — le chemin exact où le
-    # ``.set()`` / ``.toggle()`` du binding écrit. Sinon, un drapeau
-    # local au scope de cet overlay.
+    # ``$bz.state.<Class>.<key>.<field>`` — the exact path the binding's
+    # ``.set()`` / ``.toggle()`` writes to. Otherwise, a flag local to
+    # this overlay's scope.
     open_expr = open_binding.binding_path() if bound_open else "open"
     initial_open = bool(component._reactive_values.get("open"))
 
     title_id = f"{component.id}_title" if component.id and title else None
 
     # ── Backdrop ─────────────────────────────────────────────────────
-    # Un overlay persistant AVALE le clic de fond ; un dismissible ferme.
-    # Dans les deux cas le clic n'atteint jamais un descendant du
-    # panneau : le panneau vit dans un élément FRÈRE.
+    # A persistent overlay SWALLOWS the backdrop click; a dismissible one
+    # closes. In both cases the click never reaches a descendant of the
+    # panel: the panel lives in a SIBLING element.
     backdrop_attrs: dict[str, Any] = {
         "class": slots.get("backdrop", ""),
         **show_attrs(open_expr, initial_open),
@@ -105,10 +102,10 @@ def render_modal_overlay(
         "role": "dialog",
         "aria-modal": "true",
         **show_attrs(open_expr, initial_open),
-        # Piège à focus tant que c'est ouvert : Tab/Shift+Tab tournent
-        # dans le panneau, le premier enfant focalisable reçoit le focus,
-        # et l'élément précédemment focalisé est restauré à la fermeture
-        # (``$bz.helpers.focusTrap`` rend son propre dispose).
+        # Focus trap while it is open: Tab/Shift+Tab cycle inside the
+        # panel, the first focusable child gets the focus, and the
+        # previously focused element is restored on close
+        # (``$bz.helpers.focusTrap`` returns its own dispose).
         "bz-effect": focus_trap_effect(open_expr),
     }
     if title_id:
@@ -116,9 +113,9 @@ def render_modal_overlay(
 
     panel_children: list[Node] = []
 
-    # En-tête (titre + bouton de fermeture) — seulement s'il y a un titre
-    # OU de quoi fermer, pour qu'un overlay de confirmation persistant
-    # puisse s'en passer entièrement avec ``title=None``.
+    # Header (title + close button) — only if there is a title OR
+    # something to close with, so a persistent confirmation overlay can
+    # do without it entirely with ``title=None``.
     if title or dismissible:
         header_children: list[Node] = []
         if title:
@@ -157,7 +154,7 @@ def render_modal_overlay(
             )
         )
 
-    # Corps — tous les enfants capturés dans le ``with``.
+    # Body — every child captured in the ``with``.
     body_nodes = list(component._render_children())
     if body_nodes:
         panel_children.append(
@@ -170,10 +167,10 @@ def render_modal_overlay(
 
     panel = Element(tag="div", attrs=panel_attrs, children=tuple(panel_children))
 
-    # ── Conteneur ────────────────────────────────────────────────────
-    # Il place le panneau et fournit la surface de clic-dehors. On n'y
-    # met PAS ``bz-on:click`` : le panneau est son enfant, le clic
-    # remonterait — c'est le backdrop qui porte la fermeture.
+    # ── Container ────────────────────────────────────────────────────
+    # It places the panel and provides the click-outside surface. We do
+    # NOT put ``bz-on:click`` there: the panel is its child, the click
+    # would bubble — it is the backdrop that carries the close.
     container = Element(
         tag="div",
         attrs={
@@ -187,20 +184,20 @@ def render_modal_overlay(
 
     # ── Racine ───────────────────────────────────────────────────────
     attrs = component.emit_attrs()
-    # ``contents`` retire le wrapper du flux de mise en page, pour que
-    # les enfants ``fixed`` s'ancrent sur le viewport et non sur sa boîte.
+    # ``contents`` removes the wrapper from the layout flow, so the
+    # ``fixed`` children anchor on the viewport and not on its box.
     attrs["class"] = "contents"
     if not bound_open:
-        # ``open`` vit dans le scope local, qu'``absorb`` PRÉSERVE à
-        # travers un morph — donc un ``open=state.champ`` piloté par le
-        # SERVEUR serait ignoré au refresh si la clé ne demande pas
-        # ``_serverSync``. On garde sur « backé serveur » : un
-        # ``open=True`` littéral doit, lui, garder son état client à
-        # travers un refresh sans rapport.
+        # ``open`` lives in the local scope, which ``absorb``
+        # PRESERVES across a morph — so an ``open=state.field`` driven by
+        # the SERVER would be ignored on refresh if the key does not ask
+        # for ``_serverSync``. We gate on "server-backed": a literal
+        # ``open=True`` must, for its part, keep its client state across
+        # an unrelated refresh.
         #
-        # Le dialecte unique : ``_value_server_backed`` répond « d'où
-        # vient ma valeur » (et rend False sur un binding, donc il reste
-        # correct même hors de ce ``if``).
+        # The single dialect: ``_value_server_backed`` answers "where
+        # does my value come from" (and returns False on a binding, so it
+        # stays correct even outside this ``if``).
         sync = server_sync_marker(
             "open", enabled=component._value_server_backed("open")
         )
@@ -208,9 +205,9 @@ def render_modal_overlay(
             "{open: " + ("true" if initial_open else "false")
             + (f",{sync}" if sync else "") + "}"
         )
-    # Verrou de scroll + dispatch open/close (bz-effect de racine),
-    # récepteurs de l'API impérative, Échap pour fermer : le câblage
-    # d'overlay partagé (cf. ``base/_wiring.py``).
+    # Scroll lock + open/close dispatch (root bz-effect), imperative
+    # API receivers, Escape to close: the shared overlay wiring (cf.
+    # ``base/_wiring.py``).
     attrs["bz-effect"] = modal_root_effect(open_expr)
     attrs.update(imperative_listeners(open_expr))
     if dismissible and not persistent:

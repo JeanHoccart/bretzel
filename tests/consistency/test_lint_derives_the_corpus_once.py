@@ -4,14 +4,14 @@ Ce que cette gate ferme
 -----------------------
 
 ``bretzel.lint.run`` expose le corpus du passage pour les rares règles
-qui ne peuvent pas juger sur un seul fichier (`valeur-hors-table` doit
+qui ne peuvent pas juger sur un seul fichier (`value-outside-the-table` doit
 savoir ce qu'un ``Theme(components=…)`` déclare *ailleurs*). La
 dérivation qui en découle est la MÊME pour les N modules du passage —
 mais rien n'oblige une règle à s'en souvenir, et une règle qui l'oublie
 rend le passage **quadratique** sans qu'aucun test ne rougisse : le
 verdict est identique, seul le temps change.
 
-Mesuré le 2026-08-27, avant le correctif : `valeur-hors-table`
+Mesuré le 2026-08-27, avant le correctif : `value-outside-the-table`
 reparcourait l'AST des 322 fichiers d'``examples/`` pour chacun de ces
 322 fichiers — **56 s**, payées deux fois dans un ``pytest`` nu (la
 règle seule, puis la baseline), soit ~110 s des 230 s du run rapide.

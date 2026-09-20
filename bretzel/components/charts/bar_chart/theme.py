@@ -4,8 +4,8 @@ Slot inventory :
 
 - ``wrapper``    : outer ``<div>`` hosting the SVG and the legend.
 - ``svg``        : the chart SVG itself.
-- ``bar``        : bar fill — le palier ``--bz-solid``, posé par série
-                   (chaque série reçoit son propre pont).
+- ``bar``        : bar fill — the ``--bz-solid`` step, set per series
+                   (each series gets its own bridge).
 - ``axis``       : axis line stroke + the tick line strokes.
 - ``axis_label`` : tick text fill + sizing.
 - ``gridline``   : faint horizontal helpers behind the bars.
@@ -17,7 +17,7 @@ Slot inventory :
 - ``legend_label``: legend text fill + sizing.
 - ``empty``      : centered "no data" text when the series is empty.
 
-``sizes`` is a dict per palier — height + axis font + bar padding ratio.
+``sizes`` is a dict per step — height + axis font + bar padding ratio.
 ``palette`` is the auto-cycle for multi-series when no per-series color
 is set.
 """
@@ -43,18 +43,18 @@ BAR_CHART_THEME: dict[str, Any] = {
         "axis_label":   "fill-text/60",
         "gridline":     "stroke-text/10",
         # Reference lines — same recipe as LineChart's theme : the
-        # Le pont de la référence porte sa couleur, so
+        # reference's bridge carries its colour, so
         # ``Reference(color="success")`` paints a green threshold
         # while a bare ``Reference(value=...)`` falls back to muted.
         "reference_line":  "stroke-(--bz-solid)/60",
         "reference_label": "fill-(--bz-solid)/80 font-medium",
         "value_label":  "fill-text font-medium",
-        # Étiquette posée DANS un segment coloré (variant stacked_100),
-        # pas au-dessus d'une barre : elle doit contraster avec le
-        # remplissage, d'où ``--bz-on-solid`` (la couleur de premier plan de
-        # la teinte du segment) là où ``value_label`` utilise la couleur
-        # de texte de la page. ``pointer-events-none`` pour ne pas voler
-        # le survol au rect qui porte le tooltip.
+        # A label placed INSIDE a coloured segment (the stacked_100
+        # variant), not above a bar: it must contrast with the fill,
+        # hence ``--bz-on-solid`` (the foreground colour of the segment's
+        # tint) where ``value_label`` uses the page's text colour.
+        # ``pointer-events-none`` so as not to steal the hover from the
+        # rect that carries the tooltip.
         "segment_label": (
             "fill-(--bz-on-solid) font-medium pointer-events-none "
             "select-none"

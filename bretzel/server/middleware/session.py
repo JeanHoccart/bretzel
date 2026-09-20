@@ -38,10 +38,10 @@ class SessionMiddleware:
     ) -> None:
         self.app = app
         self._max_age = max_age_seconds
-        # ``None`` = déduire du scheme de CHAQUE requête. Le middleware
-        # est construit une fois au démarrage, or le transport est une
-        # propriété de la requête : la même app peut être atteinte en
-        # http et en https (proxy, health-check interne).
+        # ``None`` = derive from EACH request's scheme. The middleware
+        # is built once at startup, and the transport is a property of
+        # the request: the same app can be reached over http and over
+        # https (proxy, internal health check).
         self._secure_override = secure
 
     async def __call__(
@@ -71,9 +71,9 @@ class SessionMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # ``auth.login`` / ``auth.logout`` font TOURNER le cookie de
-        # session par le pipeline ``new_cookies`` du contexte de rendu —
-        # on n'émet le nôtre que si on vient d'en frapper un neuf.
+        # ``auth.login`` / ``auth.logout`` ROTATE the session cookie
+        # through the render context's ``new_cookies`` pipeline — we only
+        # emit ours when we have just minted a fresh one.
         cookie_header = _format_session_cookie(
             session_id,
             max_age=self._max_age,
@@ -92,30 +92,29 @@ class SessionMiddleware:
         await self.app(scope, receive, send_with_cookie)
 
 
-#: Le préfixe d'un ``Set-Cookie`` de session, en octets — c'est sous
-#: cette forme que les en-têtes voyagent dans un message ASGI.
+#: The prefix of a session ``Set-Cookie``, in bytes — that is the form
+#: headers travel in inside an ASGI message.
 _SESSION_PREFIX = f"{COOKIE_SESSION}=".encode("latin-1")
 
 
 def _already_written(message: Message) -> bool:
-    """Une couche plus INTERNE a-t-elle déjà posé le cookie de session ?
+    """Has a more INNER layer already set the session cookie?
 
-    Elle seule a raison. Ce middleware est le plus externe, donc son
-    ``Set-Cookie`` serait ajouté en DERNIER — et pour un même nom, c'est
-    la dernière valeur que le navigateur garde. Sans ce test, une
-    connexion sur une requête **sans session préalable** partait avec
-    deux ``Set-Cookie: Bretzel_session`` : celui qu'on vient de frapper,
-    et celui vers lequel ``auth.login`` a fait tourner la session. Le
-    nôtre gagnait.
+    It alone is right. This middleware is the outermost, so its
+    ``Set-Cookie`` would be added LAST — and for one name, it is the last
+    value the browser keeps. Without this test, a sign-in on a request
+    **with no prior session** went out with two
+    ``Set-Cookie: Bretzel_session``: the one we had just minted, and the
+    one ``auth.login`` had rotated the session to. Ours won.
 
-    Ce n'était pas qu'une inélégance : pendant cette requête, l'état de
-    portée session s'écrit sous l'identifiant tourné, celui que le
-    navigateur n'allait justement pas garder — donc un brouillon posé
-    dans le handler de connexion se perdait à la page suivante. Et la
-    rotation anti-fixation, elle, n'était plus qu'une intention.
+    That was not merely inelegant: during that request, session-scoped
+    state is written under the rotated identifier, the very one the
+    browser was not going to keep — so a draft set in the sign-in handler
+    was lost on the next page. And the anti-fixation rotation was no more
+    than an intention.
 
-    Mesuré le 2026-08-24, sur une connexion au tout premier hit :
-    deux en-têtes, le second effaçant le premier.
+    Measured on 2026-08-24, on a sign-in at the very first hit: two
+    headers, the second erasing the first.
     """
     return any(
         key == b"set-cookie" and value.startswith(_SESSION_PREFIX)

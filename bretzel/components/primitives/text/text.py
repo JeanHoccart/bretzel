@@ -156,5 +156,5 @@ class Text(Component):
             if template:
                 parts.append(template)
 
-        # ``classes=`` posé par le wrap métaclasse — pas ici (doublon).
+        # ``classes=`` set by the metaclass wrap — not here (duplicate).
         return " ".join(p for p in parts if p).strip()

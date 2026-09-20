@@ -194,7 +194,7 @@ def action_attrs(
       ``sig`` (via ``register_action`` → ``sign_action(ts=ctx.render_ts)``).
       It **must** ride along or the server verifies the sig against an
       empty ts and 403s every call. Rather than make every call site
-      re-thread ``ctx.render_ts`` (the "data-bz-ts oublié" trap that broke
+      re-thread ``ctx.render_ts`` (the "forgotten data-bz-ts" trap that broke
       table row-clicks + chart slices), ``ts`` defaults to the SAME active
       context's ``render_ts`` — so it's correct-by-construction and cannot
       be forgotten. Pass an explicit ``ts`` only to override (or ``""`` to
@@ -239,50 +239,49 @@ def item_action_attrs(
     guard: str | None = None,
     modifier: str | None = None,
 ) -> dict[str, Any]:
-    """Router un ``on_*`` posé sur un ÉLÉMENT INTERNE, pas sur la racine.
+    """Route an ``on_*`` set on an INTERNAL ELEMENT, not on the root.
 
-    Le socle route déjà les handlers d'un event déclaré — mais il les
-    pose sur la RACINE, parce qu'un élément porte UN ``hx-post``. Quatre
-    composants ont un event par ÉLÉMENT : une ligne de ``ui.table``, une
-    barre de ``ui.bar_chart``, une part de ``ui.pie_chart``, un nœud de
-    ``ui.diagram``. Chacun doit lier sa propre donnée dans l'appel, donc
-    aucun ne peut passer par le socle.
+    The base layer already routes a declared event's handlers — but it
+    sets them on the ROOT, because an element carries ONE ``hx-post``.
+    Four components have a per-ELEMENT event: a ``ui.table`` row, a
+    ``ui.bar_chart`` bar, a ``ui.pie_chart`` slice, a ``ui.diagram``
+    node. Each must bind its own data into the call, so none can go
+    through the base layer.
 
-    Les quatre recopiaient le même ``partial`` + ``register_action``, et
-    les quatre avaient le même trou : seul un CALLABLE marchait. Une
-    chaîne d'expression cliente — la deuxième des trois formes que tout
-    ``on_*`` du framework accepte — y levait un ``TypeError`` remonté nu
-    de ``functools.partial``, sans nommer le composant ni la prop.
-    Mesuré le 2026-09-06 sur les trois composants livrés
+    All four copied the same ``partial`` + ``register_action``, and all
+    four had the same hole: only a CALLABLE worked. A client expression
+    string — the second of the three shapes any framework ``on_*``
+    accepts — raised a ``TypeError`` surfaced bare from
+    ``functools.partial``, naming neither the component nor the prop.
+    Measured on 2026-09-06 on the three shipped components
     (``.claude/work/audit-declaration-2026-09-06.md``).
 
-    ``bind`` reçoit le callable et rend la version liée à CET élément —
-    c'est le seul morceau qui diffère d'un appelant à l'autre
-    (``partial(fn, label, value)`` pour une barre, ``partial(fn, key)``
-    pour une ligne).
+    ``bind`` receives the callable and returns the version bound to THIS
+    element — it is the only piece that differs from one caller to the
+    next (``partial(fn, label, value)`` for a bar, ``partial(fn, key)``
+    for a row).
 
-    ⚠️ ``dom_event`` existe parce que le nom DÉCLARÉ et l'event du
-    navigateur peuvent différer : ``ui.table`` déclare ``item_click``
-    mais ce qui arrive dans le DOM est un ``click``. Sans lui, la part
-    cliente atterrissait sur ``bz-on:item_click`` — un listener pour un
-    event que personne ne dispatche, donc une expression parfaitement
-    formée qui ne tire jamais. Le défaut le plus cher de la série :
-    silencieux dans les deux sens.
+    ⚠️ ``dom_event`` exists because the DECLARED name and the browser's
+    event can differ: ``ui.table`` declares ``item_click`` but what
+    arrives in the DOM is a ``click``. Without it, the client part landed
+    on ``bz-on:item_click`` — a listener for an event nobody dispatches,
+    so a perfectly formed expression that never fires. The costliest
+    defect of the series: silent in both directions.
 
-    ``modifier`` est le ``delay:`` / ``throttle:`` que ``debounce=`` et
-    ``throttle=`` posent sur l'instance (``self._trigger_modifier``). Le
-    socle l'applique tout seul à l'action de la RACINE ; sur une action
-    par élément, seul l'appelant peut le transmettre — et tant qu'aucun
-    des quatre ne le faisait, le kwarg était accepté puis perdu.
+    ``modifier`` is the ``delay:`` / ``throttle:`` that ``debounce=`` and
+    ``throttle=`` set on the instance (``self._trigger_modifier``). The
+    base layer applies it by itself to the ROOT's action; on a
+    per-element action, only the caller can pass it on — and as long as
+    none of the four did, the kwarg was accepted then lost.
 
-    ``guard`` est une condition JS qui enveloppe la part cliente, pour
-    qu'elle respecte le même filtre que la part serveur — un clic sur un
-    bouton DANS une ligne ne doit déclencher ni l'une ni l'autre.
+    ``guard`` is a JS condition that wraps the client part, so it
+    respects the same filter as the server part — a click on a button
+    INSIDE a row must fire neither.
 
-    Rend les attributs à fusionner sur l'élément : ``hx-post`` et sa
-    signature pour la part serveur, ``bz-on:<event>`` pour la part
-    cliente. Les deux cohabitent — une liste ``[callable, "expr"]`` les
-    câble tous les deux, dans l'ordre écrit.
+    Returns the attributes to merge onto the element: ``hx-post`` and its
+    signature for the server part, ``bz-on:<event>`` for the client part.
+    Both coexist — a ``[callable, "expr"]`` list wires them both, in the
+    order written.
     """
     handlers = list(handler) if isinstance(handler, (list, tuple)) else [handler]
     attrs: dict[str, Any] = {}
@@ -295,20 +294,20 @@ def item_action_attrs(
             continue
         if not callable(one):
             raise HandlerError(
-                f"on_{event}= a reçu {type(one).__name__}. Attendu : un "
-                f"callable de niveau module (action serveur), une chaîne "
-                f"(expression cliente), ou une liste des deux."
+                f"on_{event}= received {type(one).__name__}. Expected: a "
+                f"module-level callable (server action), a string (client "
+                f"expression), or a list of both."
             )
         if ctx is None:
             continue
-        # ``dom_event`` vaut aussi pour la part SERVEUR : `hx-trigger`
-        # est un event du NAVIGATEUR. Tant que le nom déclaré et celui du
-        # DOM coïncidaient, personne ne le voyait — `ui.table` corrigeait
-        # d'ailleurs son `hx-trigger` À LA MAIN juste après cet appel, ce
-        # qui était le symptôme. Le premier renommage vers `item_click` a
-        # rendu la faute visible : `hx-trigger="item_click"`, un event que
-        # rien ne dispatche. L'identité de l'action, elle, garde le nom
-        # DÉCLARÉ — c'est elle qui doit correspondre à `EVENTS`.
+        # ``dom_event`` applies to the SERVER part too: `hx-trigger` is
+        # a BROWSER event. As long as the declared name and the DOM's
+        # coincided, nobody saw it — `ui.table` was in fact fixing its
+        # `hx-trigger` BY HAND right after this call, which was the
+        # symptom. The first rename to `item_click` made the fault
+        # visible: `hx-trigger="item_click"`, an event nothing
+        # dispatches. The action's identity, for its part, keeps the
+        # DECLARED name — it is what must match `EVENTS`.
         attrs.update(
             action_attrs(
                 dom_event or event,
@@ -317,16 +316,16 @@ def item_action_attrs(
             )
         )
         if guard:
-            # La garde vaut pour les DEUX parts. `ui.table` la posait à
-            # la main juste après cet appel, en écrasant `hx-trigger` —
-            # une réparation locale d'un routeur qui savait déjà, dans
-            # sa part cliente, ce qu'il ne faisait pas dans la sienne.
+            # The guard applies to BOTH parts. `ui.table` set it by
+            # hand right after this call, overwriting `hx-trigger` — a
+            # local repair of a router that already knew, in its client
+            # part, what it was not doing in its own.
             #
-            # ⚠️ Et l'écrasement emportait le MODIFICATEUR avec lui :
-            # `debounce=` sur une action par élément était accepté puis
-            # perdu. La garde et le délai cohabitent dans la syntaxe
-            # HTMX — `click[filtre] delay:300ms` — il fallait juste les
-            # écrire tous les deux (2026-09-07).
+            # ⚠️ And the overwrite took the MODIFIER with it:
+            # `debounce=` on a per-element action was accepted then
+            # lost. The guard and the delay coexist in HTMX's syntax —
+            # `click[filter] delay:300ms` — they just had to be written
+            # both (2026-09-07).
             trigger = f"{dom_event or event}[{guard}]"
             attrs["hx-trigger"] = f"{trigger} {modifier}" if modifier else trigger
     if client:
@@ -344,8 +343,8 @@ def pending(
 ) -> ClientExpression:
     """Return a client expression indicating whether an action is in flight."""
     target = "$el" if handler is None else json.dumps(encode_handler_id(handler))
-    # ``ssr_value=False`` : aucune requête ne peut être en vol quand le
-    # serveur rend. Sans lui, un ``visible=ui.pending(...)`` s'affiche à
-    # CHAQUE chargement jusqu'à ce que le runtime évalue — un
-    # clignotement, sur le mécanisme fait pour les éviter.
+    # ``ssr_value=False``: no request can be in flight when the server
+    # renders. Without it, a ``visible=ui.pending(...)`` shows on EVERY
+    # load until the runtime evaluates — a flicker, on the very
+    # mechanism made to avoid them.
     return ClientExpression(f"$bz.pending({target}, {int(after)})", ssr_value=False)

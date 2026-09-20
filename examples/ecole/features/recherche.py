@@ -1,19 +1,17 @@
-"""features/recherche — page : trouver un élève par son nom ou son prénom.
+"""features/recherche — page: find a pupil by surname or first name.
 
-EF-C7 : *« recherche par nom ou prénom, sur toutes les classes de
-l'année. Nom et prénom restent DISTINCTS : un élève qui s'appelle LEA de
-son nom ne doit pas se confondre avec une Léa de prénom. »*
+EF-C7: *"search by surname or first name, across every class of the
+year. Surname and first name stay DISTINCT: a pupil whose surname is LEA
+must not be confused with a Léa by first name."*
 
-Cette dernière phrase est la seule chose difficile de l'écran, et elle se
-joue dans le SQL (``eleves_data.chercher``) : les deux colonnes sont
-comparées séparément. Un ``nom || prenom LIKE`` les fondrait, et « lea »
-trouverait les deux — ce qui est peut-être pratique et n'est pas ce qui
-est demandé.
+That last sentence is the only hard thing on the screen, and it is played
+out in the SQL (``eleves_data.chercher``): the two columns are compared
+separately. A ``nom || prenom LIKE`` would merge them, and "lea" would
+find both — which may be convenient and is not what is asked for.
 
-⚠️ **La recherche est dans l'adresse** (EF-U1 : *« le tri d'une liste, la
-recherche en cours »*). Un résultat se renvoie donc par lien, ce qui est
-exactement le geste de quelqu'un qui cherche un élève pour quelqu'un
-d'autre.
+⚠️ **The search is in the address** (EF-U1: *"a list's sort, the search
+in progress"*). A result is therefore sent back by link, which is exactly
+the gesture of somebody looking up a pupil for somebody else.
 """
 
 from __future__ import annotations
@@ -28,16 +26,17 @@ PATH = "/recherche"
 
 
 class Recherche(PageState, addressable=True):
-    """Ce qu'on cherche. ``q``, comme partout ailleurs sur le web."""
+    """What is being searched for. ``q``, as everywhere else on the web."""
 
     q: str = field(default="", url="q")
 
 
 def lancer(etat: Recherche) -> None:
-    """Le corps est vide **et c'est le mécanisme** : le socle a hydraté
-    ``etat.q`` avant l'appel, et la mutation seule re-rend la zone qui
-    déclare ``deps=[Recherche]``. Le paramètre TYPÉ est ce qui hydrate —
-    sans lui, le handler répondrait zéro octet."""
+    """The body is empty **and that is the mechanism**: the base layer
+    hydrated ``etat.q`` before the call, and the mutation alone
+    re-renders the zone declaring ``deps=[Recherche]``. The TYPED
+    parameter is what hydrates — without it, the handler would answer
+    zero bytes."""
 
 
 @refreshable(deps=[AnneeVue, Recherche])

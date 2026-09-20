@@ -1,13 +1,13 @@
 """``FormField`` — wraps an input with label / hint / error display.
 
-L'inférence d'erreur est **implémentée** : ``_infer_child_error()`` lit
-``owner.errors[field_name]`` via le stamp ``AUTONAME_FROM`` de l'enfant, et
-``render()`` l'appelle — donc ``ui.input(value=form.email)`` dans un
-``form_field`` remonte tout seul ``form.errors["email"]``, sans ``error=``
-explicite. ``error`` et ``hint`` sont par ailleurs bindables
+Error inference is **implemented**: ``_infer_child_error()`` reads
+``owner.errors[field_name]`` through the child's ``AUTONAME_FROM`` stamp,
+and ``render()`` calls it — so a ``ui.input(value=form.email)`` inside a
+``form_field`` surfaces ``form.errors["email"]`` by itself, with no
+explicit ``error=``. ``error`` and ``hint`` are bindable besides
 (``BINDABLE_PROPS``).
 
-Un ``error="…"`` explicite reste possible et gagne sur l'inférence.
+An explicit ``error="…"`` stays possible and beats the inference.
 
 Usage ::
 
@@ -54,7 +54,7 @@ class FormField(Component):
         name: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             label=label, hint=hint, error=error,
             required=required, name=name,

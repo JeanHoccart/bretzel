@@ -1,160 +1,162 @@
-# auth — les quatre façons d'entrer, une seule identité en sortie
+# auth — four ways in, one identity out
 
-Une app, quatre chemins d'authentification, et **le même `auth.user_id()`
-au bout des quatre**. C'est le partage que Bretzel tient : le framework
-possède l'identité et son transport (le cookie signé, la chaîne de
-lecture) ; l'app possède la preuve (le mot de passe, la table, la
-décision d'accepter).
+One app, four authentication paths, and **the same `auth.user_id()` at
+the end of all four**. This is the split Bretzel holds: the framework
+owns the identity and its transport (the signed cookie, the reading
+chain); the app owns the proof (the password, the table, the decision to
+accept).
 
-L'écran de connexion affiche l'état des quatre — inutile de relire le
-code pour savoir ce qui est branché.
+The sign-in screen shows the state of all four — no need to re-read the
+code to know what is wired.
 
 ---
 
-## Tout allumé, en une commande
+## Everything on, in one command
 
 ```powershell
 py -m examples.auth.demo
 ```
 
-Elle démarre le fournisseur OIDC local **et** l'app, avec les variables
-déjà posées : les quatre façons sont actives, `http://127.0.0.1:8012`,
-et Ctrl+C ferme les deux. C'est la voie à prendre pour essayer.
+It starts the local OIDC provider **and** the app, with the variables
+already set: the four ways are live on `http://127.0.0.1:8012`, and
+Ctrl+C closes both. This is the way to try it.
 
-Le reste de cette page démonte cette commande — chaque façon séparément,
-et ce qu'il faut poser pour la brancher sur un vrai fournisseur.
+The rest of this page takes that command apart — each way on its own,
+and what to set to wire it to a real provider.
 
 ---
 
-## 1. Mot de passe — rien à configurer
+## 1. Password — nothing to configure
 
 ```powershell
 py -m examples.auth.main
 ```
 
-`http://127.0.0.1:8012` → `jean@macorp.fr` ou `ada@macorp.fr`, mot de
-passe `demo`.
+`http://127.0.0.1:8012` → `jean@macorp.fr` or `ada@macorp.fr`, password
+`demo`.
 
-L'app vérifie, `auth.login(user_id)` transporte. C'est tout ce que le
-framework fait ici.
+The app checks, `auth.login(user_id)` transports. That is all the
+framework does here.
 
-## 2. Un jeton de machine — sans navigateur
+## 2. A machine token — no browser
 
-Aucune session, aucun cookie : le porteur EST la preuve, revérifié à
-chaque requête. `@auth.source` dans [`features/access.py`](features/access.py).
+No session, no cookie: the bearer IS the proof, re-checked on every
+request. `@auth.source` in [`features/access.py`](features/access.py).
 
 ```powershell
-curl.exe -s -H "Authorization: Bearer jeton-demo" http://127.0.0.1:8012/moi
+curl.exe -s -H "Authorization: Bearer demo-token" http://127.0.0.1:8012/me
 ```
 
 ```
-user_id     : u-2
-adresse     : ada@macorp.fr
-reconnu par : jeton de machine (Authorization: Bearer)
+user_id      : u-2
+address      : ada@macorp.fr
+recognised by: machine token (Authorization: Bearer)
 ```
 
-⚠️ `curl.exe` et pas `curl` : sous Windows PowerShell, `curl` est un
-**alias d'`Invoke-WebRequest`**, qui ne comprend ni `-s` ni `-H`.
+⚠️ `curl.exe` and not `curl`: under Windows PowerShell, `curl` is an
+**alias for `Invoke-WebRequest`**, which understands neither `-s` nor `-H`.
 
-`/moi` est **derrière la garde**, exprès : sans l'en-tête, la même
-commande ne rend rien (302 vers `/login`). Voir ces trois lignes prouve
-donc que la garde a lu le jeton — pas que la route serait ouverte.
+`/me` is **behind the guard**, on purpose: without the header, the same
+command returns nothing (302 to `/login`). Seeing those three lines
+therefore proves the guard read the token — not that the route would be
+open.
 
-## 3. Une porte OAuth / OIDC — sans compte chez personne
+## 3. An OAuth / OIDC door — without an account anywhere
 
-Un vrai fournisseur OIDC tourne en local
-([`local_idp.py`](local_idp.py) : découverte, écran de consentement,
-PKCE vérifié, `id_token` signé). **Deux terminaux** — ou la commande
-unique ci-dessus, qui fait exactement ça.
+A real OIDC provider runs locally ([`local_idp.py`](local_idp.py):
+discovery, consent screen, PKCE checked, signed `id_token`). **Two
+terminals** — or the single command above, which does exactly that.
 
 ```powershell
 py -m examples.auth.local_idp
 ```
 
-Il **ne rend pas la main** — c'est normal, c'est un serveur. Tu dois voir :
+It **does not hand control back** — that is normal, it is a server. You
+should see:
 
 ```
-Fournisseur OIDC de test — issuer http://localhost:8954
-  découverte : http://localhost:8954/.well-known/openid-configuration
+Test OIDC provider — issuer http://localhost:8954
+  discovery : http://localhost:8954/.well-known/openid-configuration
   ...
 INFO:     Uvicorn running on http://127.0.0.1:8954 (Press CTRL+C to quit)
 ```
 
-Si le port est pris : `$env:BZ_IDP_PORT="8964"` (l'issuer suit le port,
-et il faudra le reporter dans `BZ_OIDC_ISSUER` ci-dessous).
+If the port is taken: `$env:BZ_IDP_PORT="8964"` (the issuer follows the
+port, and it has to be carried into `BZ_OIDC_ISSUER` below).
 
 ```powershell
 $env:BZ_OIDC_NAME="testidp"; $env:BZ_OIDC_ISSUER="http://localhost:8954"; $env:BZ_OIDC_CLIENT_ID="bretzel-test-client"; $env:BZ_OIDC_CLIENT_SECRET="bretzel-test-secret"; py -m examples.auth.main
 ```
 
-Sur `/login`, un bouton « Continuer avec testidp » apparaît. Le
-fournisseur propose deux comptes :
+On `/login`, a “Continue with testidp” button appears. The provider
+offers two accounts:
 
-- **jean@macorp.fr** → accepté, et il retombe sur `u-1` — le même compte
-  que le mot de passe atteint. Une porte prouve une **adresse** ; c'est
-  l'app qui joint sa table ;
-- **someone@ailleurs.com** → refusé et renvoyé sur `/login`, parce que
-  `on_user` rend `None` hors du domaine autorisé. Sans ce filtre, une
-  porte est ouverte à toute personne ayant un compte chez le fournisseur.
+- **jean@macorp.fr** → accepted, and it lands on `u-1` — the same account
+  the password reaches. A door proves an **address**; the app is what
+  joins its table;
+- **someone@elsewhere.com** → refused and sent back to `/login`, because
+  `on_user` returns `None` outside the allowed domain. Without that
+  filter, a door is open to anyone holding an account at the provider.
 
-⚠️ Le fournisseur est sur `localhost` et l'app sur `127.0.0.1` : deux
-**sites** différents pour le navigateur, donc le retour est inter-site —
-ce qui met le `SameSite=lax` du cookie de transaction sous contrainte
-réelle. Deux ports du même hôte n'auraient rien prouvé.
+⚠️ The provider is on `localhost` and the app on `127.0.0.1`: two
+different **sites** for the browser, so the return trip is cross-site —
+which puts the transaction cookie's `SameSite=lax` under real strain. Two
+ports of the same host would have proved nothing.
 
-### Le vrai Google / Microsoft / GitHub
+### The real Google / Microsoft / GitHub
 
-Aucune ligne de code à changer, seulement l'environnement :
+Not a line of code to change, only the environment:
 
-| fournisseur | ce qu'on pose |
+| provider | what to set |
 |---|---|
 | Google | `BZ_OIDC_ISSUER=https://accounts.google.com` |
 | Microsoft Entra | `BZ_OIDC_ISSUER=https://login.microsoftonline.com/<tenant>/v2.0` |
-| Auth0 | `BZ_OIDC_ISSUER=https://<domaine>.eu.auth0.com` |
-| Keycloak | `BZ_OIDC_ISSUER=https://<hôte>/realms/<realm>` |
-| GitHub (pas d'OIDC) | les `BZ_OAUTH2_*`, cf. [`core/domain.py`](core/domain.py) |
+| Auth0 | `BZ_OIDC_ISSUER=https://<domain>.eu.auth0.com` |
+| Keycloak | `BZ_OIDC_ISSUER=https://<host>/realms/<realm>` |
+| GitHub (no OIDC) | the `BZ_OAUTH2_*`, cf. [`core/domain.py`](core/domain.py) |
 
-Plus `BZ_OIDC_CLIENT_ID` / `BZ_OIDC_CLIENT_SECRET`, et **l'URI de
-redirection à déclarer chez eux** :
+Plus `BZ_OIDC_CLIENT_ID` / `BZ_OIDC_CLIENT_SECRET`, and **the redirect
+URI to declare on their side**:
 `http://127.0.0.1:8012/auth/<BZ_OIDC_NAME>/callback`.
 
-## 4. Un proxy SSO — l'identité arrive par en-tête
+## 4. An SSO proxy — the identity arrives in a header
 
-oauth2-proxy, Google IAP, Cloudflare Access : l'authentification a eu
-lieu avant d'atteindre l'app, le proxy l'atteste par un en-tête.
+oauth2-proxy, Google IAP, Cloudflare Access: authentication happened
+before reaching the app, and the proxy attests it with a header.
 
 ```powershell
 $env:BZ_TRUST_PROXY_HEADER="1"; py -m examples.auth.main
 ```
 
 ```powershell
-curl.exe -s -H "X-Remote-User: jean@macorp.fr" http://127.0.0.1:8012/moi
+curl.exe -s -H "X-Remote-User: jean@macorp.fr" http://127.0.0.1:8012/me
 ```
 
 ```
-user_id     : u-1
-adresse     : jean@macorp.fr
-reconnu par : en-tête de proxy (X-Remote-User)
+user_id      : u-1
+address      : jean@macorp.fr
+recognised by: proxy header (X-Remote-User)
 ```
 
-⚠️ **Éteinte par défaut, et c'est le sujet.** Un en-tête est déclaratif :
-n'importe qui peut l'envoyer. Elle ne vaut que derrière un proxy qui
-l'écrase à chaque requête — sans ça, `curl -H` est une porte d'entrée.
-L'interrupteur est explicite pour que l'oubli **ferme** au lieu d'ouvrir.
+⚠️ **Off by default, and that is the point.** A header is declarative:
+anyone can send one. It is only worth something behind a proxy that
+overwrites it on every request — without that, `curl -H` is a way in.
+The switch is explicit so that forgetting it **closes** instead of
+opening.
 
 ---
 
-## Ce que l'app démontre, en une ligne par fichier
+## What the app demonstrates, one line per file
 
-| fichier | ce qu'il porte |
+| file | what it carries |
 |---|---|
-| [`features/access.py`](features/access.py) | les deux moitiés : `@auth.source` (qui es-tu) et `@auth.door` (comment on entre) |
-| [`features/login.py`](features/login.py) | la page publique, et l'état des quatre façons |
-| [`features/home.py`](features/home.py) | un `UserState` — il marche à l'identique quelle que soit la porte |
-| [`main.py`](main.py) | la garde middleware, et `app.public_paths` qui lui évite d'énumérer le framework |
-| [`core/domain.py`](core/domain.py) | la table, le domaine autorisé, la config lue dans l'environnement |
+| [`features/access.py`](features/access.py) | the two halves: `@auth.source` (who are you) and `@auth.door` (how one gets in) |
+| [`features/login.py`](features/login.py) | the public page, and the state of the four ways |
+| [`features/home.py`](features/home.py) | a `UserState` — it works identically whichever door was used |
+| [`main.py`](main.py) | the middleware guard, and `app.public_paths` which spares it from enumerating the framework |
+| [`core/domain.py`](core/domain.py) | the table, the allowed domain, the config read from the environment |
 
-## La vérification automatique
+## The automatic check
 
 ```powershell
 py tests/probes/probe_auth.py
@@ -164,8 +166,7 @@ py tests/probes/probe_auth.py
 py tests/probes/probe_oauth_door.py
 ```
 
-Le premier conduit le mot de passe dans Chromium (garde, tab order, refus,
-connexion, `UserState`, déconnexion). Le second conduit le flux OIDC
-complet contre `local_idp` — c'est **le même fournisseur que celui qu'on
-clique à la main**, exprès : celui qu'on mesure doit être celui qu'on
-essaie.
+The first drives the password path in Chromium (guard, tab order,
+refusal, sign-in, `UserState`, sign-out). The second drives the full OIDC
+flow against `local_idp` — it is **the same provider one clicks by
+hand**, on purpose: what you measure must be what you try.

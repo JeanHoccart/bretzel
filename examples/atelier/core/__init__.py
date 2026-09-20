@@ -1,1 +1,1 @@
-"""core/ — ce qui ne rend rien : la base, l'aspiration, le classement."""
+"""core/ — what renders nothing: the database, the ingest, the sorting."""

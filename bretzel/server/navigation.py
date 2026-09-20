@@ -1,43 +1,42 @@
-"""Envoyer le navigateur ailleurs — depuis un handler ou depuis un middleware.
+"""Sending the browser elsewhere — from a handler or from a middleware.
 
-Pourquoi un module, et pourquoi celui-ci
------------------------------------------
-``server/`` donne son module nommé à chaque helper appelable : ``auth.py``,
-``idempotency.py``. ``redirect`` faisait exception et cohabitait dans
-``errors.py`` — dont le docstring avait dû s'élargir en « les sorties
-non-nominales d'un handler » pour l'accueillir. Or une redirection après
-un enregistrement réussi est la sortie **nominale** : c'est le cas
-d'usage central de la fonction. Le nom du fichier disait le contraire de
-ce que le code fait.
+Why a module, and why this one
+------------------------------
+``server/`` gives each callable helper its named module: ``auth.py``,
+``idempotency.py``. ``redirect`` was the exception and shared
+``errors.py`` — whose docstring had had to widen into "a handler's
+non-nominal exits" to accommodate it. And a redirect after a successful
+sign-up is the **nominal** exit: it is the function's central use case.
+The file name said the opposite of what the code does.
 
-Les deux publics, et pourquoi il faut les deux
-------------------------------------------------
-Une app Bretzel envoie le navigateur ailleurs depuis **deux** endroits, et
-ils n'ont pas les mêmes moyens :
+The two audiences, and why both are needed
+------------------------------------------
+A Bretzel app sends the browser elsewhere from **two** places, and they
+do not have the same means:
 
-- **un handler** — il a un :class:`RenderContext`, donc :func:`redirect`
-  lui suffit : elle pose l'en-tête sur la réponse en cours ;
-- **un middleware utilisateur** — il n'en a pas. Il est monté le plus
-  EXTERNE (``lifecycle.py`` : « user middlewares last so they wrap
-  everything above »), donc à l'inbound il tourne AVANT
-  ``RenderContextMiddleware`` : ``current_context()`` lève. C'est là que
-  vit la garde d'auth (« pas connecté → /login »), c'est-à-dire le cas de
-  redirection le plus courant d'une vraie app.
+- **a handler** — it has a :class:`RenderContext`, so :func:`redirect` is
+  enough for it: it sets the header on the response in progress;
+- **a user middleware** — it has none. It is mounted the OUTERMOST
+  (``lifecycle.py``: "user middlewares last so they wrap everything
+  above"), so on the inbound it runs BEFORE
+  ``RenderContextMiddleware``: ``current_context()`` raises. That is
+  where the auth guard lives ("not signed in → /login"), that is to say
+  the most common redirect case of a real app.
 
-Sans ce module, ce second public n'avait rien à appeler — seulement
-quelque chose à recopier. Et ce qu'il aurait recopié est le piège
-non-évident du sujet : **un middleware voit deux natures de requête.**
+Without this module, that second audience had nothing to call — only
+something to copy. And what it would have copied is the subject's
+non-obvious trap: **a middleware sees two natures of request.**
 
-Sur un GET de page, il faut une vraie ``302``. Sur un POST d'action venant
-du bridge, il faut un ``200`` + ``HX-Redirect`` : une 302 serait suivie de
-façon transparente par ``fetch``, et le HTML de ``/login`` finirait swappé
-**dans le bouton** qui a déclenché l'action. Chaque utilisateur
-redécouvrirait ça au débogage.
+On a page GET, a real ``302`` is needed. On an action POST coming from
+the bridge, a ``200`` + ``HX-Redirect`` is needed: a 302 would be
+followed transparently by ``fetch``, and ``/login``'s HTML would end up
+swapped **into the button** that triggered the action. Every user would
+rediscover that while debugging.
 
-:func:`redirect_response` est donc l'unité réutilisable — « envoyer ce
-navigateur ailleurs, vu la nature de CETTE requête » — et :func:`redirect`
-en devient l'enveloppe fine liée au contexte. Une seule décision
-302-vs-200, écrite une fois.
+:func:`redirect_response` is therefore the reusable unit — "send this
+browser elsewhere, given the nature of THIS request" — and
+:func:`redirect` becomes its thin context-bound wrapper. A single
+302-vs-200 decision, written once.
 """
 
 from __future__ import annotations
@@ -56,26 +55,26 @@ __all__ = [
     "response_is_read_by_htmx",
 ]
 
-#: Caractères qui, dans une valeur d'en-tête, coupent l'en-tête et laissent
-#: écrire les suivants (response splitting). Une URL de redirection vient
-#: souvent d'une donnée utilisateur (``?next=``), donc on refuse plutôt que
-#: de faire confiance à la couche du dessous.
+#: Characters which, in a header value, cut the header and let the
+#: following ones be written (response splitting). A redirect URL often
+#: comes from user data (``?next=``), so we refuse rather than trust the
+#: layer below.
 _HEADER_UNSAFE = ("\r", "\n", "\0")
 
-#: L'en-tête qu'htmx traite nativement (``render/shell.py`` charge htmx en
-#: entier). Il n'y a donc AUCUN code runtime Bretzel derrière tout ce
-#: module.
+#: The header htmx handles natively (``render/shell.py`` loads htmx in
+#: full). So there is NO Bretzel runtime code behind this whole module.
 _HX_REDIRECT = "HX-Redirect"
 
-#: Le TROISIÈME membre de la famille — celui qui change l'adresse SANS
-#: naviguer. ``HX-Redirect`` fait aller ailleurs, ``HX-Refresh`` fait
-#: recharger, ``HX-Push-Url`` se contente d'empiler une entrée
-#: d'historique sur la page qu'on regarde déjà.
+#: The THIRD member of the family — the one that changes the address
+#: WITHOUT navigating. ``HX-Redirect`` goes elsewhere, ``HX-Refresh``
+#: reloads, ``HX-Push-Url`` merely stacks a history entry on the page one
+#: is already looking at.
 #:
-#: C'est ce qui manquait pour qu'une vue ait une adresse : le contenu
-#: arrive par le swap de l'action, l'adresse par cet en-tête, et le
-#: bouton retour redemande l'URL au serveur (le cache htmx est à zéro,
-#: cf. ``render/shell.py``) qui la relit et rend la même vue.
+#: That is what was missing for a view to have an address: the content
+#: arrives through the action's swap, the address through this header,
+#: and the back button asks the server for the URL again (htmx's cache is
+#: at zero, cf. ``render/shell.py``), which reads it back and renders the
+#: same view.
 _HX_PUSH_URL = "HX-Push-Url"
 
 
@@ -84,41 +83,41 @@ def _validate(url: str) -> None:
         raise TypeError("redirect() expects a non-empty URL")
     if any(ch in url for ch in _HEADER_UNSAFE):
         raise ValueError(
-            "L'URL de redirection contient un caractère de contrôle "
-            "(CR / LF / NUL) — refusé : dans un en-tête, il permettrait "
-            "d'en écrire d'autres."
+            "The redirect URL contains a control character (CR / LF / "
+            "NUL) — refused: inside a header, it would allow others to "
+            "be written."
         )
 
 
 def response_is_read_by_htmx(request: Any) -> bool:
-    """``True`` si htmx traitera les en-têtes de la réponse à ``request``.
+    """``True`` when htmx will handle the headers of the response to ``request``.
 
-    Le marqueur est l'en-tête ``HX-Request``, qu'htmx pose sur toute
-    requête qu'il émet. Comparaison à ``"true"`` et non à ``None`` : c'est
-    la valeur qu'htmx envoie, et c'est déjà la lecture que fait
-    ``server/routing/pages.py``.
+    The marker is the ``HX-Request`` header, which htmx sets on every
+    request it issues. Compared to ``"true"`` and not to ``None``: that
+    is the value htmx sends, and it is already the reading
+    ``server/routing/pages.py`` makes.
 
-    Le ``getattr`` sur ``.headers`` suit la convention de
-    ``auth.request_scheme`` : les stubs bas niveau des tests unitaires
-    passent ``request=object()``, donc l'absence de ``headers`` est le
-    seul cas réel à absorber. Une requête sans en-têtes est traitée comme
-    non-htmx : le défaut sûr est celui qui parle.
+    The ``getattr`` on ``.headers`` follows ``auth.request_scheme``'s
+    convention: the unit tests' low-level stubs pass ``request=object()``,
+    so a missing ``headers`` is the only real case to absorb. A request
+    with no headers is treated as non-htmx: the safe default is the one
+    that speaks.
 
-    ⚠️ ``ctx.is_action`` aurait l'air d'un meilleur proxy. Il ne l'est pas,
-    pour deux raisons : il raterait la nav partielle et le rafraîchissement,
-    et surtout **rien ne l'affecte à ``True``** dans le framework. Ce champ
-    réservé est suivi dans ``.claude/work/todo.md``.
+    ⚠️ ``ctx.is_action`` would look like a better proxy. It is not, for
+    two reasons: it would miss partial nav and refresh, and above all
+    **nothing sets it to ``True``** in the framework. That reserved field
+    is tracked in ``.claude/work/todo.md``.
     """
     headers = getattr(request, "headers", None)
     return headers is not None and headers.get("HX-Request") == "true"
 
 
 def redirect_response(request: Any, url: str, *, status_code: int = 302) -> Response:
-    """Une réponse qui envoie ``request`` vers ``url``, quelle que soit sa nature.
+    """A response sending ``request`` to ``url``, whatever its nature.
 
-    **C'est la primitive du middleware.** Elle ne touche à aucun contexte
-    de rendu, donc elle est appelable là où ``redirect()`` ne l'est pas —
-    typiquement une garde d'auth ::
+    **It is the middleware's primitive.** It touches no render context,
+    so it is callable where ``redirect()`` is not — typically an auth
+    guard ::
 
         from bretzel.server.navigation import redirect_response
 
@@ -128,24 +127,25 @@ def redirect_response(request: Any, url: str, *, status_code: int = 302) -> Resp
                 return redirect_response(request, "/login")
             return await call_next(request)
 
-    Elle tranche la seule question qui compte ici, et une fois pour
-    toutes : **qui va lire cette réponse ?**
+    It settles the only question that matters here, and once and for
+    all: **who is going to read this response?**
 
-    - une navigation ordinaire → une vraie ``302``, que le navigateur
-      suit ;
-    - une requête émise par htmx (action, rafraîchissement, nav partielle
-      boostée) → un ``200`` + ``HX-Redirect``. Une 302 y serait suivie de
-      façon **transparente** par ``fetch``, et le HTML de la cible
-      finirait swappé dans l'élément qui a déclenché la requête — le
-      bouton, la ligne de tableau. C'est le bug que tout le monde
-      redécouvre au débogage, et la raison d'être de cette fonction.
+    - an ordinary navigation → a real ``302``, which the browser
+      follows;
+    - a request issued by htmx (action, refresh, boosted partial nav) →
+      a ``200`` + ``HX-Redirect``. A 302 there would be followed
+      **transparently** by ``fetch``, and the target's HTML would end up
+      swapped into the element that triggered the request — the button,
+      the table row. It is the bug everyone rediscovers while debugging,
+      and this function's reason to exist.
 
-    ``status_code`` ne s'applique qu'à la branche navigateur (303 après un
-    POST de formulaire nu, 307/308 pour préserver la méthode).
+    ``status_code`` applies only to the browser branch (303 after a bare
+    form POST, 307/308 to preserve the method).
     """
     _validate(url)
     if response_is_read_by_htmx(request):
-        # Corps vide : htmx lit l'en-tête et navigue, il ne swappe rien.
+        # Empty body: htmx reads the header and navigates, it swaps
+        # nothing.
         return Response(status_code=200, headers={_HX_REDIRECT: url})
     return RedirectResponse(url, status_code=status_code)
 
@@ -158,13 +158,13 @@ def redirect(url: str) -> None:
     ctx = current_context()
     if not response_is_read_by_htmx(ctx.request):
         raise BretzelError(
-            "redirect() n'a d'effet que sur une réponse lue par htmx "
-            "(une action, un rafraîchissement, ou une navigation partielle "
-            "boostée) — la requête courante est un rendu de page classique, "
-            "où l'en-tête HX-Redirect serait ignoré en silence. Depuis un "
-            "middleware, appelle redirect_response(request, url) : il n'a "
-            "pas de contexte de rendu et peut répondre une vraie 302. Pour "
-            "refuser la page plutôt que rediriger, abort(401) + @error_page(401)."
+            "redirect() only has an effect on a response read by htmx "
+            "(an action, a refresh, or a boosted partial navigation) — "
+            "the current request is a classic page render, where the "
+            "HX-Redirect header would be silently ignored. From a "
+            "middleware, call redirect_response(request, url): it has no "
+            "render context and can answer a real 302. To refuse the page "
+            "rather than redirect, abort(401) + @error_page(401)."
         )
     ctx.set_header(_HX_REDIRECT, url)
 
@@ -177,20 +177,19 @@ def push_url(url: str) -> None:
     ctx = current_context()
     if not response_is_read_by_htmx(ctx.request):
         raise BretzelError(
-            "push_url() n'a d'effet que sur une réponse lue par htmx — "
-            "la requête courante est un rendu de page classique, où "
-            "l'en-tête serait ignoré en silence. Sur un rendu de page, "
-            "l'adresse est DÉJÀ celle que le navigateur affiche : il n'y "
-            "a rien à pousser."
+            "push_url() only has an effect on a response read by htmx — "
+            "the current request is a classic page render, where the "
+            "header would be silently ignored. On a page render, the "
+            "address is ALREADY the one the browser displays: there is "
+            "nothing to push."
         )
     ctx.set_header(_HX_PUSH_URL, url)
 
 
-#: L'en-tête par lequel htmx recharge la page qu'il affiche. TROISIÈME
-#: membre de la famille de ``_HX_REDIRECT`` : les trois façons d'agir sur
-#: la barre d'adresse depuis une réponse — aller ailleurs, recharger, ou
-#: renommer sans bouger — et ce module les possède toutes, comme son
-#: en-tête le revendique.
+#: The header htmx reloads the displayed page with. THIRD member of
+#: ``_HX_REDIRECT``'s family: the three ways of acting on the address bar
+#: from a response — go elsewhere, reload, or rename without moving — and
+#: this module owns them all, as its header claims.
 _HX_REFRESH = "HX-Refresh"
 
 
@@ -201,9 +200,9 @@ def reload() -> None:
     ctx = current_context()
     if not response_is_read_by_htmx(ctx.request):
         raise BretzelError(
-            "reload() n'a d'effet que sur une réponse lue par htmx "
-            "(une action, un rafraîchissement, ou une navigation partielle "
-            "boostée) — la requête courante est un rendu de page classique, "
-            "où l'en-tête HX-Refresh serait ignoré en silence."
+            "reload() only has an effect on a response read by htmx "
+            "(an action, a refresh, or a boosted partial navigation) — "
+            "the current request is a classic page render, where the "
+            "HX-Refresh header would be silently ignored."
         )
     ctx.set_header(_HX_REFRESH, "true")

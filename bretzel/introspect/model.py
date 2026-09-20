@@ -1,44 +1,44 @@
-"""Les dataclasses de l'introspection — **et rien d'autre**.
+"""The introspection dataclasses — **and nothing else**.
 
-Ce module ne contient **aucune logique**, volontairement. C'est le
-*contrat* : un consommateur tiers (la doc vivante, un générateur, un
-serveur MCP) importe ces types **en process** plutôt que de parser du
-texte, et les émetteurs de :mod:`bretzel.introspect.emit` ne sont que des
-projections de ces objets. Deux conséquences voulues :
+This module contains **no logic**, deliberately. It is the *contract*: a
+third-party consumer (the living documentation, a generator, an MCP
+server) imports these types **in process** rather than parsing text, and
+the emitters in :mod:`bretzel.introspect.emit` are only projections of
+these objects. Two intended consequences:
 
-- **texte et JSON ne peuvent pas diverger** — ils lisent la même donnée ;
-- ajouter un champ ici le rend disponible aux deux d'un coup, et
-  :data:`SCHEMA_VERSION` dit au consommateur que la forme a bougé.
+- **text and JSON cannot diverge** — they read the same data;
+- adding a field here makes it available to both at once, and
+  :data:`SCHEMA_VERSION` tells the consumer that the shape has moved.
 
-:data:`SCHEMA_VERSION` suit le versionnement sémantique **de la forme des
-dataclasses**, pas celle du framework : un champ ajouté → mineure, un
-champ retiré ou renommé → majeure.
+:data:`SCHEMA_VERSION` follows semantic versioning **of the dataclasses'
+shape**, not the framework's: a field added → minor, a field removed or
+renamed → major.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "3.0"
 
-# Comment un paramètre atteint le composant. La distinction est
-# *load-bearing*, pas cosmétique : voir ``_component_params`` — un
-# composant peut retirer une prop de son ``__init__`` tout en l'héritant
-# comme prop réactive, et l'appel reste valide.
+# How a parameter reaches the component. The distinction is
+# *load-bearing*, not cosmetic: see ``_component_params`` — a component
+# can remove a prop from its ``__init__`` while inheriting it as a
+# reactive prop, and the call stays valid.
 SOURCE_SIGNATURE = "signature"
-SOURCE_REACTIVE_PROP = "prop réactive"
+SOURCE_REACTIVE_PROP = "reactive prop"
 
-#: La catégorie d'un symbole que personne n'a classé. Elle existe pour que
-#: rien ne soit *perdu* — la vue montre quand même le symbole — pendant que
-#: ``tests/consistency/test_docs_coverage.py`` rougit, ce qui force un
-#: mainteneur à le classer **exprès**. C'est le cran d'arrêt : on n'élargit
-#: pas une surface publique sans dire à quoi elle sert.
-CATEGORY_UNCLASSIFIED = "autre"
+#: The category of a symbol nobody has classified. It exists so that
+#: nothing is *lost* — the view shows the symbol anyway — while
+#: ``tests/consistency/test_docs_coverage.py`` turns red, which forces a
+#: maintainer to classify it **on purpose**. That is the ratchet: a
+#: public surface is not widened without saying what it is for.
+CATEGORY_UNCLASSIFIED = "other"
 
 
 @dataclass(frozen=True)
 class ParamInfo:
-    """Un paramètre acceptable à l'appel."""
+    """A parameter acceptable at the call site."""
 
     name: str
     kind: str  # "positionnel" | "keyword-only" | "*args" | "**kwargs"
@@ -49,7 +49,7 @@ class ParamInfo:
 
 @dataclass(frozen=True)
 class CallableInfo:
-    """N'importe quel appelable lu à sa signature vivante."""
+    """Any callable read from its live signature."""
 
     name: str
     params: tuple[ParamInfo, ...]
@@ -58,7 +58,7 @@ class CallableInfo:
 
 @dataclass(frozen=True)
 class ComponentInfo:
-    """Une entrée ``ui.*`` qui est une sous-classe de ``Component``."""
+    """A ``ui.*`` entry that is a ``Component`` subclass."""
 
     ui_name: str  # "button" — l'attribut sur ``ui``
     class_name: str  # "Button"
@@ -68,140 +68,138 @@ class ComponentInfo:
     doc: str | None
     params: tuple[ParamInfo, ...]
     bindable: tuple[str, ...]  # BINDABLE_PROPS
-    bindable_audited: bool  # False quand BINDABLE_PROPS vaut None
-    #: Le sous-ensemble de ``bindable`` que le CLIENT écrit
-    #: (``reactive_prop(writes=True)`` → ``TWO_WAY_PROPS``). La matrice du
-    #: funnel notait ce sens à la main avec ``⇄`` / ``→`` ; c'est dérivable,
-    #: donc ça n'a pas à être recopié.
+    bindable_audited: bool  # False when BINDABLE_PROPS is None
+    #: The subset of ``bindable`` the CLIENT writes
+    #: (``reactive_prop(writes=True)`` → ``TWO_WAY_PROPS``). The funnel's
+    #: matrix noted that direction by hand with ``⇄`` / ``→``; it is
+    #: derivable, so it does not have to be copied.
     two_way: tuple[str, ...]
-    events: tuple[str, ...]  # EVENTS (sans le préfixe ``on_``)
-    #: Les ``on_<event>=`` réellement acceptés à l'appel. **Ce n'est pas
-    #: ``events`` préfixé.** ``cross_check_events`` garantit à la
-    #: définition de classe que tout ``EVENTS`` a son paramètre, donc
-    #: ``events`` ⊆ ceci ; l'inclusion inverse est FAUSSE.
+    events: tuple[str, ...]  # EVENTS (without the ``on_`` prefix)
+    #: The ``on_<event>=`` actually accepted at the call site. **This is
+    #: not ``events`` prefixed.** ``cross_check_events`` guarantees at
+    #: class-definition time that every ``EVENTS`` has its parameter, so
+    #: ``events`` ⊆ this; the reverse inclusion is FALSE.
     #:
-    #: ⚠️ L'exemple qui vivait ici — « ``table``, ``datatable``,
-    #: ``bar_chart`` et ``pie_chart`` acceptent un clic sans le déclarer
-    #: dans ``EVENTS`` » — était juste le 2026-08-16 et il ne l'est plus.
-    #: Ce n'était pas une nuance d'introspection mais un TROU : sans
-    #: déclaration, ces ``on_*`` n'acceptaient qu'un callable, là où tout
-    #: ``on_*`` du framework accepte aussi une expression cliente ou une
-    #: liste des deux. Trois des quatre le déclarent depuis le
-    #: 2026-09-06 (cf. ``test_a_wired_event_is_declared``), et le
-    #: quatrième, ``datatable``, reste le cas qui justifie ce champ :
-    #: il accepte ``on_item_click=`` sans figurer dans son ``EVENTS``.
-    #: Un consommateur qui lirait ``events`` seul aurait la réponse
-    #: fausse, d'où ce champ : elle est calculée UNE fois, ici.
+    #: ⚠️ The example that lived here — "``table``, ``datatable``,
+    #: ``bar_chart`` and ``pie_chart`` accept a click without declaring it
+    #: in ``EVENTS``" — was true on 2026-08-16 and no longer is. It was
+    #: not an introspection nuance but a HOLE: undeclared, those ``on_*``
+    #: accepted only a callable, where every framework ``on_*`` also
+    #: accepts a client expression or a list of both. Three of the four
+    #: declare it since 2026-09-06 (cf. ``test_a_wired_event_is_declared``),
+    #: and the fourth, ``datatable``, remains the case that justifies this
+    #: field: it accepts ``on_item_click=`` without appearing in its
+    #: ``EVENTS``. A consumer reading ``events`` alone would get the wrong
+    #: answer, hence this field: it is computed ONCE, here.
     handler_kwargs: tuple[str, ...]
     named_slots: tuple[str, ...]  # NAMED_SLOTS
     imperative: tuple[str, ...]  # IMPERATIVE
     autoname_from: str | None  # AUTONAME_FROM
-    #: La clé sous laquelle ``Theme(components={…})`` adresse ce composant
-    #: — ``THEME_KEY``, **pas** ``ui_name``. Huit composants diffèrent, et
-    #: trois d'entre eux visent le thème d'un AUTRE : ``sidebar_section`` et
-    #: ``sidebar_title`` écrivent tous deux sous ``"sidebar"``. Un
-    #: consommateur qui déduirait la clé du nom ``ui.*`` se tromperait sur
-    #: ces huit-là. Vide quand le composant n'a pas de thème adressable
+    #: The key ``Theme(components={…})`` addresses this component under —
+    #: ``THEME_KEY``, **not** ``ui_name``. Eight components differ, and
+    #: three of them target ANOTHER's theme: ``sidebar_section`` and
+    #: ``sidebar_title`` both write under ``"sidebar"``. A consumer
+    #: deriving the key from the ``ui.*`` name would be wrong about those
+    #: eight. Empty when the component has no addressable theme
     #: (``fragment``, ``outlet``, ``interval``, ``meta_tag``).
     theme_key: str
-    #: Le **vocabulaire** du thème : ``(groupe, clés)``, trié. Les valeurs
-    #: — les chaînes de classes Tailwind des 102 composants — n'y  count:components
-    #: sont PAS : ce qu'un lecteur et une règle de lint ont besoin de
-    #: savoir, c'est quels noms existent, pas ce qu'ils rendent (le code
-    #: est là pour ça).
+    #: The theme's **vocabulary**: ``(group, keys)``, sorted. The values
+    #: — the 102 components' Tailwind class strings — are NOT  count:components
+    #: in it: what a reader and a lint rule need to know is which names
+    #: exist, not what they render (the code is there for that).
     #:
-    #: ``clés`` vide distingue un groupe **scalaire** d'un groupe table :
-    #: des groupes portent une valeur unique et non un dict (``hoverable``,
-    #: ``sticky``, ``wrap``, ``palette``, ``icon_size``…). Les confondre
-    #: ferait chercher des clés là où il n'y en a pas — donc inventer des
-    #: faux positifs.
+    #: An empty ``keys`` distinguishes a **scalar** group from a table
+    #: group: some groups carry a single value and not a dict
+    #: (``hoverable``, ``sticky``, ``wrap``, ``palette``, ``icon_size``…).
+    #: Confusing them would make one look for keys where there are none —
+    #: hence invent false positives.
     #:
-    #: Paires plutôt qu'un ``dict`` : tout le reste de ce modèle est en
-    #: tuples, et un dict dans une dataclass ``frozen`` reste mutable —
-    #: l'immuabilité serait annoncée sans être tenue. ``dict(info.theme)``
-    #: au point de consommation.
+    #: Pairs rather than a ``dict``: everything else in this model is
+    #: tuples, and a dict in a ``frozen`` dataclass stays mutable —
+    #: immutability would be announced without being held.
+    #: ``dict(info.theme)`` at the point of consumption.
     theme: tuple[tuple[str, tuple[str, ...]], ...]
-    #: Les valeurs que ``size=`` accepte **réellement**, tables imbriquées
-    #: absorbées. Ce n'est PAS ``dict(theme)["sizes"]`` : la plupart des
-    #: tables du catalogue imbriquent leurs clés, et deux imbrications
-    #: opposées coexistent — ``Checkbox`` indexe par taille
-    #: (``{"sm": {<slot>}}``), ``DatePicker`` par slot
-    #: (``{"input_field": {"sm"}}``). Un consommateur qui lirait les clés
-    #: brutes conclurait que ``ui.date_picker(size="sm")`` est faux.
-    #: Résolu par ``bretzel.components.base.size_vocabulary``.
+    #: The values ``size=`` **really** accepts, nested tables absorbed.
+    #: This is NOT ``dict(theme)["sizes"]``: most of the catalogue's
+    #: tables nest their keys, and two opposite nestings coexist —
+    #: ``Checkbox`` indexes by size (``{"sm": {<slot>}}``),
+    #: ``DatePicker`` by slot (``{"input_field": {"sm"}}``). A consumer
+    #: reading the raw keys would conclude that
+    #: ``ui.date_picker(size="sm")`` is wrong. Resolved by
+    #: ``bretzel.components.base.size_vocabulary``.
     #:
-    #: Vide = « on ne sait pas » et **jamais** « rien n'est valide » :
-    #: ``radio_group`` accepte ``size=`` sans table, son ``render`` en fait
-    #: autre chose.
+    #: Empty = "we do not know" and **never** "nothing is valid":
+    #: ``radio_group`` accepts ``size=`` with no table, its ``render``
+    #: makes something else of it.
     size_values: tuple[str, ...]
 
 
 @dataclass(frozen=True)
 class FieldInfo:
-    """Un champ d'une classe d'état."""
+    """A field of a state class."""
 
     name: str
     type_label: str
-    default_label: str  # "0" / "''" / "list() (factory)" / "— (requis)"
-    validators: tuple[str, ...]  # les @validator posés sur CE champ
+    default_label: str  # "0" / "''" / "list() (factory)" / "— (required)"
+    validators: tuple[str, ...]  # the @validator set on THIS field
 
 
 @dataclass(frozen=True)
 class StateInfo:
-    """Une classe d'état — serveur (4 portées) ou client."""
+    """A state class — server (4 scopes) or client."""
 
     name: str
     family: str  # "ServerState" | "ClientState"
-    scope: str  # "page/session/user/app" | étiquette de persistance
+    scope: str  # "page/session/user/app" | persistence label
     persist: str | None
     doc: str | None
     fields: tuple[FieldInfo, ...]
     computed: tuple[str, ...]
-    whole_validators: int  # nombre de @validator au niveau instance
-    #: ``(champ, nom de paramètre)`` — ce qui part VRAIMENT dans l'adresse.
+    whole_validators: int  # how many @validator at instance level
+    #: ``(field, parameter name)`` — what REALLY goes into the address.
     url_params: tuple[tuple[str, str], ...] = ()
-    #: Les champs que le framework a NOMMÉS, allumés ou non. La
-    #: différence avec le champ du dessus EST l'information : un
-    #: ``DatatableState`` nomme cinq champs et n'en publie aucun tant
-    #: qu'une sous-classe n'a pas écrit ``addressable=True``.
+    #: The fields the framework has NAMED, lit or not. The difference
+    #: from the field above IS the information: a ``DatatableState`` names
+    #: five fields and publishes none until a subclass has written
+    #: ``addressable=True``.
     url_named: tuple[tuple[str, str], ...] = ()
-    #: Le message d'une déclaration ``URL`` refusée. Une fiche qui tait
-    #: l'erreur laisserait lire « cet état ne publie rien », ce qui est
-    #: la même sortie qu'une déclaration absente.
+    #: The message of a refused ``URL`` declaration. A card that kept
+    #: silent about the error would read as "this state publishes
+    #: nothing", which is the same output as an absent declaration.
     url_error: str | None = None
 
 
 @dataclass(frozen=True)
 class MethodInfo:
-    """Une méthode publique lue sur une classe."""
+    """A public method read on a class."""
 
     name: str
-    params: tuple[ParamInfo, ...]  # ``self`` retiré
+    params: tuple[ParamInfo, ...]  # ``self`` dropped
     returns_label: str
     doc: str | None
 
 
 @dataclass(frozen=True)
 class AlgebraOp:
-    """Une opération de l'algèbre de binding client, avec le JS qu'elle
-    émet **réellement** — capturé par une sonde, pas recopié."""
+    """An operation of the client binding algebra, with the JS it
+    **really** emits — captured by a probe, not copied."""
 
     name: str
-    category: str  # comparaison/arithmétique/logique/liste/mutation/autre
-    python: str  # comment on l'écrit — "x > y"
-    js: str | None  # le JS émis, capturé à l'exécution
+    category: str  # comparison/arithmetic/logic/list/mutation/unclassified
+    python: str  # how it is written — "x > y"
+    js: str | None  # the emitted JS, captured at run time
     returns_label: str
     doc: str | None
 
 
 @dataclass(frozen=True)
 class ModuleSection:
-    """La surface publique d'UN module du framework, classée par besoin.
+    """The public surface of ONE framework module, classified by need.
 
-    ``covered`` dit si la section a une table de classement écrite. Un
-    module non couvert n'est pas *absent* du modèle — il est présent et
-    déclaré non couvert, ce qui est la seule forme honnête : une section
-    manquante en silence se lit comme « ça n'existe pas ».
+    ``covered`` says whether the section has a written classification
+    table. An uncovered module is not *absent* from the model — it is
+    present and declared uncovered, which is the only honest form: a
+    silently missing section reads as "this does not exist".
     """
 
     name: str  # "bretzel.state"
@@ -212,81 +210,81 @@ class ModuleSection:
 
 @dataclass(frozen=True)
 class SurfaceSymbol:
-    """Un nom de ``bretzel.__all__``, classé par le besoin qu'il couvre."""
+    """A name from ``bretzel.__all__``, classified by the need it covers."""
 
     name: str
     category: str
-    kind: str  # "classe" / "fonction" / "décorateur" / "module" / "valeur"
-    #: La ligne d'index. **``summary`` et non ``doc``** : pour une
-    #: constante, c'est sa VALEUR et non de la prose — ``inspect.getdoc``
-    #: y rendait la docstring de son type, et 46 lignes de l'index
-    #: affichaient ``str(object='') -> str``. Le champ s'appelait ``doc``
-    #: quand il ne portait que de la prose ; en changer le contenu sans
-    #: en changer le nom aurait laissé un consommateur lire un ``repr``
-    #: comme une phrase.
+    kind: str  # "class" / "function" / "decorator" / "module" / "value"
+    #: The index line. **``summary`` and not ``doc``**: for a constant,
+    #: it is its VALUE and not prose — ``inspect.getdoc`` returned its
+    #: type's docstring there, and 46 lines of the index displayed
+    #: ``str(object='') -> str``. The field was called ``doc`` when it
+    #: carried only prose; changing its content without changing its name
+    #: would have let a consumer read a ``repr`` as a sentence.
     summary: str | None
 
 
 @dataclass(frozen=True)
 class SymbolDetail:
-    """La fiche d'un symbole public qui **n'est pas** un ``ui.*``.
+    """The card of a public symbol that is **not** a ``ui.*``.
 
-    :class:`ComponentInfo` répondait pour les composants ; tout le reste —
-    ``@page``, ``PageState``, ``ClientBinding``, ``ROUTE_ACTION`` — n'avait
-    qu'une ligne d'index tronquée à 62 caractères, sans signature. Une IA
-    y lisait que ``@page`` existe, jamais comment on l'appelle.
+    :class:`ComponentInfo` answered for the components; everything else —
+    ``@page``, ``PageState``, ``ClientBinding``, ``ROUTE_ACTION`` — had
+    only an index line truncated at 62 characters, with no signature. An
+    AI read there that ``@page`` exists, never how it is called.
 
-    Les champs facultatifs sont remplis **selon la nature du symbole**, et
-    leur absence est une information : un ``valeur`` n'a pas de signature,
-    une fonction n'a pas de méthodes. Aucun n'est un « à faire ».
+    The optional fields are filled **according to the symbol's nature**,
+    and their absence is information: a ``value`` has no signature, a
+    function has no methods. None of them is a "to do".
     """
 
     name: str
-    #: Le module d'où on l'importe en premier — l'ordre de
-    #: :data:`~bretzel.introspect.modules.SECTIONS`, donc ``bretzel``
-    #: d'abord : c'est ce que le site d'appel écrit vraiment.
+    #: The module it is imported from first — the order of
+    #: :data:`~bretzel.introspect.modules.SECTIONS`, so ``bretzel`` first:
+    #: that is what the call site really writes.
     module: str
-    #: Tous les modules qui l'exportent. ``page`` sort de ``bretzel`` ET de
-    #: ``bretzel.render`` — le MÊME objet ré-exporté. Le taire ferait
-    #: croire à deux symboles, ou à un seul chemin d'import légal.
+    #: Every module exporting it. ``page`` comes out of ``bretzel`` AND
+    #: of ``bretzel.render`` — the SAME object re-exported. Keeping quiet
+    #: about it would suggest two symbols, or a single legal import path.
     exported_by: tuple[str, ...]
-    #: Les AUTRES surfaces qui portent ce nom. ``text`` est le seul cas :
-    #: le composant ``ui.text`` et ``bretzel.render.text``, le mot du
-    #: framework. Un champ et non une note collée au rendu — sinon la
-    #: fiche du composant le dirait et celle du symbole non, et le JSON
-    #: ne le porterait dans aucun des deux sens.
+    #: The OTHER surfaces carrying this name. ``text`` is the only case:
+    #: the ``ui.text`` component and ``bretzel.render.text``, the
+    #: framework's word. A field and not a note glued to the rendering —
+    #: otherwise the component's card would say it and the symbol's would
+    #: not, and the JSON would carry it in neither direction.
     also_known_as: tuple[str, ...]
-    category: str  # le besoin qu'il couvre, cf. ``SurfaceSymbol``
-    kind: str  # "classe" / "fonction" / "décorateur" / "valeur"
-    doc: str | None  # la docstring ENTIÈRE, pas sa première ligne
-    #: La signature vivante. Pour une classe, c'est celle de son
-    #: constructeur — la fiche se lit comme le site d'appel.
+    category: str  # the need it covers, cf. ``SurfaceSymbol``
+    kind: str  # "class" / "function" / "decorator" / "value"
+    doc: str | None  # the WHOLE docstring, not its first line
+    #: The live signature. For a class, it is its constructor's — the
+    #: card reads like the call site.
     signature: CallableInfo | None
-    methods: tuple[MethodInfo, ...]  # classes seulement
-    #: La valeur d'une constante. C'est SA documentation : ``ROUTE_ACTION``
-    #: ne se comprend qu'en lisant ``'/_bz/action'``, et ``inspect.getdoc``
-    #: n'y rendait que la docstring de ``str``.
+    methods: tuple[MethodInfo, ...]  # classes only
+    #: A constant's value. It IS its documentation: ``ROUTE_ACTION`` only
+    #: makes sense once one reads ``'/_bz/action'``, and
+    #: ``inspect.getdoc`` returned only ``str``'s docstring there.
     value_repr: str | None
-    #: L'algèbre Python→JS, pour les classes qui **sont** leur surface
-    #: d'opérateurs (:class:`~bretzel.state.ClientBinding` et ses filles).
-    #: ``describe_method_surface`` y rendrait les mêmes noms sans la forme
-    #: Python ni le JS émis, ce qui est la moitié inutile de la réponse.
+    #: The Python→JS algebra, for the classes that **are** their operator
+    #: surface (:class:`~bretzel.state.ClientBinding` and its children).
+    #: ``describe_method_surface`` would return the same names there
+    #: without the Python form nor the JS emitted, which is the useless
+    #: half of the answer.
     algebra: tuple[AlgebraOp, ...]
-    #: La portée et les champs, pour une classe d'état. Sur les cinq
-    #: classes de base c'est la portée qui porte l'information — la seule
-    #: chose qu'on veut savoir de ``PageState``.
+    #: The scope and the fields, for a state class. On the five base
+    #: classes it is the scope that carries the information — the only
+    #: thing one wants to know about ``PageState``.
     state: StateInfo | None
 
 
 @dataclass(frozen=True)
 class HelperInfo:
-    """Une entrée ``ui.*`` qui n'est **pas** un composant.
+    """A ``ui.*`` entry that is **not** a component.
 
-    Le namespace ``ui`` est délibérément hétérogène : un générateur
-    d'itération keyée (``ui.each``) et un helper de toast
-    (``ui.notification``) voisinent avec ``ui.button``. On les classe par
-    nature et on les lit honnêtement — un helper n'a ni props, ni events,
-    ni slots, et on ne prétend pas le contraire.
+    The ``ui`` namespace is deliberately heterogeneous: a keyed-iteration
+    generator (``ui.each``) and a toast helper (``ui.notification``) sit
+    next to ``ui.button``. We classify them by nature and read them
+    honestly — a helper has neither props, nor events, nor slots, and we
+    do not pretend otherwise.
     """
 
     ui_name: str

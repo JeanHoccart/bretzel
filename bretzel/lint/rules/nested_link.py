@@ -1,43 +1,43 @@
-"""Règle : un lien DANS un lien — le parseur défait la carte.
+"""Rule: a link INSIDE a link — the parser undoes the card.
 
-Le silence qu'elle ferme
-------------------------
+The silence it closes
+---------------------
 
-Le HTML sérialisé est juste. C'est le NAVIGATEUR qui le réécrit ::
+The serialised HTML is correct. It is the BROWSER that rewrites it ::
 
-    with ui.card(href=f"/classe/{cible}"):     # rend un <a>
+    with ui.card(href=f"/class/{target}"):     # renders an <a>
         ui.text(code)
-        ui.link(label="cahier", href=...)      # un <a> dans un <a>
+        ui.link(label="workbook", href=...)    # an <a> inside an <a>
 
-HTML interdit l'ancre imbriquée. Le parseur ferme donc le premier ``<a>``
-au moment où il rencontre le second, et **tout ce qui suit atterrit
-dehors** — hors de la carte, dans le flux du parent.
+HTML forbids a nested anchor. The parser therefore closes the first
+``<a>`` the moment it meets the second, and **everything that follows
+lands outside** — out of the card, in the parent's flow.
 
-Mesuré sur ``examples/ecole`` le 2026-09-12 : la carte rendait 130 px de
-vide et le nom de la salle s'affichait dans la case de l'heure suivante.
-Aucune erreur JS, aucune requête en échec, et ``TestClient`` rendait
-exactement le bon document — la faute n'existe qu'après le parseur. À
-l'écran, ça ne ressemble pas à un défaut de structure : ça ressemble à un
-problème d'espacement, ce qui envoie chercher au mauvais endroit.
+Measured on ``examples/ecole`` on 2026-09-12: the card rendered 130 px of
+nothing and the room's name appeared in the next hour's cell. No JS
+error, no failed request, and ``TestClient`` returned exactly the right
+document — the fault only exists after the parser. On screen, it does not
+look like a structural flaw: it looks like a spacing problem, which sends
+one looking in the wrong place.
 
-Ce que la règle lit
---------------------
+What the rule reads
+-------------------
 
-Un conteneur qui devient une ancre — ``href=`` sur un composant qui rend
-un ``<a>`` — et, dans son corps ``with``, un appel qui rend une ancre à
-son tour. Les deux familles sont **découvertes** par le même critère :
-un composant dont l'appel porte un ``href=``. Pas de table écrite ici.
+A container that becomes an anchor — ``href=`` on a component that
+renders an ``<a>`` — and, in its ``with`` body, a call that renders an
+anchor in turn. Both families are **discovered** by the same criterion: a
+component whose call carries an ``href=``. No table written here.
 
-Le balayage ne redescend pas dans un ``with`` imbriqué qui rouvre une
-ancre : le premier niveau suffit, et le cas ne s'est jamais présenté.
+The sweep does not descend into a nested ``with`` that reopens an anchor:
+the first level is enough, and the case has never come up.
 
-⚠️ Ce que la règle ne dit PAS
-------------------------------
+⚠️ What the rule does NOT say
+-----------------------------
 
-Qu'un ``href=`` calculé soit sans danger. ``ui.card(href=x)`` compte,
-quelle que soit la provenance de ``x`` : c'est la PRÉSENCE du paramètre
-qui fait l'ancre, pas sa valeur. Un ``href=None`` littéral, lui, ne la
-fait pas — et il est lu comme tel.
+That a computed ``href=`` is harmless. ``ui.card(href=x)`` counts,
+whatever ``x``'s provenance: it is the PRESENCE of the parameter that
+makes the anchor, not its value. A literal ``href=None``, by contrast,
+does not — and it is read as such.
 """
 
 from __future__ import annotations
@@ -47,12 +47,12 @@ import ast
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-#: Le nom de la règle, tel qu'il s'affiche dans un constat.
-RULE = "lien-dans-un-lien"
+#: The rule's name, as it appears in a finding.
+RULE = "link-inside-a-link"
 
 
 def _call_name(node: ast.expr) -> str | None:
-    """``card`` pour ``ui.card(...)``, ``link`` pour ``ui.link(...)``."""
+    """``card`` for ``ui.card(...)``, ``link`` for ``ui.link(...)``."""
     if isinstance(node, ast.Call):
         return _call_name(node.func)
     if isinstance(node, ast.Attribute):
@@ -63,11 +63,12 @@ def _call_name(node: ast.expr) -> str | None:
 
 
 def _makes_an_anchor(call: ast.Call) -> bool:
-    """L'appel porte-t-il un ``href=`` qui ne soit pas littéralement nul ?
+    """Does the call carry an ``href=`` that is not literally null?
 
-    ``href=None`` est écrit exprès dans ce dépôt pour dire « pas de lien
-    ici » (une tuile qui n'a pas encore sa route). Le lire comme une ancre
-    produirait un constat sur du code qui dit précisément le contraire.
+    ``href=None`` is written on purpose in this repository to say "no
+    link here" (a tile that does not have its route yet). Reading it as
+    an anchor would produce a finding on code that says precisely the
+    opposite.
     """
     for kw in call.keywords:
         if kw.arg != "href":
@@ -88,38 +89,38 @@ def _anchors_inside(body: list[ast.stmt]) -> list[ast.Call]:
 
 
 def check(module: Module) -> list[Finding]:
-    """Les ancres ouvertes dans le corps d'une autre ancre."""
+    """The anchors opened inside another anchor's body."""
     findings: list[Finding] = []
     for node in ast.walk(module.tree):
         if not isinstance(node, ast.With | ast.AsyncWith):
             continue
-        dehors = [
+        outside = [
             item.context_expr
             for item in node.items
             if isinstance(item.context_expr, ast.Call)
             and _makes_an_anchor(item.context_expr)
         ]
-        if not dehors:
+        if not outside:
             continue
-        porteur = dehors[0]
-        for dedans in _anchors_inside(node.body):
+        outer = outside[0]
+        for inner in _anchors_inside(node.body):
             findings.append(
                 Finding(
                     rule=RULE,
                     path=module.path,
-                    line=dedans.lineno,
+                    line=inner.lineno,
                     message=(
-                        f"`{_call_name(dedans)}` porte un `href=` à "
-                        f"l'intérieur de `{_call_name(porteur)}`, qui en "
-                        f"porte un aussi — un `<a>` dans un `<a>`."
+                        f"`{_call_name(inner)}` carries an `href=` inside "
+                        f"`{_call_name(outer)}`, which carries one too — an "
+                        f"`<a>` inside an `<a>`."
                     ),
                     hint=(
-                        "HTML l'interdit : le parseur du navigateur FERME "
-                        "l'ancre extérieure en rencontrant l'intérieure, et "
-                        "tout ce qui suit sort du conteneur. Le HTML "
-                        "sérialisé reste juste, donc aucun test de rendu ne "
-                        "le voit. Retire le `href=` du conteneur et pose "
-                        "DEUX liens explicites à l'intérieur."
+                        "HTML forbids it: the browser's parser CLOSES the "
+                        "outer anchor on meeting the inner one, and "
+                        "everything that follows leaves the container. The "
+                        "serialised HTML stays correct, so no render test "
+                        "sees it. Remove the `href=` from the container and "
+                        "set TWO explicit links inside."
                     ),
                 )
             )

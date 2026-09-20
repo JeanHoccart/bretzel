@@ -658,14 +658,13 @@ def page() -> None:
                         level=3,
                     )
                     ui.text(
-                        "Binding fournie ET on appelle ``.set()`` / "
-                        "``.clear()`` sur l'instance. Le framework "
-                        "détecte la binding et délègue à "
-                        "``binding.set(...)`` — **le DOM dispatch "
-                        "n'est pas utilisé**, single source of truth "
-                        "préservée. Les boutons impératifs et le "
-                        "textarea miroir convergent sur le même "
-                        "champ.",
+                        'A binding supplied AND ``.set()`` / ``.clear()``'
+                            ' called on the instance. The framework detects '
+                            'the binding and delegates to '
+                            '``binding.set(...)`` — **the DOM dispatch is not'
+                            ' used**, single source of truth preserved. The '
+                            'imperative buttons and the mirror textarea '
+                            'converge on the same field.',
                         color="muted", size="sm",
                     )
                     both = TextareaClient(key="both")

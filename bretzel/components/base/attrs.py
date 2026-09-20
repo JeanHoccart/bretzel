@@ -1,12 +1,12 @@
 """Kwargs splitting + attribute-name normalisation.
 
-Components accept a wild kwargs surface : reactive props, named slots,
+Components accept a wild kwargs surface: reactive props, named slots,
 event handlers, raw HTML attrs (including ``aria_*`` / ``data_*`` /
-``role`` / …), raw pass-through attrs (**``hx-`` seul** — ``:`` / ``@`` /
-``x-`` LÈVENT depuis le 2026-07-30, cf. ``reject_dead_alpine_attr``), and
+``role`` / …), raw pass-through attrs (**``hx-`` only** — ``:`` / ``@`` /
+``x-`` RAISE since 2026-07-30, cf. ``reject_dead_alpine_attr``), and
 a few reserved framework keywords (``classes``, ``slots``, ``key``…).
 
-This module is the dispatcher : :func:`split_kwargs` carves a single
+This module is the dispatcher: :func:`split_kwargs` carves a single
 ``**kwargs`` dict into five buckets that the :class:`Component`
 constructor consumes one by one.
 
@@ -25,93 +25,97 @@ if TYPE_CHECKING:
 EVENT_PATTERN: re.Pattern[str] = re.compile(r"^on_[a-z][a-z0-9_]*$")
 
 
-# HTMX attrs qui passent verbatim. Un composant n'a en principe pas à en
-# écrire (cf. CLAUDE.md principe 2 : la frontière transport est runtime-only),
-# mais quelques-uns pilotent le swap engine directement — sidebar/navbar pour
-# la nav partielle, notification pour les toasts OOB, form, radio, table.
+# HTMX attrs that pass verbatim. A component has in principle no
+# business writing one (cf. CLAUDE.md principle 2: the transport boundary
+# is runtime-only), but a few drive the swap engine directly —
+# sidebar/navbar for partial nav, notification for OOB toasts, form,
+# radio, table.
 _PASSTHROUGH_PREFIXES: tuple[str, ...] = ("hx-",)
 
-# ── Les préfixes Alpine, morts depuis V3 ─────────────────────────────────
-# Ce tuple valait ``(":", "@", "x-", "hx-")``. Le commit 10e34c2e (2026-07-03)
-# a renommé ``_RAW_ALPINE_PREFIXES`` → ``_PASSTHROUGH_PREFIXES`` en annonçant
-# « Pure behaviour-neutral rename […] no logic touched » : le NOM a été
-# dé-Alpiné, la VALEUR non.
+# ── The Alpine prefixes, dead since V3 ───────────────────────────────────
+# This tuple used to be ``(":", "@", "x-", "hx-")``. Commit 10e34c2e
+# (2026-07-03) renamed ``_RAW_ALPINE_PREFIXES`` → ``_PASSTHROUGH_PREFIXES``
+# announcing "Pure behaviour-neutral rename […] no logic touched": the NAME
+# was de-Alpined, the VALUE was not.
 #
-# Mesuré le 2026-07-29 : le moteur de directives ne scanne que ``bz-attr:``
-# et ``bz-on:`` (``02_directives.js``, ``startsWith`` — zéro occurrence de
-# ``x-`` / ``@`` / ``:`` comme préfixe d'attribut). Un ``ui.card(**{"@click":
-# "alert(1)", "x-show": "open"})`` partait donc dans le DOM, valide, et
-# PERSONNE ne le regardait jamais : zéro erreur, zéro warning, zéro effet.
+# Measured on 2026-07-29: the directive engine only scans ``bz-attr:`` and
+# ``bz-on:`` (``02_directives.js``, ``startsWith`` — zero occurrences of
+# ``x-`` / ``@`` / ``:`` as an attribute prefix). A ``ui.card(**{"@click":
+# "alert(1)", "x-show": "open"})`` therefore went out into the DOM, valid,
+# and NOBODY ever looked at it: zero errors, zero warnings, zero effect.
 #
-# ⚠️ Retirer le préfixe de la liste ne suffit PAS à fermer le mode d'échec :
-# ``normalize_attr_name`` rend tel quel tout nom contenant ``-``/``:``/``@``,
-# donc le catch-all ``raw_html`` émettrait exactement le même attribut. C'est
-# le REFUS BRUYANT ci-dessous qui est le fix ; le tuple n'est que du
-# vocabulaire.
+# ⚠️ Removing the prefix from the list is NOT enough to close the failure
+# mode: ``normalize_attr_name`` returns as-is any name containing
+# ``-``/``:``/``@``, so the ``raw_html`` catch-all would emit exactly the
+# same attribute. It is the LOUD REFUSAL below that is the fix; the tuple
+# is only vocabulary.
 _DEAD_ALPINE_PREFIXES: tuple[str, ...] = (":", "@", "x-")
 
-# ── L'échappatoire HTML brute, désormais DÉCLARÉE ────────────────────────
+# ── The raw HTML escape hatch, now DECLARED ──────────────────────────────
 #
-# Jusqu'au 2026-08-16, le seau 5 était un catch-all muet : **tout** kwarg
-# inconnu partait dans le DOM en attribut inerte. C'était le seul des cinq
-# seaux à ne rien refuser — un event inconnu lève, un slot inconnu lève,
-# une directive Alpine lève. Le garde-fou existait, il n'avait juste
-# jamais été posé ici.
+# Until 2026-08-16, bucket 5 was a mute catch-all: **every** unknown kwarg
+# went out into the DOM as an inert attribute. It was the only one of the
+# five buckets to refuse nothing — an unknown event raises, an unknown slot
+# raises, an Alpine directive raises. The guard existed, it had simply
+# never been set here.
 #
-# Ce que ça coûtait : 44 kwargs morts mesurés sur ``examples/`` le
-# 2026-08-01, dont ``ui.input(label=…)`` sur 22 sites qui rendaient
-# ``<input label="…">`` — aucun libellé affiché, aucune erreur, rien à
-# voir dans le HTML.
+# What it cost: 44 dead kwargs measured over ``examples/`` on 2026-08-01,
+# including ``ui.input(label=…)`` on 22 sites rendering
+# ``<input label="…">`` — no label displayed, no error, nothing to see in
+# the HTML.
 #
-# ⚠️ **Le refus n'est PAS « refuser l'inconnu ».** Mesuré au runtime sur
-# les 14 685 tests (instrumentation du seau 5) : 17 kwargs distincts y
-# passaient, et l'écrasante majorité était LÉGITIME —
+# ⚠️ **The refusal is NOT "refuse the unknown".** Measured at runtime over
+# the 14 685 tests (bucket 5 instrumented): 17 distinct kwargs went
+# through it, and the overwhelming majority were LEGITIMATE —
 #
-#   34 ``aria_label``, 6 ``class_``, 6 directives ``bz-*``, 4 ``data_*``,
-#   1 ``role``… et cinq vrais morts (``clearable``, ``options``, ``href``,
-#   ``value``, ``foo``), tous dans ``tests/``.
+#   34 ``aria_label``, 6 ``class_``, 6 ``bz-*`` directives, 4 ``data_*``,
+#   1 ``role``… and five genuinely dead ones (``clearable``, ``options``,
+#   ``href``, ``value``, ``foo``), all in ``tests/``.
 #
-# Refuser sec aurait cassé 51 usages justes pour attraper 5 fautes. Le
-# fix est donc de rendre l'échappatoire **explicite** : ces familles-là
-# passent, tout le reste lève. Un scan AST ne l'aurait pas vu — il ratait
-# ``class_`` et les ``bz-*``, qui arrivent par des helpers.
+# Refusing outright would have broken 51 correct uses to catch 5 faults.
+# The fix is therefore to make the escape hatch **explicit**: those
+# families pass, everything else raises. An AST scan would not have seen
+# it — it missed ``class_`` and the ``bz-*``, which arrive through
+# helpers.
 _RAW_HTML_PREFIXES: tuple[str, ...] = (
     "aria_",
     "aria-",
     "data_",
     "data-",
-    # Le vocabulaire du runtime : ``bz-on:click``, ``bz-attr:placeholder``,
-    # ``bz-class``, ``bz-show``. C'est l'idiom du framework, pas une
-    # échappatoire — mais il arrive bien par ici quand on l'écrit en kwarg.
+    # The runtime's vocabulary: ``bz-on:click``, ``bz-attr:placeholder``,
+    # ``bz-class``, ``bz-show``. It is the framework's idiom, not an
+    # escape hatch — but it does arrive through here when written as a
+    # kwarg.
     "bz-",
 )
 
-#: Les noms EXACTS admis sans préfixe. Deux, et chacun sa raison.
+#: The EXACT names admitted without a prefix. Two, each with its reason.
 _RAW_HTML_NAMES: frozenset[str] = frozenset(
     {
-        # L'échappe Python standard pour l'attribut ``class`` — le socle ne
-        # le pope pas (ce n'est pas un kwarg réservé), il ressort en
-        # ``class=`` et cohabite avec ``classes=``. Testé par
-        # ``test_attr_precedence_is_one_contract``.
+        # The standard Python escape for the ``class`` attribute — the
+        # base layer does not pop it (it is not a reserved kwarg), it
+        # comes out as ``class=`` and coexists with ``classes=``. Tested
+        # by ``test_attr_precedence_is_one_contract``.
         "class_",
-        # Attribut ARIA sans préfixe ``aria-``. Le refuser obligerait à
-        # écrire ``attrs={"role": …}`` pour l'attribut d'accessibilité le
-        # plus courant après ``aria-label``.
+        # An ARIA attribute with no ``aria-`` prefix. Refusing it would
+        # force writing ``attrs={"role": …}`` for the most common
+        # accessibility attribute after ``aria-label``.
         "role",
-        # ── La famille de l'ancre ────────────────────────────────────────
-        # Débloquée par ``tag="a"``, le retag universel. Le cas réel est
-        # l'export du datatable : un ``Button`` retagué en ancre, PARCE QUE
-        # seule une ancre peut télécharger, et qui doit rester visuellement
-        # un bouton (il vit dans une barre d'outils à côté de « Clear
-        # filters »). Cf. ``datatable.py`` § Export CSV.
+        # ── The anchor family ────────────────────────────────────────────
+        # Unlocked by ``tag="a"``, the universal retag. The real case is
+        # the datatable's export: a ``Button`` retagged as an anchor,
+        # BECAUSE only an anchor can download, and which must stay
+        # visually a button (it lives in a toolbar next to "Clear
+        # filters"). Cf. ``datatable.py`` § CSV export.
         #
-        # ⚠️ C'est la limite honnête de ce refus : la validité d'un attribut
-        # HTML dépend du TAG RENDU, que ``split_kwargs`` ne connaît pas —
-        # ``tag=`` est retiré par le constructeur avant d'arriver ici. Donc
-        # ``ui.button(href=…)`` SANS ``tag="a"`` passe encore et reste
-        # inerte. Le fermer demanderait de valider attribut contre tag,
-        # c'est-à-dire d'embarquer une table HTML : un autre chantier.
-        # `bretzel check` le voit, lui, puisqu'il lit le call-site.
+        # ⚠️ That is this refusal's honest limit: an HTML attribute's
+        # validity depends on the RENDERED TAG, which ``split_kwargs``
+        # does not know — ``tag=`` is removed by the constructor before
+        # reaching here. So ``ui.button(href=…)`` WITHOUT ``tag="a"``
+        # still passes and stays inert. Closing it would require
+        # validating attribute against tag, that is to say embedding an
+        # HTML table: another project. `bretzel check` does see it, since
+        # it reads the call site.
         "href",
         "target",
         "rel",
@@ -121,7 +125,7 @@ _RAW_HTML_NAMES: frozenset[str] = frozenset(
 
 
 def is_declared_raw_attr(python_name: str) -> bool:
-    """``True`` si le kwarg est une échappatoire HTML brute **déclarée**."""
+    """``True`` when the kwarg is a **declared** raw HTML escape hatch."""
     return python_name in _RAW_HTML_NAMES or python_name.startswith(_RAW_HTML_PREFIXES)
 
 
@@ -156,8 +160,8 @@ def normalize_attr_name(python_name: str) -> str:
     """
     if not python_name:
         return python_name
-    # Trois scans C plutôt qu'un générateur de 3 tours : 8 241 appels
-    # par rendu de /tabs, soit 32 964 itérations Python économisées.
+    # Three C scans rather than one three-pass generator: 8 241 calls
+    # per render of /tabs, so 32 964 Python iterations saved.
     if "-" in python_name or ":" in python_name or "@" in python_name:
         return python_name
     if python_name.endswith("_"):
@@ -169,23 +173,23 @@ def normalize_attr_name(python_name: str) -> str:
 def is_passthrough_attr(python_name: str) -> bool:
     """``True`` when the kwarg is a raw HTMX attribute that should pass
     through to the rendered element verbatim."""
-    # ``startswith`` accepte un tuple et boucle en C. Le générateur
-    # équivalent coûtait 5 itérations Python par attribut : profilé sur
-    # un rendu de /tabs, 9 951 appels y produisaient 49 755 itérations.
+    # ``startswith`` accepts a tuple and loops in C. The equivalent
+    # generator cost 5 Python iterations per attribute: profiled on a
+    # render of /tabs, 9 951 calls produced 49 755 iterations there.
     return python_name.startswith(_PASSTHROUGH_PREFIXES)
 
 
 def reject_dead_alpine_attr(owner: str, name: str) -> None:
-    """Lève si ``name`` porte un préfixe de directive Alpine.
+    """Raise when ``name`` carries an Alpine directive prefix.
 
-    Appelé sur les DEUX voies d'entrée d'un attribut brut — ``**kwargs``
-    (via :func:`split_kwargs`) et ``attrs={...}`` — parce que l'attribut est
-    aussi inerte dans un cas que dans l'autre. Laisser passer l'un des deux
-    rendrait le refus incohérent, et c'est exactement le genre d'asymétrie
-    qui fait qu'un mécanisme n'est pas adopté.
+    Called on BOTH entry paths of a raw attribute — ``**kwargs`` (through
+    :func:`split_kwargs`) and ``attrs={...}`` — because the attribute is
+    as inert in one case as in the other. Letting one of the two through
+    would make the refusal inconsistent, and that is exactly the kind of
+    asymmetry that stops a mechanism being adopted.
 
-    Le message pointe vers l'équivalent ``bz-`` : c'est ce qui transforme le
-    refus en aide plutôt qu'en mur.
+    The message points at the ``bz-`` equivalent: that is what turns the
+    refusal into help rather than a wall.
     """
     if not name.startswith(_DEAD_ALPINE_PREFIXES):
         return
@@ -196,13 +200,13 @@ def reject_dead_alpine_attr(owner: str, name: str) -> None:
     else:  # ``x-``
         suggestion = f"``bz-{name[2:]}``"
     raise ComponentUsageError(
-        f"{owner}({name}=…) : ``{name}`` est une directive Alpine, et Alpine "
-        f"n'est plus dans Bretzel depuis V3. Le runtime ne scanne que "
-        f"``bz-attr:`` et ``bz-on:`` — cet attribut partirait dans le DOM "
-        f"sans que rien ne le lise jamais.\n"
-        f"  Écris {suggestion} à la place. Pour brancher le SERVEUR, ne "
-        f"passe pas d'attribut du tout : déclare un handler "
-        f"``on_<event>=`` et le socle émet le POST signé."
+        f"{owner}({name}=…): ``{name}`` is an Alpine directive, and "
+        f"Alpine has not been in Bretzel since V3. The runtime only scans "
+        f"``bz-attr:`` and ``bz-on:`` — this attribute would go out into "
+        f"the DOM with nothing ever reading it.\n"
+        f"  Write {suggestion} instead. To wire the SERVER, pass no "
+        f"attribute at all: declare an ``on_<event>=`` handler and the "
+        f"base layer emits the signed POST."
     )
 
 
@@ -250,7 +254,7 @@ def split_kwargs(
     raw_html: dict[str, Any] = {}
 
     for key, value in kwargs.items():
-        # 0. Directive Alpine — morte depuis V3, refus bruyant.
+        # 0. An Alpine directive — dead since V3, loud refusal.
         reject_dead_alpine_attr(cls.__name__, key)
 
         # 1. Raw HTMX — verbatim, no kwargs decoding.
@@ -276,8 +280,8 @@ def split_kwargs(
                 raise ComponentUsageError(
                     f"{cls.__name__} does not declare an ``on_{event}`` event "
                     f"(EVENTS = {declared_events!r}). Either add it to the "
-                    "class, ou passe par ``attrs={'bz-on:x': …}`` — un "
-                    "kwarg ``@…`` LÈVE désormais."
+                    "class, or go through ``attrs={'bz-on:x': …}`` — an "
+                    "``@…`` kwarg now RAISES."
                 )
             events[key] = value
             continue
@@ -299,16 +303,16 @@ def split_kwargs(
             )
         if not is_declared_raw_attr(key):
             raise ComponentUsageError(
-                f"{cls.__name__}({key}=…) : ce composant ne lit pas "
-                f"``{key}``, et ce n'est pas une échappatoire HTML déclarée. "
-                f"L'attribut serait parti dans le DOM sans que rien ne le "
-                f"lise — aucune erreur, aucun effet, rien à voir dans le "
-                f"HTML.\n"
-                f"  ``bretzel describe {cls.__name__.lower()}`` liste ce "
-                f"qu'il accepte.\n"
-                f"  Si tu veux vraiment cet attribut HTML : "
-                f"``attrs={{'{normalize_attr_name(key)}': …}}``. Les familles "
-                f"admises directement en kwarg sont "
+                f"{cls.__name__}({key}=…): this component does not read "
+                f"``{key}``, and it is not a declared HTML escape hatch. "
+                f"The attribute would have gone out into the DOM with "
+                f"nothing reading it — no error, no effect, nothing to see "
+                f"in the HTML.\n"
+                f"  ``bretzel describe {cls.__name__.lower()}`` lists what "
+                f"it accepts.\n"
+                f"  If you really want that HTML attribute: "
+                f"``attrs={{'{normalize_attr_name(key)}': …}}``. The "
+                f"families admitted directly as a kwarg are "
                 f"{', '.join(_RAW_HTML_PREFIXES)}* "
                 f"et {', '.join(sorted(_RAW_HTML_NAMES))}."
             )

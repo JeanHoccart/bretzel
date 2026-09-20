@@ -445,19 +445,19 @@ def page() -> None:
                                                   variant="soft",
                                                   icon_left="list-filter"))
 
-                    ui.heading("render= — le corps de l'option", level=3)
+                    ui.heading("render= — the option's body", level=3)
                     with ui.vstack():
-                        ui.text("Le composant garde l'enveloppe : data-value, "
-                                "le clic, aria-selected et surtout le filtre "
-                                "(bz-show). Le rappel remplit l'interieur.",
+                        ui.text('The component keeps the wrapper: data-value, the'
+                            ' click, aria-selected and above all the filter '
+                            '(bz-show). The callback fills the inside.',
                                 color="muted", size="xs")
                         ui.combobox(options=COUNTRIES,
-                                    placeholder="Tape pour filtrer…",
+                                    placeholder='Type to filter…',
                                     render=lambda v, l: ui.badge(
                                         label=l, color="primary"))
-                        ui.text("Deux limites : le declencheur et les pills "
-                                "affichent le label TEXTE, et le filtre "
-                                "cherche dans ce meme label — tape 'fr'.",
+                        ui.text('Two limits: the trigger and the pills show the '
+                            'TEXT label, and the filter searches that same '
+                            "label — type 'fr'.",
                                 color="muted", size="xs")
 
                     ui.heading("Sizes (xs → xl)", level=3)
@@ -498,7 +498,7 @@ def page() -> None:
                     ui.heading("empty_text", level=3)
                     ui.combobox(options=COUNTRIES,
                                 placeholder="Type 'zzzz' to see it",
-                                empty_text="Aucun résultat")
+                                empty_text='No result')
 
                     ui.heading("name (form field key)", level=3)
                     ui.combobox(options=COUNTRIES[:4], name="country")
@@ -576,7 +576,7 @@ def page() -> None:
                     ui.heading("Custom empty_text", level=3)
                     ui.combobox(options=COUNTRIES,
                                 placeholder="Type 'zzzz' to see it",
-                                empty_text="Aucun pays trouvé")
+                                empty_text='No country found')
 
             # ── Card 4 — Composability ──────────────────────────────
             with ui.card():
@@ -594,7 +594,7 @@ def page() -> None:
                                         placeholder="Country")
                             ui.combobox(
                                 options=[("en", "English"),
-                                         ("fr", "Français"),
+                                         ("fr", 'French'),
                                          ("es", "Español")],
                                 value="en",
                                 placeholder="Language",
@@ -726,13 +726,13 @@ def page() -> None:
                                      multiple=True,
                                      placeholder="Imperative")
                     with ui.hstack(wrap=True, gap="sm"):
-                        # ⚠️ `open` / `close` / `toggle` ajoutés le
-                        # 2026-09-03, en même temps que sur les six
-                        # pickers. Combobox est la MÊME forme — un
-                        # panneau ancré qui porte une valeur — et il
-                        # n'avait que la moitié champ. Les donner aux uns
-                        # sans les lui donner aurait fait deux
-                        # conventions pour une seule forme.
+                        # ⚠️ `open` / `close` / `toggle` added on
+                        # 2026-09-03, at the same time as on the six
+                        # pickers. Combobox is the SAME shape — an
+                        # anchored panel carrying a value — and it had
+                        # only the field half. Giving them to the others
+                        # without giving them to it would have made two
+                        # conventions for one shape.
                         ui.button("Ouvrir", on_click=m1.open())
                         ui.button("Fermer", variant="outline",
                                   on_click=m1.close())
@@ -781,10 +781,10 @@ def page() -> None:
                     ui.heading("Mode 3 — Both (write-through)",
                                level=3)
                     ui.text(
-                        "Binding fournie ET on appelle ``.set()`` "
-                        "sur l'instance. Le framework détecte la "
-                        "binding et délègue à ``binding.set(v)`` — "
-                        "single source of truth préservée.",
+                        'A binding supplied AND ``.set()`` called on the '
+                            'instance. The framework detects the binding and '
+                            'delegates to ``binding.set(v)`` — single source '
+                            'of truth preserved.',
                         color="muted", size="sm",
                     )
                     both = ComboboxClient(key="both")

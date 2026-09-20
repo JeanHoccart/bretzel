@@ -1,1 +1,1 @@
-"""Le seul vrai global de l'app : son thème."""
+"""The app's only real global: its theme."""

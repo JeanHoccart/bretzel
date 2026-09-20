@@ -1,52 +1,52 @@
-"""``Stepper`` / ``Step`` / ``StepPanel`` — progression en étapes ordonnées.
+"""``Stepper`` / ``Step`` / ``StepPanel`` — progress through ordered steps.
 
 Usage ::
 
     with ui.stepper(value=state.step, on_change=goto):
-        ui.step("Compte", description="Email et mot de passe", icon="user")
-        ui.step("Adresse", description="Livraison")
-        ui.step("Paiement", status="error")
+        ui.step("Account", description="Email and password", icon="user")
+        ui.step("Address", description="Delivery")
+        ui.step("Payment", status="error")
 
-        with ui.step_panel():          # panneau 0
+        with ui.step_panel():          # panel 0
             ui.input("Email", value=state.email)
-        with ui.step_panel():          # panneau 1
-            ui.input("Ville", value=state.city)
+        with ui.step_panel():          # panel 1
+            ui.input("City", value=state.city)
 
-**L'étape courante est un INDEX entier, 0-based** (``value`` en JS),
-comme Ant ``Steps.current`` / MUI ``activeStep`` / Mantine ``active``. Le
-statut de chaque étape s'en DÉDUIT — ``index < current`` = franchie,
-``== current`` = courante, ``> current`` = à venir — donc il n'y a rien à
-déclarer, et la comparaison est un entier côté client. Un id par étape
-aurait obligé chaque pastille à faire un ``indexOf`` dans une liste bakée
-pour la même information.
+**The current step is an integer INDEX, 0-based** (``value`` in JS), like
+Ant ``Steps.current`` / MUI ``activeStep`` / Mantine ``active``. Each
+step's status is DERIVED from it — ``index < current`` = done, ``==
+current`` = current, ``> current`` = upcoming — so there is nothing to
+declare, and the comparison is an integer on the client side. One id per
+step would have forced each chip to do an ``indexOf`` in a baked list for
+the same information.
 
-``status="error"`` est le SEUL statut explicite : il fige l'étape (attribut
-statique, pas de ``bz-attr``), le triptyque dérivé couvrant tout le reste.
+``status="error"`` is the ONLY explicit status: it freezes the step (a
+static attribute, no ``bz-attr``), the derived triptych covering
+everything else.
 
-Les panneaux sont appariés par **ordre de déclaration** — le n-ième
-``ui.step_panel()`` s'affiche quand ``current == n``. Un panneau de plus
-que d'étapes est légitime et c'est le point : il devient l'écran
-« terminé », atteint par un dernier ``.next()`` (idiome
-``Stepper.Completed`` de Mantine, sans le quatrième composant). C'est
-pourquoi la borne de ``next()`` est ``max(len(steps), len(panels)) - 1``
-et non ``len(steps) - 1``.
+The panels are paired by **declaration order** — the n-th
+``ui.step_panel()`` shows when ``current == n``. One panel more than
+steps is legitimate and that is the point: it becomes the "done" screen,
+reached by one last ``.next()`` (Mantine's ``Stepper.Completed`` idiom,
+without the fourth component). That is why ``next()``'s bound is
+``max(len(steps), len(panels)) - 1`` and not ``len(steps) - 1``.
 
-En orientation ``vertical`` les panneaux restent SOUS la liste, ils ne
-s'intercalent pas entre les étapes (ce que fait MUI). C'est une
-abstention, pas un oubli : intercaler dédouble la structure de rendu pour
-un gain qui ne concerne que le wizard-de-formulaire vertical.
+In ``vertical`` orientation the panels stay BELOW the list, they do not
+interleave between the steps (which MUI does). It is an abstention, not
+an oversight: interleaving doubles the render structure for a gain that
+only concerns the vertical form wizard.
 
-Form integration : ``names_field=True`` sur ``value`` dérive le ``name``
-HTML depuis le champ lié — un ``<input type="hidden">`` porte l'index dans
-la form data, et le listener de ``change`` y est relocalisé (une ``<ol>``
-n'a ni ``name``/``value`` ni ``change`` natif). Idiome partagé avec Tabs /
-Pagination / Accordion.
+Form integration : ``names_field=True`` on ``value`` derives the HTML
+``name`` from the bound field — an ``<input type="hidden">`` carries the
+index in the form data, and the ``change`` listener is relocated onto it
+(an ``<ol>`` has neither ``name``/``value`` nor a native ``change``).
+Idiom shared with Tabs / Pagination / Accordion.
 
-Imperative API : ``.set(i)`` / ``.next()`` / ``.prev()``. ``.set`` écrit
-directement dans la binding quand il y en a une (write-through) ; ``.next``
-/ ``.prev`` dispatchent TOUJOURS une commande DOM, binding ou pas — leur
-résultat dépend de la valeur VIVANTE et de la borne, que le serveur ne
-connaît pas au moment du rendu. Cf. ``imperative-api.md``.
+Imperative API : ``.set(i)`` / ``.next()`` / ``.prev()``. ``.set`` writes
+straight into the binding when there is one (write-through); ``.next`` /
+``.prev`` ALWAYS dispatch a DOM command, binding or not — their result
+depends on the LIVE value and on the bound, which the server does not
+know at render time. Cf. ``imperative-api.md``.
 """
 
 from __future__ import annotations
@@ -84,34 +84,35 @@ def _build_bz_data(
     max_index: int,
     server_synced: bool,
 ) -> str:
-    """Le ``bz-data`` de l'instance : **des données, pas du code**.
+    """The instance's ``bz-data``: **data, not code**.
 
-    Les méthodes (``_status`` / ``goTo`` / ``next`` / ``prev``) vivent une
-    seule fois dans ``$bz.stepper.scope``
-    (``bretzel/runtime/_src/16_accordion.js``). Ne partent d'ici que
-    l'état, l'indirection lecture/écriture, et la borne ``_max``.
+    The methods (``_status`` / ``goTo`` / ``next`` / ``prev``) live once
+    in ``$bz.stepper.scope``
+    (``bretzel/runtime/_src/16_accordion.js``). All that leaves from here
+    is the state, the read/write indirection, and the ``_max`` bound.
 
-    Deux modes, comme Tabs :
+    Two modes, like Tabs:
 
-    - **local** : un signal ``value``. Quand la valeur vient du serveur
-      (``value=state.step``), il porte ``_serverSync`` pour que le morph
-      d'un ``@refreshable`` la ré-adopte — le serveur fait foi. Un
-      littéral (``value=1``) s'en abstient, sinon un refresh voisin
-      écraserait la navigation du client.
-    - **binding** : PAS de signal local et surtout pas de getter —
-      ``scope.absorb`` évalue chaque clé une fois et figerait un getter
-      sur sa première valeur. Les directives et ``_read``/``_write``
-      adressent directement la cellule ``$bz.state.<path>``.
+    - **local**: a ``value`` signal. When the value comes from the server
+      (``value=state.step``), it carries ``_serverSync`` so that a
+      ``@refreshable``'s morph re-adopts it — the server is
+      authoritative. A literal (``value=1``) abstains, otherwise a
+      neighbouring refresh would overwrite the client's navigation.
+    - **binding**: NO local signal and most certainly no getter —
+      ``scope.absorb`` evaluates each key once and would freeze a getter
+      on its first value. The directives and ``_read``/``_write``
+      address the ``$bz.state.<path>`` cell directly.
     """
-    # ``_max`` est de la CONFIG : le nombre d'étapes vient du serveur, le
-    # client ne l'écrit jamais → re-semé sans condition. ``absorb`` ne
-    # réécrit jamais un signal existant, donc sans ça un stepper qui gagne
-    # ou perd une étape gardait son ancienne borne (``next()`` bloquait sur
-    # l'ancien maximum). Même racine que ``_total`` de Pagination.
+    # ``_max`` is CONFIG: the number of steps comes from the server, the
+    # client never writes it → re-seeded unconditionally. ``absorb``
+    # never rewrites an existing signal, so without this a stepper that
+    # gains or loses a step kept its old bound (``next()`` stopped at the
+    # old maximum). Same root as Pagination's ``_total``.
     config_sync = ["_max"]
     if has_local_value:
-        # La VALEUR reste gatée : sans propriété serveur, un refresh voisin
-        # écraserait l'étape que le client vient d'atteindre.
+        # The VALUE stays gated: with no server ownership, a
+        # neighbouring refresh would overwrite the step the client has
+        # just reached.
         keys = [scope_key, *config_sync] if server_synced else config_sync
         sync = server_sync_marker(*keys, enabled=True)
         state = f"{scope_key}: {json.dumps(initial_value)},{sync} "
@@ -140,10 +141,10 @@ class Stepper(Component):
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "next", "prev")
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
 
-    # ``writes=True`` → la métaclasse dérive ``TWO_WAY_PROPS``.
-    # La clé de scope vaut le nom de la prop — ``value`` — dans le
-    # ``bz-data`` (≠ le nom de la prop) — déclaré ici, pas hardcodé dans
-    # le builder ni dans ``server_sync_marker``.
+    # ``writes=True`` → the metaclass derives ``TWO_WAY_PROPS``.
+    # The scope key is the prop's name — ``value`` — in the ``bz-data``
+    # (≠ the prop's name) — declared here, not hard-coded in the builder
+    # nor in ``server_sync_marker``.
     value: Any = reactive_prop(
         default=0,
         emit_attr=False,
@@ -154,9 +155,9 @@ class Stepper(Component):
     clickable: bool = reactive_prop(default=False, emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
-    # Comme Tabs / Pagination : l'autoname couvre le cas lié, ``name=``
-    # reste là pour un stepper à valeur littérale qui veut quand même
-    # poster son index.
+    # Like Tabs / Pagination: the autoname covers the bound case,
+    # ``name=`` is still there for a stepper with a literal value that
+    # still wants to post its index.
     name: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
@@ -171,7 +172,7 @@ class Stepper(Component):
         on_change: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             value=value,
             orientation=orientation,
@@ -183,25 +184,25 @@ class Stepper(Component):
             **kwargs,
         )
 
-    # ── API impérative ─────────────────────────────────────────────────
+    # ── Imperative API ─────────────────────────────────────────────────
     #
-    # Des méthodes de CLASSE ordinaires, pas des attributs d'instance :
-    # le trick non-data-descriptor des overlays n'existe que pour ne pas
-    # shadow une ``reactive_prop`` homonyme (``open``), et aucun de ces
-    # trois noms n'en est une. Le prendre quand même coûterait
-    # doublement — la gate ``test_imperative_classvar_is_complete`` ne
-    # lit que les méthodes PUBLIQUES d'une ClassDef, donc des
-    # ``_imperative_*`` assignés lui seraient invisibles.
+    # Ordinary CLASS methods, not instance attributes: the overlays'
+    # non-data-descriptor trick exists only so as not to shadow a
+    # same-named ``reactive_prop`` (``open``), and none of these three
+    # names is one. Taking it anyway would cost twice — the
+    # ``test_imperative_classvar_is_complete`` gate only reads a
+    # ClassDef's PUBLIC methods, so assigned ``_imperative_*`` would be
+    # invisible to it.
 
     def set(self, index: int) -> str:
-        """Aller à ``index``. Write-through binding s'il y en a une."""
+        """Go to ``index``. Write-through binding if there is one."""
         return self._value_command(coerce_index(index, minimum=0))
 
     def next(self) -> str:
-        # Toujours le dispatch, binding ou pas : « l'étape suivante » se
-        # calcule depuis la valeur VIVANTE et s'arrête à ``_max``. Le
-        # serveur ne connaît ni l'une ni l'autre au moment du rendu — un
-        # write-through devrait baker ``index + 1`` et déborderait.
+        # Always the dispatch, binding or not: "the next step" is
+        # computed from the LIVE value and stops at ``_max``. The server
+        # knows neither at render time — a write-through would have to
+        # bake ``index + 1`` and would overrun.
         return self._dispatch_command("bz-next")
 
     def prev(self) -> str:
@@ -228,19 +229,19 @@ class Stepper(Component):
         binding_path = (
             self.path_of(value_binding) if value_binding is not None else None
         )
-        # L'expression que lisent les directives : le signal local, ou la
-        # cellule de store trackée en mode binding (JAMAIS un getter de
-        # scope, que ``absorb`` figerait — cf. ``_build_bz_data``).
+        # The expression the directives read: the local signal, or the
+        # tracked store cell in binding mode (NEVER a scope getter, which
+        # ``absorb`` would freeze — cf. ``_build_bz_data``).
         active_expr = binding_path or scope_key
 
-        # ── Walk des enfants ─────────────────────────────────────────
-        # Les couples ``(enfant, rehabillage)`` : une étape est souvent
-        # ENVELOPPÉE — zone ``@refreshable`` pour se rafraîchir seule,
-        # ``ui.fragment``. L'enveloppe n'est pas une instance de ``Step``,
-        # donc le tri par type la ratait et l'étape **disparaissait**,
-        # sans une erreur (mesuré le 2026-08-23 : 4 022 → 2 185
-        # caractères). Le rehabillage voyage AVEC l'enfant parce que le
-        # rendu a lieu plus bas, une fois les index connus.
+        # ── Walking the children ─────────────────────────────────────
+        # The ``(child, rewrap)`` pairs: a step is often WRAPPED — a
+        # ``@refreshable`` zone to refresh alone, a ``ui.fragment``. The
+        # wrapper is not an instance of ``Step``, so sorting by type
+        # missed it and the step **disappeared**, with no error (measured
+        # on 2026-08-23: 4,022 → 2,185 characters). The rewrap travels
+        # WITH the child because the render happens further down, once
+        # the indices are known.
         steps: list[tuple[Step, Any]] = []
         panels: list[tuple[StepPanel, Any]] = []
         passthrough: list[Element] = []
@@ -255,18 +256,17 @@ class Stepper(Component):
                 if isinstance(rendered, Element):
                     passthrough.append(rendered)
 
-        # Le plus grand index atteignable : un panneau de plus que
-        # d'étapes est l'écran « terminé », et ``next()`` doit pouvoir
-        # l'atteindre.
+        # The greatest reachable index: one panel more than steps is
+        # the "done" screen, and ``next()`` must be able to reach it.
         max_index = max(max(len(steps), len(panels)) - 1, 0)
 
-        # ── Le décor, calculé UNE fois pour toutes les étapes ─────────
-        # Neuf valeurs identiques d'une étape à l'autre : les passer une
-        # par une ferait une signature à treize mots-clés dont quatre
-        # seulement varient. Le contexte les regroupe ; ``step_class`` et
-        # ``body_class`` restent des paramètres parce qu'ils dépendent du
-        # rang (la dernière étape ne revendique pas de part et ne pousse
-        # plus rien sous elle).
+        # ── The chrome, computed ONCE for all the steps ──────────────
+        # Nine values identical from one step to the next: passing them
+        # one by one would make a signature with thirteen keywords of
+        # which only four vary. The context groups them; ``step_class``
+        # and ``body_class`` stay parameters because they depend on the
+        # rank (the last step claims no share and pushes nothing below
+        # it any more).
         chrome: dict[str, Any] = {
             "clickable": clickable,
             "rail_class": self.slot_class("rail", axis.get("rail", "")),
@@ -309,11 +309,12 @@ class Stepper(Component):
             for index, (panel, rewrap) in enumerate(panels)
         ]
 
-        # ── Input caché — form data + source du ``change`` ───────────
-        # Une ``<ol>`` n'a ni ``name``/``value`` ni ``change`` natif : on
-        # relocalise tout listener de change (client ``bz-on:change`` ou
-        # le bundle serveur ``hx-*``) sur l'input, dont le ``bz-effect``
-        # re-fire un ``change`` à chaque mouvement de l'index.
+        # ── Hidden input — form data + source of the ``change`` ─────
+        # An ``<ol>`` has neither ``name``/``value`` nor a native
+        # ``change``: we relocate any change listener (client
+        # ``bz-on:change`` or the server ``hx-*`` bundle) onto the input,
+        # whose ``bz-effect`` re-fires a ``change`` at every move of the
+        # index.
         root_attrs = self.emit_attrs()
         relocated = _pop_change_handler(root_attrs)
         name = self._reactive_values.get("name") or self._derive_field_name()
@@ -328,13 +329,13 @@ class Stepper(Component):
             hidden_attrs.update(relocated)
             hidden_node = Element(tag="input", attrs=hidden_attrs, children=())
 
-        # ── Assemblage ───────────────────────────────────────────────
-        # Le scope + les listeners impératifs vivent sur le WRAPPER, pas
-        # sur la ``<ol>`` : les panneaux et l'input caché sont hors de la
-        # liste (une ``<ol>`` n'accepte que des ``<li>``) et doivent
-        # pourtant lire le même signal. Le wrapper est aussi la vraie
-        # root — c'est là qu'atterrissent ``classes=`` et un éventuel
-        # ``slots={"root": …}``.
+        # ── Assembly ─────────────────────────────────────────────────
+        # The scope + the imperative listeners live on the WRAPPER, not
+        # on the ``<ol>``: the panels and the hidden input are outside
+        # the list (an ``<ol>`` only accepts ``<li>``) and must
+        # nevertheless read the same signal. The wrapper is also the real
+        # root — that is where ``classes=`` and a possible
+        # ``slots={"root": …}`` land.
         ordered_list = Element(
             tag="ol",
             attrs={"class": self.slot_class("list", axis.get("list", ""))},
@@ -351,10 +352,10 @@ class Stepper(Component):
                     children=tuple(panel_nodes),
                 )
             )
-        # Un enfant étranger (texte, divider injecté) atterrit sur le
-        # WRAPPER, pas dans la ``<ol>`` — pour la raison qui a fait
-        # exister ce wrapper : une liste ordonnée n'accepte que des
-        # ``<li>``, et l'y glisser produirait du HTML invalide.
+        # A foreign child (text, an injected divider) lands on the
+        # WRAPPER, not in the ``<ol>`` — for the reason that made this
+        # wrapper exist: an ordered list only accepts ``<li>``, and
+        # slipping it in there would produce invalid HTML.
         wrapper_children.extend(passthrough)
 
         root_attrs["class"] = self.slot_class("root")
@@ -366,8 +367,8 @@ class Stepper(Component):
             max_index=max_index,
             server_synced=value_server_backed,
         )
-        # Réception des commandes impératives émises par un trigger
-        # externe (``wizard.next()`` sur un bouton ailleurs dans la page).
+        # Reception of the imperative commands issued by an external
+        # trigger (``wizard.next()`` on a button elsewhere in the page).
         root_attrs["bz-on:bz-set"] = "goTo($event.detail.value)"
         root_attrs["bz-on:bz-next"] = "next()"
         root_attrs["bz-on:bz-prev"] = "prev()"
@@ -382,8 +383,8 @@ class Step(Component):
 
     THEME_KEY: ClassVar[str] = "step"
     IS_CONTAINER: ClassVar[bool] = False
-    # L'index courant vit chez le parent : une binding par étape voudrait
-    # dire N bindings pour la même information.
+    # The current index lives at the parent's: one binding per step
+    # would mean N bindings for the same information.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     NAMED_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
     ICON_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
@@ -403,7 +404,7 @@ class Step(Component):
         disabled: bool | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             label=label,
             description=description,
@@ -413,7 +414,7 @@ class Step(Component):
             **kwargs,
         )
 
-    # ── Rendu interne — appelé par Stepper ────────────────────────────
+    # ── Internal render — called by Stepper ───────────────────────────
 
     def _render_in_stepper(
         self,
@@ -424,9 +425,9 @@ class Step(Component):
         body_class: str,
         chrome: dict[str, Any],
     ) -> Element:
-        """``chrome`` = le décor identique pour toutes les étapes, calculé
-        une fois par ``Stepper.render()`` (classes composées, taille
-        d'icône, expression d'index, drapeau cliquable)."""
+        """``chrome`` = the chrome identical for every step, computed
+        once by ``Stepper.render()`` (composed classes, icon size, index
+        expression, clickable flag)."""
         clickable: bool = chrome["clickable"]
         icon_size: str = chrome["icon_size"]
         initial_index: int = chrome["initial_index"]
@@ -437,9 +438,10 @@ class Step(Component):
         disabled = bool(self._reactive_values.get("disabled"))
         status_expr = f"_status({index})"
 
-        # ── Le driver d'état ─────────────────────────────────────────
-        # Un statut explicite est figé : il ne dépend pas de l'index
-        # courant, donc aucune raison de le recalculer côté client.
+        # ── The state driver ─────────────────────────────────────────
+        # An explicit status is frozen: it does not depend on the current
+        # index, so there is no reason to recompute it on the client
+        # side.
         step_attrs: dict[str, Any] = {"class": step_class}
         if frozen_status:
             step_attrs["data-status"] = str(frozen_status)
@@ -449,10 +451,10 @@ class Step(Component):
                 if index < initial_index
                 else ("current" if index == initial_index else "upcoming")
             )
-            # SSR statique pour que le premier paint soit juste, puis
-            # réactif. La chaîne littérale est obligatoire : un booléen nu
-            # ferait DROPPER l'attribut à false et ``data-[status=…]`` ne
-            # matcherait jamais (cf. ``bool_attr``, même classe de piège).
+            # Static SSR so the first paint is right, then reactive.
+            # The literal string is mandatory: a bare boolean would DROP
+            # the attribute at false and ``data-[status=…]`` would never
+            # match (cf. ``bool_attr``, same class of trap).
             step_attrs["data-status"] = initial_status
             step_attrs["bz-attr:data-status"] = status_expr
             step_attrs["bz-attr:aria-current"] = (
@@ -465,25 +467,25 @@ class Step(Component):
         bullet_children: list[Node] = []
         icon = self._slot_components.get("icon")
         if isinstance(icon, Component):
-            # Icône explicite : elle remplace numéro ET check, dans les
-            # quatre statuts.
+            # An explicit icon: it replaces BOTH number and check, in
+            # all four statuses.
             bullet_children.append(Component.render_detached(icon))
         elif frozen_status == "error":
             bullet_children.append(
                 Component.render_detached(Icon("triangle-alert", size=icon_size))
             )
         else:
-            # Deux glyphes montés, un seul visible : le numéro tant que
-            # l'étape n'est pas franchie, le check ensuite. Deux nœuds
-            # plutôt qu'un contenu réécrit — le runtime ne remplace pas du
-            # texte, il bascule un ``display``.
+            # Two glyphs mounted, one visible: the number as long as
+            # the step is not done, the check afterwards. Two nodes
+            # rather than rewritten content — the runtime does not
+            # replace text, it toggles a ``display``.
             #
-            # Le pré-tampon suit l'INDEX, pas ``frozen_status`` : le seul
-            # statut explicite est ``error``, traité au-dessus. Accepter
-            # ici un ``status="done"`` ne marcherait qu'à moitié — le
-            # ``data-status`` serait figé mais les deux ``bz-show``
-            # continueraient de lire ``_status(index)``, donc le runtime
-            # inverserait le pré-tampon dès l'hydratation.
+            # The pre-stamp follows the INDEX, not ``frozen_status``: the
+            # only explicit status is ``error``, handled above. Accepting
+            # a ``status="done"`` here would only half work — the
+            # ``data-status`` would be frozen but both ``bz-show`` would
+            # go on reading ``_status(index)``, so the runtime would
+            # invert the pre-stamp as soon as it hydrated.
             is_done = index < initial_index
             number = Element(
                 tag="span",
@@ -502,13 +504,13 @@ class Step(Component):
 
         bullet_attrs: dict[str, Any] = {"class": chrome["bullet_class"]}
         if disabled:
-            # Dans les DEUX modes. En cliquable le ``<button disabled>``
-            # ci-dessous suffirait à l'a11y, mais c'est ``aria-disabled``
-            # que le thème lit pour ternir — et en NON cliquable la
-            # pastille est un ``<span>``, où ``:disabled`` ne matche
-            # jamais : ``disabled=True`` n'y avait donc AUCUN effet, ni
-            # visuel ni annoncé (mesuré le 2026-08-13, en soldant
-            # ``_UNAUDITED``).
+            # In BOTH modes. When clickable the ``<button disabled>``
+            # below would be enough for a11y, but it is ``aria-disabled``
+            # that the theme reads to dim — and when NOT clickable the
+            # chip is a ``<span>``, where ``:disabled`` never matches:
+            # ``disabled=True`` therefore had NO effect there, neither
+            # visual nor announced (measured on 2026-08-13, while
+            # clearing ``_UNAUDITED``).
             bullet_attrs["aria-disabled"] = "true"
         if clickable and not disabled:
             bullet_tag = "button"
@@ -519,8 +521,8 @@ class Step(Component):
             bullet_attrs["type"] = "button"
             bullet_attrs["disabled"] = True
         else:
-            # Non cliquable = pas de ``<button>`` du tout : rien dans le
-            # tab order, rien à annoncer comme actionnable.
+            # Not clickable = no ``<button>`` at all: nothing in the
+            # tab order, nothing to announce as actionable.
             bullet_tag = "span"
         bullet = Element(
             tag=bullet_tag, attrs=bullet_attrs, children=tuple(bullet_children)
@@ -573,7 +575,7 @@ class Step(Component):
         return Element(tag="li", attrs=step_attrs, children=tuple(children))
 
     def render(self) -> Element:
-        # Hors d'un Stepper, une étape n'a pas de contexte de statut.
+        # Outside a Stepper, a step has no status context.
         return Element(tag="span", attrs={}, children=())
 
 
@@ -584,9 +586,9 @@ class StepPanel(Component):
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
 
     def __init__(self, **kwargs: Any) -> None:
-        # Signature explicite bien qu'elle n'ajoute aucun paramètre :
-        # sans elle, l'introspection publique remonte le ``*_args`` du
-        # socle comme s'il était une surface du composant.
+        # An explicit signature although it adds no parameter: without
+        # it, public introspection reports the base layer's ``*_args`` as
+        # if it were a surface of the component.
         super().__init__(**kwargs)
 
     def _render_panel(
@@ -597,27 +599,28 @@ class StepPanel(Component):
         active_expr: str,
         initial_index: int,
     ) -> Element:
-        # ``Number(...)`` : la valeur peut revenir d'une form data en
-        # chaîne (l'input caché la sérialise), et ``"1" === 1`` est faux.
-        # Pas de ``role`` : un panneau d'étape n'est pas un ``tabpanel``
-        # (il n'y a pas de ``tablist``, et le lier à une pastille
-        # ``aria-controls`` mentirait sur la nature du contrôle). Le
-        # panneau caché l'est par ``display:none``, ce que les lecteurs
-        # d'écran respectent déjà.
+        # ``Number(...)``: the value can come back from a form data as
+        # a string (the hidden input serialises it), and ``"1" === 1`` is
+        # false.
+        # No ``role``: a step panel is not a ``tabpanel`` (there is no
+        # ``tablist``, and linking it to a chip with ``aria-controls``
+        # would lie about the control's nature). The hidden panel is
+        # hidden by ``display:none``, which screen readers already
+        # respect.
         attrs: dict[str, Any] = {
             "class": panel_class,
             "bz-show": f"Number({active_expr}) === {index}",
         }
         if index != initial_index:
-            # Anti-FOUC : pré-tamponné caché, sinon le panneau clignote
-            # avant le premier effet ``bz-show``.
+            # Anti-FOUC: pre-stamped hidden, otherwise the panel
+            # flickers before the first ``bz-show`` effect.
             stamp_display_none(attrs)
         return Element(
             tag="div", attrs=attrs, children=tuple(self._render_children())
         )
 
     def render(self) -> Element:
-        # Usage isolé — le contenu apparaît, sans le câblage de bascule.
+        # Standalone use — the content appears, without the toggle wiring.
         return Element(
             tag="div",
             attrs={"class": "outline-none"},
@@ -626,12 +629,12 @@ class StepPanel(Component):
 
 
 def _text_or_component(value: Any) -> Node:
-    """Le contenu d'un slot textuel : un Component rendu, sinon du texte.
+    """A textual slot's content: a rendered Component, otherwise text.
 
-    Pas de branche ClientBinding — ``label`` / ``description`` ne sont pas
-    bindables, et une binding vit dans ``_binding_metadata``, jamais dans
-    ``_reactive_values`` (cf. traps.md § « Lire un binding via
-    _reactive_values + isinstance »).
+    No ClientBinding branch — ``label`` / ``description`` are not
+    bindable, and a binding lives in ``_binding_metadata``, never in
+    ``_reactive_values`` (cf. traps.md § "Reading a binding through
+    _reactive_values + isinstance").
     """
     if isinstance(value, Component):
         return Component.render_detached(value)

@@ -257,24 +257,24 @@ textarea:-webkit-autofill::selection {
 """
 
 
-# Collapsed desktop rail : an icon-only 64px strip wants NO visible scrollbar
+# Collapsed desktop rail: an icon-only 64px strip wants NO visible scrollbar
 # (the 4px gutter offsets the centred icons and reads as noise at that width —
 # cf. VS Code's activity bar). We simply HIDE the scrollbar there so the icon
-# column stays perfectly centred (no reserved gutter) ; scroll still works via
+# column stays perfectly centred (no reserved gutter); scroll still works via
 # wheel / trackpad. No overflow fade — a clean, empty rail matches the
 # framework's minimal aesthetic. Scoped to ``[data-open=false]`` + ``md:`` so
 # the expanded sidebar and the mobile drawer keep the normal thin scrollbar.
-# Hook class : ``bz-rail-scroll`` on the sidebar's scroll region (see sidebar
+# Hook class: ``bz-rail-scroll`` on the sidebar's scroll region (see sidebar
 # theme ``scroll`` slot). ``scrollbar-width:none`` covers Firefox + Chromium
-# 121+ ; ``::-webkit-scrollbar{display:none}`` is the Safari (< 18.2) fallback.
+# 121+; ``::-webkit-scrollbar{display:none}`` is the Safari (< 18.2) fallback.
 #
-# ⚠️ L'attribut est ``data-collapse``, pas ``data-variant``. Ce sélecteur a
-# visé le second pendant tout le temps où la Sidebar a émis le premier
-# (``sidebar.py`` : « ``data-collapse`` remplace ``data-variant`` ») : la
-# règle ne matchait plus RIEN, et le rail replié rendait sa barre de
-# défilement — mesuré au navigateur, ``scrollbar-width: thin`` au lieu de
-# ``none``. Rien ne lève quand un sélecteur CSS cesse de matcher : c'est
-# la gate ``test_css_selectors_match_the_catalogue`` qui le dit maintenant.
+# ⚠️ The attribute is ``data-collapse``, not ``data-variant``. This selector
+# targeted the second one for the whole time the Sidebar emitted the first
+# (``sidebar.py``: "``data-collapse`` replaces ``data-variant``"): the rule
+# matched NOTHING any more, and the collapsed rail rendered its scrollbar —
+# measured in the browser, ``scrollbar-width: thin`` instead of ``none``.
+# Nothing raises when a CSS selector stops matching: it is the
+# ``test_css_selectors_match_the_catalogue`` gate that says so now.
 _RAIL_SCROLL = """\
 /* collapsed rail : hidden scrollbar (centred icon column, no reserved gutter) */
 @media (min-width: 768px) {
@@ -288,38 +288,38 @@ _RAIL_SCROLL = """\
 }
 """
 
-# Le pendant GÉNÉRIQUE de ``_RAIL_SCROLL`` : « cet élément défile, mais ne
-# montre pas sa barre ». Le rail du sidebar garde sa règle à lui parce que
-# la sienne est CONDITIONNELLE (seulement replié, seulement en ``md:``), ce
-# qu'une classe statique ne peut pas exprimer ; celle-ci est
-# inconditionnelle et sert à tout élément qui fournit sa propre navigation.
+# The GENERIC counterpart of ``_RAIL_SCROLL``: "this element scrolls, but
+# does not show its bar". The sidebar's rail keeps a rule of its own
+# because its one is CONDITIONAL (collapsed only, ``md:`` only), which a
+# static class cannot express; this one is unconditional and serves any
+# element that provides its own navigation.
 #
-# ⚠️ Pourquoi une vraie classe CSS et pas un utilitaire Tailwind arbitraire
-# (``[scrollbar-width:none] [&::-webkit-scrollbar]:hidden``) — et la raison
-# a été CORRIGÉE le 2026-08-29, parce que l'ancienne était fausse.
+# ⚠️ Why a real CSS class and not an arbitrary Tailwind utility
+# (``[scrollbar-width:none] [&::-webkit-scrollbar]:hidden``) — and the
+# reason was CORRECTED on 2026-08-29, because the old one was wrong.
 #
-# Ce qui reste vrai, mesuré : en **DEV**, aucune des deux règles n'existe
-# dans les feuilles de la page. Le ``* { scrollbar-width: thin }`` ci-dessus
-# gagne, et la barre reste visible sur les plateformes qui en dessinent une
-# classique (Windows, Linux) — invisible en Chromium headless, qui utilise
-# des barres en surimpression. Le ``&`` de la variante arbitraire est de
-# surcroît échappé en ``&amp;`` dans l'attribut HTML.
+# What stays true, measured: in **DEV**, neither rule exists in the
+# page's sheets. The ``* { scrollbar-width: thin }`` above wins, and the
+# bar stays visible on platforms that draw a classic one (Windows,
+# Linux) — invisible in headless Chromium, which uses overlay bars. The
+# arbitrary variant's ``&`` is furthermore escaped as ``&amp;`` in the
+# HTML attribute.
 #
-# Ce qui était FAUX : « le JIT ne les compile pas », énoncé comme une
-# propriété de Tailwind. Re-mesuré le 2026-08-29 en passant les deux formes
-# au binaire de prod (``.bretzel/bin/tailwindcss-*``) : il émet les DEUX,
-# ``.[scrollbar-width\:none] { scrollbar-width: none }`` et la variante
-# ``&::-webkit-scrollbar``. C'est le compilateur NAVIGATEUR du mode dev qui
-# ne les gère pas, pas Tailwind — même famille que la memory
-# ``project_tailwind_browser_breaks_transitions``.
+# What was FALSE: "the JIT does not compile them", stated as a property
+# of Tailwind. Re-measured on 2026-08-29 by passing both forms to the
+# production binary (``.bretzel/bin/tailwindcss-*``): it emits BOTH,
+# ``.[scrollbar-width\:none] { scrollbar-width: none }`` and the
+# ``&::-webkit-scrollbar`` variant. It is the dev mode's BROWSER compiler
+# that does not handle them, not Tailwind — same family as the
+# ``project_tailwind_browser_breaks_transitions`` memory.
 #
-# La classe reste, et pour une raison qui tient toujours : elle marche des
-# DEUX côtés, là où la forme arbitraire n'existe qu'en prod. Une classe qui
-# ne s'applique qu'à moitié selon le mode est pire qu'un hook nommé. Le
-# commentaire du slot ``scroll`` de Sidebar le disait déjà : « CSS hook
-# (not a Tailwind utility) ».
+# The class stays, and for a reason that still holds: it works on BOTH
+# sides, where the arbitrary form only exists in production. A class that
+# applies only half the time depending on the mode is worse than a named
+# hook. The comment on Sidebar's ``scroll`` slot already said it: "CSS
+# hook (not a Tailwind utility)".
 _NO_SCROLLBAR = """\
-/* défile sans montrer sa barre (le composant fournit sa navigation) */
+/* scrolls without showing its bar (the component provides its navigation) */
 .bz-no-scrollbar {
   scrollbar-width: none;
 }
@@ -332,24 +332,25 @@ _NO_SCROLLBAR = """\
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# Aperçu de drag — le nœud qui suit le pointeur
+# Drag preview — the node that follows the pointer
 # ───────────────────────────────────────────────────────────────────────────
 #
-# Un CSS hook, pas un slot de thème, et la raison est structurelle : ce
-# nœud est **créé par le runtime** (``19_dnd.js`` clone l'item attrapé),
-# donc aucun rendu Python ne passe jamais par là. Lui composer une classe
-# Tailwind depuis le JS retomberait dans le piège mesuré de la memory
-# ``project_assembled_tailwind_class_dev_only`` — une classe assemblée
-# hors du scanner n'existe qu'en dev et disparaît en prod.
+# A CSS hook, not a theme slot, and the reason is structural: this node
+# is **created by the runtime** (``19_dnd.js`` clones the grabbed item),
+# so no Python render ever goes through it. Composing a Tailwind class
+# for it from JS would fall back into the measured trap of the
+# ``project_assembled_tailwind_class_dev_only`` memory — a class
+# assembled outside the scanner exists only in dev and disappears in
+# production.
 #
-# Le positionnement (``left`` / ``top`` / ``width``) reste en style inline :
-# il est recalculé à chaque ``pointermove`` et n'a rien à faire dans une
-# feuille. Ce qui vit ici est ce qui NE bouge pas — la mise hors-flux,
-# l'ombre de « soulevé », et surtout ``pointer-events: none`` : sans lui
-# ``elementFromPoint`` ne verrait que l'aperçu, collé sous le curseur, et
-# la carte n'atterrirait jamais nulle part.
+# The positioning (``left`` / ``top`` / ``width``) stays inline: it is
+# recomputed on every ``pointermove`` and has no business in a sheet.
+# What lives here is what does NOT move — taking it out of flow, the
+# "lifted" shadow, and above all ``pointer-events: none``: without it
+# ``elementFromPoint`` would see only the preview, glued under the
+# cursor, and the card would never land anywhere.
 _DRAG_PREVIEW = """\
-/* le clone qui suit le pointeur pendant un drag (créé par le runtime) */
+/* the clone that follows the pointer during a drag (created by the runtime) */
 .bz-drag-preview {
   position: fixed;
   z-index: 9999;
@@ -372,47 +373,46 @@ _DRAG_PREVIEW = """\
 
 
 _SOURCE_INLINE_RE = re.compile(r'^@source inline\(".*?"\);\s*$\n?', re.M | re.S)
-#: L'autre forme : une racine de disque à balayer. Motif volontairement
-#: distinct du précédent — ``inline(…)`` n'est pas un chemin, et les
-#: confondre reviendrait à retirer la safelist en croyant retirer une
-#: racine (ou l'inverse).
+#: The other form: a disk root to scan. A deliberately distinct pattern
+#: from the previous one — ``inline(…)`` is not a path, and confusing the
+#: two would amount to removing the safelist while believing one is
+#: removing a root (or the other way round).
 _SOURCE_PATH_RE = re.compile(r'^@source "[^"]*";\s*$\n?', re.M)
 
 
 def strip_safelist(theme_css: str) -> str:
-    """Retire du CSS de thème **les instructions de balayage** — la
-    safelist ``@source inline(...)`` et les racines ``@source "<dir>"``.
+    """Strip the **scan instructions** from the theme CSS — the
+    ``@source inline(...)`` safelist and the ``@source "<dir>"`` roots.
 
-    Les deux n'existent que pour le compilateur de PROD, qui lit des
-    fichiers source. Le compilateur navigateur du mode dev lit le DOM
-    vivant, où les classes sont déjà résolues : la safelist ne change
-    rien à ce qu'il produit et alourdit chaque page (69 Ko mesurés), et
-    une racine de **disque** n'a littéralement aucun sens dans un
-    navigateur — au mieux ignorée, au pire une erreur de compilation
-    dans la page.
+    Both exist only for the PRODUCTION compiler, which reads source
+    files. The dev mode's browser compiler reads the live DOM, where the
+    classes are already resolved: the safelist changes nothing in what it
+    produces and weighs down every page (69 KB measured), and a **disk**
+    root literally makes no sense in a browser — ignored at best, a
+    compilation error in the page at worst.
 
-    Le nom est resté au singulier parce que l'appelant est unique et que
-    son besoin, lui, n'a pas changé : ``_theme_css_inline`` veut le
-    thème SANS ce qui ne s'adresse qu'au compilateur de disque.
+    The name stayed singular because the caller is unique and its need
+    has not changed: ``_theme_css_inline`` wants the theme WITHOUT what
+    only addresses the disk compiler.
     """
     return strip_scan_roots(_SOURCE_INLINE_RE.sub("", theme_css, count=1))
 
 
 def strip_scan_roots(theme_css: str) -> str:
-    """Retire les racines ``@source "<dir>"`` — et RIEN d'autre.
+    """Strip the ``@source "<dir>"`` roots — and NOTHING else.
 
-    Deux appelants, deux raisons de ne pas laisser un chemin absolu
-    sortir :
+    Two callers, two reasons not to let an absolute path out:
 
-    - le CSS inliné en dev, où un chemin de disque n'a aucun sens pour le
-      compilateur navigateur (cf. :func:`strip_safelist`, qui compose
-      celle-ci) ;
-    - la route ``/_bretzel/theme.css``, servie « pour l'inspection » et
-      donc **publique** : elle publierait sinon le chemin d'installation
-      du serveur dans une réponse que n'importe qui peut demander.
+    - the CSS inlined in dev, where a disk path makes no sense to the
+      browser compiler (cf. :func:`strip_safelist`, which composes this
+      one);
+    - the ``/_bretzel/theme.css`` route, served "for inspection" and
+      therefore **public**: it would otherwise publish the server's
+      installation path in a response anyone can request.
 
-    Ce que le compilateur de prod, lui, ingère, garde ses racines — c'est
-    tout l'objet de :func:`~bretzel.theme.tailwind.generate_source_directives`.
+    What the production compiler ingests keeps its roots — that is the
+    whole point of
+    :func:`~bretzel.theme.tailwind.generate_source_directives`.
     """
     return _SOURCE_PATH_RE.sub("", theme_css)
 
@@ -431,35 +431,35 @@ def generate_theme_css_full(
 ) -> str:
     """Assemble the full ``theme.css`` Lightning CSS will ingest.
 
-    ``responsive_classes`` : les tokens des tables graduées (cf.
-    :func:`bretzel.components.dynamic_responsive_classes`), à clôturer
-    sur les breakpoints. Même bridge, même raison.
+    ``responsive_classes``: the tokens of the graded tables (cf.
+    :func:`bretzel.components.dynamic_responsive_classes`), to be closed
+    over the breakpoints. Same bridge, same reason.
 
-    **Les racines de balayage ne sont pas un paramètre.** Elles viennent
-    de :func:`bretzel.theme.sources.all_source_roots` : le paquet du
-    framework, plus ce que les paquets installés déclarent via le point
-    d'entrée ``bretzel.scan_roots``. Une porte de plus ici — un kwarg,
-    une option de config — ferait deux manières de faire la même chose,
-    et surtout la mauvaise : c'est le paquet QUI PORTE les classes qui
-    sait où elles sont, pas l'app qui l'assemble.
+    **The scan roots are not a parameter.** They come from
+    :func:`bretzel.theme.sources.all_source_roots`: the framework
+    package, plus what installed packages declare through the
+    ``bretzel.scan_roots`` entry point. One more door here — a kwarg, a
+    config option — would make two ways of doing the same thing, and the
+    wrong one at that: it is the package THAT CARRIES the classes that
+    knows where they are, not the app assembling it.
 
-    Le ``cwd``, lui, n'est jamais déclaré : Tailwind le balaie de
-    lui-même, et c'est exactement ce qui a masqué le bug tout le temps
-    où le ``cwd`` contenait le paquet.
+    The ``cwd`` is never declared: Tailwind scans it by itself, and that
+    is exactly what masked the bug for the whole time the ``cwd``
+    contained the package.
 
-    Sections, in order :
+    Sections, in order:
 
-    0. Les racines de balayage (``@source "<dir>";``) — quels dossiers
-       le compilateur lit pour y trouver des classes.
+    0. The scan roots (``@source "<dir>";``) — which folders the
+       compiler reads to find classes in.
     1. Lightning CSS safelist comment (``@source inline {...}``) —
        keeps every framework class alive even when no source file
        references it literally.
     2. The ``@import + @theme + .dark`` block from
        :func:`generate_theme_css`.
-    3. Les **ponts de couleur** (``.bz-c-<nom>``) — cf.
-       :mod:`bretzel.theme.bridges`. Après le bloc ``@theme``/``.dark``
-       parce qu'ils en LISENT les variables, avant ``extra_css`` parce
-       que l'app doit pouvoir redéfinir un palier.
+    3. The **colour bridges** (``.bz-c-<name>``) — cf.
+       :mod:`bretzel.theme.bridges`. After the ``@theme``/``.dark`` block
+       because they READ its variables, before ``extra_css`` because the
+       app must be able to redefine a step.
     4. Body-autofill fix.
     5. Button cursor (the pointer v4's preflight no longer gives).
     6. Theme transitions.
@@ -468,28 +468,28 @@ def generate_theme_css_full(
     8. Selection highlight (``::selection`` bound to ``--color-primary``).
     9. Collapsed-rail scrollbar hide (keeps the icon column centred).
     10. Scrollbar rules (omitted if ``scrollbar=None``).
-    11. ``extra_css`` — la porte de sortie CSS de l'application.
+    11. ``extra_css`` — the application's CSS way out.
 
-    ``extra_css`` est **la dernière section, et c'est le sujet**. Toutes
-    celles d'au-dessus appartiennent au framework ; celle-ci appartient à
-    l'app, donc elle doit gagner la cascade à spécificité égale — une
-    échappatoire qui perd contre ce qu'elle vient corriger n'échappe à
-    rien. C'est exactement la maladie mesurée sur ``classes=`` le
-    2026-08-16 (``bg-black`` perdant contre le ``bg-surface`` d'un thème
-    parce que Tailwind ordonne ses utilitaires lui-même) : ici l'ordre est
-    le nôtre, donc il est décidé au lieu d'être subi.
+    ``extra_css`` is **the last section, and that is the subject**. All
+    those above belong to the framework; this one belongs to the app, so
+    it must win the cascade at equal specificity — an escape hatch that
+    loses against what it is meant to correct escapes nothing. That is
+    exactly the illness measured on ``classes=`` on 2026-08-16
+    (``bg-black`` losing against a theme's ``bg-surface`` because
+    Tailwind orders its utilities itself): here the order is ours, so it
+    is decided instead of suffered.
 
-    Elle traverse le **même** pipeline que le reste — donc elle est
-    compilée, minifiée, et surtout **couverte par l'empreinte sha256**
-    de ``build.get_or_build_css`` : changer une règle invalide le
-    ``style.css`` en cache comme changer une couleur. Un CSS injecté
-    ailleurs (un ``<style>`` posé dans le ``<head>``) n'aurait eu aucune
-    de ces trois propriétés.
+    It goes through the **same** pipeline as the rest — so it is
+    compiled, minified, and above all **covered by the sha256
+    fingerprint** of ``build.get_or_build_css``: changing a rule
+    invalidates the cached ``style.css`` the way changing a colour does.
+    CSS injected elsewhere (a ``<style>`` set in the ``<head>``) would
+    have had none of those three properties.
 
-    Ce qu'elle rend possible et qu'aucun theming de composant ne
-    remplace : ``@font-face`` (donc l'auto-hébergement d'une fonte
-    depuis ``static_dir``), ``@keyframes``, ``@supports``, les propriétés
-    custom, et le CSS de survie sur du balisage tiers.
+    What it makes possible and that no component theming replaces:
+    ``@font-face`` (hence self-hosting a font from ``static_dir``),
+    ``@keyframes``, ``@supports``, custom properties, and survival CSS
+    over third-party markup.
     """
     parts: list[str] = [
         generate_source_directives(all_source_roots()),
@@ -515,11 +515,11 @@ def generate_theme_css_full(
         _DRAG_PREVIEW,
     ]
     if scrollbar is not None:
-        # APRÈS les deux règles de masquage : le bloc global pose un
-        # ``* { scrollbar-width: thin }``, mais un sélecteur universel a
-        # une spécificité nulle, donc une classe le bat quel que soit
-        # l'ordre. L'ordre reste écrit dans ce sens pour que la lecture
-        # du fichier suive celle de la cascade.
+        # AFTER the two hiding rules: the global block sets a
+        # ``* { scrollbar-width: thin }``, but a universal selector has
+        # zero specificity, so a class beats it whatever the order. The
+        # order stays written this way so that reading the file follows
+        # the cascade.
         parts.append(generate_scrollbar_css(scrollbar, palette))
     if extra := extra_css.strip():
         parts.append("/* --- Theme(css=…) — l'app a le dernier mot --- */")

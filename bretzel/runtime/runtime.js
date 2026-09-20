@@ -11,8 +11,8 @@
  *   4. Wire the HTMX bridge listeners.
  *   5. Wire the OS color-scheme listener ($bz._osScheme signal).
  *   6. Scan the document : bz-data scopes + all bz-* directives.
- *      (L'ordre 5/6 était inversé dans ce commentaire jusqu'au
- *      2026-08-01 — le listener OS est câblé AVANT le scan.)
+ *      (Steps 5/6 were inverted in this comment until 2026-08-01 — the
+ *      OS listener is wired BEFORE the scan.)
  *   7. Wire the SSE EventSource + data-bz-subscribe-* zones.
  *   8. Add .bz-ready on <html> (releases [bz-data]{visibility:hidden}),
  *      dispatch bz:ready.
@@ -25,29 +25,29 @@
   const $bz = (window.$bz = window.$bz || {});
   $bz.version = "v1.0";
 
-  // Le vocabulaire de config de transport que le CLIENT consomme, déclaré
-  // en UN endroit et copié en boucle plus bas. C'est un point d'ancrage
-  // SYNTAXIQUE, pas du style : la gate
-  // ``tests/consistency/test_client_state_transport_config.py`` lit ce
-  // littéral pour vérifier que le serveur émet bien tout ce qu'on lit.
-  // Sans lui, elle devait deviner les lectures à la regex (``cfg.<x>``),
-  // ce qui ramassait ``cfg.mode`` / ``cfg.weekstart`` du calendrier — et
-  // compensait par une liste de noms écrite à la main, donc ne couvrait
-  // PAS la clé suivante. Même rôle que le ``kind === "…"`` sur lequel
-  // s'ancre la gate soeur des kinds d'erreur.
+  // The transport-config vocabulary the CLIENT consumes, declared in
+  // ONE place and copied in the loop below. It is a SYNTACTIC anchor,
+  // not style: the gate
+  // ``tests/consistency/test_client_state_transport_config.py`` reads
+  // this literal to check the server really emits everything we read.
+  // Without it, it had to guess the reads with a regex (``cfg.<x>``),
+  // which picked up the calendar's ``cfg.mode`` / ``cfg.weekstart`` —
+  // and compensated with a hand-written list of names, so did NOT cover
+  // the next key. Same role as the ``kind === "…"`` the sibling gate for
+  // error kinds anchors on.
   const CONFIG_KEYS = ["send_to_server"];
 
-  // Adopter la config de transport d'UNE instance. Deux appelants, un
-  // seul corps : le boot (depuis l'``<bz-envelope>``) et le bridge
-  // (depuis le ``<bz-patch>`` de seed d'une nav partielle). Avant le
-  // 2026-08-15 ce corps n'existait qu'inline dans le boot, donc un
-  // ``ClientState`` découvert en nav partielle recevait ses champs sans
-  // sa config : ``send_to_server`` ignoré, et ``persist`` sans
-  // adaptateur — donc une valeur sauvegardée jamais relue.
+  // Adopt ONE instance's transport config. Two callers, a single body:
+  // the boot (from the ``<bz-envelope>``) and the bridge (from a partial
+  // nav's seed ``<bz-patch>``). Before 2026-08-15 this body only existed
+  // inline in the boot, so a ``ClientState`` discovered during a partial
+  // nav got its fields without its config: ``send_to_server`` ignored,
+  // and ``persist`` with no adapter — so a saved value never read back.
   //
-  // ⚠️ À appeler APRÈS avoir semé les champs de l'instance : ``register``
-  // superpose le snapshot déjà stocké, qui doit gagner sur les défauts du
-  // serveur (« the user's browser knows better », 04_persistence.js).
+  // ⚠️ To be called AFTER seeding the instance's fields: ``register``
+  // superimposes the already stored snapshot, which must beat the
+  // server's defaults ("the user's browser knows better",
+  // 04_persistence.js).
   function adoptConfig(path, entry) {
     const cfg = {};
     for (const key of CONFIG_KEYS) cfg[key] = entry[key];
@@ -76,21 +76,21 @@
       else flat.get(path).set(value);
       if ($bz._persistence) $bz._persistence.notify(path, value);
     },
-    // Poser une valeur INITIALE : ne fait rien si le champ en a déjà une.
+    // Set an INITIAL value: does nothing if the field already has one.
     //
-    // C'est ce qui sépare « semer » de « pousser », et la différence a
-    // coûté le mode de couleur de l'utilisateur : à chaque navigation
-    // partielle, le serveur ré-émet TOUTES les instances de la page
-    // (`include_unchanged=True`) — avec ses valeurs à lui, c'est-à-dire
-    // les défauts, puisqu'il ne peut pas connaître celles du navigateur.
-    // Un `set` les écrasait, et comme `set` notifie la persistance, le
-    // défaut partait dans localStorage AVANT que `adoptConfig` n'aille y
-    // relire le snapshot. Le choix de l'utilisateur était détruit, pas
-    // seulement masqué.
+    // It is what separates "seeding" from "pushing", and the difference
+    // cost the user's colour mode: at every partial navigation, the
+    // server re-emits ALL the page's instances
+    // (`include_unchanged=True`) — with its own values, that is to say
+    // the defaults, since it cannot know the browser's. A `set`
+    // overwrote them, and since `set` notifies the persistence, the
+    // default went into localStorage BEFORE `adoptConfig` went and read
+    // the snapshot back from it. The user's choice was destroyed, not
+    // merely hidden.
     //
-    // `undefined` compte comme absent : `get()` auto-crée un signal vide
-    // pour qu'un effet puisse s'abonner avant le premier patch, donc
-    // l'existence du signal ne dit pas qu'il porte une valeur.
+    // `undefined` counts as absent: `get()` auto-creates an empty signal
+    // so an effect can subscribe before the first patch, so the signal's
+    // existence does not say it carries a value.
     seed(path, value) {
       if (flat.has(path) && flat.get(path).peek() !== undefined) return;
       this.set(path, value);
@@ -145,74 +145,72 @@
   let _sseUrl = null;
   let _sseSource = null;
 
-  /* L'identité de CET onglet, tirée une fois par chargement de page.
-     Elle ne désigne rien côté serveur, ne survit pas à la fermeture de
-     l'onglet, et sert à une seule chose : permettre au serveur de ne PAS
-     rediffuser à celui qui vient d'écrire ce qu'il vient de recevoir.
-     Sans elle, cocher une case sur un tableau partagé coûtait cinq
-     requêtes au lieu d'une — l'action, puis une re-lecture par zone
-     abonnée, chacune renvoyant exactement ce que la première avait
-     livré (mesuré sur `examples/kanban` : 354 Ko pour 177 Ko utiles).
+  /* THIS tab's identity, drawn once per page load.
+     It designates nothing on the server side, does not survive the tab
+     closing, and serves one thing only: letting the server NOT
+     re-broadcast to whoever has just written what it has just received.
+     Without it, ticking a box on a shared table cost five requests
+     instead of one — the action, then one re-read per subscribed zone,
+     each returning exactly what the first had delivered (measured on
+     `examples/kanban`: 354 kB for 177 kB of use).
 
-     `crypto.randomUUID` n'est pas garanti hors contexte sécurisé — un
-     `http://192.168.x.x` de test le perd — d'où le repli. La valeur n'a
-     aucune exigence cryptographique : elle doit seulement être unique
-     parmi les onglets ouverts d'une même personne. */
+     `crypto.randomUUID` is not guaranteed outside a secure context — a
+     test `http://192.168.x.x` loses it — hence the fallback. The value
+     has no cryptographic requirement: it only has to be unique among
+     one person's open tabs. */
   $bz._tabId = (function () {
     try {
       if (window.crypto && window.crypto.randomUUID) {
         return window.crypto.randomUUID();
       }
-    } catch (e) { /* contexte non sécurisé */ }
+    } catch (e) { /* insecure context */ }
     return (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
   })();
 
-  // ── Le refetch d'UNE zone abonnee ────────────────────────────────
+  // ── Refetching ONE subscribed zone ────────────────────────────────
   //
-  // ⚠️ Ceci s'ecrivait, jusqu'au 2026-09-04 :
+  // ⚠️ This was written, until 2026-09-04:
   //
   //     window.htmx.ajax("GET", url, { swap: "none" })
   //
-  // Sans ``source``, htmx rattache la requete a ``document.body`` —
-  // donc les N zones d'une page partagent UN element, et son
-  // ``hx-sync`` implicite les fait se supprimer les unes les autres.
-  // Mesure sur trois zones abonnees au meme etat, sur un client qui ne
-  // recoit QUE le flux (pas les swaps OOB de sa propre action) :
+  // With no ``source``, htmx attaches the request to ``document.body``
+  // — so a page's N zones share ONE element, and its implicit
+  // ``hx-sync`` makes them cancel each other. Measured on three zones
+  // subscribed to the same state, on a client that receives ONLY the
+  // stream (not the OOB swaps of its own action):
   //
-  //     tour 1   a=5    b=0    c=5     (attendu 5 partout)
-  //     tour 2   a=5    b=0    c=10    (attendu 10)
-  //     tour 3   a=10   b=0    c=15    (attendu 15)
+  //     round 1   a=5    b=0    c=5     (expected 5 everywhere)
+  //     round 2   a=5    b=0    c=10    (expected 10)
+  //     round 3   a=10   b=0    c=15    (expected 15)
   //
-  // La zone du MILIEU ne se rafraichit jamais, la premiere reste un
-  // tour en arriere, seule la derniere est juste. Ce n'est pas une
-  // lenteur, c'est de la donnee FAUSSE affichee indefiniment — et rien
-  // ne le signale, ni console, ni reseau : les requetes perdues n'ont
-  // jamais ete emises.
+  // The MIDDLE zone never refreshes, the first stays a round behind,
+  // only the last is right. It is not slowness, it is WRONG data
+  // displayed indefinitely — and nothing reports it, neither console
+  // nor network: the lost requests were never emitted.
   //
-  // ``source: zone`` rend a chaque zone son propre cycle de requete.
+  // ``source: zone`` gives each zone back its own request cycle.
   //
-  // ── Et la coalescence, qui est l'autre moitie ─────────────────────
+  // ── And the coalescing, which is the other half ────────────────────
   //
-  // Le meme evenement SSE reveille tous les clients a la meme
-  // milliseconde, et deux signaux rapproches valent deux requetes dont
-  // la premiere decrit deja un etat perime. D'ou une fenetre par zone
-  // (on garde la DERNIERE demande) et un decalage aleatoire par client
-  // (on etale la horde).
+  // The same SSE event wakes every client on the same millisecond, and
+  // two close signals are two requests, the first of which already
+  // describes a stale state. Hence a window per zone (we keep the LAST
+  // demand) and a random offset per client (we spread the herd).
   //
-  // Les deux nombres sont petits a dessein : au-dela, un « temps reel »
-  // cesse d'en etre un. 40 ms de fenetre tiennent une rafale de
-  // signaux, 60 ms d'etalement suffisent a desynchroniser des clients
-  // que le meme evenement reveille ensemble.
+  // Both numbers are small on purpose: beyond that, a "real time" stops
+  // being one. 40 ms of window holds a burst of signals, 60 ms of
+  // spread is enough to desynchronise clients the same event wakes
+  // together.
   const REFETCH_WINDOW_MS = 40;
   const REFETCH_SPREAD_MS = 60;
 
-  // Le decalage est tire UNE fois par page : le re-tirer a chaque
-  // evenement re-synchroniserait les clients en moyenne, ce qui est
-  // exactement ce qu'on cherche a eviter.
+  // The offset is drawn ONCE per page: redrawing it at every event
+  // would re-synchronise the clients on average, which is exactly what
+  // we are trying to avoid.
   const _refetchJitter = Math.random() * REFETCH_SPREAD_MS;
 
-  // Cle par ELEMENT : une zone remplacee par un morph perd son entree
-  // avec lui, et n'herite pas du minuteur de l'ancienne.
+  // Keyed by ELEMENT: a zone replaced by a morph loses its entry with
+  // it, and does not inherit the old one's timer.
   const _refetchPending = new WeakMap();
 
   function refetchZone(zone, url) {
@@ -221,8 +219,8 @@
       state = { timer: null };
       _refetchPending.set(zone, state);
     }
-    // Une demande plus recente remplace celle qui attendait : elles
-    // decrivent le meme etat final, et seule la derniere le connait.
+    // A more recent demand replaces the one that was waiting: they
+    // describe the same final state, and only the last one knows it.
     if (state.timer) clearTimeout(state.timer);
     state.timer = setTimeout(function () {
       state.timer = null;
@@ -279,9 +277,10 @@
       const clientState = config.client_state || {};
       for (const path of Object.keys(clientState)) {
         const entry = clientState[path];
-        // Les champs D'ABORD, la config ENSUITE : ``adoptConfig`` appelle
-        // ``register``, qui superpose le snapshot stocké — il doit écraser
-        // les défauts du serveur, pas l'inverse.
+        // The fields FIRST, the config AFTERWARDS: ``adoptConfig``
+        // calls ``register``, which superimposes the stored snapshot —
+        // it must overwrite the server's defaults, not the other way
+        // round.
         const fields = entry.fields || {};
         for (const field of Object.keys(fields)) {
           $bz._store.set(path + "." + field, fields[field]);
@@ -289,39 +288,39 @@
         adoptConfig(path, entry);
       }
       $bz._csrf = config.csrf || null;
-      // L'identite de page, que le pont pose en en-tete sur chaque
-      // action. Sans elle, le serveur en forge une neuve et l'action
-      // repart avec un etat de scope ``page`` VIERGE. Elle n'arrivait
-      // jusque-la que par le ``hx-headers`` du conteneur de page, dont
-      // un panneau teleporte dans <body> est sorti — d'ou un handler de
-      // dropdown / dialog / drawer qui perdait l'etat en silence.
+      // The page identity, which the bridge sets as a header on every
+      // action. Without it, the server forges a new one and the action
+      // leaves with a BLANK ``page`` scope state. Until then it only
+      // arrived through the page container's ``hx-headers``, which a
+      // panel teleported into <body> left — hence a dropdown / dialog /
+      // drawer handler that lost the state in silence.
       $bz._pageId = config.page_id || null;
       $bz._endpoints = config.endpoints || {};
 
-      // ── L'adresse, corrigee ────────────────────────────────────────
+      // ── The address, corrected ─────────────────────────────────────
       //
-      // Un etat de portee ``session`` se souvient d'un tri ou d'un
-      // filtre par-dela les navigations : revenir sur ``/comptes`` nu
-      // rend une vue triee sous une adresse qui n'en dit rien, et le
-      // lien copie montre autre chose chez qui le recoit. Le serveur
-      // sait les deux et pose ici l'adresse juste.
+      // A ``session``-scoped state remembers a sort or a filter beyond
+      // navigations: coming back to a bare ``/accounts`` renders a
+      // sorted view under an address that says nothing about it, and the
+      // copied link shows something else to whoever receives it. The
+      // server knows both and sets the right address here.
       //
-      // ``replaceState`` et PAS ``pushState`` : corriger n'est pas
-      // naviguer. Empiler une entree a chaque chargement rendrait le
-      // bouton retour inutilisable — il faudrait deux clics pour un
-      // mouvement.
+      // ``replaceState`` and NOT ``pushState``: correcting is not
+      // navigating. Stacking an entry at every load would make the back
+      // button unusable — it would take two clicks for one move.
       //
-      // ``history.state`` est preserve : htmx y range le sien, et le lui
-      // ecraser casserait sa restauration sur les entrees qu'il a creees.
+      // ``history.state`` is preserved: htmx files its own there, and
+      // overwriting it would break its restoration on the entries it
+      // created.
       if (config.address) {
         try {
           window.history.replaceState(
             window.history.state, "", config.address,
           );
         } catch (e) {
-          // Une adresse refusee (origine differente) ne doit pas empecher
-          // la page de booter : l'adresse restera muette, la vue est
-          // juste. On degrade, on ne casse pas.
+          // A refused address (a different origin) must not stop the
+          // page booting: the address will stay silent, the view is
+          // right. We degrade, we do not break.
           console.error("bz: adresse non corrigeable", config.address, e);
         }
       }
@@ -350,17 +349,17 @@
     if ($bz._store.peek("ColorScheme.default.mode") === undefined) {
       $bz._store.set("ColorScheme.default.mode", "system");
     }
-    // La resolution mode -> sombre, en UN endroit. L'effet ci-dessous la
-    // pose sur <html> ; ``ColorScheme.toggle()`` (Python) l'appelle pour
-    // basculer contre CE QU'ON VOIT et non contre le jeton stocke.
+    // The mode -> dark resolution, in ONE place. The effect below sets
+    // it on <html>; ``ColorScheme.toggle()`` (Python) calls it to flip
+    // against WHAT IS SEEN and not against the stored token.
     //
-    // Sans ca, partir de ``system`` sur un OS sombre rendait le PREMIER
-    // clic invisible : il ecrivait ``dark``, deja la valeur resolue.
-    // Mesure sur les deux apps de demo le 2026-09-04 -- l'utilisateur l'a
-    // rapporte comme "le bouton ne marche pas", ce qui est la bonne
-    // lecture d'un controle qui ne fait rien une fois sur deux.
+    // Without that, starting from ``system`` on a dark OS made the FIRST
+    // click invisible: it wrote ``dark``, already the resolved value.
+    // Measured on both demo apps on 2026-09-04 — the user reported it as
+    // "the button does not work", which is the right reading of a
+    // control that does nothing one time in two.
     //
-    // Lit deux signaux, donc appele DANS l'effet il garde le suivi.
+    // Reads two signals, so called INSIDE the effect it keeps tracking.
     $bz._isDark = function () {
       const m = $bz._store.get("ColorScheme.default.mode");
       return (
@@ -390,8 +389,8 @@
     }
 
     if ($bz._endpoints && $bz._endpoints.sse) {
-      // L'identité passe par l'URL : `EventSource` n'a aucune façon de
-      // poser un en-tête.
+      // The identity goes through the URL: `EventSource` has no way of
+      // setting a header.
       _sseUrl = $bz._endpoints.sse
         + ($bz._endpoints.sse.indexOf("?") >= 0 ? "&" : "?")
         + "tab=" + encodeURIComponent($bz._tabId);
@@ -578,41 +577,41 @@
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  /* ── Inertie d'un contrôle désactivé ────────────────────────────────
+  /* ── The inertness of a disabled control ────────────────────────────
    *
-   * UN support natif (`<button disabled>`, `<input disabled>`) est rendu
-   * inerte par le navigateur, gratuitement. Un `<a>`, un `<div>`, un
-   * `role="menuitem"` ne le sont JAMAIS : l'attribut `disabled` n'existe
-   * pas sur eux, il est simplement ignoré.
+   * A native SUPPORT (`<button disabled>`, `<input disabled>`) is made
+   * inert by the browser, for free. An `<a>`, a `<div>`, a
+   * `role="menuitem"` NEVER are: the `disabled` attribute does not exist
+   * on them, it is simply ignored.
    *
-   * Jusqu'au 2026-08-13 chaque composant s'en tirait tout seul, et
-   * mesure faite, deux des trois façons employées étaient cassées :
-   *   - MenuItem retirait ses câblages À LA CONSTRUCTION — donc jamais
-   *     quand `disabled` est piloté par une binding, où la valeur au
-   *     rendu est `false`. `ui.dropdown_item(disabled=<binding>)` restait
-   *     entièrement cliquable en paraissant actif ;
-   *   - les trois items de nav posaient `pointer-events-none`, ce qui
-   *     bloque bien le clic mais ANNULE le `cursor-not-allowed` du même
-   *     élément (aucun événement de pointeur ⇒ aucun curseur peint).
+   * Until 2026-08-13 each component got by on its own, and once
+   * measured, two of the three ways used were broken:
+   *   - MenuItem removed its wiring AT CONSTRUCTION — so never when
+   *     `disabled` is driven by a binding, where the value at render is
+   *     `false`. `ui.dropdown_item(disabled=<binding>)` stayed entirely
+   *     clickable while looking active;
+   *   - the three nav items set `pointer-events-none`, which does block
+   *     the click but CANCELS the same element's `cursor-not-allowed`
+   *     (no pointer event ⇒ no cursor painted).
    *
-   * L'inertie est donc devenue une propriété du SOCLE, dérivée du seul
-   * `aria-disabled="true"` — l'attribut que l'a11y exige de toute façon,
-   * et que le serveur sait rendre réactif via `bz-attr:`. Trois gardes,
-   * chacune à sa frontière : les handlers `bz-on:` ici, la navigation
-   * native juste en dessous, et l'action serveur dans `05_bridge.js`
-   * (mesuré : `preventDefault` sur `htmx:configRequest` annule bien la
-   * requête en htmx 2.0.4, cf. `tests/audit/probe_configrequest_is_
-   * cancelable.py`).
+   * Inertness therefore became a property of the BASE LAYER, derived
+   * from `aria-disabled="true"` alone — the attribute a11y requires
+   * anyway, and that the server knows how to make reactive through
+   * `bz-attr:`. Three guards, each at its boundary: the `bz-on:`
+   * handlers here, native navigation just below, and the server action
+   * in `05_bridge.js` (measured: `preventDefault` on
+   * `htmx:configRequest` does cancel the request in htmx 2.0.4, cf.
+   * `tests/audit/probe_configrequest_is_cancelable.py`).
    *
-   * `closest()` et pas une lecture directe : un clic atterrit sur
-   * l'enfant (l'icône, le label), pas sur le contrôle qui porte l'état.
+   * `closest()` and not a direct read: a click lands on the child (the
+   * icon, the label), not on the control carrying the state.
    */
   const INERT_SELECTOR = '[aria-disabled="true"]';
 
-  // Les événements qui DÉMARRENT une interaction. La liste est fermée à
-  // dessein : bloquer tout événement rendrait un `bz-on:mouseleave` de
-  // fermeture inopérant sur un contrôle désactivé, donc laisserait un
-  // état ouvert coincé. Ce qu'on refuse, c'est d'agir — pas d'observer.
+  // The events that START an interaction. The list is closed on
+  // purpose: blocking every event would make a closing
+  // `bz-on:mouseleave` inoperative on a disabled control, so would leave
+  // an open state stuck. What we refuse is to act — not to observe.
   const ACTIVATION_EVENTS = new Set([
     "click", "dblclick", "mousedown", "pointerdown", "touchstart",
     "keydown", "keypress", "keyup", "submit",
@@ -622,13 +621,12 @@
     return !!(el && el.closest && el.closest(INERT_SELECTOR));
   };
 
-  // La navigation native d'un `<a href>` inerte. Elle n'a pas de
-  // `bz-on:` à intercepter et n'est pas toujours boostée par HTMX, donc
-  // elle a besoin de son propre garde. `preventDefault` SEUL, jamais
-  // `stopPropagation` : couper la propagation ici tuerait le
-  // click-outside des overlays ouverts ailleurs dans la page — un
-  // dropdown resterait ouvert parce qu'on a cliqué sur un bouton
-  // désactivé à l'autre bout de l'écran.
+  // The native navigation of an inert `<a href>`. It has no `bz-on:` to
+  // intercept and is not always boosted by HTMX, so it needs its own
+  // guard. `preventDefault` ALONE, never `stopPropagation`: cutting
+  // propagation here would kill the click-outside of overlays open
+  // elsewhere in the page — a dropdown would stay open because you
+  // clicked a disabled button at the other end of the screen.
   document.addEventListener("click", function (event) {
     const target = event.target;
     if (target && target.closest && target.closest("a" + INERT_SELECTOR)) {
@@ -656,39 +654,41 @@
     return fn;
   }
 
-  /* Les événements de CYCLE DE VIE d'un composant. Ils appartiennent à
-   * leur racine et n'ont rien à dire à un ancêtre — contrairement à
-   * ``bz-dropdown-pick`` / ``menu-pick``, qui remontent EXPRÈS.
+  /* A component's LIFE-CYCLE events. They belong to their root and have
+   * nothing to say to an ancestor — unlike ``bz-dropdown-pick`` /
+   * ``menu-pick``, which bubble ON PURPOSE.
    *
-   * Miroir de ``_wiring.ROOT_DISPATCHED_EVENTS`` côté Python, gardé par
+   * A mirror of ``_wiring.ROOT_DISPATCHED_EVENTS`` on the Python side,
+   * guarded by
    * ``tests/consistency/test_scoped_events_mirror_python.py``.
    *
-   * Pourquoi ils ne bullent pas (mesuré au navigateur le 2026-08-19)
-   * ----------------------------------------------------------------
-   * ``on_open=`` / ``on_close=`` posent leur ``hx-trigger`` sur la
-   * RACINE du composant. Avec ``bubbles: true``, cette racine attrapait
-   * donc aussi les ``open``/``close`` de ses descendants :
+   * Why they do not bubble (measured in the browser on 2026-08-19)
+   * ---------------------------------------------------------------
+   * ``on_open=`` / ``on_close=`` set their ``hx-trigger`` on the
+   * component's ROOT. With ``bubbles: true``, that root therefore also
+   * caught its descendants' ``open``/``close``:
    *
-   *   - ``ui.select`` dans un ``ui.dialog(on_open=…)`` → ouvrir le
-   *     panneau POSTait le handler DU DIALOG, et Échap en POSTait DEUX
-   *     ``on_close`` ;
-   *   - ``ui.alert(dismissible=True)`` dans un ``ui.dialog(on_close=…)``
-   *     → congédier l'alerte POSTait le ``on_close`` DU DIALOG.
+   *   - a ``ui.select`` in a ``ui.dialog(on_open=…)`` → opening the
+   *     panel POSTed THE DIALOG's handler, and Escape POSTed TWO
+   *     ``on_close``;
+   *   - a ``ui.alert(dismissible=True)`` in a ``ui.dialog(on_close=…)``
+   *     → dismissing the alert POSTed THE DIALOG's ``on_close``.
    *
-   * Huit composants exposent ces deux events et huit les émettent :
-   * n'importe quel émetteur imbriqué dans n'importe quel écouteur
-   * fuyait. Repro : ``tests/probes/probe_overlay_bubble.py``. */
+   * Eight components expose these two events and eight emit them: any
+   * emitter nested in any listener leaked. Repro:
+   * ``tests/probes/probe_overlay_bubble.py``. */
   const SCOPED_EVENTS = new Set(["open", "close"]);
 
-  /* La racine du composant qui contient ``el`` : le premier ancêtre à
-   * ``bz-data``, en remontant les téléportations par leur origine.
+  /* The root of the component containing ``el``: the first ancestor
+   * with a ``bz-data``, walking teleportations back through their
+   * origin.
    *
-   * Même marche que ``findScope`` (``03_scope.js``) — sans le saut
-   * ``_bzScopeHost``, un panneau projeté sous ``<body>`` (Tooltip,
-   * Popover, Dropdown, popover de SidebarFooter) chercherait sa racine
-   * dans le ``<body>`` et n'en trouverait aucune. Aucun ``open``/``close``
-   * n'en part aujourd'hui — mesuré, seul ``bz-dropdown-pick`` y vit — mais
-   * un composant à venir n'a pas à redécouvrir ce piège. */
+   * The same walk as ``findScope`` (``03_scope.js``) — without the
+   * ``_bzScopeHost`` jump, a panel projected under ``<body>`` (Tooltip,
+   * Popover, Dropdown, SidebarFooter's popover) would look for its root
+   * in the ``<body>`` and find none. No ``open``/``close`` leaves from
+   * there today — measured, only ``bz-dropdown-pick`` lives there — but
+   * a component to come should not have to rediscover this trap. */
   function componentRootOf(el) {
     let node = el;
     while (node) {
@@ -706,12 +706,12 @@
     // Memoized per node — handlers on the same element share one closure.
     if (!el._bzDispatch) {
       el._bzDispatch = function (name, detail) {
-        // La CIBLE est la racine du composant émetteur, pas le nœud qui
-        // appelle : le ``×`` d'une Alert est un descendant, et son
-        // ``close`` doit quand même atteindre l'écouteur de la racine.
-        // Le bullage le faisait ; en le coupant, il faut viser la racine
-        // directement. Repli sur ``el`` si le composant n'a pas de scope
-        // — un dispatch de moins vaut mieux qu'un dispatch ailleurs.
+        // The TARGET is the emitting component's root, not the node
+        // that calls: an Alert's ``×`` is a descendant, and its
+        // ``close`` must still reach the root's listener. Bubbling did
+        // it; with bubbling cut, the root has to be aimed at directly.
+        // Fallback on ``el`` if the component has no scope — one
+        // dispatch fewer is better than a dispatch elsewhere.
         const scoped = SCOPED_EVENTS.has(name);
         const target = (scoped && componentRootOf(el)) || el;
         target.dispatchEvent(
@@ -849,20 +849,21 @@
       // starts empty, so the first run after a morph re-adds every class
       // from the real (clobbered) DOM baseline. Within a single bind the
       // closure persists across signal-driven re-runs, so normal
-      // add/remove diffing is unchanged. Cf. traps.md § "bz-class perdue
-      // après un morph (tracking sur le noeud)".
+      // add/remove diffing is unchanged. Cf. traps.md § "bz-class lost
+      // after a morph (tracking on the node)".
       //
-      // `managed` seul ne suffit PAS à tenir cette promesse : il retient ce
-      // que l'EXPRESSION a produit, pas ce qui a réellement été ajouté. Or
-      // `classList` est un set — un token déjà présent dans le `class=` SSR
-      // rend le `add` inopérant, mais le `remove` le supprime pour de bon.
-      // Un thème qui répète un token entre sa couche statique et sa couche
-      // dynamique voyait donc le token statique DÉTRUIT au premier
-      // basculement (mesuré : un bouton Pagination qui cesse d'être une
-      // ellipse perdait `w-10 text-sm flex items-center justify-center` et
-      // s'effondrait de 40 px à 8 px, `h-10` intacte). D'où `base` : la
-      // baseline lue au bind, jamais retirable. Cf. traps.md § « bz-class
-      // détruit un token que le thème partage avec sa couche statique ».
+      // `managed` alone is NOT enough to keep that promise: it holds what
+      // the EXPRESSION produced, not what was really added. Yet
+      // `classList` is a set — a token already present in the SSR
+      // `class=` makes the `add` a no-op, but the `remove` deletes it for
+      // good. A theme that repeats a token between its static layer and
+      // its dynamic layer therefore saw the static token DESTROYED at the
+      // first toggle (measured: a Pagination button that stopped being an
+      // ellipsis lost `w-10 text-sm flex items-center justify-center` and
+      // collapsed from 40 px to 8 px, `h-10` intact). Hence `base`: the
+      // baseline read at bind time, never removable. Cf. traps.md
+      // § "bz-class destroys a token the theme shares with its static
+      // layer".
       let managed = new Set();
       const base = new Set(el.classList);
       elEffect(el, function () {
@@ -886,26 +887,27 @@
         for (const cls of next) if (!managed.has(cls)) el.classList.add(cls);
         managed = next;
       }, disposers);
-      // Un effet qui AJOUTE des classes les RETIRE a sa disposition.
+      // An effect that ADDS classes REMOVES them on its disposal.
       //
-      // Sans cette symetrie, `base` finit par proteger ce que le RUNTIME
-      // a ajoute au lieu de ce que le SERVEUR a ecrit. `bindEl` commence
-      // par `disposeEl`, donc chaque re-bind (le bridge re-bind apres
-      // CHAQUE swap htmx) recapture `base = new Set(el.classList)` — et
-      // si l'ancien effet a laisse ses classes en place, elles entrent
-      // dans la nouvelle baseline et deviennent DEFINITIVEMENT
-      // irretirables.
+      // Without that symmetry, `base` ends up protecting what the
+      // RUNTIME added instead of what the SERVER wrote. `bindEl` starts
+      // with `disposeEl`, so every re-bind (the bridge re-binds after
+      // EVERY htmx swap) recaptures `base = new Set(el.classList)` — and
+      // if the old effect left its classes in place, they enter the new
+      // baseline and become PERMANENTLY unremovable.
       //
-      // Symptome mesure le 2026-08-16 sur une app de demo retiree : apres une
-      // navigation partielle de `/` vers `/stats`, l'entree « Tasks »
-      // gardait son fond `bg-primary` alors que son `data-active` etait
-      // bien repasse a `false` — un item a MOITIE actif, fond peint et
-      // texte reste gris. `bz-attr` n'a pas de baseline, donc lui restait
-      // juste : les deux canaux d'un meme etat divergeaient.
+      // Symptom measured on 2026-08-16 on a demo app since removed:
+      // after a partial navigation from `/` to `/stats`, the "Tasks"
+      // entry kept its `bg-primary` background although its
+      // `data-active` had indeed gone back to `false` — an item HALF
+      // active, background painted and text left grey. `bz-attr` has no
+      // baseline, so it stayed right: the two channels of one state
+      // diverged.
       //
-      // Touche les 9 composants qui emettent `bz-class`, pas seulement la
-      // sidebar. Cf. traps.md § « bz-class perdue apres un morph » — meme
-      // famille, sens inverse : la classe SURVIT au lieu de disparaitre.
+      // Affects the 9 components that emit `bz-class`, not only the
+      // sidebar. Cf. traps.md § "bz-class lost after a morph" — same
+      // family, opposite direction: the class SURVIVES instead of
+      // disappearing.
       disposers.push(function () {
         for (const cls of managed)
           if (!base.has(cls)) el.classList.remove(cls);
@@ -930,10 +932,10 @@
       const dispatch = makeDispatch(el);
       const guarded = ACTIVATION_EVENTS.has(eventName);
       const listener = function (event) {
-        // Un contrôle inerte ne DÉMARRE pas d'interaction. Le garde vit
-        // ici parce que c'est le seul endroit du runtime qui installe un
-        // ``bz-on:`` — donc la règle vaut pour les 76 composants sans
-        // qu'aucun ne la réécrive.
+        // An inert control does not START an interaction. The guard
+        // lives here because it is the runtime's only place that
+        // installs a ``bz-on:`` — so the rule holds for the 76
+        // components without any of them rewriting it.
         if (guarded && $bz._inert(el)) return;
         runner(scope.proxy, el, scope.refs, event, null, dispatch, nextTick);
       };
@@ -1338,8 +1340,8 @@
   }
 
   function makeScope(initialParent) {
-    // MUTABLE : le parent se RE-RÉSOUT (cf. ``reparent``). Les traps le
-    // lisent par la variable, jamais par une copie capturée.
+    // MUTABLE: the parent is RE-RESOLVED (cf. ``reparent``). The traps
+    // read it through the variable, never through a captured copy.
     let parent = initialParent;
     const signals = new Map();
     const helpers = new Map();
@@ -1389,29 +1391,29 @@
       parentScope() {
         return parent;
       },
-      /* Ré-accrocher ce scope à son parent COURANT.
+      /* Re-attach this scope to its CURRENT parent.
        *
-       * Un scope est indexé par son ``bz-id`` STRING et survit donc au
-       * remplacement de son nœud — c'est voulu. Mais son parent était
-       * capturé UNE fois, à la création, et plus jamais revu : un nœud
-       * qui réapparaît sous un autre parent gardait l'ancien à vie.
+       * A scope is indexed by its ``bz-id`` STRING and therefore
+       * survives its node being replaced — that is intended. But its
+       * parent was captured ONCE, at creation, and never looked at
+       * again: a node reappearing under another parent kept the old one
+       * for life.
        *
-       * Ça mordait sur une navigation ``hx-boost``, qui ne recharge pas
-       * le runtime : le ``<bz-calendar>`` d'un picker portait un id
-       * page-indépendant, donc la nouvelle page retrouvait le scope de
-       * l'ancienne, dont le parent était le picker de la page
-       * PRÉCÉDENTE. Le ``on_change`` écrivait sa valeur dans un scope
-       * mort — grille surlignée, champ vide, et un F5 pour s'en sortir.
+       * It bit on an ``hx-boost`` navigation, which does not reload the
+       * runtime: a picker's ``<bz-calendar>`` carried a page-independent
+       * id, so the new page found the old page's scope, whose parent was
+       * the PREVIOUS page's picker. The ``on_change`` wrote its value
+       * into a dead scope — highlighted grid, empty field, and an F5 to
+       * get out of it.
        *
-       * Les ids sont désormais uniques par page (``panel_calendar``),
-       * donc ce chemin n'est plus atteint par les pickers. Ceci est le
-       * durcissement : il ferme la CLASSE, pour que la prochaine
-       * collision d'id — quelle qu'elle soit — ne redevienne pas un bug
-       * silencieux.
+       * The ids are now unique per page (``panel_calendar``), so that
+       * path is no longer reached by the pickers. This is the hardening:
+       * it closes the CLASS, so that the next id collision — whatever it
+       * may be — does not become a silent bug again.
        *
-       * ``refs`` hérite par PROTOTYPE, donc se ré-accrocher demande de
-       * bouger le prototype aussi, sinon les ``$refs`` continueraient de
-       * résoudre chez l'ancien parent. */
+       * ``refs`` inherits by PROTOTYPE, so re-attaching means moving the
+       * prototype too, otherwise the ``$refs`` would go on resolving at
+       * the old parent's. */
       reparent(next) {
         if (next === parent) return;
         parent = next;
@@ -1476,9 +1478,9 @@
       scope = makeScope(parentScopeOf(el));
       scopes.set(id, scope);
     } else {
-      // Retrouvé, donc potentiellement sous un AUTRE parent qu'à sa
-      // création (cf. ``reparent``). Sur la même page c'est le même
-      // objet et l'appel ne fait rien.
+      // Found again, so potentially under ANOTHER parent than at its
+      // creation (cf. ``reparent``). On the same page it is the same
+      // object and the call does nothing.
       scope.reparent(parentScopeOf(el));
     }
     scope.absorb(evalDataLiteral(el.getAttribute("bz-data"), el));
@@ -1572,17 +1574,18 @@
  *
  * Per envelope.client_state[<Class>.<key>].persist :
  *
- *   "memory"    → JS memory only, dropped on reload (no adapter). C'est
- *                 le DÉFAUT côté Python (``ClientState.__persist__``).
+ *   "memory"    → JS memory only, dropped on reload (no adapter). It is
+ *                 the DEFAULT on the Python side
+ *                 (``ClientState.__persist__``).
  *   "session"   → sessionStorage, key "$bz:<Class>.<key>"
  *   "local"     → localStorage, same key
  *
- * ⚠️ ``"volatile"`` et ``"cross_tab"`` étaient listés ici jusqu'au
- * 2026-08-01 : l'enum Python (``state/scopes/client.py::PERSISTS``) ne
- * peut émettre que les trois ci-dessus, donc ces deux modes sont
- * inatteignables — et "memory", le défaut, n'était pas documenté. Le
- * test ``mode === "volatile"`` du code ci-dessous ne matche donc jamais ;
- * il tombe dans le même no-op que "memory" (storageFor → null).
+ * ⚠️ ``"volatile"`` and ``"cross_tab"`` were listed here until
+ * 2026-08-01: the Python enum (``state/scopes/client.py::PERSISTS``) can
+ * only emit the three above, so those two modes are unreachable — and
+ * "memory", the default, was not documented. The ``mode === "volatile"``
+ * test in the code below therefore never matches; it falls into the same
+ * no-op as "memory" (storageFor → null).
  *
  * Wiring : 00_index.js calls register(path, mode) for each instance
  * AFTER seeding the envelope defaults — register() then overlays any
@@ -1705,11 +1708,12 @@
  *                     surfaces instead of looping).
  *   otherwise / un-enveloped 4xx → generic error toast
  *
- *   (Il n'y a PAS de kind "redirect" : une redirection passe par l'en-tête
- *   HX-Redirect, qu'htmx traite nativement, et `bretzel.redirect()` la pose.
- *   Le kind est resté ici six mois sans que rien ne l'émette côté Python —
- *   et sans qu'il PUISSE l'être, error_envelope() ne sachant pas porter
- *   d'url. Gate : tests/consistency/test_bridge_error_kinds_are_emitted.py.)
+ *   (There is NO "redirect" kind: a redirection goes through the
+ *   HX-Redirect header, which htmx handles natively, and
+ *   `bretzel.redirect()` sets it. The kind stayed here for six months
+ *   with nothing emitting it on the Python side — and with nothing being
+ *   ABLE to, error_envelope() not knowing how to carry a url. Gate:
+ *   tests/consistency/test_bridge_error_kinds_are_emitted.py.)
  */
 (function () {
   "use strict";
@@ -1744,20 +1748,21 @@
 
   function applyPayload(payload) {
     if (!payload || !payload.patches) return;
-    // SEMER ou POUSSER — deux chemins, deux intentions.
+    // SEED or PUSH — two paths, two intents.
     //
-    //   seed   (nav partielle) : le serveur ré-émet toutes les instances
-    //          de la page, avec SES valeurs, qui sont les défauts. Il ne
-    //          peut pas connaître celles du navigateur. Elles ne doivent
-    //          donc servir qu'à créer ce qui manque.
-    //   push   (réponse d'action) : le serveur a délibérément muté un
-    //          champ. Il gagne.
+    //   seed   (partial nav): the server re-emits every instance of the
+    //          page, with ITS values, which are the defaults. It cannot
+    //          know the browser's. They must therefore only serve to
+    //          create what is missing.
+    //   push   (action response): the server deliberately mutated a
+    //          field. It wins.
     //
-    // `config` est le marqueur, et il n'est pas approximatif : côté
-    // Python, `build_patch` ne l'émet QUE sous `include_unchanged=True`,
-    // c'est-à-dire exactement le chemin de seed. Accord gaté par
-    // `tests/consistency/test_a_seed_patch_never_overwrites.py`, et le
-    // resultat par `tests/runtime_js/test_a_partial_nav_never_clobbers_client_state.py`.
+    // `config` is the marker, and it is not approximate: on the Python
+    // side, `build_patch` only emits it under `include_unchanged=True`,
+    // that is to say exactly the seed path. The agreement is gated by
+    // `tests/consistency/test_a_seed_patch_never_overwrites.py`, and the
+    // result by
+    // `tests/runtime_js/test_a_partial_nav_never_clobbers_client_state.py`.
     const isSeed = !!payload.config;
     for (const instancePath of Object.keys(payload.patches)) {
       const fields = payload.patches[instancePath];
@@ -1777,10 +1782,11 @@
         else $bz._store.set(path, fields[field]);
       }
     }
-    // Config de transport du seed de nav partielle — APRÈS les champs,
-    // parce que ``adoptConfig`` enregistre la persistance et que celle-ci
-    // superpose le snapshot stocké, qui doit gagner. Absente d'une réponse
-    // d'action ordinaire : le client a déjà la config de ces instances.
+    // The partial nav seed's transport config — AFTER the fields,
+    // because ``adoptConfig`` registers the persistence and that
+    // superimposes the stored snapshot, which must win. Absent from an
+    // ordinary action response: the client already has those instances'
+    // config.
     if (payload.config && $bz._adoptConfig) {
       for (const path of Object.keys(payload.config)) {
         $bz._adoptConfig(path, payload.config[path]);
@@ -1801,29 +1807,29 @@
     }
   }
 
-  // Une valeur COMPOSITE part en JSON, pas telle quelle.
+  // A COMPOSITE value leaves as JSON, not as is.
   //
-  // Un corps de formulaire ne transporte que des chaînes, et htmx traite un
-  // tableau à part : `formDataFromObject` fait `obj[key].forEach(v =>
-  // append(key, v))`. Deux conséquences, mesurées le 2026-08-19 :
+  // A form body only carries strings, and htmx treats an array
+  // separately: `formDataFromObject` does `obj[key].forEach(v =>
+  // append(key, v))`. Two consequences, measured on 2026-08-19:
   //
-  //   - `["a","b"]` part en DEUX champs de même nom, et le serveur garde le
-  //     dernier — donc `["a","b"]` arrive comme `"b"`, et `["change"]`
-  //     comme `"change"` ;
-  //   - `[]` n'ajoute RIEN, donc la clé est absente du corps. Comme
-  //     l'hydratation n'écrit que les champs présents, **une liste client
-  //     vidée ne pouvait plus jamais vider son champ serveur** — le jumeau
-  //     exact de la case décochée qui ne soumet rien, sur l'autre
-  //     transport.
+  //   - `["a","b"]` leaves as TWO fields of the same name, and the
+  //     server keeps the last — so `["a","b"]` arrives as `"b"`, and
+  //     `["change"]` as `"change"`;
+  //   - `[]` adds NOTHING, so the key is absent from the body. Since
+  //     hydration only writes the fields that are present, **an emptied
+  //     client list could never empty its server field again** — the
+  //     exact twin of the unticked box that submits nothing, on the
+  //     other transport.
   //
-  // `JSON.stringify` remet le magasin client sur la même convention que les
-  // sept porteurs cachés du catalogue (`toggle_group`, `select`,
-  // `combobox`, `date_range_picker`, `slider`, `resizable`, `accordion`),
-  // et c'est `_coerce_composite` qui le défait côté Python — un seul
-  // contrat de wire pour les deux chemins, au lieu de deux.
+  // `JSON.stringify` puts the client store back on the same convention
+  // as the catalogue's seven hidden carriers (`toggle_group`, `select`,
+  // `combobox`, `date_range_picker`, `slider`, `resizable`,
+  // `accordion`), and it is `_coerce_composite` that undoes it on the
+  // Python side — a single wire contract for both paths, instead of two.
   //
-  // Les scalaires ne sont PAS touchés : ils traversent déjà juste, et les
-  // encoder ferait arriver `'"texte"'` là où le champ attend `texte`.
+  // Scalars are NOT touched: they already travel correctly, and encoding
+  // them would make `'"text"'` arrive where the field expects `text`.
   function wireValue(value) {
     return value !== null && typeof value === "object"
       ? JSON.stringify(value)
@@ -1841,12 +1847,13 @@
       grouped.get(path)[field] = sig.peek();
     }
     for (const [path, fields] of grouped.entries()) {
-      // ``send_to_server: false`` (déclaré côté Python sur la classe) est
-      // le SEUL filtre ici, et il est tout-ou-rien. Un mode "delta" a vécu
-      // à cette place jusqu'au 2026-08-14 ; il était faux, pas seulement
-      // inutile — raison complète dans le docstring de ``ClientState``
-      // (bretzel/state/scopes/client.py § "Il n'y a PAS de mode delta").
-      // Ne pas le réintroduire sans lire ce paragraphe d'abord.
+      // ``send_to_server: false`` (declared on the Python side on the
+      // class) is the ONLY filter here, and it is all-or-nothing. A
+      // "delta" mode lived in this place until 2026-08-14; it was wrong,
+      // not merely useless — the full reason is in ``ClientState``'s
+      // docstring (bretzel/state/scopes/client.py § "There is NO delta
+      // mode"). Do not reintroduce it without reading that paragraph
+      // first.
       const cfg = config[path] || {};
       if (cfg.send_to_server === false) continue;
       for (const field of Object.keys(fields)) {
@@ -1855,69 +1862,69 @@
     }
   }
 
-  /* ── ``$bz.pending`` — « une action est-elle en vol ? » ──────────────
+  /* ── ``$bz.pending`` — "is an action in flight?" ─────────────────────
    *
-   * htmx SAIT qu'une requête est en cours (il pose ``.htmx-request`` sur
-   * l'élément déclencheur), mais cette information n'était lisible par
-   * personne : ni depuis une expression ``bz-*``, ni depuis Python. Un
-   * dev qui voulait un spinner pendant l'aller-retour devait donc tenir
-   * le booléen lui-même — et il ne POUVAIT pas le tenir côté serveur,
-   * puisqu'un état serveur arrive AVEC la réponse, c'est-à-dire quand
-   * l'attente est déjà finie.
+   * htmx KNOWS a request is in progress (it sets ``.htmx-request`` on
+   * the triggering element), but that information was readable by
+   * nobody: neither from a ``bz-*`` expression, nor from Python. A dev
+   * who wanted a spinner during the round trip therefore had to hold the
+   * boolean themselves — and they COULD not hold it on the server side,
+   * since server state arrives WITH the response, that is to say when
+   * the wait is already over.
    *
-   * Ce module possède déjà la frontière transport, donc c'est ici que
-   * l'information se publie, sous forme de signal : ``ui.pending()`` rend
-   * l'expression ``$bz.pending($el, 200)``, lue par n'importe quel
-   * ``bz-show`` / ``bz-attr`` comme n'importe quelle autre source.
+   * This module already owns the transport boundary, so it is here that
+   * the information is published, as a signal: ``ui.pending()`` returns
+   * the expression ``$bz.pending($el, 200)``, read by any ``bz-show`` /
+   * ``bz-attr`` like any other source.
    *
-   * DEUX ADRESSAGES, une seule fonction. ``$el`` (l'élément qui porte la
-   * prop est le déclencheur) remonte au porteur du ``hx-post`` via
-   * ``closest`` : indispensable, parce que le ``bz-show`` du spinner est
-   * posé sur le SPINNER, pas sur le bouton (cf. ``_cloak_show``). Une
-   * chaîne (l'``action_id``) adresse la même action depuis ailleurs dans
-   * la page — ``ui.pending(save)``.
+   * TWO ADDRESSINGS, a single function. ``$el`` (the element carrying
+   * the prop is the trigger) walks up to the ``hx-post``'s carrier
+   * through ``closest``: indispensable, because the spinner's
+   * ``bz-show`` is set on the SPINNER, not on the button (cf.
+   * ``_cloak_show``). A string (the ``action_id``) addresses the same
+   * action from elsewhere in the page — ``ui.pending(save)``.
    *
-   * LE DÉLAI EST LA RAISON D'ÊTRE DU MÉCANISME. Un spinner qui apparaît
-   * sous ~200 ms produit un flash, et l'interface est perçue comme PLUS
-   * lente qu'en ne montrant rien. Personne ne l'écrit à la main ; ici
-   * c'est le défaut. Le délai voyage dans l'expression, donc plusieurs
-   * délais peuvent coexister sur une même clé — d'où une ``Map`` de
-   * signaux par délai plutôt qu'un signal unique.
+   * THE DELAY IS THE MECHANISM'S REASON TO BE. A spinner that appears
+   * under ~200 ms produces a flash, and the interface is perceived as
+   * SLOWER than showing nothing. Nobody writes it by hand; here it is
+   * the default. The delay travels in the expression, so several delays
+   * can coexist on one key — hence a ``Map`` of signals per delay rather
+   * than a single signal.
    *
-   * Un compteur, pas un booléen : deux boutons qui partagent le même
-   * ``action_id`` peuvent être en vol en même temps, et le premier
-   * retour ne doit pas éteindre le second.
+   * A counter, not a boolean: two buttons sharing the same
+   * ``action_id`` can be in flight at the same time, and the first
+   * return must not extinguish the second.
    */
   const PENDING_BY_ELT = new WeakMap();
   const PENDING_BY_ID = new Map();
 
-  /* Deux magasins, et c'est forcé, pas incident : une ``WeakMap`` ne
-   * peut pas indexer une chaîne, et une ``Map`` indexée par éléments
-   * retiendrait chaque déclencheur pour la vie de la page. */
+  /* Two stores, and it is forced, not incidental: a ``WeakMap`` cannot
+   * index a string, and a ``Map`` indexed by elements would hold every
+   * trigger for the life of the page. */
   function pendingStore(key) {
     return typeof key === "string" ? PENDING_BY_ID : PENDING_BY_ELT;
   }
 
-  /* Les clés qu'une requête arme : l'élément déclencheur ET son
-   * ``action_id``. Celui-ci se lit dans ``hx-post``, dont le format est
-   * ``<ROUTE_ACTION>/<id>`` — et ``ROUTE_ACTION`` est SUBSTITUÉ ici
-   * depuis ``protocol.py`` au build, comme les balises d'enveloppe et
-   * de patch. Sans ça le JS redeviendrait tiers au format de fil : il
-   * le devinerait par découpage de chaîne, et un changement de route
-   * côté Python ne se verrait nulle part. */
+  /* The keys a request arms: the triggering element AND its
+   * ``action_id``. The latter reads from ``hx-post``, whose format is
+   * ``<ROUTE_ACTION>/<id>`` — and ``ROUTE_ACTION`` is SUBSTITUTED here
+   * from ``protocol.py`` at build time, like the envelope and patch
+   * tags. Without that the JS would become a stranger to the wire
+   * format again: it would guess it by string splitting, and a route
+   * change on the Python side would show up nowhere. */
   const ACTION_PREFIX = "/_bretzel/action/";
 
-  /* La TROISIEME cle, reservee : « une navigation est en vol ». La barre
-   * de shell (``render/shell.nav_progress_html``) n'est qu'un ``bz-show``
-   * dessus, donc elle n'a aucun mecanisme a elle — c'est le meme
-   * registre, la meme temporisation, le meme desarmement.
+  /* The THIRD key, reserved: "a navigation is in flight". The shell's
+   * bar (``render/shell.nav_progress_html``) is only a ``bz-show`` on
+   * it, so it has no mechanism of its own — it is the same registry, the
+   * same timing, the same disarm.
    *
-   * Deux formes de navigation dans ce depot, et il faut les deux :
-   * ``detail.boosted`` couvre les liens boostes par ``hx-boost`` (pose
-   * au niveau document par le shell), et ``hx-push-url`` couvre la nav
-   * partielle de la sidebar / navbar, qui n'est pas boostee mais un
-   * ``hx-get`` explicite (``navigation/_wiring.py``). Tester l'un sans
-   * l'autre laisserait la moitie des menus sans barre. */
+   * Two shapes of navigation in this repository, and both are needed:
+   * ``detail.boosted`` covers the links boosted by ``hx-boost`` (set at
+   * the document level by the shell), and ``hx-push-url`` covers the
+   * sidebar / navbar's partial nav, which is not boosted but an explicit
+   * ``hx-get`` (``navigation/_wiring.py``). Testing one without the
+   * other would leave half the menus with no bar. */
   const NAV_KEY = "@nav";
 
   function pendingKeys(elt, detail) {
@@ -1934,8 +1941,8 @@
   }
 
   function armPending(key) {
-    // Pas d'entrée = personne ne lit cette clé. Rien à armer : on ne
-    // fabrique pas de signal pour un bouton sans ``ui.pending()``.
+    // No entry = nobody reads this key. Nothing to arm: we do not
+    // fabricate a signal for a button with no ``ui.pending()``.
     const entry = pendingStore(key).get(key);
     if (!entry || ++entry.count > 1) return;
     entry.byDelay.forEach(function (slot, delay) {
@@ -1960,10 +1967,10 @@
     });
   }
 
-  /* Défini au CHARGEMENT du module, pas dans ``_wireBridge`` : un
-   * ``bz-show`` peut s'évaluer avant que le bridge soit câblé, et une
-   * ``$bz.pending`` absente ferait planter l'expression au lieu de
-   * rendre ``false``. */
+  /* Defined at the module's LOAD, not in ``_wireBridge``: a
+   * ``bz-show`` can evaluate before the bridge is wired, and a missing
+   * ``$bz.pending`` would crash the expression instead of returning
+   * ``false``. */
   $bz.pending = function (key, delay) {
     if (key && key.nodeType === 1) key = key.closest("[hx-post]") || key;
     const store = pendingStore(key);
@@ -1978,46 +1985,46 @@
       slot = { sig: $bz.signal(false), timer: 0 };
       entry.byDelay.set(ms, slot);
     }
-    // Lecture DANS un effet = abonnement. C'est le seul point de
-    // contact avec le graphe réactif : la bascule passe ensuite par le
-    // flush microtask ordinaire, comme toute autre source.
+    // Reading INSIDE an effect = subscribing. It is the only point of
+    // contact with the reactive graph: the toggle then goes through the
+    // ordinary microtask flush, like any other source.
     return slot.sig.get();
   };
 
   $bz._wireBridge = function () {
     document.body.addEventListener("htmx:configRequest", function (e) {
-      // Un contrôle inerte ne poste RIEN. C'est le troisième garde de
-      // l'inertie (les deux autres — handlers `bz-on:` et navigation
-      // native — vivent dans 02_directives.js, qui possède la règle) et
-      // il est ici parce que c'est la frontière transport : ce module
-      // est « the ONLY module that wires HTMX events ».
+      // An inert control posts NOTHING. It is inertness's third guard
+      // (the other two — `bz-on:` handlers and native navigation — live
+      // in 02_directives.js, which owns the rule) and it is here because
+      // this is the transport boundary: this module is "the ONLY module
+      // that wires HTMX events".
       //
-      // MESURÉ avant d'être écrit, pas lu dans une doc : htmx 2.0.4 émet
-      // bien `configRequest` puis renonce à la requête sur
-      // `preventDefault` — le témoin non bloqué du probe, lui, part.
-      // Cf. `tests/audit/probe_configrequest_is_cancelable.py`.
+      // MEASURED before being written, not read in a doc: htmx 2.0.4
+      // does emit `configRequest` then gives the request up on
+      // `preventDefault` — the probe's unblocked witness, for its part,
+      // leaves. Cf. `tests/audit/probe_configrequest_is_cancelable.py`.
       if ($bz._inert(e.detail.elt)) {
         e.preventDefault();
         return;
       }
-      // Une navigation BOOSTÉE qui traverse le seuil mobile ne peut pas
-      // être un swap partiel. `Screen().is_mobile` est un `if` SERVEUR, et
-      // le layout qui le porte vit HORS de `[data-bz-outlet]` : échanger
-      // l'outlet laisserait la sidebar desktop en place sur un viewport
-      // téléphone, indéfiniment, jusqu'au prochain chargement dur. Le
-      // script de `<head>` ne rejoue pas non plus, donc le cookie reste
-      // périmé et même le serveur ne le sait pas.
+      // A BOOSTED navigation that crosses the mobile threshold cannot
+      // be a partial swap. `Screen().is_mobile` is a SERVER `if`, and
+      // the layout carrying it lives OUTSIDE `[data-bz-outlet]`:
+      // swapping the outlet would leave the desktop sidebar in place on
+      // a phone viewport, indefinitely, until the next hard load. The
+      // `<head>` script does not replay either, so the cookie stays
+      // stale and even the server does not know.
       //
-      // On resynchronise le cookie et on rend la navigation au navigateur :
-      // un chargement complet re-rend le shell depuis le cookie frais.
-      // Ce n'est PAS un retour du live-resize retiré le 2026-07-13 — rien
-      // ne se déclenche au redimensionnement, seulement sur une navigation
-      // que l'utilisateur a demandée, exactement comme un F5.
+      // We resync the cookie and give the navigation back to the
+      // browser: a full load re-renders the shell from the fresh cookie.
+      // It is NOT a return of the live resize removed on 2026-07-13 —
+      // nothing fires on a resize, only on a navigation the user asked
+      // for, exactly like an F5.
       //
-      // Restreint aux `<a>` : les GET des zones `@refreshable` et du
-      // refetch SSE passent aussi par ici et ne doivent jamais devenir une
-      // navigation. `$bzScreenSync` est défini par le script de `<head>`
-      // (`render/shell.py`) — absent d'un shell custom, on ne fait rien.
+      // Restricted to `<a>`: the GET of `@refreshable` zones and of the
+      // SSE refetch also come through here and must never become a
+      // navigation. `$bzScreenSync` is defined by the `<head>` script
+      // (`render/shell.py`) — absent from a custom shell, we do nothing.
       if (
         String(e.detail.verb).toLowerCase() === "get" &&
         e.detail.elt &&
@@ -2042,35 +2049,36 @@
       e.detail.headers["X-Bretzel-Protocol"] = $bz.version;
       if ($bz._csrf) e.detail.headers["X-Bretzel-CSRF"] = $bz._csrf;
       if ($bz._pageId) e.detail.headers["X-Bretzel-Page-ID"] = $bz._pageId;
-      // Qui écrit. Le serveur s'en sert pour ne PAS rediffuser à cet
-      // onglet ce qu'il vient de lui répondre — cf. `$bz._tabId`.
+      // Who writes. The server uses it so as NOT to re-broadcast to
+      // this tab what it has just answered it — cf. `$bz._tabId`.
       if ($bz._tabId) e.detail.headers["X-Bretzel-Tab"] = $bz._tabId;
-      // Dire au serveur quelles zones @refreshable ce document porte.
+      // Tell the server which @refreshable zones this document
+      // carries.
       //
-      // Sans ça il enfile TOUTES les zones declarees sur une classe
-      // d'etat changee — y compris celles d'autres pages — les rend,
-      // les envoie, et nous les jetons faute de cible. Mesure sur
-      // examples/mad : 8,4 ms de rendu serveur perdus contre 9,6 ms
-      // utiles, soit pres de la moitie du drain.
+      // Without it, it queues EVERY zone declared on a changed state
+      // class — including those of other pages — renders them, sends
+      // them, and we throw them away for want of a target. Measured on
+      // examples/mad: 8.4 ms of server render wasted against 9.6 ms
+      // useful, that is to say nearly half the drain.
       //
-      // Sur les POST d'action seulement : une nav GET (hx-boost) n'a
-      // pas de drain, et l'entete se retrouverait dans l'URL poussee.
+      // On action POSTs only: a GET nav (hx-boost) has no drain, and the
+      // header would end up in the pushed URL.
       //
-      // On lit le DOM a l'instant de la requete, pas une liste que le
-      // serveur nous aurait donnee au rendu : un swap OOB peut avoir
-      // introduit une zone depuis, et une liste figee la condamnerait
-      // a ne plus jamais se rafraichir.
+      // We read the DOM at the instant of the request, not a list the
+      // server would have given us at render: an OOB swap may have
+      // introduced a zone since, and a frozen list would condemn it
+      // never to refresh again.
       if (String(e.detail.verb).toLowerCase() === "post") {
         const zones = document.querySelectorAll("[data-bz-zone]");
         if (zones.length) {
           const ids = [];
           for (const z of zones) {
-            // ``id`` seul, ou ``id:empreinte`` quand on sait ce que
-            // la zone porte : le serveur s en sert pour TAIRE une
-            // zone dont le rendu neuf serait identique. L empreinte
-            // vient de LUI, elle n est jamais calculee ici — une
-            // empreinte absente ou perimee ne peut donc que faire
-            // re-expedier la zone, jamais la taire a tort.
+            // ``id`` alone, or ``id:fingerprint`` when we know what
+            // the zone carries: the server uses it to KEEP QUIET about a
+            // zone whose fresh render would be identical. The
+            // fingerprint comes from IT, it is never computed here — an
+            // absent or stale fingerprint can therefore only make the
+            // zone be re-sent, never wrongly suppressed.
             const zid = z.getAttribute("bz-id");
             const vu = $bz._zoneHashes && $bz._zoneHashes[zid];
             ids.push(vu ? zid + ":" + vu : zid);
@@ -2079,27 +2087,27 @@
         }
       }
       const carrier = e.detail.elt && e.detail.elt.closest("[data-bz-sig]");
-      // Un POST d'action SANS porteur de signature ne part pas.
+      // An action POST WITH NO signature carrier does not leave.
       //
-      // Il ne s'agit pas de prudence : la requête est déjà perdue. Côté
-      // Python, `action_attrs` est le SEUL endroit qui écrit un
-      // `hx-post`, et il y pose `data-bz-sig` dans le même dict — donc
-      // tout POST htmx est une action, et toute action naît signée. Ne
-      // pas trouver de porteur au moment du `configRequest` ne veut dire
-      // qu'une chose : l'élément a été DÉTACHÉ entre le déclenchement et
-      // maintenant, typiquement par le morph d'une zone `@refreshable`.
+      // It is not about caution: the request is already lost. On the
+      // Python side, `action_attrs` is the ONLY place that writes an
+      // `hx-post`, and it sets `data-bz-sig` in the same dict — so every
+      // htmx POST is an action, and every action is born signed. Not
+      // finding a carrier at `configRequest` time means one thing only:
+      // the element was DETACHED between the trigger and now, typically
+      // by the morph of a `@refreshable` zone.
       //
-      // La laisser partir coûte cher, et c'est mesuré. Le serveur refuse
-      // toute signature invalide par un `_error: reload`, que
-      // `handleError` exécute — donc une requête déjà obsolète fait
-      // RECHARGER LA PAGE ENTIÈRE. Reproduit sur `/carousel` le
-      // 2026-08-27 : un autoplay tique pendant qu'un flip re-rend le
-      // panneau, le nœud disparaît, le POST part nu, 403, rechargement.
-      // L'audit voyait « Execution context was destroyed » et le
-      // comptait comme un flake de concurrence ; c'était déterministe.
+      // Letting it leave costs, and it is measured. The server refuses
+      // any invalid signature with an `_error: reload`, which
+      // `handleError` executes — so an already obsolete request RELOADS
+      // THE WHOLE PAGE. Reproduced on `/carousel` on 2026-08-27: an
+      // autoplay ticks while a flip re-renders the panel, the node
+      // disappears, the POST leaves bare, 403, reload. The audit saw
+      // "Execution context was destroyed" and counted it as a
+      // concurrency flake; it was deterministic.
       //
-      // Restreint au POST : une nav boostée et le refetch d'une zone SSE
-      // sont des GET, ils n'ont jamais de signature et doivent passer.
+      // Restricted to POST: a boosted nav and an SSE zone's refetch are
+      // GETs, they never have a signature and must pass.
       if (!carrier && String(e.detail.verb).toLowerCase() === "post") {
         e.preventDefault();
         return;
@@ -2147,27 +2155,28 @@
       document.body.addEventListener(eventName, afterSwap);
     }
 
-    /* Le cycle de vie du témoin. ``htmx:afterRequest`` est le SEUL
-     * désarmement : htmx l'émet dans tous les cas de sortie — succès,
-     * 4xx/5xx, erreur réseau, timeout, abandon — donc écouter en plus
-     * ``sendError``/``timeout`` décrémenterait deux fois le compteur et
-     * éteindrait une seconde requête encore en vol sur la même clé. */
+    /* The witness's life cycle. ``htmx:afterRequest`` is the ONLY
+     * disarm: htmx emits it in every exit case — success, 4xx/5xx,
+     * network error, timeout, abort — so also listening to
+     * ``sendError``/``timeout`` would decrement the counter twice and
+     * would extinguish a second request still in flight on the same
+     * key. */
     document.body.addEventListener("htmx:beforeRequest", function (e) {
       pendingKeys(e.detail.elt, e.detail).forEach(armPending);
     });
     document.body.addEventListener("htmx:afterRequest", function (e) {
       pendingKeys(e.detail.elt, e.detail).forEach(disarmPending);
 
-      /* Les empreintes des zones que cette reponse vient d expedier.
-       * On les GARDE pour les representer a la requete suivante : le
-       * serveur peut alors taire une zone dont le rendu neuf serait
-       * identique a ce qu on affiche deja.
+      /* The fingerprints of the zones this response has just shipped.
+       * We KEEP them to present them again at the next request: the
+       * server can then keep quiet about a zone whose fresh render would
+       * be identical to what we are already showing.
        *
-       * Rien n est calcule ici, et c est ce qui rend le mecanisme sur :
-       * l empreinte est celle du HTML que le serveur a envoye. Si le
-       * DOM a change depuis pour une autre raison, l empreinte devient
-       * fausse dans le sens INOFFENSIF — le serveur trouvera une
-       * difference et re-expediera. */
+       * Nothing is computed here, and that is what makes the mechanism
+       * safe: the fingerprint is that of the HTML the server sent. If
+       * the DOM has changed since for another reason, the fingerprint
+       * becomes wrong in the HARMLESS direction — the server will find a
+       * difference and re-ship. */
       const xhr = e.detail && e.detail.xhr;
       if (!xhr || !xhr.getResponseHeader) return;
       const brut = xhr.getResponseHeader("X-Bretzel-Zone-Hashes");
@@ -2253,28 +2262,29 @@
       }
     }
     el.addEventListener("keydown", onKeydown);
-    /* Le focus initial RÉESSAIE frame par frame jusqu'à ce qu'il prenne.
+    /* The initial focus RETRIES frame by frame until it takes.
      *
-     * Ce n'est pas de la superstition : cet effet s'installe dans le flush
-     * réactif qui vient de passer ``open`` à vrai, donc avant que le style
-     * calculé ne bascule. Or ``focus()`` sur un élément en
-     * ``visibility: hidden`` est un **no-op silencieux** — pas d'erreur,
-     * pas de retour, rien. Relevé sur ``bench_dialog`` (2026-08-19), les
-     * trois boutons du panneau : cachés à +1 ms, visibles à +16 ms.
+     * It is not superstition: this effect installs itself in the
+     * reactive flush that has just turned ``open`` true, so before the
+     * computed style flips. Yet ``focus()`` on an element in
+     * ``visibility: hidden`` is a **silent no-op** — no error, no
+     * return, nothing. Observed on ``bench_dialog`` (2026-08-19), the
+     * panel's three buttons: hidden at +1 ms, visible at +16 ms.
      *
-     * Un délai FIXE ne suffit pas, et c'est mesuré aussi : la version à
-     * deux frames passait environ une fois sur trois — la frontière tombe
-     * pile dans la fenêtre cachée, et elle bouge d'un run à l'autre. On
-     * n'attend donc pas une durée, on attend le RÉSULTAT : on tente, on
-     * vérifie que le focus a atterri, et on retente sinon.
+     * A FIXED delay is not enough, and that is measured too: the
+     * two-frame version passed about one time in three — the boundary
+     * falls right inside the hidden window, and it moves from one run to
+     * the next. So we do not wait for a duration, we wait for the
+     * RESULT: we try, we check the focus landed, and we retry otherwise.
      *
-     * Sans ça, le trap était bien installé (``$el._bzTrap`` présent) et le
-     * focus restait sur le déclencheur. Le contrat rétabli est écrit dans
-     * ``dialog.py`` : « the first interactive child receives focus ».
+     * Without that, the trap was indeed installed (``$el._bzTrap``
+     * present) and the focus stayed on the trigger. The restored
+     * contract is written in ``dialog.py``: "the first interactive child
+     * receives focus".
      *
-     * Le DOM est RE-INTERROGÉ à chaque tentative : entre l'installation et
-     * la frame qui aboutit, un morph a pu remplacer le contenu du panneau,
-     * et un nœud détaché se focus dans le vide. */
+     * The DOM is RE-QUERIED at every attempt: between the installation
+     * and the frame that succeeds, a morph may have replaced the panel's
+     * content, and a detached node focuses into the void. */
     let attempts = 0;
     function focusFirst() {
       if (!el.isConnected) return;
@@ -2283,7 +2293,7 @@
         first.focus();
         if (el.contains(document.activeElement)) return;
       }
-      // ~20 frames (≈ 1/3 s) : au-delà, le panneau ne s'ouvrira pas.
+      // ~20 frames (≈ 1/3 s): beyond that, the panel will not open.
       if (++attempts < 20) requestAnimationFrame(focusFirst);
     }
     requestAnimationFrame(focusFirst);
@@ -2373,14 +2383,14 @@
   // Best-fit preference order — module constant so the scroll/resize
   // reposition path allocates nothing per tick.
   const SIDE_ORDER = ["bottom", "top", "right", "left"];
-  // Plancher de lisibilité d'un panneau ancré, en px. `matchWidth` ne
-  // descend jamais sous cette largeur, quelle que soit l'ancre : un
-  // `ui.select` posé dans une sidebar repliée en rail (`w-16`) rendait un
-  // panneau de ~48 px où les libellés s'enroulaient lettre par lettre,
-  // avec une barre de défilement horizontale (constaté sur `examples/crm`
-  // le 2026-08-29). 192 px = `12rem` — la valeur que le dépôt donne déjà
-  // à un panneau ancré : `min-w-[12rem]` chez `dropdown` et `popover`,
-  // `min-w-48` pour la taille `sm` du `panel_free` de `combobox`.
+  // The readability floor of an anchored panel, in px. `matchWidth`
+  // never goes below that width, whatever the anchor: a `ui.select`
+  // placed in a sidebar collapsed to a rail (`w-16`) rendered a ~48 px
+  // panel where the labels wrapped letter by letter, with a horizontal
+  // scrollbar (seen on `examples/crm` on 2026-08-29). 192 px = `12rem`
+  // — the value the repository already gives an anchored panel:
+  // `min-w-[12rem]` at `dropdown` and `popover`, `min-w-48` for
+  // `combobox`'s `sm` `panel_free`.
   const MIN_MATCHED_WIDTH = 192;
   function floating(anchor, el, opts) {
     opts = opts || {};
@@ -2407,14 +2417,14 @@
       el.style.position = "fixed";
       const a = anchor.getBoundingClientRect();
       if (matchWidth) {
-        // Le plancher s'applique à l'ANCRE, pas au résultat : au-dessus
-        // de `MIN_MATCHED_WIDTH`, `mw === a.width` et le comportement est
-        // identique au byte près (c'est ce qui rend ce correctif sûr pour
-        // les deux seuls appelants de `matchWidth`, Select et Combobox).
-        // Le plancher lui-même est borné au viewport : sur un écran plus
-        // étroit que 192 px, un panneau au plancher déborderait, et la
-        // correction de bord plus bas (`Math.max(4, Math.min(...))`) ne
-        // fait que le décaler, elle ne le rétrécit pas.
+        // The floor applies to the ANCHOR, not to the result: above
+        // `MIN_MATCHED_WIDTH`, `mw === a.width` and the behaviour is
+        // identical to the byte (that is what makes this fix safe for
+        // `matchWidth`'s only two callers, Select and Combobox). The
+        // floor itself is bounded to the viewport: on a screen narrower
+        // than 192 px, a panel at the floor would overflow, and the edge
+        // correction below (`Math.max(4, Math.min(...))`) only shifts
+        // it, it does not shrink it.
         const mw = Math.max(
           a.width,
           Math.min(MIN_MATCHED_WIDTH, Math.max(0, window.innerWidth - 8))
@@ -2481,22 +2491,22 @@
       // page scrolls under it.
       if (el.dataset.side !== side) el.dataset.side = side;
 
-      /* …et OÙ est l'ancre dans le panneau, pour que la flèche la vise.
-         Le milieu du panneau et le milieu du déclencheur coïncident tant
-         que rien ne pousse le panneau ; le recadrage de bord juste
-         au-dessus (`Math.max(4, Math.min(...))`) les sépare. La flèche
-         était posée en `left-1/2` — donc au milieu de la bulle — et
-         pointait à côté de son bouton dès qu'on approchait d'un bord.
-         Mesuré le 2026-09-09 sur `examples/kanban` : déclencheur centré
-         à 1468 px, flèche à 1443. */
+      /* …and WHERE the anchor is in the panel, so the arrow aims at it.
+         The panel's middle and the trigger's middle coincide as long as
+         nothing pushes the panel; the edge reframing just above
+         (`Math.max(4, Math.min(...))`) separates them. The arrow was set
+         at `left-1/2` — so in the middle of the bubble — and pointed
+         beside its button as soon as you approached an edge. Measured on
+         2026-09-09 on `examples/kanban`: trigger centred at 1468 px,
+         arrow at 1443. */
       const centre =
         side === "top" || side === "bottom"
           ? a.left + a.width / 2 - left
           : a.top + a.height / 2 - top;
-      // Bornée à l'intérieur du panneau : une flèche posée à 2 px du bord
-      // dépasse de l'arrondi des coins et flotte à côté de la bulle.
-      // 12 px couvre le rayon du panneau plus la demi-largeur de la
-      // flèche (un carré de 8 px tourné de 45°, ~11 px de diagonale).
+      // Bounded inside the panel: an arrow set 2 px from the edge
+      // sticks out of the corners' radius and floats beside the bubble.
+      // 12 px covers the panel's radius plus the arrow's half width (an
+      // 8 px square rotated 45°, ~11 px of diagonal).
       const etendue = side === "top" || side === "bottom" ? w : h;
       const vise = Math.max(12, Math.min(centre, etendue - 12));
       el.style.setProperty("--bz-arrow", vise + "px");
@@ -2525,21 +2535,21 @@
     return reduceMotionMQL.matches;
   }
 
-  /* ── L'adresse, côté client ────────────────────────────────────────
+  /* ── The address, on the client side ─────────────────────────────────
    *
-   * Le pendant EXACT de ``push_url()`` côté serveur (server/navigation.py),
-   * pour ce qui ne fait aucun aller-retour : un onglet bascule dans le
-   * scope, le serveur n'en sait rien, donc l'en-tête ``HX-Push-Url`` ne
-   * peut rien pour lui.
+   * The EXACT counterpart of ``push_url()`` on the server side
+   * (server/navigation.py), for what makes no round trip: a tab flips in
+   * the scope, the server knows nothing about it, so the ``HX-Push-Url``
+   * header can do nothing for it.
    *
-   * ``pushState`` et pas ``replaceState`` — décision de l'utilisateur le
-   * 2026-08-29 : « pushState pour les vues ». Un onglet EST une vue, donc
-   * le retour doit y revenir. Une préférence d'affichage (une densité, un
-   * thème) ne mérite pas une entrée d'historique et n'a rien à faire ici.
+   * ``pushState`` and not ``replaceState`` — the user's decision on
+   * 2026-08-29: "pushState for views". A tab IS a view, so the back
+   * button must return to it. A display preference (a density, a theme)
+   * does not deserve a history entry and has no business here.
    *
-   * On garde ``history.state`` intact : htmx y range le sien, et le lui
-   * écraser casserait sa propre restauration sur les entrées qu'il a
-   * créées.
+   * We keep ``history.state`` intact: htmx files its own there, and
+   * overwriting it would break its own restoration on the entries it
+   * created.
    */
   function pushUrl(param, value) {
     const url = new URL(window.location.href);
@@ -2550,9 +2560,9 @@
     window.history.pushState(window.history.state, "", url.href);
   }
 
-  /* La valeur COURANTE d'un paramètre, ou ``null``. Lue à chaud plutôt
-   * que mémorisée : après un retour, ``location`` a déjà bougé quand le
-   * ``popstate`` nous parvient. */
+  /* A parameter's CURRENT value, or ``null``. Read live rather than
+   * remembered: after a back, ``location`` has already moved by the time
+   * the ``popstate`` reaches us. */
   function urlParam(param) {
     return new URL(window.location.href).searchParams.get(param);
   }
@@ -2588,24 +2598,26 @@
       });
     },
 
-    // ── Capture de pointeur — la famille pointer-drag ────────────────
-    // Capturer, c'est dire au navigateur d'envoyer TOUS les événements
-    // du pointeur à cet élément-là jusqu'au relâchement, même quand le
-    // curseur en sort. Sans ça, le geste s'arrête au premier pixel qui
-    // quitte la boîte — et une poignée fait quelques points de large.
+    // ── Pointer capture — the pointer-drag family ────────────────────
+    // Capturing means telling the browser to send ALL the pointer's
+    // events to that element until release, even when the cursor leaves
+    // it. Without that, the gesture stops at the first pixel outside the
+    // box — and a handle is a few points wide.
     //
-    // Les deux gardes ne sont pas de la superstition, et c'est pour
-    // elles que ça vit ici plutôt que recopié :
-    //   - ``pointerId !== undefined`` : un événement synthétique (un
-    //     test, un script) n'en porte pas, et l'appel lèverait ;
-    //   - le ``try`` : le navigateur refuse la capture si le pointeur
-    //     n'est plus actif (relâché entre-temps, geste annulé par l'OS),
-    //     et cette exception-là ne doit pas casser le geste en cours.
+    // The two guards are not superstition, and it is for them that this
+    // lives here rather than being copied:
+    //   - ``pointerId !== undefined``: a synthetic event (a test, a
+    //     script) does not carry one, and the call would raise;
+    //   - the ``try``: the browser refuses the capture if the pointer is
+    //     no longer active (released in the meantime, gesture cancelled
+    //     by the OS), and that exception must not break the gesture in
+    //     progress.
     //
-    // Extrait le 2026-08-13, au 3ᵉ et 4ᵉ site (slider ×2, resizable ×2)
-    // — le seuil que le dépôt s'est fixé, « deux fois une coïncidence,
-    // trois fois un pattern ». Le prochain composant de la famille
-    // pointer-drag (``signature_pad``) appelle ça, il ne le recopie pas.
+    // Extracted on 2026-08-13, at the 3rd and 4th site (slider ×2,
+    // resizable ×2) — the threshold the repository set itself, "twice a
+    // coincidence, three times a pattern". The pointer-drag family's
+    // next component (``signature_pad``) calls this, it does not copy
+    // it.
     capturePointer: function (el, e) {
       if (!el || !e || e.pointerId === undefined) return;
       try { el.setPointerCapture(e.pointerId); } catch (err) {}
@@ -2704,10 +2716,11 @@
           : raw == null || raw === "" ? [] : [String(raw)],
       );
     },
-    // Vide la sélection SANS fermer le panneau : c'est une commande DE
-    // la barre d'en-tête, et une commande ne congédie pas ce qu'elle
-    // commande. Avec un ``on_close=`` câblé, fermer ici POSTAIT la
-    // sélection vide au serveur — cf. le filtre de colonne du datatable.
+    // Empties the selection WITHOUT closing the panel: it is a command
+    // OF the header bar, and a command does not dismiss what it
+    // commands. With an ``on_close=`` wired, closing here POSTED the
+    // empty selection to the server — cf. the datatable's column
+    // filter.
     _clearAll() { this._write([]); },
   };
 
@@ -2736,81 +2749,82 @@
 })();
 
 
-/* 06_locale.js — les noms de mois et de jours, dérivés de la langue.
+/* 06_locale.js — month and weekday names, derived from the language.
  *
- * ⚠️ **Le numéro 06 est une CONTRAINTE D'ORDRE, pas une identité.** Ce
- * slab s'appelait ``22_locale.js`` jusqu'au 2026-08-27, donc chargé QUINZE
- * slabs après son unique consommateur, ``07_calendar.js``. Or celui-ci
- * appelle ``customElements.define('bz-calendar', …)``, ce qui met à niveau
- * IMMÉDIATEMENT tous les calendriers déjà dans le DOM — leur constructeur
- * lit alors ``$bz.locale.weekdayNames()`` sur un ``$bz.locale`` qui
- * n'existe pas encore.
+ * ⚠️ **The number 06 is an ORDERING CONSTRAINT, not an identity.** This
+ * slab was called ``22_locale.js`` until 2026-08-27, so loaded FIFTEEN
+ * slabs after its only consumer, ``07_calendar.js``. Yet that one calls
+ * ``customElements.define('bz-calendar', …)``, which IMMEDIATELY
+ * upgrades every calendar already in the DOM — their constructor then
+ * reads ``$bz.locale.weekdayNames()`` on a ``$bz.locale`` that does not
+ * exist yet.
  *
- * Mesuré : **une exception jetée par calendrier**, soit 54 sur la page
- * ``/calendar`` du playground, 44 sur ``/date_picker``, 45 sur
- * ``/date_range_picker``, 35 sur ``/month_picker``. L'écran s'en remettait
- * — la directive ``bz-text`` repasse plus tard — mais le flot d'erreurs
- * empêchait ``networkidle`` d'arriver, et ``pytest -m audit`` PENDAIT
- * dessus. Une suite d'une heure rendue inutilisable par une ligne d'ordre.
+ * Measured: **one exception thrown per calendar**, that is 54 on the
+ * playground's ``/calendar`` page, 44 on ``/date_picker``, 45 on
+ * ``/date_range_picker``, 35 on ``/month_picker``. The screen recovered
+ * — the ``bz-text`` directive comes back later — but the flood of errors
+ * stopped ``networkidle`` arriving, and ``pytest -m audit`` HUNG on it.
+ * An hour-long suite made unusable by a line of ordering.
  *
- * Ce fichier ne dépend de rien (il crée ``window.$bz`` si besoin), donc il
- * pourrait vivre n'importe où avant 07. Il est posé JUSTE avant son
- * consommateur pour qu'un lecteur qui se demande « pourquoi ici ? »
- * trouve la réponse à la ligne suivante du dossier.
+ * This file depends on nothing (it creates ``window.$bz`` if needed), so
+ * it could live anywhere before 07. It is placed JUST before its
+ * consumer so that a reader wondering "why here?" finds the answer on
+ * the folder's next line.
  *
- * Gardé par ``tests/runtime_js/test_no_page_throws_on_load.py``, qui
- * charge les 74 pages de composants et exige ZERO exception. Une gate
- * STATIQUE (interdire de lire un ``$bz.<ns>`` posé plus tard) a été
- * écartée après mesure : 9 cas dans le dépôt, et les 9 sont légitimes
- * — des lectures DIFFÉRÉES, dans des fonctions appelées bien après le
- * chargement. Ce qui distingue le défaut, c'est le MOMENT de la
- * lecture, et seul un navigateur le sépare.
+ * Guarded by ``tests/runtime_js/test_no_page_throws_on_load.py``, which
+ * loads the 74 component pages and requires ZERO exception. A STATIC
+ * gate (forbidding a read of a ``$bz.<ns>`` set later) was ruled out
+ * after measurement: 9 cases in the repository, and all 9 are legitimate
+ * — DEFERRED reads, in functions called well after load. What sets the
+ * defect apart is the MOMENT of the read, and only a browser separates
+ * them.
  *
- * Exposé en window.$bz.locale, lu par 07_calendar.js et par les
- * expressions bz-* (``bz-text="$bz.locale.monthName(month)"``).
+ * Exposed as window.$bz.locale, read by 07_calendar.js and by the bz-*
+ * expressions (``bz-text="$bz.locale.monthName(month)"``).
  *
- * Pourquoi ici plutôt que côté serveur
- * -------------------------------------
- * Python n'a aucun moyen sûr de nommer un mois dans une langue donnée :
- * le module ``locale`` de la stdlib est un état GLOBAL au processus (et
- * dépend des locales installées sur la machine), et Babel serait une
- * dépendance — que le charter exclut. Le navigateur, lui, embarque déjà
- * la table complète : ``Intl.DateTimeFormat`` la donne pour n'importe
- * quelle étiquette BCP-47, sans un octet de plus.
+ * Why here rather than on the server side
+ * ----------------------------------------
+ * Python has no safe way of naming a month in a given language: the
+ * stdlib's ``locale`` module is process-GLOBAL state (and depends on the
+ * locales installed on the machine), and Babel would be a dependency —
+ * which the charter excludes. The browser, for its part, already ships
+ * the complete table: ``Intl.DateTimeFormat`` gives it for any BCP-47
+ * tag, without one extra byte.
  *
- * La langue vient de ``<html lang>``, que ``Bretzel(lang=...)`` pose —
- * pas d'un attribut ad hoc. C'est l'endroit standard, celui qu'un
- * lecteur d'écran lit déjà pour choisir sa voix, et le seul qui reste
- * juste si l'app le change à la main.
+ * The language comes from ``<html lang>``, which ``Bretzel(lang=...)``
+ * sets — not from an ad hoc attribute. It is the standard place, the one
+ * a screen reader already reads to choose its voice, and the only one
+ * that stays right if the app changes it by hand.
  *
- *   $bz.locale.tag()            l'étiquette courante ("fr", "en"…)
- *   $bz.locale.monthNames()     12 noms longs, janvier en tête
- *   $bz.locale.monthName(i)     un seul, 0-indexé
- *   $bz.locale.weekdayNames()     7 noms courts, DIMANCHE en tête
- *   $bz.locale.weekdayLongNames() les mêmes en entier, pour un ``title=``
+ *   $bz.locale.tag()            the current tag ("fr", "en"…)
+ *   $bz.locale.monthNames()     12 long names, January first
+ *   $bz.locale.monthName(i)     a single one, 0-indexed
+ *   $bz.locale.weekdayNames()     7 short names, SUNDAY first
+ *   $bz.locale.weekdayLongNames() the same in full, for a ``title=``
  *
- * ⚠️ Dimanche en tête, toujours : c'est l'ordre de ``Date.getDay()``, et
- * c'est le composant qui fait tourner la liste selon ``weekstart``. Une
- * liste écrite lundi-première — le réflexe français — décale toutes les
- * colonnes d'un jour (piège [14] du chantier CRM).
+ * ⚠️ Sunday first, always: it is ``Date.getDay()``'s order, and it is
+ * the component that rotates the list according to ``weekstart``. A list
+ * written Monday-first — the French reflex — shifts every column by a
+ * day (trap [14] of the CRM work).
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  // Repli si le moteur n'a pas d'Intl utilisable, ou si l'étiquette est
-  // invalide (Intl LÈVE sur "français"). C'est exactement ce que le
-  // framework rendait avant, donc un repli ne change rien pour personne.
+  // A fallback if the engine has no usable Intl, or if the tag is
+  // invalid (Intl RAISES on "français"). It is exactly what the
+  // framework returned before, so a fallback changes nothing for
+  // anybody.
   const FALLBACK_MONTHS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
   ];
   const FALLBACK_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-  // 2023-01-01 EST un dimanche, et 2023 a douze mois — les deux ancres
-  // dont on a besoin. Tout est calculé en UTC : construire ces dates en
-  // heure locale décalerait d'un jour à l'ouest de Greenwich, donc le
-  // nom du jour aussi.
+  // 2023-01-01 IS a Sunday, and 2023 has twelve months — the two
+  // anchors we need. Everything is computed in UTC: building these dates
+  // in local time would shift by a day west of Greenwich, so the day's
+  // name too.
   const SUNDAY = Date.UTC(2023, 0, 1);
   const DAY_MS = 86400000;
 
@@ -2828,9 +2842,9 @@
         weekday: "short",
         timeZone: "UTC",
       });
-      // Le nom ENTIER, pour le ``title=`` des en-tetes de colonne. Meme
-      // memo, meme construction : sept appels de plus, une seule fois par
-      // etiquette de langue, jamais par calendrier.
+      // The FULL name, for the column headers' ``title=``. Same memo,
+      // same construction: seven more calls, once per language tag,
+      // never per calendar.
       const weekdayLong = new Intl.DateTimeFormat(tag, {
         weekday: "long",
         timeZone: "UTC",
@@ -2847,9 +2861,10 @@
         }),
       };
     } catch (e) {
-      // Le repli n'a QUE des abreviations. ``weekdaysLong`` y vaut donc
-      // la meme chose : un ``title`` identique au texte visible est
-      // inutile mais jamais faux, la ou inventer un nom entier le serait.
+      // The fallback has ONLY abbreviations. ``weekdaysLong`` is
+      // therefore the same thing there: a ``title`` identical to the
+      // visible text is useless but never wrong, where inventing a full
+      // name would be.
       entry = {
         months: FALLBACK_MONTHS,
         weekdays: FALLBACK_WEEKDAYS,
@@ -2917,12 +2932,12 @@
     if (typeof customElements === 'undefined') return;
     if (customElements.get('bz-calendar')) return;
 
-    // Dérivés de ``<html lang>`` par 22_locale.js, pas écrits ici : une
-    // table en dur rendait « August / MON TUE WED » à toute app, quelle
-    // que soit sa langue, et la seule prise était de repasser
-    // ``month_names=`` À CHAQUE MONTAGE (trois fois sur un seul écran du
-    // CRM). Les listes explicites du composant gagnent toujours — elles
-    // arrivent par attribut et ces défauts ne servent qu'à leur absence.
+    // Derived from ``<html lang>`` by 22_locale.js, not written here: a
+    // hard-coded table rendered "August / MON TUE WED" to every app,
+    // whatever its language, and the only handle was to pass
+    // ``month_names=`` AT EVERY MOUNT (three times on a single CRM
+    // screen). The component's explicit lists always win — they arrive
+    // as attributes and these defaults only serve their absence.
     function DEFAULT_WEEKDAYS() { return window.$bz.locale.weekdayNames(); }
     function DEFAULT_WEEKDAYS_LONG() {
         return window.$bz.locale.weekdayLongNames();
@@ -2935,22 +2950,22 @@
             String(d.getDate()).padStart(2, '0');
     }
 
-    /* Le jour ISO décalé de ``n`` jours. Passe par un ``Date`` plutôt que
-     * par de l'arithmétique sur la chaîne : lui seul connaît les fins de
-     * mois et les années bissextiles. */
+    /* The ISO day shifted by ``n`` days. Goes through a ``Date`` rather
+     * than through string arithmetic: only it knows about month ends and
+     * leap years. */
     function addDays(isoStr, n) {
         var p = isoStr.split('-');
         return iso(new Date(+p[0], +p[1] - 1, +p[2] + n));
     }
 
-    /* Le premier jour de la semaine qui CONTIENT ``isoStr``, selon
-     * ``weekstart`` (0 = dimanche, 1 = lundi…).
+    /* The first day of the week that CONTAINS ``isoStr``, according to
+     * ``weekstart`` (0 = Sunday, 1 = Monday…).
      *
-     * C'est la seule règle du mode ``week`` : cliquer n'importe quel jour
-     * choisit sa semaine, et la valeur rendue est ce premier jour. Le
-     * modulo est doublé (``% 7 + 7) % 7``) parce que JS rend un reste
-     * NÉGATIF pour un dividende négatif — sans lui, toute semaine dont le
-     * jour cliqué tombe avant ``weekstart`` remonterait d'une semaine.
+     * It is the ``week`` mode's only rule: clicking any day picks its
+     * week, and the returned value is that first day. The modulo is
+     * doubled (``% 7 + 7) % 7``) because JS returns a NEGATIVE remainder
+     * for a negative dividend — without it, any week whose clicked day
+     * falls before ``weekstart`` would go back one week.
      */
     function weekStartOf(isoStr, weekstart) {
         var p = isoStr.split('-');
@@ -2995,27 +3010,29 @@
             this._displayedYear = null;
             this._displayedMonth = null;
             this._hoverDate = null;
-            // Le début d'une plage EN COURS de sélection, mode ``range``
-            // seulement. Il vit ici et PAS dans l'attribut ``value`` —
-            // c'est tout le point.
+            // The start of a range BEING selected, ``range`` mode only.
+            // It lives here and NOT in the ``value`` attribute — that is
+            // the whole point.
             //
-            // Le premier clic d'une plage n'émet aucun ``change`` (il n'y
-            // a pas encore de valeur à annoncer), donc le scope du picker
-            // ne peut pas représenter cet état : il n'a que ``vstart`` /
-            // ``vend``, tous deux vides. Or le ``bz-effect`` miroir du
-            // wrapper traite ce scope comme la source de vérité et pousse
-            // ``''`` dans l'attribut dès qu'il re-tourne — ce qui arrive à
-            // CHAQUE swap HTMX, le bridge rescannant la cible. Tant que le
-            // début en attente vivait dans l'attribut, ce miroir l'effaçait
-            // et le second clic rouvrait une plage au lieu de la fermer :
-            // le champ restait vide et l'utilisateur cliquait sans fin.
+            // A range's first click emits no ``change`` (there is no
+            // value to announce yet), so the picker's scope cannot
+            // represent that state: it has only ``vstart`` / ``vend``,
+            // both empty. Yet the wrapper's mirror ``bz-effect`` treats
+            // that scope as the source of truth and pushes ``''`` into
+            // the attribute as soon as it runs again — which happens at
+            // EVERY HTMX swap, the bridge rescanning the target. As long
+            // as the pending start lived in the attribute, that mirror
+            // erased it and the second click reopened a range instead of
+            // closing it: the field stayed empty and the user clicked
+            // endlessly.
             //
-            // Ici le miroir n'a plus rien à écraser — il réécrit ``''``
-            // par-dessus ``''``, donc aucun ``attributeChangedCallback``,
-            // donc l'attente survit. L'attribut ne porte plus que du
-            // COMMITÉ ; c'est la surface de synchro avec l'extérieur, pas
-            // un tampon d'état transitoire. ``_hoverDate`` avait déjà
-            // exactement ce statut, d'où le voisinage.
+            // Here the mirror has nothing left to overwrite — it
+            // rewrites ``''`` over ``''``, so no
+            // ``attributeChangedCallback``, so the pending state
+            // survives. The attribute now carries only what is
+            // COMMITTED; it is the sync surface with the outside, not a
+            // buffer of transient state. ``_hoverDate`` already had
+            // exactly that status, hence the neighbourhood.
             this._pendingStart = null;
             this._initialized = false;
             this._renderScheduled = false;
@@ -3054,13 +3071,13 @@
             if (!this._initialized) return;     // initial attr setting
             if (oldVal === newVal) return;
 
-            // Une écriture de ``value`` qui PASSE est autoritaire : elle
-            // vient soit de notre propre commit, soit de l'extérieur (le
-            // miroir du wrapper, un ``.set()``). Dans les deux cas la
-            // sélection en cours est caduque. Le miroir qui repousse la
-            // même valeur ne passe PAS par ici (garde ``oldVal ===
-            // newVal`` ci-dessus), donc une attente ne meurt jamais d'un
-            // simple rescan — c'est exactement l'invariant recherché.
+            // A write of ``value`` that GETS THROUGH is authoritative:
+            // it comes either from our own commit, or from outside (the
+            // wrapper's mirror, a ``.set()``). In both cases the
+            // selection in progress is void. The mirror pushing the same
+            // value back does NOT come through here (the ``oldVal ===
+            // newVal`` guard above), so a pending state never dies of a
+            // mere rescan — which is exactly the invariant sought.
             if (name === 'value') this._pendingStart = null;
 
             // Sync the displayed month if the external observer (e.g.
@@ -3103,10 +3120,11 @@
             } else {
                 serialized = String(value);
             }
-            // Explicite, et pas seulement via ``attributeChangedCallback``:
-            // un ``.clear()`` sur un calendrier dont l'attribut vaut déjà
-            // ``''`` ne déclenche aucun callback, et laisserait sinon une
-            // sélection en attente survivre à un effacement demandé.
+            // Explicit, and not only through
+            // ``attributeChangedCallback``: a ``.clear()`` on a calendar
+            // whose attribute is already ``''`` triggers no callback, and
+            // would otherwise let a pending selection survive a
+            // requested clear.
             this._pendingStart = null;
             this.setAttribute('value', serialized);
             this._syncHiddenAndFireChange(serialized, value);
@@ -3116,43 +3134,43 @@
             this.set(null);
         }
 
-        /* Repeindre APRÈS un morph qui a effacé le corps rendu ici.
+        /* Repaint AFTER a morph that erased the body rendered here.
          *
-         * Le trou, mesuré le 2026-08-21 : le SSR émet un conteneur de
-         * grille VIDE que ``connectedCallback`` remplit. Quand idiomorph
-         * morphe le calendrier EN PLACE — le refresh d'une zone
-         * ``@refreshable`` qui le contient — les enfants reviennent à la
-         * version serveur, donc vides. ``connectedCallback`` ne re-tourne
-         * pas (le nœud a SURVÉCU), ``attributeChangedCallback`` non plus
-         * (aucun attribut n'a changé) : personne ne re-remplit, et le
-         * calendrier reste amputé DÉFINITIVEMENT.
+         * The hole, measured on 2026-08-21: the SSR emits an EMPTY grid
+         * container that ``connectedCallback`` fills. When idiomorph
+         * morphs the calendar IN PLACE — the refresh of a
+         * ``@refreshable`` zone containing it — the children go back to
+         * the server version, so empty. ``connectedCallback`` does not
+         * run again (the node SURVIVED), nor does
+         * ``attributeChangedCallback`` (no attribute changed): nobody
+         * refills, and the calendar stays amputated FOR GOOD.
          *
-         * L'en-tête du fichier dit que la configuration vit dans des
-         * attributs « que idiomorph peut morpher librement ». C'est vrai
-         * des ATTRIBUTS ; ça ne l'est pas des ENFANTS, et c'est la
-         * contrepartie que le choix « custom element » n'avait pas tenue.
+         * The file's header says the configuration lives in attributes
+         * "that idiomorph can morph freely". That is true of the
+         * ATTRIBUTES; it is not true of the CHILDREN, and that is the
+         * counterpart the "custom element" choice had not honoured.
          *
-         * Appelé par le ``bz-effect`` que le Python pose sur la racine,
-         * et c'est bien ``bz-effect`` et PAS ``bz-init`` : ce dernier est
-         * one-shot par NŒUD (``el._bzInitDone``, qui survit
-         * explicitement au rebind), or idiomorph morphe EN PLACE — le
-         * nœud survit, donc un ``bz-init`` ne re-tournerait jamais. Un
-         * ``bz-effect`` est disposé puis refait par ``bindEl`` à chaque
-         * rescan, et le bridge rescanne sa cible à chaque swap. Même
-         * choix et même raison que ``_observe()`` du SignaturePad, qui
-         * écrit noir sur blanc « à chaque rescan plutôt qu'au bz-init ».
+         * Called by the ``bz-effect`` the Python sets on the root, and it
+         * is indeed ``bz-effect`` and NOT ``bz-init``: the latter is
+         * one-shot per NODE (``el._bzInitDone``, which explicitly
+         * survives a rebind), yet idiomorph morphs IN PLACE — the node
+         * survives, so a ``bz-init`` would never run again. A
+         * ``bz-effect`` is disposed then redone by ``bindEl`` at every
+         * rescan, and the bridge rescans its target at every swap. Same
+         * choice and same reason as SignaturePad's ``_observe()``, which
+         * writes in black and white "at every rescan rather than at the
+         * bz-init".
          *
-         * Aucun vocabulaire neuf, donc : pas de ``hx-preserve``, pas de
-         * hook de morph maison. Le jour où un DEUXIÈME custom element
-         * existera, ce sera le moment d'en faire une politique du
-         * runtime — pas avant.
+         * No new vocabulary, then: no ``hx-preserve``, no home-made morph
+         * hook. The day a SECOND custom element exists, that will be the
+         * moment to make it a runtime policy — not before.
          *
-         * La garde est une mesure du DOM, et c'est ici légitime : elle ne
-         * DÉRIVE rien (aucun affichage n'en dépend), elle constate un
-         * fait ponctuel — mes enfants ont-ils été effacés — au seul
-         * moment où la question se pose. Sans elle, chaque swap sans
-         * rapport repeindrait la grille et tuerait l'aperçu de plage en
-         * cours de survol.
+         * The guard is a DOM measurement, and it is legitimate here: it
+         * DERIVES nothing (no display depends on it), it observes a
+         * one-off fact — have my children been erased — at the only
+         * moment the question arises. Without it, every unrelated swap
+         * would repaint the grid and kill the range preview being
+         * hovered.
          */
         rehydrate() {
             if (!this._initialized) return;   // connectedCallback rendra
@@ -3167,15 +3185,15 @@
         // know where to navigate.
         _selectedDate() {
             var mode = this.getAttribute('mode') || 'picker';
-            // ``week`` rend une DATE scalaire comme ``picker`` (le premier
-            // jour de la semaine), pas une paire — donc même lecture.
+            // ``week`` returns a scalar DATE like ``picker`` (the
+            // week's first day), not a pair — so the same reading.
             if (mode === 'picker' || mode === 'week') {
                 var v = this.getAttribute('value');
                 return (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
             }
-            // Une plage en cours de sélection A un début, même s'il n'est
-            // pas encore dans l'attribut : ``.focus()`` doit naviguer vers
-            // LUI, pas vers l'ancienne plage commitée.
+            // A range being selected HAS a start, even if it is not in
+            // the attribute yet: ``.focus()`` must navigate to IT, not to
+            // the old committed range.
             if (this._pendingStart) return this._pendingStart;
             var arr = parseJSON(this.getAttribute('value') || '', []);
             return (Array.isArray(arr) && arr[0]
@@ -3334,23 +3352,23 @@
                 disabledSet: new Set(
                     parseJSON(this.getAttribute('disabled-dates'), [])
                 ),
-                // ``marks`` : {iso: compte}. Le gabarit du nom
-                // accessible arrive RESOLU du serveur — la table des
-                // mots du framework est en Python, et cette grille est
-                // batie ici.
+                // ``marks``: {iso: count}. The accessible name's
+                // template arrives RESOLVED from the server — the
+                // framework's word table is in Python, and this grid is
+                // built here.
                 marks: parseJSON(this.getAttribute('marks'), {}),
                 markLabel: this.getAttribute('data-bz-mark-label')
                     || '{day}, {n} events',
                 weekdayNames: parseJSON(
                     this.getAttribute('weekday-names'), DEFAULT_WEEKDAYS()
                 ),
-                // Les noms ENTIERS, pour le ``title=`` des en-tetes.
+                // The FULL names, for the headers' ``title=``.
                 //
-                // Vide des que l'app fournit ses propres abreviations :
-                // deviner « mer. » -> « mercredi » marcherait en francais
-                // et nulle part ailleurs, et un title FAUX est pire que
-                // pas de title. Une app qui veut les siens declare sa
-                // langue et laisse la locale faire.
+                // Empty as soon as the app supplies its own
+                // abbreviations: guessing "mer." → "mercredi" would work
+                // in French and nowhere else, and a WRONG title is worse
+                // than no title. An app that wants its own declares its
+                // language and lets the locale do the work.
                 weekdayLongNames: this.getAttribute('weekday-names')
                     ? []
                     : DEFAULT_WEEKDAYS_LONG(),
@@ -3371,21 +3389,21 @@
             };
         }
 
-        /* La grille d'ANNÉE du mode ``month`` — 12 cellules au lieu du
-         * couple ligne-de-jours + grille-de-jours.
+        /* The YEAR grid of ``month`` mode — 12 cells instead of the
+         * weekday-row + day-grid pair.
          *
-         * C'est le SECOND type de grille du composant, et le seul point
-         * où il ne rend pas des jours. Tout le reste (header Python,
-         * input caché, dispatch du change, listeners impératifs) est
-         * partagé — d'où le retour anticipé dans ``_render`` plutôt
-         * qu'une classe séparée.
+         * It is the component's SECOND kind of grid, and the only place
+         * where it does not render days. Everything else (Python header,
+         * hidden input, change dispatch, imperative listeners) is shared
+         * — hence the early return in ``_render`` rather than a separate
+         * class.
          *
-         * Les bornes se comparent en ``"YYYY-MM"``, jamais en dates :
-         * le format est zéro-paddé, donc il se trie lexicographiquement
-         * comme chronologiquement. ``min`` / ``max`` arrivent en
-         * ``YYYY-MM-DD`` — on les tronque, ce qui rend un mois PARTIEL-
-         * lement autorisé cliquable, et c'est voulu : un ``min`` au
-         * 15 mars n'interdit pas « mars ».
+         * The bounds compare in ``"YYYY-MM"``, never as dates: the format
+         * is zero-padded, so it sorts lexicographically as it sorts
+         * chronologically. ``min`` / ``max`` arrive as ``YYYY-MM-DD`` —
+         * we truncate them, which makes a PARTIALLY allowed month
+         * clickable, and it is intended: a ``min`` on 15 March does not
+         * forbid "March".
          */
         _renderMonthGrid(cfg) {
             var theme = cfg.theme || {};
@@ -3428,8 +3446,9 @@
             var rotatedWeekdays = cfg.weekdayNames
                 .slice(cfg.weekstart)
                 .concat(cfg.weekdayNames.slice(0, cfg.weekstart));
-            // Tournee du MEME nombre de crans, sinon le title d'une
-            // colonne nommerait le jour d'a cote — pire que rien.
+            // Rotated by the SAME number of steps, otherwise a
+            // column's title would name the day next to it — worse than
+            // nothing.
             var longs = cfg.weekdayLongNames || [];
             var rotatedLong = longs.length === 7
                 ? longs.slice(cfg.weekstart).concat(longs.slice(0, cfg.weekstart))
@@ -3438,12 +3457,12 @@
             // Range bounds for highlighting
             var rangeStart = '', rangeEnd = '';
             if (cfg.mode === 'range') {
-                // Le garde de mode est load-bearing et reste UNE seule
-                // condition : un attribut ``mode`` qui bascule pendant
-                // qu'une attente est vivante ne la nettoie pas.
+                // The mode guard is load-bearing and stays a SINGLE
+                // condition: a ``mode`` attribute that flips while a
+                // pending state is alive does not clean it.
                 if (this._pendingStart) {
-                    // Sélection en cours : le début en attente prime sur
-                    // la valeur commitée, encore l'ANCIENNE plage.
+                    // A selection in progress: the pending start beats
+                    // the committed value, still the OLD range.
                     rangeStart = this._pendingStart;
                 } else if (cfg.value) {
                     var arr = parseJSON(cfg.value, []);
@@ -3453,11 +3472,11 @@
                     }
                 }
             } else if (cfg.mode === 'week' && cfg.value) {
-                // Une semaine EST une plage fermée de 7 jours. La rendre
-                // comme telle réutilise TOUT le rendu de bande du mode
-                // range — extrémités plates côté intérieur, milieu
-                // teinté — au lieu d'inventer un second vocabulaire
-                // visuel pour la même idée.
+                // A week IS a closed range of 7 days. Rendering it as
+                // such reuses ALL of the range mode's band rendering —
+                // flat ends on the inner side, tinted middle — instead
+                // of inventing a second visual vocabulary for the same
+                // idea.
                 rangeStart = weekStartOf(cfg.value, cfg.weekstart);
                 rangeEnd = addDays(rangeStart, 6);
             }
@@ -3470,9 +3489,9 @@
             }
             function rangeBounds() {
                 if (cfg.mode === 'week') {
-                    // Pas de survol progressif ici : une semaine est
-                    // choisie d'un seul clic, donc ses bornes sont
-                    // toujours connues et complètes.
+                    // No progressive hover here: a week is chosen in a
+                    // single click, so its bounds are always known and
+                    // complete.
                     return rangeStart
                         ? { lo: rangeStart, hi: rangeEnd }
                         : { lo: null, hi: null };
@@ -3525,11 +3544,11 @@
                     var day = d.getDate();
                     var inMonth = d.getMonth() === this._displayedMonth;
                     var isDis = isCellDisabled(s);
-                    // Une marque ne vit QUE dans le mois affiche : la
-                    // grille deborde de six jours de part et d'autre, et
-                    // pastiller un 31 juillet visible depuis aout ferait
-                    // lire une charge qui n'est pas celle du mois qu'on
-                    // regarde.
+                    // A mark only lives in the DISPLAYED month: the
+                    // grid overflows by six days on either side, and
+                    // dotting a 31 July visible from August would make
+                    // one read a load that is not that of the month
+                    // being looked at.
                     var mark = inMonth ? (cfg.marks[s] | 0) : 0;
                     var markHTML = mark > 0
                         ? '<span class="' + escapeAttr(theme.day_mark || '') +
@@ -3571,10 +3590,10 @@
 
             var weekdaysHTML = '';
             for (var i = 0; i < rotatedWeekdays.length; i++) {
-                // ``title`` seulement s'il APPORTE quelque chose : le
-                // reflux sans Intl rend les memes abreviations des deux
-                // cotes, et un title identique au texte visible est du
-                // bruit pour un lecteur d'ecran.
+                // ``title`` only if it BRINGS something: the fallback
+                // with no Intl renders the same abbreviations on both
+                // sides, and a title identical to the visible text is
+                // noise for a screen reader.
                 var entier = rotatedLong[i];
                 var titre = (entier && entier !== rotatedWeekdays[i])
                     ? ' title="' + escapeAttr(entier) + '"'
@@ -3600,15 +3619,16 @@
             this._replaceBody(html);
         }
 
-        /* Remplacer le CORPS du calendrier en préservant les deux enfants
-         * qui ne viennent pas d'ici : l'input caché (porteur de form
-         * data) et le header rendu par Python (``data-bz-cal-header``,
-         * qui contient les IconButton et les dropdowns du thème).
+        /* Replace the calendar's BODY while preserving the two children
+         * that do not come from here: the hidden input (the form-data
+         * carrier) and the header rendered by Python
+         * (``data-bz-cal-header``, which contains the theme's IconButton
+         * and dropdowns).
          *
-         * Extrait de ``_render`` quand le mode ``month`` est arrivé : il
-         * rend une grille TOTALEMENT différente mais doit préserver
-         * exactement les mêmes deux enfants. Recopier la boucle aurait
-         * garanti qu'un des deux modes oublie l'un d'eux un jour.
+         * Extracted from ``_render`` when ``month`` mode arrived: it
+         * renders a TOTALLY different grid but must preserve exactly the
+         * same two children. Copying the loop would have guaranteed that
+         * one of the two modes forgets one of them one day.
          */
         _replaceBody(html) {
             var hidden = this.querySelector('input[type="hidden"]');
@@ -3630,16 +3650,16 @@
             // children removal, no listener re-bind. Used during
             // mouse hover preview to avoid the "cell vanishes under
             // the cursor" bug.
-            // Ce chemin n'existe QUE pendant une sélection en cours : ses
-            // deux appelants sont derrière ``_pendingStart`` (le
-            // ``mouseenter`` directement, le ``mouseleave`` via
-            // ``_hoverDate`` qui n'est posé que là). Il n'a donc jamais à
-            // lire l'attribut — qui, depuis le fix, ne peut de toute façon
-            // plus porter de paire à moitié ouverte. Le tester ici
-            // contredirait le reste du fichier.
+            // This path exists ONLY during a selection in progress: its
+            // two callers are behind ``_pendingStart`` (the
+            // ``mouseenter`` directly, the ``mouseleave`` through
+            // ``_hoverDate`` which is only set there). So it never has
+            // to read the attribute — which, since the fix, cannot carry
+            // a half-open pair anyway. Testing it here would contradict
+            // the rest of the file.
             //
-            // Le garde de mode est implicite : ``_pendingStart`` n'est posé
-            // que dans la branche ``range`` de ``_handleCellClick``.
+            // The mode guard is implicit: ``_pendingStart`` is only set
+            // in ``_handleCellClick``'s ``range`` branch.
             var rangeStart = this._pendingStart;
             if (!rangeStart) return;
             var effEnd = this._hoverDate || '';
@@ -3662,10 +3682,10 @@
 
         _wireListeners() {
             var self = this;
-            // Mode ``month`` : des cellules d'un autre type, un clic d'une
-            // autre nature. Câblé AVANT la boucle des jours parce qu'en
-            // mode month il n'y a aucune cellule de jour — la boucle
-            // ci-dessous tourne à vide.
+            // ``month`` mode: cells of another kind, a click of
+            // another nature. Wired BEFORE the day loop because in month
+            // mode there is no day cell at all — the loop below runs
+            // empty.
             this.querySelectorAll('[data-month-cell]').forEach(function (c) {
                 c.onclick = function () {
                     if (c.getAttribute('aria-disabled') === 'true') return;
@@ -3702,9 +3722,9 @@
                     // cursor stays over the SAME node from start to
                     // finish, listeners stay live.
                     cell.onmouseenter = function () {
-                        // « Sommes-nous entre les deux clics ? » se lit
-                        // désormais sur ``_pendingStart`` — l'attribut ne
-                        // porte plus jamais de paire à moitié ouverte.
+                        // "Are we between the two clicks?" now reads on
+                        // ``_pendingStart`` — the attribute never carries
+                        // a half-open pair any more.
                         if (!self._pendingStart) return;
                         self._hoverDate = cell.getAttribute('data-date');
                         self._paintHoverPreview();
@@ -3770,11 +3790,11 @@
             }
 
             if (mode === 'week') {
-                // Cliquer N'IMPORTE quel jour choisit sa semaine, et ce
-                // qui sort est le PREMIER jour de cette semaine — jamais
-                // le jour cliqué. Sans ce recalage, deux clics dans la
-                // même semaine produiraient deux valeurs différentes
-                // pour la même sélection.
+                // Clicking ANY day picks its week, and what comes out
+                // is that week's FIRST day — never the clicked day.
+                // Without that snapping, two clicks in the same week
+                // would produce two different values for the same
+                // selection.
                 var ws = (parseInt(
                     this.getAttribute('weekstart') || '1', 10
                 ) % 7 + 7) % 7;
@@ -3784,19 +3804,19 @@
                 return;
             }
 
-            // range mode — deux temps : on ouvre sur un début EN ATTENTE,
-            // on ferme sur le second clic. Seule la fermeture touche
-            // l'attribut ``value`` (cf. ``_pendingStart``).
+            // range mode — two steps: we open on a PENDING start, we
+            // close on the second click. Only the closing touches the
+            // ``value`` attribute (cf. ``_pendingStart``).
             var rangeStart = this._pendingStart;
 
             if (!rangeStart) {
                 this._hoverDate = null;
                 this._pendingStart = s;
-                // Repeindre : sans écriture d'attribut il n'y a plus de
-                // ``attributeChangedCallback`` pour le faire. On passe par
-                // ``_scheduleRender`` et pas ``_render`` pour garder le
-                // rendu ASYNCHRONE comme avant — le chemin par l'attribut
-                // batchait déjà en microtask.
+                // Repaint: with no attribute write there is no
+                // ``attributeChangedCallback`` left to do it. We go
+                // through ``_scheduleRender`` and not ``_render`` to keep
+                // the render ASYNCHRONOUS as before — the attribute path
+                // already batched in a microtask.
                 this._scheduleRender();
                 return;
             }
@@ -3944,17 +3964,16 @@
             files: [],
             errors: [],
 
-            // ⚠️ Pas de ``destroy()`` : le moteur de scope V3 n'a AUCUN
-            // hook de démontage — la méthode qui vivait ici venait de
-            // l'ère Alpine, où elle était appelée automatiquement, et
-            // n'a plus jamais tourné depuis (audit F22/F74). Les blob
-            // URLs des previews sont révoquées aux trois endroits qui
-            // retirent un fichier (remplacement single-file, removeFile,
-            // clear) ; ce qui reste non libéré, ce sont les previews
-            // d'un composant retiré du DOM avec des fichiers encore
-            // dedans. Dette connue, tracée dans inventory.md : la
-            // rouvrir demande un vrai hook d'unmount côté runtime, pas
-            // une méthode que personne n'appelle.
+            // ⚠️ No ``destroy()``: the V3 scope engine has NO unmount
+            // hook — the method that lived here came from the Alpine
+            // era, where it was called automatically, and has never run
+            // since (audit F22/F74). The previews' blob URLs are revoked
+            // in the three places that remove a file (single-file
+            // replacement, removeFile, clear); what stays unfreed are
+            // the previews of a component removed from the DOM with
+            // files still in it. A known debt, tracked in inventory.md:
+            // reopening it asks for a real unmount hook on the runtime
+            // side, not a method nobody calls.
 
             // ── Validation + add ───────────────────────────────────
             handleFiles(fileList) {
@@ -4216,12 +4235,12 @@
                 const form = new FormData();
                 form.append('file', file, entry0.name);
                 xhr.open('POST', uploadUrl);
-                // Le middleware CSRF de Bretzel est TOUJOURS actif et
-                // protège tout POST hors ``/_bretzel/action/*``. Sans ce
-                // header, l'upload async se prend un 403 — donc
-                // ``upload_url=`` ne pouvait fonctionner dans AUCUNE app,
-                // le framework rejetant son propre composant. Même source
-                // et même en-tête que le bridge (05_bridge.js).
+                // Bretzel's CSRF middleware is ALWAYS active and
+                // protects every POST outside ``/_bretzel/action/*``.
+                // Without this header, the async upload takes a 403 — so
+                // ``upload_url=`` could work in NO app, the framework
+                // rejecting its own component. Same source and same
+                // header as the bridge (05_bridge.js).
                 if ($bz._csrf) {
                     xhr.setRequestHeader('X-Bretzel-CSRF', $bz._csrf);
                 }
@@ -4990,13 +5009,13 @@
 
   $bz.select = {
     single: {
-      // Le libellé d'une valeur. Select GARDE sa carte ``_labels``
-      // (son ``_options`` ne porte que des valeurs, donc elle n'y
-      // est pas redondante) ; ce qui a disparu le 2026-08-28, c'est
-      // la carte RÉ-INLINÉE dans le ``bz-text`` de chaque gabarit de
-      // pastille — un troisième exemplaire de la même table. Le
-      // gabarit partagé (``_picker.build_pills_template``) appelle
-      // désormais cette méthode, que Combobox définit à sa façon.
+      // A value's label. Select KEEPS its ``_labels`` map (its
+      // ``_options`` carries only values, so it is not redundant
+      // there); what disappeared on 2026-08-28 is the map RE-INLINED
+      // in each pill template's ``bz-text`` — a third copy of the
+      // same table. The shared template
+      // (``_picker.build_pills_template``) now calls this method,
+      // which Combobox defines its own way.
       _labelOf(v) { return this._labels[String(v)] || ""; },
       _pick(v) { this._write(v); this.open = false; },
       _isPicked(v) { return String(this._read() || "") === String(v); },
@@ -5006,19 +5025,19 @@
     },
     multi: {
       ...$bz.multiSelect,
-      // Le libellé d'une valeur. Select GARDE sa carte ``_labels``
-      // (son ``_options`` ne porte que des valeurs, donc elle n'y
-      // est pas redondante) ; ce qui a disparu le 2026-08-28, c'est
-      // la carte RÉ-INLINÉE dans le ``bz-text`` de chaque gabarit de
-      // pastille — un troisième exemplaire de la même table. Le
-      // gabarit partagé (``_picker.build_pills_template``) appelle
-      // désormais cette méthode, que Combobox définit à sa façon.
+      // A value's label. Select KEEPS its ``_labels`` map (its
+      // ``_options`` carries only values, so it is not redundant
+      // there); what disappeared on 2026-08-28 is the map RE-INLINED
+      // in each pill template's ``bz-text`` — a third copy of the
+      // same table. The shared template
+      // (``_picker.build_pills_template``) now calls this method,
+      // which Combobox defines its own way.
       _labelOf(v) { return this._labels[String(v)] || ""; },
       _value() { const v = this._read(); return v == null ? [] : v; },
       // Select-specific : every option is always visible (no query).
-      // ``_clearAll`` n'est PAS redéclaré — celui du mixin fait
-      // exactement ça, et le redire ici est comment les deux pickers
-      // divergeaient (audit F19).
+      // ``_clearAll`` is NOT redeclared — the mixin's does exactly that,
+      // and repeating it here is how the two pickers diverged (audit
+      // F19).
       _selectAll() { this._write(this._options.slice()); },
       _highlightFromValue() {
         const picks = this._picked();
@@ -5044,13 +5063,13 @@
  *
  * ``_options`` (option objects w/ haystack) stays per instance.
  *
- * ⚠️ Il y avait aussi un ``_labels: {valeur: libellé}``, retiré le
- * 2026-08-28 : chaque entrée d'``_options`` porte DÉJÀ son ``label``,
- * donc la carte redisait la moitié de la liste — 501 octets sur 22 586
- * pour vingt options. Son unique lecteur (le libellé affiché dans le
- * champ fermé, en mode simple) passe par ``_labelOf`` ci-dessous.
- * ``Select``, lui, le GARDE : son ``_options`` ne porte que des
- * valeurs, donc la carte n'y est pas redondante.
+ * ⚠️ There was also a ``_labels: {value: label}``, removed on
+ * 2026-08-28: each ``_options`` entry ALREADY carries its ``label``, so
+ * the map repeated half the list — 501 bytes of 22,586 for twenty
+ * options. Its only reader (the label shown in the closed field, in
+ * single mode) goes through ``_labelOf`` below. ``Select``, for its
+ * part, KEEPS it: its ``_options`` carries only values, so the map is
+ * not redundant there.
  *
  * Value access goes through ``this._read()`` / ``this._write(v)``
  * (local: a ``value`` field ; binding: ``$bz.state.<path>``, read raw +
@@ -5071,53 +5090,51 @@
   // just ``_write`` ; the effect observes the mutation and dispatches.
 
   $bz.combobox = {
-    /* ── Les options, peintes par le PANNEAU ────────────────────────
+    /* ── The options, painted by the PANEL ───────────────────────────
      *
-     * Avant le 2026-09-02, chaque option portait cinq directives :
-     * ``bz-class``, ``bz-attr:aria-selected``, ``bz-show`` et deux
-     * ``bz-on:``. Mesuré : 461 octets par option, dont 177 rien que
-     * pour ces directives, répétées à l'identique N fois.
+     * Before 2026-09-02, each option carried five directives:
+     * ``bz-class``, ``bz-attr:aria-selected``, ``bz-show`` and two
+     * ``bz-on:``. Measured: 461 bytes per option, of which 177 for
+     * those directives alone, repeated identically N times.
      *
-     * Trois d'entre elles deviennent UN effet et DEUX écouteurs
-     * délégués, sur le panneau. ``bz-show`` reste par option : c'est le
-     * filtre de recherche, et le runtime a sa propre machinerie de
-     * masquage.
+     * Three of them become ONE effect and TWO delegated listeners, on
+     * the panel. ``bz-show`` stays per option: it is the search filter,
+     * and the runtime has its own hiding machinery.
      *
-     * ⚠️ Pourquoi les options restent rendues par le SERVEUR — et
-     * pourquoi ce n'est pas la moitié d'un travail. La règle du dépôt
-     * (« qui écrit le ``for`` ? », gatée par
-     * ``test_collection_owner_decides_the_api``) lie l'endroit du rendu
-     * à la forme de l'API : un composant qui rend sa collection côté
-     * SERVEUR a droit à un rappel ``render=``, un composant dont le
-     * client crée les nœuds n'y a PAS droit — un callback Python ne
-     * tourne pas dans le navigateur. Peindre les options ici ferait
-     * donc perdre au combobox son ``render=``, ajouté le 2026-08-18
-     * précisément parce que la thèse d'agencement l'avait compté parmi
-     * les quatre collections SANS aucune sortie pour l'auteur. Le gain
-     * en octets ne vaut pas une échappatoire de contenu dans un
-     * framework qui en a neuf pour 498 slots de style.
+     * ⚠️ Why the options stay rendered by the SERVER — and why that is
+     * not half a job. The repository's rule ("who writes the ``for``?",
+     * gated by ``test_collection_owner_decides_the_api``) ties the place
+     * of the render to the API's shape: a component that renders its
+     * collection on the SERVER side is entitled to a ``render=``
+     * callback, a component whose client creates the nodes is NOT — a
+     * Python callback does not run in the browser. Painting the options
+     * here would therefore lose the combobox its ``render=``, added on
+     * 2026-08-18 precisely because the layout thesis had counted it
+     * among the four collections with NO way out for the author. The
+     * gain in bytes is not worth a content escape hatch in a framework
+     * that has nine for 498 style slots.
      */
     optionOf(ev) {
       const o = ev.target.closest('[role="option"]');
-      // Un bouton désactivé ne dispatche pas de clic, mais IL REÇOIT
-      // les survols — sans ce garde, passer la souris sur une option
-      // grisée la surlignerait comme si elle était choisissable.
+      // A disabled button does not dispatch a click, but IT DOES
+      // RECEIVE hovers — without that guard, moving the mouse over a
+      // greyed option would highlight it as if it were pickable.
       return o && !o.disabled ? o : null;
     },
 
-    /* Repeindre l'état de toutes les options : le surlignage (clavier
-     * et souris) et la sélection.
+    /* Repaint every option's state: the highlight (keyboard and mouse)
+     * and the selection.
      *
-     * Les deux chaînes de classe voyagent UNE fois, sur le panneau, au
-     * lieu d'être recopiées dans le ``bz-class`` de chaque option.
+     * The two class strings travel ONCE, on the panel, instead of being
+     * copied into each option's ``bz-class``.
      *
-     * ⚠️ On manipule ``classList`` directement plutôt que de garder un
-     * suivi sur le nœud. C'est délibéré et c'est la leçon de
-     * ``bz-class`` (traps.md) : un état gardé sur l'élément ne survit
-     * pas à un morph, donc la classe active n'était jamais ré-ajoutée
-     * au rescan. Ici l'effet REPEINT tout à chaque passage depuis la
-     * vérité (``_highlight`` et ``isPicked``), donc un morph qui
-     * remettrait la classe SSR est rattrapé au passage suivant.
+     * ⚠️ We manipulate ``classList`` directly rather than keeping
+     * tracking on the node. It is deliberate and it is ``bz-class``'s
+     * lesson (traps.md): a state kept on the element does not survive a
+     * morph, so the active class was never re-added at the rescan. Here
+     * the effect REPAINTS everything at every pass from the truth
+     * (``_highlight`` and ``isPicked``), so a morph that would put the
+     * SSR class back is caught at the next pass.
      */
     paintOptions(el, highlight, isPicked) {
       const actif = (el.getAttribute("data-bz-opt-active") || "").split(" ");
@@ -5141,13 +5158,13 @@
       // diacritics). Constant across instances.
       _norm: (s) => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, ""),
       _value() { return this._read(); },
-      // Le libellé d'une valeur, lu dans ``_options`` — qui le porte
-      // déjà. Remplace la carte ``_labels`` que chaque instance émettait
-      // en plus (cf. l'en-tête). Un seul lecteur : le champ FERMÉ en
-      // mode simple, donc un balayage linéaire sur une liste d'options
-      // ne coûte rien de mesurable, et il s'aligne sur ``_options``
-      // quand un refresh serveur la re-sème — ce qu'une carte figée dans
-      // un autre champ pouvait rater.
+      // A value's label, read in ``_options`` — which already carries
+      // it. Replaces the ``_labels`` map each instance emitted in
+      // addition (cf. the header). A single reader: the CLOSED field in
+      // single mode, so a linear scan over an options list costs nothing
+      // measurable, and it stays in step with ``_options`` when a server
+      // refresh re-seeds it — which a map frozen in another field could
+      // miss.
       _labelOf(v) {
         const s = String(v == null ? "" : v);
         if (!s) return "";
@@ -5230,44 +5247,44 @@
         const vis = this._visibleIndices();
         this._write(vis.map((i) => this._options[i].value));
       },
-      // Le mixin vide la sélection sans fermer ; Combobox AJOUTE le
-      // reset de la requête (Select n'a pas de champ de recherche).
+      // The mixin empties the selection without closing; Combobox ADDS
+      // the query reset (Select has no search field).
       _clearAll() { $bz.multiSelect._clearAll.call(this); this.query = ""; },
     },
   };
 })();
 
 
-/* 15_pagination.js — scope partagé du composant Pagination.
+/* 15_pagination.js — the Pagination component's shared scope.
  *
- * Tout l'algorithme ``range()`` — le calcul des numéros de page visibles
- * avec ses ellipses — vivait INLINE dans le ``bz-data`` de chaque
- * instance : 957 octets par ``<ui.pagination>``, le plus gros du dépôt.
- * Pire, sa configuration était cuite DANS les corps de méthode :
+ * The whole ``range()`` algorithm — computing the visible page numbers
+ * with their ellipses — lived INLINE in every instance's ``bz-data``:
+ * 957 bytes per ``<ui.pagination>``, the repository's biggest. Worse,
+ * its configuration was baked INTO the method bodies:
  *
  *     totalPages() { return Math.max(1, +(10) || 1); }
  *     maxVisible() { return +(7) || 7; }
  *     isDisabled() { return !!(false); }
  *
- * — trois constantes littérales là où il fallait trois données. C'est ce
- * qui rendait la factorisation impossible : deux instances avec des
- * ``total_pages`` différents produisaient deux CODES différents, pas deux
- * états différents.
+ * — three literal constants where three pieces of data were needed. It
+ * is what made factoring impossible: two instances with different
+ * ``total_pages`` produced two different CODES, not two different
+ * states.
  *
- * La bascule est donc « config en données », le prérequis que NumberInput
- * avait déjà appliqué (cf. 11_number_input.js) :
+ * The switch is therefore "config as data", the prerequisite
+ * NumberInput had already applied (cf. 11_number_input.js):
  *
  *   bz-data="{...$bz.pagination.scope, value: 1, _total: 10,
  *             _maxVisible: 7, _disabled: false,
  *             _read(){return this.value}, _write(v){this.value = v}}"
  *
- * ``_read`` / ``_write`` couvrent les DEUX modes avec les mêmes méthodes —
- * champ local (``value``) ou cellule du store (``$bz.state.<path>``). On
- * ne peut pas y mettre un ``get value()`` : ``scope.absorb`` lit chaque
- * clé une fois à l'enregistrement et figerait le getter (cf. traps.md).
+ * ``_read`` / ``_write`` cover BOTH modes with the same methods — a
+ * local field (``value``) or a store cell (``$bz.state.<path>``). One
+ * cannot put a ``get value()`` there: ``scope.absorb`` reads each key
+ * once at registration and would freeze the getter (cf. traps.md).
  *
- * ``range()`` est le portage JS de ``compute_range`` (Python). Les deux
- * doivent concorder — c'est ce que vérifie ``test_python_js_mirror``.
+ * ``range()`` is the JS port of ``compute_range`` (Python). The two must
+ * agree — that is what ``test_python_js_mirror`` checks.
  */
 (function () {
   "use strict";
@@ -5275,10 +5292,9 @@
 
   $bz.pagination = {
     scope: {
-      // ── Lectures normalisées ─────────────────────────────────────
-      // Des MÉTHODES, pas des getters : le scope les invoque à
-      // l'enregistrement, ce qui figerait un getter sur sa première
-      // valeur.
+      // ── Normalised reads ─────────────────────────────────────────
+      // METHODS, not getters: the scope invokes them at registration,
+      // which would freeze a getter on its first value.
       current() {
         return +this._read() || 1;
       },
@@ -5288,33 +5304,34 @@
       maxVisible() {
         return +this._maxVisible || 7;
       },
-      // Constante par défaut, surchargée depuis le builder quand le verrou
-      // est réel (littéral ou binding) — même mécanique que
-      // ``_disabledState`` du Slider (12_slider.js:28).
+      // A constant by default, overridden from the builder when the
+      // lock is real (a literal or a binding) — the same mechanics as
+      // the Slider's ``_disabledState`` (12_slider.js:28).
       //
-      // ⚠️ Ce N'EST PAS une donnée. Un champ ``_disabled: <chemin de store>``
-      // dans le bz-data serait évalué UNE FOIS, hors effet : ``absorb``
-      // emballe le snapshot dans un signal neuf découplé de la cellule, et
-      // plus rien ne le réécrit. Le verrou restait donc figé sur sa valeur
-      // au montage (mesuré : le switch bascule, la pagination reste
-      // cliquable). Une expression liée doit vivre dans un CORPS DE
-      // MÉTHODE, seul endroit relu à chaque appel donc tracé par l'effet
-      // appelant. Cf. traps.md § « un champ de bz-data n'est pas réactif ».
+      // ⚠️ It is NOT data. A ``_disabled: <store path>`` field in the
+      // bz-data would be evaluated ONCE, outside any effect: ``absorb``
+      // wraps the snapshot in a new signal decoupled from the cell, and
+      // nothing rewrites it any more. The lock therefore stayed frozen
+      // at its mount value (measured: the switch flips, the pagination
+      // stays clickable). A bound expression must live in a METHOD BODY,
+      // the only place re-read at every call hence tracked by the
+      // calling effect. Cf. traps.md § "a bz-data field is not
+      // reactive".
       isDisabled() {
         return false;
       },
 
-      // Setter — ne mute que sur un vrai changement, donc un clic sur la
-      // page courante est un no-op. C'est le ``bz-effect`` de l'input
-      // caché qui transforme la mutation en ``change`` bullant.
+      // A setter — it only mutates on a real change, so a click on the
+      // current page is a no-op. It is the hidden input's ``bz-effect``
+      // that turns the mutation into a bubbling ``change``.
       //
-      // Le verrou et la borne vivent ICI, dans l'unique mutateur, parce
-      // que les appelants ne se valent plus : les boutons du rail sont
-      // déjà gardés par leur ``bz-attr:disabled`` et ne passent que des
-      // valeurs issues de ``range()``, mais l'API impérative
-      // (``p.next()`` sur un bouton ailleurs dans la page) n'a aucun de
-      // ces deux garde-fous. Un seul mutateur gardé plutôt que deux
-      // chemins à garder séparément (principe 4 de la charte).
+      // The lock and the bound live HERE, in the single mutator, because
+      // the callers are no longer equivalent: the rail's buttons are
+      // already guarded by their ``bz-attr:disabled`` and only pass
+      // values coming from ``range()``, but the imperative API
+      // (``p.next()`` on a button elsewhere in the page) has neither of
+      // those two guard rails. A single guarded mutator rather than two
+      // paths to guard separately (charter principle 4).
       setActive(v) {
         if (this.isDisabled()) return;
         const n = Math.max(1, Math.min(this.totalPages(), +v || 1));
@@ -5322,10 +5339,10 @@
         this._write(n);
       },
 
-      // Les deux directions se DÉRIVENT du mutateur : la borne y est
-      // déjà, donc ``next()`` sur la dernière page se clampe à
-      // ``totalPages()``, retombe sur ``current()`` et sort — le no-op
-      // au bord est gratuit, pas une branche de plus.
+      // Both directions are DERIVED from the mutator: the bound is
+      // already there, so ``next()`` on the last page clamps to
+      // ``totalPages()``, falls back on ``current()`` and exits — the
+      // no-op at the edge is free, not one more branch.
       next() {
         this.setActive(this.current() + 1);
       },
@@ -5333,13 +5350,13 @@
         this.setActive(this.current() - 1);
       },
 
-      // ── Le calcul des pages visibles ─────────────────────────────
-      // Portage direct de ``compute_range``. Se recalcule dès que
-      // current() / totalPages() / maxVisible() lisent un signal changé —
-      // l'effet du runtime trace les lectures.
+      // ── Computing the visible pages ──────────────────────────────
+      // A direct port of ``compute_range``. Recomputes as soon as
+      // current() / totalPages() / maxVisible() read a changed signal —
+      // the runtime's effect tracks the reads.
       //
-      // Dans un corps de méthode, un identifiant nu ne voit PAS le scope :
-      // tout passe par ``this.<nom>()``.
+      // In a method body, a bare identifier does NOT see the scope:
+      // everything goes through ``this.<name>()``.
       range() {
         const tp = this.totalPages();
         const slots = Math.max(5, this.maxVisible());
@@ -5375,42 +5392,42 @@
 })();
 
 
-/* 16_accordion.js — scopes partagés d'Accordion, Tree, Tabs, Stepper
- * et Tooltip. (Le nom du fichier date du premier arrivant.)
+/* 16_accordion.js — the shared scopes of Accordion, Tree, Tabs, Stepper
+ * and Tooltip. (The file's name dates from the first arrival.)
  *
- * Les deux composants sérialisaient tous leurs corps de méthode dans le
- * ``bz-data`` de chaque instance — Accordion 622 octets, Tree 293 — et
- * Accordion cuisait en plus sa configuration DANS le code :
+ * Both components serialised all their method bodies into every
+ * instance's ``bz-data`` — Accordion 622 bytes, Tree 293 — and Accordion
+ * additionally baked its configuration INTO the code:
  *
  *     toggle(v) { … if (cur === target) { if (true) { … } } … }
  *                                            ^^^^ collapsible
  *     expandAll() { const ids = ["a","b","c"]; … }
  *
- * Deux accordéons de configurations différentes produisaient donc deux
- * CODES différents, pas deux états différents — c'est ce qui rendait la
- * factorisation impossible. La bascule est « config en données », le même
- * prérequis que NumberInput (11) et Pagination (15).
+ * Two accordions with different configurations therefore produced two
+ * different CODES, not two different states — that is what made
+ * factoring impossible. The switch is "config as data", the same
+ * prerequisite as NumberInput (11) and Pagination (15).
  *
  *   bz-data="{...$bz.accordion.single, value: "a", _read(){…}, _write(v){…},
  *             _collapsible: true, _allIds: ["a","b"]}"
  *   bz-data="{...$bz.accordion.multi,  value: ["a"],
  *             _allIds: ["a","b"]}"
  *
- * Deux variantes plutôt qu'une seule paramétrée : le mode single porte une
- * CHAÎNE, le mode multi un TABLEAU. Fusionner obligerait chaque méthode à
- * re-tester le type à l'exécution — la même raison qui a donné
- * ``$bz.select.single`` et ``$bz.select.multi``.
+ * Two variants rather than a single parameterised one: single mode
+ * carries a STRING, multi mode an ARRAY. Merging them would force every
+ * method to re-test the type at runtime — the same reason that gave
+ * ``$bz.select.single`` and ``$bz.select.multi``.
  *
- * ⚠️ Des MÉTHODES, jamais des getters : ``scope.absorb`` invoque chaque
- * clé à l'enregistrement et figerait un getter sur sa première valeur
- * (cf. traps.md).
+ * ⚠️ METHODS, never getters: ``scope.absorb`` invokes each key at
+ * registration and would freeze a getter on its first value (cf.
+ * traps.md).
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
   $bz.accordion = {
-    // ── Un seul panneau ouvert à la fois ────────────────────────────
+    // ── One panel open at a time ────────────────────────────────────
     single: {
       isOpen(v) {
         return String(this._read() || "") === String(v);
@@ -5419,7 +5436,7 @@
         const cur = String(this._read() || "");
         const target = String(v);
         if (cur === target) {
-          // ``_collapsible`` : refermer le panneau courant est-il permis ?
+          // ``_collapsible``: is closing the current panel allowed?
           if (this._collapsible) this._write("");
         } else {
           this._write(target);
@@ -5435,7 +5452,7 @@
           this._write("");
         }
       },
-      // En mode single, « tout ouvrir » ne peut ouvrir que le premier.
+      // In single mode, "open everything" can only open the first.
       expandAll() {
         const ids = this._allIds || [];
         if (ids.length) this._write(String(ids[0]));
@@ -5474,10 +5491,10 @@
   };
 
   // ── Tree ──────────────────────────────────────────────────────────
-  // Même famille : ouverture multiple (les nœuds dépliés) + une sélection
-  // unique optionnelle. ``sel`` / ``isSel`` / ``select`` ne servent que
-  // lorsque ``selectable=True`` ; les laisser dans le scope partagé ne
-  // coûte rien (le HTML ne les appelle pas) et évite une seconde variante.
+  // The same family: multiple opening (the expanded nodes) + an optional
+  // single selection. ``sel`` / ``isSel`` / ``select`` only serve when
+  // ``selectable=True``; leaving them in the shared scope costs nothing
+  // (the HTML does not call them) and avoids a second variant.
   $bz.tree = {
     scope: {
       isOpen(id) {
@@ -5494,9 +5511,9 @@
       select(id) {
         this._writeSel(String(id));
       },
-      // Défauts pour le cas NON sélectionnable : le composant ne les
-      // remplace que quand ``selectable=True``. Sans eux, ``isSel``
-      // lèverait si un thème appelait la méthode.
+      // Defaults for the NON-selectable case: the component only
+      // replaces them when ``selectable=True``. Without them, ``isSel``
+      // would raise if a theme called the method.
       _readSel() {
         return "";
       },
@@ -5505,19 +5522,19 @@
   };
 
   // ── Tabs ──────────────────────────────────────────────────────────
-  // Un setter avec garde de changement — même forme que
-  // ``$bz.pagination.setActive``. Sérialisé par instance jusqu'au
+  // A setter with a change guard — the same shape as
+  // ``$bz.pagination.setActive``. Serialised per instance until
   // 2026-07-29.
   //
-  // ``_url`` — le nom du paramètre d'URL, quand l'appelant a écrit
-  // ``ui.tabs(url="onglet")``. Absent par défaut, donc tout ce qui suit
-  // est inerte : un onglet n'a d'adresse que si on la demande.
+  // ``_url`` — the URL parameter's name, when the caller wrote
+  // ``ui.tabs(url="tab")``. Absent by default, so everything that
+  // follows is inert: a tab only has an address if you ask for one.
   //
-  // C'est le pendant CLIENT de ``URL = {…}`` sur un état serveur. Les
-  // deux existent parce que les deux chemins existent : un tri passe par
-  // le serveur, qui peut poser un en-tête ; un onglet bascule dans le
-  // scope, sans requête — personne côté serveur n'apprend rien, donc
-  // c'est au runtime de faire suivre la barre d'adresse.
+  // It is the CLIENT counterpart of ``URL = {…}`` on a server state.
+  // Both exist because both paths exist: a sort goes through the server,
+  // which can set a header; a tab flips in the scope, with no request —
+  // nobody on the server side learns anything, so it is up to the
+  // runtime to keep the address bar in step.
   $bz.tabs = {
     scope: {
       setTab(v) {
@@ -5527,41 +5544,40 @@
         if (this._url) $bz.helpers.pushUrl(this._url, s);
       },
 
-      // Le RETOUR. Sans lui, la flèche du navigateur changerait l'adresse
-      // et laisserait l'onglet où il est — pire que pas d'adresse du
-      // tout, parce que l'URL affichée mentirait alors sur ce qui est à
-      // l'écran.
+      // The BACK button. Without it, the browser's arrow would change
+      // the address and leave the tab where it is — worse than no
+      // address at all, because the displayed URL would then lie about
+      // what is on screen.
       //
-      // On ne peut pas laisser htmx s'en charger : il ne restaure que
-      // les entrées qu'il a lui-même créées (il teste sa propre marque
-      // dans ``history.state``), et celle-ci vient d'ici. Et le faire
-      // nous-même est de toute façon meilleur — c'est un basculement de
-      // signal, instantané, là où htmx referait la page entière pour
-      // changer d'onglet.
+      // We cannot leave it to htmx: it only restores the entries it
+      // created itself (it tests its own mark in ``history.state``), and
+      // this one comes from here. And doing it ourselves is better
+      // anyway — it is a signal toggle, instant, where htmx would redo
+      // the whole page to change tab.
       //
-      // Posé par ``bz-init``, la voie que ``06_helpers.js`` documente
-      // pour un événement qui n'existe que sur ``window``.
+      // Set by ``bz-init``, the route ``06_helpers.js`` documents for an
+      // event that only exists on ``window``.
       _urlInit() {
         if (!this._url) return;
         const param = this._url;
         const self = this;
-        // Ce que le SERVEUR a rendu — l'onglet quand l'adresse ne dit
-        // rien. Capturé ici, au montage, parce que le signal aura bougé
-        // quand le premier ``popstate`` arrivera.
+        // What the SERVER rendered — the tab when the address says
+        // nothing. Captured here, at mount, because the signal will have
+        // moved by the time the first ``popstate`` arrives.
         const initial = String(self._read());
         $bz.helpers.onWindow("popstate", function () {
           const raw = $bz.helpers.urlParam(param);
-          // **Absent = le défaut.** Pas « ne rien faire » : revenir sur
-          // ``/contacts/5`` après ``?onglet=activites`` doit ROUVRIR
-          // l'onglet initial. La première écriture gardait sur
-          // ``if (next)`` et laissait donc l'onglet précédent affiché
-          // sous une adresse qui disait autre chose — attrapé par
-          // ``probe_tabs_url``, invisible à tout test SSR.
+          // **Absent = the default.** Not "do nothing": coming back to
+          // ``/contacts/5`` after ``?tab=activity`` must REOPEN the
+          // initial tab. The first writing gated on ``if (next)`` and
+          // therefore left the previous tab displayed under an address
+          // that said something else — caught by ``probe_tabs_url``,
+          // invisible to every SSR test.
           //
-          // C'est aussi la règle que le serveur applique déjà des deux
-          // côtés (``state/url.py`` : absent → on garde le défaut, à son
-          // défaut → n'apparaît pas). Les trois s'accordent, donc un
-          // aller-retour est fidèle.
+          // It is also the rule the server already applies on both sides
+          // (``state/url.py``: absent → we keep the default, at its
+          // default → does not appear). All three agree, so a round trip
+          // is faithful.
           const next = raw == null || raw === "" ? initial : String(raw);
           if (String(self._read()) !== next) self._write(next);
         });
@@ -5570,23 +5586,23 @@
   };
 
   // ── Stepper ───────────────────────────────────────────────────────
-  // L'index courant est un ENTIER, et c'est ce qui rend le scope aussi
-  // petit : « cette étape est-elle faite ? » se répond par une
-  // comparaison, là où un id demanderait un indexOf dans une liste bakée.
+  // The current index is an INTEGER, and that is what makes the scope so
+  // small: "is this step done?" is answered by a comparison, where an id
+  // would require an indexOf in a baked list.
   //
   //   bz-data="{...$bz.stepper.scope, current: 1, _read(){…}, _write(v){…},
   //             _max: 3}"
   //
-  // ``_max`` = le plus grand index atteignable — le nombre d'ÉTAPES, ou de
-  // PANNEAUX s'il y en a un de plus (l'écran « terminé »). Sans lui,
-  // ``next()`` ne saurait pas où s'arrêter, et cuire la borne dans le
-  // corps de la méthode ferait deux CODES différents pour deux steppers
-  // de longueurs différentes — la dérive que ce fichier existe pour tuer.
+  // ``_max`` = the greatest reachable index — the number of STEPS, or of
+  // PANELS if there is one more (the "done" screen). Without it,
+  // ``next()`` would not know where to stop, and baking the bound into
+  // the method's body would make two different CODES for two steppers of
+  // different lengths — the drift this file exists to kill.
   $bz.stepper = {
     scope: {
-      // Le seul état que le thème lit (``data-[status=done]/step:``).
-      // Une étape en ERREUR ne passe pas par ici : son attribut est
-      // statique côté serveur, donc jamais recalculé.
+      // The only state the theme reads (``data-[status=done]/step:``).
+      // A step in ERROR does not come through here: its attribute is
+      // static on the server side, so never recomputed.
       _status(i) {
         const cur = Number(this._read()) || 0;
         return i < cur ? "done" : i === cur ? "current" : "upcoming";
@@ -5608,19 +5624,20 @@
   };
 
   // ── Tooltip ───────────────────────────────────────────────────────
-  // Le cas le plus net de « config cuite dans le code » après Pagination :
-  // le corps sérialisé contenait ``if (!(true)) return;`` — le drapeau
-  // d'activation en dur — et le délai d'ouverture en littéral. Deux
-  // tooltips de délais différents produisaient deux CODES différents.
+  // The clearest case of "config baked into the code" after Pagination:
+  // the serialised body contained ``if (!(true)) return;`` — the
+  // activation flag hard-coded — and the opening delay as a literal. Two
+  // tooltips with different delays produced two different CODES.
   //
-  // ``_delay`` passe en données — c'est un littéral server-side, donc une
-  // VRAIE donnée. ``_enabled`` non : il accepte un ClientBinding ou une
-  // expression JS vive, et un champ de bz-data n'est évalué qu'une fois,
-  // hors effet (``absorb`` en découple le snapshot du store). La bascule
-  // en champ l'avait donc figé au montage alors que la docstring du
-  // builder promettait l'inverse — « la condition est évaluée au moment
-  // du survol ». Il redevient une MÉTHODE : constante par défaut ici,
-  // surchargée par le builder quand la condition est réelle.
+  // ``_delay`` becomes data — it is a server-side literal, so REAL data.
+  // ``_enabled`` does not: it accepts a ClientBinding or a live JS
+  // expression, and a bz-data field is evaluated only once, outside any
+  // effect (``absorb`` decouples its snapshot from the store). Switching
+  // it to a field had therefore frozen it at mount although the
+  // builder's docstring promised the opposite — "the condition is
+  // evaluated at hover time". It becomes a METHOD again: a constant by
+  // default here, overridden by the builder when the condition is
+  // real.
   $bz.tooltip = {
     scope: {
       _enabled() {
@@ -5642,53 +5659,55 @@
 })();
 
 
-/* 17_carousel.js — scope partagé du composant Carousel.
+/* 17_carousel.js — the Carousel component's shared scope.
  *
- * Le défilement est du **CSS scroll-snap**, pas un translateX piloté d'ici :
- * la piste est un conteneur `overflow-x-auto snap-x snap-mandatory` et
- * chaque slide porte `snap-start`. Ce choix décide de tout ce fichier.
+ * The scrolling is **CSS scroll-snap**, not a translateX driven from
+ * here: the track is an `overflow-x-auto snap-x snap-mandatory`
+ * container and each slide carries `snap-start`. That choice decides
+ * this whole file.
  *
- * Ce que le navigateur fait, et qu'on n'écrit donc pas : le swipe tactile
- * avec son inertie et son rubber-banding, le scroll à la molette, le
- * clavier, et l'aimantation elle-même. Il reste ici deux choses — aller à
- * un index, et lire l'index depuis la position de scroll.
+ * What the browser does, and what we therefore do not write: the touch
+ * swipe with its inertia and its rubber-banding, the wheel scroll, the
+ * keyboard, and the snapping itself. Two things are left here — going
+ * to an index, and reading the index from the scroll position.
  *
  *   bz-data="{...$bz.carousel.scope, current: 0, _track: null,
  *             _read(){…}, _write(v){…}}"
  *
- * ``_track`` est capturé au ``bz-init`` du root (`_track = $refs.bztrack`)
- * : une méthode de scope n'a **pas** accès à ``$refs``, seules les
- * directives en ont (même contrainte que Slider, cf. sa docstring).
+ * ``_track`` is captured at the root's ``bz-init``
+ * (`_track = $refs.bztrack`): a scope method has **no** access to
+ * ``$refs``, only directives do (same constraint as Slider, cf. its
+ * docstring).
  *
- * ⚠️ **Toute la géométrie est LUE du DOM, jamais calculée.** La foulée
- * vient de l'écart réel entre deux slides, la borne de
- * ``scrollWidth - clientWidth``. C'est ce qui rend le ``per_view``
- * responsive (`{"base": 1, "md": 3}`) gratuit : le JS n'a aucun
- * breakpoint à connaître, il mesure ce que CSS a décidé.
+ * ⚠️ **All the geometry is READ from the DOM, never computed.** The
+ * stride comes from the real gap between two slides, the bound from
+ * ``scrollWidth - clientWidth``. That is what makes a responsive
+ * ``per_view`` (`{"base": 1, "md": 3}`) free: the JS has no breakpoint
+ * to know, it measures what CSS decided.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  //: Silence après le dernier événement de scroll avant de considérer que
-  //: la position est arrêtée. Sans ce délai, un défilement fluide de 0 à 3
-  //: publierait 1 puis 2 en passant — et sur un ``value`` lié au serveur,
-  //: chaque valeur intermédiaire partirait en ``change``.
+  //: The silence after the last scroll event before considering the
+  //: position settled. Without that delay, a smooth scroll from 0 to 3
+  //: would publish 1 then 2 on the way — and on a server-bound
+  //: ``value``, every intermediate value would leave as a ``change``.
   const SETTLE_MS = 120;
 
   $bz.carousel = {
     scope: {
-      // ── Géométrie ────────────────────────────────────────────────
-      // Des MÉTHODES, jamais des getters : ``scope.absorb`` invoque
-      // chaque clé à l'enregistrement et figerait un getter sur sa
-      // première valeur (cf. traps.md).
+      // ── Geometry ─────────────────────────────────────────────────
+      // METHODS, never getters: ``scope.absorb`` invokes each key at
+      // registration and would freeze a getter on its first value (cf.
+      // traps.md).
       _step() {
         const t = this._track;
         if (!t || !t.children.length) return 0;
         const a = t.children[0];
-        // L'écart entre DEUX slides, pas la largeur d'une seule : il
-        // comprend le gap, donc il reste juste quel que soit l'espacement
-        // du thème.
+        // The gap between TWO slides, not the width of one: it
+        // includes the gap, so it stays right whatever the theme's
+        // spacing.
         if (t.children.length > 1) {
           return (
             t.children[1].getBoundingClientRect().left -
@@ -5698,22 +5717,22 @@
         return a.getBoundingClientRect().width;
       },
       _maxIndex() {
-        // ``void this._geom`` n'est PAS mort : c'est la lecture qui
-        // INSCRIT la dépendance réactive de tout ce qui mesure. Une
-        // mesure DOM n'est pas un signal — sans ce lien, un
-        // ``bz-attr:disabled="_atEnd()"`` s'évalue une fois au scan, avec
-        // la mise en page de cet instant-là, et ne se relit jamais. Payé
-        // pour de vrai : hydraté avant que la feuille Tailwind s'applique,
-        // la piste n'est pas encore ``flex``, donc ``scrollWidth ===
-        // clientWidth``, donc la borne vaut 0, donc les DEUX flèches sont
-        // désactivées — et ``disabled:opacity-0`` les efface. Aucune
-        // flèche à la première visite, toutes au refresh. Cf.
-        // ``_observeGeom`` pour qui bouge ce signal.
+        // ``void this._geom`` is NOT dead: it is the read that
+        // REGISTERS the reactive dependency of everything that
+        // measures. A DOM measurement is not a signal — without that
+        // link, a ``bz-attr:disabled="_atEnd()"`` evaluates once at scan
+        // time, with that instant's layout, and is never re-read. Paid
+        // for real: hydrated before the Tailwind sheet applies, the
+        // track is not yet ``flex``, so ``scrollWidth === clientWidth``,
+        // so the bound is 0, so BOTH arrows are disabled — and
+        // ``disabled:opacity-0`` erases them. No arrow at the first
+        // visit, all of them on refresh. Cf. ``_observeGeom`` for what
+        // moves this signal.
         void this._geom;
-        // ``_step()`` rend déjà 0 sans piste, donc ce test couvre les
-        // deux cas — et ``_geomIndex`` juste dessous s'appuie sur la même
-        // propriété. Doubler la garde ici ferait croire que les deux
-        // voisins ne sont pas d'accord.
+        // ``_step()`` already returns 0 with no track, so this test
+        // covers both cases — and ``_geomIndex`` just below leans on the
+        // same property. Doubling the guard here would suggest the two
+        // neighbours disagree.
         const step = this._step();
         if (!step) return 0;
         const t = this._track;
@@ -5724,58 +5743,57 @@
         return step ? Math.round(this._track.scrollLeft / step) : 0;
       },
 
-      // ── Ce qui rend la mesure ré-évaluable ───────────────────────
-      // Appelé depuis un ``bz-effect`` porté par la PISTE, et surtout pas
-      // depuis le ``bz-init`` du root : ``bz-init`` est one-shot par NŒUD
-      // (``el._bzInitDone``), or idiomorph morphe EN PLACE — le nœud du
-      // root survit, donc le hook ne re-court pas, donc les slides
-      // ajoutées par un morph ne seraient jamais observées. Un
-      // ``bz-effect`` est jeté et refait à chaque rescan, ce qui
-      // ré-observe l'ensemble courant sans rien de plus à écrire.
-      // (``ui.carousel`` + ``ui.each`` dans une zone rafraîchie est le
-      // cas d'usage numéro un du composant : ce chemin-là n'est pas un
-      // coin.)
+      // ── What makes the measurement re-evaluable ──────────────────
+      // Called from a ``bz-effect`` carried by the TRACK, and most
+      // certainly not from the root's ``bz-init``: ``bz-init`` is
+      // one-shot per NODE (``el._bzInitDone``), yet idiomorph morphs IN
+      // PLACE — the root's node survives, so the hook does not run
+      // again, so the slides added by a morph would never be observed. A
+      // ``bz-effect`` is thrown away and redone at every rescan, which
+      // re-observes the current set with nothing more to write.
+      // (``ui.carousel`` + ``ui.each`` inside a refreshed zone is the
+      // component's number-one use case: that path is not a corner.)
       //
-      // Il ne doit PAS rejoindre l'effet du root, qui dépend déjà de
-      // ``_geom`` via ``_syncFromValue`` → ``_maxIndex`` : le bump du
-      // premier rapport de l'observer le relancerait, ce qui rebrancherait
-      // l'observer, qui rapporterait à nouveau — une boucle.
+      // It must NOT join the root's effect, which already depends on
+      // ``_geom`` through ``_syncFromValue`` → ``_maxIndex``: the bump
+      // of the observer's first report would relaunch it, which would
+      // re-wire the observer, which would report again — a loop.
       //
-      // Pourquoi un ResizeObserver et pas un ``window.resize`` : la borne
-      // bouge sans que la fenêtre bouge. Un ``per_view`` responsive
-      // change la largeur des SLIDES au breakpoint ; un carousel hydraté
-      // dans un panneau replié mesure zéro jusqu'à l'ouverture ; une
-      // feuille de style qui arrive après le scan retourne la piste de
-      // ``block`` à ``flex``. Les trois se voient sur une boîte observée,
-      // aucune ne passe par un événement de fenêtre.
+      // Why a ResizeObserver and not a ``window.resize``: the bound
+      // moves without the window moving. A responsive ``per_view``
+      // changes the SLIDES' width at a breakpoint; a carousel hydrated
+      // in a collapsed panel measures zero until it opens; a stylesheet
+      // arriving after the scan turns the track from ``block`` to
+      // ``flex``. All three show on an observed box, none goes through a
+      // window event.
       //
-      // UNE slide est observée en plus de la piste, et une seule suffit :
-      // elles portent toutes la MÊME chaîne de classes (``slide_class``
-      // est composée une fois côté Python puis appliquée à chacune), donc
-      // elles changent de taille ensemble. La première est un témoin
-      // fidèle du groupe ; observer les quatre-vingts autres n'apporterait
-      // pas une information de plus.
+      // ONE slide is observed in addition to the track, and one is
+      // enough: they all carry the SAME class string (``slide_class`` is
+      // composed once on the Python side then applied to each), so they
+      // change size together. The first is a faithful witness of the
+      // group; observing the other eighty would bring no extra
+      // information.
       _observeGeom() {
         const t = this._track;
         if (!t) return;
-        // L'observer est rangé sur le NŒUD observé, pas sur le scope —
-        // même choix que ``$bz._tick`` avec ``el._bzTickId``, et pour la
-        // même raison : sa durée de vie est celle de la piste, donc une
-        // piste détachée emporte son observer avec elle. Sur le scope, il
-        // survivrait à son sujet.
+        // The observer is filed on the OBSERVED node, not on the scope
+        // — the same choice as ``$bz._tick`` with ``el._bzTickId``, and
+        // for the same reason: its lifetime is the track's, so a
+        // detached track takes its observer with it. On the scope, it
+        // would outlive its subject.
         //
-        // Le ranger là évite AUSSI une boucle : cette méthode court dans
-        // un effet, et un champ de scope écrit depuis un effet qui le lit
-        // se rappellerait lui-même sans fin (un champ non déclaré devient
-        // un signal à la première écriture — cf. ``03_scope.js``). Une
-        // propriété de nœud n'est pas réactive, donc rien ne se relance.
+        // Filing it there ALSO avoids a loop: this method runs in an
+        // effect, and a scope field written from an effect that reads it
+        // would call itself endlessly (an undeclared field becomes a
+        // signal at the first write — cf. ``03_scope.js``). A node
+        // property is not reactive, so nothing relaunches.
         if (t._bzGeomRo) t._bzGeomRo.disconnect();
         const self = this;
-        // Bumper un compteur plutôt que publier la mesure : la mesure
-        // reste lue au moment où on en a besoin (une seule source), le
-        // signal ne sert qu'à dire « relis ». Pas de boucle possible —
-        // ce que l'effet écrit derrière (``disabled``, donc une opacité)
-        // ne change aucune boîte.
+        // Bumping a counter rather than publishing the measurement:
+        // the measurement stays read at the moment it is needed (a
+        // single source), the signal only says "read again". No loop
+        // possible — what the effect writes behind it (``disabled``, so
+        // an opacity) changes no box.
         const ro = new ResizeObserver(function () {
           self._geom = self._geom + 1;
         });
@@ -5784,10 +5802,10 @@
         t._bzGeomRo = ro;
       },
 
-      // ── Bornes — l'état désactivé des flèches ────────────────────
-      // Lire ``_read()`` inscrit la dépendance réactive (c'est lui qui
-      // bouge) ; la BORNE, elle, vient de la géométrie — donc aucun
-      // calcul de per_view ni de breakpoint.
+      // ── Bounds — the arrows' disabled state ──────────────────────
+      // Reading ``_read()`` registers the reactive dependency (it is
+      // what moves); the BOUND, for its part, comes from the geometry —
+      // so no per_view or breakpoint computation.
       _atStart() {
         return Number(this._read()) <= 0;
       },
@@ -5801,16 +5819,16 @@
         if (!t) return;
         const n = Math.max(0, Math.min(this._maxIndex(), Number(i) || 0));
         t.scrollTo({ left: n * this._step(), behavior: "smooth" });
-        // On n'écrit PAS l'état ici : ``_onScroll`` est la source unique
-        // de l'index, et il le publiera quand la position sera arrêtée.
-        // Écrire des deux côtés ferait diverger le signal de ce que
-        // l'utilisateur voit dès qu'il interrompt l'animation d'un doigt.
+        // We do NOT write the state here: ``_onScroll`` is the index's
+        // single source, and it will publish it when the position has
+        // settled. Writing on both sides would make the signal diverge
+        // from what the user sees as soon as they interrupt the
+        // animation with a finger.
       },
-      // ``next`` / ``prev`` BOUCLENT, et ce n'est pas en contradiction
-      // avec des flèches qui butent : les flèches sont désactivées aux
-      // bords, donc elles n'arrivent jamais ici au bout. Ce qui arrive
-      // ici au bout, c'est l'autoplay — et une rotation qui s'arrête
-      // n'est plus une rotation.
+      // ``next`` / ``prev`` LOOP, and it does not contradict arrows
+      // that stop: the arrows are disabled at the edges, so they never
+      // arrive here at the end. What arrives here at the end is the
+      // autoplay — and a rotation that stops is no longer a rotation.
       next() {
         const max = this._maxIndex();
         const cur = Number(this._read()) || 0;
@@ -5821,7 +5839,7 @@
         this.goTo(cur <= 0 ? this._maxIndex() : cur - 1);
       },
 
-      // ── Le pont position → état ──────────────────────────────────
+      // ── The position → state bridge ──────────────────────────────
       _onScroll() {
         clearTimeout(this._settleId);
         this._settleId = setTimeout(() => {
@@ -5830,15 +5848,15 @@
         }, SETTLE_MS);
       },
 
-      // ── Le pont état → position ──────────────────────────────────
-      // Appelé depuis un ``bz-effect`` du root : lire ``_read()`` inscrit
-      // la dépendance, donc un écrivain EXTERNE (une binding pilotée
-      // ailleurs, un `.set(i)`) fait défiler la piste.
+      // ── The state → position bridge ──────────────────────────────
+      // Called from the root's ``bz-effect``: reading ``_read()``
+      // registers the dependency, so an EXTERNAL writer (a binding
+      // driven elsewhere, a `.set(i)`) scrolls the track.
       //
-      // La garde ``!==`` est ce qui empêche la boucle avec ``_onScroll``,
-      // et elle suffit : pendant un défilement fluide, la position
-      // publiée finit par égaler la cible, l'effet se relance, ne trouve
-      // plus d'écart, et n'appelle pas ``scrollTo`` une seconde fois.
+      // The ``!==`` guard is what stops the loop with ``_onScroll``, and
+      // it is enough: during a smooth scroll, the published position
+      // ends up equalling the target, the effect relaunches, finds no
+      // gap any more, and does not call ``scrollTo`` a second time.
       _syncFromValue() {
         const t = this._track;
         if (!t) return;
@@ -5847,26 +5865,25 @@
           Math.min(this._maxIndex(), Number(this._read()) || 0)
         );
         if (this._geomIndex() === target) return;
-        // Le tout premier accord est INSTANTANÉ : un carousel rendu à
-        // value=2 doit s'afficher sur la slide 2, pas défiler depuis la 0
-        // sous les yeux de l'utilisateur au chargement.
+        // The very first snap is INSTANT: a carousel rendered at
+        // value=2 must show on slide 2, not scroll from 0 under the
+        // user's eyes on load.
         const behavior = this._booted ? "smooth" : "auto";
         this._booted = true;
         t.scrollTo({ left: target * this._step(), behavior: behavior });
       },
 
       // ── Autoplay ─────────────────────────────────────────────────
-      // Un seul geste de l'utilisateur et la rotation s'arrête, pour de
-      // bon. Pas de reprise après un délai : un contenu qui se remet à
-      // bouger pendant qu'on le lit est la plainte d'accessibilité
-      // numéro un sur les carrousels. Pas de pause au survol non plus —
-      // elle n'existe pas sur un pointeur grossier.
+      // A single gesture from the user and the rotation stops, for
+      // good. No resumption after a delay: a content that starts moving
+      // again while you are reading it is the number-one accessibility
+      // complaint about carousels. No pause on hover either — it does
+      // not exist on a coarse pointer.
       //
-      // ``still`` est un SIGNAL déclaré dans le ``bz-data`` (pas un champ
-      // posé à la volée) : c'est l'effet du root qui le lit, en
-      // ``$bz._tick($el, !still, ms)``, et un champ non déclaré ne
-      // relancerait jamais cet effet — l'autoplay tournerait pour
-      // toujours.
+      // ``still`` is a SIGNAL declared in the ``bz-data`` (not a field
+      // set on the fly): it is the root's effect that reads it, as
+      // ``$bz._tick($el, !still, ms)``, and an undeclared field would
+      // never relaunch that effect — the autoplay would run forever.
       _touch() {
         if (!this.still) this.still = true;
       },
@@ -5875,105 +5892,105 @@
 })();
 
 
-/* 18_time_picker.js — scope partagé du composant TimePicker.
+/* 18_time_picker.js — the TimePicker component's shared scope.
  *
- * La valeur est une CHAÎNE ``"HH:MM"`` — même forme que l'ISO des
- * pickers de date : triable, comparable, sérialisable telle quelle dans
- * une form data, et lisible par un humain dans le champ éditable.
+ * The value is an ``"HH:MM"`` STRING — the same shape as the date
+ * pickers' ISO: sortable, comparable, serialisable as is in a form data,
+ * and readable by a human in the editable field.
  *
  *   bz-data="{...$bz.time.scope, open: false, value: "09:30",
  *             _read(){…}, _write(v){…}}"
  *
- * ⚠️ ``_read`` / ``_write`` ne sont PAS une élégance : une expression
- * liée doit vivre dans un CORPS DE MÉTHODE. Un champ de ``bz-data`` est
- * évalué UNE fois, hors effet — ``absorb`` en emballe le snapshot dans
- * un signal neuf découplé de la cellule du store, que plus rien ne
- * réécrit (régression mesurée sur Pagination et Tooltip, cf. traps.md
- * § « un champ de bz-data n'est pas réactif »).
+ * ⚠️ ``_read`` / ``_write`` are NOT an elegance: a bound expression must
+ * live in a METHOD BODY. A ``bz-data`` field is evaluated ONCE, outside
+ * any effect — ``absorb`` wraps its snapshot in a new signal decoupled
+ * from the store cell, which nothing rewrites any more (a regression
+ * measured on Pagination and Tooltip, cf. traps.md § "a bz-data field is
+ * not reactive").
  *
- * Pourquoi un scope partagé plutôt que des expressions inline : un
- * panneau à 24 heures et 4 minutes fait 28 boutons. Écrire le pick et le
- * test de sélection en toutes lettres sur chacun sérialiserait le même
- * algorithme 28 fois PAR INSTANCE — exactement ce que les bascules
- * « config en données » de Pagination et Accordion ont retiré.
+ * Why a shared scope rather than inline expressions: a panel with 24
+ * hours and 4 minutes is 28 buttons. Writing the pick and the selection
+ * test out in full on each would serialise the same algorithm 28 times
+ * PER INSTANCE — exactly what Pagination's and Accordion's "config as
+ * data" switches removed.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  //: Index des deux parties dans le tuple rendu par ``_parts``.
+  //: The index of the two parts in the tuple ``_parts`` returns.
   const HOUR = 0;
   const MINUTE = 1;
 
   $bz.time = {
     scope: {
-      // ── Lecture ──────────────────────────────────────────────────
-      // Des MÉTHODES, jamais des getters : ``scope.absorb`` invoque
-      // chaque clé à l'enregistrement et figerait un getter sur sa
-      // première valeur (cf. traps.md).
+      // ── Reading ──────────────────────────────────────────────────
+      // METHODS, never getters: ``scope.absorb`` invokes each key at
+      // registration and would freeze a getter on its first value (cf.
+      // traps.md).
       _parts() {
         const m = String(this._read() || "").match(/^(\d{1,2}):(\d{2})/);
-        // Deux chaînes vides plutôt que null : les appelants comparent,
-        // ils n'ont jamais à tester la présence.
+        // Two empty strings rather than null: the callers compare, they
+        // never have to test presence.
         return m ? [m[1].padStart(2, "0"), m[2]] : ["", ""];
       },
       _is(part, v) {
         return this._parts()[part] === v;
       },
 
-      // ── Écriture ─────────────────────────────────────────────────
+      // ── Writing ──────────────────────────────────────────────────
       _pick(part, v) {
         const p = this._parts();
         p[part] = v;
-        // Une heure choisie alors que la minute est inconnue vaut ``:00``
-        // — sinon le champ resterait VIDE juste après un clic, et
-        // l'utilisateur croirait que le clic n'a pas pris. Symétrique
-        // pour une minute choisie en premier.
+        // An hour chosen while the minute is unknown is ``:00`` —
+        // otherwise the field would stay EMPTY right after a click, and
+        // the user would think the click did not take. Symmetrical for a
+        // minute chosen first.
         this._write(
           (p[HOUR] || "00") + ":" + (p[MINUTE] || "00")
         );
       },
-      // Le clic sur une MINUTE referme le panneau, celui sur une heure
-      // non : l'ordre de lecture est heure puis minute, donc refermer à
-      // l'heure couperait la main de l'utilisateur au milieu de son
-      // geste. ``_closeOnPick`` est une donnée (le prop du composant).
+      // Clicking a MINUTE closes the panel, clicking an hour does not:
+      // the reading order is hour then minute, so closing on the hour
+      // would cut the user's hand off mid-gesture. ``_closeOnPick`` is
+      // data (the component's prop).
       pick(part, v) {
         this._pick(part, v);
         if (this._closeOnPick && part === MINUTE) this.open = false;
       },
     },
 
-    /* Peindre les cellules des deux colonnes, puis marquer la sélection.
+    /* Paint the two columns' cells, then mark the selection.
      *
-     * Pourquoi les cellules ne sont plus rendues par Python
-     * ------------------------------------------------------
-     * Elles portaient chacune la chaîne de classe du thème — 452
-     * caractères — et deux directives (``bz-attr:data-selected`` +
-     * ``bz-on:click``). À ``step=1`` ça fait 84 cellules : 49 Ko sur les
-     * 54 que pesait le composant, dont 38 pour la seule classe répétée à
-     * l'identique. Mesuré le 2026-09-01.
+     * Why the cells are no longer rendered by Python
+     * -----------------------------------------------
+     * They each carried the theme's class string — 452 characters — and
+     * two directives (``bz-attr:data-selected`` + ``bz-on:click``). At
+     * ``step=1`` that is 84 cells: 49 kB of the 54 the component
+     * weighed, 38 of them for the single class repeated identically.
+     * Measured on 2026-09-01.
      *
-     * C'est le même remède que ``<bz-calendar>``, qui laisse sa grille
-     * VIDE en SSR et la remplit ici — mais SANS custom element : sa
-     * docstring dit qu'un deuxième serait le moment d'en faire une
-     * politique du runtime, et alléger un payload ne justifie pas
-     * d'ouvrir ce chantier. Un ``bz-effect`` sur le conteneur suffit.
+     * It is the same remedy as ``<bz-calendar>``, which leaves its grid
+     * EMPTY in SSR and fills it here — but WITHOUT a custom element: its
+     * docstring says a second one would be the moment to make it a
+     * runtime policy, and lightening a payload does not justify opening
+     * that work. A ``bz-effect`` on the container is enough.
      *
-     * Les cellules n'ont plus AUCUNE directive
-     * -----------------------------------------
-     * Un clic délégué remplace 84 ``bz-on:click``, et cet effet remplace
-     * 84 ``bz-attr:data-selected``. C'est ce qui évite d'avoir à
-     * rescanner le sous-arbre après l'avoir peint — un ``$bz._scan``
-     * appelé depuis le corps d'un effet qu'un scan vient d'installer se
-     * réinstallerait lui-même.
+     * The cells have NO directive left
+     * ---------------------------------
+     * A delegated click replaces 84 ``bz-on:click``, and this effect
+     * replaces 84 ``bz-attr:data-selected``. It is what avoids having to
+     * rescan the subtree after painting it — a ``$bz._scan`` called from
+     * the body of an effect a scan has just installed would reinstall
+     * itself.
      *
-     * L'effet re-tourne à chaque changement de la valeur (il lit
-     * ``_parts()``), donc la sélection se repeint sans que rien d'autre
-     * ne bouge. La construction, elle, ne se fait qu'une fois : la garde
-     * est une MESURE du DOM (« ai-je déjà des cellules ? »), légitime
-     * ici pour la même raison que dans ``bz-calendar.rehydrate`` — elle
-     * ne dérive aucun affichage, elle constate un fait ponctuel au seul
-     * moment où la question se pose.
+     * The effect runs again at every change of the value (it reads
+     * ``_parts()``), so the selection is repainted without anything else
+     * moving. The construction, for its part, only happens once: the
+     * guard is a DOM MEASUREMENT ("do I already have cells?"),
+     * legitimate here for the same reason as in
+     * ``bz-calendar.rehydrate`` — it derives no display, it observes a
+     * one-off fact at the only moment the question arises.
      */
     fill(el, parts, pick) {
       const cellCls = el.getAttribute("data-bz-cell-class") || "";
@@ -6003,12 +6020,12 @@
           col.insertAdjacentHTML("beforeend", html);
         }
 
-        // Un seul écouteur par colonne. Le drapeau vit sur le NŒUD, et
-        // c'est correct ici : si idiomorph garde le nœud, l'écouteur
-        // survit avec lui ; s'il le remplace, le nouveau n'a pas le
-        // drapeau et se recâble. Le drapeau et l'écouteur sont toujours
-        // d'accord — c'est très exactement ce qui manquait au suivi de
-        // ``bz-class`` (cf. traps.md).
+        // A single listener per column. The flag lives on the NODE, and
+        // it is correct here: if idiomorph keeps the node, the listener
+        // survives with it; if it replaces it, the new one has no flag
+        // and re-wires. The flag and the listener always agree — which
+        // is very exactly what ``bz-class``'s tracking was missing (cf.
+        // traps.md).
         if (!col._bzTimeWired) {
           col._bzTimeWired = true;
           col.addEventListener("click", function (ev) {
@@ -6018,7 +6035,7 @@
           });
         }
 
-        // La sélection, à chaque passage de l'effet.
+        // The selection, at every pass of the effect.
         const courant = parts[part];
         const cells = col.querySelectorAll("[data-bz-v]");
         for (let j = 0; j < cells.length; j++) {
@@ -6035,112 +6052,114 @@
 })();
 
 
-/* 19_dnd.js — le geste node-DnD partagé par `dropzone` / `draggable`.
+/* 19_dnd.js — the node-DnD gesture shared by `dropzone` / `draggable`.
  *
- * ⚠️ **Distinct du « drag » des deux autres familles du dépôt**, et le
- * §6 de la roadmap insiste parce que les confondre coûte cher :
- *   - `12_slider.js`      = pointer-drag (pointeur → valeur continue) ;
- *   - `08_file_upload.js` = DnD HTML5 natif (fichiers de l'OS, DataTransfer).
- * Ici c'est le troisième : **déplacer un nœud** d'une position à une autre.
+ * ⚠️ **Distinct from the "drag" of the repository's two other
+ * families**, and §6 of the roadmap insists because confusing them
+ * costs:
+ *   - `12_slider.js`      = pointer-drag (pointer → continuous value);
+ *   - `08_file_upload.js` = native HTML5 DnD (OS files, DataTransfer).
+ * This is the third: **moving a node** from one position to another.
  *
- * ── Pourquoi Pointer Events et pas l'API HTML5 `draggable` ────────────
- * L'API HTML5 ne déclenche tout simplement pas `dragstart` sur mobile.
- * Décision de cadrage figée : Pointer Events, comme le slider.
+ * ── Why Pointer Events and not the HTML5 `draggable` API ─────────────
+ * The HTML5 API simply does not fire `dragstart` on mobile. A framing
+ * decision, settled: Pointer Events, like the slider.
  *
- * ── Pourquoi la délégation au document ───────────────────────────────
- * Un listener par zone devrait se re-brancher après chaque morph, et un
- * `bz-init` qui re-tourne double-bind (le rescan du bridge dispose et
- * re-bind les directives). Un seul listener au document, qui retrouve sa
- * cible par `closest()`, est **insensible au morph** et ne garde aucun
- * état sur les nœuds — la contrainte que traps.md § « bz-class perdue
- * après un morph » a rendue non négociable.
+ * ── Why delegation to the document ───────────────────────────────────
+ * One listener per zone would have to re-wire after every morph, and a
+ * `bz-init` that runs again double-binds (the bridge's rescan disposes
+ * and re-binds the directives). A single listener on the document,
+ * which finds its target through `closest()`, is **insensitive to the
+ * morph** and keeps no state on the nodes — the constraint traps.md
+ * § "bz-class lost after a morph" made non-negotiable.
  *
- * ── Pourquoi on déplace le VRAI nœud, sans clone ─────────────────────
- * Le réordonnancement est appliqué au DOM pendant le geste. Donc :
- *   1. l'aperçu est gratuit — pas de fantôme à positionner, pas de calcul
- *      de décalage pour les voisins, le navigateur reflow tout seul ;
- *   2. au drop, **l'ordre du DOM EST le résultat** — on lit les index au
- *      lieu de les calculer, donc l'aperçu ne peut pas mentir sur ce qui
- *      part au serveur ;
- *   3. c'est déjà l'optimiste. Le serveur re-rend, idiomorph réapparie par
- *      `bz-id` et le nœud déplacé est RÉUTILISÉ, pas recréé — mesuré, et
- *      gaté par `tests/runtime_js/test_morph_preserves_reordered_nodes.py`.
+ * ── Why we move the REAL node, with no clone ─────────────────────────
+ * The reordering is applied to the DOM during the gesture. So:
+ *   1. the preview is free — no ghost to position, no offset to compute
+ *      for the neighbours, the browser reflows by itself;
+ *   2. at the drop, **the DOM's order IS the result** — we read the
+ *      indices instead of computing them, so the preview cannot lie
+ *      about what leaves for the server;
+ *   3. it is already the optimistic path. The server re-renders,
+ *      idiomorph re-pairs by `bz-id` and the moved node is REUSED, not
+ *      recreated — measured, and gated by
+ *      `tests/runtime_js/test_morph_preserves_reordered_nodes.py`.
  *
- * ── Le snap-back d'un refus a besoin de code, contrairement à ce qui
- *    était écrit ici ──────────────────────────────────────────────────
- * Cette ligne a longtemps dit « un refus serveur = pas de mutation = le
- * morph remet l'item en place. Aucun code dédié ici. » C'était FAUX, et
- * la gate qui prétendait le prouver était vacante : le handler du
- * playground incrémente un compteur de refus, donc son état changeait,
- * donc la zone se re-rendait — le snap-back ne venait pas du refus mais
- * du compteur. Un handler qui refuse en ne mutant RIEN — le cas que
- * `Move` documente comme LA façon de refuser, et celui d'`examples/crm`
- * — ne fait re-rendre aucune zone : le serveur répond zéro octet et la
- * carte reste là où le doigt l'a lâchée. Mesuré le 2026-09-09 sur
- * `examples/kanban` : une limite d'en-cours refusait au serveur, et
- * l'écran montrait quatre cartes dans une colonne qui en accepte trois.
+ * ── A refusal's snap-back needs code, contrary to what was written
+ *    here ──────────────────────────────────────────────────────────────
+ * This line long said "a server refusal = no mutation = the morph puts
+ * the item back. No dedicated code here." That was FALSE, and the gate
+ * claiming to prove it was vacuous: the playground's handler increments
+ * a refusal counter, so its state changed, so the zone re-rendered —
+ * the snap-back did not come from the refusal but from the counter. A
+ * handler that refuses by mutating NOTHING — the case `Move` documents
+ * as THE way to refuse, and `examples/crm`'s — makes no zone re-render:
+ * the server answers zero bytes and the card stays where the finger let
+ * it go. Measured on 2026-09-09 on `examples/kanban`: a
+ * work-in-progress limit refused on the server, and the screen showed
+ * four cards in a column that accepts three.
  *
- * D'où le TÉMOIN ci-dessous. Il ne coûte rien au cas normal et ne
- * demande rien à l'auteur d'app : l'attribut est posé sur l'item au
- * moment du dépôt, le serveur ne le rend jamais, donc idiomorph l'efface
- * dès qu'il ré-apparie le nœud. S'il est encore là quand la requête
- * retombe, personne n'a répondu pour cet item — et le geste se défait.
+ * Hence the WITNESS below. It costs the normal case nothing and asks
+ * nothing of the app's author: the attribute is set on the item at drop
+ * time, the server never renders it, so idiomorph erases it as soon as
+ * it re-pairs the node. If it is still there when the request comes
+ * back, nobody answered for that item — and the gesture is undone.
  *
- * ── La géométrie est LUE, jamais configurée ──────────────────────────
- * L'axe (liste verticale ou horizontale) est déduit de la position réelle
- * de deux items, comme le Carousel déduit sa foulée. Aucun breakpoint,
- * aucun prop `orientation=` à tenir synchronisé avec le CSS.
+ * ── The geometry is READ, never configured ───────────────────────────
+ * The axis (a vertical or horizontal list) is inferred from the real
+ * position of two items, as the Carousel infers its stride. No
+ * breakpoint, no `orientation=` prop to keep in sync with the CSS.
  *
- * Contrat DOM attendu du Python (aucune directive `bz-*` neuve) :
+ * DOM contract expected from Python (no new `bz-*` directive):
  *   zone : data-bz-dropzone="<name>"  data-bz-accepts="a,b"  [data-bz-locked]
- *          + un carrier caché [data-bz-move-carrier] portant le hx-post
+ *          + a hidden carrier [data-bz-move-carrier] holding the hx-post
  *   item : data-bz-draggable  data-bz-key="…"  [data-bz-group] [data-bz-disabled]
- *          [data-bz-handle]  → si présent, seul [data-bz-drag-handle] attrape
+ *          [data-bz-handle]  → when present, only [data-bz-drag-handle] grabs
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  //: Souris/stylet : distance avant que le geste devienne un drag. C'est
-  //: ce seuil qui PRÉSERVE LE CLIC — sans lui, tout clic sur une carte
-  //: démarrerait un déplacement.
+  //: Mouse/stylus: the distance before the gesture becomes a drag. It is
+  //: this threshold that PRESERVES THE CLICK — without it, every click
+  //: on a card would start a move.
   const MOUSE_THRESHOLD_PX = 5;
-  //: Tactile : durée d'appui avant d'attraper.
+  //: Touch: how long you press before grabbing.
   const TOUCH_HOLD_MS = 250;
-  //: …et la distance au-delà de laquelle on abandonne avant la fin du
-  //: délai. C'est elle qui PRÉSERVE LE SCROLL : un doigt qui file dans une
-  //: liste ne doit pas emporter la carte qu'il a effleurée.
+  //: …and the distance beyond which we give up before the delay ends.
+  //: It is what PRESERVES THE SCROLL: a finger running down a list must
+  //: not carry off the card it brushed.
   const TOUCH_TOLERANCE_PX = 8;
 
-  //: Le témoin d'un dépôt en attente de réponse. Posé sur l'item, effacé
-  //: par le morph — le serveur ne rend jamais cet attribut, donc
-  //: idiomorph le retire en ré-appariant le nœud. C'est la seule mesure
-  //: possible depuis le client de « la réponse a-t-elle touché cet
-  //: item », et elle ne demande aucun protocole neuf.
+  //: The witness of a drop awaiting an answer. Set on the item, erased
+  //: by the morph — the server never renders this attribute, so
+  //: idiomorph removes it when it re-pairs the node. It is the only
+  //: measurement possible from the client of "did the answer touch this
+  //: item", and it asks for no new protocol.
   const PENDING_ATTR = "data-bz-drop-pending";
 
   const ZONE_SEL = "[data-bz-dropzone]";
   const ITEM_SEL = "[data-bz-draggable]";
   const HANDLE_SEL = "[data-bz-drag-handle]";
   const CARRIER_SEL = "[data-bz-move-carrier]";
-  //: Pose sur la ZONE pendant le survol d'un ecrasement. Le theme s'y
-  //: accroche ; rien d'autre ne le lit.
+  //: Set on the ZONE while an overwrite is hovered. The theme hooks onto
+  //: it; nothing else reads it.
   const REPLACE_ATTR = "data-bz-drop-replace";
 
-  //: Un seul geste à la fois — c'est une vérité physique du pointeur, pas
-  //: un raccourci d'implémentation. `armed` = doigt posé, drag pas encore
-  //: décidé ; `active` = drag en cours.
+  //: One gesture at a time — it is a physical truth of the pointer, not
+  //: an implementation shortcut. `armed` = finger down, drag not decided
+  //: yet; `active` = drag in progress.
   let armed = null;
   let active = null;
 
-  // ── Lecture du contrat DOM ───────────────────────────────────────────
+  // ── Reading the DOM contract ─────────────────────────────────────────
 
   function zoneOf(el) {
     return el ? el.closest(ZONE_SEL) : null;
   }
 
   function itemsOf(zone) {
-    // Les items d'une zone IMBRIQUÉE ne sont pas les nôtres.
+    // The items of a NESTED zone are not ours.
     return Array.prototype.filter.call(
       zone.querySelectorAll(ITEM_SEL),
       function (it) { return zoneOf(it) === zone; }
@@ -6152,36 +6171,36 @@
     return zone ? itemsOf(zone).indexOf(item) : -1;
   }
 
-  /* Où insérer, quand il n'y a aucun item à viser.
-     ⚠️ **Un item n'est PAS forcément enfant direct de sa zone.** Une
-     dropzone n'arrange rien — elle reçoit — donc l'appelant empile ses
-     items avec le conteneur qu'il utilise déjà (`ui.vstack`, `ui.grid`).
-     Insérer dans la ZONE mettrait la carte à côté de cette pile, et
-     `insertBefore` lève carrément quand la cible n'est pas son enfant.
-     C'est le bug que la page de banc a révélé et que le DOM synthétique
-     des tests de geste ne pouvait pas produire. */
+  /* Where to insert, when there is no item to aim at.
+     ⚠️ **An item is NOT necessarily a direct child of its zone.** A
+     dropzone arranges nothing — it receives — so the caller stacks its
+     items with the container they already use (`ui.vstack`, `ui.grid`).
+     Inserting into the ZONE would put the card beside that stack, and
+     `insertBefore` flatly raises when the target is not its child.
+     That is the bug the bench page revealed and that the gesture tests'
+     synthetic DOM could not produce. */
   function itemsContainer(zone) {
     const first = itemsOf(zone)[0];
     if (first) return first.parentNode;
-    /* Zone VIDE. Retomber sur la zone elle-même était un bug, et le
-       commentaire qui vivait ici disait pourquoi il passait inaperçu :
-       « le prochain rendu serveur remettra la carte dans la pile ». Il
-       ne la remet pas. Le nœud déplacé garde son `bz-id`, qui encode son
-       chemin dans l'arbre ; ce chemin a changé, donc idiomorph ne le
-       ré-apparie pas et la carte RESTE là où on l'a posée — c'est-à-dire
-       enfant direct de la zone, HORS du conteneur que l'app a rendu.
+    /* An EMPTY zone. Falling back on the zone itself was a bug, and the
+       comment that lived here said why it went unnoticed: "the next
+       server render will put the card back in the stack". It does not.
+       The moved node keeps its `bz-id`, which encodes its path in the
+       tree; that path has changed, so idiomorph does not re-pair it and
+       the card STAYS where it was dropped — that is to say a direct
+       child of the zone, OUTSIDE the container the app rendered.
 
-       Reproduit le 2026-09-13 sur `/dnd`, par un glisser qui HÉSITE :
-       on sort l'item de sa zone, on change d'avis, on revient. La zone
-       d'origine est alors vide, l'item y est ré-append à la racine, et
-       il s'affiche à côté de sa boîte au lieu de dedans. Un geste
-       hésitant est le geste ordinaire.
+       Reproduced on 2026-09-13 on `/dnd`, by a drag that HESITATES: you
+       take the item out of its zone, change your mind, come back. The
+       original zone is then empty, the item is re-appended at its root,
+       and it shows beside its box instead of inside it. A hesitant
+       gesture is the ordinary gesture.
 
-       Ce qu'on fait à la place : l'app a rendu ses items dans un
-       conteneur à elle (un `vstack`, une grille) — il est toujours là,
-       vide. On descend la chaîne des enfants UNIQUES pour le retrouver.
-       Le porteur caché du `hx-post` ne compte pas : il est toujours
-       présent et fausserait le décompte. */
+       What we do instead: the app rendered its items in a container of
+       its own (a `vstack`, a grid) — it is still there, empty. We walk
+       down the chain of SINGLE children to find it again. The hidden
+       carrier of the `hx-post` does not count: it is always present and
+       would skew the tally. */
     let node = zone;
     for (;;) {
       const kids = Array.prototype.filter.call(
@@ -6193,13 +6212,13 @@
     }
   }
 
-  /* Une zone qui ne tient qu'UN element. Le defaut, `many`, ne s'ecrit
-     pas : l'absence d'attribut suffit. */
+  /* A zone that holds only ONE element. The default, `many`, is not
+     written: the absence of the attribute is enough. */
   function holdsOne(zone) {
     return zone.getAttribute("data-bz-holds") === "one";
   }
 
-  /* Marquer la cible d'un ECRASEMENT, et ne marquer qu'elle. */
+  /* Mark the target of an OVERWRITE, and mark only it. */
   function markReplace(zone) {
     if (active.replaceZone === zone) return;
     clearReplace();
@@ -6218,37 +6237,37 @@
     return item.getAttribute("data-bz-group") || "";
   }
 
-  /* La zone accepte-t-elle ce groupe ?
-     ⚠️ `data-bz-accepts` absent ne veut PAS dire « accepte tout ». Une
-     zone sans déclaration ne reçoit **que ses propres items** : deux
-     listes indépendantes sur la même page ne doivent pas s'échanger des
-     cartes parce que personne n'a rien déclaré. C'est le défaut de
-     Sortable.js (un groupe anonyme y est unique par instance), et le
-     banc du playground l'a prouvé nécessaire — sans lui, attraper une
-     carte du kanban surlignait les cinq zones sans rapport de la page.
-     Recevoir d'ailleurs est donc un OPT-IN, pas un défaut. */
+  /* Does the zone accept this group?
+     ⚠️ An absent `data-bz-accepts` does NOT mean "accepts anything". A
+     zone with no declaration receives **only its own items**: two
+     independent lists on the same page must not swap cards because
+     nobody declared anything. It is Sortable.js's default (an anonymous
+     group is unique per instance there), and the playground's bench
+     proved it necessary — without it, grabbing a kanban card lit up the
+     page's five unrelated zones.
+     Receiving from elsewhere is therefore an OPT-IN, not a default. */
   function accepts(zone, group, originZone) {
-    //: ⚠️ `accepts` gouverne l'ENTRÉE DEPUIS AILLEURS, pas le
-    //: réordonnancement interne. Réordonner dans sa propre zone n'est pas
-    //: y entrer : l'item y est déjà, et personne n'a rien déclaré à ce
-    //: sujet. Consulter `accepts` ici gelait une liste entière dès que le
-    //: `group=` des items ne répondait pas à son `accepts=` — mesuré :
-    //: `accepts=["card"]` sur des items sans groupe rendait la zone
-    //: totalement inerte, en silence. Sortable.js sépare pour la même
-    //: raison `put` (recevoir) de `sort` (réordonner).
+    //: ⚠️ `accepts` governs ENTRY FROM ELSEWHERE, not internal
+    //: reordering. Reordering within its own zone is not entering it:
+    //: the item is already there, and nobody declared anything about
+    //: that. Consulting `accepts` here froze a whole list as soon as the
+    //: items' `group=` did not answer its `accepts=` — measured:
+    //: `accepts=["card"]` on items with no group made the zone totally
+    //: inert, in silence. Sortable.js separates `put` (receive) from
+    //: `sort` (reorder) for the same reason.
     if (zone === originZone) return true;
     const raw = (zone.getAttribute("data-bz-accepts") || "").trim();
-    //: Absent OU vide : la zone ne reçoit rien d'ailleurs. Les deux se
-    //: valent maintenant que le cas interne est sorti — donc
-    //: `accepts=[]` scelle bien ce qu'il annonce, ce qui n'était pas le
-    //: cas quand la liste vide se confondait avec « non déclarée ».
+    //: Absent OR empty: the zone receives nothing from elsewhere. Both
+    //: are equivalent now the internal case is out — so `accepts=[]`
+    //: really seals what it announces, which was not the case when the
+    //: empty list was confused with "not declared".
     if (!raw) return false;
     return raw.split(",").some(function (g) { return g.trim() === group; });
   }
 
-  /* Les deux portes du §6, gardées SÉPARÉES : `accepts` décide de
-     l'entrée, `locked` décide de la sortie. Une corbeille est une zone
-     qui accepte un groupe et dont rien ne ressort. */
+  /* §6's two doors, kept SEPARATE: `accepts` decides entry, `locked`
+     decides exit. A wastebasket is a zone that accepts a group and from
+     which nothing comes out. */
   function canLeave(zone) {
     return !zone.hasAttribute("data-bz-locked");
   }
@@ -6259,20 +6278,20 @@
     return true;
   }
 
-  // ── Géométrie mesurée ────────────────────────────────────────────────
+  // ── Measured geometry ────────────────────────────────────────────────
 
-  /* Axe dominant, déduit de deux items réels. Une liste dont les items
-     s'écartent surtout en X est horizontale — le CSS a déjà tranché, on
-     se contente de le lire. Repli sur l'axe vertical (le cas courant)
-     quand il n'y a pas deux items à comparer. */
+  /* The dominant axis, inferred from two real items. A list whose items
+     mostly spread in X is horizontal — the CSS has already decided, we
+     only read it. Fallback to the vertical axis (the common case) when
+     there are not two items to compare. */
   function axisOf(zone) {
-    //: L'item tiré n'est PAS exclu, et c'est le correctif du 2026-08-10 :
-    //: on déplace le vrai nœud, donc il est toujours dans le flux et sa
-    //: boîte est aussi valable que celle d'un autre. L'exclure laissait
-    //: une liste de DEUX items avec un seul repère, donc un repli sur
-    //: l'axe vertical — mesuré : une rangée horizontale de deux cartes
-    //: était impossible à réordonner, la comparaison se faisant sur un Y
-    //: que les deux partagent.
+    //: The dragged item is NOT excluded, and that is the 2026-08-10
+    //: correction: we move the real node, so it is still in the flow and
+    //: its box is as valid as any other's. Excluding it left a list of
+    //: TWO items with a single reference point, so a fallback to the
+    //: vertical axis — measured: a horizontal row of two cards was
+    //: impossible to reorder, the comparison being made on a Y both
+    //: share.
     const items = itemsOf(zone);
     if (items.length >= 2) {
       const a = items[0].getBoundingClientRect();
@@ -6281,16 +6300,16 @@
         return Math.abs(b.left - a.left) > Math.abs(b.top - a.top) ? "x" : "y";
       }
     }
-    //: Un seul item (ou deux superposés) : plus rien à mesurer entre deux
-    //: boîtes, on demande au CSS ce qu'il a décidé. Toujours LU, jamais
-    //: configuré — aucun prop `orientation=` à tenir synchronisé.
+    //: A single item (or two overlapping): nothing left to measure
+    //: between two boxes, so we ask the CSS what it decided. Always
+    //: READ, never configured — no `orientation=` prop to keep in sync.
     const box = itemsContainer(zone);
     const dir = (getComputedStyle(box).flexDirection || "");
     return dir.indexOf("row") === 0 ? "x" : "y";
   }
 
-  /* Faut-il insérer APRÈS l'item survolé ? On compare le pointeur au
-     milieu de sa boîte, sur l'axe de la liste. */
+  /* Should we insert AFTER the hovered item? We compare the pointer to
+     the middle of its box, along the list's axis. */
   function isPastMiddle(rect, x, y, axis) {
     return axis === "x"
       ? x - rect.left > rect.width / 2
@@ -6306,8 +6325,8 @@
 
   function onPointerDown(e) {
     if (active || armed) return;
-    //: Bouton principal seulement : un clic droit ouvre un menu, il
-    //: n'attrape pas.
+    //: The main button only: a right click opens a menu, it does not
+    //: grab.
     if (e.pointerType === "mouse" && e.button !== 0) return;
 
     const item = e.target.closest ? e.target.closest(ITEM_SEL) : null;
@@ -6315,8 +6334,8 @@
     const zone = zoneOf(item);
     if (!zone) return;
 
-    //: `handle=True` : la carte entière reste inerte, seule la poignée
-    //: attrape. C'est une RESTRICTION opt-in, pas le geste par défaut.
+    //: `handle=True`: the whole card stays inert, only the handle
+    //: grabs. It is an opt-in RESTRICTION, not the default gesture.
     if (item.hasAttribute("data-bz-handle")) {
       const handle = e.target.closest(HANDLE_SEL);
       if (!handle || !item.contains(handle)) return;
@@ -6333,7 +6352,7 @@
     };
 
     if (armed.touch) {
-      //: Tactile : c'est le TEMPS qui décide, pas la distance.
+      //: Touch: it is TIME that decides, not distance.
       armed.timer = setTimeout(function () {
         if (armed) begin();
       }, TOUCH_HOLD_MS);
@@ -6350,34 +6369,34 @@
       item: a.item,
       originZone: a.zone,
       originIndex: indexOf(a.item),
-      //: De quoi défaire le geste exactement — `insertBefore(item, null)`
-      //: rend un append, donc un item repris en dernière position se
-      //: restaure sans cas particulier.
+      //: Enough to undo the gesture exactly — `insertBefore(item, null)`
+      //: is an append, so an item taken from the last position restores
+      //: itself with no special case.
       originParent: a.item.parentNode,
       originNext: a.item.nextSibling,
       group: groupOf(a.item),
       pointerId: a.pointerId,
     };
-    //: Un attribut, pas une classe : le thème s'y accroche en
-    //: `data-[bz-dragging]:…`, et un morph qui réécrit `class=` ne peut
-    //: pas l'effacer par accident.
+    //: An attribute, not a class: the theme hooks onto it with
+    //: `data-[bz-dragging]:…`, and a morph that rewrites `class=` cannot
+    //: erase it by accident.
     active.item.setAttribute("data-bz-dragging", "true");
-    /* ⚠️ L'AXE — un HOOK pour le thème, pas un réglage du runtime.
-       Le défaut livré n'en fait rien : une carte en vol garde sa taille
-       (cf. le slot `dragging` de `draggable`). Il est publié pour qu'une
-       app qui préfère un EMPLACEMENT puisse l'obtenir en surchargeant ce
-       slot, sans prop et sans toucher au geste.
+    /* ⚠️ THE AXIS — a HOOK for the theme, not a runtime setting.
+       The shipped default does nothing with it: a card in flight keeps
+       its size (cf. `draggable`'s `dragging` slot). It is published so
+       that an app preferring a PLACEHOLDER can get one by overriding
+       that slot, with no prop and without touching the gesture.
 
-       Pourquoi l'axe et pas un booléen : « plus petit » n'a pas le même
-       sens dans les deux sens. Une liste verticale veut une barre pleine
-       largeur, une rangée horizontale veut une colonne pleine hauteur.
-       Le CSS ne sait pas mesurer une liste ; `axisOf` le déduit déjà de
-       la position réelle de deux items.
+       Why the axis and not a boolean: "smaller" does not mean the same
+       thing in both directions. A vertical list wants a full-width bar,
+       a horizontal row wants a full-height column. CSS cannot measure a
+       list; `axisOf` already infers it from the real position of two
+       items.
 
-       Pourquoi pas sur une zone `holds="one"` : elle n'insère rien. Sa
-       carte ne laisse pas un espace à combler, elle laisse une place
-       VIDE — et un thème qui réduirait un occupant à une barre dans sa
-       chaise raconterait quelque chose de faux. */
+       Why not on a `holds="one"` zone: it inserts nothing. Its card does
+       not leave a space to fill, it leaves an EMPTY place — and a theme
+       that reduced an occupant to a bar in its chair would tell
+       something false. */
     if (!holdsOne(a.zone)) {
       active.item.setAttribute("data-bz-drag-axis", axisOf(a.zone));
     }
@@ -6385,20 +6404,20 @@
     markValidZones();
   }
 
-  /* L'aperçu qui suit le pointeur.
-     Sans lui, seule la LISTE bouge : les voisins s'écartent, mais rien
-     n'est « en main » et le geste se lit comme un curseur qui se promène.
-     C'est le clone qui vole et l'original qui reste — la forme de
-     Sortable.js et du DragOverlay de dnd-kit — plutôt que de translater
-     le vrai nœud, qui est déjà réordonné dans le flux et se déplacerait
-     donc deux fois.
+  /* The preview that follows the pointer.
+     Without it, only the LIST moves: the neighbours part, but nothing is
+     "in hand" and the gesture reads as a cursor wandering about. It is
+     the clone that flies and the original that stays — Sortable.js's and
+     dnd-kit's DragOverlay's shape — rather than translating the real
+     node, which is already reordered in the flow and would therefore
+     move twice.
 
-     ⚠️ **Le clone doit être ANONYME.** On lui retire `id`, `bz-id` et
-     `data-bz-draggable`, sur lui ET sur toute sa descendance : un id en
-     double ferait apparier n'importe quoi à idiomorph au prochain morph,
-     et un `data-bz-draggable` en double fausserait les index lus par
-     `itemsOf`. Le reste de son apparence est un simple clone de ce que
-     l'utilisateur regardait déjà. */
+     ⚠️ **The clone must be ANONYMOUS.** We remove its `id`, `bz-id` and
+     `data-bz-draggable`, on it AND on all its descendants: a duplicate
+     id would make idiomorph pair anything at the next morph, and a
+     duplicate `data-bz-draggable` would skew the indices `itemsOf`
+     reads. The rest of its look is a plain clone of what the user was
+     already looking at. */
   function makePreview(x, y) {
     const src = active.item;
     const rect = src.getBoundingClientRect();
@@ -6416,16 +6435,17 @@
     Array.prototype.forEach.call(node.querySelectorAll("*"), scrub);
 
     node.classList.add("bz-drag-preview");
-    //: Largeur figée : hors du flux, un bloc n'a plus de parent dont
-    //: hériter, et l'aperçu s'effondrerait sur son contenu.
+    //: A frozen width: out of the flow, a block no longer has a parent
+    //: to inherit from, and the preview would collapse onto its
+    //: content.
     node.style.width = rect.width + "px";
     node.style.height = rect.height + "px";
     node.style.left = rect.left + "px";
     node.style.top = rect.top + "px";
 
-    //: L'écart entre le point saisi et le coin de la carte. C'est lui qui
-    //: fait que la carte ne « saute » pas sous le curseur au moment où on
-    //: l'attrape — elle reste tenue là où on l'a prise.
+    //: The gap between the grabbed point and the card's corner. It is
+    //: what stops the card "jumping" under the cursor at the moment you
+    //: grab it — it stays held where you took it.
     active.grabDX = x - rect.left;
     active.grabDY = y - rect.top;
     active.preview = node;
@@ -6444,10 +6464,10 @@
     }
   }
 
-  /* Exigence 1 du cadrage : montrer OÙ l'item peut atterrir, pendant le
-     geste. Gaté sur un attribut posé par le geste, jamais sur `:hover` —
-     un survol n'existe pas au doigt, et c'est le pointeur de référence de
-     ce projet. */
+  /* Requirement 1 of the framing: show WHERE the item can land, during
+     the gesture. Gated on an attribute set by the gesture, never on
+     `:hover` — a hover does not exist for a finger, and that is this
+     project's reference pointer. */
   function markValidZones() {
     Array.prototype.forEach.call(
       document.querySelectorAll(ZONE_SEL),
@@ -6471,7 +6491,7 @@
       const dx = Math.abs(e.clientX - armed.x);
       const dy = Math.abs(e.clientY - armed.y);
       if (armed.touch) {
-        //: Le doigt a filé avant la fin du délai : c'était un scroll.
+        //: The finger ran off before the delay ended: it was a scroll.
         if (Math.max(dx, dy) > TOUCH_TOLERANCE_PX) disarm();
       } else if (Math.max(dx, dy) > MOUSE_THRESHOLD_PX) {
         begin();
@@ -6480,31 +6500,47 @@
     }
     if (!active || e.pointerId !== active.pointerId) return;
 
-    //: Pendant un drag tactile, le geste nous appartient : sans ça la
-    //: page défile sous la carte.
+    //: During a touch drag, the gesture is ours: without this the page
+    //: scrolls under the card.
     if (e.cancelable) e.preventDefault();
-    //: L'aperçu d'abord : il doit suivre le doigt même quand le pointeur
-    //: survole une zone qui refuse, sinon la carte se fige et le geste a
-    //: l'air cassé alors qu'il est simplement refusé.
+    //: The preview first: it must follow the finger even when the
+    //: pointer hovers a zone that refuses, otherwise the card freezes
+    //: and the gesture looks broken when it is simply refused.
     movePreview(e.clientX, e.clientY);
     hoverTo(e.clientX, e.clientY);
   }
 
-  /* Le cœur : replacer le nœud là où le pointeur dit qu'il va. */
+  /* The core: put the node where the pointer says it is going. */
   function hoverTo(x, y) {
     const under = document.elementFromPoint(x, y);
-    if (!under) return;
+    if (!under) {
+      if (active.preview) active.preview.style.visibility = "";
+      return;
+    }
     const overZone = zoneOf(under);
-    if (!overZone) return;
+    if (!overZone) {
+      if (active.preview) active.preview.style.visibility = "";
+      return;
+    }
+    //: A trash zone is a terminal action, not a destination to inspect.
+    //: The source card is still temporarily reparented there so `finish()`
+    //: can report the target, but showing its floating clone over the bin
+    //: makes it read as a second card.  Hide that clone while the pointer is
+    //: above any locked zone; reveal it immediately when it leaves again.
+    if (active.preview) {
+      active.preview.style.visibility = overZone.hasAttribute("data-bz-locked")
+        ? "hidden" : "";
+    }
     if (!canEnter(overZone, active.group, active.originZone)) return;
 
-    /* ⚠️ ECRASEMENT. Une zone qui ne tient qu'un element et en porte
-       deja un ne doit RIEN recevoir pendant le geste : y glisser le noeud
-       la ferait contenir deux occupants — ce que l'utilisateur voit comme
-       « l'item prend enormement de place ». On la marque, on ne la
-       remplit pas. Le depot partira quand meme au handler, qui decide
-       (echanger, refuser) : c'est le serveur qui arbitre, ici on ne fait
-       qu'annoncer honnetement ce qui va se passer. */
+    /* ⚠️ OVERWRITE. A zone that holds only one element and already
+       carries one must receive NOTHING during the gesture: sliding the
+       node in would make it contain two occupants — what the user sees
+       as "the item takes up an enormous amount of room". We mark it, we
+       do not fill it. The drop will go to the handler all the same, and
+       the handler decides (swap, refuse): it is the server that
+       arbitrates, here we only announce honestly what is going to
+       happen. */
     if (holdsOne(overZone) && overZone !== zoneOf(active.item)
         && itemsOf(overZone).length > 0) {
       markReplace(overZone);
@@ -6517,17 +6553,18 @@
       const rect = overItem.getBoundingClientRect();
       const axis = axisOf(overZone);
       const after = isPastMiddle(rect, x, y, axis);
-      //: Relatif au PARENT DE LA CIBLE, jamais à la zone — cf.
-      //: `itemsContainer`. Les items peuvent vivre à n'importe quelle
-      //: profondeur sous la zone.
+      //: Relative to the TARGET'S PARENT, never to the zone — cf.
+      //: `itemsContainer`. The items can live at any depth under the
+      //: zone.
       overItem.parentNode.insertBefore(
         active.item, after ? overItem.nextSibling : overItem
       );
       return;
     }
-    //: Survol de la zone hors de tout item — typiquement une colonne vide
-    //: ou l'espace sous le dernier item. On n'append que si l'item n'est
-    //: pas déjà ici, sinon chaque pointermove le rejetterait à la fin.
+    //: Hovering the zone outside any item — typically an empty column
+    //: or the space below the last item. We only append if the item is
+    //: not already here, otherwise every pointermove would throw it back
+    //: to the end.
     if (!overItem && zoneOf(active.item) !== overZone) {
       itemsContainer(overZone).appendChild(active.item);
     }
@@ -6562,21 +6599,21 @@
     active = null;
   }
 
-  /* Annuler = remettre le nœud exactement d'où il vient. Utilisé par
-     Échap et par `pointercancel` — JAMAIS par un refus serveur, qui lui
-     passe par le morph (cf. l'en-tête de ce fichier). */
+  /* Cancel = put the node back exactly where it came from. Used by
+     Escape and by `pointercancel` — NEVER by a server refusal, which
+     goes through the morph (cf. this file's header). */
   function cancel() {
     if (!active) return;
     active.originParent.insertBefore(active.item, active.originNext);
     cleanup();
   }
 
-  /* Défaire le dépôt si la réponse ne l'a pas confirmé.
-     ⚠️ Deux images d'attente, pas une : `htmx:afterRequest` est le seul
-     désarmement fiable (htmx l'émet aussi sur 4xx, réseau, abandon), mais
-     le swap et le rescan qui l'entourent se posent sur les images
-     suivantes. Vérifier tout de suite lirait le témoin avant que le morph
-     ait eu l'occasion de l'effacer, et TOUT dépôt reviendrait en arrière. */
+  /* Undo the drop if the answer did not confirm it.
+     ⚠️ Two frames of waiting, not one: `htmx:afterRequest` is the only
+     reliable disarm (htmx emits it on 4xx, network errors and aborts
+     too), but the swap and the rescan around it land on the following
+     frames. Checking straight away would read the witness before the
+     morph had a chance to erase it, and EVERY drop would be undone. */
   function armSnapBack(item, parent, next, carrier) {
     const itemKey = item.getAttribute("data-bz-key") || "";
     const destination = zoneOf(item);
@@ -6591,9 +6628,9 @@
         requestAnimationFrame(function () {
           if (!item.hasAttribute(PENDING_ATTR)) return;
           item.removeAttribute(PENDING_ATTR);
-          //: Le serveur peut avoir retiré l'item (archivage) : il n'y a
-          //: alors rien à remettre, et son ancien parent peut lui-même
-          //: avoir disparu.
+          //: The server may have removed the item (archiving): there
+          //: is then nothing to put back, and its old parent may itself
+          //: have disappeared.
           if (!item.isConnected || !parent.isConnected) return;
           parent.insertBefore(
             item, next && next.parentNode === parent ? next : null
@@ -6607,12 +6644,12 @@
     document.body.addEventListener("htmx:afterRequest", settle);
   }
 
-  /* Reposer le point de départ de la navigation séquentielle après le
-     morph. Un déplacement entre zones change le `bz-id` de la carte :
-     idiomorph recrée alors son nœud et Chromium remet le focus sur BODY.
-     Dans cet état, le premier Tab est avalé au lieu d'atteindre le prochain
-     contrôle. On focalise la carte rendue par le serveur comme ancre
-     temporaire ; elle n'entre pas durablement dans l'ordre de tabulation. */
+  /* Put the starting point of sequential navigation back after the
+     morph. A move between zones changes the card's `bz-id`: idiomorph
+     then recreates its node and Chromium puts the focus back on BODY. In
+     that state, the first Tab is swallowed instead of reaching the next
+     control. We focus the card the server rendered as a temporary
+     anchor; it does not durably enter the tab order. */
   function restoreSequentialFocus(itemKey, zoneName) {
     if (!itemKey || !zoneName) return;
     const zones = document.querySelectorAll(ZONE_SEL);
@@ -6640,9 +6677,9 @@
 
   function finish() {
     const a = active;
-    //: Un ecrasement n'a PAS deplace le noeud : la zone visee se lit sur
-    //: la marque, pas sur la position. Son index est 0 — une zone a un
-    //: element n'en a pas d'autre.
+    //: An overwrite did NOT move the node: the target zone is read from
+    //: the mark, not from the position. Its index is 0 — a zone with one
+    //: element has no other.
     const remplace = a.replaceZone;
     const toZone = remplace || zoneOf(a.item);
     const toIndex = remplace ? 0 : indexOf(a.item);
@@ -6650,18 +6687,18 @@
     cleanup();
     if (!toZone) return;
 
-    //: Rien n'a bougé → aucun aller-retour serveur. Un drag qui repose
-    //: l'item où il était ne doit pas produire de `Move`.
+    //: Nothing moved → no server round trip. A drag that puts the item
+    //: back where it was must not produce a `Move`.
     if (!remplace && toZone === a.originZone && toIndex === a.originIndex) {
       return;
     }
 
-    //: C'est la zone qui REÇOIT qui décide — son `on_move` est le
-    //: handler, et son carrier porte le hx-post.
-    //: ⚠️ Filtré par `zoneOf`, comme `itemsOf` : `querySelector` fouille
-    //: TOUT le sous-arbre, donc une dropzone imbriquée — dont le carrier
-    //: précède forcément celui du parent, puisqu'il est rendu en dernier —
-    //: capterait le drop du parent et le POSTerait à SON handler.
+    //: It is the RECEIVING zone that decides — its `on_move` is the
+    //: handler, and its carrier holds the hx-post.
+    //: ⚠️ Filtered by `zoneOf`, like `itemsOf`: `querySelector` searches
+    //: the WHOLE subtree, so a nested dropzone — whose carrier
+    //: necessarily precedes the parent's, since it is rendered last —
+    //: would capture the parent's drop and POST it to ITS handler.
     const carrier = Array.prototype.find.call(
       toZone.querySelectorAll(CARRIER_SEL),
       function (el) { return zoneOf(el) === toZone; }
@@ -6675,47 +6712,47 @@
       from_index: a.originIndex,
       to_index: toIndex,
     });
-    //: Le transport maison — le JS écrit, dispatche, et c'est le hx-post
-    //: du carrier qui part. Aucun `fetch` ici : la frontière transport
-    //: appartient au bridge (charter, principe 2).
+    //: The home-made transport — the JS writes, dispatches, and it is
+    //: the carrier's hx-post that leaves. No `fetch` here: the transport
+    //: boundary belongs to the bridge (charter, principle 2).
     armSnapBack(origin.item, origin.parent, origin.next, carrier);
     $bz.helpers.emitChange(carrier, "move");
   }
 
-  //: Une fois le geste ATTRAPÉ, le doigt nous appartient : c'est ce
-  //: `preventDefault` sur le `touchmove` qui empêche le navigateur de
-  //: faire défiler sous la carte.
+  //: Once the gesture is GRABBED, the finger is ours: it is this
+  //: `preventDefault` on the `touchmove` that stops the browser
+  //: scrolling under the card.
   //:
-  //: Il ne double PAS celui de `onPointerMove`. Un `preventDefault` sur
-  //: un `pointermove` n'annule pas un défilement tactile — seul le
-  //: `touchmove` le peut, et seulement en écoute NON PASSIVE. Tant que
-  //: la CSS posait `touch-action: none` la question ne se posait pas :
-  //: le navigateur ne défilait jamais. Depuis que l'item laisse le
-  //: `pan-x pan-y` (finding [27] : sans ça le doigt ne pouvait plus
-  //: faire défiler une colonne de cartes), il faut reprendre le geste au
-  //: moment où l'appui long aboutit — et à cet instant précis le doigt
-  //: n'a pas bougé, donc aucun défilement n'est en cours et la reprise
-  //: est propre.
+  //: It does NOT duplicate `onPointerMove`'s. A `preventDefault` on a
+  //: `pointermove` does not cancel a touch scroll — only the
+  //: `touchmove` can, and only in a NON-PASSIVE listener. As long as the
+  //: CSS set `touch-action: none` the question did not arise: the
+  //: browser never scrolled. Since the item leaves `pan-x pan-y`
+  //: (finding [27]: without it the finger could no longer scroll a
+  //: column of cards), the gesture has to be taken over at the moment
+  //: the long press succeeds — and at that precise instant the finger
+  //: has not moved, so no scroll is in progress and the takeover is
+  //: clean.
   //:
-  //: ⚠️ On ne prévient RIEN tant que le drag n'est qu'`armed` : c'est
-  //: exactement le cas « un doigt file dans la liste et effleure une
-  //: carte », que la tolérance de 8 px laisse au défilement.
+  //: ⚠️ We prevent NOTHING as long as the drag is only `armed`: that is
+  //: exactly the "a finger runs down the list and brushes a card" case,
+  //: which the 8 px tolerance leaves to the scroll.
   function onTouchMove(e) {
     if (active && e.cancelable) e.preventDefault();
   }
 
   document.addEventListener("pointerdown", onPointerDown, true);
-  //: `passive: false` — `onPointerMove` doit pouvoir `preventDefault()`
-  //: pour tenir le scroll pendant un drag à la SOURIS (sélection de
-  //: texte, drag natif d'image).
+  //: `passive: false` — `onPointerMove` must be able to
+  //: `preventDefault()` to hold the scroll during a MOUSE drag (text
+  //: selection, native image drag).
   document.addEventListener("pointermove", onPointerMove, { passive: false });
   document.addEventListener("touchmove", onTouchMove, { passive: false });
   document.addEventListener("pointerup", onPointerUp, true);
   document.addEventListener("pointercancel", onPointerCancel, true);
   document.addEventListener("keydown", onKeyDown, true);
 
-  //: Exposé pour les tests et pour un futur composant qui piloterait le
-  //: geste. Le contrat public reste les data-attributes.
+  //: Exposed for the tests and for a future component that would drive
+  //: the gesture. The public contract stays the data attributes.
   $bz.dnd = {
     MOUSE_THRESHOLD_PX: MOUSE_THRESHOLD_PX,
     TOUCH_HOLD_MS: TOUCH_HOLD_MS,
@@ -6729,67 +6766,65 @@
 })();
 
 
-/* 20_resizable.js — scope partagé du composant Resizable (split panes).
+/* 20_resizable.js — the shared scope of the Resizable component (split panes).
  *
- * ⚠️ **Troisième famille de « drag » du dépôt, et la confondre coûte cher** :
- *   - `12_slider.js`      = pointeur → une VALEUR sur une échelle ;
- *   - `19_dnd.js`         = déplacer un NŒUD d'une position à une autre ;
- *   - ici                 = pointeur → une DIMENSION. Rien ne bouge, rien
- *                           ne change de parent : deux voisins se
- *                           repartagent la place qu'ils occupent déjà.
- * C'est la famille du slider (pointer-drag, delta continu), pas celle du
- * node-DnD — la roadmap le dit depuis le cadrage #6 et ce fichier n'a donc
- * AUCUNE dépendance vers `19_dnd.js`.
+ * ⚠️ **The repository's third "drag" family, and confusing it costs**:
+ *   - `12_slider.js`      = pointer → a VALUE on a scale;
+ *   - `19_dnd.js`         = moving a NODE from one position to another;
+ *   - here                = pointer → a DIMENSION. Nothing moves,
+ *                           nothing changes parent: two neighbours
+ *                           re-share the room they already occupy.
+ * It is the slider's family (pointer-drag, continuous delta), not the
+ * node-DnD's — the roadmap has said so since framing #6, and this file
+ * therefore has NO dependency on `19_dnd.js`.
  *
  *   bz-data="{...$bz.resizable.scope, sizes: [30,70], _mins: [10,10],
  *             _vertical: false, _group: null,
  *             _read(){…}, _write(v){…}}"
  *
- * ``_group`` est capturé au ``bz-init`` du root (`_group = $el`) : une
- * méthode de scope n'a pas accès à ``$el``, seules les directives en ont
- * (même contrainte et même remède que Slider et Carousel).
+ * ``_group`` is captured at the root's ``bz-init`` (`_group = $el`): a
+ * scope method has no access to ``$el``, only directives do (same
+ * constraint and same remedy as Slider and Carousel).
  *
- * ── Le partage se fait en POIDS, jamais en pixels ─────────────────────
- * Chaque panneau est un ``flex-grow: w`` sur une base nulle, donc le
- * navigateur répartit la place restante au prorata des poids — la largeur
- * des poignées est déduite AVANT le partage, sans qu'on la connaisse, et
- * un groupe qui rétrécit garde ses proportions sans qu'on écoute le
- * moindre ``resize``. Les pixels n'entrent ici qu'à un seul endroit : la
- * conversion du delta du pointeur, mesurée à chaque geste.
+ * ── The split is in WEIGHTS, never in pixels ──────────────────────────
+ * Each panel is a ``flex-grow: w`` on a zero basis, so the browser
+ * shares the remaining room pro rata to the weights — the handles'
+ * width is deducted BEFORE the split, without our knowing it, and a
+ * group that shrinks keeps its proportions without our listening to any
+ * ``resize``. Pixels enter here in a single place: the conversion of the
+ * pointer's delta, measured at every gesture.
  *
- * ── Deux voisins, jamais plus ─────────────────────────────────────────
- * Tirer une poignée ne redistribue QUE la paire qu'elle sépare : leur
- * somme est invariante pendant le geste, donc les autres panneaux ne
- * bougent pas d'un pixel. C'est le comportement de tous les vrais
- * splitters, et c'est ce qui rend le geste prévisible — un utilisateur qui
- * élargit sa colonne de gauche n'a pas envie de voir la droite se
- * réorganiser.
+ * ── Two neighbours, never more ────────────────────────────────────────
+ * Dragging a handle redistributes ONLY the pair it separates: their sum
+ * is invariant during the gesture, so the other panels do not move a
+ * pixel. It is the behaviour of every real splitter, and it is what
+ * makes the gesture predictable — a user widening their left column does
+ * not want to see the right one reorganise itself.
  *
- * ── Pourquoi rien n'est publié PENDANT le geste ───────────────────────
- * Le glissement écrit les styles en direct (chemin rapide, aucun tick de
- * signal) ; l'état n'est publié qu'au relâchement. Publier chaque frame
- * enverrait un ``change`` par pixel au serveur, et ferait écrire
- * localStorage cent fois par seconde quand le ClientState est
- * ``persist="local"``. Même raison que le ``SETTLE_MS`` du Carousel.
+ * ── Why nothing is published DURING the gesture ───────────────────────
+ * The drag writes the styles live (the fast path, no signal tick); the
+ * state is only published on release. Publishing every frame would send
+ * one ``change`` per pixel to the server, and would write localStorage a
+ * hundred times a second when the ClientState is ``persist="local"``.
+ * Same reason as the Carousel's ``SETTLE_MS``.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  //: Le pas d'une flèche du clavier, en points de pourcentage. Le motif
-  //: ARIA « window splitter » exige que la poignée soit pilotable sans
-  //: pointeur — c'est la seule façon de redimensionner au clavier, et
-  //: elle est aussi la seule qui marche sans souris ET sans écran
-  //: tactile.
+  //: The step of a keyboard arrow, in percentage points. The ARIA
+  //: "window splitter" pattern requires the handle to be drivable
+  //: without a pointer — it is the only way to resize from the
+  //: keyboard, and it is also the only one that works with no mouse AND
+  //: no touch screen.
   const KEY_STEP = 2;
 
   $bz.resizable = {
     scope: {
-      // ── Lecture du DOM ───────────────────────────────────────────
-      // ``:scope >`` et pas un querySelectorAll nu : un Resizable
-      // IMBRIQUÉ dans un panneau (le cas d'usage « éditeur + aperçu »
-      // dans une colonne redimensionnable) verrait sinon les panneaux
-      // de son enfant comme les siens.
+      // ── Reading the DOM ──────────────────────────────────────────
+      // ``:scope >`` and not a bare querySelectorAll: a Resizable NESTED
+      // in a panel (the "editor + preview inside a resizable column" use
+      // case) would otherwise see its child's panels as its own.
       _panels() {
         if (!this._group) return [];
         return Array.prototype.slice.call(
@@ -6801,40 +6836,41 @@
         return this._vertical ? r.height : r.width;
       },
 
-      // ── L'état → la mise en page ─────────────────────────────────
-      // Appelé depuis un ``bz-effect`` du root : lire ``_read()``
-      // inscrit la dépendance, donc un écrivain EXTERNE (une binding
-      // pilotée ailleurs, un `.set([…])`, une restauration depuis
-      // localStorage au boot) repose les panneaux tout seul.
+      // ── State → layout ───────────────────────────────────────────
+      // Called from the root's ``bz-effect``: reading ``_read()``
+      // registers the dependency, so an EXTERNAL writer (a binding
+      // driven elsewhere, a `.set([…])`, a restore from localStorage at
+      // boot) re-lays the panels by itself.
       //
-      // C'est aussi ce qui rend l'anti-FOUC gratuit : le root porte un
-      // ``bz-data``, donc il reste ``visibility:hidden`` jusqu'à
+      // It is also what makes the anti-FOUC free: the root carries a
+      // ``bz-data``, so it stays ``visibility:hidden`` until
       // ``html.bz-ready`` (cf. ``render/shell.py`` § _ANTI_FLASH_STYLE),
-      // et le boot hydrate le store depuis localStorage AVANT le scan
-      // qui exécute cet effet. Les tailles mémorisées sont donc en place
-      // au premier pixel peint — aucun script pré-paint à écrire.
+      // and the boot hydrates the store from localStorage BEFORE the
+      // scan that runs this effect. The remembered sizes are therefore
+      // in place at the first painted pixel — no pre-paint script to
+      // write.
       _apply() {
-        // Les panneaux d'abord, leur COMPTE ensuite passé à ``_weights``
-        // : sans ça les deux méthodes lancent chacune le même
-        // ``querySelectorAll``, à chaque tick de l'effet.
+        // The panels first, their COUNT then passed to ``_weights``:
+        // without that both methods each launch the same
+        // ``querySelectorAll``, at every tick of the effect.
         const panels = this._panels();
         const sizes = this._weights(panels.length);
         for (let i = 0; i < panels.length; i++) {
           const w = sizes[i];
           if (w === undefined) continue;
-          // Le style INLINE et pas une classe : la valeur est continue
-          // (un utilisateur s'arrête où il veut), donc aucune classe
-          // Tailwind ne peut l'exprimer — et une classe assemblée
-          // n'existerait pas dans le CSS compilé de prod.
+          // An INLINE style and not a class: the value is continuous
+          // (a user stops where they want), so no Tailwind class can
+          // express it — and an assembled class would not exist in
+          // production's compiled CSS.
           panels[i].style.flexGrow = String(w);
         }
-        // ``aria-valuenow`` est reposé ICI, dans l'unique passe
-        // réactive, et pas seulement dans les gestes. C'est ce qui rend
-        // les QUATRE chemins d'écriture corrects par construction :
-        // pointeur, clavier, `.set()` / `.reset()`, et une binding
-        // pilotée ailleurs. Recopié dans chaque geste, il ne couvrait
-        // que les deux premiers — `.set([20, 80])` laissait un lecteur
-        // d'écran sur la valeur du premier rendu.
+        // ``aria-valuenow`` is set back HERE, in the single reactive
+        // pass, and not only in the gestures. It is what makes the FOUR
+        // write paths correct by construction: pointer, keyboard,
+        // `.set()` / `.reset()`, and a binding driven elsewhere. Copied
+        // into each gesture, it only covered the first two —
+        // `.set([20, 80])` left a screen reader on the first render's
+        // value.
         if (this._group) {
           const handles = this._group.querySelectorAll(
             ":scope > [data-bz-rz-handle]"
@@ -6845,33 +6881,32 @@
         }
       },
 
-      // Le tableau de poids **normalisé à 100**. Un panneau ajouté par
-      // un morph sans que ``sizes`` suive (une liste de panneaux qui
-      // vient des données) recevrait sinon ``undefined`` : il tombe à
-      // part égale plutôt que de disparaître.
+      // The weight array **normalised to 100**. A panel added by a
+      // morph without ``sizes`` following (a list of panels coming from
+      // data) would otherwise get ``undefined``: it falls back to an
+      // equal share rather than disappearing.
       //
-      // ⚠️ **La normalisation n'est pas cosmétique, et l'oublier ici a
-      // rendu le composant inerte.** ``_mins`` voyage en POINTS DE
-      // POURCENTAGE ; si les poids restent bruts, les deux échelles ne
-      // se parlent plus. Mesuré : ``sizes=[1, 3]`` (une écriture
-      // documentée — c'est le RAPPORT qui compte) avec
-      // ``min_size=15`` donne ``pair = 4``, ``lo = 15``, donc
-      // ``hi < lo`` à chaque frame, donc une poignée qui ne bouge
-      // JAMAIS — sans erreur, sans rien dans la console. En mode local
-      // le défaut était invisible parce que le ``bz-data`` semé par le
-      // serveur est déjà normalisé ; il n'apparaissait qu'en mode
-      // binding, celui-là même que le composant met en avant pour
+      // ⚠️ **The normalisation is not cosmetic, and forgetting it here
+      // made the component inert.** ``_mins`` travels in PERCENTAGE
+      // POINTS; if the weights stay raw, the two scales no longer talk
+      // to each other. Measured: ``sizes=[1, 3]`` (a documented writing
+      // — it is the RATIO that counts) with ``min_size=15`` gives
+      // ``pair = 4``, ``lo = 15``, so ``hi < lo`` at every frame, so a
+      // handle that NEVER moves — with no error, nothing in the console.
+      // In local mode the defect was invisible because the ``bz-data``
+      // seeded by the server is already normalised; it only showed in
+      // binding mode, the very one the component puts forward for
       // ``persist="local"``.
       //
-      // MIROIR EXACT de ``normalize_weights`` (``resizable.py``), gaté
-      // par ``tests/runtime_js/test_resizable_mirrors_python.py``, qui
-      // fait tourner les deux moitiés sur la même table.
+      // An EXACT MIRROR of ``normalize_weights`` (``resizable.py``),
+      // gated by ``tests/runtime_js/test_resizable_mirrors_python.py``,
+      // which runs both halves over the same table.
       //
-      // ``count`` est optionnel : l'appelant qui vient DÉJÀ de compter
-      // les panneaux le passe (``_apply``), les autres le laissent
-      // dériver. ⚠️ La lecture de ``_read()`` reste la PREMIÈRE ligne :
-      // c'est elle qui inscrit la dépendance réactive de l'effet, et la
-      // déplacer après un retour anticipé la perdrait en silence.
+      // ``count`` is optional: a caller that has ALREADY counted the
+      // panels passes it (``_apply``), the others let it be derived.
+      // ⚠️ The ``_read()`` call stays the FIRST line: it is what
+      // registers the effect's reactive dependency, and moving it after
+      // an early return would lose it in silence.
       _weights(count) {
         const raw = this._read();
         const n = count === undefined ? this._panels().length : count;
@@ -6894,22 +6929,21 @@
         return isFinite(m) && m > 0 ? m : 0;
       },
 
-      // Le PLAFOND, en points de pourcentage. ``100`` est la valeur
-      // neutre et non une sentinelle : un panneau qui peut prendre toute
-      // la place n'est pas borné. Ajouté le 2026-08-23 — ``_min`` vivait
-      // seul, ce qui était une asymétrie et pas une décision.
+      // The CEILING, in percentage points. ``100`` is the neutral value
+      // and not a sentinel: a panel that can take all the room is not
+      // bounded. Added on 2026-08-23 — ``_min`` lived alone, which was
+      // an asymmetry and not a decision.
       _max(i) {
         const m = Array.isArray(this._maxs) ? Number(this._maxs[i]) : 100;
         return isFinite(m) && m > 0 && m <= 100 ? m : 100;
       },
 
-      // ── Le geste ─────────────────────────────────────────────────
-      // Aucun seuil d'activation, contrairement au node-DnD : une
-      // poignée de splitter n'a pas de « clic » concurrent à préserver
-      // (elle ne fait rien d'autre), et elle est déjà une cible dédiée.
-      // Le seuil du DnD existe pour que cliquer une CARTE reste un clic ;
-      // ici il ne protégerait rien et ajouterait une latence au premier
-      // pixel.
+      // ── The gesture ──────────────────────────────────────────────
+      // No activation threshold, unlike the node-DnD: a splitter's
+      // handle has no competing "click" to preserve (it does nothing
+      // else), and it is already a dedicated target. The DnD's threshold
+      // exists so that clicking a CARD stays a click; here it would
+      // protect nothing and would add latency to the first pixel.
       _start(e, i) {
         const panels = this._panels();
         const a = panels[i];
@@ -6921,66 +6955,66 @@
         this._drag = {
           i: i,
           from: this._vertical ? e.clientY : e.clientX,
-          // Le facteur px → poids est figé au DÉBUT du geste, et c'est
-          // volontaire : la somme des poids ne bouge pas pendant qu'on
-          // tire (on ne fait que la répartir), donc le rapport reste
-          // juste jusqu'au relâchement.
+          // The px → weight factor is frozen at the START of the
+          // gesture, and it is deliberate: the sum of the weights does
+          // not move while you drag (we only redistribute it), so the
+          // ratio stays right until release.
           factor: weights.reduce((s, w) => s + w, 0) / totalPx,
-          // Le poids du panneau gauche AU DÉBUT du geste : c'est la base
-          // à laquelle le delta s'ajoute, donc elle ne doit pas suivre
-          // les valeurs intermédiaires (sinon le déplacement se cumule
-          // et le pointeur « glisse » sous la poignée). Le poids droit,
-          // lui, se déduit de la paire — inutile de le retenir.
+          // The left panel's weight at the START of the gesture: it is
+          // the base the delta adds to, so it must not follow the
+          // intermediate values (otherwise the movement accumulates and
+          // the pointer "slides" under the handle). The right weight is
+          // derived from the pair — no need to remember it.
           a: weights[i],
           sizes: weights,
-          // Les deux panneaux et la poignée sont RETENUS ici, pas
-          // re-cherchés à chaque frame : ``_move`` tourne à la cadence
-          // du pointeur, et rien de tout ça ne peut changer pendant un
-          // geste. Sans cette capture, chaque frame relançait DEUX
-          // ``querySelectorAll`` (les panneaux, puis les poignées pour
-          // ``aria-valuenow``) pour atteindre trois nœuds connus.
+          // Both panels and the handle are HELD here, not re-searched
+          // at every frame: ``_move`` runs at the pointer's cadence, and
+          // none of this can change during a gesture. Without that
+          // capture, each frame relaunched TWO ``querySelectorAll`` (the
+          // panels, then the handles for ``aria-valuenow``) to reach
+          // three known nodes.
           aEl: a,
           bEl: b,
           handle: e.currentTarget,
         };
-        // Capturer sur la POIGNÉE : le curseur sort de sa boîte dès le
-        // premier pixel (elle fait quelques points de large), et sans
-        // capture le geste s'arrêterait là.
+        // Capture on the HANDLE: the cursor leaves its box at the very
+        // first pixel (it is a few points wide), and with no capture the
+        // gesture would stop there.
         $bz.helpers.capturePointer(e.currentTarget, e);
       },
 
-      // Répartir ``want`` sur la paire ``i`` / ``i+1``, en place, en
-      // respectant les deux minimums. Rend ``false`` quand la paire est
-      // FIGÉE — le cas où les deux minimums ne tiennent pas dedans (60 +
-      // 60 sur 100) : on préfère ne rien bouger plutôt que de violer
-      // l'un des deux au motif que l'autre l'exige aussi.
+      // Distribute ``want`` over the pair ``i`` / ``i+1``, in place,
+      // respecting both minimums. Returns ``false`` when the pair is
+      // FROZEN — the case where the two minimums do not fit inside it
+      // (60 + 60 in 100): we prefer to move nothing rather than violate
+      // one of them on the grounds that the other requires it too.
       //
-      // Une seule copie pour le pointeur ET le clavier : c'est la même
-      // arithmétique, seule la provenance de ``want`` diffère (un delta
-      // de pointeur, ou un pas de flèche). Écrite deux fois, elle se
-      // serait corrigée une fois sur deux.
+      // A single copy for the pointer AND the keyboard: it is the same
+      // arithmetic, only ``want``'s origin differs (a pointer delta, or
+      // an arrow step). Written twice, it would have been fixed one time
+      // in two.
       _pair(sizes, i, want) {
         const pair = sizes[i] + sizes[i + 1];
-        // Les quatre contraintes se croisent : le plancher de GAUCHE et
-        // le plafond de DROITE poussent la poignée dans le même sens
-        // (vers la droite), les deux autres dans l'autre. D'où le
-        // ``max`` sur les planchers et le ``min`` sur les plafonds,
-        // exprimés dans la même unité — la taille du panneau de gauche.
+        // The four constraints cross: the LEFT floor and the RIGHT
+        // ceiling push the handle the same way (to the right), the other
+        // two the other way. Hence the ``max`` on the floors and the
+        // ``min`` on the ceilings, expressed in the same unit — the left
+        // panel's size.
         const lo = Math.max(this._min(i), pair - this._max(i + 1));
         const hi = Math.min(pair - this._min(i + 1), this._max(i));
-        // Paire FIGÉE : les contraintes ne tiennent pas ensemble (60 +
-        // 60 sur 100, ou un plafond sous un plancher). On préfère ne
-        // rien bouger plutôt que d'en violer une au motif qu'une autre
-        // l'exige.
+        // A FROZEN pair: the constraints do not hold together (60 + 60
+        // in 100, or a ceiling under a floor). We prefer to move nothing
+        // rather than violate one on the grounds that another requires
+        // it.
         if (hi < lo) return false;
         sizes[i] = Math.max(lo, Math.min(hi, want));
         sizes[i + 1] = pair - sizes[i];
         return true;
       },
 
-      // Publier : c'est ici, et seulement ici, que l'état sort du geste.
-      // L'arrondi à deux décimales évite de persister des flottants à
-      // dix-sept chiffres dans localStorage.
+      // Publish: it is here, and only here, that the state leaves the
+      // gesture. Rounding to two decimals avoids persisting
+      // seventeen-digit floats in localStorage.
       _publish(sizes) {
         this._write(sizes.map((w) => Math.round(w * 100) / 100));
       },
@@ -6991,8 +7025,8 @@
         const delta =
           ((this._vertical ? e.clientY : e.clientX) - d.from) * d.factor;
         if (!this._pair(d.sizes, d.i, d.a + delta)) return;
-        // Écriture DIRECTE, sans passer par l'état : voir l'en-tête du
-        // fichier. La publication a lieu une fois, au relâchement.
+        // A DIRECT write, not going through the state: see the file's
+        // header. Publication happens once, on release.
         d.aEl.style.flexGrow = String(d.sizes[d.i]);
         d.bEl.style.flexGrow = String(d.sizes[d.i + 1]);
         this._announce(d.handle, d.sizes[d.i]);
@@ -7007,40 +7041,41 @@
       },
 
       // ── a11y ─────────────────────────────────────────────────────
-      // ``aria-valuenow`` dit « le panneau qui me précède occupe N % ».
-      // Le serveur ne le rend qu'une fois, en statique — la poignée
-      // n'est pas un composant, elle n'a pas de prop réactive à lier —
-      // donc c'est le JS qui le tient à jour.
+      // ``aria-valuenow`` says "the panel before me occupies N %". The
+      // server renders it only once, statically — the handle is not a
+      // component, it has no reactive prop to bind — so it is the JS
+      // that keeps it up to date.
       //
-      // **Un seul auteur pour l'état publié** : ``_apply``, la passe
-      // réactive. Tout ce qui écrit l'état y repasse, donc les quatre
-      // chemins sont couverts sans qu'aucun ait à y penser. ``_move``
-      // l'appelle EN PLUS, et uniquement parce qu'il est le seul à ne
-      // rien publier avant le relâchement — sans ça un lecteur d'écran
-      // annoncerait la valeur d'avant pendant toute la durée du drag.
+      // **A single author for the published state**: ``_apply``, the
+      // reactive pass. Everything that writes the state goes back
+      // through it, so the four paths are covered without any of them
+      // having to think about it. ``_move`` calls it IN ADDITION, and
+      // only because it is the only one that publishes nothing before
+      // release — without that a screen reader would announce the
+      // previous value for the whole duration of the drag.
       _announce(handle, value) {
         if (handle && value !== undefined) {
           handle.setAttribute("aria-valuenow", String(Math.round(value)));
         }
       },
 
-      // ── Le repli ─────────────────────────────────────────────────
-      // Ranger le panneau ``i`` en donnant sa place à ``j``, son voisin
-      // d'en face. Re-jouer le geste le restaure.
+      // ── Collapsing ───────────────────────────────────────────────
+      // Put panel ``i`` away by giving its place to ``j``, its opposite
+      // neighbour. Replaying the gesture restores it.
       //
-      // ⚠️ **Le repli PASSE OUTRE ``min_size``, et c'est le but.** Il ne
-      // passe donc PAS par ``_pair``, qui existe pour empêcher qu'on
-      // franchisse un minimum en TIRANT. Le minimum dit « ne me réduis
-      // pas par accident » ; le repli est un geste explicite qui dit
-      // « range-le ». Sans cette sortie, ``min_size=20`` rendrait un
-      // panneau repliable non repliable, et il faudrait un second
-      // vocabulaire pour dire la même chose. VS Code et shadcn font
-      // pareil.
+      // ⚠️ **Collapsing OVERRIDES ``min_size``, and that is the point.**
+      // It therefore does NOT go through ``_pair``, which exists to stop
+      // a minimum being crossed by DRAGGING. The minimum says "do not
+      // shrink me by accident"; collapsing is an explicit gesture that
+      // says "put it away". Without that way out, ``min_size=20`` would
+      // make a collapsible panel non-collapsible, and a second
+      // vocabulary would be needed to say the same thing. VS Code and
+      // shadcn do the same.
       //
-      // ``_folded`` retient la taille d'avant, par index. Elle vit dans
-      // le scope — donc elle survit à un morph, comme le reste de
-      // l'état du composant — et pas côté serveur, qui n'a aucune idée
-      // de ce que quelqu'un a rangé il y a trois secondes.
+      // ``_folded`` remembers the previous size, by index. It lives in
+      // the scope — so it survives a morph, like the rest of the
+      // component's state — and not on the server, which has no idea
+      // what somebody put away three seconds ago.
       _fold(i, j) {
         const sizes = this._weights();
         if (sizes[i] === undefined || sizes[j] === undefined) return;
@@ -7049,18 +7084,19 @@
         const pair = sizes[i] + sizes[j];
 
         if (back !== undefined) {
-          // Restaurer. Le voisin garde son propre plancher : rendre au
-          // panneau rangé plus que la paire ne contient l'écraserait.
+          // Restore. The neighbour keeps its own floor: giving the
+          // stored panel back more than the pair contains would crush
+          // it.
           const want = Math.min(back, Math.max(0, pair - this._min(j)));
           sizes[i] = want;
           sizes[j] = pair - want;
           delete memo[i];
         } else if (sizes[i] <= 0.01) {
-          // Replié SANS souvenir : le cas d'un partage restauré depuis
-          // localStorage, où un panneau était à zéro avant le F5. Sans
-          // cette branche, double-cliquer ne ferait rien du tout — le
-          // panneau resterait rangé pour toujours. Il revient à son
-          // plancher, ou à part égale s'il n'en a pas.
+          // Collapsed WITH NO memory: the case of a split restored
+          // from localStorage, where a panel was at zero before the F5.
+          // Without that branch, double-clicking would do nothing at all
+          // — the panel would stay put away forever. It comes back to
+          // its floor, or to an equal share if it has none.
           const want = Math.min(
             this._min(i) || 100 / Math.max(1, this._panels().length),
             Math.max(0, pair - this._min(j))
@@ -7075,17 +7111,17 @@
         this._publish(sizes);
       },
 
-      // ── Clavier ──────────────────────────────────────────────────
-      // La poignée est un ``role="separator"`` focusable : les flèches
-      // la déplacent, comme un slider. Le pas est en points de
-      // pourcentage, donc indépendant de la largeur du groupe.
+      // ── Keyboard ─────────────────────────────────────────────────
+      // The handle is a focusable ``role="separator"``: the arrows move
+      // it, like a slider. The step is in percentage points, so
+      // independent of the group's width.
       _key(e, i, fold) {
         const key = e.key;
-        // ``Entrée`` replie, quand la poignée touche un panneau
-        // repliable. C'est le jumeau clavier du double-clic, et le motif
-        // ARIA « window splitter » le prescrit : une poignée focusable
-        // dont la seule commande de repli serait un geste souris n'a pas
-        // de repli du tout pour qui n'a pas de souris.
+        // ``Enter`` collapses, when the handle touches a collapsible
+        // panel. It is the double-click's keyboard twin, and the ARIA
+        // "window splitter" pattern prescribes it: a focusable handle
+        // whose only collapse command were a mouse gesture has no
+        // collapse at all for whoever has no mouse.
         if (key === "Enter" && Array.isArray(fold)) {
           e.preventDefault();
           this._fold(fold[0], fold[1]);
@@ -7097,21 +7133,20 @@
         e.preventDefault();
         const sizes = this._weights();
         const step = key === back ? -KEY_STEP : KEY_STEP;
-        // Pas de ``_announce`` ici : ``_publish`` relance ``_apply``,
-        // qui repose tous les ``aria-valuenow``. L'appeler EN PLUS
-        // donnerait deux auteurs à la même valeur.
+        // No ``_announce`` here: ``_publish`` relaunches ``_apply``,
+        // which sets every ``aria-valuenow`` back. Calling it IN
+        // ADDITION would give the same value two authors.
         if (this._pair(sizes, i, sizes[i] + step)) this._publish(sizes);
       },
 
-      // ── Impératif ────────────────────────────────────────────────
+      // ── Imperative ───────────────────────────────────────────────
       set(v) {
         if (Array.isArray(v)) this._write(v);
       },
-      // Revenir au partage égal. Une méthode et pas un « re-set des
-      // tailles initiales » : le serveur ne rend le composant qu'une
-      // fois, donc « initial » n'a pas de sens stable une fois que
-      // l'utilisateur a tiré une poignée — alors que « à parts égales »
-      // est vrai à tout moment.
+      // Back to the equal split. A method and not a "re-set of the
+      // initial sizes": the server renders the component only once, so
+      // "initial" has no stable meaning once the user has dragged a
+      // handle — whereas "in equal shares" is true at any moment.
       reset() {
         const n = this._panels().length;
         if (!n) return;
@@ -7122,55 +7157,55 @@
 })();
 
 
-/* 21_signature_pad.js — scope partagé du composant SignaturePad.
+/* 21_signature_pad.js — the SignaturePad component's shared scope.
  *
- * **Le premier et le seul `<canvas>` du dépôt** (vérifié : zéro autre
- * occurrence, les charts sont en SVG). Tout ce qui suit découle de deux
- * propriétés du canvas que le reste du framework n'a jamais eu à gérer :
- * il n'a aucune taille intrinsèque, et **le redimensionner l'efface**.
+ * **The repository's first and only `<canvas>`** (checked: zero other
+ * occurrence, the charts are SVG). Everything that follows comes from
+ * two properties of the canvas the rest of the framework never had to
+ * deal with: it has no intrinsic size, and **resizing it clears it**.
  *
- * ── Troisième membre de la famille pointer-drag ───────────────────────
- *   - `12_slider.js`      = pointeur → une VALEUR sur une échelle ;
- *   - `20_resizable.js`   = pointeur → une DIMENSION ;
- *   - ici                 = pointeur → un TRACÉ.
- * Rien à voir avec le node-DnD de `19_dnd.js`. La capture de pointeur
- * passe par `$bz.helpers.capturePointer`, extraite le 2026-08-13 en
- * livrant `resizable` — ce fichier est son premier appelant neuf.
+ * ── The third member of the pointer-drag family ───────────────────────
+ *   - `12_slider.js`      = pointer → a VALUE on a scale;
+ *   - `20_resizable.js`   = pointer → a DIMENSION;
+ *   - here                = pointer → a STROKE.
+ * Nothing to do with `19_dnd.js`'s node-DnD. The pointer capture goes
+ * through `$bz.helpers.capturePointer`, extracted on 2026-08-13 while
+ * shipping `resizable` — this file is its first new caller.
  *
  *   bz-data="{...$bz.signaturePad.scope, value: '', _canvas: null,
  *             _strokes: [], _drawing: null, _base: null,
  *             _read(){…}, _write(v){…}}"
  *
- * ── Pourquoi on garde les POINTS, alors qu'il n'y a pas d'undo ────────
- * Ce n'est pas pour annuler — l'API n'expose que `.clear()`, une
- * signature se refait et ne se retouche pas. C'est parce qu'un canvas
- * **perd son contenu à chaque changement de taille**, et qu'un pad dans
- * un formulaire responsive en change pour de vrai : un téléphone qu'on
- * tourne, un panneau qu'on ouvre, un `resizable` qu'on tire. Sans les
- * points, la signature disparaît à la rotation. L'alternative — relire
- * le bitmap et le redessiner à l'échelle — dégrade à chaque passe.
+ * ── Why we keep the POINTS, when there is no undo ─────────────────────
+ * It is not to undo — the API only exposes `.clear()`, a signature is
+ * redone and not touched up. It is because a canvas **loses its content
+ * at every size change**, and a pad in a responsive form really does
+ * change: a phone you turn, a panel you open, a `resizable` you drag.
+ * Without the points, the signature disappears on rotation. The
+ * alternative — reading the bitmap back and redrawing it to scale —
+ * degrades at every pass.
  *
- * ── La valeur est VIDE tant que rien n'est tracé ──────────────────────
- * Un canvas neuf rend un PNG parfaitement valide : un rectangle blanc.
- * Le publier ferait passer « pas encore signé » pour « signé », côté
- * serveur, sans que rien ne semble faux. Zéro trait ⇒ chaîne vide.
+ * ── The value is EMPTY as long as nothing is drawn ────────────────────
+ * A fresh canvas returns a perfectly valid PNG: a white rectangle.
+ * Publishing it would pass "not signed yet" off as "signed", on the
+ * server side, with nothing looking wrong. Zero strokes ⇒ empty string.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  //: Épaisseur du trait, en pixels CSS. Une constante et pas un prop :
-  //: une signature n'a qu'une graisse qui marche, et la rendre réglable
-  //: n'ajouterait aucun pouvoir (memory `project_api_opinionation_thesis`).
+  //: The stroke's thickness, in CSS pixels. A constant and not a prop:
+  //: a signature has only one weight that works, and making it settable
+  //: would add no power (memory `project_api_opinionation_thesis`).
   const LINE_WIDTH = 2;
 
   $bz.signaturePad = {
     scope: {
-      // ── Le canvas et sa taille ───────────────────────────────────
-      // ⚠️ Redimensionner un canvas l'EFFACE, et lui donner une taille
-      // en pixels CSS ne suffit pas : sans le facteur de densité, le
-      // trait est flou sur tout écran retina — c'est-à-dire sur tous
-      // les téléphones, l'environnement de test de ce dépôt.
+      // ── The canvas and its size ──────────────────────────────────
+      // ⚠️ Resizing a canvas CLEARS it, and giving it a size in CSS
+      // pixels is not enough: without the density factor, the stroke is
+      // blurry on every retina screen — that is to say on every phone,
+      // this repository's test environment.
       _resize() {
         const c = this._canvas;
         if (!c) return;
@@ -7179,10 +7214,10 @@
         const dpr = window.devicePixelRatio || 1;
         const w = Math.round(box.width * dpr);
         const h = Math.round(box.height * dpr);
-        // Ne rien faire quand rien n'a bougé : une écriture sur
-        // ``canvas.width`` efface le contenu MÊME si la valeur est
-        // identique. L'observer rapporte au premier branchement, donc
-        // sans cette garde le pad s'effacerait à chaque rescan.
+        // Do nothing when nothing has moved: a write to
+        // ``canvas.width`` clears the content EVEN if the value is
+        // identical. The observer reports at the first wiring, so
+        // without that guard the pad would clear at every rescan.
         if (c.width === w && c.height === h) return;
         c.width = w;
         c.height = h;
@@ -7191,11 +7226,11 @@
         this._redraw();
       },
 
-      // Rebrancher l'observer à chaque rescan plutôt qu'au ``bz-init``,
-      // et le ranger sur le NŒUD : ``bz-init`` est one-shot par nœud et
-      // idiomorph morphe en place, donc un observer installé là ne
-      // reverrait jamais un canvas remplacé. Même choix, même raison que
-      // ``_observeGeom`` du Carousel.
+      // Re-wire the observer at every rescan rather than at the
+      // ``bz-init``, and file it on the NODE: ``bz-init`` is one-shot
+      // per node and idiomorph morphs in place, so an observer installed
+      // there would never see a replaced canvas again. Same choice, same
+      // reason as the Carousel's ``_observeGeom``.
       _observe() {
         const c = this._canvas;
         if (!c) return;
@@ -7210,24 +7245,24 @@
         this._hydrate();
       },
 
-      // ── La signature DÉJÀ LÀ ─────────────────────────────────────
-      // Un dossier rouvert rend sa data-URL au SSR. Sans ce chargement,
-      // le cadre s'affichait VIDE — et sans invite, puisque le serveur
-      // avait déjà posé ``data-empty="false"``. Le composant annonçait
-      // donc « il y a une signature » en n'en montrant aucune.
+      // ── The signature ALREADY THERE ──────────────────────────────
+      // A reopened record returns its data URL at SSR. Without that
+      // load, the frame showed EMPTY — and with no prompt, since the
+      // server had already set ``data-empty="false"``. The component
+      // therefore announced "there is a signature" while showing none.
       //
-      // L'image chargée devient une COUCHE DE FOND, distincte des
-      // points : ``_redraw`` la peint d'abord, les traits par-dessus.
-      // C'est ce qui la fait survivre au redimensionnement comme le
-      // reste — sans ça elle disparaîtrait au premier changement de
-      // taille, avec le canvas qu'on efface pour le redimensionner.
+      // The loaded image becomes a BACKGROUND LAYER, distinct from the
+      // points: ``_redraw`` paints it first, the strokes over it. It is
+      // what makes it survive a resize like the rest — without that it
+      // would disappear at the first size change, along with the canvas
+      // we clear in order to resize it.
       //
-      // Une seule fois par NŒUD (``_bzHydrated``), et pas dans un effet
-      // réactif : ``_publish`` écrit dans le même état, donc un effet
-      // qui le lit se rechargerait lui-même à chaque trait. Après le
-      // boot, c'est le canvas qui fait foi. Propriété de nœud et pas
-      // champ de scope, pour la même raison que ``_bzPadRo`` — une
-      // durée de vie qui est celle du canvas.
+      // Once per NODE only (``_bzHydrated``), and not in a reactive
+      // effect: ``_publish`` writes into the same state, so an effect
+      // that reads it would reload itself at every stroke. After the
+      // boot, it is the canvas that is authoritative. A node property
+      // and not a scope field, for the same reason as ``_bzPadRo`` — a
+      // lifetime that is the canvas's.
       _hydrate() {
         const c = this._canvas;
         if (!c || c._bzHydrated) return;
@@ -7244,11 +7279,11 @@
         img.src = src;
       },
 
-      // ── Le tracé ─────────────────────────────────────────────────
-      // L'encre est LUE sur l'élément (``color`` calculée), jamais
-      // configurée : le thème décide, et la valeur suit le mode sombre
-      // toute seule. Un prop ``pen_color`` aurait figé une couleur qui
-      // devient invisible sur l'autre fond.
+      // ── The stroke ───────────────────────────────────────────────
+      // The ink is READ on the element (the computed ``color``), never
+      // configured: the theme decides, and the value follows dark mode
+      // by itself. A ``pen_color`` prop would have frozen a colour that
+      // becomes invisible on the other background.
       _ink() {
         return getComputedStyle(this._canvas).color || "#000";
       },
@@ -7260,15 +7295,15 @@
         const w = c.width / dpr;
         const h = c.height / dpr;
         ctx.clearRect(0, 0, w, h);
-        // La signature déjà là, sous les traits neufs. Étirée à la
-        // boîte courante : une image matricielle n'a pas d'autre
-        // option, et le cadre d'origine n'est pas connu — c'est le même
-        // compromis que n'importe quel rendu raster redimensionné.
+        // The signature already there, under the new strokes. Stretched
+        // to the current box: a raster image has no other option, and
+        // the original frame is not known — it is the same compromise
+        // as any resized raster render.
         if (this._base) {
           try {
             ctx.drawImage(this._base, 0, 0, w, h);
           } catch (err) {
-            /* image cassée / cross-origin : on garde les traits */
+            /* a broken / cross-origin image: we keep the strokes */
           }
         }
         ctx.lineWidth = LINE_WIDTH;
@@ -7277,8 +7312,8 @@
         ctx.strokeStyle = this._ink();
         for (const stroke of this._strokes) {
           if (stroke.length < 2) {
-            // Un point isolé : un tap sans mouvement doit laisser une
-            // marque, sinon signer d'un point ne produit rien.
+            // A lone point: a tap with no movement must leave a mark,
+            // otherwise signing with a dot produces nothing.
             if (stroke.length === 1) {
               ctx.beginPath();
               ctx.arc(
@@ -7305,9 +7340,9 @@
 
       _start(e) {
         if (this._locked()) return;
-        // Empêche le navigateur de comprendre le geste comme une
-        // sélection de texte ou un défilement. ``touch-none`` sur le
-        // canvas couvre le défilement ; ceci couvre le reste.
+        // Stops the browser reading the gesture as a text selection or
+        // a scroll. ``touch-none`` on the canvas covers the scroll; this
+        // covers the rest.
         e.preventDefault();
         $bz.helpers.capturePointer(this._canvas, e);
         this._drawing = [this._at(e)];
@@ -7326,32 +7361,33 @@
         if (!this._drawing) return;
         $bz.helpers.releasePointer(this._canvas, e);
         this._drawing = null;
-        // Publier au LEVER du stylo, pas à chaque point : un PNG fait
-        // des dizaines de kilo-octets, et l'émettre par frame ferait
-        // partir autant de POST si un ``on_change`` est câblé. Même
-        // règle que le relâchement de poignée du Resizable.
+        // Publish when the pen LIFTS, not at every point: a PNG is
+        // tens of kilobytes, and emitting it per frame would send as
+        // many POSTs if an ``on_change`` is wired. Same rule as the
+        // Resizable's handle release.
         this._publish();
       },
 
-      // ── La valeur ────────────────────────────────────────────────
-      // Écrite dans l'ÉTAT (``_write``), pas sur le porteur : c'est le
-      // ``bz-attr:value`` du porteur qui la reporte dans le DOM, et son
-      // ``bz-effect`` qui en tire le ``change``. Un seul auteur, la même
-      // mécanique que Slider / Carousel / Resizable — écrire les deux
-      // ferait diverger le champ de formulaire de l'état dès qu'un
-      // écrivain externe passe par le second.
+      // ── The value ────────────────────────────────────────────────
+      // Written into the STATE (``_write``), not onto the carrier: it is
+      // the carrier's ``bz-attr:value`` that reports it into the DOM,
+      // and its ``bz-effect`` that draws the ``change`` from it. A
+      // single author, the same mechanics as Slider / Carousel /
+      // Resizable — writing both would make the form field diverge from
+      // the state as soon as an external writer goes through the
+      // second.
       _publish() {
-        // ``_base`` compte autant que les traits : un dossier rouvert
-        // puis soumis sans y toucher ne doit pas EFFACER la signature
-        // qu'il portait.
+        // ``_base`` counts as much as the strokes: a reopened record
+        // then submitted without being touched must not ERASE the
+        // signature it carried.
         const inked = this._strokes.length || this._base;
         this._write(inked ? this._canvas.toDataURL("image/png") : "");
       },
 
-      // Le marqueur que le thème lit pour montrer / cacher l'invite.
-      // Un attribut et pas une classe : ``data-[empty=true]:`` est le
-      // variant Tailwind que le reste du dépôt utilise pour les états
-      // pilotés par le JS.
+      // The marker the theme reads to show / hide the prompt. An
+      // attribute and not a class: ``data-[empty=true]:`` is the
+      // Tailwind variant the rest of the repository uses for JS-driven
+      // states.
       _empty(value) {
         if (this._canvas && this._canvas.parentElement) {
           this._canvas.parentElement.setAttribute(
@@ -7366,14 +7402,14 @@
         );
       },
 
-      // ── Impératif ────────────────────────────────────────────────
-      // ``.clear()`` et rien d'autre : une signature se refait, elle ne
-      // se retouche pas. Les points gardés en mémoire servent au
-      // redimensionnement (cf. l'en-tête), pas à un undo.
+      // ── Imperative ───────────────────────────────────────────────
+      // ``.clear()`` and nothing else: a signature is redone, it is not
+      // touched up. The points kept in memory serve the resize (cf. the
+      // header), not an undo.
       clear() {
         this._strokes.length = 0;
-        // La couche de fond part AVEC les traits : « effacer » veut
-        // dire un cadre vide, pas « revenir à la signature d'avant ».
+        // The background layer goes WITH the strokes: "clear" means an
+        // empty frame, not "go back to the previous signature".
         this._base = null;
         this._drawing = null;
         this._redraw();
@@ -7385,45 +7421,44 @@
 })();
 
 
-/* 22_verbs.js — la moitié CLIENT des verbes de `bretzel.runtime.verbs`.
+/* 22_verbs.js — the CLIENT half of `bretzel.runtime.verbs`.
  *
- * Un verbe est une action du NAVIGATEUR déclenchée depuis un `on_*=` :
+ * A verb is a BROWSER action triggered from an `on_*=`:
  *
- *     ui.button("Copier", on_click=bretzel.copy(state.api_key))
+ *     ui.button("Copy", on_click=bretzel.copy(state.api_key))
  *
- * Il se branche dans le slot qui accepte déjà une CHAÎNE de source
- * client — le même que `dialog.open()` — donc il n'ajoute aucune
- * plomberie : ni requête, ni directive, ni scope.
+ * It plugs into the slot that already accepts a client-source STRING —
+ * the same as `dialog.open()` — so it adds no plumbing: no request, no
+ * directive, no scope.
  *
- * Seul `copy` a besoin de ce fichier. `print` et `fullscreen` tiennent
- * en une expression que Python écrit en toutes lettres ; les mettre ici
- * aurait ajouté une indirection sans rien garder de commun.
+ * Only `copy` needs this file. `print` and `fullscreen` fit in an
+ * expression Python writes out in full; putting them here would have
+ * added an indirection with nothing common kept.
  *
- * ⚠️ Pourquoi `copy` n'est PAS un `navigator.clipboard.writeText` nu
+ * ⚠️ Why `copy` is NOT a bare `navigator.clipboard.writeText`
  * ---------------------------------------------------------------------
- * L'API Presse-papiers exige un **contexte sécurisé**. `https://` et
- * `http://localhost` en sont ; `http://192.168.1.20:8000` n'en est PAS.
- * Or c'est très exactement la façon dont un outil interne se sert — le
- * public que Bretzel vise. Sur ce chemin-là `navigator.clipboard` vaut
- * `undefined`, et un appel nu lèverait un TypeError : le bouton ne
- * ferait rien, sans un mot.
+ * The Clipboard API requires a **secure context**. `https://` and
+ * `http://localhost` are; `http://192.168.1.20:8000` is NOT. Yet that is
+ * very exactly how an internal tool is used — the audience Bretzel aims
+ * at. On that path `navigator.clipboard` is `undefined`, and a bare call
+ * would raise a TypeError: the button would do nothing, without a word.
  *
- * D'où le repli sur `document.execCommand('copy')`. Il est déprécié et
- * il marche partout, y compris hors contexte sécurisé — c'est le seul
- * chemin qui existe là-bas, donc « déprécié » n'est pas un argument
- * contre lui, c'est un argument pour ne pas s'en servir en premier.
+ * Hence the fallback on `document.execCommand('copy')`. It is deprecated
+ * and it works everywhere, including outside a secure context — it is
+ * the only path that exists over there, so "deprecated" is not an
+ * argument against it, it is an argument for not using it first.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  /* Le repli hors contexte sécurisé.
+  /* The fallback outside a secure context.
    *
-   * Le `<textarea>` est posé hors écran plutôt que `display:none` : un
-   * élément non rendu n'est pas sélectionnable, donc la copie échouerait
-   * silencieusement. `readOnly` empêche le clavier virtuel de s'ouvrir
-   * sur mobile, et `position:fixed` évite de faire défiler la page vers
-   * un champ que personne ne doit voir.
+   * The `<textarea>` is placed off screen rather than `display:none`: an
+   * unrendered element is not selectable, so the copy would fail
+   * silently. `readOnly` stops the virtual keyboard opening on mobile,
+   * and `position:fixed` avoids scrolling the page to a field nobody
+   * should see.
    */
   function viaTextarea(text) {
     const ta = document.createElement("textarea");
@@ -7442,8 +7477,8 @@
       ok = false;
     }
     document.body.removeChild(ta);
-    // Rendre la sélection de l'utilisateur : `select()` l'a écrasée, et
-    // perdre son surlignage parce qu'on a copié autre chose se voit.
+    // Give the user's selection back: `select()` overwrote it, and
+    // losing your highlight because something else was copied shows.
     if (previous && selection) {
       selection.removeAllRanges();
       selection.addRange(previous);
@@ -7452,27 +7487,28 @@
   }
 
   $bz.verbs = {
-    /* Partager — la feuille native, ou le presse-papiers.
+    /* Share — the native sheet, or the clipboard.
      *
-     * ⚠️ `navigator.share` est **undefined** sur le Chromium de bureau
-     * (mesuré le 2026-09-02 : `typeof navigator.share === "undefined"`).
-     * L'absence n'est donc pas un cas limite, c'est le cas NORMAL sur la
-     * machine où les utilisateurs de Bretzel développent.
+     * ⚠️ `navigator.share` is **undefined** on desktop Chromium
+     * (measured on 2026-09-02: `typeof navigator.share === "undefined"`).
+     * Its absence is therefore not an edge case, it is the NORMAL case
+     * on the machine where Bretzel's users develop.
      *
-     * Ne rien faire là-dedans donnerait un bouton « Partager » inerte
-     * pour la majorité — exactement ce que ce dépôt refuse ailleurs (cf.
-     * le refus de `tracks=` sur `ui.audio`, qui aurait promis des
-     * sous-titres et livré un attribut). Le repli COPIE donc l'URL : le
-     * bouton fait toujours quelque chose d'utile, et c'est un contrat,
-     * pas un accident.
+     * Doing nothing in there would give an inert "Share" button to the
+     * majority — exactly what this repository refuses elsewhere (cf. the
+     * refusal of `tracks=` on `ui.audio`, which would have promised
+     * subtitles and delivered an attribute). The fallback therefore
+     * COPIES the URL: the button always does something useful, and it is
+     * a contract, not an accident.
      */
     share(data) {
       const charge = data || {};
       if (!charge.url) charge.url = window.location.href;
       if (navigator.share) {
-        // Un refus de l'utilisateur (il ferme la feuille) rejette la
-        // promesse. Ce n'est pas une erreur de l'app : on ne retombe PAS
-        // sur la copie, sinon annuler un partage copierait dans son dos.
+        // A refusal by the user (they close the sheet) rejects the
+        // promise. It is not an app error: we do NOT fall back on the
+        // copy, otherwise cancelling a share would copy behind their
+        // back.
         return navigator.share(charge).then(
           function () { return "shared"; },
           function () { return "cancelled"; }
@@ -7483,27 +7519,27 @@
       });
     },
 
-    /* Vibrer. `navigator.vibrate` EXISTE partout (mesuré : `function`
-     * sur le Chromium de bureau) et ne fait rien sans matériel — il n'y a
-     * donc aucune absence à gérer, contrairement à `share`.
+    /* Vibrate. `navigator.vibrate` EXISTS everywhere (measured:
+     * `function` on desktop Chromium) and does nothing with no hardware
+     * — so there is no absence to handle, unlike `share`.
      */
     vibrate(motif) {
       return navigator.vibrate ? navigator.vibrate(motif) : false;
     },
 
-    /* Copier `value` dans le presse-papiers. Rend une promesse de
-     * booléen — jamais une exception : un verbe est appelé depuis un
-     * `on_*=`, où personne n'attrape rien, donc une rejection
-     * remonterait en `unhandledrejection` dans la console de l'app.
+    /* Copy `value` to the clipboard. Returns a promise of a boolean —
+     * never an exception: a verb is called from an `on_*=`, where nobody
+     * catches anything, so a rejection would surface as an
+     * `unhandledrejection` in the app's console.
      */
     copy(value) {
       const text = value === null || value === undefined ? "" : String(value);
       if (window.isSecureContext && navigator.clipboard) {
         return navigator.clipboard.writeText(text).then(
           function () { return true; },
-          // Un refus reste possible EN contexte sécurisé (permission
-          // révoquée, document sans focus). Le repli est alors la
-          // dernière chance, pas un chemin mort.
+          // A refusal stays possible IN a secure context (permission
+          // revoked, document without focus). The fallback is then the
+          // last chance, not a dead path.
           function () { return viaTextarea(text); }
         );
       }
@@ -7513,35 +7549,35 @@
 })();
 
 
-/* 23_diagram.js — la mise en évidence des voisins, dans `ui.diagram`.
+/* 23_diagram.js — the highlighting of neighbours, in `ui.diagram`.
  *
- * Le graphe est PLACÉ côté serveur : positions, couches, tracés, tout
- * arrive calculé. Ce fichier ne place rien. Il ne fait qu'une chose, et
- * elle est purement locale : quand on désigne un nœud, tout ce qui n'est
- * pas relié s'estompe.
+ * The graph is LAID OUT on the server: positions, layers, paths, it all
+ * arrives computed. This file lays out nothing. It does one thing, and
+ * it is purely local: when you designate a node, everything that is not
+ * connected dims.
  *
- * Pourquoi ça ne peut pas être un aller-retour
- * ---------------------------------------------
- * Éclairer ne change pas QUELS nœuds existent, seulement lesquels sont
- * en avant. Passer par le serveur pour ça coûterait une requête et un
- * morph par désignation, pour un résultat que le navigateur connaît
- * déjà : l'adjacence est cuite dans le DOM au rendu.
+ * Why it cannot be a round trip
+ * ------------------------------
+ * Lighting up does not change WHICH nodes exist, only which are in the
+ * foreground. Going through the server for that would cost a request and
+ * a morph per designation, for a result the browser already knows: the
+ * adjacency is baked into the DOM at render.
  *
- * Ce que le serveur garde, lui, c'est le RESSERREMENT (`focus=`) — là
- * les nœuds dessinés changent, donc le placement change, donc il faut
- * re-rendre. Les deux gestes se ressemblent à l'écran et n'ont pas le
- * même coût ; c'est la seule raison pour laquelle ils sont séparés.
+ * What the server does keep is the NARROWING (`focus=`) — there the
+ * drawn nodes change, so the layout changes, so it has to re-render. The
+ * two gestures look alike on screen and do not have the same cost; that
+ * is the only reason they are separate.
  *
- * Pourquoi un slab plutôt qu'une expression par nœud
- * ---------------------------------------------------
- * Même raison que 16_accordion : sérialiser ces corps de méthode dans le
- * `bz-data` de chaque nœud ferait 120 octets × N. Ici seule l'ADJACENCE
- * voyage — un tableau de clés par nœud, la seule chose qui diffère
- * réellement d'un nœud à l'autre.
+ * Why a slab rather than an expression per node
+ * ----------------------------------------------
+ * Same reason as 16_accordion: serialising these method bodies into
+ * every node's `bz-data` would be 120 bytes × N. Here only the ADJACENCY
+ * travels — an array of keys per node, the only thing that really
+ * differs from one node to the next.
  *
- * ⚠️ Des MÉTHODES, jamais des getters : `scope.absorb` invoque chaque clé
- * à l'enregistrement et figerait un getter sur sa première valeur
- * (cf. traps.md).
+ * ⚠️ METHODS, never getters: `scope.absorb` invokes each key at
+ * registration and would freeze a getter on its first value (cf.
+ * traps.md).
  */
 (function () {
   "use strict";
@@ -7549,16 +7585,16 @@
 
   $bz.diagram = {
     scope: {
-      /* La sélection — LUE ET ÉCRITE par `_read` / `_write`.
+      /* The selection — READ AND WRITTEN by `_read` / `_write`.
        *
-       * Ces deux-là portent l'indirection : les mêmes méthodes servent
-       * le champ local `value` (aucun binding) et la cellule du magasin
-       * (`value=` lié à un `ClientState`). C'est l'idiome de `tree` et
-       * de `toggle_group` — sans lui, chaque méthode devrait tester en
-       * quel mode elle tourne.
+       * These two carry the indirection: the same methods serve the
+       * local `value` field (no binding) and the store cell (a `value=`
+       * bound to a `ClientState`). It is `tree`'s and `toggle_group`'s
+       * idiom — without it, every method would have to test which mode
+       * it is running in.
        *
-       * Pas de getter : `scope.absorb` invoque chaque clé une fois à
-       * l'enregistrement et le figerait sur sa première valeur.
+       * No getter: `scope.absorb` invokes each key once at registration
+       * and would freeze it on its first value.
        */
       _read() {
         return this.value;
@@ -7567,31 +7603,32 @@
         this.value = v;
       },
 
-      /* Désigner `key`, dont `adj` liste les voisins (lui compris).
+      /* Designate `key`, whose neighbours `adj` lists (itself
+       * included).
        *
-       * Recliquer le nœud déjà désigné éteint. C'est la seule sortie au
-       * clavier et au doigt — sans elle on reste éclairé sans savoir
-       * comment revenir, et il n'y a pas de survol pour s'en sortir sur
-       * un écran tactile. */
+       * Re-clicking the already designated node switches off. It is the
+       * only way out from the keyboard and the finger — without it you
+       * stay lit with no way of knowing how to come back, and there is
+       * no hover to get out of it on a touch screen. */
       light(key) {
         this._write(
           String(this._read() || "") === String(key) ? "" : String(key)
         );
       },
 
-      /* Ce nœud doit-il rester en avant ?
+      /* Must this node stay in the foreground?
        *
-       * DÉRIVÉ de la sélection, jamais stocké. La première version
-       * gardait un tableau `lit` que `light()` remplissait — et ce
-       * tableau ne bougeait pas quand la sélection changeait depuis
-       * DEHORS (un `select` lié au même `ClientState`, un
-       * `state.node.set(...)`). Le magasin suivait, l'écran non :
-       * mesuré à `dim = 0` là où un clic donnait 3.
+       * DERIVED from the selection, never stored. The first version kept
+       * a `lit` array that `light()` filled — and that array did not
+       * move when the selection changed from OUTSIDE (a `select` bound
+       * to the same `ClientState`, a `state.node.set(...)`). The store
+       * followed, the screen did not: measured at `dim = 0` where a
+       * click gave 3.
        *
-       * `adj` est l'adjacence du nœud, cuite par le serveur dans son
-       * `bz-class`. On teste donc « le sélectionné est-il MON voisin »
-       * plutôt que l'inverse — c'est le même prédicat, et il ne demande
-       * aucun état.
+       * `adj` is the node's adjacency, baked by the server into its
+       * `bz-class`. So we test "is the selected one MY neighbour" rather
+       * than the other way round — it is the same predicate, and it
+       * requires no state.
        */
       isLit(key, adj) {
         const sel = String(this._read() || "");
@@ -7605,20 +7642,20 @@
         this._write("");
       },
 
-      /* Armer le clic-hors-du-diagramme, une seule fois.
+      /* Arm the click-outside-the-diagram, once only.
        *
-       * Désigner un nœud est un geste de lecture : on doit pouvoir en
-       * sortir en cliquant n'importe où, pas seulement en retrouvant le
-       * nœud qu'on avait désigné. Sans ça on reste éclairé, et sur un
-       * écran tactile il n'y a même pas de survol pour s'en douter.
+       * Designating a node is a reading gesture: you must be able to get
+       * out of it by clicking anywhere, not only by finding the node you
+       * had designated. Without that you stay lit, and on a touch screen
+       * there is not even a hover to suspect it.
        *
-       * `$bz.helpers.clickOutside` plutôt qu'un écouteur maison : c'est
-       * lui que les overlays utilisent, il est en phase de CAPTURE (donc
-       * un `stopPropagation` intérieur ne l'étouffe pas) et il rend son
-       * désabonnement.
+       * `$bz.helpers.clickOutside` rather than a home-made listener: it
+       * is the one the overlays use, it is in the CAPTURE phase (so an
+       * inner `stopPropagation` does not smother it) and it returns its
+       * unsubscribe.
        *
-       * Idempotent : `bz-effect` est réévalué après chaque morph, et
-       * sans le drapeau on empilerait un écouteur par rafraîchissement.
+       * Idempotent: `bz-effect` is re-evaluated after every morph, and
+       * without the flag we would stack one listener per refresh.
        */
       arm(el) {
         if (!el || el._bzDiagramOff) return;
@@ -7628,13 +7665,14 @@
         });
       },
 
-      /* Une arête reste en avant si elle TOUCHE le nœud désigné.
+      /* An edge stays in the foreground if it TOUCHES the designated
+       * node.
        *
-       * « Incidente », et pas « ses deux extrémités sont éclairées » :
-       * deux voisins d'un même nœud sont tous deux en avant, mais
-       * l'arête qui les relie l'un à l'autre ne dit rien de ce qu'on a
-       * désigné. La garder allumée remplissait l'écran de ce qu'on
-       * cherchait justement à retirer. */
+       * "Incident", and not "both its ends are lit": two neighbours of
+       * one node are both in the foreground, but the edge linking them
+       * to each other says nothing about what was designated. Keeping it
+       * lit filled the screen with what we were precisely trying to
+       * remove. */
       isEdgeLit(a, b) {
         const sel = String(this._read() || "");
         return !sel || sel === a || sel === b;

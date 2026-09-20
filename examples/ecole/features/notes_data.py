@@ -1,24 +1,24 @@
-"""features/notes_data — data : les évaluations, les notes, les refus.
+"""features/notes_data — data: the assessments, the marks, the refusals.
 
-``kind="data"``. Trois règles métier vivent ici parce qu'elles doivent
-tenir **quel que soit l'écran** (RT-8), et pas parce que c'est pratique :
+``kind="data"``. Three business rules live here because they must hold
+**whatever the screen** (RT-8), and not because it is convenient:
 
-1. **une note supérieure au barème est refusée** (EF-D5), au plus bas
-   niveau possible. L'écran l'explique ; c'est cette couche qui refuse ;
-2. **la note globale d'une évaluation détaillée n'est jamais saisie**
-   (EF-D4) : elle est la somme des sous-notes. Une saisie directe serait
-   une seconde source de vérité pour la même valeur ;
-3. **le barème d'une évaluation par compétences DEVIENT leur somme**
-   (EF-D3), et le champ se verrouille à l'écran. Ici, il se recalcule.
+1. **a mark above the scale is refused** (EF-D5), at the lowest possible
+   level. The screen explains it; it is this layer that refuses;
+2. **a detailed assessment's overall mark is never entered** (EF-D4): it
+   is the sum of the sub-marks. A direct entry would be a second source
+   of truth for the same value;
+3. **a by-skill assessment's scale BECOMES their sum** (EF-D3), and the
+   field locks on screen. Here, it is recomputed.
 
-EF-D8 — les corrections à reporter, et pourquoi c'est une TABLE
----------------------------------------------------------------
-*« Une note changée après coup doit être reportée à la main sur École
-Directe. La liste se constitue seule, survit à la fermeture, et ne
-s'efface QUE lorsque le professeur dit l'avoir fait. »* Trois propriétés,
-et chacune interdit une solution plus simple : « se constitue seule »
-interdit un bouton, « survit à la fermeture » interdit un état de
-session, « ne s'efface que sur ordre » interdit une purge par ancienneté.
+EF-D8 — the corrections to report, and why it is a TABLE
+---------------------------------------------------------
+*"A mark changed after the fact must be reported by hand on École
+Directe. The list builds itself, survives closing, and is only cleared
+WHEN the teacher says they have done it."* Three properties, and each one
+forbids a simpler solution: "builds itself" forbids a button, "survives
+closing" forbids a session state, "only cleared on order" forbids a purge
+by age.
 """
 
 from __future__ import annotations
@@ -32,21 +32,20 @@ from examples.ecole.features.annees import garde_ecriture
 
 
 class NoteRefuseeError(ValueError):
-    """Une note dépasse son barème, ou une sous-note ses points (EF-D5).
+    """A mark exceeds its scale, or a sub-mark its points (EF-D5).
 
-    Une levée plutôt qu'un retour : l'écran doit EXPLIQUER le refus, donc
-    il a besoin de la phrase, pas d'un booléen. Et une règle qu'on peut
-    ignorer en oubliant de lire un retour ne tient pas « quel que soit
-    l'écran ».
+    A raise rather than a return: the screen must EXPLAIN the refusal, so
+    it needs the sentence, not a boolean. And a rule one can ignore by
+    forgetting to read a return does not hold "whatever the screen".
     """
 
 
 def evaluations_de(classe_id: int, trimestre: int) -> list[dict]:
-    """La liste d'EF-D1 : tout ce que la ligne doit dire, en une requête.
+    """EF-D1's list: everything the row must say, in one query.
 
-    ``saisies`` et ``effectif`` donnent l'avancement de la saisie — la
-    seule colonne de cette liste qui ne soit pas une donnée mais un
-    calcul, et celle qu'on regarde le soir pour savoir ce qui reste.
+    ``saisies`` and ``effectif`` give the entry's progress — the only
+    column of this list that is not data but a computation, and the one
+    looked at in the evening to know what is left.
     """
     return query(
         """
@@ -82,7 +81,7 @@ def evaluation(evaluation_id: int) -> dict | None:
 
 
 def competences_evaluees_de(evaluation_id: int) -> list[dict]:
-    """Les compétences d'une évaluation détaillée, avec leurs points."""
+    """A detailed assessment's skills, with their points."""
     return query(
         """
         SELECT ce.id, ce.points, ce.sous_competence, c.code, c.libelle
@@ -95,7 +94,7 @@ def competences_evaluees_de(evaluation_id: int) -> list[dict]:
 
 
 def notes_de(evaluation_id: int) -> dict[int, dict]:
-    """``eleve_id → {absent, valeur}`` — pour remplir la saisie."""
+    """``eleve_id → {absent, valeur}`` — to fill the entry form."""
     return {
         r["eleve_id"]: {"absent": bool(r["absent"]), "valeur": r["valeur"]}
         for r in query(
@@ -120,7 +119,7 @@ def sous_notes_de(evaluation_id: int) -> dict[tuple[int, int], float]:
 
 def notes_du_trimestre(eleve_id: int, classe_id: int,
                        trimestre: int) -> list[dict]:
-    """Les notes d'un élève sur un trimestre, pour sa fiche (EF-C3)."""
+    """A pupil's marks over a term, for their sheet (EF-C3)."""
     return query(
         """
         SELECT ev.id, ev.nom, ev.type, ev.date, ev.bareme, ev.coefficient,
@@ -135,7 +134,7 @@ def notes_du_trimestre(eleve_id: int, classe_id: int,
 
 
 def corrections_en_attente(annee_id: int) -> list[dict]:
-    """Ce qui reste à reporter à la main sur École Directe (EF-D8)."""
+    """What is left to report by hand on École Directe (EF-D8)."""
     return query(
         """
         SELECT co.id, co.ancienne, co.nouvelle, co.cree_le,
@@ -152,12 +151,12 @@ def corrections_en_attente(annee_id: int) -> list[dict]:
 
 
 def repartition(evaluation_id: int, bareme: float) -> list[dict]:
-    """L'histogramme d'EF-D6 : quatre tranches sur le barème.
+    """EF-D6's histogram: four bands over the scale.
 
-    Quatre et pas dix : à trente copies, dix tranches rendent un peigne
-    illisible. Les bornes sont en QUARTS DE BARÈME et pas en notes sur
-    vingt — un devoir sur 40 se lit avec les mêmes tranches qu'un devoir
-    sur 10.
+    Four and not ten: at thirty papers, ten bands make an unreadable
+    comb. The bounds are in QUARTERS OF THE SCALE and not in marks out of
+    twenty — a test out of 40 reads with the same bands as a test out of
+    10.
     """
     valeurs = [
         r["valeur"] for r in query(
@@ -179,13 +178,13 @@ def repartition(evaluation_id: int, bareme: float) -> list[dict]:
 
 
 def moyenne_de_classe(evaluation_id: int) -> float | None:
-    """La moyenne des PRÉSENTS. Les absences ne comptent pas (§ 5.2)."""
+    """The average of those PRESENT. Absences do not count (§ 5.2)."""
     return scalar(
         "SELECT AVG(valeur) FROM notes WHERE evaluation_id = ? "
         "AND absent = 0 AND valeur IS NOT NULL", (evaluation_id,))
 
 
-# ── Les écritures ────────────────────────────────────────────────────
+# ── The writes ───────────────────────────────────────────────────────
 
 def creer_evaluation(classe_id: int, annee_id: int, champs: dict) -> int:
     garde_ecriture(annee_id)
@@ -201,12 +200,12 @@ def creer_evaluation(classe_id: int, annee_id: int, champs: dict) -> int:
 
 def donner_a_plusieurs(classes: list[int], annee_id: int,
                        champs: dict) -> list[int]:
-    """Le même devoir dans plusieurs classes d'un niveau (EF-D2).
+    """The same test in several classes of a level (EF-D2).
 
-    *« Chacune garde la sienne, reliées entre elles. »* Le lien est
-    ``commune_id``, et il vaut l'identifiant de la PREMIÈRE : la date peut
-    différer d'une classe à l'autre, les moyennes se calculent par classe,
-    et seule l'appartenance au même devoir est partagée.
+    *"Each keeps its own, linked to each other."* The link is
+    ``commune_id``, and it is the identifier of the FIRST: the date may
+    differ from one class to another, the averages are computed per
+    class, and only belonging to the same test is shared.
     """
     garde_ecriture(annee_id)
     identifiants: list[int] = []
@@ -222,12 +221,12 @@ def donner_a_plusieurs(classes: list[int], annee_id: int,
 
 def poser_competences(evaluation_id: int, annee_id: int,
                       points: dict[str, float], cycle: str) -> float:
-    """Répartit des points sur les compétences — **et le barème SUIT**.
+    """Distribute points over the skills — **and the scale FOLLOWS**.
 
-    EF-D3 : *« le barème devient leur somme et le champ se verrouille »*.
-    Le verrouillage est à l'écran ; ici, le barème est simplement
-    recalculé — si les deux divergeaient, une note valide selon l'un
-    serait refusée par l'autre.
+    EF-D3: *"the scale becomes their sum and the field locks"*. The
+    locking is on screen; here, the scale is simply recomputed — if the
+    two diverged, a mark valid according to one would be refused by the
+    other.
     """
     garde_ecriture(annee_id)
     execute("DELETE FROM competences_evaluees WHERE evaluation_id = ?",
@@ -255,17 +254,16 @@ def poser_competences(evaluation_id: int, annee_id: int,
 
 def poser_note(evaluation_id: int, eleve_id: int, annee_id: int,
                absent: bool, valeur: float | None, bareme: float) -> None:
-    """Une note, et le refus d'EF-D5 **au plus bas niveau possible**.
+    """A mark, and EF-D5's refusal **at the lowest possible level**.
 
-    Le refus est ici et pas dans l'écran parce qu'une règle métier tient
-    quel que soit l'écran (RT-8) : l'import, un second formulaire, un
-    script de reprise passeraient tous par cette porte.
+    The refusal is here and not in the screen because a business rule
+    holds whatever the screen (RT-8): the import, a second form, a
+    recovery script would all go through this door.
 
-    ⚠️ **Une note modifiée APRÈS coup entre dans la liste à reporter**
-    (EF-D8), et c'est fait ici pour la même raison : la liste *« se
-    constitue seule »*. Un appelant qui devrait y penser finirait par
-    l'oublier — et l'oubli ne se voit qu'un mois plus tard, sur École
-    Directe.
+    ⚠️ **A mark modified AFTER the fact enters the list to report**
+    (EF-D8), and it is done here for the same reason: the list *"builds
+    itself"*. A caller that had to think of it would end up forgetting —
+    and the oversight only shows a month later, on École Directe.
     """
     garde_ecriture(annee_id)
     if not absent and valeur is not None and valeur > bareme:
@@ -290,8 +288,8 @@ def poser_note(evaluation_id: int, eleve_id: int, annee_id: int,
          None if absent else valeur),
     )
 
-    # Une PREMIÈRE saisie n'est pas une correction : la liste ne doit
-    # porter que ce qui a changé après avoir été reporté.
+    # A FIRST entry is not a correction: the list must carry only what
+    # changed after having been reported.
     if ancienne and deja is not None and not absent and valeur != deja:
         execute(
             "INSERT INTO corrections_a_reporter "
@@ -307,7 +305,7 @@ def poser_note(evaluation_id: int, eleve_id: int, annee_id: int,
 def poser_sous_note(evaluation_id: int, eleve_id: int, annee_id: int,
                     competence_evaluee_id: int, valeur: float,
                     points: float) -> None:
-    """Une sous-note, refusée si elle dépasse les points de sa compétence."""
+    """A sub-mark, refused if it exceeds its skill's points."""
     garde_ecriture(annee_id)
     if valeur > points:
         raise NoteRefuseeError(
@@ -328,9 +326,9 @@ def poser_sous_note(evaluation_id: int, eleve_id: int, annee_id: int,
         "ON CONFLICT (note_id, competence_evaluee_id) DO UPDATE SET "
         "valeur = excluded.valeur",
         (note_id, competence_evaluee_id, valeur))
-    # EF-D4 : **la note globale n'est jamais saisie** — elle est la somme
-    # des sous-notes. La recalculer ici est ce qui garantit qu'il n'y a
-    # jamais deux valeurs pour la même chose.
+    # EF-D4: **the overall mark is never entered** — it is the sum of
+    # the sub-marks. Recomputing it here is what guarantees there are
+    # never two values for the same thing.
     execute(
         "UPDATE notes SET valeur = (SELECT COALESCE(SUM(valeur), 0) "
         "FROM sous_notes WHERE note_id = ?) WHERE id = ?",
@@ -338,18 +336,18 @@ def poser_sous_note(evaluation_id: int, eleve_id: int, annee_id: int,
 
 
 def marquer_reporte(evaluation_id: int, annee_id: int) -> None:
-    """EF-D7 — avec la date du jour. *Savoir QUAND permet de comprendre
-    une divergence entre les deux listes.*"""
+    """EF-D7 — with today's date. *Knowing WHEN makes a divergence
+    between the two lists understandable.*"""
     garde_ecriture(annee_id)
     execute("UPDATE evaluations SET reporte_le = ? WHERE id = ?",
             (date.today().isoformat(), evaluation_id))
 
 
 def correction_faite(correction_id: int, annee_id: int) -> None:
-    """EF-D8 — **la seule façon d'effacer une ligne de la liste**.
+    """EF-D8 — **the only way of clearing a row from the list**.
 
-    Pas à l'ouverture, pas au bout de n jours : le professeur dit l'avoir
-    fait, ou la ligne reste.
+    Not on opening, not after n days: the teacher says they have done it,
+    or the row stays.
     """
     garde_ecriture(annee_id)
     execute("DELETE FROM corrections_a_reporter WHERE id = ?",
@@ -357,7 +355,7 @@ def correction_faite(correction_id: int, annee_id: int) -> None:
 
 
 def competences_proposees(cycle: str, type_evaluation: str) -> list[tuple]:
-    """Ce que l'écran de répartition propose (EF-D3), cycle par cycle."""
+    """What the distribution screen proposes (EF-D3), cycle by cycle."""
     return list(competences_de(cycle, type_evaluation))
 
 

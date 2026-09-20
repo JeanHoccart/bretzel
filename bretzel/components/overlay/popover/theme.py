@@ -24,9 +24,9 @@ POPOVER_THEME: dict[str, Any] = {
             "absolute z-40 min-w-[12rem] "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface "
             "p-3 shadow-lg "
-            # Le fondu entrant. Les trois classes vont ensemble et
-            # aucune ne sert seule — le pourquoi est en un seul
-            # exemplaire dans ``overlay/dropdown/theme.py``.
+            # The enter fade. The three classes go together and none
+            # serves alone — the why is in a single copy in
+            # ``overlay/dropdown/theme.py``.
             "transition-[opacity,display] transition-discrete duration-150 "
             "starting:opacity-0"
         ),

@@ -95,12 +95,12 @@ class Bretzel:
         css: Literal["auto", "build", "browser"] | None = None,
     ) -> None:
         # ── Config ──────────────────────────────────────────────────────
-        # ``mode`` est un PRÉRÉGLAGE : il pose les défauts de ``debug``
-        # (diagnostics) et ``expose_errors`` (exposition), et gouverne
-        # l'axe assets / cache. Chacun reste surchargeable seul. Ce que
-        # ``mode`` ne décide PLUS : la sécurité des cookies, qui suit le
+        # ``mode`` is a PRESET: it sets the defaults of ``debug``
+        # (diagnostics) and ``expose_errors`` (exposure), and governs the
+        # assets / cache axis. Each stays overridable on its own. What
+        # ``mode`` NO LONGER decides: cookie security, which follows the
         # transport (cf. ``auth.resolve_cookie_secure``).
-        # ``mode=None`` retombe sur ``$BRETZEL_MODE`` (défaut "prod").
+        # ``mode=None`` falls back on ``$BRETZEL_MODE`` (default "prod").
         config_kwargs: dict[str, Any] = {
             "title": title,
             "description": description,
@@ -141,12 +141,13 @@ class Bretzel:
         # consistent with ``Theme()`` returning the framework default.
         self._theme = theme if theme is not None else Theme()
         self._theme_css_content: str = ""  # populated at startup
-        # Même CSS, sans la directive ``@source inline(...)`` : c'est ce
-        # que le mode dev inline dans chaque page (la safelist ne sert
-        # qu'au compilateur de prod). Cf. ``lifecycle._resolve_theme``.
+        # The same CSS, without the ``@source inline(...)`` directive:
+        # that is what dev mode inlines into every page (the safelist only
+        # serves the production compiler). Cf.
+        # ``lifecycle._resolve_theme``.
         self._theme_css_inline: str = ""
-        # Pipeline CSS effectif, posé au démarrage : True = le
-        # compilateur navigateur produit le CSS dans la page.
+        # The effective CSS pipeline, set at startup: True = the browser
+        # compiler produces the CSS in the page.
         self._css_browser_fallback: bool = True
 
         # ── Internal collections (``include`` populates these) ──────────
@@ -155,22 +156,21 @@ class Bretzel:
         # reference through ``PageMeta.layout`` + the ``_bz_layout``
         # parent chain).
         self._pages: list[Callable[..., Any]] = []
-        #: Les fonctions ``@download`` — un fichier servi en GET,
-        #: pas une page. Liste à part : elles ne passent par aucun
-        #: pipeline de rendu.
+        #: The ``@download`` functions — a file served over GET, not a
+        #: page. A separate list: they go through no render pipeline.
         self._downloads: list[Callable[..., Any]] = []
         self._error_handlers: dict[int, Callable[..., Any]] = {}
         self._features: list[Feature] = []
-        # Lint L1, calculé au startup : routables montés hors de toute
-        # Feature → [(label, route)]. Lu par la carte d'app.
+        # Lint L1, computed at startup: routables mounted outside any
+        # Feature → [(label, route)]. Read by the app map.
         self._undeclared: list[tuple[str, str]] = []
         self._user_middlewares: list[Any] = []
-        # Les sources d'identité déclarées par ``@auth.source``, dans l'ordre
-        # d'inclusion — le cookie signé est essayé AVANT elles et ne
-        # figure pas ici (cf. ``auth.resolve_identity``).
+        # The identity sources declared with ``@auth.source``, in
+        # inclusion order — the signed cookie is tried BEFORE them and
+        # does not appear here (cf. ``auth.resolve_identity``).
         self._identity_sources: list[Any] = []
-        # Les portes déclarées par ``@auth.door`` : ``(porte, on_user)``.
-        # Montées au startup, comme les pages.
+        # The doors declared with ``@auth.door``: ``(door, on_user)``.
+        # Mounted at startup, like the pages.
         self._doors: list[tuple[Any, Any]] = []
         self._startup_hooks: list[Callable[..., Any]] = []
         self._shutdown_hooks: list[Callable[..., Any]] = []
@@ -207,17 +207,17 @@ class Bretzel:
             redoc_url=None,
             openapi_url=None,
         )
-        # L'instance Bretzel, atteignable depuis n'importe quelle requête
-        # (``request.app`` rend le FastAPI, pas nous). C'est ce qui permet
-        # à :func:`auth.user_id` de retrouver la clé dérivée
-        # sans que l'appelant ait à la lui passer — le middleware de garde
-        # d'auth de l'utilisateur est le plus EXTERNE, donc il n'a ni
-        # contexte de rendu ni ``request.state`` déjà peuplé.
+        # The Bretzel instance, reachable from any request
+        # (``request.app`` returns the FastAPI, not us). That is what lets
+        # :func:`auth.user_id` find the derived key again without the
+        # caller having to pass it — the user's auth guard middleware is
+        # the OUTERMOST, so it has neither a render context nor an
+        # already-populated ``request.state``.
         self.fastapi.state.bretzel = self
 
-        # Starlette fige sa pile au premier appel ASGI. Sa construction est
-        # différée à ``__call__`` pour laisser le module utilisateur déclarer
-        # ses ``@app.middleware`` après avoir construit l'application.
+        # Starlette freezes its stack on the first ASGI call. Building
+        # it is deferred to ``__call__`` so the user module can declare
+        # its ``@app.middleware`` after building the application.
         self._middleware_stack_built = False
 
         # Exception handlers have the SAME constraint as middlewares :
@@ -237,18 +237,18 @@ class Bretzel:
         """Delegate to the underlying FastAPI. Lets gunicorn / uvicorn /
         hypercorn treat ``Bretzel`` instances as plain ASGI apps.
 
-        C'est aussi le dernier moment utile pour monter la pile de
-        middlewares : le module utilisateur est entièrement importé (donc
-        tous les ``@app.middleware`` ont couru) et Starlette n'a encore
-        rien figé. Le faire dans ``__init__`` la figeait avant que le
-        décorateur puisse exister — cf. le commentaire là-bas.
+        It is also the last useful moment to mount the middleware stack:
+        the user module is fully imported (so every ``@app.middleware``
+        has run) and Starlette has frozen nothing yet. Doing it in
+        ``__init__`` froze it before the decorator could exist — cf. the
+        comment there.
 
-        ⚠️ **Le rapatriement passe AVANT la pile**, et l'ordre est le
-        sujet : la politique de sécurité de contenu est calculée dans
-        ``build_middleware_stack``, à partir de ce que la coque va
-        RÉELLEMENT charger (``vendor.url_for``). Vendoriser après, c'est
-        publier une politique qui autorise les CDN pendant que les pages
-        servent des routes locales — deux vérités pour une même page.
+        ⚠️ **Vendoring happens BEFORE the stack**, and the order is the
+        subject: the content security policy is computed in
+        ``build_middleware_stack``, from what the shell will ACTUALLY
+        load (``vendor.url_for``). Vendoring afterwards means publishing
+        a policy that allows the CDNs while the pages serve local routes
+        — two truths for one page.
         """
         if not self._middleware_stack_built:
             self._middleware_stack_built = True
@@ -257,23 +257,23 @@ class Bretzel:
         await self.fastapi(scope, receive, send)
 
     async def _vendor_third_party(self) -> None:
-        """En dev, servir les scripts tiers depuis chez soi.
+        """In dev, serve the third-party scripts from your own host.
 
-        Une page Bretzel charge quatre scripts qui ne viennent pas de nous
-        (htmx, idiomorph, le composant iconify, le compilateur CSS de dev)
-        et va chercher ses glyphes chez trois hôtes Iconify. Tant que le
-        rapatriement n'avait lieu QUE sur commande explicite, le repli CDN
-        était la règle pour qui ignorait que la commande existe.
+        A Bretzel page loads four scripts that do not come from us (htmx,
+        idiomorph, the iconify component, the dev CSS compiler) and
+        fetches its glyphs from three Iconify hosts. As long as vendoring
+        happened ONLY on explicit command, the CDN fallback was the rule
+        for anyone unaware the command exists.
 
-        ⚠️ **Dev seulement.** En production, sortir du réseau au démarrage
-        serait une surprise ; ``python -m bretzel.render.vendor`` reste le
-        chemin explicite, et il vaut encore plus là-bas (mesuré le
-        2026-08-27 : ``DOMContentLoaded`` de 644 ms à 110 ms).
+        ⚠️ **Dev only.** In production, going out to the network at
+        startup would be a surprise; ``python -m bretzel.render.vendor``
+        stays the explicit path, and it is worth even more there
+        (measured on 2026-08-27: ``DOMContentLoaded`` from 644 ms to
+        110 ms).
 
-        ⚠️ **Sur le threadpool**, jamais sur la boucle : ce sont quatre
-        téléchargements réseau, et un proxy lent bloquerait le démarrage
-        entier du worker. C'est le principe 7 appliqué au framework
-        lui-même.
+        ⚠️ **On the threadpool**, never on the loop: these are four
+        network downloads, and a slow proxy would block the worker's
+        whole startup. It is principle 7 applied to the framework itself.
         """
         if not self.config.is_dev:
             return
@@ -283,17 +283,17 @@ class Bretzel:
         try:
             await call_without_blocking(ensure_vendored)
         except Exception as exc:
-            # ⚠️ **Large exprès, et c'est le point.** ``ensure_vendored``
-            # attrape déjà par FICHIER ; ce qui reste, c'est elle qui
-            # lève — un cache non inscriptible, un disque plein, un
-            # ``.bretzel/`` appartenant à un autre utilisateur. Sans cette
-            # garde, une app refuse de démarrer parce qu'un cache de
-            # CONFORT manque, alors que le repli CDN la ferait tourner.
-            # Trouvé par ``test_a_failure_never_stops_the_app`` avant
-            # d'être vu par quiconque.
+            # ⚠️ **Deliberately broad, and that is the point.**
+            # ``ensure_vendored`` already catches per FILE; what remains
+            # is what it raises — a non-writable cache, a full disk, a
+            # ``.bretzel/`` belonging to another user. Without this
+            # guard, an app refuses to start because a CONVENIENCE cache
+            # is missing, when the CDN fallback would make it run. Found
+            # by ``test_a_failure_never_stops_the_app`` before anyone
+            # saw it.
             print(
-                f"[bretzel] rapatriement impossible ({exc}) — les pages "
-                f"chargeront leurs scripts depuis leurs CDN"
+                f"[bretzel] vendoring impossible ({exc}) — the pages "
+                f"will load their scripts from their CDNs"
             )
 
     # ── Public properties ────────────────────────────────────────────────
@@ -326,13 +326,13 @@ class Bretzel:
 
     @property
     def debug(self) -> bool:
-        """L'axe DIAGNOSTICS — le framework doit-il être bavard.
+        """The DIAGNOSTICS axis — should the framework be talkative.
 
-        ``debug`` prend le mode pour DÉFAUT mais se règle seul
-        (``mode="prod", debug=True`` donne une prod bavarde sans exposer
-        les erreurs). Lu par ``each()`` pour l'avertissement de clé
-        instable et par le drift AST des features ; ni le transport, ni
-        l'exposition, ni les assets n'en dépendent.
+        ``debug`` takes the mode as its DEFAULT but can be set on its own
+        (``mode="prod", debug=True`` gives a talkative production without
+        exposing errors). Read by ``each()`` for the unstable-key warning
+        and by the features' AST drift; neither the transport, nor the
+        exposure, nor the assets depend on it.
         """
         return self.config.debug
 
@@ -417,11 +417,11 @@ class Bretzel:
     def _register_declaration(self, value: Any) -> None:
         """Register one value if it carries a decoration mark.
 
-        Cinq marques, et l'ordre des tests n'est pas indifférent : un
-        handler d'erreur porte AUSSI ``_bz_page``. ``_bz_download`` est
-        testée avant ``_bz_page`` par simple symétrie — une fonction ne
-        porte jamais les deux, mais l'ordre serait un piège si ça
-        changeait.
+        Five marks, and the order of the tests is not indifferent: an
+        error handler ALSO carries ``_bz_page``. ``_bz_download`` is
+        tested before ``_bz_page`` out of plain symmetry — a function
+        never carries both, but the order would be a trap if that
+        changed.
         """
         if getattr(value, MARK_SOURCE, False):
             if value not in self._identity_sources:
@@ -461,35 +461,33 @@ class Bretzel:
 
     @property
     def identity_sources(self) -> tuple[Any, ...]:
-        """Les sources ``@auth.source``, dans l'ordre d'inclusion.
+        """The ``@auth.source`` sources, in inclusion order.
 
-        Lu par :func:`bretzel.server.auth.resolve_identity` à chaque
-        requête, après le cookie signé.
+        Read by :func:`bretzel.server.auth.resolve_identity` on every
+        request, after the signed cookie.
         """
         return tuple(self._identity_sources)
 
     @property
     def doors(self) -> tuple[tuple[Any, Any], ...]:
-        """Les portes ``@auth.door`` et leur ``on_user`` — ``((porte, fn), …)``."""
+        """The ``@auth.door`` doors and their ``on_user`` — ``((door, fn), …)``."""
         return tuple(self._doors)
 
     @property
     def public_paths(self) -> frozenset[str]:
-        """Les chemins qu'une garde d'auth doit laisser passer **sans les
-        connaître**.
+        """The paths an auth guard must let through **without knowing
+        them**.
 
-        Trois familles, et aucune n'est devinable par l'app : les assets
-        du runtime (``runtime.js``, les deux feuilles), et les deux
-        routes de chaque porte de connexion — celle qui envoie chez le
-        fournisseur et celle qui reçoit son retour. Une garde qui
-        oublierait la seconde produirait une boucle de redirection dont
-        le symptôme ne désigne rien.
+        Three families, none of them guessable by the app: the runtime's
+        assets (``runtime.js``, the two sheets), and the two routes of
+        each sign-in door — the one that sends to the provider and the
+        one that receives its return. A guard forgetting the second would
+        produce a redirect loop whose symptom points at nothing.
 
-        L'app y ajoute les siens, **dont le chemin d'action de son
-        formulaire de connexion** (:func:`bretzel.server.action_path`) —
-        sans quoi le bouton « Se connecter » paraît mort.
-        Centraliser ces chemins évite qu'une nouvelle route interne rende
-        les gardes d'app incomplètes.
+        The app adds its own, **including its sign-in form's action
+        path** (:func:`bretzel.server.action_path`) — without which the
+        "Sign in" button seems dead. Centralising those paths keeps a new
+        internal route from making app guards incomplete.
         """
         paths = set(PUBLIC_ASSET_ROUTES)
         for door, _ in self._doors:
@@ -498,9 +496,9 @@ class Bretzel:
 
     @property
     def undeclared_pages(self) -> tuple[tuple[str, str], ...]:
-        """Lint L1 (calculé au startup) : les routables montés hors de toute
-        ``Feature`` — ``((label, route), ...)``. Vide si l'app n'utilise pas
-        les Features, ou si tout est déclaré."""
+        """Lint L1 (computed at startup): the routables mounted outside
+        any ``Feature`` — ``((label, route), ...)``. Empty when the app
+        does not use Features, or when everything is declared."""
         return tuple(self._undeclared)
 
     @property
@@ -511,20 +509,20 @@ class Bretzel:
 
     @property
     def routables(self) -> tuple[Any, ...]:
-        """Tout ce qui est MONTÉ et répond à une requête — pages et
-        handlers d'erreur, dans l'ordre où ``_lifespan`` les confronte aux
+        """Everything MOUNTED that answers a request — pages and error
+        handlers, in the order ``_lifespan`` confronts them with the
         ``Feature``.
 
-        Cette propriété permet notamment à ``bretzel check --deep`` de lire
-        la surface montée sans accéder aux registres privés.
+        This property notably lets ``bretzel check --deep`` read the
+        mounted surface without touching the private registries.
         """
         return (*self._pages, *self._error_handlers.values())
 
     # ── Server-side decorators ───────────────────────────────────────────
     #
-    # Ces trois décorateurs restent des méthodes parce qu'ils ont besoin de
-    # ``self`` : ils enregistrent quelque chose SUR cette app (une pile
-    # de middlewares ou des hooks de cycle de vie).
+    # These three decorators stay methods because they need ``self``:
+    # they register something ON this app (a middleware stack or
+    # lifecycle hooks).
 
     def middleware(self, target: Callable[..., Any] | type) -> Callable[..., Any] | type:
         return _middleware_decorator(self, target)
@@ -698,9 +696,9 @@ class Bretzel:
         # Load-bearing : a lying contract (unknown dep, cycle, name clash)
         # stops the app assembling here, loudly — it never half-starts.
         validate_features(self._features)
-        # Lints doux (WARN, jamais bloquants) — le manifeste arbitré contre
-        # la réalité. Seulement si l'app a opté pour les Features : une app
-        # sans contrat n'a pas à se faire sermonner.
+        # Soft lints (WARN, never blocking) — the manifest arbitrated
+        # against reality. Only when the app opted into Features: an app
+        # with no contract has no business being lectured.
         if self._features:
             from bretzel.server.feature import dependency_drift, undeclared_provides
 

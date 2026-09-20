@@ -1,25 +1,25 @@
-"""features/calendrier_data — data : l'année, ses trimestres, ses périodes.
+"""features/calendrier_data — data: the year, its terms, its periods.
 
-``kind="data"`` : aucune page. Elle porte les lectures du calendrier et
-**les six écritures gardées par RT-1** — chacune commence par
-:func:`~examples.ecole.features.annees.garde_ecriture`, et c'est la seule
-raison pour laquelle une page peut se contenter de ne pas afficher un
-bouton (EF-C10) : le refus existe en dessous.
+``kind="data"``: no page. It carries the calendar's reads and **the six
+writes guarded by RT-1** — each begins with
+:func:`~examples.ecole.features.annees.garde_ecriture`, and it is the
+only reason a page can settle for not showing a button (EF-C10): the
+refusal exists underneath.
 
-Ce qu'elle calcule et que personne d'autre ne doit recalculer
--------------------------------------------------------------
-:func:`cours_perdus` est la réponse d'EF-A11, et elle a **trois formes
-distinctes** qu'il ne faut surtout pas confondre :
+What it computes and nobody else must recompute
+------------------------------------------------
+:func:`cours_perdus` is EF-A11's answer, and it has **three distinct
+forms** that must above all not be confused:
 
 ==================  ===================================================
-ce qu'elle rend     ce que ça veut dire
+what it returns     what it means
 ==================  ===================================================
-``None``            l'alternance est indéterminée — pas de date de
-                    référence de semaine A. On ne rend **pas**
-                    « aucun cours » : on ne sait pas (RT-4)
-``[]``              la liste est VIDE, et c'est la bonne nouvelle :
-                    ce jour-là il n'y avait aucun cours à perdre
-``[(code, n), …]``  ce que ça coûte, la classe la plus touchée d'abord
+``None``            the alternation is undetermined — no week-A
+                    reference date. We do **not** return "no lesson":
+                    we do not know (RT-4)
+``[]``              the list is EMPTY, and it is the good news: that
+                    day there was no lesson to lose
+``[(code, n), …]``  what it costs, the class most affected first
 ==================  ===================================================
 """
 
@@ -35,7 +35,7 @@ from examples.ecole.features.annees import garde_ecriture
 
 
 def horaires_de(annee_id: int) -> list[dict]:
-    """Les huit bornes de la journée, dans l'ordre (EF-B3)."""
+    """The day's eight boundaries, in order (EF-B3)."""
     return query(
         "SELECT id, rang, debut, fin FROM horaires "
         "WHERE annee_id = ? ORDER BY rang",
@@ -44,11 +44,11 @@ def horaires_de(annee_id: int) -> list[dict]:
 
 
 def trimestres_de(annee_id: int) -> dict[tuple[str, int], str]:
-    """``(cycle, numéro) → fin``, et rien pour les cases vides.
+    """``(cycle, number) → end``, and nothing for the empty cells.
 
-    Un dict plutôt qu'une liste : l'écran demande six cases nommées
-    (EF-A3), et une case absente doit se lire comme absente — pas comme
-    une ligne à trouver dans une liste.
+    A dict rather than a list: the screen asks for six named cells
+    (EF-A3), and a missing cell must read as missing — not as a row to
+    find in a list.
     """
     return {
         (r["cycle"], r["numero"]): r["fin"] or ""
@@ -60,11 +60,11 @@ def trimestres_de(annee_id: int) -> dict[tuple[str, int], str]:
 
 
 def periodes_de(annee_id: int) -> list[dict]:
-    """Les périodes sans classe, **dans l'ordre de l'année** (EF-A6).
+    """The periods without class, **in the year's order** (EF-A6).
 
-    *« L'ordre par catégorie — les quatre vacances d'abord — mettait la
-    journée pédagogique du 16 octobre sous Pâques »* : c'est le piège
-    n° 13, et il se ferme ici, dans le ``ORDER BY``, pas dans l'écran.
+    *"Ordering by category — the four holidays first — put the staff day
+    of 16 October under Easter"*: it is trap no. 13, and it is closed
+    here, in the ``ORDER BY``, not in the screen.
     """
     return query(
         "SELECT id, libelle, debut, fin FROM vacances "
@@ -76,15 +76,15 @@ def periodes_de(annee_id: int) -> list[dict]:
 def cours_perdus(
     annee: dict, debut: date, fin: date
 ) -> list[tuple[str, int]] | None:
-    """Ce qu'une période fait perdre comme heures (EF-A11).
+    """What a period makes one lose in hours (EF-A11).
 
-    ⚠️ **Passe par :func:`~examples.ecole.core.domain.semaine_ab`, jamais
-    par un numéro de semaine.** C'est le piège n° 2 : compté sur les
-    numéros ISO, le décompte attribue les heures à la mauvaise semaine
-    dès janvier, une année sur cinq. Le seul endroit où l'alternance se
-    calcule dans l'app est cette fonction de domaine.
+    ⚠️ **Goes through :func:`~examples.ecole.core.domain.semaine_ab`,
+    never through a week number.** It is trap no. 2: counted on ISO
+    numbers, the count attributes the hours to the wrong week from
+    January on, one year in five. The only place the alternation is
+    computed in the app is that domain function.
 
-    Le dimanche est sauté ; le samedi non, la grille va jusque-là.
+    Sunday is skipped; Saturday is not, the grid runs that far.
     """
     if not annee["lundi_ref"]:
         return None
@@ -107,15 +107,16 @@ def cours_perdus(
                     (jour.weekday(), semaine_ab(jour, lundi_ref)), ()):
                 compte[code] += 1
         jour += timedelta(days=1)
-    # La plus touchée d'abord, puis le code — sans le second critère,
-    # deux classes à égalité changeraient de place d'un rendu à l'autre.
+    # The most affected first, then the code — without the second
+    # criterion, two classes on a tie would swap places from one render
+    # to the next.
     return sorted(compte.items(), key=lambda paire: (-paire[1], paire[0]))
 
 
-# ── Les écritures. Chacune s'ouvre sur la garde RT-1 ──────────────────
+# ── The writes. Each opens on the RT-1 guard ──────────────────────────
 
 def modifier_annee(annee_id: int, champs: dict[str, str]) -> None:
-    """Corrige le libellé, le début, la fin, la référence (EF-A1)."""
+    """Correct the label, the start, the end, the reference (EF-A1)."""
     garde_ecriture(annee_id)
     execute(
         "UPDATE annees SET libelle = ?, debut = ?, fin = ?, lundi_ref = ? "
@@ -126,13 +127,13 @@ def modifier_annee(annee_id: int, champs: dict[str, str]) -> None:
 
 
 def creer_annee(libelle: str, debut: str, fin: str) -> int:
-    """Crée une année nouvelle, **en consultation** (EF-A2).
+    """Create a new year, **in consultation mode** (EF-A2).
 
-    Pas de garde RT-1 ici, et ce n'est pas un oubli : créer une année
-    n'écrit dans aucune. La nouvelle naît hors service — c'est
-    :func:`designer_en_cours` qui la met en service, et c'est un second
-    geste exprès. Une année qui deviendrait « en cours » à sa création
-    ferait basculer tous les écrans sur une base vide.
+    No RT-1 guard here, and it is not an oversight: creating a year
+    writes into none. The new one is born out of service — it is
+    :func:`designer_en_cours` that puts it into service, and it is a
+    second gesture on purpose. A year that became "current" at its
+    creation would switch every screen to an empty database.
     """
     return execute(
         "INSERT INTO annees (libelle, debut, fin, en_cours, lundi_ref) "
@@ -142,24 +143,24 @@ def creer_annee(libelle: str, debut: str, fin: str) -> int:
 
 
 def designer_en_cours(annee_id: int) -> None:
-    """Bascule l'année en service. **Une seule à la fois** (§ 5.1).
+    """Switch the year into service. **Only one at a time** (§ 5.1).
 
-    Pas de garde RT-1 : c'est l'opération qui DÉPLACE la barrière, elle
-    ne peut pas être derrière elle. Les deux écritures sont faites dans
-    cet ordre — on éteint avant d'allumer — pour qu'aucun instant
-    intermédiaire n'ait deux années en cours.
+    No RT-1 guard: it is the operation that MOVES the barrier, it cannot
+    be behind it. The two writes are done in this order — one switches
+    off before switching on — so no intermediate instant has two current
+    years.
     """
     execute("UPDATE annees SET en_cours = 0 WHERE en_cours = 1")
     execute("UPDATE annees SET en_cours = 1 WHERE id = ?", (annee_id,))
 
 
 def poser_trimestre(annee_id: int, cycle: str, numero: int, fin: str) -> None:
-    """Pose (ou efface) la FIN d'un trimestre (EF-A3).
+    """Set (or clear) a term's END (EF-A3).
 
-    Le début n'est jamais saisi : il se lit comme le lendemain du
-    précédent. Une fin vide efface la ligne plutôt que d'écrire une
-    chaîne vide — une case vide doit se lire comme vide partout, y
-    compris dans la base.
+    The start is never entered: it reads as the day after the previous
+    one. An empty end clears the row rather than writing an empty string
+    — an empty cell must read as empty everywhere, including in the
+    database.
     """
     garde_ecriture(annee_id)
     if not fin:
@@ -178,17 +179,17 @@ def poser_trimestre(annee_id: int, cycle: str, numero: int, fin: str) -> None:
 
 
 def poser_periode(annee_id: int, libelle: str, debut: str, fin: str) -> None:
-    """Pose, corrige ou EFFACE une période sans classe (EF-A5).
+    """Set, correct or CLEAR a period without class (EF-A5).
 
-    Les trois règles du cahier, dans l'ordre où elles se lisent :
+    The specification's three rules, in the order they read:
 
-    - un **début vide efface** la période. C'est la façon de retirer une
-      ligne sans un bouton de plus, et c'est celle que le professeur
-      connaît ;
-    - une **fin vide vaut le début** : un jour férié se saisit d'une
-      seule date, et il ressort avec ses deux dates identiques (EF-A8) ;
-    - le nom fait la clé, parce que les quatre vacances de zone B sont
-      PROPOSÉES et se remplissent par leur nom (EF-A4).
+    - an **empty start clears** the period. It is the way of removing a
+      row without one more button, and it is the one the teacher knows;
+    - an **empty end equals the start**: a public holiday is entered with
+      a single date, and it comes out with its two identical dates
+      (EF-A8);
+    - the name is the key, because zone B's four holidays are PROPOSED
+      and are filled in by their name (EF-A4).
     """
     garde_ecriture(annee_id)
     if not debut:
@@ -205,7 +206,7 @@ def poser_periode(annee_id: int, libelle: str, debut: str, fin: str) -> None:
 
 
 def supprimer_periode(annee_id: int, libelle: str) -> None:
-    """Retire une période. Le pendant explicite du « début vide »."""
+    """Remove a period. The explicit counterpart of the "empty start"."""
     garde_ecriture(annee_id)
     execute("DELETE FROM vacances WHERE annee_id = ? AND libelle = ?",
             (annee_id, libelle))

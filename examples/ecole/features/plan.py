@@ -1,38 +1,38 @@
-"""features/plan — l'onglet « Plan » : asseoir une classe.
+"""features/plan — the "Plan" tab: seating a class.
 
-EF-G1 à EF-G17, et c'est le lot que le cahier annonce comme le plus
-risqué : *« le seul qui demande un glisser-déposer arbitré par le serveur
-avec des contraintes »*.
+EF-G1 to EF-G17, and it is the batch the specification announces as the
+riskiest: *"the only one requiring a drag and drop arbitrated by the
+server with constraints"*.
 
-Comment le glisser marche ici
-------------------------------
-**Chaque PLACE est une zone de dépôt**, et elle n'accepte qu'un élève.
-Le serveur arbitre au lâcher : il assied, et si la place était prise il
-ÉCHANGE — un élève lâché sur une chaise occupée doit aller quelque part,
-et l'endroit d'où il vient est le seul qui soit libre. Un refus, lui, ne
-mute rien : le navigateur a déjà bougé la vignette, et le rendu serveur
-la remet en place par le morph.
+How the drag works here
+------------------------
+**Every SEAT is a drop zone**, and it accepts one pupil only. The server
+arbitrates on drop: it seats, and if the seat was taken it SWAPS — a
+pupil dropped on an occupied chair has to go somewhere, and the place
+they came from is the only free one. A refusal, for its part, mutates
+nothing: the browser has already moved the badge, and the server render
+puts it back through the morph.
 
-Ce que le plan refuse de faire, et c'est le piège n° 11
---------------------------------------------------------
-*« Sur tablette, la main qui tient l'appareil effleure l'écran et déplace
-un élève sans que rien ne le signale — on s'en aperçoit au cours suivant,
-devant un plan faux. »* D'où EF-G14, et ses cinq clauses :
+What the plan refuses to do, and it is trap no. 11
+----------------------------------------------------
+*"On a tablet, the hand holding the device brushes the screen and moves a
+pupil with nothing to flag it — one notices at the next lesson, in front
+of a false plan."* Hence EF-G14, and its five clauses:
 
-- le bouton dit ce qu'on va **pouvoir faire** — « Figer » / « Modifier »,
-  jamais « Défiger », qui ne se lit pas ;
-- figé, le glisser est **coupé** ET les boutons qui déplacent sont
-  **grisés**, répartition automatique comprise. *« Protéger le geste le
-  plus fin en laissant "Répartir" aurait été absurde. »* ;
-- ce qui ne déplace personne reste ouvert : consulter, changer de salle,
-  renommer, exporter ;
-- le bouton est dans l'**en-tête**, pas dans la barre du plan : c'est en
-  classe qu'il sert, précisément quand cette barre est repliée ;
-- **l'état est retenu d'une ouverture à l'autre** — il vit en base.
+- the button says what one will **be able to do** — "Figer" / "Modifier",
+  never "Défiger", which does not read;
+- frozen, the drag is **cut** AND the buttons that move things are
+  **greyed out**, automatic distribution included. *"Protecting the
+  finest gesture while leaving 'Répartir' would have been absurd."*;
+- whatever moves nobody stays open: consulting, changing room, renaming,
+  exporting;
+- the button is in the **header**, not in the plan's bar: it is in class
+  that it serves, precisely when that bar is folded away;
+- **the state is kept from one opening to the next** — it lives in the
+  database.
 
-⚠️ Aucune classe Tailwind n'est assemblée en f-string ; la largeur d'une
-allée est un ``style=`` calculé, pour la même raison que les hauteurs de
-la grille d'emploi du temps.
+⚠️ No Tailwind class is assembled in an f-string; an aisle's width is a
+computed ``style=``, for the same reason as the timetable grid's heights.
 """
 
 from __future__ import annotations
@@ -80,31 +80,31 @@ from examples.ecole.features.plan_data import (
 from examples.ecole.features.shell import shell
 from examples.ecole.features.vue_classe import VueClasse
 
-#: Le groupe de glisser. Un seul : toutes les places acceptent les mêmes
-#: vignettes, et c'est le serveur qui arbitre ce qui est légal.
+#: The drag group. Only one: every seat accepts the same badges, and it
+#: is the server that arbitrates what is legal.
 GROUPE = "eleve"
 
-#: La largeur d'une place, **en pixels**. Sert aussi à calculer celle
-#: d'une allée, qui est en CENTIÈMES de place (EF-G6) — donc une
-#: fraction de celle-ci.
+#: A seat's width, **in pixels**. Also serves to compute an aisle's,
+#: which is in HUNDREDTHS of a seat (EF-G6) — hence a fraction of this
+#: one.
 #:
-#: ⚠️ En ``px`` et plus en ``rem``, pour la raison écrite dans
-#: ``emploi_du_temps.py`` : une salle de douze places sur douze
-#: rangées ne tient à l'écran que si sa géométrie ne suit pas la
-#: taille du texte. 76 px, c'est l'avatar du preset (32 px) plus son
-#: nom court et le cadre en pointillés.
+#: ⚠️ In ``px`` and no longer in ``rem``, for the reason written in
+#: ``emploi_du_temps.py``: a room of twelve seats over twelve rows only
+#: fits on screen if its geometry does not follow the text size. 76 px is
+#: the preset's avatar (32 px) plus its short name and the dotted frame.
 LARGEUR_PLACE = 76
 
 
 class VuePlan(PageState, addressable=True):
-    """La classe et la salle regardées (EF-U1 : *« la classe, la salle »*)."""
+    """The class and the room being looked at (EF-U1: *"the class, the
+    room"*)."""
 
     classe_id: int = field(default=0)
     salle_id: int = field(default=0, url="salle")
 
 
 class TraceDraft(PageState):
-    """Le tracé d'EF-G2, dans son dialogue."""
+    """EF-G2's outline, in its dialog."""
 
     ouvert: bool = field(default=False)
     rangees: int = field(default=5)
@@ -114,7 +114,7 @@ class TraceDraft(PageState):
 
 
 class ContrainteDraft(PageState):
-    """Une paire à séparer, en cours de saisie (EF-G10)."""
+    """A pair to separate, being entered (EF-G10)."""
 
     ouvert: bool = field(default=False)
     eleve_a: str = field(default="")
@@ -122,10 +122,10 @@ class ContrainteDraft(PageState):
 
 
 def salle_courante() -> dict | None:
-    """La salle affichée — celle de l'adresse, ou la première.
+    """The room shown — the address's, or the first.
 
-    *« Une classe n'a pas de salle tant qu'on n'a pas ouvert son plan :
-    la première est créée à la volée »* (EF-G11).
+    *"A class has no room until its plan has been opened: the first is
+    created on the fly"* (EF-G11).
     """
     vue = VuePlan()
     classe_id = int(vue.classe_id) or int(VueClasse().classe_id)
@@ -143,12 +143,12 @@ def salle_courante() -> dict | None:
 # ── Les handlers ─────────────────────────────────────────────────────
 
 def deposer(m: Move) -> None:
-    """Un élève lâché sur une place. **Le serveur arbitre.**
+    """A pupil dropped on a seat. **The server arbitrates.**
 
-    ``m.to_zone`` est ``place_<id>`` ; ``m.item_key`` est l'identifiant
-    de l'élève. Un plan FIGÉ ne mute rien, et c'est la seconde barrière :
-    la première est ``locked=`` sur la zone, mais une zone verrouillée
-    dans un DOM qu'on peut inspecter n'est pas une règle.
+    ``m.to_zone`` is ``place_<id>``; ``m.item_key`` is the pupil's
+    identifier. A FROZEN plan mutates nothing, and it is the second
+    barrier: the first is ``locked=`` on the zone, but a zone locked in a
+    DOM one can inspect is not a rule.
     """
     donnees = salle_courante()
     if donnees is None or donnees["fige"]:
@@ -174,11 +174,11 @@ def vider_tout() -> None:
 
 
 def repartir_la_classe() -> None:
-    """EF-G9 — et **jamais d'échec bloquant**.
+    """EF-G9 — and **never a blocking failure**.
 
-    *« Au pire le tirage qui viole le moins de paires est retenu, et les
-    conflits restants sont signalés. »* Un plan qu'on refuse de rendre
-    laisse le professeur sans plan du tout.
+    *"At worst the draw violating the fewest pairs is kept, and the
+    remaining conflicts are reported."* A plan one refuses to produce
+    leaves the teacher with no plan at all.
     """
     donnees = salle_courante()
     if donnees is None or donnees["fige"]:
@@ -211,10 +211,10 @@ def repartir_la_classe() -> None:
 
 
 def eleves_pour(donnees: dict) -> list[dict]:
-    """Les élèves que CETTE salle doit asseoir.
+    """The pupils THIS room must seat.
 
-    EF-G17 : une salle de demi-groupe n'accueille que son groupe, et la
-    répartition automatique ne brasse que lui.
+    EF-G17: a half-group room only takes its group, and the automatic
+    distribution only shuffles that.
     """
     tous = eleves_de(donnees["classe_id"])
     if donnees["demi_groupe"] is None:
@@ -361,22 +361,23 @@ def supprimer_la_version(version_id: int) -> None:
 # ── Le rendu ─────────────────────────────────────────────────────────
 
 def chaise(place: dict, fige: bool, en_table: bool) -> None:
-    """Une place : une zone de dépôt qui n'accueille qu'un élève.
+    """A seat: a drop zone that takes one pupil only.
 
-    L'allée qui la précède est un ``style=`` calculé — sa largeur est en
-    CENTIÈMES de place (EF-G6), donc une fraction d'une largeur connue,
-    et une classe Tailwind ne sait pas multiplier.
+    The aisle preceding it is a computed ``style=`` — its width is in
+    HUNDREDTHS of a seat (EF-G6), hence a fraction of a known width, and
+    a Tailwind class cannot multiply.
     """
     if place["allee_avant"]:
         ui.flex(
             style=f"width:{place['allee_avant'] / 100 * LARGEUR_PLACE}px")
     with ui.dropzone(
-        # `holds="one"` : une chaise ne tient qu'UN élève. Sans lui, le
-        # geste glissait l'élève dans la chaise visée le temps du survol,
-        # qui en portait alors deux — la chaise s'ouvrait, le plan se
-        # décalait, et on ne voyait plus où l'on posait. Avec, la chaise
-        # ne bouge pas et s'annonce écrasable ; l'échange reste le fait
-        # d'`asseoir`, côté serveur, qui le faisait déjà.
+        # `holds="one"`: a chair holds only ONE pupil. Without it, the
+        # gesture slid the pupil into the target chair for the duration
+        # of the hover, which then carried two — the chair opened, the
+        # plan shifted, and one could no longer see where one was
+        # putting it. With it, the chair does not move and announces
+        # itself as overwritable; the swap stays `asseoir`'s doing,
+        # server side, which it already was.
         name=f"place_{place['id']}", accepts=[GROUPE], holds="one",
         on_move=deposer,
         locked=fige, color="primary",
@@ -390,11 +391,11 @@ def chaise(place: dict, fige: bool, en_table: bool) -> None:
                                       disabled=lambda _p: fige):
                 vignette_assise(assis, fige)
         else:
-            # ``align=`` / ``justify=`` et pas ``classes=`` : les deux
-            # props émettent DÉJÀ une classe sur cet élément, et deux
-            # classes de même spécificité laissent la feuille Tailwind
-            # trancher — le HTML porte les deux et rien ne dit laquelle
-            # a gagné. `bretzel check` l'a dit avant qu'on le voie.
+            # ``align=`` / ``justify=`` and not ``classes=``: both
+            # props ALREADY emit a class on this element, and two classes
+            # of the same specificity let the Tailwind sheet decide — the
+            # HTML carries both and nothing says which won. `bretzel
+            # check` said so before it was seen.
             ui.flex(align="center", justify="center", classes="h-12",
                     style=f"width:{LARGEUR_PLACE - 12}px")
 
@@ -421,25 +422,25 @@ def vignette_assise(place: dict, fige: bool) -> None:
 
 @refreshable(deps=[AnneeVue, VuePlan, PlanRev])
 def panneau_plan() -> None:
-    """La SALLE : la barre, les places, la liste d'attente. Rien d'autre.
+    """The ROOM: the bar, the seats, the waiting list. Nothing else.
 
-    **Ce qui n'est PAS ici, et pourquoi.** Une zone est le grain de ce
-    qu'on redessine : tout ce qu'on y appelle repart à chaque geste,
-    même ce qui n'a pas bougé. Trois surfaces en sortaient donc, et
-    c'est mesuré le 2026-09-13 sur un simple « vider une place » —
-    **248 ko de réponse** :
+    **What is NOT here, and why.** A zone is the grain of what gets
+    redrawn: everything called inside it goes out again at every gesture,
+    even what has not moved. Three surfaces therefore left it, and it is
+    measured on 2026-09-13 on a simple "empty a seat" — **248 kB of
+    response**:
 
-    - les deux dialogues, **67 ko**, alors qu'ils sont FERMÉS. Ils sont
-      des zones à eux depuis F12 (leur brouillon ne redessine plus la
-      salle), mais les APPELER ici les remettait dans le paquet : une
-      zone imbriquée repart avec celle qui la contient, le découplage
-      ne joue que dans un sens. Ils sont montés par la page ;
-    - la colonne des contraintes, **~40 ko**, qui suit maintenant
-      :class:`ContraintesRev` — asseoir un élève ne change ni une paire
-      à séparer ni une version.
+    - the two dialogs, **67 kB**, although they are CLOSED. They have
+      been zones of their own since F12 (their draft no longer redraws
+      the room), but CALLING them here put them back in the parcel: a
+      nested zone goes out with the one containing it, the decoupling
+      only works one way. They are mounted by the page;
+    - the constraints column, **~40 kB**, which now follows
+      :class:`ContraintesRev` — seating a pupil changes neither a pair to
+      separate nor a version.
 
-    Ce que le plan doit suivre, c'est l'EFFET d'une écriture de place,
-    et il passe par :class:`PlanRev`.
+    What the plan must follow is the EFFECT of a seat write, and it goes
+    through :class:`PlanRev`.
     """
     donnees = salle_courante()
     if donnees is None:
@@ -477,12 +478,12 @@ def panneau_plan() -> None:
 
 
 def boutons_dallees(places: list[dict]) -> None:
-    """EF-G4 — un bouton par COLONNE, jamais par place.
+    """EF-G4 — one button per COLUMN, never per seat.
 
-    *« Un passage ouvert sur trois rangées et fermé sur deux ne
-    ressemble à aucune salle réelle. »* La colonne 1 n'a pas de bouton :
-    une allée devant la première place est refusée (EF-G5), et un bouton
-    qui ne peut que refuser n'a rien à faire à l'écran.
+    *"A passage open on three rows and closed on two looks like no real
+    room."* Column 1 has no button: an aisle in front of the first seat
+    is refused (EF-G5), and a button that can only refuse has no business
+    on screen.
     """
     colonnes = sorted({p["colonne"] for p in places})
     with ui.hstack(gap="sm", align="center", wrap=True):
@@ -500,7 +501,7 @@ def boutons_dallees(places: list[dict]) -> None:
 
 
 def salle_dattente(debout: list[dict], fige: bool) -> None:
-    """Les élèves pas encore assis. C'est d'ici qu'on les glisse."""
+    """The pupils not yet seated. It is from here that one drags them."""
     with ui.card(padding="md"), ui.vstack(gap="sm"):
         ui.heading(f"Pas encore assis · {len(debout)}", level=3, size="md")
         if not debout:
@@ -519,8 +520,8 @@ def salle_dattente(debout: list[dict], fige: bool) -> None:
 
 
 def barre_du_plan(donnees: dict, fige: bool, debout: int) -> None:
-    # Meme raison que dans `colonne_des_contraintes` : `en_consultation()`
-    # coute deux requetes, donc on le lit une fois pour la barre.
+    # The same reason as in `colonne_des_contraintes`: `en_consultation()`
+    # costs two queries, so we read it once for the bar.
     consultation = en_consultation()
     with ui.hstack(gap="md", justify="between", align="center", wrap=True):
         with ui.hstack(gap="sm", align="center", wrap=True):
@@ -537,7 +538,8 @@ def barre_du_plan(donnees: dict, fige: bool, debout: int) -> None:
                                aria_label="Ajouter une salle",
                                on_click=partial(nouvelle_salle, None))
         with ui.hstack(gap="sm", align="center", wrap=True):
-            # EF-G14 : ce qui ne déplace personne reste ouvert même figé.
+            # EF-G14: whatever moves nobody stays open even when
+            # frozen.
             ui.button("Imprimer", variant="ghost", icon_left="printer",
                       on_click=print_page())
             ui.button("Enregistrer une version", variant="ghost",
@@ -554,11 +556,11 @@ def barre_du_plan(donnees: dict, fige: bool, debout: int) -> None:
 
 @refreshable(deps=[AnneeVue, VuePlan, PlanRev])
 def bouton_figer() -> None:
-    """EF-G14 — **dans l'en-tête, pas dans la barre du plan**.
+    """EF-G14 — **in the header, not in the plan's bar**.
 
-    *« C'est en classe qu'il sert, précisément quand cette barre est
-    repliée. »* Et le libellé dit ce qu'on va POUVOIR FAIRE : « Figer » /
-    « Modifier », jamais « Défiger », qui ne se lit pas.
+    *"It is in class that it serves, precisely when that bar is folded
+    away."* And the label says what one will BE ABLE TO DO: "Figer" /
+    "Modifier", never "Défiger", which does not read.
     """
     donnees = salle_courante()
     if donnees is None:
@@ -576,12 +578,12 @@ def bouton_figer() -> None:
 
 @refreshable(deps=[AnneeVue, VuePlan, ContraintesRev])
 def colonne_des_contraintes() -> None:
-    """EF-G10 et EF-G13 — les contraintes de la CLASSE, et les versions.
+    """EF-G10 and EF-G13 — the CLASS's constraints, and the versions.
 
-    Zone à part depuis le 2026-09-13 : elle ne dépend PAS de
-    :class:`PlanRev`, donc elle ne repart pas à chaque élève déplacé.
-    Elle lit ses propres entrées — une zone ne reçoit pas d'arguments,
-    c'est ce qui lui permet de se re-rendre seule.
+    A separate zone since 2026-09-13: it does NOT depend on
+    :class:`PlanRev`, so it does not go out again at every pupil moved.
+    It reads its own inputs — a zone receives no arguments, which is what
+    allows it to re-render alone.
     """
     donnees = salle_courante()
     if donnees is None:
@@ -589,13 +591,13 @@ def colonne_des_contraintes() -> None:
     eleves = eleves_pour(donnees)
     fige = bool(donnees["fige"]) or en_consultation()
     regles = contraintes_de(donnees["classe_id"])
-    # ⚠️ **Une seule lecture pour toute la colonne.** `en_consultation()`
-    # coute DEUX requetes SQL : il compare l'annee regardee a l'annee en
-    # cours, et chacune relit la table des annees. Ecrit dans les boucles
-    # ci-dessous — une par contrainte, une par eleve, une par version — il
-    # partait une fois par bouton : **228 requetes identiques pour un seul
-    # rendu**, soit 90 % des 955 ms que la page coutait. Une zone lit ses
-    # entrees en tete, pas a chaque widget.
+    # ⚠️ **One single read for the whole column.** `en_consultation()`
+    # costs TWO SQL queries: it compares the year being looked at with
+    # the current year, and each re-reads the years table. Written inside
+    # the loops below — one per constraint, one per pupil, one per
+    # version — it went out once per button: **228 identical queries for
+    # a single render**, that is 90 % of the 955 ms the page cost. A zone
+    # reads its inputs at the head, not at every widget.
     consultation = en_consultation()
     with ui.grid(cols={"base": 1, "lg": 2}, gap="md"):
         with ui.card(padding="md"), ui.vstack(gap="sm"):
@@ -737,9 +739,9 @@ def plan_page(classe_id: int) -> None:
             bouton_figer()
         panneau_plan()
         colonne_des_contraintes()
-    # Hors de la pile : montés par la PAGE, pas par la salle. Une zone
-    # appelée dans une autre repart avec elle, et ces deux-là pesaient
-    # 67 ko sur chaque glisser alors qu'elles sont fermées.
+    # Outside the stack: mounted by the PAGE, not by the room. A zone
+    # called inside another goes out with it, and those two weighed 67 kB
+    # on every drag although they are closed.
     dialogue_trace()
     dialogue_contrainte()
 

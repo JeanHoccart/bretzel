@@ -1,20 +1,19 @@
-"""features/nightly_hygiene — job : la passe d'hygiène nocturne.
+"""features/nightly_hygiene — job: the nightly hygiene pass.
 
-Feature ``kind="job"`` : une tâche de fond. Pas de route, pas de rendu,
-aucun `Request` — c'est ce que le kind déclare, et c'est pour ça qu'un
-job n'ancre PAS le placement optimal dans la carte d'app (seules les
-pages et les layouts ancrent). Branchée sur un ordonnanceur dans une
-vraie app ; exposée comme fonction ici, pour qu'elle soit appelable et
-testable sans horloge.
+A ``kind="job"`` feature: a background task. No route, no rendering, no
+`Request` — it is what the kind declares, and it is why a job does NOT
+anchor the optimal placement in the app map (only pages and layouts
+anchor). Wired to a scheduler in a real app; exposed as a function here,
+so it is callable and testable without a clock.
 
-Ce qu'elle fait est le besoin réel d'un CRM : les affaires ouvertes dont
-la date de clôture est passée sont du bruit dans le pipeline. Personne
-ne les ferme pendant sa journée, donc la nuit s'en charge — elle les
-COMPTE et les rend, elle ne décide pas à la place d'un commercial.
+What it does is a CRM's real need: open deals whose close date has passed
+are noise in the pipeline. Nobody closes them during their day, so the
+night takes care of it — it COUNTS them and returns them, it does not
+decide in a salesperson's place.
 
-Reprise du recalcul nocturne de l'app `mad` le 2026-09-10, quand elle
-a été retirée : `job` n'était exercé que là. La couverture
-est gatée depuis, par
+Taken over from the `mad` app's nightly recomputation on 2026-09-10, when
+it was removed: `job` was exercised only there. The coverage has been
+gated since, by
 ``tests/consistency/test_every_feature_kind_is_exercised.py``.
 """
 
@@ -26,13 +25,12 @@ from examples.crm.core.domain import OPEN_STAGES, TODAY
 
 
 def stale_deals() -> list[dict]:
-    """Les affaires OUVERTES dont la date de clôture est dépassée.
+    """The OPEN deals whose close date has passed.
 
-    Sans cadrage de portefeuille : un job tourne sans utilisateur, donc
-    il n'a pas d'identité à qui restreindre la lecture. C'est
-    exactement la raison pour laquelle
-    ``test_crm_owned_reads_declare_their_scope`` porte une liste blanche
-    nommée plutôt qu'une règle aveugle.
+    With no portfolio scoping: a job runs with no user, so it has no
+    identity to restrict the read to. It is exactly the reason why
+    ``test_crm_owned_reads_declare_their_scope`` carries a named
+    allowlist rather than a blind rule.
     """
     marques = ", ".join("?" for _ in OPEN_STAGES)
     return query(
@@ -44,7 +42,7 @@ def stale_deals() -> list[dict]:
 
 
 def run_nightly_hygiene() -> int:
-    """La passe complète — rend le nombre d'affaires à revoir."""
+    """The complete pass — returns the number of deals to review."""
     return len(stale_deals())
 
 

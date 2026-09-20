@@ -18,7 +18,7 @@ generic ``str | Component | ClientBinding`` slot contract most other
 components honour. ``text`` is the SOURCE Pygments highlights, not a
 content slot — a Component there used to be silently stringified to
 its Python ``repr()`` and syntax-highlighted as nonsense (cf. traps.md
-§ "Code.text=Component rendait du charabia"). Same class of bug, same
+§ "Code.text=Component rendered gibberish"). Same class of bug, same
 fix shape, as :class:`Markdown`'s ``ComponentUsageError`` on
 ``ClientBinding``. To compose Code with other components, wrap them :
 ``with ui.vstack(): ui.code(src) ; ui.button("Copy")``.
@@ -94,18 +94,18 @@ class Code(Component):
             owner="Code",
             prop="text",
             because=(
-                "``text`` est la SOURCE à syntax-highlighter, une string "
-                "passée à Pygments. Un Component y était silencieusement "
-                "stringifié en son repr Python et coloré comme si c'était "
-                "du code source."
+                "``text`` is the SOURCE to syntax-highlight, a string "
+                "passed to Pygments. A Component was silently stringified "
+                "there as its Python repr and coloured as if it were "
+                "source code."
             ),
             instead=(
-                "Pour composer du code avec d'autres composants, mets-les "
-                "AUTOUR : ``with ui.vstack(): ui.code(src) ; "
+                "To compose code with other components, put them "
+                "AROUND: ``with ui.vstack(): ui.code(src) ; "
                 "ui.button('Copy')``."
             ),
         )
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(lang=lang, **kwargs)
         # ``ClientBinding.__bool__`` raises — same pattern as Text /
         # Heading. Keep ``None`` → ``""``. Component already rejected

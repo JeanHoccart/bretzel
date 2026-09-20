@@ -1,26 +1,27 @@
-"""core/security — le hachage de mot de passe. Bibliothèque standard, rien d'autre.
+"""core/security — password hashing. The standard library, nothing else.
 
-**C'est l'app qui possède ça, et c'est écrit dans le framework** :
-``bretzel.auth`` dit en toutes lettres « Bretzel doesn't model users beyond
-their string ID. Apps own their profile / role / password machinery ». Les
-quatre fonctions qu'il expose se contentent de se souvenir *quel* identifiant
-est connecté, dans un cookie signé — elles ne savent pas ce qu'est un mot de
-passe, et ne doivent pas le savoir.
+**The app owns this, and it is written in the framework**:
+``bretzel.auth`` says in so many words "Bretzel doesn't model users
+beyond their string ID. Apps own their profile / role / password
+machinery". The four functions it exposes only remember *which*
+identifier is signed in, in a signed cookie — they do not know what a
+password is, and must not know.
 
-Ce module est donc la moitié que le CRM apporte. Il tient en deux fonctions
-parce que ``hashlib`` fait tout le travail :
+This module is therefore the half the CRM brings. It fits in two
+functions because ``hashlib`` does all the work:
 
-- **PBKDF2-HMAC-SHA256**, 240 000 itérations, sel de 16 octets par
-  utilisateur. Pas d'argon2 ni de bcrypt : ce sont des dépendances, et le
-  charter tient à ce qu'un exemple n'en ajoute aucune. PBKDF2 est dans la
-  bibliothèque standard depuis toujours et reste une réponse acceptable ;
-- **comparaison en temps constant** (``hmac.compare_digest``). Un ``==`` sur
-  des empreintes fuit leur préfixe commun par le temps de réponse.
+- **PBKDF2-HMAC-SHA256**, 240 000 iterations, a 16-byte salt per user. No
+  argon2 and no bcrypt: those are dependencies, and the charter insists
+  an example adds none. PBKDF2 has been in the standard library forever
+  and remains an acceptable answer;
+- **constant-time comparison** (``hmac.compare_digest``). A ``==`` on
+  digests leaks their common prefix through the response time.
 
-⚠️ Le format stocké porte SES paramètres (``pbkdf2_sha256$<iters>$<sel>$<clé>``)
-plutôt que de les lire d'une constante du module. C'est ce qui permet
-d'augmenter le nombre d'itérations plus tard sans invalider les comptes
-existants : chaque empreinte sait comment elle a été calculée.
+⚠️ The stored format carries ITS parameters
+(``pbkdf2_sha256$<iters>$<salt>$<key>``) rather than reading them from a
+module constant. That is what allows raising the iteration count later
+without invalidating the existing accounts: every digest knows how it was
+computed.
 """
 
 from __future__ import annotations
@@ -29,18 +30,19 @@ import hashlib
 import hmac
 import secrets
 
-#: Le coût d'aujourd'hui. Il vit dans l'empreinte, pas seulement ici — cf.
-#: la docstring du module.
+#: Today's cost. It lives in the digest, not only here — cf. the
+#: module's docstring.
 ITERATIONS = 240_000
 ALGORITHM = "pbkdf2_sha256"
 
 
 def hash_password(password: str, *, salt: bytes | None = None) -> str:
-    """``pbkdf2_sha256$<itérations>$<sel hex>$<clé hex>``.
+    """``pbkdf2_sha256$<iterations>$<salt hex>$<key hex>``.
 
-    ``salt=`` n'est là que pour le semis, qui doit être **déterministe** :
-    deux machines qui sèment la même base doivent obtenir les mêmes lignes.
-    Un compte créé par l'app, lui, prend toujours un sel aléatoire.
+    ``salt=`` is only there for the seed, which must be
+    **deterministic**: two machines seeding the same database must get
+    the same rows. An account created by the app always takes a random
+    salt.
     """
     if salt is None:
         salt = secrets.token_bytes(16)
@@ -51,11 +53,11 @@ def hash_password(password: str, *, salt: bytes | None = None) -> str:
 
 
 def verify_password(password: str, stored: str) -> bool:
-    """Le mot de passe correspond-il à l'empreinte stockée ?
+    """Does the password match the stored digest?
 
-    Renvoie ``False`` sur une empreinte malformée plutôt que de lever : une
-    ligne abîmée en base ne doit pas devenir une 500 sur la page de
-    connexion, où elle serait un signal pour qui la provoque.
+    Returns ``False`` on a malformed digest rather than raising: a
+    damaged row in the database must not become a 500 on the sign-in
+    page, where it would be a signal to whoever provoked it.
     """
     try:
         algorithm, iterations, salt_hex, expected_hex = stored.split("$")

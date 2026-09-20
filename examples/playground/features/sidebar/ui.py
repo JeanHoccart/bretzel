@@ -1,34 +1,33 @@
-"""Le rendu du banc ``Sidebar`` — les dix cartes.
+"""The ``Sidebar`` bench's rendering — the ten cards.
 
-Dix cartes : Reference / Slots / Edge cases / Composability / A11y /
+Ten cards: Reference / Slots / Edge cases / Composability / A11y /
 Server playground / Server events / Client playground / External
 controls / Client events.
 
-⚠️ **Chaque sidebar de démo est montée dans un cadre à hauteur fixe, et
-porte ``slots=FIT``.** Ce n'est pas décoratif. Le slot ``root`` du thème
-est ``h-screen`` (100vh) : posée telle quelle dans une carte, la sidebar
-mesure la hauteur du viewport et son footer ``mt-auto`` part hors du
-cadre (mesuré : 720px de sidebar dans une boîte de 380px, footer à
-y=649, invisible). ``h-screen`` est aussi la raison pour laquelle le
-harnais visuel devait monter la sidebar « bare », sans conteneur — le
-contournement a disparu avec la suite visual le 2026-08-16, la
-contrainte non.
+⚠️ **Every demo sidebar is mounted in a fixed-height frame, and carries
+``slots=FIT``.** It is not decorative. The theme's ``root`` slot is
+``h-screen`` (100vh): placed as it is in a card, the sidebar measures the
+viewport's height and its ``mt-auto`` footer goes outside the frame
+(measured: a 720px sidebar in a 380px box, footer at y=649, invisible).
+``h-screen`` is also the reason the visual harness had to mount the
+sidebar "bare", with no container — the workaround went with the visual
+suite on 2026-08-16, the constraint did not.
 
-Et l'override doit être ``h-full!`` avec le ``!`` de Tailwind v4, pas
-``h-full`` : les deux utilitaires ont la MÊME spécificité, donc le
-vainqueur est le dernier de la feuille compilée, pas le dernier de
-l'attribut ``class``. Mesuré : ``h-full`` nu perd (720px), ``h-full!``
-gagne (378px dans une boîte de 380px, footer visible).
+And the override must be ``h-full!`` with Tailwind v4's ``!``, not
+``h-full``: both utilities have the SAME specificity, so the winner is
+the last in the compiled sheet, not the last in the ``class`` attribute.
+Measured: a bare ``h-full`` loses (720px), ``h-full!`` wins (378px in a
+380px box, footer visible).
 
-Le jour où ``h-screen`` quitte le thème — la sidebar ne se monte
-aujourd'hui QUE dans un parent ``fixed inset-0`` + ``align="stretch"``,
-où la hauteur vient déjà du flex, donc l'utilitaire n'y sert à rien —
-``FIT`` disparaît d'ici en une ligne.
+The day ``h-screen`` leaves the theme — the sidebar today only mounts in
+a ``fixed inset-0`` + ``align="stretch"`` parent, where the height
+already comes from the flex, so the utility serves nothing there —
+``FIT`` disappears from here in one line.
 
-⚠️ Les items portent de vrais ``href`` de playground : un clic NAVIGUE
-(partial-nav HTMX vers l'outlet du shell). C'est voulu, c'est le câblage
-qu'on veut voir marcher. Les cartes d'événements utilisent des items
-sans ``href`` pour que le handler parle sans quitter la page.
+⚠️ The items carry real playground ``href``: a click NAVIGATES (HTMX
+partial nav to the shell's outlet). It is intended, it is the wiring we
+want to see working. The event cards use items with no ``href`` so the
+handler speaks without leaving the page.
 """
 
 from bretzel import refreshable, ui
@@ -59,11 +58,11 @@ from examples.playground.features.sidebar.state import (
 )
 
 def frame(height: str = "h-[400px]"):
-    """Le cadre à hauteur fixe dans lequel vit une sidebar de démo.
+    """The fixed-height frame a demo sidebar lives in.
 
-    ``align="stretch"`` reproduit exactement ce que font les six shells
-    d'``examples/`` (tous en ``fixed inset-0`` + stretch) : c'est le flex
-    qui donne sa hauteur à l'aside, pas l'utilitaire du thème."""
+    ``align="stretch"`` reproduces exactly what ``examples/``'s six
+    shells do (all ``fixed inset-0`` + stretch): it is the flex that
+    gives the aside its height, not the theme's utility."""
     return ui.hstack(
         gap="none", align="stretch",
         classes=(
@@ -103,11 +102,11 @@ def build_preview(state: SidebarPlayground):
     if state.visible == "off":
         kwargs["visible"] = False
 
-    # Les props d'item pilotées par les contrôles atterrissent sur
-    # l'entrée qui pointe vers CETTE page — donc active par dérivation
-    # d'URL, ses voisines au repos servant de témoins. Même raison que
-    # sur le banc bottom_bar : `color` ne peint QUE la ligne active, un
-    # sélecteur posé sur une ligne inactive aurait l'air mort.
+    # The item props driven by the controls land on the entry pointing
+    # at THIS page — hence active by URL derivation, its neighbours at
+    # rest serving as controls. The same reason as on the bottom_bar
+    # bench: `color` paints ONLY the active row, a selector set on an
+    # inactive row would look dead.
     treated: dict = {
         "color": state.item_color,
         "disabled": state.item_disabled,
@@ -140,15 +139,15 @@ def server_panel() -> None:
     state = SidebarPlayground()
 
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
-        with control("width (état déplié)"):
+        with control('width (unfolded state)'):
             ui.select(value=state.width, options=[(w, w) for w in WIDTHS],
                       on_change=server_changed)
-        with control("collapsible — ce que « replié » veut dire"):
+        with control('collapsible — what "collapsed" means'):
             ui.select(
                 value=state.collapsible,
                 options=[
-                    ("rail", "rail — bande d'icônes 64px, dans le flux"),
-                    ("offcanvas", "offcanvas — largeur 0, dans le flux"),
+                    ("rail", 'rail — a 64px strip of icons, in the flow'),
+                    ("offcanvas", 'offcanvas — width 0, in the flow'),
                     ("overlay", "overlay — au-dessus, fond assombri"),
                     ("none", "none — ne se replie jamais"),
                 ],
@@ -162,19 +161,19 @@ def server_panel() -> None:
                       on_change=server_changed)
         with control("item : icon (ligne active)"):
             ui.input(value=state.item_icon,
-                     placeholder="home / bug / (vide = pas d'icône)",
+                     placeholder='home / bug / (empty = no icon)',
                      on_change=server_changed)
         with control("item : badge (ligne active)"):
             ui.input(value=state.item_badge,
-                     placeholder="3 / 99+ / (vide = pas de pastille)",
+                     placeholder='3 / 99+ / (empty = no badge)',
                      on_change=server_changed)
         with control("item : disabled (ligne active)"):
             ui.switch(checked=state.item_disabled, on_change=server_changed)
-        with control("item : active — le mode de résolution"):
+        with control('item: active — the resolution mode'):
             ui.select(value=state.active_mode,
-                      options=[("auto", "None — dérivé de l'URL"),
-                               ("true", "True — forcé actif"),
-                               ("false", "False — forcé inactif")],
+                      options=[("auto", 'None — derived from the URL'),
+                               ("true", 'True — forced active'),
+                               ("false", 'False — forced inactive')],
                       on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes, placeholder="bg-primary/5",
@@ -188,7 +187,7 @@ def server_panel() -> None:
         with control("style"):
             ui.input(value=state.style, placeholder="border-right-width: 3px",
                      on_change=server_changed)
-        with control("extra_attrs (une par ligne, key=value)"):
+        with control('extra_attrs (one per line, key=value)'):
             ui.textarea(value=state.extra_attrs, rows=3,
                         placeholder="data-test=sidebar",
                         on_change=server_changed)
@@ -218,12 +217,12 @@ def events_panel() -> None:
     state = SidebarEvents()
 
     ui.text(
-        "``SidebarItem`` déclare ``EVENTS = ('click',)`` — c'est le seul "
-        "événement serveur de la famille (``Sidebar`` elle-même n'en "
-        "déclare aucun : ouvrir/fermer est du client pur). Ici les "
-        "entrées n'ont PAS de ``href`` : le handler serveur parle sans "
-        "que la page navigue. ``sidebar_footer_item`` porte le même "
-        "``on_click`` que ``dropdown_item``, il est câblé aussi.",
+        "``SidebarItem`` declares ``EVENTS = ('click',)`` — it is the "
+            "family's only server event (``Sidebar`` itself declares none: "
+            'opening and closing is pure client). Here the entries have NO '
+            '``href``: the server handler speaks without the page navigating.'
+            ' ``sidebar_footer_item`` carries the same ``on_click`` as '
+            '``dropdown_item``, and it is wired too.',
         color="muted", size="sm",
     )
 
@@ -238,7 +237,7 @@ def events_panel() -> None:
                 ui.sidebar_footer_item(label="Log out", icon_left="log-out",
                                        color="error", on_click=log_logout)
         with ui.vstack(classes="flex-1 min-w-0 p-4"):
-            ui.text("Clique une entrée →", color="muted", size="sm")
+            ui.text('Click an entry →', color="muted", size="sm")
 
     ui.divider()
 
@@ -253,7 +252,7 @@ def events_panel() -> None:
                 ui.text(f"{i}. {evt}", color="muted", size="sm",
                         classes="font-mono")
     else:
-        ui.text("(aucun événement — clique une entrée ci-dessus)",
+        ui.text('(no events yet — click an entry above)',
                 color="muted", size="sm")
 
     ui.divider()
@@ -262,7 +261,7 @@ def events_panel() -> None:
     with representative:
         ui.sidebar_item("Home", icon="home", on_click=log_home)
     emitted_html_block(
-        "Emitted HTML (SidebarItem avec un handler serveur)",
+        'Emitted HTML (SidebarItem with a server handler)',
         serialize_html(representative),
     )
 
@@ -275,24 +274,24 @@ def page() -> None:
         with ui.vstack():
             ui.heading("Sidebar", level=1)
             ui.text(
-                "Rail de navigation desktop. Six pièces : ``ui.sidebar`` "
-                "(l'``<aside>``), ``ui.sidebar_title`` (l'en-tête : logo + "
-                "titre + toggle), ``ui.sidebar_section`` (un groupe avec "
-                "un intertitre), ``ui.sidebar_item`` (une ligne de nav), "
-                "``ui.sidebar_footer`` (la rangée compte épinglée en bas, "
-                "qui ouvre un popover) et ``ui.sidebar_footer_item`` (une "
-                "ligne de ce popover). La nav mobile n'est PAS dans le "
-                "composant : c'est le ``if Screen().is_mobile:`` du dev.",
+                'A desktop navigation rail. Six pieces: ``ui.sidebar`` '
+                    '(the ``<aside>``), ``ui.sidebar_title`` (the header: '
+                    'logo + title + toggle), ``ui.sidebar_section`` (a group '
+                    'with a subheading), ``ui.sidebar_item`` (a nav row), '
+                    '``ui.sidebar_footer`` (the account row pinned at the '
+                    'bottom, which opens a popover) and '
+                    '``ui.sidebar_footer_item`` (a row of that popover). The '
+                    'mobile nav is NOT in the component: it is the '
+                    "developer's ``if Screen().is_mobile:``.",
                 color="muted",
             )
             ui.text(
-                "Deux choses à savoir pour lire cette page. Chaque démo "
-                "vit dans un cadre à hauteur fixe et porte "
-                "``slots={'root': 'h-full!'}`` : le thème pose "
-                "``h-screen`` sur la racine, donc sans override la "
-                "sidebar mesure 100vh et son footer sort du cadre. Et les "
-                "entrées portent de vrais ``href`` de playground — un "
-                "clic navigue pour de bon.",
+                'Two things to know to read this page. Every demo lives '
+                    "in a fixed-height frame and carries ``slots={'root': "
+                    "'h-full!'}``: the theme puts ``h-screen`` on the root, "
+                    'so without the override the sidebar measures 100vh and '
+                    'its footer falls out of the frame. And the entries carry'
+                    ' real playground ``href``s — a click really navigates.',
                 color="muted", size="sm",
             )
 
@@ -306,8 +305,9 @@ def page() -> None:
                     ui.heading("Basic — titre, section, items, footer",
                                level=3)
                     ui.text(
-                        "L'entrée active est dérivée de l'URL : « Sidebar » "
-                        "pointe sur cette page, elle ressort toute seule.",
+                        'The active entry is derived from the URL: '
+                            '“Sidebar” points at this page, so it stands out '
+                            'on its own.',
                         color="muted", size="xs",
                     )
                     with frame():
@@ -330,11 +330,11 @@ def page() -> None:
                             ui.text("Contenu de page", color="muted",
                                     size="sm")
 
-                    ui.heading("open — déplié vs replié", level=3)
+                    ui.heading('open — unfolded vs collapsed', level=3)
                     ui.text(
-                        "``open`` pilote ``data-open`` sur la racine ; tout "
-                        "le repli est du CSS qui lit cet attribut. Le "
-                        "chevron du titre le bascule.",
+                        '``open`` drives ``data-open`` on the root; the '
+                            'whole collapse is CSS reading that attribute. '
+                            "The title's chevron toggles it.",
                         color="muted", size="xs",
                     )
                     with ui.grid(cols={"base": 1, "lg": 2}, gap="md"):
@@ -357,17 +357,17 @@ def page() -> None:
                                         ui.text("page", color="muted",
                                                 size="xs")
 
-                    ui.heading("collapsible — ce que « replié » veut dire",
+                    ui.heading('collapsible — what "collapsed" means',
                                level=3)
                     ui.text(
-                        "Un seul axe, quatre valeurs. ``rail`` garde une "
-                        "bande d'icônes de 64px et ``offcanvas`` s'efface "
-                        "— tous deux DANS le flux, donc gatés ``md:``. "
-                        "``overlay`` sort du flux et passe au-dessus du "
-                        "contenu avec un fond assombri : c'est le mode "
-                        "qu'on monte sur un téléphone, et le seul qui ne "
-                        "soit pas gaté. ``none`` ne se replie jamais et ne "
-                        "rend aucun chevron.",
+                        'One axis, four values. ``rail`` keeps a 64px '
+                            'strip of icons and ``offcanvas`` vanishes — both'
+                            ' IN the flow, hence gated on ``md:``. '
+                            '``overlay`` leaves the flow and goes over the '
+                            'content with a dimmed backdrop: it is the mode '
+                            'one mounts on a phone, and the only one not '
+                            'gated. ``none`` never collapses and renders no '
+                            'chevron.',
                         color="muted", size="xs",
                     )
                     with ui.grid(cols={"base": 1, "lg": 2}, gap="md"):
@@ -389,17 +389,17 @@ def page() -> None:
                                                 "Issues", icon="bug")
                                     with ui.vstack(
                                             classes="flex-1 min-w-0 p-3"):
-                                        # ``offcanvas`` et ``overlay``
-                                        # sortent la barre de l'écran :
-                                        # sans ce bouton la case montre
-                                        # une barre qu'on ne peut plus
-                                        # rouvrir. La page en monte
-                                        # plusieurs, d'où l'argument.
+                                        # ``offcanvas`` and ``overlay``
+                                        # take the bar off screen:
+                                        # without this button the cell
+                                        # shows a bar that can no longer
+                                        # be reopened. The page mounts
+                                        # several, hence the argument.
                                         ui.sidebar_trigger(sb, size="sm")
                                         ui.text("page", color="muted",
                                                 size="xs")
 
-                    ui.heading("width — largeur DÉPLIÉE", level=3)
+                    ui.heading('width — the UNFOLDED width', level=3)
                     with ui.vstack(gap="md"):
                         for w in WIDTHS:
                             with ui.vstack(gap="xs"):
@@ -418,25 +418,25 @@ def page() -> None:
 
                     ui.heading("Replier, et revenir", level=3)
                     ui.text(
-                        "Tout mode SAUF ``none`` rend une **arête "
-                        "cliquable** sur le bord de la barre, dans les deux "
-                        "états ; un ``sidebar_title`` ajoute son propre "
-                        "bouton. Les deux vivent DANS l'aside, donc ils "
-                        "partent avec elle : en ``offcanvas`` ou "
-                        "``overlay``, le retour se pose dehors — "
-                        "``ui.sidebar_trigger()``, où l'app veut. Le "
-                        "framework refuse de rendre une barre escamotable "
-                        "que rien ne peut rouvrir.",
+                        'Every mode EXCEPT ``none`` renders a **clickable'
+                            " edge** on the bar's border, in both states; a "
+                            '``sidebar_title`` adds its own button. Both live'
+                            ' INSIDE the aside, so they leave with it: in '
+                            '``offcanvas`` or ``overlay``, the way back is '
+                            'placed outside — ``ui.sidebar_trigger()``, '
+                            'wherever the app wants. The framework refuses to'
+                            ' render a collapsible bar that nothing can '
+                            'reopen.',
                         color="muted", size="xs",
                     )
                     ui.text(
-                        "``ui.sidebar_trigger`` — deux axes seulement : "
-                        "``icon=`` (le dépôt écrit ``panel-left`` dans "
-                        "chat, ``menu`` dans le CRM) et ``size=``, pour "
-                        "suivre la densité de la barre où il est posé. "
-                        "``variant=`` et ``color=`` LÈVENT : une app a un "
-                        "déclencheur, il ressemble au reste de sa barre du "
-                        "haut.",
+                        '``ui.sidebar_trigger`` — only two axes: '
+                            '``icon=`` (the repository writes ``panel-left`` '
+                            'in chat, ``menu`` in the CRM) and ``size=``, to '
+                            'follow the density of the bar it is placed in. '
+                            '``variant=`` and ``color=`` RAISE: an app has '
+                            'one trigger, and it looks like the rest of its '
+                            'top bar.',
                         color="muted", size="xs",
                     )
                     with frame("h-[220px]"):
@@ -455,13 +455,13 @@ def page() -> None:
                                         classes="font-mono")
                             with ui.hstack(align="center", gap="sm"):
                                 ui.sidebar_trigger(trg)
-                                ui.text("le défaut", color="muted",
+                                ui.text('the default', color="muted",
                                         size="xs", classes="font-mono")
 
                     with ui.grid(cols={"base": 1, "lg": 2}, gap="md"):
                         for coll in ("rail", "none"):
                             with ui.vstack(gap="xs"):
-                                ui.text(f'collapsible="{coll}" · sans titre',
+                                ui.text(f'collapsible="{coll}" · untitled',
                                         color="muted", size="xs",
                                         classes="font-mono")
                                 with frame("h-[220px]"):
@@ -478,8 +478,8 @@ def page() -> None:
 
                     ui.heading("item : color", level=3)
                     ui.text(
-                        "La couleur ne peint QUE la ligne active — au "
-                        "repos une ligne est ``text-muted``.",
+                        'The colour paints ONLY the active row — at rest '
+                            'a row is ``text-muted``.',
                         color="muted", size="xs",
                     )
                     with frame("h-[420px]"):
@@ -515,11 +515,11 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Slots", level=2)
                     ui.text(
-                        "``SidebarItem`` déclare ``NAMED_SLOTS = ('icon',)`` "
-                        "et ``ICON_SLOTS = ('icon',)`` : un raccourci string "
-                        "ou un Component. ``sidebar_title`` et "
-                        "``sidebar_footer`` acceptent aussi les deux formes "
-                        "pour ``icon=`` / ``avatar=``.",
+                        '``SidebarItem`` declares ``NAMED_SLOTS = '
+                            "('icon',)`` and ``ICON_SLOTS = ('icon',)``: a "
+                            'string shorthand or a Component. '
+                            '``sidebar_title`` and ``sidebar_footer`` accept '
+                            'both forms too, for ``icon=`` / ``avatar=``.',
                         color="muted", size="sm",
                     )
 
@@ -529,17 +529,17 @@ def page() -> None:
                             with ui.sidebar_section(label="ICON SLOT"):
                                 ui.sidebar_item("Raccourci", icon="home")
                                 ui.sidebar_item(
-                                    "Component teinté",
+                                    'Tinted component',
                                     icon=ui.icon("heart", color="error"))
                                 ui.sidebar_item(
                                     "Component xs",
                                     icon=ui.icon("search", size="xs"))
-                                ui.sidebar_item("Sans icône")
+                                ui.sidebar_item('With no icon')
                         with ui.vstack(classes="flex-1 min-w-0 p-3"):
                             ui.text("page", color="muted", size="xs")
 
-                    ui.heading("title : icon=str (teinte primary) vs "
-                               "icon=Component (garde SA couleur)", level=3)
+                    ui.heading('title: icon=str (tinted primary) vs icon=Component '
+                        '(keeps ITS colour)', level=3)
                     with ui.grid(cols={"base": 1, "lg": 2}, gap="md"):
                         with frame("h-[200px]"):
                             with ui.sidebar(slots=FIT, collapsible="none"):
@@ -561,13 +561,13 @@ def page() -> None:
                     ui.heading("footer : avatar=initiales / str / Component",
                                level=3)
                     ui.text(
-                        "Sans ``avatar``, les initiales sont dérivées du "
-                        "``name`` (« Jean Hoccart » → « JH »).",
+                        'With no ``avatar``, the initials are derived '
+                            'from the ``name`` (“Jean Hoccart” → “JH”).',
                         color="muted", size="xs",
                     )
                     with ui.grid(cols={"base": 1, "lg": 3}, gap="md"):
                         for label, kw in (
-                            ("dérivé du name", {}),
+                            ('derived from the name', {}),
                             ("avatar='ZZ'", {"avatar": "ZZ"}),
                             ("avatar=ui.avatar(...)",
                              {"avatar": ui.avatar(initials="BZ",
@@ -601,58 +601,58 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Edge cases", level=2)
 
-                    ui.heading("Libellé très long — truncate", level=3)
+                    ui.heading('A very long label — truncate', level=3)
                     with frame("h-[220px]"):
                         with ui.sidebar(slots=FIT, width="sm",
                                         collapsible="none"):
                             with ui.sidebar_section(
-                                    label="UN INTERTITRE LUI AUSSI TRÈS LONG"):
+                                    label='A SUBHEADING THAT IS ALSO VERY LONG'):
                                 ui.sidebar_item(
-                                    "Un libellé d'entrée beaucoup trop long "
-                                    "pour la largeur du rail", icon="home")
+                                    'An entry label far too long for the '
+                                        "rail's width", icon="home")
                                 ui.sidebar_item(
                                     "Long + badge", icon="bug", badge="99+")
                         with ui.vstack(classes="flex-1 min-w-0 p-3"):
                             ui.text("page", color="muted", size="xs")
 
-                    ui.heading("Débordement — le footer reste épinglé",
+                    ui.heading('Overflow — the footer stays pinned',
                                level=3)
                     ui.text(
-                        "Seule la zone du milieu défile (slot ``scroll``, "
-                        "``flex-1 min-h-0 overflow-y-auto``). Le titre et "
-                        "le footer sont ``shrink-0`` : une liste de 30 "
-                        "entrées ne les emporte pas.",
+                        'Only the middle area scrolls (the ``scroll`` '
+                            'slot, ``flex-1 min-h-0 overflow-y-auto``). The '
+                            'title and the footer are ``shrink-0``: a list of'
+                            ' 30 entries does not carry them away.',
                         color="muted", size="xs",
                     )
                     with frame("h-[360px]"):
                         with ui.sidebar(slots=FIT, collapsible="none"):
-                            ui.sidebar_title("Épinglé", icon="zap")
-                            with ui.sidebar_section(label="30 ENTRÉES"):
+                            ui.sidebar_title('Pinned', icon="zap")
+                            with ui.sidebar_section(label='30 ENTRIES'):
                                 for i in range(1, 31):
-                                    ui.sidebar_item(f"Entrée {i}",
+                                    ui.sidebar_item(f"'Entry '{i}",
                                                     icon="circle")
                             with ui.sidebar_footer(name="Jean Hoccart",
-                                                   subtitle="épinglé"):
+                                                   subtitle='pinned'):
                                 ui.sidebar_footer_item(label="Log out",
                                                        icon_left="log-out",
                                                        color="error")
                         with ui.vstack(classes="flex-1 min-w-0 p-3"):
                             ui.text("page", color="muted", size="xs")
 
-                    ui.heading("Sections sans label / sidebar vide", level=3)
+                    ui.heading('Sections with no label / empty sidebar', level=3)
                     ui.text(
-                        "Une section sans ``label`` n'émet ni intertitre ni "
-                        "séparateur de rail — il n'y a pas de légende à "
-                        "replier.",
+                        'A section with no ``label`` emits neither a '
+                            'subheading nor a rail separator — there is no '
+                            'caption to fold away.',
                         color="muted", size="xs",
                     )
                     with ui.grid(cols={"base": 1, "lg": 2}, gap="md"):
                         with frame("h-[200px]"):
                             with ui.sidebar(slots=FIT, collapsible="none"):
                                 with ui.sidebar_section():
-                                    ui.sidebar_item("Sans label",
+                                    ui.sidebar_item('With no label',
                                                     icon="home")
-                                    ui.sidebar_item("Ni séparateur",
+                                    ui.sidebar_item('No separator either',
                                                     icon="circle")
                             with ui.vstack(classes="flex-1 min-w-0 p-3"):
                                 ui.text("page", color="muted", size="xs")
@@ -662,11 +662,11 @@ def page() -> None:
                                 ui.text("sidebar vide", color="muted",
                                         size="xs")
 
-                    ui.heading("href externe — pas de partial-nav", level=3)
+                    ui.heading('an external href — no partial nav', level=3)
                     ui.text(
-                        "Un ``href`` à schéma (``https:`` / ``mailto:`` / "
-                        "``tel:``) sort du garde : ``target=_blank``, aucun "
-                        "``hx-get`` injecté.",
+                        'An ``href`` with a scheme (``https:`` / '
+                            '``mailto:`` / ``tel:``) steps outside the guard:'
+                            ' ``target=_blank``, no ``hx-get`` injected.',
                         color="muted", size="xs",
                     )
                     with frame("h-[200px]"):
@@ -687,11 +687,10 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Composability", level=2)
                     ui.text(
-                        "Plusieurs sections, un footer à popover, et des "
-                        "composants quelconques entre les sections : tout "
-                        "ce qui n'est ni ``sidebar_title`` ni "
-                        "``sidebar_footer`` atterrit dans la zone "
-                        "défilante.",
+                        'Several sections, a popover footer, and '
+                            'arbitrary components between the sections: '
+                            'everything that is neither ``sidebar_title`` nor'
+                            ' ``sidebar_footer`` lands in the scrolling area.',
                         color="muted", size="sm",
                     )
                     with frame("h-[460px]"):
@@ -724,7 +723,7 @@ def page() -> None:
                                     icon_right="external-link",
                                     href="https://example.com")
                                 ui.sidebar_footer_item(
-                                    label="Bientôt", icon_left="lock",
+                                    label='Soon', icon_left="lock",
                                     disabled=True)
                                 ui.sidebar_footer_item(
                                     label="Log out", icon_left="log-out",
@@ -738,29 +737,29 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("A11y", level=2)
                     ui.text(
-                        "La racine est ``role=navigation`` + "
-                        "``aria-label=Sidebar`` (surchargeables). Chaque "
-                        "entrée porte un ``aria-label`` avec son libellé — "
-                        "dans le rail replié le libellé visible est "
-                        "``hidden``, et un tooltip au survol n'est une "
-                        "affordance ni au clavier ni au lecteur d'écran. Le "
-                        "panneau de tooltip partagé est donc "
-                        "``aria-hidden``. Une entrée ``disabled`` porte "
-                        "``aria-disabled`` ET perd son ``href`` + ses "
-                        "``hx-*`` + son ``tabindex``.",
+                        'The root is ``role=navigation`` + ``aria-'
+                            'label=Sidebar`` (both overridable). Every entry '
+                            'carries an ``aria-label`` with its own text — in'
+                            ' the collapsed rail the visible label is '
+                            '``hidden``, and a hover tooltip is an affordance'
+                            ' for neither the keyboard nor a screen reader. '
+                            'The shared tooltip panel is therefore ``aria-'
+                            'hidden``. A ``disabled`` entry carries ``aria-'
+                            'disabled`` AND loses its ``href`` + its ``hx-*``'
+                            ' + its ``tabindex``.',
                         color="muted", size="sm",
                     )
 
                     ui.heading("Parcours au clavier", level=3)
                     ui.text(
-                        "Tab dans la liste : l'anneau de focus doit être "
-                        "entièrement visible et son écart doit se confondre "
-                        "avec le fond de la sidebar. Il ne le fait pas "
-                        "encore — l'écart est peint en ``ring-offset-"
-                        "background`` (#020617) alors que la sidebar est "
-                        "``bg-surface`` (#0f172a), et la ligne est à 0px de "
-                        "sa boîte défilante en ``overflow-x-hidden``, donc "
-                        "l'anneau est rogné à gauche et à droite.",
+                        'Tab into the list: the focus ring must be '
+                            'entirely visible and its offset must blend into '
+                            "the sidebar's background. It does not yet — the "
+                            'offset is painted ``ring-offset-background`` '
+                            '(#020617) while the sidebar is ``bg-surface`` '
+                            '(#0f172a), and the row sits at 0px from its '
+                            'scrolling box in ``overflow-x-hidden``, so the '
+                            'ring is clipped left and right.',
                         color="muted", size="xs",
                     )
                     with frame("h-[300px]"):
@@ -768,11 +767,11 @@ def page() -> None:
                             with ui.sidebar_section(label="TAB ORDER"):
                                 ui.sidebar_item("Premier", icon="home",
                                                 href="/")
-                                ui.sidebar_item("Deuxième", icon="bug",
+                                ui.sidebar_item('Second', icon="bug",
                                                 href="/badge")
-                                ui.sidebar_item("Verrouillé", icon="lock",
+                                ui.sidebar_item('Locked', icon="lock",
                                                 disabled=True, href="/")
-                                ui.sidebar_item("Troisième", icon="settings",
+                                ui.sidebar_item('Third', icon="settings",
                                                 href="/icon")
                         with ui.vstack(classes="flex-1 min-w-0 p-3"):
                             ui.text("page", color="muted", size="xs")
@@ -782,9 +781,9 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Server playground", level=2)
                     ui.text(
-                        "Chaque prop du conteneur et de l'entrée, plus les "
-                        "échappatoires universelles. Le panneau se re-rend "
-                        "côté serveur à chaque changement.",
+                        'Every prop of the container and of the entry, '
+                            'plus the universal escape hatches. The panel re-'
+                            'renders on the server at every change.',
                         color="muted", size="sm",
                     )
                     server_panel()
@@ -800,11 +799,11 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Client playground", level=2)
                     ui.text(
-                        "``Sidebar.BINDABLE_PROPS = ('open',)`` et "
-                        "``SidebarItem.BINDABLE_PROPS = ('active', 'badge', "
-                        "'disabled')``. Les quatre sont câblées ci-dessous "
-                        "sur un ``ClientState`` : aucun aller-retour "
-                        "serveur, le runtime écrit dans le DOM.",
+                        "``Sidebar.BINDABLE_PROPS = ('open',)`` and "
+                            "``SidebarItem.BINDABLE_PROPS = ('active', "
+                            "'badge', 'disabled')``. All four are wired below"
+                            ' to a ``ClientState``: no server round trip, the'
+                            ' runtime writes into the DOM.',
                         color="muted", size="sm",
                     )
 
@@ -823,11 +822,11 @@ def page() -> None:
                         with ui.sidebar(slots=FIT, open=client.expanded):
                             ui.sidebar_title("Client", icon="zap")
                             with ui.sidebar_section(label="BOUND"):
-                                ui.sidebar_item("Piloté", icon="home",
+                                ui.sidebar_item('Driven', icon="home",
                                                 active=client.active,
                                                 badge=client.badge,
                                                 disabled=client.disabled)
-                                ui.sidebar_item("Témoin", icon="circle")
+                                ui.sidebar_item('Control', icon="circle")
                         with ui.vstack(classes="flex-1 min-w-0 p-3"):
                             ui.text("page", color="muted", size="xs")
 
@@ -835,13 +834,12 @@ def page() -> None:
 
                     bound = ui.sidebar(slots=FIT, open=client.expanded)
                     with bound:
-                        ui.sidebar_item("Piloté", icon="home",
+                        ui.sidebar_item('Driven', icon="home",
                                         active=client.active,
                                         badge=client.badge,
                                         disabled=client.disabled)
                     emitted_html_block(
-                        "Emitted HTML (SSR snapshot — le runtime prend le "
-                        "relais)",
+                        'Emitted HTML (SSR snapshot — the runtime takes over)',
                         serialize_html(bound),
                     )
 
@@ -851,17 +849,17 @@ def page() -> None:
                     ui.heading("External controls — the 3 modes", level=2)
                     ui.text(
                         "``Sidebar.IMPERATIVE = ('open', 'close', "
-                        "'toggle')``. Les trois modes du contrat impératif "
-                        "de Bretzel, côte à côte.",
+                            "'toggle')``. Bretzel's three imperative-contract"
+                            ' modes, side by side.',
                         color="muted", size="sm",
                     )
 
-                    ui.heading("Mode 1 — impératif seul (aucun binding)",
+                    ui.heading('Mode 1 — imperative only (no binding)',
                                level=3)
                     ui.text(
-                        "Sans binding, la méthode dispatche un événement "
-                        "DOM (``bz-open`` / ``bz-close`` / ``bz-toggle``) "
-                        "que la racine écoute.",
+                        'With no binding, the method dispatches a DOM '
+                            'event (``bz-open`` / ``bz-close`` / ``bz-'
+                            'toggle``) the root listens for.',
                         color="muted", size="xs",
                     )
                     imperative = ui.sidebar(slots=FIT, collapsible="none")
@@ -874,7 +872,7 @@ def page() -> None:
                                   on_click=imperative.toggle())
                     with frame("h-[240px]"):
                         with imperative:
-                            ui.sidebar_title("Impératif", icon="zap")
+                            ui.sidebar_title('Imperative', icon="zap")
                             with ui.sidebar_section(label="MAIN"):
                                 ui.sidebar_item("Home", icon="home")
                                 ui.sidebar_item("Issues", icon="bug")
@@ -883,8 +881,8 @@ def page() -> None:
 
                     ui.heading("Mode 2 — ClientBinding seul", level=3)
                     ui.text(
-                        "``open=`` reçoit un binding : le switch et la "
-                        "sidebar lisent le même signal client.",
+                        '``open=`` receives a binding: the switch and the'
+                            ' sidebar read the same client signal.',
                         color="muted", size="xs",
                     )
                     with ui.hstack(gap="sm", align="center"):
@@ -900,11 +898,11 @@ def page() -> None:
                         with ui.vstack(classes="flex-1 min-w-0 p-3"):
                             ui.text("page", color="muted", size="xs")
 
-                    ui.heading("Mode 3 — les deux (write-through)", level=3)
+                    ui.heading('Mode 3 — both (write-through)', level=3)
                     ui.text(
-                        "Avec un binding, ``.toggle()`` écrit DANS le "
-                        "binding : le switch ci-dessus suit le bouton, et "
-                        "réciproquement.",
+                        'With a binding, ``.toggle()`` writes INTO the '
+                            'binding: the switch above follows the button, '
+                            'and the other way round.',
                         color="muted", size="xs",
                     )
                     both = ui.sidebar(slots=FIT, collapsible="none",
@@ -912,10 +910,10 @@ def page() -> None:
                     with ui.hstack(gap="sm", align="center"):
                         ui.button("toggle()", size="xs", on_click=both.toggle())
                         ui.switch(checked=client.expanded)
-                        ui.text("même signal", color="muted", size="xs")
+                        ui.text('the same signal', color="muted", size="xs")
                     with frame("h-[240px]"):
                         with both:
-                            ui.sidebar_title("Les deux", icon="zap")
+                            ui.sidebar_title('Both', icon="zap")
                             with ui.sidebar_section(label="MAIN"):
                                 ui.sidebar_item("Home", icon="home")
                         with ui.vstack(classes="flex-1 min-w-0 p-3"):
@@ -926,9 +924,9 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Client events", level=2)
                     ui.text(
-                        "``SidebarItem.EVENTS = ('click',)`` en expression "
-                        "client pure — zéro aller-retour, le log vit dans "
-                        "un ``ClientState``.",
+                        "``SidebarItem.EVENTS = ('click',)`` as a pure "
+                            'client expression — zero round trips, the log '
+                            'lives in a ``ClientState``.',
                         color="muted", size="sm",
                     )
 
@@ -941,7 +939,7 @@ def page() -> None:
                                         on_click=client_events.log.push(name),
                                     )
                         with ui.vstack(classes="flex-1 min-w-0 p-3"):
-                            ui.text("Clique une entrée →", color="muted",
+                            ui.text('Click an entry →', color="muted",
                                     size="xs")
 
                     ui.divider()
@@ -970,7 +968,6 @@ def page() -> None:
                             on_click=client_events.log.push("Home"),
                         )
                     emitted_html_block(
-                        "Emitted HTML (SidebarItem avec une expression "
-                        "client)",
+                        'Emitted HTML (SidebarItem with a client expression)',
                         serialize_html(representative),
                     )

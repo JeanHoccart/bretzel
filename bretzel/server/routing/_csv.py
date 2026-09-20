@@ -1,14 +1,14 @@
-"""L'écriture CSV, partagée par les deux chemins de téléchargement.
+"""CSV writing, shared by both download paths.
 
-Extrait de ``routing/datatable.py`` le 2026-09-02, quand ``@download``
-est devenu le second consommateur. Le contenu ne change pas : ce sont
-les deux corrections que l'implémentation V1 avait déjà identifiées et
-qu'on rate facilement — le BOM UTF-8, et le fait de laisser
-``csv.writer`` décider quand citer.
+Extracted from ``routing/datatable.py`` on 2026-09-02, when ``@download``
+became the second consumer. The content does not change: these are the
+two corrections the V1 implementation had already identified and that one
+easily misses — the UTF-8 BOM, and letting ``csv.writer`` decide when to
+quote.
 
-Pourquoi c'est ici et pas dans ``core`` : ça ne sert qu'à répondre à une
-requête. Le monter plus bas dans le DAG ferait porter au socle un
-format de sortie HTTP.
+Why it is here and not in ``core``: it only serves to answer a request.
+Mounting it lower in the DAG would make the base layer carry an HTTP
+output format.
 """
 
 from __future__ import annotations
@@ -17,25 +17,23 @@ import csv
 import io
 from typing import Any
 
-#: Excel sous Windows lit un CSV UTF-8 sans BOM dans la page de codes du
-#: système, donc chaque nom accentué arrive en mojibake. Un caractère le
-#: répare, et c'est le bug le plus rapporté de tous les exports CSV
-#: jamais écrits.
+#: Excel on Windows reads a BOM-less UTF-8 CSV in the system code page,
+#: so every accented name arrives as mojibake. One character repairs it,
+#: and it is the most reported bug of every CSV export ever written.
 BOM = "﻿"
 
 
 def to_csv(rows: Any, columns: list[list[str]], read: Any) -> str:
-    """Texte RFC 4180 : une ligne d'en-têtes, puis un enregistrement par ligne.
+    """RFC 4180 text: one header row, then one record per line.
 
-    ``csv.writer`` porte les règles de citation (citer seulement quand la
-    valeur contient un délimiteur, un guillemet ou un saut de ligne ;
-    doubler un guillemet interne) — c'est très exactement là que les
-    exports écrits à la main se trompent.
+    ``csv.writer`` carries the quoting rules (quote only when the value
+    contains a delimiter, a quote or a newline; double an inner quote) —
+    that is very precisely where hand-written exports go wrong.
 
-    ``read`` est la fonction de lecture d'une cellule. Elle est passée
-    plutôt qu'importée pour que ce module ne dépende pas des composants :
-    ``datatable`` lui donne son ``read_cell`` (qui gère objets, dicts et
-    attributs), ``@download`` lui donne un accès de dict.
+    ``read`` is the cell-reading function. It is passed rather than
+    imported so this module does not depend on the components:
+    ``datatable`` gives it its ``read_cell`` (which handles objects,
+    dicts and attributes), ``@download`` gives it a dict access.
     """
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\r\n")
@@ -49,22 +47,22 @@ def to_csv(rows: Any, columns: list[list[str]], read: Any) -> str:
 
 
 def columns_of(rows: Any) -> list[list[str]]:
-    """Les colonnes DÉDUITES d'une liste de dicts — clé et libellé égaux.
+    """The columns DERIVED from a list of dicts — key and label equal.
 
-    ⚠️ L'ordre vient du PREMIER enregistrement, et l'union des clés n'est
-    pas prise : deux dicts aux clés différentes donneraient un tableau à
-    trous dont personne ne saurait dire quelle ligne manque quoi. Une
-    forme hétérogène demande des colonnes explicites — c'est ce que
-    ``ui.datatable`` fournit de son côté.
+    ⚠️ The order comes from the FIRST record, and the union of the keys
+    is not taken: two dicts with different keys would give a table with
+    holes and nobody could say which row is missing what. A heterogeneous
+    shape calls for explicit columns — which is what ``ui.datatable``
+    supplies on its side.
     """
-    premier = next(iter(rows), None)
-    if premier is None:
+    first = next(iter(rows), None)
+    if first is None:
         return []
-    if not isinstance(premier, dict):
+    if not isinstance(first, dict):
         raise TypeError(
-            "@download : une liste a été rendue mais son premier élément "
-            f"n'est pas un dict ({type(premier).__name__}). Rends une "
-            "liste de dicts pour un CSV, ou construis toi-même la "
-            "``Response`` si la forme est autre."
+            "@download: a list was returned but its first element is "
+            f"not a dict ({type(first).__name__}). Return a list of dicts "
+            "for a CSV, or build the ``Response`` yourself if the shape "
+            "is something else."
         )
-    return [[str(cle), str(cle)] for cle in premier]
+    return [[str(key), str(key)] for key in first]

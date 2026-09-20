@@ -1,16 +1,16 @@
-"""Blocs de rendu du chapitre RUNTIME — les mirrors de ``runtime_surface``.
+"""The RUNTIME chapter's render blocks — ``runtime_surface``'s mirrors.
 
-Même contrat que :mod:`examples.docs.lib.blocks` : un mirror ne connaît
-aucun contenu, il rend ce que l'introspection lui donne. Ajouter une
-directive, un magic ou un ``$bz.<nom>`` au framework le fait apparaître
-ici au prochain rendu, sans toucher à ce fichier.
+The same contract as :mod:`examples.docs.lib.blocks`: a mirror knows no
+content, it renders what the introspection gives it. Adding a directive,
+a magic or a ``$bz.<name>`` to the framework makes it appear here at the
+next render, without touching this file.
 
-Séparé de ``blocks.py`` le temps du chantier « surface d'API » en cours —
-cf. la note de chantier de :mod:`examples.docs.lib.runtime_surface`. Au
-repli, :func:`grouped_tables` et :func:`section` ont vocation à servir
-les autres chapitres : ``client_algebra_mirror`` (blocks.py) réinline
-aujourd'hui le corps exact de la première, et six pages de ``features/``
-réécrivent la seconde à la main.
+Separated from ``blocks.py`` for the duration of the "API surface" work
+in progress — cf. :mod:`examples.docs.lib.runtime_surface`'s work note.
+On folding back, :func:`grouped_tables` and :func:`section` are meant to
+serve the other chapters: ``client_algebra_mirror`` (blocks.py) today
+re-inlines the first one's exact body, and six pages of ``features/``
+rewrite the second by hand.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from collections.abc import Callable, Iterable, Sequence
 from contextlib import contextmanager
 
 from bretzel import ui
+from examples.docs.lib.i18n import tr
 
 from examples.docs.lib.runtime_surface import (
     binding_order,
@@ -33,11 +34,11 @@ from examples.docs.lib.runtime_surface import (
 
 @contextmanager
 def section(title: str, intro: str = ""):
-    """Une carte de chapitre : titre, chapeau, puis le corps.
+    """A chapter card: title, standfirst, then the body.
 
-    Les pages du dossier écrivent ce préambule à la main, à quatre
-    niveaux d'indentation ; ``cheatsheet.py`` l'avait déjà extrait pour
-    son propre usage.
+    The folder's pages write this preamble by hand, at four levels of
+    indentation; ``cheatsheet.py`` had already extracted it for its own
+    use.
     """
     with ui.card():
         with ui.vstack(gap="sm"):
@@ -52,10 +53,10 @@ def grouped_tables(
     columns: Iterable,
     row: Callable[[object], dict[str, str]],
 ) -> None:
-    """Une table par catégorie, précédée de son libellé et de son compte.
+    """One table per category, preceded by its label and its count.
 
-    ``ops`` arrive déjà trié par catégorie (les ``describe_*`` s'en
-    chargent), donc les groupes sont contigus et ``groupby`` suffit.
+    ``ops`` arrives already sorted by category (the ``describe_*`` see to
+    that), so the groups are contiguous and ``groupby`` is enough.
     """
     for category, group in itertools.groupby(ops, key=lambda o: o.category):
         items = list(group)
@@ -68,10 +69,10 @@ def grouped_tables(
 
 
 def runtime_modules_mirror() -> None:
-    """Les modules du bundle, dans l'ordre de chargement, avec leur poids
-    réel. Le socle et les moteurs de composants sont séparés parce que ce
-    n'est pas la même nature de code : le premier est le runtime, le
-    second est ce que les composants y déposent."""
+    """The bundle's modules, in load order, with their real weight. The
+    base layer and the component engines are separated because it is not
+    the same nature of code: the first is the runtime, the second is what
+    the components deposit in it."""
     facts = bundle_facts()
     with ui.hstack(gap="sm", wrap=True, align="center"):
         ui.badge(f"{facts['modules']} modules", color="info", variant="soft")
@@ -84,7 +85,8 @@ def runtime_modules_mirror() -> None:
         describe_runtime_modules(),
         [
             ui.column("file", label="Fichier"),
-            ui.column("title", label="Rôle"),
+            ui.column("title", label=tr('Role',
+                                        'Rôle')),
             ui.column("lines", label="Lignes", align="right"),
         ],
         lambda m: {"file": m.name, "title": m.title, "lines": str(m.lines)},
@@ -92,33 +94,39 @@ def runtime_modules_mirror() -> None:
 
 
 def directives_mirror() -> None:
-    """Les directives, groupées par ce qu'elles GARANTISSENT (pas par le
-    module qui les implémente).
+    """The directives, grouped by what they GUARANTEE (not by the module
+    that implements them).
 
-    Deux colonnes de texte, et elles n'ont pas le même statut : la
-    « garantie » est une glose éditoriale, le « contrat » est la
-    définition que le socle donne de sa propre directive, lue dans
-    ``protocol.py``. Afficher les deux évite que la seconde soit
-    recouverte en silence par la première.
+    Two text columns, and they do not have the same status: the
+    "guarantee" is an editorial gloss, the "contract" is the definition
+    the base layer gives of its own directive, read from ``protocol.py``.
+    Showing both stops the second being silently covered over by the
+    first.
     """
     ops = describe_directives()
     unwired = [o for o in ops if not o.implemented]
     if unwired:
         with ui.card(color="error"):
             ui.text(
-                "Déclarée côté Python, jamais branchée dans le runtime : "
+                tr('Declared on the Python side, never wired into the '
+                   'runtime: ',
+                   'Déclarée côté Python, jamais branchée dans le runtime : ')
                 + ", ".join(o.name for o in unwired)
-                + ". Rien ne lève à l'exécution — une directive à moitié "
-                "vivante est simplement ignorée par le navigateur.",
+                + tr('. Nothing raises at run time — a half-live directive is'
+                     ' simply ignored by the browser.',
+                     ". Rien ne lève à l'exécution — une directive à moitié "
+                     'vivante est simplement ignorée par le navigateur.'),
                 size="sm",
             )
 
     grouped_tables(
         ops,
         [
-            ui.column("syntax", label="Écrit dans le HTML"),
+            ui.column("syntax", label=tr('Written into the HTML',
+                                         'Écrit dans le HTML')),
             ui.column("doc", label="Ce qu'elle garantit"),
-            ui.column("contract", label="Déclarée par"),
+            ui.column("contract", label=tr('Declared by',
+                                           'Déclarée par')),
         ],
         lambda o: {
             "syntax": o.syntax,
@@ -132,21 +140,25 @@ def directives_mirror() -> None:
     order = binding_order()
     if order:
         with ui.vstack(gap="xs"):
-            ui.text("Ordre de câblage sur un même élément", weight="bold",
+            ui.text(tr('Wiring order on a single element',
+                       'Ordre de câblage sur un même élément'), weight="bold",
                     size="sm")
             ui.text(" → ".join(order), classes="font-mono", size="sm",
                     color="muted")
             ui.text(
-                "Lu dans le moteur. Il n'est pas cosmétique : bz-ref est "
-                "câblé en premier (un voisin peut le lire), bz-init en "
-                "dernier (le nœud est entièrement câblé quand il tourne).",
+                tr('Read from the engine. It is not cosmetic: bz-ref is wired'
+                   ' first (a neighbour can read it), bz-init last (the node '
+                   'is fully wired when it runs).',
+                   "Lu dans le moteur. Il n'est pas cosmétique : bz-ref est "
+                   'câblé en premier (un voisin peut le lire), bz-init en '
+                   'dernier (le nœud est entièrement câblé quand il tourne).'),
                 color="muted", size="xs",
             )
 
 
 def magics_mirror() -> None:
-    """Les variables disponibles dans une expression ``bz-*``, lues à leur
-    source exacte : la liste d'arguments du compilateur d'expressions."""
+    """The variables available in a ``bz-*`` expression, read at their
+    exact source: the expression compiler's argument list."""
     grouped_tables(
         describe_magics(),
         [
@@ -158,15 +170,14 @@ def magics_mirror() -> None:
 
 
 def runtime_api_mirror() -> None:
-    """La surface de l'objet global ``$bz``, module par module.
+    """The global ``$bz`` object's surface, module by module.
 
-    La colonne « expose » est lue dans le littéral JS : c'est ce qui
-    empêche qu'un onzième helper reste invisible parce que la prose en
-    listait dix.
+    The "exposes" column is read from the JS literal: it is what stops an
+    eleventh helper staying invisible because the prose listed ten.
 
-    Le privé (préfixe ``_``) n'est pas masqué mais réduit à un compte et
-    une liste : le lire dit ce que le framework se réserve, sans laisser
-    croire que c'est une API.
+    What is private (the ``_`` prefix) is not hidden but reduced to a
+    count and a list: reading it says what the framework reserves for
+    itself, without suggesting it is an API.
     """
     ops = describe_runtime_api()
     public = [o for o in ops if o.public]
@@ -176,9 +187,11 @@ def runtime_api_mirror() -> None:
         public,
         [
             ui.column("name", label="Nom"),
-            ui.column("doc", label="Ce que c'est"),
+            ui.column("doc", label=tr('What it is',
+                                      "Ce que c'est")),
             ui.column("members", label="Expose"),
-            ui.column("module", label="Défini dans"),
+            ui.column("module", label=tr('Defined in',
+                                         'Défini dans')),
         ],
         lambda o: {
             "name": f"$bz.{o.name}",
@@ -196,12 +209,17 @@ def runtime_api_mirror() -> None:
                 icon="lock",
             ):
                 ui.text(
-                    "Le framework se les réserve : elles changent sans "
-                    "préavis et aucun composant ne doit les appeler. Deux "
-                    "font exception et sont invoquées depuis le HTML rendu "
-                    "par le serveur ($bz._resolveIcon, $bz._tick) — le "
-                    "préfixe dit « le framework écrit ça », pas « personne "
-                    "ne l'appelle ».",
+                    tr('The framework reserves them: they change without '
+                       'notice and no component should call them. Two are '
+                       'exceptions and are invoked from the server-rendered '
+                       'HTML ($bz._resolveIcon, $bz._tick) — the prefix says '
+                       '“the framework writes this”, not “nobody calls it”.',
+                       'Le framework se les réserve : elles changent sans '
+                       'préavis et aucun composant ne doit les appeler. Deux '
+                       'font exception et sont invoquées depuis le HTML rendu'
+                       ' par le serveur ($bz._resolveIcon, $bz._tick) — le '
+                       'préfixe dit « le framework écrit ça », pas « personne'
+                       " ne l'appelle »."),
                     color="muted", size="sm",
                 )
                 ui.text(

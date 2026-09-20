@@ -5,9 +5,9 @@ interface every concrete backend (memory, Redis, …) must implement. The
 state registry talks to backends through this protocol exclusively, so
 swapping implementations is a single-line config change.
 
-The protocol is intentionally *narrow* — neuf méthodes, no inheritance,
+The protocol is intentionally *narrow* — nine methods, no inheritance,
 no abstract base class. Pydantic-style serialisation lives one layer
-up : the registry hands backends already-serialised :class:`dict`
+up: the registry hands backends already-serialised :class:`dict`
 payloads.
 """
 
@@ -21,30 +21,30 @@ from typing import Any, Protocol, runtime_checkable
 class Backend(Protocol):
     """Async key-value store with scope-aware key namespacing.
 
-    Implementations are responsible for :
+    Implementations are responsible for:
 
     - **Composing the storage key** from ``scope`` + ``key`` in their own
       namespace (e.g., ``bretzel:session:<sid>:<state_class>:<state_key>``
       for the Redis backend). The registry passes the logical pieces
-      separately ; the backend formats them.
+      separately; the backend formats them.
     - **Honouring TTLs** on ``save`` (``EX <seconds>`` for Redis, expiry
       check at read time for in-memory).
     - **Returning JSON-friendly dicts** on ``load`` — never custom Python
       objects. Validation / casting is the registry's job.
-    - **Bornant leurs propres attentes.** Un backend qui parle à un
-      service distant DOIT poser un délai — ``RedisBackend`` le fait à
-      la construction du client. La raison n'est pas la politesse : une
-      lecture d'état est appelée depuis un thread du pool
-      (``StateRegistry._load_via_loop``), qui reste bloqué tant qu'elle
-      n'a pas rendu. Un service silencieux gare ce thread pour
-      toujours ; quarante ainsi garés (le défaut ``anyio``) et plus
-      aucun code d'app synchrone ne tourne.
+    - **Bounding their own waits.** A backend talking to a remote service
+      MUST set a timeout — ``RedisBackend`` does it when building the
+      client. The reason is not politeness: a state read is called from a
+      pool thread (``StateRegistry._load_via_loop``), which stays blocked
+      until it returns. A silent service parks that thread forever; forty
+      parked that way (the ``anyio`` default) and no synchronous app code
+      runs at all any more.
 
-      ⚠️ Le registre ne double PAS ce délai d'un plafond à lui, et c'est
-      un choix : deux limites empilées obligent à garder la plus interne
-      strictement plus courte, faute de quoi celle du framework tombe la
-      première et masque l'erreur juste — celle qui nomme le service
-      injoignable. La responsabilité reste donc là où vit l'I/O.
+      ⚠️ The registry does NOT double that timeout with a ceiling of its
+      own, and that is a choice: two stacked limits force the innermost
+      one to stay strictly shorter, failing which the framework's fires
+      first and masks the right error — the one that names the
+      unreachable service. Responsibility therefore stays where the I/O
+      lives.
     """
 
     async def load(self, scope: str, key: str) -> dict[str, Any] | None:
@@ -66,14 +66,14 @@ class Backend(Protocol):
     ) -> None:
         """Persist ``data`` under ``(scope, key)``.
 
-        ``ttl`` is in seconds. ``None`` means no expiration, et le
-        remplacement emporte l'expiration avec le reste : la ligne
-        écrite n'en porte aucune.
+        ``ttl`` is in seconds. ``None`` means no expiration, and the
+        replacement takes the expiration with the rest: the row written
+        carries none.
 
-        Un document VIDE veut dire « pas de ligne » : elle est
-        supprimée, pas créée vide. Un hash Redis ne peut pas exister
-        sans champ, et le registre lit « absent » et « vide » de la même
-        façon — les deux rendent les défauts.
+        An EMPTY document means "no row": it is deleted, not created
+        empty. A Redis hash cannot exist without a field, and the
+        registry reads "absent" and "empty" the same way — both return
+        the defaults.
         """
         ...
 
@@ -86,65 +86,65 @@ class Backend(Protocol):
         add: dict[str, Any] | None = None,
         ttl: int | None = None,
     ) -> None:
-        """Appliquer ``changes`` SUR ce qui est stocké, atomiquement.
+        """Apply ``changes`` ON TOP of what is stored, atomically.
 
-        C'est par ici que passe la fin de requête, et pas par
-        :meth:`save` — qui réécrit le document entier et efface donc ce
-        qu'une requête concurrente venait d'y mettre.
+        This is the path the end of a request goes through, not
+        :meth:`save` — which rewrites the whole document and therefore
+        erases what a concurrent request had just put in it.
 
-        **Atomiquement, et par CHAMP** : un champ écrit par une requête
-        ne peut pas être effacé par une autre qui en écrit d'autres —
-        valeur et expiration comprises. C'est la promesse minimale, et
-        elle est plus forte qu'elle n'en a l'air : une implémentation
-        qui lit le document, le fusionne et le réécrit ne la tient PAS,
-        sauf à rendre cette séquence indivisible.
+        **Atomically, and per FIELD**: a field written by one request
+        cannot be erased by another writing different ones — value and
+        expiration included. That is the minimal promise, and it is
+        stronger than it looks: an implementation that reads the
+        document, merges it and rewrites it does NOT hold it, unless that
+        sequence is made indivisible.
 
-        Une clé absente est créée avec ``changes`` seul : les champs
-        qu'on n'écrit pas valent leur défaut à la relecture.
+        An absent key is created with ``changes`` alone: the fields not
+        written take their default on read-back.
 
-        ``add`` porte les champs à INCRÉMENTER — ``{champ: écart}`` — au
-        lieu de les remplacer. C'est ce qui rend un compteur juste sous
-        concurrence : deux requêtes qui ont lu le même nombre envoient
-        chacune « ajoute 1 », et le magasin arrive à deux. Un backend qui
-        se contenterait de lire, additionner et réécrire perdrait
-        exactement ce que ce paramètre existe pour sauver — l'addition
-        doit être faite PAR le magasin, ou sous un verrou qu'il détient.
+        ``add`` carries the fields to INCREMENT — ``{field: delta}`` —
+        instead of replacing them. That is what makes a counter correct
+        under concurrency: two requests that read the same number each
+        send "add 1", and the store lands on two. A backend that merely
+        read, summed and rewrote would lose exactly what this parameter
+        exists to save — the addition must be done BY the store, or under
+        a lock it holds.
 
-        ``ttl`` renouvelle l'expiration ; ``None`` laisse en place celle
-        qui existe. C'est là que la fusion diffère de :meth:`save` — une
-        écriture partielle n'a pas à décider du sort d'une durée qu'elle
-        n'a pas posée.
+        ``ttl`` renews the expiration; ``None`` leaves the existing one in
+        place. That is where the merge differs from :meth:`save` — a
+        partial write has no business deciding the fate of a duration it
+        did not set.
         """
         ...
 
     async def acquire(
         self, scope: str, key: str, token: str, *, ttl: int
     ) -> bool:
-        """Prendre le verrou de ``(scope, key)``. ``True`` si obtenu.
+        """Take the lock on ``(scope, key)``. ``True`` if obtained.
 
-        Ne bloque PAS : rend ``False`` immédiatement quand quelqu'un le
-        tient déjà. C'est l'appelant qui décide d'attendre, et de combien
-        — un backend n'a pas à connaître la patience d'une requête.
+        Does NOT block: returns ``False`` immediately when somebody else
+        already holds it. The caller decides whether to wait, and for how
+        long — a backend has no business knowing a request's patience.
 
-        ``token`` identifie le porteur, et il n'est pas décoratif :
-        :meth:`release` ne relâche que si le jeton correspond. Sans ça,
-        un porteur dont le ``ttl`` a expiré relâcherait le verrou d'un
-        SUCCESSEUR, qui se croirait seul alors qu'ils seraient deux.
+        ``token`` identifies the holder, and it is not decorative:
+        :meth:`release` only releases when the token matches. Without it,
+        a holder whose ``ttl`` expired would release a SUCCESSOR's lock,
+        who would believe itself alone when there would be two of them.
 
-        ``ttl`` est un plafond de PANNE, en secondes : sans lui, un
-        processus qui meurt en tenant le verrou le garde pour toujours.
+        ``ttl`` is a FAILURE ceiling, in seconds: without it, a process
+        that dies holding the lock keeps it forever.
 
-        ⚠️ La limite est inhérente à tout verrou à durée : si le travail
-        dépasse le ``ttl``, un second porteur entre. Le jeton empêche la
-        libération croisée, pas le recouvrement.
+        ⚠️ The limit is inherent to every time-bounded lock: if the work
+        exceeds the ``ttl``, a second holder gets in. The token prevents
+        cross-release, not the overlap.
         """
         ...
 
     async def release(self, scope: str, key: str, token: str) -> None:
-        """Relâcher le verrou, SI ``token`` est bien celui du porteur.
+        """Release the lock, IF ``token`` is indeed the holder's.
 
-        Le contrôle et la suppression doivent être indivisibles : lire
-        puis supprimer laisse la place à une expiration entre les deux.
+        The check and the deletion must be indivisible: reading then
+        deleting leaves room for an expiration in between.
         """
         ...
 

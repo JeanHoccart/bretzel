@@ -54,28 +54,27 @@ def current_iteration_key() -> str | None:
 
 @contextmanager
 def key_segment(segment: str) -> Iterator[None]:
-    """Pousser un segment d'identité sur la pile, hors de toute boucle.
+    """Push an identity segment onto the stack, outside any loop.
 
-    ``each`` pousse la clé d'un ÉLÉMENT ; ce helper pousse la clé d'un
-    CONTENANT. C'est la même composition, appliquée un cran plus haut, et
-    pour la raison que ce module énonce déjà : « sans ça, un élément en
-    position 0 de la catégorie X entre en collision avec celui de la
-    catégorie Y ».
+    ``each`` pushes an ELEMENT's key; this helper pushes a CONTAINER's.
+    It is the same composition, applied one notch higher, and for the
+    reason this module already states: "without it, an element at
+    position 0 of category X collides with the one of category Y".
 
-    Le cas qui l'a produit : deux ``ui.table`` affichant les mêmes lignes
-    donnaient à leurs cellules des identités IDENTIQUES. Un composant né
-    dans un ``render=`` de cellule n'a pas de parent sur la pile (il est
-    construit pendant le rendu, hors de tout ``with``), donc son id vaut
-    ``root_<kind>_<clé de ligne>`` — et deux tables sur les mêmes données
-    répètent exactement la même suite. Mesuré sur ``/datatable`` du
-    playground : **neuf éléments partageant ``root_dropdown_100``**, un
-    par tableau affichant la ligne d'id 100.
+    The case that produced it: two ``ui.table`` showing the same rows
+    gave their cells IDENTICAL identities. A component born inside a
+    cell's ``render=`` has no parent on the stack (it is built during the
+    render, outside any ``with``), so its id is
+    ``root_<kind>_<row key>`` — and two tables on the same data repeat
+    exactly the same sequence. Measured on the playground's
+    ``/datatable``: **nine elements sharing ``root_dropdown_100``**, one
+    per table showing the row with id 100.
 
-    Ça compte parce que ``bz-id`` est la clé de DEUX mécanismes : celle
-    par laquelle idiomorph apparie les nœuds après un swap, et celle par
-    laquelle ``scope.absorb`` retrouve un scope client. Neuf candidats
-    pour une cible, c'est un menu qui s'ouvre à la place d'un autre et un
-    sous-arbre remplacé au lieu d'être fusionné.
+    It matters because ``bz-id`` is the key of TWO mechanisms: the one
+    idiomorph pairs nodes with after a swap, and the one
+    ``scope.absorb`` finds a client scope with. Nine candidates for one
+    target means a menu opening instead of another and a subtree replaced
+    instead of merged.
     """
     previous = _KEY_STACK.get()
     token = _KEY_STACK.set((*previous, segment))

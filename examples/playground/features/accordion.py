@@ -798,12 +798,12 @@ def page() -> None:
                     ui.heading("Mode 3 — Both (write-through)",
                                level=3)
                     ui.text(
-                        "Binding fournie ET on appelle ``.expand()`` "
-                        "sur l'instance. Pour single, le framework "
-                        "détecte la binding et délègue à "
-                        "``binding.set(v)`` — single source of truth "
-                        "préservée. Sibling buttons + binding-aware "
-                        "components convergent sur le même flag.",
+                        'A binding supplied AND ``.expand()`` called on '
+                            'the instance. For single, the framework detects '
+                            'the binding and delegates to ``binding.set(v)`` '
+                            '— single source of truth preserved. Sibling '
+                            'buttons + binding-aware components converge on '
+                            'the same flag.',
                         color="muted", size="sm",
                     )
                     both = AccordionClient(key="both")

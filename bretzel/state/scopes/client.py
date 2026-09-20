@@ -30,16 +30,16 @@ from bretzel.state.base import State
 from bretzel.state.fields.descriptor import Field
 
 # ───────────────────────────────────────────────────────────────────────────
-# Persist modes — un seul axe : combien de temps la valeur survit.
+# Persist modes — one axis only: how long the value survives.
 #
-#   "memory" (défaut) : RAM JS. Perdue au reload (F5) et à la fermeture.
-#   "session"         : sessionStorage. Survit au reload, perdue à la fermeture.
-#   "local"           : localStorage. Survit à tout.
+#   "memory" (default) : JS RAM. Lost on reload (F5) and on close.
+#   "session"          : sessionStorage. Survives reload, lost on close.
+#   "local"            : localStorage. Survives everything.
 #
-# Le runtime (04_persistence.js) n'attache aucun adaptateur de stockage
-# pour "memory" : la valeur reste en RAM JS (comportement volatile),
-# perdue au reload. Les modes "page" et le TTL ont été retirés (côté
-# runtime ET API) — c'étaient des reliquats V2 sans effet.
+# The runtime (04_persistence.js) attaches no storage adapter for
+# "memory": the value stays in JS RAM (volatile behaviour), lost on
+# reload. The "page" mode and the TTL were removed (runtime AND API
+# side) — they were V2 leftovers with no effect.
 # ───────────────────────────────────────────────────────────────────────────
 
 PERSISTS: Final[tuple[str, ...]] = ("memory", "session", "local")
@@ -146,13 +146,13 @@ class ClientBinding:
         self.instance_key = instance_key
         self.field_name = field_name
         self.value = value
-        #: Recopié de ``ClientState.__send_to_server__`` à la construction.
-        #: Le binding porte le NOM de sa classe, pas la classe — donc sans
-        #: cette copie, un consommateur ne peut pas savoir si le champ
-        #: remonte. Le seul qui en a besoin est la garde two-way de
-        #: ``Component.__init__`` : lier un champ que le CLIENT écrit à un
-        #: état qui ne remonte pas le perd en silence. Défaut ``True`` —
-        #: le cas de très loin majoritaire, et la valeur sûre.
+        #: Copied from ``ClientState.__send_to_server__`` at construction.
+        #: The binding carries the NAME of its class, not the class — so
+        #: without this copy, a consumer cannot know whether the field
+        #: travels back. The only one that needs it is the two-way guard
+        #: in ``Component.__init__``: binding a field the CLIENT writes to
+        #: a state that does not travel back loses it silently. Default
+        #: ``True`` — by far the majority case, and the safe value.
         self.sends_to_server = sends_to_server
 
     # ── Path serialisation ──────────────────────────────────────────────
@@ -215,16 +215,16 @@ class ClientBinding:
 
     # ── Comparison operators → ClientExpression ────────────────────────
     #
-    # ⚠️ INVARIANT — tout opérateur de cette algèbre rend une source
-    # ATOMIQUE : interpolable dans une expression plus large sans
-    # re-associer. Un opérateur lâche parenthèse son résultat ; un accès
-    # membre ou un appel (``x.length``) l'est déjà. Le pourquoi en détail
-    # et la gate : ``tests/consistency/test_client_expression_atomic.py``.
+    # ⚠️ INVARIANT — every operator of this algebra returns an ATOMIC
+    # source: interpolable into a wider expression without re-associating.
+    # A loose operator parenthesises its result; a member access or a call
+    # (``x.length``) already is atomic. The why in detail and the gate:
+    # ``tests/consistency/test_client_expression_atomic.py``.
     #
-    # Périmètre : cette algèbre. Une ``ClientExpression`` bâtie à la main
-    # (``meta/iteration/*``) sert de valeur TERMINALE à ``visible=`` et
-    # n'est jamais opérande — la parenthéser coûterait des octets par
-    # ligne rendue sans rien garantir de plus.
+    # Scope: this algebra. A ``ClientExpression`` built by hand
+    # (``meta/iteration/*``) serves as a TERMINAL value for ``visible=``
+    # and is never an operand — parenthesising it would cost bytes per
+    # rendered line and guarantee nothing more.
 
     def __eq__(self, other: object) -> ClientExpression:  # type: ignore[override]
         return ClientExpression(f"({self.binding_path()} === {_to_js(other)})")
@@ -291,8 +291,8 @@ class ClientBinding:
     # ── Logical operators ─────────────────────────────────────────────
 
     def __invert__(self) -> ClientExpression:
-        # Parenthésé aussi : ``!x.length`` lie le ``.length`` avant le
-        # ``!``, donc un ``!x`` nu se fait manger par un accès membre.
+        # Parenthesised too: ``!x.length`` binds the ``.length`` before
+        # the ``!``, so a bare ``!x`` gets eaten by a member access.
         return ClientExpression(f"(!{self.binding_path()})")
 
     def __and__(self, other: Any) -> ClientExpression:
@@ -426,9 +426,9 @@ class ClientExpression(ClientBinding):
 
     __slots__ = ("_expr",)
 
-    #: Sentinelle « pas de valeur serveur » — distincte de ``None``, qui
-    #: est une valeur JS légitime (et falsy, donc pré-poser
-    #: ``display:none`` dessus serait juste, pas neutre).
+    #: The "no server value" sentinel — distinct from ``None``, which is
+    #: a legitimate JS value (and falsy, so pre-setting ``display:none``
+    #: on it would be correct, not neutral).
     _NO_SSR_VALUE: ClassVar[object] = object()
 
     def __init__(self, expr: str, *, ssr_value: Any = _NO_SSR_VALUE) -> None:
@@ -443,25 +443,24 @@ class ClientExpression(ClientBinding):
     def binding_path(self) -> str:
         return self._expr
 
-    # ── Les mutateurs, refusés ────────────────────────────────────────
+    # ── The mutators, refused ─────────────────────────────────────────
     #
-    # ⚠️ Hérités de :class:`ClientBinding`, ils produisaient du JS INVALIDE
-    # en silence : ``(state.a | state.b).set(3)`` émettait ``(…||…) = 3``,
-    # une ``SyntaxError`` au bind navigateur, et zéro signal côté Python.
-    # Une expression est une LECTURE — il n'existe aucune cible à laquelle
-    # assigner.
+    # ⚠️ Inherited from :class:`ClientBinding`, they silently produced
+    # INVALID JS: ``(state.a | state.b).set(3)`` emitted ``(…||…) = 3``, a
+    # ``SyntaxError`` at browser bind time, and zero signal on the Python
+    # side. An expression is a READ — there is no target to assign to.
     #
-    # ``Component`` gardait déjà l'autre porte (le passage d'une expression
-    # à une prop à double sens, ``component.py``) ; la même erreur entrait
-    # par celle-ci. Le refus ne coûte rien au rendu : il ne se déclenche
-    # qu'en cas de mésusage.
-    def _refuse_mutation(self, verbe: str) -> NoReturn:
+    # ``Component`` already guarded the other door (passing an expression
+    # to a two-way prop, ``component.py``); the same mistake came in
+    # through this one. The refusal costs nothing at render time: it only
+    # fires on misuse.
+    def _refuse_mutation(self, verb: str) -> NoReturn:
         raise ReactivityError(
-            f"``.{verbe}()`` sur une ClientExpression — une expression est "
-            f"une LECTURE, il n'y a pas de cible à laquelle assigner. "
-            f"L'appel émettrait du JS invalide (``{self._expr} = …``), qui "
-            f"ne se verrait qu'au bind navigateur.\n"
-            f"  Appelle le mutateur sur le CHAMP : ``state.champ.{verbe}(…)``."
+            f"``.{verb}()`` on a ClientExpression — an expression is a "
+            f"READ, there is no target to assign to. The call would emit "
+            f"invalid JS (``{self._expr} = …``), which would only show at "
+            f"browser bind time.\n"
+            f"  Call the mutator on the FIELD: ``state.field.{verb}(…)``."
         )
 
     def toggle(self) -> NoReturn:
@@ -515,11 +514,11 @@ class ClientState(State):
             cls.__persist__ = persist
 
         if send_to_server is not None:
-            # ``isinstance`` et non un test de vérité : ``send_to_server=""``
-            # ou ``="false"`` sont les fautes de frappe plausibles, et la
-            # seconde est TRUTHY — elle ferait exactement l'inverse de ce
-            # qu'on lit, sans rien signaler. Le seul réglage dont la
-            # mauvaise valeur est muette mérite sa garde.
+            # ``isinstance`` rather than a truth test: ``send_to_server=""``
+            # or ``="false"`` are the plausible typos, and the second is
+            # TRUTHY — it would do the exact opposite of what it reads,
+            # with nothing reported. The one setting whose wrong value is
+            # mute deserves its guard.
             if not isinstance(send_to_server, bool):
                 raise ValueError(
                     f"Invalid send_to_server {send_to_server!r} on "

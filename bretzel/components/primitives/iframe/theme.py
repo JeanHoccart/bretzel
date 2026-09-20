@@ -1,23 +1,24 @@
 """Default :class:`Iframe` theme.
 
-Même parti que ``image`` et ``video`` : la racine EST l'``<iframe>``, sans
-enveloppe. Il porte lui-même ``aspect-ratio`` et un fond, donc la boîte
-d'attente est son propre background.
+Same stance as ``image`` and ``video``: the root IS the ``<iframe>``,
+with no wrapper. It carries ``aspect-ratio`` and a background itself, so
+the waiting box is its own background.
 
-Le ratio compte plus ici que partout ailleurs. Un embed est **la première
-cause de saut de page** : le document distant met des centaines de
-millisecondes à répondre, et sans hauteur réservée tout ce qui suit se
-décale quand il arrive. Un ``<iframe>`` sans dimensions retombe d'ailleurs
-sur un 300×150 hérité de 1996, que personne ne veut.
+The ratio counts more here than anywhere else. An embed is **the leading
+cause of page jump**: the remote document takes hundreds of milliseconds
+to answer, and with no reserved height everything that follows shifts
+when it arrives. An ``<iframe>`` with no dimensions in fact falls back on
+a 300×150 inherited from 1996, which nobody wants.
 
-``bg-muted/30`` — le même que l'image, et non le noir de la vidéo : un
-document embarqué est du contenu de page, pas un média étalonné contre du
-noir. Une bordure discrète le détache de la page, parce qu'un document
-tiers qui se fond dans la vôtre est trompeur autant qu'illisible.
+``bg-muted/30`` — the same as the image's, and not the video's black: an
+embedded document is page content, not a medium graded against black. A
+discreet border sets it apart from the page, because a third-party
+document blending into yours is as misleading as it is illegible.
 
-Table de ratios **fermée** et **recopiée** (les chaînes de classes
-restent par composant), classes écrites en entier — une f-string
-``aspect-[{w}/{h}]`` serait invisible au compilateur Tailwind de prod.
+A **closed** and **copied** ratio table (the class strings stay per
+component), classes written out in full — an f-string
+``aspect-[{w}/{h}]`` would be invisible to the production Tailwind
+compiler.
 """
 
 from __future__ import annotations
@@ -26,8 +27,8 @@ from typing import Any
 
 IFRAME_THEME: dict[str, Any] = {
     "slots": {
-        # ``block`` : un iframe est ``inline`` par défaut, ce qui lui colle
-        # l'espace de la ligne de base sous le ventre.
+        # ``block``: an iframe is ``inline`` by default, which sticks
+        # the baseline's space under its belly.
         "root": (
             "block max-w-full bg-muted/30 "
             "border-(length:--bz-stroke) border-text/10 rounded-box"

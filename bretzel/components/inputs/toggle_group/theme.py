@@ -32,18 +32,19 @@ TOGGLE_GROUP_THEME: dict[str, Any] = {
         # any tooltip / popover that anchors on the cluster centers on
         # the STRETCHED width, not on the actual button row, and the
         # panel floats off to the side. Same fix Popover + Dropdown
-        # carry — cf. traps.md § "Root inline-flex étirée par un
-        # parent flex/grid items-stretch".
+        # carry — cf. traps.md § "An inline-flex root stretched by a
+        # flex/grid items-stretch parent".
         #
         # Tight border-radius family from the form input design — same
         # scale as Input / Select / Combobox so a toggle group sits
         # naturally in a form row.
-        # ⚠️ Pas de ``h-fit`` ici, et la hauteur de palier vit sur CETTE
-        # boîte (``sizes[…]["root"]``), pas sur l'item. La bordure du
-        # cadre est posée sur la root : un ``h-10`` sur l'item rendait
-        # 42 px de cluster contre 40 px pour le select posé à côté dans
-        # la même grille — mesuré à toutes les tailles, +2 px partout.
-        # Cf. traps.md § "La hauteur d'un palier vit sur l'élément bordé".
+        # ⚠️ No ``h-fit`` here, and the step's height lives on THIS box
+        # (``sizes[…]["root"]``), not on the item. The frame's border is
+        # set on the root: an ``h-10`` on the item rendered a 42 px
+        # cluster against 40 px for the select placed beside it in the
+        # same grid — measured at every size, +2 px everywhere.
+        # Cf. traps.md § "A step's height lives on the bordered
+        # element".
         "root": (
             "inline-flex items-stretch w-fit select-none "
             "transition-colors duration-150 "
@@ -71,23 +72,22 @@ TOGGLE_GROUP_THEME: dict[str, Any] = {
             "disabled:opacity-50 disabled:cursor-not-allowed"
         ),
     },
-    # Sizes scale the root height and the item padding. Clés ``root`` et
-    # ``item`` par taille — lues à la main dans ``ToggleGroup.render()``
-    # (composant multi-slot, il compose lui-même ses classes).
+    # Sizes scale the root height and the item padding. ``root`` and
+    # ``item`` keys per size — read by hand in ``ToggleGroup.render()``
+    # (a multi-slot component, it composes its own classes).
     #
-    # La hauteur est sur ``root`` (l'élément qui porte la bordure) et
-    # l'item la remplit en ``h-full`` : c'est ce qui aligne le cluster
-    # sur un select / input / bouton de la même taille au pixel près.
+    # The height is on ``root`` (the element carrying the border) and
+    # the item fills it with ``h-full``: it is what aligns the cluster
+    # with a select / input / button of the same size to the pixel.
     "sizes": {
         "xs": {"root": "h-7", "item": "h-full px-2 text-xs"},
         "sm": {"root": "h-8", "item": "h-full px-3 text-sm"},
         "md": {"root": "h-10", "item": "h-full px-4 text-sm"},
         "lg": {"root": "h-12", "item": "h-full px-5 text-base"},
-        # ``xl`` manquait : un ``size="xl"`` retombait en silence sur
-        # ``md``, une palier plus petit qu'un select/combobox ``xl``
-        # posé à côté dans le même formulaire (audit F91). Le palier
-        # calque celui de Select (``h-14 px-5 text-lg``) pour que la
-        # famille reste alignée.
+        # ``xl`` was missing: a ``size="xl"`` silently fell back to
+        # ``md``, a step smaller than an ``xl`` select/combobox placed
+        # beside it in the same form (audit F91). The step traces
+        # Select's (``h-14 px-5 text-lg``) so the family stays aligned.
         "xl": {"root": "h-14", "item": "h-full px-5 text-lg"},
     },
 }

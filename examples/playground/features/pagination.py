@@ -76,8 +76,8 @@ class PaginationFormDemo(ClientState, persist="memory"):
     page: int = field(default=3)
 
 
-# Card 10, mode 2 : la page est lue par un voisin (le libellé), donc
-# elle a besoin d'une ClientState. Le mode 1 juste au-dessus s'en passe.
+# Card 10, mode 2: the page is read by a neighbour (the label), so it
+# needs a ClientState. Mode 1 just above does without.
 class PaginationImperative(ClientState, persist="memory"):
     page: int = field(default=1)
 
@@ -122,28 +122,29 @@ def parse_extra_attrs(blob: str) -> dict:
 
 
 def build_preview(state: PaginationPlayground):
-    # ⚠️ ``state.value`` PASSE TEL QUEL, sans ``int()``.
+    # ⚠️ ``state.value`` IS PASSED AS IS, with no ``int()``.
     #
-    # Une valeur lue sur un ``PageState`` porte un tampon (le nom du champ
-    # d'origine). Deux mécanismes en dépendent, et ``int()`` les tuait tous
-    # les deux d'un coup — d'où « seul le value ne marche pas, et il n'y a
-    # même pas de name » :
+    # A value read on a ``PageState`` carries a stamp (the original
+    # field's name). Two mechanisms depend on it, and ``int()`` killed
+    # both at once — hence "only the value does not work, and there is
+    # not even a name":
     #
-    #   1. ``_serverSync`` : la clé de valeur n'est re-semée que si le
-    #      serveur en est propriétaire, ce que le tampon atteste. Sans lui,
-    #      le composant est réputé client-owned et le scope garde sa page du
-    #      premier montage (le garde existe pour ne pas écraser un clic
-    #      utilisateur à chaque refresh voisin — il est juste, c'est le banc
-    #      qui mentait sur la provenance).
-    #   2. l'autoname : ``names_field=True`` dérive ``name=`` du nom de
-    #      champ du tampon. Pas de tampon → pas de nom → pas d'input caché.
+    #   1. ``_serverSync``: the value key is only re-seeded if the server
+    #      owns it, which the stamp attests. Without it, the component is
+    #      deemed client-owned and the scope keeps its page from the
+    #      first mount (the guard exists so as not to overwrite a user
+    #      click at every neighbouring refresh — it is right, it was the
+    #      bench lying about the provenance).
+    #   2. autoname: ``names_field=True`` derives ``name=`` from the
+    #      stamp's field name. No stamp → no name → no hidden input.
     #
-    # Mesuré : ``value=state.value`` → ``_serverSync: ['active', '_total',
-    # '_maxVisible']`` + ``name="value"`` ; ``value=int(state.value)`` →
-    # ``['_total', '_maxVisible']`` + aucun nom.
+    # Measured: ``value=state.value`` → ``_serverSync: ['active',
+    # '_total', '_maxVisible']`` + ``name="value"``;
+    # ``value=int(state.value)`` → ``['_total', '_maxVisible']`` + no
+    # name.
     #
-    # ``total_pages`` / ``max_visible`` gardent leur ``int()`` : ce sont des
-    # props design-time, leur re-sync ne dépend d'aucun tampon.
+    # ``total_pages`` / ``max_visible`` keep their ``int()``: they are
+    # design-time props, their re-sync depends on no stamp.
     kwargs: dict = {
         "value": state.value,
         "total_pages": int(state.total_pages or 1),
@@ -278,7 +279,7 @@ def events_panel() -> None:
         # Binding-driven value → AUTONAME_FROM="value" derives
         # ``name="value"`` from the binding's field_name. The
         # dispatcher's payload key matches the handler's ``value=``
-        # kwarg automatically. No manual ``name=`` (CLAUDE.md règle 4).
+        # kwarg automatically. No manual ``name=`` (CLAUDE.md rule 4).
         ev_state = PaginationServerEvents()
         ui.pagination(value=ev_state.value, total_pages=10,
                       on_change=log_change)

@@ -1,15 +1,14 @@
-"""Le câblage ``loading=`` partagé par Button et IconButton.
+"""The ``loading=`` wiring shared by Button and IconButton.
 
-Les deux composants ont la même mécanique de chargement — construire le
-spinner tôt, verrouiller le bouton pendant la fenêtre asynchrone, et
-faire un mutex entre le spinner et l'icône de tête — et seul l'habillage
-autour diffère (Button intercale un label et une icône de droite,
-IconButton n'a qu'un glyphe).
+Both components have the same loading mechanics — build the spinner
+early, lock the button during the async window, and mutex the spinner
+against the leading icon — and only the dressing around differs (Button
+inserts a label and a right icon, IconButton has only a glyph).
 
-Ces trois morceaux vivaient en double (audit F09). Le wrapper de mutex
-lui-même (``Component._cloak_show``) était déjà un primitive du socle :
-ce qui restait non partagé, c'est la construction anticipée du spinner,
-le OR-combine ``loading || disabled``, et la colle qui les assemble.
+These three pieces lived in duplicate (audit F09). The mutex wrapper
+itself (``Component._cloak_show``) was already a base-layer primitive:
+what was left unshared is the early construction of the spinner, the
+``loading || disabled`` OR-combine, and the glue that assembles them.
 """
 
 from __future__ import annotations
@@ -23,16 +22,16 @@ from bretzel.runtime.protocol import BZ_ATTR_PREFIX
 
 
 def build_loading_spinner(component: Component) -> Spinner | None:
-    """Le spinner du bouton, construit **dans ``__init__``**.
+    """The button's spinner, built **in ``__init__``**.
 
-    ⚠️ Anticipé à dessein : ``Spinner.__init__`` a besoin d'un contexte
-    de render vivant pour allouer son id, et ``render()`` peut tourner
-    après que ce contexte a été démonté (cas des tests unitaires).
+    ⚠️ Early on purpose: ``Spinner.__init__`` needs a live render context
+    to allocate its id, and ``render()`` can run after that context has
+    been torn down (the unit-test case).
 
-    Construit dès que ``loading`` est vrai **ou** porte un binding — le
-    cas réactif a besoin du nœud DOM même si ``loading`` vaut False au
-    SSR, puisque le mutex émet les deux branches pour que le runtime les
-    bascule en ``bz-show``.
+    Built as soon as ``loading`` is true **or** carries a binding — the
+    reactive case needs the DOM node even if ``loading`` is False at SSR,
+    since the mutex emits both branches for the runtime to toggle with
+    ``bz-show``.
     """
     if not (component._reactive_values.get("loading")
             or "loading" in component._binding_metadata):
@@ -46,10 +45,10 @@ def apply_loading_disabled(
 ) -> None:
     """``bz-attr:disabled = (loading) || (disabled)``.
 
-    L'attribut HTML ``disabled`` doit rester vrai tant que l'UN des deux
-    l'est — sinon un ``loading`` qui retombe déverrouillerait un bouton
-    par ailleurs désactivé. Le côté ``disabled`` est soit un binding,
-    soit l'instantané SSR figé en littéral JS.
+    The HTML ``disabled`` attribute must stay true as long as EITHER is —
+    otherwise a ``loading`` falling back would unlock a button that is
+    otherwise disabled. The ``disabled`` side is either a binding, or the
+    SSR snapshot frozen as a JS literal.
     """
     disabled_binding = component._binding_metadata.get("disabled")
     if disabled_binding is not None:
@@ -69,20 +68,20 @@ def loading_leading_children(
     spinner: Spinner | None,
     icon: Component | None,
 ) -> list[Node]:
-    """Le mutex spinner ↔ icône de tête, dans l'ordre des enfants.
+    """The spinner ↔ leading icon mutex, in the children's order.
 
-    - **Réactif** (``loading_path``) : les DEUX branches sont émises et
-      le runtime les mutexe en ``bz-show`` — on ne peut pas choisir au
-      SSR ce que le client décidera.
-    - **Statique** : l'une OU l'autre, jamais les deux.
+    - **Reactive** (``loading_path``): BOTH branches are emitted and the
+      runtime mutexes them with ``bz-show`` — one cannot choose at SSR
+      what the client will decide.
+    - **Static**: one OR the other, never both.
 
-    Chaque appelant ajoute ensuite ce qui lui est propre (le label et
-    l'icône de droite pour Button).
+    Each caller then adds what is proper to it (the label and the right
+    icon for Button).
     """
     children: list[Node] = []
     if loading_path is not None:
         assert spinner is not None, (
-            "un loading réactif exige le spinner construit en __init__"
+            "a reactive loading requires the spinner built in __init__"
         )
         children.append(component._cloak_show(
             spinner.render(), loading_path, initial=loading,

@@ -1,44 +1,44 @@
-"""``TimePicker`` — champ d'heure avec panneau à deux colonnes.
+"""``TimePicker`` — time field with a two-column panel.
 
 Usage ::
 
     ui.time_picker(value=state.start)                 # :00 :15 :30 :45
-    ui.time_picker(value=state.start, step=30)        # demi-heures
+    ui.time_picker(value=state.start, step=30)        # half hours
     ui.time_picker(value=state.start, min="09:00", max="18:00")
 
-**La valeur est une chaîne ``"HH:MM"``** — même forme que l'ISO des
-pickers de date : triable, comparable, sérialisable telle quelle dans une
-form data, et lisible dans le champ éditable. Python accepte en plus un
-``datetime.time``, converti au rendu.
+**The value is an ``"HH:MM"`` string** — the same shape as the date
+pickers' ISO: sortable, comparable, serialisable as is in a form data,
+and readable in the editable field. Python also accepts a
+``datetime.time``, converted at render.
 
-Silhouette identique à :class:`DatePicker` (champ éditable + bouton icône
-dans le même anneau de focus, popover ancré), mais le panneau n'est pas
-une grille : **deux colonnes aimantées**, heures et minutes.
+Identical silhouette to :class:`DatePicker` (editable field + icon button
+in the same focus ring, anchored popover), but the panel is not a grid:
+**two snapping columns**, hours and minutes.
 
-Pourquoi des colonnes maison et pas ``<input type="time">`` : un widget
-natif n'est pas thématisable et change d'allure entre Chrome, Safari et
-Android. C'est la leçon payée sur la scrollbar du Carousel, en plus
-visible — et ici s'y ajoute le fait qu'un ``min``/``max`` natif
-s'applique sans qu'on puisse MONTRER les créneaux permis.
+Why home-made columns and not ``<input type="time">``: a native widget
+is not themable and changes look between Chrome, Safari and Android. It
+is the lesson paid on the Carousel's scrollbar, more visibly so — and
+here there is the added fact that a native ``min``/``max`` applies
+without any way of SHOWING the allowed slots.
 
-``step`` (défaut 15) est de la **donnée métier**, pas du goût : un
-créneau de rendez-vous. Il décide quelles minutes existent —
-``step=15`` → :00 :15 :30 :45, ``step=1`` → les soixante. Le défaut évite
-la colonne de 60 lignes que personne ne veut faire défiler.
+``step`` (default 15) is **business data**, not taste: an appointment
+slot. It decides which minutes exist — ``step=15`` → :00 :15 :30 :45,
+``step=1`` → all sixty. The default avoids the 60-row column nobody wants
+to scroll.
 
-``min`` / ``max`` bornent les cellules PROPOSÉES (une heure hors bornes
-est rendue ``disabled``). Ils ne sont **pas** bindables, contrairement à
-la famille date : la règle (`client-reactive-surface.md`) ne les y admet
-que pour la contrainte croisée client-side d'un range (``fin.min =
-début``), qui n'existe pas ici. Cf. `kwarg-routing.md`.
+``min`` / ``max`` bound the OFFERED cells (an out-of-range hour is
+rendered ``disabled``). They are **not** bindable, unlike the date
+family: the rule (`client-reactive-surface.md`) only admits them there
+for the client-side cross constraint of a range (``end.min = start``),
+which does not exist here. Cf. `kwarg-routing.md`.
 
-Le clic sur une MINUTE referme le panneau, celui sur une heure non :
-l'ordre de lecture est heure puis minute, donc refermer à l'heure
-couperait la main de l'utilisateur au milieu de son geste.
+Clicking a MINUTE closes the panel, clicking an hour does not: the
+reading order is hour then minute, so closing on the hour would cut the
+user's hand off mid-gesture.
 
-Form integration : ``names_field=True`` sur ``value`` dérive le ``name``
-HTML du champ lié ; un ``<input type="hidden">`` porte l'heure dans la
-form data. Idiome partagé avec DatePicker / Calendar.
+Form integration : ``names_field=True`` on ``value`` derives the HTML
+``name`` from the bound field; an ``<input type="hidden">`` carries the
+time in the form data. Idiom shared with DatePicker / Calendar.
 """
 
 from __future__ import annotations
@@ -70,22 +70,22 @@ from bretzel.core.tree import Element, Node
 from bretzel.core.tree import TextNode as TextNode
 from bretzel.render import text
 
-#: Les deux parties, dans l'ordre où on les lit. Les indices sont ceux
-#: du tuple rendu par ``_parts()`` dans ``$bz.time.scope`` — un seul
-#: endroit les nomme de chaque côté.
+#: The two parts, in the order you read them. The indices are those of
+#: the tuple returned by ``_parts()`` in ``$bz.time.scope`` — a single
+#: place names them on each side.
 HOUR, MINUTE = 0, 1
 
 
 def time_to_hhmm(value: Any, *, owner: str = "TimePicker") -> str:
-    """Coercer une valeur d'heure vers ``"HH:MM"``.
+    """Coerce a time value to ``"HH:MM"``.
 
-    ``None`` → ``""`` (champ vide) ; un ``datetime.time`` → sa forme
-    ``HH:MM`` ; une chaîne passe (déjà normalisée, ou la graine SSR de
-    l'appelant). Tout le reste est une erreur d'usage, levée avec
-    ``owner`` dans le message pour que l'auteur voie QUI a refusé.
+    ``None`` → ``""`` (empty field); a ``datetime.time`` → its ``HH:MM``
+    form; a string passes (already normalised, or the caller's SSR seed).
+    Everything else is a usage error, raised with ``owner`` in the
+    message so the author sees WHO refused.
 
-    Même contrat que ``inputs/_wiring.date_to_iso`` pour la famille date
-    — volontairement, les deux familles se lisent pareil.
+    Same contract as ``inputs/_wiring.date_to_iso`` for the date family —
+    deliberately, the two families read alike.
     """
     from bretzel.components.base.attrs import ComponentDefinitionError
 
@@ -101,16 +101,15 @@ def time_to_hhmm(value: Any, *, owner: str = "TimePicker") -> str:
     )
 
 
-#: Normalisation au blur : la saisie libre devient ``HH:MM``, ou se vide.
-#: Templatée sur ``{V}`` (l'expression de valeur) pour que le mode lié
-#: (``$bz.state.X.y``) et le mode littéral (``value``) partagent le MÊME
-#: parseur — exactement comme ``NORMALISE_TO_ISO_TEMPLATE`` chez
-#: DatePicker.
+#: Blur normalisation: free input becomes ``HH:MM``, or empties. Templated
+#: on ``{V}`` (the value expression) so that bound mode
+#: (``$bz.state.X.y``) and literal mode (``value``) share the SAME parser
+#: — exactly like ``NORMALISE_TO_ISO_TEMPLATE`` at DatePicker.
 NORMALISE_TO_HHMM_TEMPLATE = (
     "(() => {{ const raw = String({V} || '').trim(); "
     "if (!raw) {{ {V} = ''; return; }} "
-    # ``9h30`` / ``9:30`` / ``9.30`` / ``930`` / ``9`` — un seul motif
-    # couvre les cinq façons dont les gens tapent une heure.
+    # ``9h30`` / ``9:30`` / ``9.30`` / ``930`` / ``9`` — a single
+    # pattern covers the five ways people type a time.
     "const m = raw.match(/^(\\d{{1,2}})[^\\d]?(\\d{{2}})?$/); "
     "if (!m) {{ {V} = ''; return; }} "
     "const h = Number(m[1]), mi = Number(m[2] || 0); "
@@ -121,17 +120,16 @@ NORMALISE_TO_HHMM_TEMPLATE = (
 
 
 def normalise_to_hhmm_js(value_expr: str) -> str:
-    """Le normaliseur saisie-libre → ``HH:MM`` pour ``value_expr``."""
+    """The free-input → ``HH:MM`` normaliser for ``value_expr``."""
     return NORMALISE_TO_HHMM_TEMPLATE.format(V=value_expr)
 
 
 def _in_bounds(candidate: str, low: str, high: str) -> bool:
-    """``candidate`` tient-il dans ``[low, high]`` ?
+    """Does ``candidate`` fit in ``[low, high]``?
 
-    Comparaison de CHAÎNES, et c'est correct : ``"HH:MM"`` zéro-paddé se
-    trie lexicographiquement comme il se trie chronologiquement. C'est la
-    raison d'être du format, la même qui fait choisir l'ISO pour les
-    dates.
+    A STRING comparison, and it is correct: zero-padded ``"HH:MM"`` sorts
+    lexicographically as it sorts chronologically. It is the format's
+    reason to be, the same one that makes ISO the choice for dates.
     """
     if low and candidate < low:
         return False
@@ -144,14 +142,14 @@ class TimePicker(Component):
     THEME: ClassVar[dict[str, Any]] = TIME_PICKER_THEME
     THEME_KEY: ClassVar[str] = "time_picker"
     IS_CONTAINER: ClassVar[bool] = False
-    # ``min`` / ``max`` restent statiques : la règle ne les admet en
-    # one-way que pour la contrainte croisée d'un range de dates, qui
-    # n'existe pas ici (cf. client-reactive-surface.md § La règle).
+    # ``min`` / ``max`` stay static: the rule admits them one-way only
+    # for the cross constraint of a date range, which does not exist here
+    # (cf. client-reactive-surface.md § The rule).
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
-    #: Un picker est les DEUX natures à la fois : un panneau ancré
-    #: (comme `dialog`) et un champ qui porte une valeur (comme
-    #: `input`). Sa surface est donc l'union des deux vocabulaires
-    #: déjà fixés par ses voisins — rien d'inventé ici.
+    #: A picker is BOTH natures at once: an anchored panel (like
+    #: `dialog`) and a field carrying a value (like `input`). Its surface
+    #: is therefore the union of the two vocabularies already fixed by
+    #: its neighbours — nothing invented here.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
@@ -163,10 +161,10 @@ class TimePicker(Component):
     )
     min: Any = reactive_prop(default=None, emit_attr=False)
     max: Any = reactive_prop(default=None, emit_attr=False)
-    # ``emit_attr=False`` : la racine est un ``<div>`` wrapper, où
-    # ``disabled`` ne fait RIEN. Le binding est forwardé à la main sur
-    # les trois porteurs réels (champ, ×, trigger) — même raison et même
-    # gate que DatePicker (``test_binding_lands_on_carrier``).
+    # ``emit_attr=False``: the root is a wrapper ``<div>``, where
+    # ``disabled`` does NOTHING. The binding is forwarded by hand onto
+    # the three real carriers (field, ×, trigger) — same reason and same
+    # gate as DatePicker (``test_binding_lands_on_carrier``).
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -198,9 +196,9 @@ class TimePicker(Component):
             from bretzel.components.base.attrs import ComponentUsageError
 
             raise ComponentUsageError(
-                f"TimePicker(step={step!r}) — un pas de minutes doit tenir "
-                f"dans 1..60. Sans cette garde, step=0 boucle à l'infini "
-                f"et step=90 rend une colonne vide, toutes deux en silence."
+                f"TimePicker(step={step!r}) — a minute step must fit in "
+                f"1..60. Without this guard, step=0 loops forever and "
+                f"step=90 renders an empty column, both in silence."
             )
         self._placeholder = placeholder
         self._step = int(step)
@@ -213,19 +211,19 @@ class TimePicker(Component):
                 owner="TimePicker",
                 prop=_prop,
                 because=(
-                    "l'en-tête de colonne sert AUSSI de nom accessible — il "
-                    "part dans l'``aria-label`` de la colonne ET dans celui de "
-                    "chacune de ses 24 (ou 60) cellules (``f\"{label} {v}\"``), "
-                    "et un attribut HTML ne peut porter qu'une string."
+                    "the column header ALSO serves as an accessible name — "
+                    "it goes into the column's ``aria-label`` AND into that of "
+                    "each of its 24 (or 60) cells (``f\"{label} {v}\"``), "
+                    "and an HTML attribute can only carry a string."
                 ),
                 instead=(
-                    "Attendu : une abréviation d'un ou deux caractères, "
+                    "Expected: a one- or two-character abbreviation, "
                     "``hour_label=\"H\"`` / ``minute_label=\"Min\"``."
                 ),
             )
         self._hour_label = hour_label
         self._minute_label = minute_label
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name,
             value=value,
@@ -240,45 +238,44 @@ class TimePicker(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # APRÈS `super().__init__` : les deux installeurs lisent
-        # `_binding_metadata`, qui n'est peuplé qu'à ce moment-là.
+        # AFTER `super().__init__`: both installers read
+        # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ PAS `"input"` : le premier `<input>` d'un picker est le
-        # porteur CACHÉ (`hidden_carrier`), qui ne prend pas le
-        # focus. Mesuré — `.focus()` ne faisait rien sur les six.
+        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
+        # carrier (`hidden_carrier`), which does not take focus.
+        # Measured — `.focus()` did nothing on all six.
         install_value_commands(
             self, focus_selector="input:not([type=hidden])"
         )
 
 
     def _value_target(self) -> str:
-        """La même valeur, telle qu'un CORPS DE MÉTHODE doit l'adresser.
+        """The same value, as a METHOD BODY must address it.
 
-        Un corps de méthode n'est PAS enveloppé dans ``with($scope)`` :
-        l'identifiant nu ``value`` y lève ``value is not defined``, et
-        le panneau entier devient inerte — les clics n'écrivent rien, en
-        silence côté serveur. Il faut ``this.value``.
+        A method body is NOT wrapped in ``with($scope)``: the bare
+        identifier ``value`` raises ``value is not defined`` there, and
+        the whole panel becomes inert — the clicks write nothing,
+        silently on the server side. It takes ``this.value``.
 
-        Le chemin de store, lui, est global : il s'écrit pareil des deux
-        côtés. C'est ce qui rend le bug INVISIBLE en mode binding et
-        présent seulement en mode littéral — donc absent de la moitié des
-        tests si on n'y prend pas garde.
+        The store path, for its part, is global: it is written the same
+        on both sides. That is what makes the bug INVISIBLE in binding
+        mode and present only in literal mode — so absent from half the
+        tests if one is not careful.
 
-        (Le piège est documenté depuis Pagination : « dans un corps de
-        méthode, un identifiant nu ne voit pas le scope ». Je l'ai repris
-        en copiant l'expression de DatePicker, qui ne s'en sert QUE dans
-        des directives.)
+        (The trap has been documented since Pagination: "in a method
+        body, a bare identifier does not see the scope". I brought it
+        back by copying DatePicker's expression, which only uses it in
+        directives.)
         """
         binding = self._binding_metadata.get("value")
         if binding is not None:
             return self.path_of(binding)
-        # La clé vient de la DÉCLARATION, jamais d'un littéral. Elle a été
-        # écrite ``"this.val"`` en dur ici jusqu'au 2026-09-07, et c'est le
-        # seul site que la normalisation des clés de scope a raté : le
-        # panneau entier est devenu inerte en mode littéral, sans erreur
-        # JS et sans un test rouge — seul ``probe_time_picker_cells`` l'a
-        # dit. Exactement le mode d'échec que ce helper documente
-        # au-dessus, appliqué à lui-même.
+        # The key comes from the DECLARATION, never from a literal. It
+        # was hard-coded ``"this.val"`` here until 2026-09-07, and it is
+        # the only site the normalisation of scope keys missed: the whole
+        # panel went inert in literal mode, with no JS error and no red
+        # test — only ``probe_time_picker_cells`` said so. Exactly the
+        # failure mode this helper documents above, applied to itself.
         return f"this.{self._scope_keys('value')[0]}"
 
     def render(self) -> Element:
@@ -294,11 +291,11 @@ class TimePicker(Component):
         high = time_to_hhmm(self._reactive_values.get("max"))
         val = value_expr(self)
 
-        # ── Racine : attrs, relocations, scope ────────────────────────
-        # Les deux appels ci-dessous sont la mécanique commune aux trois
-        # pickers (``inputs/_picker_field.py``) : vider la racine de ce
-        # qu'elle ne peut pas porter, et router chaque handler vers le
-        # porteur capable de le tirer.
+        # ── Root: attrs, relocations, scope ───────────────────────────
+        # The two calls below are the mechanics shared by the three
+        # pickers (``inputs/_picker_field.py``): empty the root of what
+        # it cannot carry, and route each handler to the carrier able to
+        # fire it.
         root_attrs = self.emit_attrs()
         hidden_extra: dict[str, Any] = {}
         relocated: dict[str, Any] = {}
@@ -310,27 +307,27 @@ class TimePicker(Component):
         root_attrs["bz-data"] = self._scope_literal(
             initial, self._value_target()
         )
-        # ── Les récepteurs de l'API impérative ───────────────────
+        # ── The receivers of the imperative API ──────────────────
         #
-        # En mode LIÉ, `.open()` / `.set()` écrivent directement dans le
-        # store et ces écouteurs ne se déclenchent jamais ; on les pose
-        # quand même pour que le contrat soit le même dans les deux
-        # modes — le choix déjà fait par Sidebar, Dialog et Select.
+        # In BOUND mode, `.open()` / `.set()` write straight into the
+        # store and these listeners never fire; we set them anyway so the
+        # contract is the same in both modes — the choice already made by
+        # Sidebar, Dialog and Select.
         for _ev, _handler in imperative_listeners("open").items():
             root_attrs.setdefault(_ev, _handler)
-        # ⚠️ `value_expr()` et PAS `_value_target()`. Un `bz-on:` est
-        # une DIRECTIVE, donc évaluée dans un `with($scope)` où
-        # l'identifiant nu `value` résout ; `this.value` n'y désigne rien.
-        # C'est l'exact miroir du piège que `_value_target` documente,
-        # et il ne se voit qu'en mode LITTÉRAL : en mode lié les deux
-        # rendent le même chemin de store. Mesuré — `.set()` ne posait
-        # rien sur le time_picker, et sur lui seul.
+        # ⚠️ `value_expr()` and NOT `_value_target()`. A `bz-on:` is a
+        # DIRECTIVE, so evaluated in a `with($scope)` where the bare
+        # identifier `value` resolves; `this.value` designates nothing
+        # there. It is the exact mirror of the trap `_value_target`
+        # documents, and it only shows in LITERAL mode: in bound mode
+        # both render the same store path. Measured — `.set()` set
+        # nothing on the time_picker, and on it alone.
         root_attrs.setdefault(
             "bz-on:bz-set", f"{value_expr(self)} = $event.detail.value"
         )
-        # Escape + clic-dehors : le helper partagé enregistre les deux sur
-        # ``$el`` (``bz-on`` n'a ni ``.outside`` ni ``.escape`` — il n'a
-        # AUCUN modificateur, cf. traps.md).
+        # Escape + click-outside: the shared helper registers both on
+        # ``$el`` (``bz-on`` has neither ``.outside`` nor ``.escape`` —
+        # it has NO modifier at all, cf. traps.md).
         root_attrs["bz-init"] = anchored_dismiss_init("open")
 
         hidden_input = hidden_carrier(
@@ -341,7 +338,7 @@ class TimePicker(Component):
             extra=hidden_extra,
         )
 
-        # ── Champ éditable ───────────────────────────────────────────
+        # ── Editable field ───────────────────────────────────────────
         field_attrs: dict[str, Any] = {
             "type": "text",
             "placeholder": self._placeholder,
@@ -357,12 +354,12 @@ class TimePicker(Component):
         if disabled:
             field_attrs["disabled"] = True
         if required:
-            # Repère visuel seulement — le vrai ``required`` de la
-            # validation vit sur l'input caché.
+            # A visual marker only — the real ``required`` of the
+            # validation lives on the hidden input.
             field_attrs["aria-required"] = "true"
         if "bz-on:blur" in relocated:
-            # Enchaîner plutôt qu'écraser : la normalisation interne et le
-            # ``on_blur=`` de l'utilisateur doivent tourner tous les deux.
+            # Chain rather than overwrite: the internal normalisation
+            # and the user's ``on_blur=`` must both run.
             relocated["bz-on:blur"] = (
                 f"{field_attrs['bz-on:blur']}; {relocated['bz-on:blur']}"
             )
@@ -396,12 +393,12 @@ class TimePicker(Component):
         self.forward_binding("disabled", opener.attrs)
         frame_children.append(opener)
 
-        # ``bz-ref="bztrigger"`` : l'ancre contre laquelle le panneau se
-        # positionne (même idiome que Select / Combobox / DatePicker).
+        # ``bz-ref="bztrigger"``: the anchor the panel positions itself
+        # against (same idiom as Select / Combobox / DatePicker).
         frame = Element(
             tag="div",
-            # La hauteur du palier est sur le CADRE, qui porte la
-            # bordure (cf. la note du thème) — sinon 2 px de trop.
+            # The step's height is on the FRAME, which carries the
+            # border (cf. the theme's note) — otherwise 2 px too many.
             attrs={
                 "class": self.slot_class(
                     "input_frame", size_cfg.get("input_frame", "")),
@@ -410,10 +407,10 @@ class TimePicker(Component):
             children=tuple(frame_children),
         )
 
-        # La classe d'une cellule voyage UNE fois, sur le conteneur.
-        # Avant le 2026-09-01 elle était recopiée sur chacune des 28 ou
-        # 84 cellules : 452 caractères × 84 = 38 Ko d'une seule chaîne
-        # identique, dans une page qui en pesait 54.
+        # A cell's class travels ONCE, on the container. Before
+        # 2026-09-01 it was copied onto each of the 28 or 84 cells: 452
+        # characters × 84 = 38 kB of a single identical string, in a page
+        # that weighed 54.
         cell_base = " ".join(
             p
             for p in (
@@ -423,14 +420,14 @@ class TimePicker(Component):
             if p
         )
 
-        # ── Panneau : deux colonnes aimantées ────────────────────────
+        # ── Panel: two snapping columns ──────────────────────────────
         panel = anchored_panel(
             css=self.slot_class("panel"),
-            # À l'ouverture, amener la valeur courante sous les yeux : sur
-            # 24 heures, ouvrir à 14:00 en montrant 00-06 obligerait à
-            # chercher. C'est une ACTION déclenchée par le signal ``open``,
-            # pas une valeur calculée — donc immunisée au piège « une
-            # mesure n'est pas un signal » qui a mordu le Carousel.
+            # On opening, bring the current value under your eyes: over
+            # 24 hours, opening at 14:00 while showing 00-06 would force
+            # you to search. It is an ACTION triggered by the ``open``
+            # signal, not a computed value — so immune to the "a
+            # measurement is not a signal" trap that bit the Carousel.
             extra_effect=(
                 "if (open) $el.querySelectorAll('[data-selected=true]')"
                 ".forEach(c => c.scrollIntoView({block: 'center'}))"
@@ -440,31 +437,30 @@ class TimePicker(Component):
                     tag="div",
                     attrs={
                         "class": self.slot_class("columns"),
-                        # ── Les cellules naissent ICI, côté client ───
-                        # ``bz-effect`` et PAS ``bz-init`` : ce dernier
-                        # est one-shot par NŒUD et survit au rebind, or
-                        # idiomorph morphe EN PLACE — un ``bz-init`` ne
-                        # re-tournerait donc jamais après un swap. Même
-                        # choix et même raison que ``<bz-calendar>``,
-                        # qui a payé la leçon.
+                        # ── The cells are born HERE, on the client ──
+                        # ``bz-effect`` and NOT ``bz-init``: the latter
+                        # is one-shot per NODE and survives a rebind, yet
+                        # idiomorph morphs IN PLACE — so a ``bz-init``
+                        # would never run again after a swap. Same choice
+                        # and same reason as ``<bz-calendar>``, which
+                        # paid the lesson.
                         #
-                        # L'effet fait DEUX choses, et la seconde est
-                        # celle qui justifie qu'il soit un effet :
-                        # peindre les cellules une fois, puis
-                        # re-marquer la sélection à CHAQUE changement de
-                        # la valeur. C'est ce qui remplace les 84
-                        # ``bz-attr:data-selected`` d'avant — un effet
-                        # par instance au lieu d'un par cellule.
-                        # ``_parts()`` est LU ici, et c'est ce qui abonne
-                        # l'effet : sans cette lecture il ne
-                        # re-tournerait jamais et la sélection
-                        # resterait celle du premier paint. Le
-                        # ``pick`` voyage en flèche — une méthode
-                        # passée par son nom perdrait son ``this``,
-                        # et le scope n'est PAS ``this`` dans une
-                        # expression de directive (mesuré : « scope.
-                        # _parts is not a function », le runtime ne
-                        # démarrait plus du tout).
+                        # The effect does TWO things, and the second is
+                        # the one that justifies its being an effect:
+                        # paint the cells once, then re-mark the
+                        # selection at EVERY change of the value. That
+                        # is what replaces the former 84
+                        # ``bz-attr:data-selected`` — one effect per
+                        # instance instead of one per cell.
+                        # ``_parts()`` is READ here, and that is what
+                        # subscribes the effect: without that read it
+                        # would never run again and the selection would
+                        # stay the first paint's. The ``pick`` travels
+                        # as an arrow — a method passed by its name
+                        # would lose its ``this``, and the scope is NOT
+                        # ``this`` in a directive expression (measured:
+                        # "scope._parts is not a function", the runtime
+                        # no longer started at all).
                         "bz-effect": (
                             "$bz.time.fill($el, _parts(), (p, v) => pick(p, v))"
                         ),
@@ -498,27 +494,27 @@ class TimePicker(Component):
             ),
         )
 
-    # ── Fabrique de pièces ──────────────────────────────────────────
+    # ── Piece factory ───────────────────────────────────────────────
 
     def _scope_literal(self, initial: str, target: str) -> str:
-        """Le ``bz-data`` de l'instance : **des données, pas du code**.
+        """The instance's ``bz-data``: **data, not code**.
 
-        Les méthodes (``_parts`` / ``_is`` / ``pick``) vivent une seule
-        fois dans ``$bz.time.scope`` — un panneau fait 28 boutons, écrire
-        le pick en toutes lettres sur chacun sérialiserait le même
-        algorithme 28 fois par instance.
+        The methods (``_parts`` / ``_is`` / ``pick``) live once in
+        ``$bz.time.scope`` — a panel has 28 buttons, writing the pick out
+        in full on each would serialise the same algorithm 28 times per
+        instance.
 
-        ``_read`` / ``_write`` couvrent les deux modes de valeur avec les
-        mêmes méthodes. Ce n'est pas une élégance : une expression liée
-        DOIT vivre dans un corps de méthode, seul endroit relu à chaque
-        appel donc tracé. En champ, elle serait figée au montage (cf.
-        traps.md § « un champ de bz-data n'est pas réactif »).
+        ``_read`` / ``_write`` cover both value modes with the same
+        methods. It is not an elegance: a bound expression MUST live in a
+        method body, the only place re-read on every call hence tracked.
+        As a field, it would be frozen at mount (cf. traps.md § "a
+        bz-data field is not reactive").
 
-        ⚠️ ``target`` vient de :meth:`_value_target`, PAS de
-        :func:`~bretzel.components.inputs._picker_field.value_expr` : ici on est dans un corps de méthode, où
-        l'identifiant nu ne résout pas. Payé une fois — le panneau
-        entier était inerte en mode littéral, et seul le navigateur le
-        disait (« val is not defined »).
+        ⚠️ ``target`` comes from :meth:`_value_target`, NOT from
+        :func:`~bretzel.components.inputs._picker_field.value_expr`: here
+        we are in a method body, where the bare identifier does not
+        resolve. Paid once — the whole panel was inert in literal mode,
+        and only the browser said so ("val is not defined").
         """
         local = ""
         if self._binding_metadata.get("value") is None:
@@ -567,23 +563,22 @@ class TimePicker(Component):
         *,
         part_is_hour: bool,
     ) -> Element:
-        """Une colonne aimantée — ses cellules, et lesquelles sont hors
-        bornes.
+        """A snapping column — its cells, and which are out of range.
 
-        Le bornage d'une HEURE regarde la fin de l'heure (``09:59``) pour
-        le plancher et son début (``09:00``) pour le plafond : une heure
-        n'est exclue que si AUCUNE de ses minutes ne tient dans
-        ``[min, max]``. Sans cette nuance, ``min="09:30"`` griserait
-        l'heure 09 entière et 09:45 deviendrait inatteignable.
+        Bounding an HOUR looks at the end of the hour (``09:59``) for the
+        floor and at its start (``09:00``) for the ceiling: an hour is
+        excluded only if NONE of its minutes fits in ``[min, max]``.
+        Without that nuance, ``min="09:30"`` would grey out the whole
+        hour 09 and 09:45 would become unreachable.
         """
         off = [
             v
             for v in values
-            # Une minute ne se borne que s'il n'y a qu'une heure
-            # possible ; sinon ``:45`` serait grisé parce qu'il sort
-            # à la dernière heure, alors qu'il est valide à toutes
-            # les autres. On laisse donc passer, la saisie clavier
-            # étant de toute façon la porte d'entrée précise.
+            # A minute is only bounded if there is a single possible
+            # hour; otherwise ``:45`` would be greyed out because it
+            # falls outside at the last hour, while it is valid at all
+            # the others. So we let it through, keyboard entry being the
+            # precise door in anyway.
             if part_is_hour
             and not (
                 _in_bounds(f"{v}:59", low, "")
@@ -622,11 +617,12 @@ class TimePicker(Component):
                 ),
                 "role": "listbox",
                 "aria-label": label,
-                # ── La colonne se DÉCRIT, elle ne s'écrit pas ────────
-                # Ses cellules sont peintes par ``$bz.time.fill``. Ce
-                # qui voyage ici, c'est la donnée dont elle est faite :
-                # les valeurs, celles qui sont hors bornes, et le mot
-                # qui préfixe l'``aria-label`` de chacune.
+                # ── The column DESCRIBES itself, it does not write
+                # itself ────────────────────────────────────────────
+                # Its cells are painted by ``$bz.time.fill``. What
+                # travels here is the data it is made of: the values,
+                # those that are out of range, and the word that
+                # prefixes each one's ``aria-label``.
                 "data-bz-part": str(part),
                 "data-bz-values": ",".join(values),
                 "data-bz-off": ",".join(off),

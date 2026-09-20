@@ -11,12 +11,12 @@ double-submits are folded; nothing that should run twice is suppressed.
 This lives on top of the B half (the signed render timestamp, cf.
 ``handlers.sign_action``) — without a per-render ``ts`` every click of a
 button would share one key and the second would always be a no-op, which
-is wrong. The two compose : B makes each render uniquely addressable, C
+is wrong. The two compose: B makes each render uniquely addressable, C
 dedups within that address.
 
-The store is opt-in-scoped : only ``@idempotent`` handlers touch it, and
+The store is opt-in-scoped: only ``@idempotent`` handlers touch it, and
 entries carry a short TTL, so it stays small. Single-process apps use the
-in-memory store ; multi-worker apps (``redis_url`` set) use the Redis
+in-memory store; multi-worker apps (``redis_url`` set) use the Redis
 store, whose ``SET NX EX`` gives the atomic claim two concurrent
 double-clicks need (a plain check-then-set would race).
 """

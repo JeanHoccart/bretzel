@@ -11,15 +11,16 @@ nearest ``<form>`` ancestor on submit and ships the FormData
 verbatim — every named child input shows up in
 ``current_context().form_data`` on the server.
 
-**Un formulaire qui contient un fichier s'encode en multipart, tout seul.**
-htmx ne construit un corps ``FormData`` que si le formulaire le lui dit
-(``hx-encoding``) ; sinon il URL-encode, et un ``File`` n'y survit pas — il
-part comme le NOM du fichier, ou rien. Le formulaire n'a pas de prop pour
-le déclarer : il rend ses enfants avant de composer ses attributs, donc il
-SAIT ce qu'il contient (:func:`contains_file_input`). Une prop aurait été
-une deuxième façon de dire ce que l'arbre dit déjà — et une occasion de
-l'oublier, ce qui rendait le mode formulaire de ``ui.file_upload``
-entièrement muet (mesuré le 2026-08-19 sur l'écran Import du CRM).
+**A form containing a file encodes itself as multipart, by itself.**
+htmx only builds a ``FormData`` body if the form tells it to
+(``hx-encoding``); otherwise it URL-encodes, and a ``File`` does not
+survive that — it leaves as the file's NAME, or as nothing. The form has
+no prop to declare it: it renders its children before composing its
+attributes, so it KNOWS what it contains
+(:func:`contains_file_input`). A prop would have been a second way of
+saying what the tree already says — and an occasion to forget it, which
+made ``ui.file_upload``'s form mode entirely mute (measured on
+2026-08-19 on the CRM's Import screen).
 """
 
 from __future__ import annotations
@@ -32,27 +33,27 @@ from bretzel.components.base import Component
 from bretzel.components.inputs.form.theme import FORM_THEME
 from bretzel.core.tree import Element, Node
 
-#: ``type=file`` dans du HTML BRUT, quelle que soit la façon de le citer.
-#: C'est la seule branche qui lit du markup que le framework n'a pas
-#: produit : y exiger des guillemets doubles serait supposer une
-#: convention sur ce qu'on ne contrôle justement pas.
+#: ``type=file`` in RAW HTML, however it is quoted. It is the only
+#: branch that reads markup the framework did not produce: requiring
+#: double quotes there would be assuming a convention about precisely
+#: what we do not control.
 _RAW_FILE_INPUT = re.compile(r"""type\s*=\s*["']?file\b""", re.IGNORECASE)
 
 
 def contains_file_input(nodes: tuple[Node, ...] | list[Node]) -> bool:
-    """Y a-t-il un ``<input type="file">`` quelque part sous ces nœuds ?
+    """Is there an ``<input type="file">`` anywhere under these nodes?
 
-    Extraite pour être testable seule : c'est elle qui décide de l'encodage
-    du formulaire, et une descente qui raterait un niveau redonnerait
-    silencieusement un formulaire URL-encodé.
+    Extracted to be testable on its own: it is what decides the form's
+    encoding, and a walk that missed a level would silently give back a
+    URL-encoded form.
 
-    Les quatre formes de :class:`~bretzel.core.tree.Node` sont couvertes :
-    ``Element`` (tag + attrs + enfants), ``Fragment`` (enfants sans
-    enveloppe), ``Text`` (rien à voir) et ``Html`` — dont le contenu est du
-    HTML brut que le framework n'a pas produit, donc inspecté à la chaîne.
-    L'erreur y est ASYMÉTRIQUE et c'est ce qui décide : un faux positif
-    encode un formulaire en multipart pour rien, un faux négatif perd un
-    fichier en silence.
+    All four shapes of :class:`~bretzel.core.tree.Node` are covered:
+    ``Element`` (tag + attrs + children), ``Fragment`` (children with no
+    wrapper), ``Text`` (nothing to see) and ``Html`` — whose content is
+    raw HTML the framework did not produce, so inspected as a string. The
+    error there is ASYMMETRIC and that is what decides: a false positive
+    encodes a form as multipart for nothing, a false negative loses a
+    file in silence.
     """
     for node in nodes:
         attrs = getattr(node, "attrs", None) or {}
@@ -95,10 +96,10 @@ class Form(Component):
         # AJAX-swapped into the page outlet.
         attrs.setdefault("hx-boost", "false")
         if contains_file_input(children_nodes):
-            # ``hx-encoding`` est ce que lit htmx ; ``enctype`` est ce que
-            # lit le navigateur si la soumission part nativement. Les deux
-            # disent la même chose à deux lecteurs différents — ce n'est
-            # pas la même mécanique écrite deux fois.
+            # ``hx-encoding`` is what htmx reads; ``enctype`` is what the
+            # browser reads if the submission leaves natively. Both say
+            # the same thing to two different readers — it is not the
+            # same mechanism written twice.
             attrs.setdefault("hx-encoding", "multipart/form-data")
             attrs.setdefault("enctype", "multipart/form-data")
         return Element(tag=self._tag, attrs=attrs, children=children_nodes)

@@ -29,15 +29,16 @@ from typing import Any
 
 FILE_UPLOAD_THEME: dict[str, Any] = {
     "slots": {
-        # ``min-w-0`` : le root est souvent un flex/grid child dont le
-        # ``min-width: auto`` par défaut le bloque à la min-content de son
-        # contenu. Utile dans une **track contrainte** (grid ``1fr``, flex
-        # stretch) pour qu'il respecte sa cellule. ⚠️ NE suffit PAS seul
-        # contre un parent **shrink-to-fit** — c'est le ``w-0 min-w-full``
-        # sur ``file_list`` (voir ce slot) qui empêche la strip de gonfler
-        # l'ancêtre et fait vraiment marcher l'``overflow-x-auto``. Les deux
-        # ensemble = robuste partout. Cf. traps.md § « overflow-x-auto défait
-        # par min-width:auto » (famille du bug date_picker `w-fit`).
+        # ``min-w-0``: the root is often a flex/grid child whose default
+        # ``min-width: auto`` pins it to its content's min-content.
+        # Useful in a **constrained track** (grid ``1fr``, flex stretch)
+        # so it respects its cell. ⚠️ NOT enough on its own against a
+        # **shrink-to-fit** parent — it is the ``w-0 min-w-full`` on
+        # ``file_list`` (see that slot) that stops the strip inflating
+        # the ancestor and really makes ``overflow-x-auto`` work. The two
+        # together = robust everywhere. Cf. traps.md § "overflow-x-auto
+        # undone by min-width:auto" (the family of the date_picker
+        # `w-fit` bug).
         "root": (
             "bz-file-upload flex flex-col gap-3 w-full min-w-0"
         ),
@@ -60,19 +61,20 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         # we don't double up with the page scrollbar — thin, themed,
         # only shows on hover.
         #
-        # ``w-0 min-w-full`` (PAS ``w-full``) est load-bearing pour que
-        # l'``overflow-x-auto`` se déclenche VRAIMENT. Avec ``w-full``, la
-        # min-content de la strip = la SOMME des cartes ``shrink-0`` ; un
-        # parent shrink-to-fit (``vstack align=start``, cellule grid,
-        # ``inline-flex``…) se dimensionne alors sur cette somme → la strip
-        # gonfle son ancêtre au lieu de scroller, et le trop-plein est clippé
-        # (aucune scrollbar). ``width:0 ; min-width:100%`` casse la boucle :
-        # la contribution max-content de la strip devient 0 (elle ne tire plus
-        # l'ancêtre), mais elle remplit 100% du parent → les cartes débordent
-        # SA largeur → ``overflow-x-auto`` scrolle enfin. Robuste dans tout
-        # contexte (mesuré : shrink-parent ET full-width). Cf. traps.md
-        # § « overflow-x-auto défait par min-width:auto ». Le ``min-w-0`` sur
-        # le root reste utile (cellule grid plus étroite que la dropzone).
+        # ``w-0 min-w-full`` (NOT ``w-full``) is load-bearing so that
+        # ``overflow-x-auto`` REALLY fires. With ``w-full``, the strip's
+        # min-content = the SUM of the ``shrink-0`` cards; a
+        # shrink-to-fit parent (``vstack align=start``, a grid cell,
+        # ``inline-flex``…) then sizes itself on that sum → the strip
+        # inflates its ancestor instead of scrolling, and the excess is
+        # clipped (no scrollbar). ``width:0 ; min-width:100%`` breaks the
+        # loop: the strip's max-content contribution becomes 0 (it no
+        # longer pulls the ancestor), but it fills 100% of the parent →
+        # the cards overflow ITS width → ``overflow-x-auto`` finally
+        # scrolls. Robust in any context (measured: shrink-parent AND
+        # full-width). Cf. traps.md § "overflow-x-auto undone by
+        # min-width:auto". The ``min-w-0`` on the root is still useful (a
+        # grid cell narrower than the dropzone).
         #
         # Padding trade-off : the remove × button floats ``-top-2
         # -right-2`` (8px outside the card corner). Combined with
@@ -83,20 +85,20 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         "file_list": (
             "flex flex-row items-start w-0 min-w-full gap-3 pt-3 pr-3 pb-2 "
             "snap-x overflow-x-auto overflow-y-hidden empty:hidden "
-            # ⚠️ Ces six variantes NE S'APPLIQUENT PAS EN DEV — mesuré le
-            # 2026-08-29 : l'élément les porte toutes, et les feuilles de
-            # la page ne contiennent aucune règle préfixée pour elles, donc
-            # la bande hérite de la barre 4 px globale au lieu de sa 1.5.
-            # En PROD elles compilent (vérifié au binaire, six règles
-            # ``::-webkit-scrollbar`` émises) : ce n'est donc pas une
-            # erreur d'écriture mais une divergence dev/prod, la même
-            # famille que ``theme/css.py`` § ``_NO_SCROLLBAR``.
+            # ⚠️ These six variants DO NOT APPLY IN DEV — measured on
+            # 2026-08-29: the element carries them all, and the page's
+            # sheets contain no prefixed rule for them, so the strip
+            # inherits the global 4 px bar instead of its 1.5.
+            # In PROD they compile (checked against the binary, six
+            # ``::-webkit-scrollbar`` rules emitted): so it is not a
+            # writing error but a dev/prod divergence, the same family as
+            # ``theme/css.py`` § ``_NO_SCROLLBAR``.
             #
-            # Gardées telles quelles : la forme est juste, et les
-            # remplacer par un hook maison irait contre la préférence
-            # établie (du Tailwind standard écrit par le dev plutôt qu'un
-            # utilitaire propriétaire). Ce qui se répare, c'est le mode
-            # dev — cf. la décision ouverte dans ``work/todo.md``.
+            # Kept as they are: the shape is right, and replacing them
+            # with a home-made hook would go against the established
+            # preference (standard Tailwind written by the dev rather
+            # than a proprietary utility). What gets fixed is the dev
+            # mode — cf. the open decision in ``work/todo.md``.
             "[&::-webkit-scrollbar]:h-1.5 "
             "[&::-webkit-scrollbar-track]:bg-transparent "
             "[&::-webkit-scrollbar-thumb]:bg-text/10 "
@@ -113,20 +115,20 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "bg-interface shadow-sm hover:border-(--bz-border-hover) "
             "hover:bg-(--bz-bg) transition-all snap-start"
         ),
-        # ── Présentation « chips » (``list="chips"``) ──────────────
+        # ── The "chips" presentation (``list="chips"``) ────────────
         #
-        # PAS un restyle des tuiles : une autre STRUCTURE. La tuile est
-        # une colonne (`flex-col w-28`) avec une vignette et un × en
-        # badge de coin (`absolute -top-2 -right-2`) ; la puce est une
-        # ligne (`flex-row`) sans vignette, dont le × est INLINE. Aucune
-        # classe ne fait passer de l'un à l'autre — c'est l'imbrication
-        # du DOM qui change, et c'est précisément ce que `slots=` ne
-        # peut pas faire (mesuré : +78 px après override de 5 slots, et
-        # le × flottait toujours).
+        # NOT a restyling of the tiles: another STRUCTURE. The tile is a
+        # column (`flex-col w-28`) with a thumbnail and a × as a corner
+        # badge (`absolute -top-2 -right-2`); the chip is a row
+        # (`flex-row`) with no thumbnail, whose × is INLINE. No class
+        # takes you from one to the other — it is the DOM's nesting that
+        # changes, and that is precisely what `slots=` cannot do
+        # (measured: +78 px after overriding 5 slots, and the × was still
+        # floating).
         #
-        # Préfixe ``chip_`` : la convention de CE fichier pour une
-        # présentation alternative (cf. ``dropzone_*`` / ``button_*``
-        # pour l'axe ``variant=``).
+        # The ``chip_`` prefix: THIS file's convention for an alternative
+        # presentation (cf. ``dropzone_*`` / ``button_*`` for the
+        # ``variant=`` axis).
         "chip_list": (
             "flex flex-row flex-wrap items-center gap-2 pt-3 empty:hidden"
         ),
@@ -143,8 +145,8 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         "chip_name": (
             "truncate text-xs font-medium text-text"
         ),
-        # Statuts INLINE — la tuile les pose en ``absolute top-1 left-1``
-        # sur sa vignette, une puce n'en a pas.
+        # INLINE statuses — the tile sets them ``absolute top-1 left-1``
+        # on its thumbnail, a chip has none.
         "chip_status_done": (
             "inline-flex shrink-0 items-center justify-center w-4 h-4 "
             "rounded-full bg-success text-white"
@@ -157,8 +159,8 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "absolute bottom-0 left-0 right-0 h-0.5 bg-text/5 "
             "rounded-b-full overflow-hidden"
         ),
-        # × INLINE, dans le flux de la puce — la différence structurelle
-        # qui a motivé toute cette présentation.
+        # An INLINE ×, in the chip's flow — the structural difference
+        # that motivated this whole presentation.
         "chip_remove_btn": (
             "relative shrink-0 inline-flex items-center justify-center "
             "rounded-full text-muted hover:bg-error hover:text-white "
@@ -203,20 +205,21 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         ),
         # Per-file remove button — solid, floats OUTSIDE the card
         # corner so it never overlaps the thumb.
-        # TOUJOURS visible — pas de révélation au survol. Tailwind v4
-        # enveloppe chaque variante ``hover:`` dans ``@media (hover: hover)``
-        # (rupture v3→v4) : sur un appareil tactile la règle n'existe pas,
-        # donc un x posé à ``opacity-0`` restait invisible POUR TOUJOURS et
-        # le seul moyen de retirer un fichier devenait inatteignable
-        # (reproduit au navigateur, cf. traps.md). Le montrer en permanence
-        # règle le fond plutôt que de compenser le symptôme : une action
-        # ne se cache pas derrière un geste que l'appareil ne sait pas
-        # produire. ``active:`` (et non ``hover:``) porte le retour au
-        # toucher, qui lui marche partout.
-        # Pas de dimension ici : la boîte vient de ``sizes["remove_btn"]``
-        # et le glyphe de ``sizes["remove_btn_icon_size"]``, sinon le x
-        # reste figé quel que soit le ``size=`` du composant (famille
-        # « enfant figé », cf. _FROZEN_CHILD_BASELINE). Badge est le modèle.
+        # ALWAYS visible — no reveal on hover. Tailwind v4 wraps every
+        # ``hover:`` variant in ``@media (hover: hover)`` (a v3→v4
+        # break): on a touch device the rule does not exist, so a × set
+        # at ``opacity-0`` stayed invisible FOREVER and the only way to
+        # remove a file became unreachable (reproduced in the browser,
+        # cf. traps.md). Showing it permanently fixes the root rather
+        # than compensating the symptom: an action is not hidden behind a
+        # gesture the device cannot produce. ``active:`` (and not
+        # ``hover:``) carries the touch feedback, which does work
+        # everywhere.
+        # No dimension here: the box comes from ``sizes["remove_btn"]``
+        # and the glyph from ``sizes["remove_btn_icon_size"]``, otherwise
+        # the × stays frozen whatever the component's ``size=`` (the
+        # "frozen child" family, cf. _FROZEN_CHILD_BASELINE). Badge is
+        # the model.
         "remove_btn": (
             "absolute -top-2 -right-2 inline-flex items-center "
             "justify-center rounded-full bg-text text-background "
@@ -308,24 +311,24 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
     # ``FileUpload.render`` because we want size-specific decisions on
     # multiple sub-elements (not just the root).
     "sizes": {
-        # ⚠️ **Le padding est coupé par AXE, et c'est un fix, pas un style.**
+        # ⚠️ **The padding is split by AXIS, and it is a fix, not a style.**
         #
-        # Jusqu'au 2026-08-29 l'axe vertical vivait dans les DEUX couches :
-        # ``px-6 py-8`` en ``class=`` statique, ``py-3`` ajouté en
-        # ``bz-class`` quand des fichiers sont là. Or les deux utilitaires
-        # ont la MÊME spécificité — c'est l'ordre de la feuille Tailwind qui
-        # tranche, pas l'ordre d'ajout au ``classList``. Mesuré : un élément
-        # portant ``py-8 py-3`` calcule ``padding-top: 32px``, donc l'état
-        # compact **ne s'appliquait jamais**.
+        # Until 2026-08-29 the vertical axis lived in BOTH layers:
+        # ``px-6 py-8`` as a static ``class=``, ``py-3`` added in
+        # ``bz-class`` when files are there. Yet both utilities have the
+        # SAME specificity — it is the Tailwind sheet's order that
+        # decides, not the order of addition to the ``classList``.
+        # Measured: an element carrying ``py-8 py-3`` computes
+        # ``padding-top: 32px``, so the compact state **never applied**.
         #
-        # D'où trois tables au lieu de deux : l'horizontal est identique
-        # dans les deux états et reste statique ; le vertical est
-        # EXCLUSIVEMENT porté par la couche dynamique, qui émet le ternaire
-        # complet. C'est le motif d'``accordion.py`` (« les deux classes de
-        # rangée vivent exclusivement dans le ``bz-class`` »).
+        # Hence three tables instead of two: the horizontal one is
+        # identical in both states and stays static; the vertical one is
+        # carried EXCLUSIVELY by the dynamic layer, which emits the full
+        # ternary. It is ``accordion.py``'s pattern ("both row classes
+        # live exclusively in the ``bz-class``").
         #
-        # ⚠️ Ne PAS remettre un ``py-*`` ici : la redite est invisible au
-        # HTML, elle ne se voit qu'au ``getComputedStyle``.
+        # ⚠️ Do NOT put a ``py-*`` back here: the repetition is invisible
+        # in the HTML, it only shows in ``getComputedStyle``.
         "dropzone_padding_x": {
             "xs": "px-3",
             "sm": "px-4",
@@ -333,7 +336,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "lg": "px-8",
             "xl": "px-10",
         },
-        # L'état VIDE — la grande zone d'accueil.
+        # The EMPTY state — the large welcome area.
         "dropzone_padding_y": {
             "xs": "py-3",
             "sm": "py-5",
@@ -341,9 +344,9 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "lg": "py-12",
             "xl": "py-16",
         },
-        # L'état AVEC FICHIERS : la dropzone se ramasse en un rappel
-        # « déposer encore ». Même axe que ci-dessus, donc les deux ne
-        # peuvent coexister — le ternaire en choisit une.
+        # The WITH-FILES state: the dropzone collapses into a "drop
+        # more" reminder. Same axis as above, so the two cannot coexist —
+        # the ternary picks one.
         "dropzone_padding_with_files": {
             "xs": "py-2",
             "sm": "py-2.5",
@@ -408,10 +411,10 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "lg": "text-lg",
             "xl": "text-xl",
         },
-        # Le x de retrait suit le ``size=`` du composant — boîte ici,
-        # glyphe juste en dessous. Sans ça il restait à ``w-6 h-6`` /
-        # ``text-xs`` à TOUS les paliers (mesuré) : la carte grandissait,
-        # son x non.
+        # The remove × follows the component's ``size=`` — the box
+        # here, the glyph just below. Without that it stayed at
+        # ``w-6 h-6`` / ``text-xs`` at ALL steps (measured): the card
+        # grew, its × did not.
         "remove_btn": {
             "xs": "w-5 h-5",
             "sm": "w-5 h-5",
@@ -419,9 +422,9 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "lg": "w-7 h-7",
             "xl": "w-8 h-8",
         },
-        # Valeurs = noms de tailles d'``Icon`` (pas des classes ``text-*``),
-        # c'est ``Icon`` qui possède l'échelle du glyphe. Même contrat que
-        # ``close_icon_size`` chez Badge.
+        # Values = ``Icon`` size names (not ``text-*`` classes), it is
+        # ``Icon`` that owns the glyph's scale. Same contract as Badge's
+        # ``close_icon_size``.
         "remove_btn_icon_size": {
             "xs": "xs",
             "sm": "xs",

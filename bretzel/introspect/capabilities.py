@@ -1,73 +1,72 @@
-"""Ce que Bretzel sait FAIRE — la liste qu'aucun arbre ne peut donner.
+"""What Bretzel can DO — the list no tree can give.
 
-Pourquoi elle existe, et pourquoi elle est écrite à la main
------------------------------------------------------------
-``describe_package`` marche l'arbre des dossiers et rend 117 lignes qui
-disent **où sont les fichiers**. C'est exact, et ça ne répond pas à la
-question qu'on pose vraiment : *qu'est-ce que ce framework sait faire ?*
+Why it exists, and why it is written by hand
+--------------------------------------------
+``describe_package`` walks the folder tree and returns 117 lines saying
+**where the files are**. That is exact, and it does not answer the
+question one really asks: *what can this framework do?*
 
-Aucun arbre ne peut y répondre, et ce n'est pas un défaut de rédaction :
-**une capacité ne tient pas dans un dossier.** Servir un fichier, c'est
+No tree can answer it, and that is not a drafting flaw: **a capability
+does not fit in a folder.** Serving a file is
 ``render/decorators/download.py`` + ``server/routing/downloads.py`` +
-``server/routing/_csv.py`` + le ``download=`` de ``components/actions/
-link`` + l'export de ``components/data/datatable``. Cinq dossiers, cinq
-docstrings, et aucune qui dise « Bretzel sait servir un fichier ».
+``server/routing/_csv.py`` + the ``download=`` of ``components/actions/
+link`` + the export of ``components/data/datatable``. Five folders, five
+docstrings, and not one saying "Bretzel can serve a file".
 
-D'où une liste transverse, écrite par un humain. C'est exactement la
-forme qui a fait supprimer le skill ``bretzel-api`` le 2026-08-01 — un
-catalogue recopié à la main qui nommait deux composants inexistants.
+Hence a cross-cutting list, written by a human. It is exactly the form
+that got the ``bretzel-api`` skill deleted on 2026-08-01 — a hand-copied
+catalogue naming two non-existent components.
 
-Ce qui rend celle-ci différente
---------------------------------
-**Elle est ANCRÉE.** Chaque capacité nomme les symboles par lesquels on
-y entre, en chemins pointés, et ``test_a_capability_is_anchored``:
+What makes this one different
+-----------------------------
+**It is ANCHORED.** Every capability names the symbols one enters
+through, as dotted paths, and ``test_a_capability_is_anchored``:
 
-1. les résout pour de vrai (import + ``getattr``) — un symbole supprimé
-   ou renommé fait rougir la ligne qui le cite ;
-2. vérifie que l'extrait de code parse ET qu'il emploie ces symboles —
-   une capacité ne peut donc pas décrire autre chose que ce qu'elle
-   nomme ;
-3. refuse qu'un même symbole d'entrée soit revendiqué par deux
-   capacités — c'est le détecteur de doublon.
+1. resolves them for real (import + ``getattr``) — a removed or renamed
+   symbol makes the line citing it turn red;
+2. checks that the snippet parses AND that it uses those symbols — so a
+   capability cannot describe anything other than what it names;
+3. refuses the same entry symbol being claimed by two capabilities —
+   that is the duplicate detector.
 
-⚠️ **Ce que la gate ne garde PAS : que la phrase soit vraie.** Un
-``does:`` qui promet plus que le code ne fait passe au vert. Aucune
-mécanique ne peut en juger — c'est la revue. C'est pour ça que chaque
-ligne porte un ``caveat:`` : la limite est aussi utile que la promesse,
-et c'est elle qui dit que la PWA n'a pas encore de service worker.
+⚠️ **What the gate does NOT hold: that the sentence is true.** A
+``does:`` promising more than the code does passes green. No mechanism
+can judge that — that is review. It is why every line carries a
+``caveat:``: the limit is as useful as the promise, and it is what says
+the PWA has no service worker yet.
 
-La règle : un index LISTE, un chapitre ENSEIGNE
-------------------------------------------------
-Cette liste est un INDEX. Elle sert à savoir qu'une chose existe et par
-où on y entre — pas à l'apprendre. Ce qui explique *pourquoi* et
-*comment* vit dans un chapitre de ``examples/docs``, écrit à la main, et
-**à un seul endroit**.
+The rule: an index LISTS, a chapter TEACHES
+-------------------------------------------
+This list is an INDEX. It serves to know that a thing exists and where
+one enters it — not to learn it. What explains *why* and *how* lives in a
+chapter of ``examples/docs``, written by hand, and **in one place only**.
 
-La règle a été posée le 2026-09-03 parce qu'il y avait quatre surfaces
-qui répondaient à « qu'est-ce que Bretzel sait faire » — cette liste,
-l'arbre des paquets, le catalogue ``ui.*``, la cheat-sheet — et aucune
-règle disant laquelle fait autorité. Mesuré : les chapitres NE SE
-dupliquent pas entre eux (trois paires seulement partagent quatre
-symboles, et ce sont ``Bretzel``, ``page``, ``ui.button``, dont tout
-extrait a besoin). Le désordre n'était donc pas de la redite, c'était
-l'absence de règle sur *où l'on écrit* quand on ajoute quelque chose.
+The rule was set on 2026-09-03 because there were four surfaces
+answering "what can Bretzel do" — this list, the package tree, the
+``ui.*`` catalogue, the cheat sheet — and no rule saying which one was
+authoritative. Measured: the chapters do NOT duplicate each other (only
+three pairs share four symbols, and those are ``Bretzel``, ``page``,
+``ui.button``, which every snippet needs). The disorder was therefore not
+repetition, it was the absence of a rule about *where one writes* when
+one adds something.
 
-D'où :
+Hence:
 
-- un **index** est généré d'une source unique, ne porte pas de prose de
-  son cru, et RENVOIE vers le chapitre ;
-- un **chapitre** est écrit, enseigne un mécanisme, et est le seul
-  endroit où l'on explique ;
-- chaque capacité déclare son chapitre dans :attr:`Capability.chapter`,
-  et une capacité sans chapitre est une dette VISIBLE — affichée sur la
-  page, tenue par un cliquet qui ne remonte pas.
+- an **index** is generated from a single source, carries no prose of its
+  own, and POINTS AT the chapter;
+- a **chapter** is written, teaches a mechanism, and is the only place
+  where one explains;
+- every capability declares its chapter in :attr:`Capability.chapter`,
+  and a capability without a chapter is a VISIBLE debt — displayed on the
+  page, held by a ratchet that does not go back up.
 
-Ce que ça ne prétend PAS être
-------------------------------
-Une doc. Une capacité tient en une phrase et un extrait minimal ; le
-détail vit dans la docstring du symbole, que ``describe`` rend déjà.
-La liste sert à SAVOIR QUE ÇA EXISTE — c'est le seul trou que ni
-l'arbre, ni le catalogue ``ui.*``, ni la table par besoin ne comblent.
+What it does NOT claim to be
+----------------------------
+Documentation. A capability fits in one sentence and a minimal snippet;
+the detail lives in the symbol's docstring, which ``describe`` already
+returns. The list serves to KNOW THAT IT EXISTS — that is the only hole
+neither the tree, nor the ``ui.*`` catalogue, nor the per-need table
+fills.
 """
 
 from __future__ import annotations
@@ -78,86 +77,85 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True, slots=True)
 class Capability:
-    """Une chose que Bretzel permet de faire, et par où on y entre."""
+    """One thing Bretzel makes possible, and where one enters it."""
 
-    #: Le titre, à l'infinitif : on nomme une ACTION, pas un composant.
-    #: « Servir un fichier », pas « Le décorateur download ».
+    #: The title, as an action: one names an ACTION, not a component.
+    #: "Serve a file", not "The download decorator".
     name: str
-    #: Ce que ça permet, en une phrase, du point de vue de qui l'écrit.
-    #: Pas ce que c'est — ce que ça évite d'avoir à faire soi-même.
+    #: What it makes possible, in one sentence, from the point of view of
+    #: whoever writes it. Not what it is — what it saves one from doing.
     does: str
-    #: Les symboles par lesquels on entre, en chemins pointés. Résolus
-    #: par la gate : c'est ce qui empêche cette liste de dériver.
+    #: The symbols one enters through, as dotted paths. Resolved by the
+    #: gate: that is what keeps this list from drifting.
     entry: tuple[str, ...]
-    #: Le plus petit code qui la met en œuvre. Doit parser, et doit
-    #: employer les noms d'``entry`` — la gate le vérifie.
+    #: The smallest code that puts it to work. Must parse, and must use
+    #: the names in ``entry`` — the gate checks it.
     snippet: str
-    #: Ce qu'il faut savoir avant de s'en servir : la limite, le piège,
-    #: ou le repli. Vide quand il n'y en a pas.
+    #: What to know before using it: the limit, the trap, or the
+    #: fallback. Empty when there is none.
     caveat: str = field(default="")
 
-    #: La route du chapitre qui l'ENSEIGNE, dans ``examples/docs``.
+    #: The route of the chapter that TEACHES it, in ``examples/docs``.
     #:
-    #: **C'est la règle « un index liste, un chapitre enseigne ».** Une
-    #: capacité tient en une phrase et un extrait ; ce qui explique
-    #: pourquoi et comment vit dans un chapitre écrit à la main, et à un
-    #: seul endroit. Sans ce champ, il y avait quatre surfaces qui
-    #: répondaient à « qu'est-ce que ça sait faire » et aucune règle
-    #: disant laquelle fait autorité.
+    #: **It is the "an index lists, a chapter teaches" rule.** A
+    #: capability fits in one sentence and a snippet; what explains why
+    #: and how lives in a hand-written chapter, in one place only.
+    #: Without this field, there were four surfaces answering "what can
+    #: it do" and no rule saying which one was authoritative.
     #:
-    #: Vide = **pas encore de chapitre**, et c'est une DETTE VISIBLE :
-    #: la page l'affiche en clair, et ``test_a_capability_is_anchored``
-    #: tient un cliquet qui ne remonte pas. Mesuré à la pose : 8 des 19.
+    #: Empty = **no chapter yet**, and that is a VISIBLE debt: the page
+    #: displays it in clear, and ``test_a_capability_is_anchored`` holds
+    #: a ratchet that does not go back up. Measured when it was set: 8
+    #: out of 19.
     chapter: str = field(default="")
 
 
-def _code(texte: str) -> str:
-    """Un extrait désindenté — écrit lisiblement dans la source."""
-    return textwrap.dedent(texte).strip("\n")
+def _code(text: str) -> str:
+    """A dedented snippet — written readably in the source."""
+    return textwrap.dedent(text).strip("\n")
 
 
-#: ⚠️ **La liste n'est pas exhaustive.** Dix-neuf capacités au
-#: 2026-09-03 ; ce qui manque encore est suivi dans
-#: ``.claude/work/todo.md``. Ne pas lire l'absence d'une ligne comme
-#: « Bretzel ne sait pas le faire ».
+#: ⚠️ **The list is not exhaustive.** Nineteen capabilities on
+#: 2026-09-03; what is still missing is tracked in
+#: ``.claude/work/todo.md``. Do not read the absence of a line as
+#: "Bretzel cannot do it".
 CAPABILITIES: tuple[Capability, ...] = (
-    # ── Sortir de l'app : fichiers, appareil, installation, identité ──
+    # ── Leaving the app: files, device, installation, identity ───────
     Capability(
-        name="Servir un fichier",
+        name="Serve a file",
         chapter="/browser",
         does=(
-            "Rendre une route qui TÉLÉCHARGE au lieu de naviguer. Une "
-            "liste de dicts devient un CSV avec son en-tête, son "
-            "échappement et son BOM pour Excel ; on ne touche ni aux "
-            "en-têtes HTTP ni au `Content-Disposition`."
+            "Return a route that DOWNLOADS instead of navigating. A list "
+            "of dicts becomes a CSV with its header, its escaping and "
+            "its BOM for Excel; one touches neither the HTTP headers nor "
+            "the `Content-Disposition`."
         ),
         entry=("bretzel.download", "bretzel.ui.link"),
         snippet=_code(
             """
-            @download("/clients.csv")
-            async def clients_csv() -> list[dict]:
-                return [{"nom": "Ada Lovelace", "ville": "Londres"}]
+            @download("/customers.csv")
+            async def customers_csv() -> list[dict]:
+                return [{"name": "Ada Lovelace", "city": "London"}]
 
-            # Le lien doit dire qu'il porte un FICHIER, sinon la coque
-            # l'avale : `hx-boost` intercepte tout <a> et swappe le CSV
-            # dans la page.
-            ui.link("Exporter", href="/clients.csv", download=True)
+            # The link must say it carries a FILE, otherwise the shell
+            # swallows it: `hx-boost` intercepts every <a> and swaps the
+            # CSV into the page.
+            ui.link("Export", href="/customers.csv", download=True)
             """
         ),
         caveat=(
-            "Sans `download=True`, le lien est intercepté par `hx-boost` "
-            "et le fichier arrive comme du HTML dans l'outlet — sans "
-            "aucun signe côté serveur."
+            "Without `download=True`, the link is intercepted by "
+            "`hx-boost` and the file arrives as HTML in the outlet — "
+            "with no sign at all on the server side."
         ),
     ),
     Capability(
-        name="Agir dans le navigateur sans écrire de JS",
+        name="Act in the browser without writing JS",
         chapter="/browser",
         does=(
-            "Copier dans le presse-papiers, ouvrir la feuille de partage, "
-            "faire vibrer l'appareil, imprimer, passer en plein écran — "
-            "chacun en un `on_click=`, sans aller-retour serveur et sans "
-            "une ligne de JavaScript."
+            "Copy to the clipboard, open the share sheet, vibrate the "
+            "device, print, go full screen — each in one `on_click=`, "
+            "with no server round trip and not a line of JavaScript."
         ),
         entry=(
             "bretzel.copy",
@@ -168,28 +166,28 @@ CAPABILITIES: tuple[Capability, ...] = (
         ),
         snippet=_code(
             """
-            ui.button("Copier la clé", on_click=copy(state.api_key))
-            ui.button("Partager", on_click=share())
-            ui.button("Vibrer", on_click=vibrate([50, 30, 50]))
-            ui.button("Imprimer", on_click=print_page())
-            ui.button("Plein écran", on_click=fullscreen())
+            ui.button("Copy the key", on_click=copy(state.api_key))
+            ui.button("Share", on_click=share())
+            ui.button("Vibrate", on_click=vibrate([50, 30, 50]))
+            ui.button("Print", on_click=print_page())
+            ui.button("Full screen", on_click=fullscreen())
             """
         ),
         caveat=(
-            "`share` n'existe pas sur un navigateur de bureau : il "
-            "retombe alors sur une copie de l'URL. `vibrate` ne fait "
-            "rien sur un appareil sans moteur. Les deux sont silencieux "
-            "à dessein — un verbe absent ne doit pas casser la page."
+            "`share` does not exist on a desktop browser: it falls back "
+            "on copying the URL. `vibrate` does nothing on a device with "
+            "no motor. Both are silent by design — a missing verb must "
+            "not break the page."
         ),
     ),
     Capability(
-        name="S'installer comme une application",
+        name="Install as an application",
         chapter="/browser",
         does=(
-            "Servir un manifeste web pour que l'app s'ajoute à l'écran "
-            "d'accueil et s'ouvre sans barre d'adresse. Une ligne dans "
-            "`Bretzel(...)` ; le manifeste, sa route et ses balises sont "
-            "générés."
+            "Serve a web manifest so the app can be added to the home "
+            "screen and open with no address bar. One line in "
+            "`Bretzel(...)`; the manifest, its route and its tags are "
+            "generated."
         ),
         entry=("bretzel.PWA", "bretzel.PWAIcon"),
         snippet=_code(
@@ -202,19 +200,19 @@ CAPABILITIES: tuple[Capability, ...] = (
             """
         ),
         caveat=(
-            "Le manifeste ne suffit pas au mode hors-ligne : il n'y a "
-            "pas encore de service worker, donc l'app installée exige "
-            "toujours le réseau."
+            "The manifest is not enough for offline mode: there is no "
+            "service worker yet, so the installed app still requires the "
+            "network."
         ),
     ),
     Capability(
-        name="Entrer par un compte Google, Microsoft ou GitHub",
+        name="Sign in with a Google, Microsoft or GitHub account",
         chapter="/auth",
         does=(
-            "Monter une porte OAuth2/OIDC — sa route, son échange de "
-            "jeton, son cookie signé et sa rotation anti-fixation. Ce "
-            "qui reste à écrire est la seule décision qui vous "
-            "appartienne : accepter ce profil, ou non."
+            "Mount an OAuth2/OIDC door — its route, its token exchange, "
+            "its signed cookie and its anti-fixation rotation. What is "
+            "left to write is the only decision that is yours: accept "
+            "this profile, or not."
         ),
         entry=("bretzel.server.oauth.OIDC", "bretzel.auth"),
         snippet=_code(
@@ -224,29 +222,28 @@ CAPABILITIES: tuple[Capability, ...] = (
                 client_id=CLIENT_ID, client_secret=CLIENT_SECRET,
             ))
             def on_oauth_user(profile) -> str | None:
-                \"\"\"Rendre None REFUSE l'entrée.\"\"\"
-                if not profile.email.endswith("@monentreprise.fr"):
+                \"\"\"Returning None REFUSES entry.\"\"\"
+                if not profile.email.endswith("@mycompany.com"):
                     return None
                 return profile.email
             """
         ),
         caveat=(
-            "Bretzel possède l'identité et son transport ; l'app possède "
-            "la preuve. Il n'y a ni page de connexion fournie, ni mots "
-            "de passe, ni rôles — et Apple n'est pas gérée (son "
-            "`client_secret` est un JWT ES256, donc une dépendance)."
+            "Bretzel owns the identity and its transport; the app owns "
+            "the proof. There is no sign-in page supplied, no passwords, "
+            "no roles — and Apple is not handled (its `client_secret` is "
+            "an ES256 JWT, hence a dependency)."
         ),
     ),
-    # ── Le cœur : état typé, réactivité, calcul client ────────────────
+    # ── The core: typed state, reactivity, client computation ────────
     Capability(
-        name="Tenir l'état de l'app dans des classes typées",
+        name="Keep the app's state in typed classes",
         chapter="/state-server",
         does=(
-            "Déclarer où vit une donnée — la page, la session, "
-            "l'utilisateur, l'app entière, ou le navigateur — en "
-            "choisissant la classe dont on hérite. Pas de chaînes de "
-            "caractères pour adresser l'état, donc l'autocomplétion et "
-            "le vérificateur de types marchent."
+            "Declare where a piece of data lives — the page, the "
+            "session, the user, the whole app, or the browser — by "
+            "choosing the class one inherits from. No strings to address "
+            "state, so autocompletion and the type checker work."
         ),
         entry=(
             "bretzel.state.PageState",
@@ -257,134 +254,132 @@ CAPABILITIES: tuple[Capability, ...] = (
         ),
         snippet=_code(
             """
-            class Filtre(PageState):        # meurt avec la page
-                recherche: str = field(default="")
+            class Filter(PageState):        # dies with the page
+                search: str = field(default="")
 
-            class Panier(SessionState):     # suit l'onglet
-                lignes: list[str] = field(default_factory=list)
+            class Cart(SessionState):       # follows the tab
+                lines: list[str] = field(default_factory=list)
 
-            class Profil(UserState):        # suit la personne connectée
-                prenom: str = field(default="")
+            class Profile(UserState):       # follows the signed-in person
+                first_name: str = field(default="")
 
-            class Reglages(AppState):       # partagé par tout le monde
+            class Settings(AppState):       # shared by everybody
                 maintenance: bool = field(default=False)
 
-            class Ouvert(ClientState):      # ne quitte JAMAIS le navigateur
-                panneau: bool = field(default=False)
+            class Open(ClientState):        # NEVER leaves the browser
+                panel: bool = field(default=False)
             """
         ),
         caveat=(
-            "`UserState` n'existe que si une identité est résolue : sans "
-            "auth, une app qui le lit reçoit 401. `ClientState` ne "
-            "voyage pas en JSON — htmx l'envoie champ par champ, ce qui "
-            "surprend sur les listes."
+            "`UserState` only exists when an identity is resolved: with "
+            "no auth, an app reading it gets a 401. `ClientState` does "
+            "not travel as JSON — htmx sends it field by field, which "
+            "surprises on lists."
         ),
     ),
     Capability(
-        name="Rafraîchir un morceau de page sur une mutation d'état",
+        name="Refresh part of a page on a state mutation",
         chapter="/reactivity-server",
         does=(
-            "Marquer une zone comme dépendant d'un état typé : toute "
-            "mutation de cet état la re-rend, seule, sans que le reste "
-            "de la page bouge et sans écrire le moindre appel réseau. "
-            "Avec `broadcast=`, la même zone se re-rend chez TOUTES les "
-            "pages ouvertes, par SSE."
+            "Mark a region as depending on a typed state: any mutation "
+            "of that state re-renders it, alone, without the rest of the "
+            "page moving and without writing a single network call. With "
+            "`broadcast=`, the same region re-renders on ALL open pages, "
+            "over SSE."
         ),
         entry=("bretzel.refreshable",),
         snippet=_code(
             """
-            class Panier(SessionState):
-                lignes: list[str] = field(default_factory=list)
+            class Cart(SessionState):
+                lines: list[str] = field(default_factory=list)
 
-            @refreshable(deps=[Panier])
-            def resume() -> None:
-                ui.text(f"{len(Panier().lignes)} article(s)")
+            @refreshable(deps=[Cart])
+            def summary() -> None:
+                ui.text(f"{len(Cart().lines)} item(s)")
 
-            # Ailleurs, dans un handler : la zone se re-rend toute seule.
-            Panier().lignes.append("café")
+            # Elsewhere, in a handler: the region re-renders by itself.
+            Cart().lines.append("coffee")
             """
         ),
         caveat=(
-            "La zone est TRANSPARENTE à la mise en page mais n'est pas "
-            "une instance de ce qu'elle porte — un conteneur qui "
-            "inspecte ses enfants doit la déballer. Et `broadcast=` "
-            "n'est pas une capacité à part : c'est un mode de ce même "
-            "décorateur."
+            "The region is TRANSPARENT to layout but is not an instance "
+            "of what it carries — a container inspecting its children "
+            "must unwrap it. And `broadcast=` is not a separate "
+            "capability: it is a mode of that same decorator."
         ),
     ),
     Capability(
-        name="Calculer côté client sans écrire de JS",
+        name="Compute on the client without writing JS",
         chapter="/reactivity-client",
         does=(
-            "Écrire une expression Python sur un état client — "
-            "comparaison, arithmétique, négation, concaténation — et la "
-            "laisser s'évaluer DANS le navigateur. Aucun aller-retour, "
-            "et le JS émis n'est jamais tapé à la main."
+            "Write a Python expression over client state — comparison, "
+            "arithmetic, negation, concatenation — and let it evaluate "
+            "IN the browser. No round trip, and the JS emitted is never "
+            "typed by hand."
         ),
         entry=("bretzel.state.ClientBinding",),
         snippet=_code(
             """
             class Form(ClientState):
-                nom: str = field(default="")
+                name: str = field(default="")
                 age: int = field(default=0)
 
             f = Form()
-            # ⚠️ On n'ÉCRIT jamais le nom du type : c'est l'opérateur sur
-            # un champ d'état client qui le fabrique.
-            vide: ClientBinding = f.nom == ""
+            # ⚠️ One never WRITES the type's name: it is the operator on
+            # a client-state field that builds it.
+            empty: ClientBinding = f.name == ""
 
-            # Chacune de ces trois lignes produit du JS, pas un POST :
-            ui.button("Valider", disabled=vide)
-            ui.text("Majeur", visible=f.age >= 18)
-            ui.text(f.nom + " — " + f.nom)
+            # Each of these three lines produces JS, not a POST:
+            ui.button("Submit", disabled=empty)
+            ui.text("Adult", visible=f.age >= 18)
+            ui.text(f.name + " — " + f.name)
             """
         ),
         caveat=(
-            "On n'écrit jamais `ClientBinding` : c'est le TYPE que "
-            "produit un opérateur sur un champ d'état client. La gate "
-            "d'ancrage a d'ailleurs refusé la première version de cet "
-            "extrait, qui ne le nommait nulle part.\n"
-            "  L'algèbre est finie : `bretzel describe ClientBinding` "
-            "liste les opérations avec le JS que chacune émet. Une "
-            "expression hors algèbre (un appel de fonction Python) "
-            "s'évalue au RENDU et se fige."
+            "One never writes `ClientBinding`: it is the TYPE an "
+            "operator on a client-state field produces. The anchoring "
+            "gate in fact refused this snippet's first version, which "
+            "named it nowhere.\n"
+            "  The algebra is finite: `bretzel describe ClientBinding` "
+            "lists the operations with the JS each one emits. An "
+            "expression outside the algebra (a Python function call) "
+            "evaluates at RENDER time and freezes."
         ),
     ),
     Capability(
-        name="Faire vivre une page sans que personne ne clique",
+        name="Make a page live without anybody clicking",
         chapter="/cadence",
         does=(
-            "Un compteur, une horloge, un sondage périodique : une "
-            "cadence côté client qui déclenche un handler, arrêtable par "
-            "un simple booléen d'état — sans tâche serveur, sans cycle "
-            "de vie à gérer."
+            "A counter, a clock, a periodic poll: a client-side cadence "
+            "that fires a handler, stoppable by a plain state boolean — "
+            "with no server task and no lifecycle to manage."
         ),
         entry=("bretzel.ui.interval",),
         snippet=_code(
             """
             class Live(ClientState):
-                actif: bool = field(default=True)
+                active: bool = field(default=True)
 
             live = Live()
-            ui.interval(on_tick=recharger, seconds=5, active=live.actif)
-            ui.switch("Suivre en direct", value=live.actif)
+            ui.interval(on_tick=reload_rows, seconds=5, active=live.active)
+            ui.switch("Follow live", value=live.active)
             """
         ),
         caveat=(
-            "C'est du TIRAGE : la page demande. Pour de la POUSSÉE — le "
-            "serveur qui prévient — c'est `@refreshable(broadcast=[…])`, "
-            "qui passe par SSE et ne réveille que les pages concernées."
+            "This is PULL: the page asks. For PUSH — the server telling "
+            "it — use `@refreshable(broadcast=[…])`, which goes over SSE "
+            "and wakes only the pages concerned."
         ),
     ),
-    # ── Les listes : itérer, tabuler, déplacer ────────────────────────
+    # ── Lists: iterate, tabulate, move ───────────────────────────────
     Capability(
-        name="Rendre une liste qui bouge sans la re-rendre entière",
+        name="Render a moving list without re-rendering all of it",
         chapter="/lists",
         does=(
-            "Itérer avec une clé stable par élément, filtrer côté client "
-            "sur une expression, paginer — le tout en gardant l'état "
-            "client de chaque ligne (une case cochée reste cochée quand "
-            "la liste se réordonne)."
+            "Iterate with a stable key per item, filter client-side on "
+            "an expression, paginate — all of it while keeping each "
+            "row's client state (a ticked box stays ticked when the list "
+            "reorders)."
         ),
         entry=(
             "bretzel.ui.each",
@@ -393,90 +388,91 @@ CAPABILITIES: tuple[Capability, ...] = (
         ),
         snippet=_code(
             """
-            for tache in each(Taches().items, key=lambda t: t.id):
-                ui.checkbox(tache.titre)
+            for task in each(Tasks().items, key=lambda t: t.id):
+                ui.checkbox(task.title)
 
-            # Filtrer sans repasser par le serveur :
-            with filter_each(Taches().items, where=lambda t: t.ouverte):
+            # Filter without going back to the server:
+            with filter_each(Tasks().items, where=lambda t: t.open):
                 ui.text("…")
 
-            with paginate_each(Taches().items, per_page=20):
+            with paginate_each(Tasks().items, per_page=20):
                 ui.text("…")
             """
         ),
         caveat=(
-            "Un `for` nu marche tant que le corps ne produit pas d'état "
-            "client : sans clé stable, idiomorph réassocie les nœuds par "
-            "position et l'état saute d'une ligne à l'autre."
+            "A bare `for` works as long as the body produces no client "
+            "state: without a stable key, idiomorph re-pairs the nodes "
+            "by position and the state jumps from one row to another."
         ),
     ),
     Capability(
-        name="Afficher un tableau qui trie, filtre, pagine et s'exporte",
+        name="Show a table that sorts, filters, paginates and exports",
         chapter="/lists",
         does=(
-            "Un composant qui prend un état de requête typé et des "
-            "colonnes, et rend la barre de recherche, les en-têtes "
-            "cliquables, la pagination et le bouton d'export CSV. Le tri "
-            "et la pagination sont faits côté SERVEUR : la table marche "
-            "sur un million de lignes."
+            "A component that takes a typed query state and some "
+            "columns, and renders the search box, the clickable headers, "
+            "the pagination and the CSV export button. Sorting and "
+            "pagination are done on the SERVER: the table works on a "
+            "million rows."
         ),
         entry=("bretzel.ui.datatable", "bretzel.ui.column"),
         snippet=_code(
             """
-            class Requete(DatatableState):
+            class Query(DatatableState):
                 pass
 
-            COLONNES = [
-                column("titre", "Titre", sortable=True),
-                column("statut", "Statut", align="center"),
+            COLUMNS = [
+                column("title", "Title", sortable=True),
+                column("status", "Status", align="center"),
             ]
 
-            def charger(q):
-                \"\"\"Rend (lignes_de_cette_page, total).\"\"\"
-                return page_de(q), total_de(q)
+            def load(q):
+                \"\"\"Returns (rows_of_this_page, total).\"\"\"
+                return page_of(q), total_of(q)
 
-            datatable(state=Requete, columns=COLONNES, rows=charger,
+            datatable(state=Query, columns=COLUMNS, rows=load,
                       exportable=True, export_filename="issues.csv")
             """
         ),
         caveat=(
-            "`rows=` accepte une liste (tout en mémoire) ou un callable "
-            "qui reçoit la requête — seule la seconde forme évite de "
-            "charger la table entière."
+            "`rows=` accepts a list (everything in memory) or a callable "
+            "receiving the query — only the second form avoids loading "
+            "the whole table."
         ),
     ),
     Capability(
-        name="Déplacer des éléments à la souris ou au doigt",
+        name="Move items with the mouse or a finger",
         chapter="/drag",
         does=(
-            "Réordonner une liste, faire glisser une carte d'une colonne "
-            "à l'autre : on déclare la zone qui accepte et l'élément qui "
-            "se saisit, et le handler reçoit d'où vient quoi et où ça va."
+            "Reorder a list, drag a card from one column to another: one "
+            "declares the zone that accepts and the item that is "
+            "grabbed, and the handler receives what came from where and "
+            "where it goes."
         ),
         entry=("bretzel.ui.draggable", "bretzel.ui.dropzone"),
         snippet=_code(
             """
-            with dropzone(name="a_faire", accepts=["tache"], on_move=deplacer):
-                for t in Taches().a_faire:
-                    with draggable(key=t.id, group="tache"):
-                        ui.card(t.titre)
+            with dropzone(name="todo", accepts=["task"], on_move=move_task):
+                for t in Tasks().todo:
+                    with draggable(key=t.id, group="task"):
+                        ui.card(t.title)
             """
         ),
         caveat=(
-            "`accepts=` et `group=` sont ce qui empêche une carte de "
-            "tomber dans une zone qui ne la comprend pas — sans eux, "
-            "toutes les zones acceptent tout."
+            "`accepts=` and `group=` are what keep a card from falling "
+            "into a zone that does not understand it — without them, "
+            "every zone accepts everything."
         ),
     ),
-    # ── Les surfaces et la mise en page ───────────────────────────────
+    # ── Surfaces and layout ──────────────────────────────────────────
     Capability(
-        name="Ouvrir et fermer une surface depuis le code",
+        name="Open and close a surface from the code",
         chapter="/actions-client",
         does=(
-            "Dialogues, tiroirs, popovers et menus s'ouvrent par un "
-            "appel — `.open()` / `.close()` — au lieu d'un booléen "
-            "d'état à câbler. C'est le défaut pour tout ce qui est "
-            "purement visuel : rien à déclarer, rien à synchroniser."
+            "Dialogs, drawers, popovers and menus open through a call — "
+            "`.open()` / `.close()` — instead of a state boolean to "
+            "wire. It is the default for everything purely visual: "
+            "nothing to declare, nothing to synchronise."
         ),
         entry=(
             "bretzel.ui.dialog",
@@ -486,58 +482,58 @@ CAPABILITIES: tuple[Capability, ...] = (
         ),
         snippet=_code(
             """
-            with dialog(title="Confirmer") as confirmation:
-                ui.text("Supprimer définitivement ?")
+            with dialog(title="Confirm") as confirmation:
+                ui.text("Delete permanently?")
 
-            ui.button("Supprimer", on_click=confirmation.open())
+            ui.button("Delete", on_click=confirmation.open())
 
-            with drawer(side="right") as panneau:
-                ui.text("Filtres")
-            with popover() as infos:
-                ui.text("Détail")
+            with drawer(side="right") as panel:
+                ui.text("Filters")
+            with popover() as details:
+                ui.text("Detail")
             with dropdown() as menu:
-                ui.menu_item("Renommer")
+                ui.menu_item("Rename")
             """
         ),
         caveat=(
-            "L'impératif est le défaut pour les surfaces VISUELLES. Un "
-            "composant qui porte une VALEUR (un champ, un choix) reste "
-            "lié par `ClientBinding` — l'état est alors la vérité, pas "
-            "l'appel."
+            "The imperative form is the default for VISUAL surfaces. A "
+            "component carrying a VALUE (a field, a choice) stays bound "
+            "through `ClientBinding` — the state is then the truth, not "
+            "the call."
         ),
     ),
     Capability(
-        name="Geler le document et faire défiler les régions",
+        name="Freeze the document and scroll the regions",
         chapter="/scrolling",
         does=(
-            "Le modèle des outils : le cadre ne bouge pas, seules les "
-            "colonnes défilent — barre latérale fixe, en-tête fixe, "
-            "contenu qui défile seul. L'alternative reste le défaut : un "
-            "document qui défile en entier."
+            "The tool model: the frame does not move, only the columns "
+            "scroll — a fixed sidebar, a fixed header, content that "
+            "scrolls on its own. The alternative stays the default: a "
+            "document that scrolls as a whole."
         ),
         entry=("bretzel.ui.viewport", "bretzel.ui.pane"),
         snippet=_code(
             """
             with viewport(direction="row"):
                 with pane(padding="md"):
-                    ui.text("La colonne de gauche défile seule.")
+                    ui.text("The left column scrolls on its own.")
                 with pane(padding="md"):
-                    ui.text("Celle de droite aussi, indépendamment.")
+                    ui.text("So does the right one, independently.")
             """
         ),
         caveat=(
-            "Les deux modèles coexistent dans le dépôt (8 apps contre "
-            "10) et c'est voulu. Mélanger les deux sur une même page "
-            "donne deux barres de défilement imbriquées."
+            "Both models coexist in the repository (8 apps against 10) "
+            "and that is intended. Mixing the two on one page gives two "
+            "nested scrollbars."
         ),
     ),
     Capability(
-        name="Dessiner des graphiques sans bibliothèque JS",
+        name="Draw charts without a JS library",
         chapter="/charts",
         does=(
-            "Courbes, barres, camemberts, nuages de points et "
-            "sparklines, rendus en SVG côté serveur — donc visibles "
-            "avant que le moindre script ne tourne, et imprimables."
+            "Lines, bars, pies, scatter plots and sparklines, rendered as "
+            "SVG on the server — so visible before a single script runs, "
+            "and printable."
         ),
         entry=(
             "bretzel.ui.line_chart",
@@ -548,58 +544,57 @@ CAPABILITIES: tuple[Capability, ...] = (
         ),
         snippet=_code(
             """
-            line_chart(series=[ventes], x_labels=MOIS, height=240)
-            bar_chart(series=[par_region])
+            line_chart(series=[sales], x_labels=MONTHS, height=240)
+            bar_chart(series=[by_region])
             pie_chart(values=[40, 35, 25], labels=["A", "B", "C"])
-            scatter_chart(series=[nuage])
+            scatter_chart(series=[cloud])
             sparkline(values=[3, 5, 4, 8, 6])
             """
         ),
         caveat=(
-            "C'est du SVG statique enrichi côté client : pas de zoom, "
-            "pas de panoramique, pas de millions de points. Pour de "
-            "l'exploration interactive, une bibliothèque dédiée reste "
-            "le bon outil."
+            "This is static SVG enriched on the client: no zoom, no "
+            "panning, no millions of points. For interactive "
+            "exploration, a dedicated library remains the right tool."
         ),
     ),
-    # ── L'identité visuelle et la structure ───────────────────────────
+    # ── Visual identity and structure ────────────────────────────────
     Capability(
-        name="Changer toute l'identité visuelle depuis une palette",
+        name="Change the whole visual identity from a palette",
         chapter="/theme",
         does=(
-            "Une couleur sémantique suffit : le clair, le sombre, les "
-            "états de survol et les contrastes en sont dérivés, et tous "
-            "les composants suivent. Tailwind v4 est compilé par un "
-            "binaire Rust — aucun Node.js en production."
+            "One semantic colour is enough: light, dark, hover states "
+            "and contrasts are derived from it, and every component "
+            "follows. Tailwind v4 is compiled by a Rust binary — no "
+            "Node.js in production."
         ),
         entry=("bretzel.theme.Theme", "bretzel.theme.Palette"),
         snippet=_code(
             """
             THEME = Theme(semantic={"primary": "#0f766e"})
 
-            # Surcharger UN composant, sans toucher aux autres :
+            # Override ONE component, without touching the others:
             THEME = Theme(
                 semantic={"primary": "#0f766e"},
                 components={"card": {"slots": {"root": "rounded-none"}}},
             )
-            palette = Palette  # ce que le thème résout, clair ET sombre
+            palette = Palette  # what the theme resolves, light AND dark
             """
         ),
         caveat=(
-            "Une classe Tailwind ASSEMBLÉE en f-string est invisible au "
-            "compilateur de prod : le HTML est identique des deux côtés, "
-            "donc la casse ne se voit QU'EN production. Classe entière "
-            "dans le thème, ou safelist."
+            "A Tailwind class ASSEMBLED in an f-string is invisible to "
+            "the production compiler: the HTML is identical on both "
+            "sides, so the breakage only shows IN production. Whole "
+            "class in the theme, or safelist."
         ),
     ),
     Capability(
-        name="Découper une app en fonctionnalités déclarées",
+        name="Split an app into declared features",
         chapter="/structure",
         does=(
-            "Chaque fonctionnalité déclare son nom, sa nature et ce "
-            "qu'elle fournit ; le graphe est vérifié au démarrage — "
-            "dépendance inconnue, cycle, collision de noms sont des "
-            "erreurs, pas des surprises à l'exécution."
+            "Each feature declares its name, its nature and what it "
+            "provides; the graph is checked at startup — an unknown "
+            "dependency, a cycle, a name collision are errors, not "
+            "runtime surprises."
         ),
         entry=("bretzel.Feature",),
         snippet=_code(
@@ -612,19 +607,19 @@ CAPABILITIES: tuple[Capability, ...] = (
             """
         ),
         caveat=(
-            "La mécanique de découverte (manifeste, `include` contre "
-            "balayage) est délibérément DIFFÉRÉE : `app.include(module)` "
-            "reste la façon de monter une fonctionnalité."
+            "The discovery mechanics (manifest, `include` versus "
+            "sweeping) are deliberately DEFERRED: `app.include(module)` "
+            "remains the way to mount a feature."
         ),
     ),
     Capability(
-        name="Parler la langue de qui visite",
+        name="Speak the visitor's language",
         chapter="/languages",
         does=(
-            "Les mots que le framework rend lui-même — « Rechercher… », "
-            "« Fermer l'alerte », les libellés de pagination — sont "
-            "traduits par requête, négociés depuis l'en-tête du "
-            "navigateur et surchargeables par un cookie."
+            "The words the framework renders itself — \"Search…\", "
+            "\"Dismiss alert\", the pagination labels — are translated "
+            "per request, negotiated from the browser's header and "
+            "overridable by a cookie."
         ),
         entry=("bretzel.render.Language", "bretzel.render.text"),
         snippet=_code(
@@ -634,213 +629,211 @@ CAPABILITIES: tuple[Capability, ...] = (
                 texts={"fr": {"alert.dismiss": "Fermer"}},
             )
 
-            # Dans une page, lire la langue résolue pour CETTE requête :
-            ui.text(f"langue = {Language().code}")
-            # Et réutiliser le vocabulaire du framework :
+            # In a page, read the language resolved for THIS request:
+            ui.text(f"language = {Language().code}")
+            # And reuse the framework's vocabulary:
             ui.text(text("alert.dismiss"))
             """
         ),
         caveat=(
-            "Ça couvre le vocabulaire DU FRAMEWORK. Les phrases de "
-            "l'app restent à sa charge — il n'y a pas de système "
-            "d'internationalisation applicatif (prévu en 2.1)."
+            "This covers THE FRAMEWORK's vocabulary. The app's own "
+            "sentences stay its responsibility — there is no application "
+            "internationalisation system (planned for 2.1)."
         ),
     ),
-    # ── Le framework qui se regarde lui-même ──────────────────────────
+    # ── The framework looking at itself ──────────────────────────────
     Capability(
-        name="Demander au framework ce qu'il expose",
+        name="Ask the framework what it exposes",
         chapter="/tree",
         does=(
-            "Interroger le code INSTALLÉ : la fiche d'un composant avec "
-            "ses paramètres, ses slots et ses events ; l'arbre des "
-            "paquets ; la surface d'un module classée par besoin. Rien "
-            "n'est recopié, donc rien ne peut dériver."
+            "Query the INSTALLED code: a component's card with its "
+            "parameters, its slots and its events; the package tree; a "
+            "module's surface classified by need. Nothing is copied, so "
+            "nothing can drift."
         ),
         entry=("bretzel.introspect.describe", "bretzel.introspect.index"),
         snippet=_code(
             """
-            # En ligne de commande :
+            # On the command line:
             #   py -m bretzel.cli.main describe hstack
             #   py -m bretzel.cli.main describe capabilities
             print(describe("hstack"))
-            print(index())          # toute la surface ui.*, une ligne par symbole
+            print(index())          # the whole ui.* surface, one line per symbol
             """
         ),
         caveat=(
-            "La sortie est en UTF-8, flèches et guillemets compris : sur "
-            "une console Windows en cp1252, un `print` nu lève. Le CLI "
-            "s'en charge, un script maison doit le faire aussi."
+            "The output is UTF-8, arrows and quotation marks included: "
+            "on a Windows console in cp1252, a bare `print` raises. The "
+            "CLI takes care of it, a home-made script must too."
         ),
     ),
     Capability(
-        name="Faire juger son propre code par le framework",
+        name="Have the framework judge your own code",
         chapter="/structure",
         does=(
-            "Dix règles qui attrapent ce qu'aucun test ne voit : le "
-            "kwarg mort (il ne lève pas, ne s'affiche pas, ne se voit "
-            "pas en revue), des champs frères à des tailles différentes, "
-            "un cast qui efface la provenance d'une valeur et casse la "
-            "resynchronisation."
+            "Ten rules that catch what no test sees: the dead kwarg (it "
+            "does not raise, does not show, is not visible in review), "
+            "sibling fields at different sizes, a cast that erases a "
+            "value's provenance and breaks resynchronisation."
         ),
         entry=("bretzel.lint.run", "bretzel.lint.available_rules"),
         snippet=_code(
             """
-            # En ligne de commande :
+            # On the command line:
             #   py -m bretzel.cli.main check examples
-            rapport = run(["examples"])
-            print(rapport.exit_code, len(rapport.findings))
+            report = run(["examples"])
+            print(report.exit_code, len(report.findings))
 
-            # Ce que l'outil sait vérifier, énumérable à dessein :
-            for regle in available_rules():
-                print(regle)
+            # What the tool can verify, enumerable by design:
+            for rule in available_rules():
+                print(rule)
             """
         ),
         caveat=(
-            "Ce sont des RÈGLES, pas un reflet du code — c'est la "
-            "moitié arrachable du framework, et le contrat "
-            "`lint-stays-extractable` de `.importlinter` la garde "
-            "détachable."
+            "These are RULES, not a reflection of the code — it is the "
+            "detachable half of the framework, and the "
+            "`lint-stays-extractable` contract in `.importlinter` keeps "
+            "it detachable."
         ),
     ),
     Capability(
-        name="Valider une donnée là où elle vit",
+        name="Validate a piece of data where it lives",
         chapter="/forms",
         does=(
-            "Attacher une règle à un CHAMP d'état typé plutôt qu'à un "
-            "formulaire. Elle tourne à chaque affectation — donc aussi "
-            "bien depuis le formulaire que depuis un import ou un "
-            "handler appelé d'ailleurs."
+            "Attach a rule to a typed state FIELD rather than to a form. "
+            "It runs on every assignment — so from the form as well as "
+            "from an import or a handler called elsewhere."
         ),
         entry=("bretzel.state.validator", "bretzel.ui.form",
                "bretzel.ui.form_field"),
         snippet=(
-            "class Inscription(SessionState):\n"
+            "class SignUp(SessionState):\n"
             '    email: str = field(default="")\n'
             "\n"
             '    @validator("email")\n'
-            "    def _valide(self, valeur: str) -> str:\n"
-            "        valeur = valeur.strip().lower()\n"
-            '        if "@" not in valeur:\n'
-            '            raise ValueError("Adresse invalide.")\n'
-            "        return valeur          # il NORMALISE aussi\n"
+            "    def _check(self, value: str) -> str:\n"
+            "        value = value.strip().lower()\n"
+            '        if "@" not in value:\n'
+            '            raise ValueError("Invalid address.")\n'
+            "        return value           # it also NORMALISES\n"
             "\n"
-            "with ui.form(on_submit=enregistrer):\n"
-            '    with ui.form_field(label="Email", error=erreur):\n'
+            "with ui.form(on_submit=save):\n"
+            '    with ui.form_field(label="Email", error=error):\n'
             '        ui.input(name="email")\n'
         ),
         caveat=(
-            "Une règle posée sur la VUE ne couvre que le chemin qui "
-            "passe par la vue. Une app a plusieurs chemins d'écriture et "
-            "un seul formulaire — c'est pour ça que le validateur vit "
-            "sur le champ, pas sur le `ui.form`."
+            "A rule set on the VIEW only covers the path that goes "
+            "through the view. An app has several write paths and one "
+            "form — that is why the validator lives on the field, not on "
+            "the `ui.form`."
         ),
     ),
     Capability(
-        name="Garder l'état après un redémarrage",
+        name="Keep state across a restart",
         chapter="/config",
         does=(
-            "Brancher un magasin partagé — Redis — pour que les portées "
-            "session et utilisateur survivent au redémarrage du process "
-            "et se partagent entre plusieurs instances. Une URL, et rien "
-            "d'autre à changer dans le code."
+            "Plug in a shared store — Redis — so that the session and "
+            "user scopes survive the process restarting and are shared "
+            "between several instances. One URL, and nothing else to "
+            "change in the code."
         ),
         entry=("bretzel.BretzelConfig",),
         snippet=(
-            "# Sans Redis, l'état vit en mémoire et meurt avec le\n"
-            "# process. Parfait en dev, faux dès qu'il y a deux\n"
-            "# instances derrière un répartiteur de charge.\n"
+            "# Without Redis, state lives in memory and dies with the\n"
+            "# process. Perfect in dev, wrong as soon as there are two\n"
+            "# instances behind a load balancer.\n"
             "app = Bretzel(\n"
             '    secret_key="…",\n'
             '    redis_url="redis://localhost:6379/0",\n'
             "    session_max_age_days=30,\n"
             ")\n"
             "\n"
-            "# `BretzelConfig` porte le contrat complet des réglages.\n"
+            "# `BretzelConfig` carries the settings' complete contract.\n"
             "print(BretzelConfig.__doc__)\n"
         ),
         caveat=(
-            "Ce n'est pas une base de données : l'état d'écran n'est pas "
-            "vos données métier. Un panier qu'on doit retrouver dans six "
-            "mois va en base, pas dans une `SessionState`."
+            "It is not a database: screen state is not your business "
+            "data. A cart one must find again in six months goes in a "
+            "database, not in a `SessionState`."
         ),
     ),
     Capability(
-        name="Refuser un double-clic et un rejeu",
+        name="Refuse a double click and a replay",
         chapter="/actions-server",
         does=(
-            "Marquer une action pour qu'un second envoi du même rendu ne "
-            "l'exécute pas deux fois. La signature porte déjà un "
-            "horodatage signé — le rejeu tardif est refusé par le socle, "
-            "sans qu'on écrive quoi que ce soit."
+            "Mark an action so that a second submission of the same "
+            "render does not run it twice. The signature already carries "
+            "a signed timestamp — a late replay is refused by the base "
+            "layer, with nothing to write."
         ),
         entry=("bretzel.idempotent",),
         snippet=(
             "from bretzel import idempotent\n"
             "\n"
             "@idempotent\n"
-            "def payer() -> None:\n"
-            '    """Un double-clic ne débite pas deux fois."""\n'
-            "    facturer(Panier().total)\n"
+            "def pay() -> None:\n"
+            '    """A double click does not charge twice."""\n'
+            "    charge(Cart().total)\n"
         ),
         caveat=(
-            "L'anti-rejeu livré est un horodatage SIGNÉ plus ce "
-            "décorateur, pas une table de jetons à usage unique : la "
-            "signature est calculée au RENDU, elle ne peut donc pas "
-            "couvrir le corps de la requête. Rejouer n'escalade aucun "
-            "privilège — le double-clic est le vrai sujet."
+            "The anti-replay shipped is a SIGNED timestamp plus this "
+            "decorator, not a table of single-use tokens: the signature "
+            "is computed at RENDER time, so it cannot cover the "
+            "request's body. Replaying escalates no privilege — the "
+            "double click is the real subject."
         ),
     ),
     Capability(
-        name="Développer sans build ni rechargement manuel",
+        name="Develop with no build and no manual reload",
         chapter="/config",
         does=(
-            "Un seul mot bascule tout l'outillage : rechargement du "
-            "serveur au moindre fichier touché, CSS compilé dans le "
-            "navigateur, traces complètes. En production le CSS est "
-            "compilé en amont par un binaire, et il n'y a aucun Node.js."
+            "One word switches the whole toolchain: server reload on the "
+            "slightest file touched, CSS compiled in the browser, full "
+            "tracebacks. In production the CSS is compiled ahead of time "
+            "by a binary, and there is no Node.js at all."
         ),
         entry=("bretzel.Bretzel",),
         snippet=(
             "app = Bretzel(\n"
             '    secret_key="…",\n'
-            '    mode="dev",            # ou "prod"\n'
+            '    mode="dev",            # or "prod"\n'
             ")\n"
             "\n"
             'if __name__ == "__main__":\n'
             "    app.run(port=8000, reload=True)\n"
         ),
         caveat=(
-            "Le rechargement lance uvicorn dans un processus ENFANT. Un "
-            "parent tué sans propager laisse cet enfant tenir le port, "
-            "et le lancement suivant ne peut plus s'y lier — mesuré, et "
-            "l'erreur ne remonte pas toujours jusqu'à l'écran."
+            "Reloading launches uvicorn in a CHILD process. A parent "
+            "killed without propagating leaves that child holding the "
+            "port, and the next launch can no longer bind to it — "
+            "measured, and the error does not always reach the screen."
         ),
     ),
 )
 
 
 def capability_names() -> tuple[str, ...]:
-    """Les titres, dans l'ordre de la liste."""
+    """The titles, in list order."""
     return tuple(c.name for c in CAPABILITIES)
 
 
 def render_capabilities() -> str:
-    """La liste en texte — ce que rend ``bretzel describe capabilities``."""
-    lignes = [f"## Ce que Bretzel sait faire ({len(CAPABILITIES)})", ""]
+    """The list as text — what ``bretzel describe capabilities`` returns."""
+    lines = [f"## What Bretzel can do ({len(CAPABILITIES)})", ""]
     for cap in CAPABILITIES:
-        lignes.append(f"  {cap.name}")
-        lignes.append(f"    {cap.does}")
-        lignes.append(f"    Entrées : {', '.join(cap.entry)}")
-        lignes.append(
-            f"    Chapitre : {cap.chapter}" if cap.chapter
-            else "    Chapitre : (pas encore écrit)"
+        lines.append(f"  {cap.name}")
+        lines.append(f"    {cap.does}")
+        lines.append(f"    Entry points: {', '.join(cap.entry)}")
+        lines.append(
+            f"    Chapter: {cap.chapter}" if cap.chapter
+            else "    Chapter: (not written yet)"
         )
-        for ligne in cap.snippet.splitlines():
-            lignes.append(f"      {ligne}")
+        for line in cap.snippet.splitlines():
+            lines.append(f"      {line}")
         if cap.caveat:
-            lignes.append(f"    ⚠️ {cap.caveat}")
-        lignes.append("")
-    return "\n".join(lignes)
+            lines.append(f"    ⚠️ {cap.caveat}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 __all__ = ["CAPABILITIES", "Capability", "capability_names", "render_capabilities"]

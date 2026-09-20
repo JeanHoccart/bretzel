@@ -43,10 +43,10 @@ class Fragment(Component):
     # and concatenates its children without a wrapping tag.
     # nothing to bind. The whole point is to be invisible.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
-    #: « Je ne suis pas là », au sens du tri d'un parent. Un ``ui.tabs``
-    #: qui cherche ses ``Tab`` doit me traverser. Contrairement à la
-    #: section d'une zone ``@refreshable``, je n'ai aucune identité à
-    #: rendre au nœud composé : ``_rewrap`` est donc l'identité.
+    #: "I am not here", in the sense of a parent's sorting. A
+    #: ``ui.tabs`` looking for its ``Tab`` must see through me. Unlike a
+    #: ``@refreshable`` zone's section, I have no identity to give back
+    #: to the composed node: ``_rewrap`` is therefore the identity.
     #: Cf. ``base/_wiring.unwrap_transparent``.
     IS_TRANSPARENT_WRAPPER: ClassVar[bool] = True
 

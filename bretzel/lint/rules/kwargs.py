@@ -1,28 +1,28 @@
-"""Règle : un kwarg passé à ``ui.*`` que le composant n'accepte pas.
+"""Rule: a kwarg passed to ``ui.*`` that the component does not accept.
 
-**Pourquoi cette règle existe encore alors que le socle refuse.**
-Jusqu'au 2026-08-16, ``split_kwargs`` avait un catch-all muet : un kwarg
-inconnu partait dans le DOM en attribut inerte. Mesuré sur ``examples/``
-le 2026-08-01 : **44 kwargs morts, 10 familles**, dont
-``ui.input(label="…")`` sur **22 sites** rendant
-``<input label="Display name">`` — aucun libellé affiché.
+**Why this rule still exists although the base layer refuses.** Until
+2026-08-16, ``split_kwargs`` had a mute catch-all: an unknown kwarg went
+into the DOM as an inert attribute. Measured over ``examples/`` on
+2026-08-01: **44 dead kwargs, 10 families**, including
+``ui.input(label="…")`` on **22 sites** rendering
+``<input label="Display name">`` — no label displayed at all.
 
-Le socle **lève** désormais (cf. ``attrs.py`` § échappatoire déclarée), ce
-qui rend cette règle redondante… à l'exécution seulement. Elle garde deux
-raisons d'être, et elles comptent :
+The base layer now **raises** (cf. ``attrs.py`` § declared escape
+hatch), which makes this rule redundant… at runtime only. It keeps two
+reasons to exist, and they count:
 
-1. **Elle voit sans exécuter.** Un composant dans une branche jamais
-   empruntée, une page rarement rendue, un chemin derrière un ``if`` —
-   le socle ne lèvera que le jour où quelqu'un passe par là. La règle
-   lit le call-site, donc elle le voit tout de suite.
-2. **Elle voit ce que le socle ne PEUT pas voir.** La validité d'un
-   attribut HTML dépend du tag rendu, que ``split_kwargs`` ne connaît pas
-   (``tag=`` est retiré avant). ``ui.button(href=…)`` sans ``tag="a"``
-   passe le socle et reste inerte ; la règle, elle, connaît le call-site
-   entier.
+1. **It sees without executing.** A component in a branch never taken, a
+   rarely rendered page, a path behind an ``if`` — the base layer will
+   only raise the day somebody goes through there. The rule reads the
+   call site, so it sees it straight away.
+2. **It sees what the base layer CANNOT see.** An HTML attribute's
+   validity depends on the rendered tag, which ``split_kwargs`` does not
+   know (``tag=`` is removed beforehand). ``ui.button(href=…)`` without
+   ``tag="a"`` passes the base layer and stays inert; the rule, by
+   contrast, knows the whole call site.
 
-La règle est **pure** : elle prend un module et l'index d'API, elle ne
-connaît ni corpus ni plancher (cf. :mod:`bretzel.lint.corpus`).
+The rule is **pure**: it takes a module and the API index, it knows
+neither corpus nor floor (cf. :mod:`bretzel.lint.corpus`).
 """
 
 from __future__ import annotations
@@ -32,39 +32,40 @@ import ast
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-RULE = "kwargs-inconnu"
+RULE = "unknown-kwarg"
 
-#: L'échappatoire HTML brute n'est PAS redéclarée ici : elle est lue sur le
-#: socle (:func:`bretzel.components.base.attrs.is_declared_raw_attr`), qui
-#: la fait respecter à l'exécution depuis le 2026-08-16. Une seule table,
-#: un seul comportement — sinon le lint et le runtime finiraient par ne
-#: plus dire la même chose, et c'est le lint qu'on croirait.
+#: The raw HTML escape hatch is NOT redeclared here: it is read from the
+#: base layer (:func:`bretzel.components.base.attrs.is_declared_raw_attr`),
+#: which enforces it at runtime since 2026-08-16. One table, one
+#: behaviour — otherwise the lint and the runtime would end up no longer
+#: saying the same thing, and it is the lint one would believe.
 #:
-#: ``hx_`` est ajouté ici seul : le socle le refuse (il n'admet que la
-#: forme à tiret), donc il serait signalé comme kwarg inconnu — mais
-#: :mod:`bretzel.lint.rules.transport` le diagnostique MIEUX, en disant ce
-#: qui manque vraiment (la signature HMAC). Un problème, un constat.
+#: ``hx_`` is added here alone: the base layer refuses it (it only admits
+#: the hyphenated form), so it would be reported as an unknown kwarg —
+#: but :mod:`bretzel.lint.rules.transport` diagnoses it BETTER, by saying
+#: what is really missing (the HMAC signature). One problem, one finding.
 _TRANSPORT_PREFIXES = ("hx_", "hx-")
 
-#: Sentinelle : le symbole existe mais n'est pas jugeable ici.
+#: A sentinel: the symbol exists but cannot be judged here.
 #:
-#: Un objet dédié, et pas un ``frozenset()`` vide comparé par identité :
-#: CPython ne garantit pas qu'il n'internera jamais le frozenset vide, et
-#: un composant qui n'accepterait rien deviendrait alors indistinguable
-#: d'un helper — silencieusement, dans le sens qui NE signale rien.
+#: A dedicated object, and not an empty ``frozenset()`` compared by
+#: identity: CPython does not guarantee it will never intern the empty
+#: frozenset, and a component accepting nothing would then become
+#: indistinguishable from a helper — silently, in the direction that
+#: reports NOTHING.
 _NOT_JUDGED: object = object()
 
 
 def _accepted(ui_name: str) -> frozenset[str] | object | None:
-    """Ce que ``ui.<name>`` accepte.
+    """What ``ui.<name>`` accepts.
 
-    ``None`` = le symbole n'existe pas. :data:`_NOT_JUDGED` = il existe
-    mais **on ne le juge pas** : les helpers (``ui.each``,
-    ``ui.notification``, ``ui.column``…) ont leur propre contrat et lèvent
-    d'eux-mêmes sur un kwarg inconnu — les passer à la moulinette du
-    catch-all produirait des faux positifs sur ceux qui déclarent
-    ``**kwargs``, pour un gain nul puisqu'ils ne sont pas silencieux.
-    Le catch-all raw-HTML, lui, est une affaire de composants.
+    ``None`` = the symbol does not exist. :data:`_NOT_JUDGED` = it exists
+    but **we do not judge it**: the helpers (``ui.each``,
+    ``ui.notification``, ``ui.column``…) have their own contract and
+    raise by themselves on an unknown kwarg — running them through the
+    catch-all's mill would produce false positives on those declaring
+    ``**kwargs``, for no gain since they are not silent. The raw-HTML
+    catch-all, by contrast, is a components matter.
     """
     from bretzel.introspect import (
         RESERVED_KWARGS,
@@ -100,7 +101,7 @@ def _is_raw_attr(name: str) -> bool:
 
 
 def check(module: Module) -> list[Finding]:
-    """Les kwargs qu'aucun composant appelé ici ne lit."""
+    """The kwargs no component called here reads."""
     findings: list[Finding] = []
     for node in ast.walk(module.tree):
         if not isinstance(node, ast.Call):
@@ -119,8 +120,8 @@ def check(module: Module) -> list[Finding]:
                     rule=RULE,
                     path=module.path,
                     line=node.lineno,
-                    message=f"`ui.{func.attr}` n'existe pas.",
-                    hint="`bretzel describe --index` liste la surface réelle.",
+                    message=f"`ui.{func.attr}` does not exist.",
+                    hint="`bretzel describe --index` lists the real surface.",
                 )
             )
             continue
@@ -136,13 +137,14 @@ def check(module: Module) -> list[Finding]:
                         path=module.path,
                         line=keyword.lineno,
                         message=(
-                            f"`ui.{func.attr}({keyword.arg}=…)` : le composant "
-                            f"ne lit pas ce kwarg — il partira dans le DOM en "
-                            f"attribut inerte, sans erreur ni effet."
+                            f"`ui.{func.attr}({keyword.arg}=…)`: the "
+                            f"component does not read this kwarg — it will go "
+                            f"into the DOM as an inert attribute, with no "
+                            f"error and no effect."
                         ),
                         hint=(
-                            f"`bretzel describe {func.attr}` montre ce qu'il "
-                            f"accepte ; pour un attribut HTML voulu, "
+                            f"`bretzel describe {func.attr}` shows what it "
+                            f"accepts; for a deliberate HTML attribute, "
                             f"`attrs={{...}}`."
                         ),
                     )

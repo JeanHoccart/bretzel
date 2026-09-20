@@ -1,49 +1,49 @@
-"""Règle : un ``TestClient`` construit sans jamais entrer dans le lifespan.
+"""Rule: a ``TestClient`` built without ever entering the lifespan.
 
-Le silence qu'elle ferme
-------------------------
+The silence it closes
+---------------------
 
-Les routes d'une app Bretzel ne sont pas attachées à l'import : ``@page``
-**marque**, ``create_app()`` enregistre — anti-règle 4 — et
-``create_app()`` tourne dans le **lifespan**. Or ``TestClient`` ne
-déclenche le lifespan que comme gestionnaire de contexte ::
+A Bretzel app's routes are not attached at import: ``@page`` **marks**,
+``create_app()`` registers — anti-rule 4 — and ``create_app()`` runs in
+the **lifespan**. And ``TestClient`` only triggers the lifespan as a
+context manager ::
 
     c = TestClient(app)
-    c.get("/")                      # 404, toujours
+    c.get("/")                      # 404, always
 
     with TestClient(app) as c:
         c.get("/")                  # 200
 
-**Pourquoi ça mord si bien** : 404 est exactement ce qu'on obtient avec
-une faute de frappe dans le chemin. On va donc relire son ``@page``, son
-``include``, son préfixe — et tout est juste. Mesuré le 2026-09-10 :
-``examples.kanban`` rend 404 sur ``/`` sans le ``with``, 200 avec, sans
-qu'une ligne de l'app bouge.
+**Why it bites so well**: 404 is exactly what one gets from a typo in the
+path. So one re-reads one's ``@page``, one's ``include``, one's prefix —
+and everything is correct. Measured on 2026-09-10: ``examples.kanban``
+returns 404 on ``/`` without the ``with``, 200 with it, without a line of
+the app moving.
 
-Le corollaire vaut pour l'introspection : lister les routes avant le
-lifespan rend une liste vide, ce qui se lit « mes pages ne se sont pas
-enregistrées » au lieu de « je regarde trop tôt ».
+The corollary holds for introspection: listing the routes before the
+lifespan returns an empty list, which reads as "my pages did not
+register" instead of "I am looking too early".
 
-Les formes légitimes, mesurées et non supposées
-------------------------------------------------
+The legitimate forms, measured and not assumed
+----------------------------------------------
 
-Le corpus de ce dépôt en porte 219 occurrences, et il a servi à cadrer la
-règle plutôt qu'à la confirmer :
+This repository's corpus carries 219 occurrences, and it served to frame
+the rule rather than to confirm it:
 
-- ``with TestClient(app) as client:`` — 217 cas. La forme normale.
-- ``def _client(): return TestClient(app)`` — 1 cas, et il est CORRECT :
-  ses appelants écrivent ``with _client() as client:``. Le ``with`` a
-  simplement lieu ailleurs, et une lecture statique d'un seul module ne
-  peut pas suivre la valeur jusque-là.
-- ``client = TestClient(app)`` puis ``with client:`` plus bas — la forme
-  en deux temps, valide elle aussi.
+- ``with TestClient(app) as client:`` — 217 cases. The normal form.
+- ``def _client(): return TestClient(app)`` — 1 case, and it is CORRECT:
+  its callers write ``with _client() as client:``. The ``with`` simply
+  happens elsewhere, and a static read of one module cannot follow the
+  value that far.
+- ``client = TestClient(app)`` then ``with client:`` further down — the
+  two-step form, valid as well.
 
-D'où la portée : on ne signale que ce qu'on peut **prouver** inutilisé
-dans le module — une construction jetée en instruction nue, ou liée à un
-nom qu'aucun ``with`` de ce module ne reprend. Un ``return``, un argument
-d'appel, une compréhension : silence. La règle préfère manquer un cas que
-d'accuser du code juste, parce qu'un linter qui crie sur la forme
-correcte est désactivé à la première session.
+Hence the scope: we only report what can be **proven** unused within the
+module — a construction thrown away as a bare statement, or bound to a
+name no ``with`` in this module takes up. A ``return``, a call argument, a
+comprehension: silence. The rule would rather miss a case than accuse
+correct code, because a linter that shouts at the correct form is
+disabled in the first session.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ import ast
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-RULE = "client-de-test-sans-lifespan"
+RULE = "test-client-without-lifespan"
 
 _CLIENT = "TestClient"
 
@@ -68,11 +68,11 @@ def _is_client_call(node: ast.AST) -> bool:
 
 
 def _context_exprs(tree: ast.AST) -> tuple[list[ast.expr], set[str]]:
-    """Ce qui est ouvert par un ``with`` : les expressions, et les noms.
+    """What a ``with`` opens: the expressions, and the names.
 
-    Les deux moitiés servent deux formes distinctes — ``with
-    TestClient(app)`` d'un côté, ``client = TestClient(app)`` suivi de
-    ``with client`` de l'autre.
+    The two halves serve two distinct forms — ``with TestClient(app)`` on
+    one side, ``client = TestClient(app)`` followed by ``with client`` on
+    the other.
     """
     exprs: list[ast.expr] = []
     names: set[str] = set()
@@ -87,34 +87,34 @@ def _context_exprs(tree: ast.AST) -> tuple[list[ast.expr], set[str]]:
 
 
 def check(module: Module) -> list[Finding]:
-    """Les clients de test qui n'entreront jamais dans le lifespan."""
-    ouverts, noms_ouverts = _context_exprs(module.tree)
-    ouverts_ids = {id(e) for e in ouverts}
+    """The test clients that will never enter the lifespan."""
+    opened, opened_names = _context_exprs(module.tree)
+    opened_ids = {id(e) for e in opened}
 
-    # Chaque suspect porte son SUJET : le nom auquel il est lié, sinon
-    # l'appel lui-même. La gate des sondes l'exige, et pour une bonne
-    # raison — un message qui ne nomme pas son sujet ne peut être
-    # asserté que sur sa prose, et une mutation passe alors inaperçue.
+    # Each suspect carries its SUBJECT: the name it is bound to,
+    # otherwise the call itself. The probes' gate requires it, and for a
+    # good reason — a message that does not name its subject can only be
+    # asserted on its prose, and a mutation then goes unnoticed.
     suspects: list[tuple[ast.Call, str]] = []
     for node in ast.walk(module.tree):
-        # Instruction nue : `TestClient(app)` seul sur sa ligne, ou
-        # `TestClient(app).get(...)`, qui ne peut plus rien ouvrir.
+        # A bare statement: `TestClient(app)` alone on its line, or
+        # `TestClient(app).get(...)`, which can no longer open anything.
         if isinstance(node, ast.Expr):
-            valeur = node.value
-            if _is_client_call(valeur):
-                suspects.append((valeur, ast.unparse(valeur)))  # type: ignore[arg-type]
+            value = node.value
+            if _is_client_call(value):
+                suspects.append((value, ast.unparse(value)))  # type: ignore[arg-type]
             elif (
-                isinstance(valeur, ast.Call)
-                and isinstance(valeur.func, ast.Attribute)
-                and _is_client_call(valeur.func.value)
+                isinstance(value, ast.Call)
+                and isinstance(value.func, ast.Attribute)
+                and _is_client_call(value.func.value)
             ):
-                interne = valeur.func.value
-                suspects.append((interne, ast.unparse(interne)))  # type: ignore[arg-type]
-        # Liaison à un nom qu'aucun `with` de ce module ne reprend.
+                inner = value.func.value
+                suspects.append((inner, ast.unparse(inner)))  # type: ignore[arg-type]
+        # Bound to a name no `with` in this module takes up.
         elif isinstance(node, ast.Assign) and _is_client_call(node.value):
-            cibles = [t.id for t in node.targets if isinstance(t, ast.Name)]
-            if cibles and not any(nom in noms_ouverts for nom in cibles):
-                suspects.append((node.value, cibles[0]))  # type: ignore[arg-type]
+            targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            if targets and not any(name in opened_names for name in targets):
+                suspects.append((node.value, targets[0]))  # type: ignore[arg-type]
 
     return [
         Finding(
@@ -122,17 +122,16 @@ def check(module: Module) -> list[Finding]:
             path=module.path,
             line=call.lineno,
             message=(
-                f"`{sujet}` n'entre jamais dans le lifespan — toutes les "
-                f"pages rendront 404."
+                f"`{subject}` never enters the lifespan — every page will "
+                f"return 404."
             ),
             hint=(
-                "Les routes s'enregistrent dans `create_app()`, que le "
-                "lifespan déclenche ; `TestClient` ne l'ouvre qu'en "
-                "gestionnaire de contexte. Écris `with TestClient(app) as "
-                "client:`. Le 404 qui en découle ressemble à une faute de "
-                "chemin, d'où la règle."
+                "The routes register in `create_app()`, which the "
+                "lifespan triggers; `TestClient` only opens it as a context "
+                "manager. Write `with TestClient(app) as client:`. The "
+                "resulting 404 looks like a path typo, hence the rule."
             ),
         )
-        for call, sujet in suspects
-        if id(call) not in ouverts_ids
+        for call, subject in suspects
+        if id(call) not in opened_ids
     ]

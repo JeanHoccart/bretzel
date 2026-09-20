@@ -95,12 +95,12 @@ def test_a_string_that_is_not_a_date_raises() -> None:
     passer un binding client ailleurs, et c'est voulu là-bas. Ici la clé
     indexe une case : une chaîne libre ne correspondrait à rien, en
     silence."""
-    with pytest.raises(ComponentDefinitionError, match="n'est pas une date"):
+    with pytest.raises(ComponentDefinitionError, match="is not a date"):
         normalise_marks(["mardi prochain"])
 
 
 def test_a_loosely_formatted_date_raises() -> None:
-    with pytest.raises(ComponentDefinitionError, match="n'est pas une date"):
+    with pytest.raises(ComponentDefinitionError, match="is not a date"):
         normalise_marks(["2026-8-4"])
 
 
@@ -108,17 +108,17 @@ def test_a_boolean_count_raises() -> None:
     """``bool`` EST un ``int`` en Python, et ``{jour: True}`` est une
     faute de frappe crédible pour ``[jour]``. La laisser passer
     afficherait « 1 » sans que personne l'ait voulu."""
-    with pytest.raises(ComponentDefinitionError, match="entier"):
+    with pytest.raises(ComponentDefinitionError, match="must be an integer"):
         normalise_marks({DAY: True})
 
 
 def test_a_negative_count_raises() -> None:
-    with pytest.raises(ComponentDefinitionError, match="négatif"):
+    with pytest.raises(ComponentDefinitionError, match="negative count"):
         normalise_marks({DAY: -1})
 
 
 def test_a_float_count_raises() -> None:
-    with pytest.raises(ComponentDefinitionError, match="entier"):
+    with pytest.raises(ComponentDefinitionError, match="must be an integer"):
         normalise_marks({DAY: 1.5})
 
 

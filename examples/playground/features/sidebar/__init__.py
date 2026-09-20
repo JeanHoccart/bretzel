@@ -1,7 +1,7 @@
-"""Feature Sidebar — l'API publique du banc.
+"""The Sidebar feature — the bench's public API.
 
-N'exporte que ce dont ``app/routes.py`` a besoin. L'état, les
-handlers et les panneaux restent privés au paquet.
+Exports only what ``app/routes.py`` needs. The state, the handlers and
+the panels stay private to the package.
 """
 
 from examples.playground.features.sidebar.state import PATH

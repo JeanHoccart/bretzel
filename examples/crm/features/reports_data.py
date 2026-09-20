@@ -1,13 +1,12 @@
-"""features/reports_data — data : les agrégats des rapports, en SQL.
+"""features/reports_data — data: the reports' aggregates, in SQL.
 
-Sert l'écran 7. Chacune de ces cinq lectures est un ``GROUP BY`` — aucune ne
-charge de lignes pour compter en Python. C'est le point de l'écran : les 17
-apps nourrissent leurs graphiques avec des listes fabriquées à la main, donc
-la question « est-ce qu'un chart tient sur un vrai agrégat ? » n'a jamais été
-posée.
+Serves screen 7. Each of these five reads is a ``GROUP BY`` — none loads
+rows to count in Python. It is the screen's point: the 17 apps feed their
+charts with hand-made lists, so the question "does a chart hold up on a
+real aggregate?" had never been asked.
 
-Toutes les lectures sont bornées : un axe catégoriel ne se lit plus au-delà
-d'une dizaine de barres, et un nuage de 50 000 points est une tache.
+Every read is bounded: a categorical axis no longer reads beyond a dozen
+bars, and a scatter of 50 000 points is a smudge.
 """
 
 from __future__ import annotations
@@ -22,15 +21,15 @@ from examples.crm.core.domain import OPEN_STAGES, TODAY
 def pipeline_by_stage_and_owner(
     owner: str | None, top_owners: int = 3
 ) -> list[dict]:
-    """Le montant ouvert par (étape, propriétaire) — la matrice du bar chart.
+    """The open amount by (stage, owner) — the bar chart's matrix.
 
-    Bornée aux ``top_owners`` plus gros porteurs : une barre groupée par
-    propriétaire devient illisible au-delà de trois ou quatre séries, et le
-    graphique n'est pas un tableau.
+    Bounded to the ``top_owners`` largest holders: a bar grouped by owner
+    becomes unreadable beyond three or four series, and the chart is not
+    a table.
     """
     placeholders = ",".join("?" * len(OPEN_STAGES))
     if owner is not None:
-        # Cadré : une seule série, et le « top » n'a plus d'objet.
+        # Scoped: a single series, and the "top" no longer has a point.
         owners = [owner]
     else:
         owners = [
@@ -54,28 +53,28 @@ def pipeline_by_stage_and_owner(
 
 def activities_by_month(owner: str | None,
                         months: int = 12) -> list[dict]:
-    """Le nombre d'activités par mois, du plus ancien au plus récent.
+    """The number of activities per month, oldest to most recent.
 
-    ``substr(at, 1, 7)`` plutôt que ``strftime`` : les dates sont stockées en
-    ISO, donc les sept premiers caractères SONT le mois — et un préfixe de
-    chaîne se groupe sans convertir 60 000 lignes en date.
+    ``substr(at, 1, 7)`` rather than ``strftime``: the dates are stored
+    in ISO, so the first seven characters ARE the month — and a string
+    prefix groups without converting 60 000 rows to dates.
     """
     since = (TODAY - timedelta(days=31 * months)).isoformat()
-    # Le premier du mois est calculé PAR LA REQUÊTE : le graphique a besoin
-    # d'une date, pas de la chaîne « 2026-08 » qu'il lirait comme une
-    # catégorie — et convertir 12 lignes en Python aurait posé un helper de
-    # présentation dans une feature de données.
+    # The first of the month is computed BY THE QUERY: the chart needs a
+    # date, not the string "2026-08" it would read as a category — and
+    # converting 12 rows in Python would have put a presentation helper
+    # in a data feature.
     scope, scope_params = owner_scope(owner, " AND owner = ?")
     return query(
-        "SELECT substr(at, 1, 7) AS mois, substr(at, 1, 7) || '-01' AS jour, "
+        "SELECT substr(at, 1, 7) AS month, substr(at, 1, 7) || '-01' AS day, "
         "COUNT(*) AS n FROM activities "
-        f"WHERE at >= ? AND at <= ?{scope} GROUP BY mois ORDER BY mois",
+        f"WHERE at >= ? AND at <= ?{scope} GROUP BY month ORDER BY month",
         (since, TODAY.isoformat(), *scope_params),
     )
 
 
 def accounts_by_industry(owner: str | None, limit: int = 8) -> list[dict]:
-    """La répartition des comptes par secteur, les plus gros d'abord."""
+    """The accounts' breakdown by sector, largest first."""
     scope, scope_params = owner_scope(owner, "WHERE owner = ? ")
     return query(
         "SELECT industry, COUNT(*) AS n FROM accounts "
@@ -86,16 +85,16 @@ def accounts_by_industry(owner: str | None, limit: int = 8) -> list[dict]:
 
 def arr_versus_contacts(owner: str | None,
                         sample: int = 250) -> list[dict]:
-    """Un échantillon (nombre de contacts, ARR) — le nuage de corrélation.
+    """A sample (number of contacts, ARR) — the correlation scatter.
 
-    L'échantillon est pris **avant** la jointure, dans une sous-requête :
-    plafonner après l'agrégation ferait grouper les 50 000 comptes avec leurs
-    120 000 contacts pour n'en garder que 250.
+    The sample is taken **before** the join, in a subquery: capping after
+    the aggregation would group the 50 000 accounts with their 120 000
+    contacts only to keep 250 of them.
 
-    ⚠️ C'était ``WHERE a.id <= ?``, ce qui n'est un échantillon que si les
-    identifiants n'ont pas de trou — et surtout, cadré par propriétaire, ça
-    ne rendait qu'un sixième des points. Un ``LIMIT`` dans la sous-requête
-    garde la propriété de perf et reste juste dans les deux cas.
+    ⚠️ It used to be ``WHERE a.id <= ?``, which is a sample only if the
+    identifiers have no gaps — and above all, scoped by owner, it
+    returned only a sixth of the points. A ``LIMIT`` in the subquery
+    keeps the performance property and stays correct in both cases.
     """
     scope, scope_params = owner_scope(owner, "WHERE owner = ? ")
     return query(
@@ -108,12 +107,12 @@ def arr_versus_contacts(owner: str | None,
 
 
 def weekly_activity(owner: str | None, weeks: int = 12) -> list[int]:
-    """Le volume d'activité des ``weeks`` dernières semaines, dans l'ordre.
+    """The activity volume of the last ``weeks`` weeks, in order.
 
-    Renvoie une liste d'entiers — la forme que ``ui.sparkline`` attend, et la
-    seule des cinq qui n'a pas d'axe : une sparkline montre une allure, pas
-    des valeurs. Les semaines vides sont RÉINSÉRÉES à zéro : un ``GROUP BY``
-    ne rend pas les trous, et une courbe qui les saute raccourcit le temps.
+    Returns a list of integers — the shape ``ui.sparkline`` expects, and
+    the only one of the five with no axis: a sparkline shows a shape, not
+    values. The empty weeks are REINSERTED at zero: a ``GROUP BY`` does
+    not return the gaps, and a curve that skips them shortens time.
     """
     since = TODAY - timedelta(weeks=weeks)
     scope, scope_params = owner_scope(owner, " AND owner = ?")
@@ -123,11 +122,11 @@ def weekly_activity(owner: str | None, weeks: int = 12) -> list[int]:
         (since.isoformat(), TODAY.isoformat(), *scope_params),
     )
     counts = {r["semaine"]: r["n"] for r in rows}
-    # ``weeks + 1`` seaux : la fenêtre SQL part de ``TODAY - 12 semaines`` et
-    # va jusqu'à aujourd'hui, donc elle en couvre TREIZE — la première est
-    # partielle, la dernière est la semaine en cours. S'arrêter à douze
-    # jetait 485 activités sur 12 761 mesurées, et le total affiché sous la
-    # sparkline était cet écart-là.
+    # ``weeks + 1`` buckets: the SQL window starts at
+    # ``TODAY - 12 weeks`` and runs to today, so it covers THIRTEEN — the
+    # first is partial, the last is the current week. Stopping at twelve
+    # threw away 485 activities out of 12 761 measured, and the total
+    # shown under the sparkline was exactly that gap.
     out: list[int] = []
     for offset in range(weeks + 1):
         day = since + timedelta(weeks=offset)

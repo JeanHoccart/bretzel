@@ -21,7 +21,7 @@ PATH = "/grid"
 
 
 GAPS = ["none", "xs", "sm", "md", "lg", "xl"]
-#: Les quatre largeurs minimales de colonne — table FERMÉE du thème.
+#: The four minimum column widths — the theme's CLOSED table.
 MIN_COLS = ["12rem", "16rem", "20rem", "24rem"]
 
 
@@ -48,8 +48,8 @@ def coerce_cols(blob: str):
 
 class GridPlayground(PageState):
     cols:        str  = field(default="3")
-    #: ``""`` = non demandé, et c'est le défaut : ``min_col=`` est
-    #: EXCLUSIF avec ``cols=``, donc le panneau les rend exclusifs aussi.
+    #: ``""`` = not asked for, and it is the default: ``min_col=`` is
+    #: EXCLUSIVE with ``cols=``, so the panel makes them exclusive too.
     min_col:     str  = field(default="")
     gap:         str  = field(default="md")
     item_count:  int  = field(default=6)
@@ -84,9 +84,9 @@ def parse_extra_attrs(blob: str) -> dict:
 def build_preview(state: GridPlayground) -> dict:
     kwargs: dict = {"gap": state.gap}
     if state.min_col:
-        # Les deux posent ``grid-template-columns`` — le composant LÈVE si
-        # on donne les deux, donc le panneau laisse min_col gagner plutôt
-        # que de rendre une page 500.
+        # Both set ``grid-template-columns`` — the component RAISES if
+        # given both, so the panel lets min_col win rather than render a
+        # 500 page.
         kwargs["min_col"] = state.min_col
     else:
         cols = coerce_cols(state.cols)
@@ -127,9 +127,9 @@ def server_panel() -> None:
             ui.input(value=state.cols,
                      placeholder='3  or  {"base": 1, "md": 3}',
                      on_change=server_changed)
-        with control("min_col (exclusif avec cols)"):
+        with control('min_col (mutually exclusive with cols)'):
             ui.select(value=state.min_col,
-                      options=[("", "— (non demandé)"),
+                      options=[("", '— (not asked for)'),
                                *[(w, w) for w in MIN_COLS]],
                       on_change=server_changed)
         with control("gap"):
@@ -230,15 +230,15 @@ def page() -> None:
                             for i in range(8):
                                 swatch(f"{i + 1}")
 
-                    ui.heading("min_col — la grille compte elle-même",
+                    ui.heading('min_col — the grid counts for itself',
                                level=3)
                     ui.text(
-                        "``cols=`` déclare COMBIEN de colonnes, par "
-                        "palier de fenêtre. ``min_col=`` déclare la "
-                        "largeur MINIMALE d'une colonne, et la grille "
-                        "en met autant qu'elle peut dans la place "
-                        "qu'elle a vraiment. Les deux boîtes ci-dessous "
-                        "font 640 px : la fenêtre n'y change rien.",
+                        '``cols=`` declares HOW MANY columns, per window '
+                            "breakpoint. ``min_col=`` declares a column's "
+                            'MINIMUM width, and the grid fits as many as it '
+                            'can into the space it really has. Both boxes '
+                            'below are 640 px wide: the window changes '
+                            'nothing there.',
                         color="muted", size="xs",
                     )
                     with ui.vstack():

@@ -53,21 +53,21 @@ _BOOL_STRINGS_HINT = repr(sorted(_TRUE_STRINGS | _FALSE_STRINGS))
 
 _SCALAR_TYPES: Final[tuple[type, ...]] = (bool, int, float)
 
-#: Les types déclarés qui n'ont RIEN à décoder — ni codec métier, ni
-#: énumération. Ils couvrent la quasi-totalité des champs, d'où la sortie
-#: rapide de :meth:`Field.__set__`.
+#: The declared types with NOTHING to decode — no business codec, no
+#: enumeration. They cover nearly every field, hence the fast exit in
+#: :meth:`Field.__set__`.
 _NOTHING_TO_DECODE: Final[frozenset[Any]] = frozenset(
     {str, int, float, bool, None}
 )
 
-#: Les conteneurs qu'un champ peut déclarer et qu'un contrôle sérialise en
-#: JSON. ``tuple`` n'y est PAS : ``json.loads`` ne produit jamais de tuple,
-#: donc l'annoncer ferait lever tout ce qui arrive du formulaire.
+#: The containers a field may declare and a control serialises to JSON.
+#: ``tuple`` is NOT there: ``json.loads`` never produces a tuple, so
+#: announcing it would make everything coming from the form raise.
 _COMPOSITE_TYPES: Final[tuple[type, ...]] = (list, dict)
 
-#: Les façons dont deux écritures concurrentes se combinent. ``None`` —
-#: absent d'ici — veut dire « remplacer », et c'est le défaut : pour un
-#: CHOIX (une page, un tri), le dernier qui écrit a raison.
+#: The ways two concurrent writes combine. ``None`` — absent from here —
+#: means "replace", and that is the default: for a CHOICE (a page, a
+#: sort), the last writer is right.
 MERGES: Final[tuple[str, ...]] = ("add",)
 
 
@@ -106,17 +106,17 @@ _SKIP_ASSIGNMENT: _SkipAssignment = _SkipAssignment()
 
 
 def _resolve_container_target(type_: Any) -> type | None:
-    """``list`` / ``dict``, y compris PARAMÉTRÉS et nullables. Sinon ``None``.
+    """``list`` / ``dict``, including PARAMETERISED and nullable. Else ``None``.
 
-    ``list[str]`` n'est pas ``list`` : ``type_ in (list, dict)`` est faux, et
-    c'est pourtant l'annotation la plus courante — celle que ``state.md``
-    donne en exemple (``tags: list[str] = field(default_factory=list)``).
-    Sans cette résolution, le décodage ne s'appliquait qu'aux annotations
-    nues et laissait passer la forme que tout le monde écrit. Trouvé en
-    relisant le correctif, pas en l'écrivant.
+    ``list[str]`` is not ``list``: ``type_ in (list, dict)`` is false, and
+    yet it is the most common annotation — the one ``state.md`` gives as
+    an example (``tags: list[str] = field(default_factory=list)``).
+    Without this resolution, decoding only applied to bare annotations and
+    let through the form everyone writes. Found while re-reading the fix,
+    not while writing it.
 
-    Même prudence que :func:`_resolve_scalar_target` sur les unions : on ne
-    déballe que si ``None`` est le seul autre membre.
+    Same caution as :func:`_resolve_scalar_target` about unions: we only
+    unwrap when ``None`` is the single other member.
     """
     if type_ in _COMPOSITE_TYPES:
         return type_  # type: ignore[no-any-return]
@@ -131,42 +131,42 @@ def _resolve_container_target(type_: Any) -> type | None:
 
 
 def _coerce_composite(value: Any, type_: Any) -> Any:
-    """Décoder le JSON qu'un contrôle à valeur COMPOSITE dépose dans le form.
+    """Decode the JSON a COMPOSITE-valued control drops in the form.
 
-    Six composants portent une valeur qui n'est pas un scalaire — une
-    sélection multiple (``toggle_group`` / ``select`` / ``combobox``), deux
-    bornes (``date_range_picker``, ``slider(range=True)``), une répartition
-    (``resizable``). Aucun `<input>` ne transporte autre chose qu'une chaîne,
-    donc tous sérialisent en ``JSON.stringify`` dans un champ caché.
+    Six components carry a value that is not a scalar — a multiple
+    selection (``toggle_group`` / ``select`` / ``combobox``), two bounds
+    (``date_range_picker``, ``slider(range=True)``), a split
+    (``resizable``). No `<input>` carries anything but a string, so they
+    all serialise with ``JSON.stringify`` into a hidden field.
 
-    Sans ce décodage, un champ ``list`` recevait la CHAÎNE ``'["a","b"]'`` et
-    la rangeait telle quelle. Le rendu suivant faisait ``list(...)`` dessus et
-    affichait quatorze caractères ; la bouillie était repostée, et elle
-    **survivait au rechargement**. Aucune erreur nulle part — c'est exactement
-    le mode d'échec que la coercition scalaire existe pour supprimer sur les
-    ``bool``/``int``, appliqué un cran plus haut.
+    Without this decoding, a ``list`` field received the STRING
+    ``'["a","b"]'`` and stored it as-is. The next render did ``list(...)``
+    on it and displayed fourteen characters; the mush was re-posted, and
+    it **survived the reload**. No error anywhere — exactly the failure
+    mode scalar coercion exists to remove on ``bool``/``int``, applied one
+    notch higher.
 
-    Mesuré le 2026-08-19 sur l'écran Paramètres du CRM.
+    Measured on 2026-08-19 on the CRM's Settings screen.
 
-    Règles :
+    Rules:
 
-    - chaîne vide → conteneur vide. « Rien de sélectionné » est une valeur
-      que l'utilisateur a choisie, pas une absence de saisie — la sauter
-      (comme le fait ``""`` sur un ``int``) rendrait un multi-select
-      impossible à VIDER, le jumeau exact du bug de la case décochée ;
-    - une chaîne qui **ressemble** à un conteneur (``[…]`` / ``{…}``) est
-      décodée, et un JSON malformé y ``ValueError`` — donc un message de
-      champ, pas un silence ;
-    - **tout le reste passe INCHANGÉ**, et cette clause est la plus
-      importante des trois. Le magasin ``ClientState`` ne voyage pas en
-      JSON : htmx sérialise un tableau **élément par élément**
-      (``formDataFromObject`` : ``obj[key].forEach(v => append(key, v))``),
-      donc un champ ``list`` d'un ``ClientState`` reçoit ``"change"``, pas
-      ``'["change"]'``. Une première version de ce décodage levait dessus,
-      et comme ``State._apply_fields`` n'a pas de garde, **toute action
-      d'une page portant un tel état rendait 500**. Six états du playground
-      étaient concernés, et la suite complète était verte : aucune gate ne
-      poste un magasin client. Trouvé en relecture, pas par un test.
+    - empty string → empty container. "Nothing selected" is a value the
+      user chose, not an absence of input — skipping it (as ``""`` does on
+      an ``int``) would make a multi-select impossible to EMPTY, the exact
+      twin of the unticked-checkbox bug;
+    - a string that **looks like** a container (``[…]`` / ``{…}``) is
+      decoded, and malformed JSON raises ``ValueError`` there — so a field
+      message, not a silence;
+    - **everything else passes THROUGH**, and this clause is the most
+      important of the three. The ``ClientState`` store does not travel as
+      JSON: htmx serialises an array **element by element**
+      (``formDataFromObject``: ``obj[key].forEach(v => append(key, v))``),
+      so a ``list`` field of a ``ClientState`` receives ``"change"``, not
+      ``'["change"]'``. A first version of this decoding raised on that,
+      and since ``State._apply_fields`` has no guard, **every action on a
+      page carrying such a state returned 500**. Six playground states
+      were affected, and the full suite was green: no gate posts a client
+      store. Found by re-reading, not by a test.
     """
     container = _resolve_container_target(type_)
     if not isinstance(value, str) or container is None:
@@ -176,18 +176,18 @@ def _coerce_composite(value: Any, type_: Any) -> Any:
     if not text:
         return type_()
     if not text.startswith(("[", "{")):
-        # Pas un conteneur sérialisé — cf. la clause 3 de la docstring.
+        # Not a serialised container — cf. clause 3 of the docstring.
         return value
     try:
         decoded = json.loads(text)
     except ValueError as exc:
         raise ValueError(
-            f"Impossible de lire {value!r} comme du JSON pour un champ "
+            f"Cannot read {value!r} as JSON for a field "
             f"{type_.__name__} : {exc}."
         ) from exc
     if not isinstance(decoded, type_):
         raise ValueError(
-            f"{value!r} décode en {type(decoded).__name__}, pas en "
+            f"{value!r} decodes to {type(decoded).__name__}, not to "
             f"{type_.__name__}."
         )
     return decoded
@@ -279,16 +279,16 @@ class Field:
         self.default = default
         self.default_factory = default_factory
         self.type_: type | None = type_
-        #: Le nom que ce champ porte dans l'URL — ``field(url="tri")``.
-        #: DÉCLARE le nom ; il ne suffit pas à rendre le champ adressable
-        #: (c'est ``addressable=True`` sur la classe qui l'allume), parce
-        #: que ce qui est dans une URL est PUBLIC et ne doit jamais
-        #: s'obtenir par accident. Cf. :mod:`bretzel.state.url`.
+        #: The name this field carries in the URL — ``field(url="sort")``.
+        #: It DECLARES the name; it is not enough to make the field
+        #: addressable (``addressable=True`` on the class is what lights
+        #: it up), because what is in a URL is PUBLIC and must never be
+        #: obtained by accident. Cf. :mod:`bretzel.state.url`.
         self.url: str | None = url
-        #: Comment deux écritures concurrentes se combinent. ``None``
-        #: remplace — le dernier qui écrit gagne. ``"add"`` additionne :
-        #: le commit envoie l'ÉCART, et le magasin l'applique sans lire,
-        #: donc deux requêtes concurrentes comptent toutes les deux.
+        #: How two concurrent writes combine. ``None`` replaces — the
+        #: last writer wins. ``"add"`` sums: the commit sends the DELTA,
+        #: and the store applies it without reading, so two concurrent
+        #: requests both count.
         self.merge: str | None = merge
         self.name: str = ""  # populated by __set_name__
         self._storage_key: str = ""
@@ -317,20 +317,20 @@ class Field:
         # ``setattr(state, key, value)`` for bool/int/float fields
         # without per-field ladders.
         value = _coerce_scalar(value, self.type_)
-        # …puis les conteneurs : une sélection multiple, une plage de dates,
-        # une répartition de panneaux arrivent en JSON dans un champ caché.
+        # …then the containers: a multiple selection, a date range, a
+        # panel split all arrive as JSON in a hidden field.
         value = _coerce_composite(value, self.type_)
-        # …puis les types métier. Un seul geste pour DEUX chemins : la
-        # relecture depuis le magasin (où une ``date`` est revenue en
-        # ``"2026-03-04"``) et l'écriture d'un formulaire (où elle arrive
-        # en chaîne aussi). Les traiter séparément aurait laissé le
-        # second silencieux — c'était le cas : le champ typé ``date``
-        # gardait la ``str`` sans que rien ne le dise.
-        # Sortie rapide : 99 % des champs sont ``str``/``int``/``bool``,
-        # et ``decode_value`` leur coûtait quatre appels pour ne rien
-        # faire — mesuré le 2026-09-06, +16 % sur chaque écriture de
-        # champ. Le type déclaré ne change jamais après la construction
-        # de la classe, donc ce test est le même à chaque écriture.
+        # …then the business types. One gesture for TWO paths: reading
+        # back from the store (where a ``date`` came back as
+        # ``"2026-03-04"``) and writing a form (where it arrives as a
+        # string too). Handling them separately would have left the
+        # second one silent — and it was: a field typed ``date`` kept the
+        # ``str`` with nothing saying so.
+        # Fast exit: 99 % of fields are ``str``/``int``/``bool``, and
+        # ``decode_value`` cost them four calls to do nothing — measured
+        # on 2026-09-06, +16 % on every field write. The declared type
+        # never changes after the class is built, so this test is the
+        # same on every write.
         if self.type_ not in _NOTHING_TO_DECODE:
             value = decode_value(self.type_, value)
 
@@ -423,25 +423,26 @@ def field(
 ) -> Any:
     """Declare a typed state field."""
     if isinstance(default, list | dict | set):
-        # La garde a DÉMÉNAGÉ ici le 2026-09-05, avec l'obligation de
-        # passer par ``field()`` : elle vivait dans la métaclasse, sur le
-        # chemin des défauts nus, qui n'existe plus. Sans ce déplacement
-        # ``field(default=[])`` passait — le littéral est alors PARTAGÉ
-        # par toutes les instances, et muter l'une mute les autres.
+        # The guard MOVED here on 2026-09-05, together with the
+        # obligation to go through ``field()``: it used to live in the
+        # metaclass, on the bare-default path, which no longer exists.
+        # Without that move ``field(default=[])`` passed — the literal is
+        # then SHARED by every instance, and mutating one mutates the
+        # others.
         raise ValueError(
-            f"field(default={default!r}) : un littéral mutable serait "
-            f"partagé par toutes les instances de l'état. Écris "
-            f"`field(default_factory={type(default).__name__})`, qui en "
-            f"construit un par instance."
+            f"field(default={default!r}): a mutable literal would be "
+            f"shared by every instance of the state. Write "
+            f"`field(default_factory={type(default).__name__})`, which "
+            f"builds one per instance."
         )
     if default is not MISSING and default_factory is not None:
         raise ValueError(
-            "field() prend `default` OU `default_factory`, pas les deux."
+            "field() takes `default` OR `default_factory`, not both."
         )
     if merge is not None and merge not in MERGES:
         raise ValueError(
-            f"field(merge={merge!r}) : valeurs acceptées {MERGES}, ou "
-            f"``None`` pour remplacer (le défaut)."
+            f"field(merge={merge!r}): accepted values {MERGES}, or "
+            f"``None`` to replace (the default)."
         )
     return Field(
         default=default,

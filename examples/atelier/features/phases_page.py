@@ -1,164 +1,163 @@
-"""features/phases_page — page : à quoi passe le temps, par phase.
+"""features/phases_page — page: where the time goes, by phase.
 
-Une seule question : **est-ce que le travail est découpé, ou mélangé ?**
-La répartition par phase le dit en quatre barres, et le taux de « non
-classé » dit à quel point on peut la croire.
+One question only: **is the work split up, or mixed?** The breakdown by
+phase says it in four bars, and the "unclassified" rate says how far it
+can be believed.
 
-⚠️ La part d'AUTRE est affichée au même rang que les autres, pas rangée
-en note de bas de page. C'est le taux d'aveu de l'heuristique : si elle
-grossit, c'est le classement qu'il faut corriger, pas la mesure qu'il
-faut croire.
+⚠️ The share of OTHER is shown at the same rank as the others, not filed
+in a footnote. It is the heuristic's admission rate: if it grows, it is
+the classification that needs fixing, not the measurement that should be
+believed.
 """
 
 from __future__ import annotations
 
 from bretzel import Feature, page, ui
-from examples.atelier.core.perimetre import label as label_perimetre
-from examples.atelier.core.phases import AUTRE, CYCLES_MAX, LIBELLES
-from examples.atelier.features.outils_data import profil_session
+from examples.atelier.core.phases import CYCLES_MAX, LABELS, OTHER
+from examples.atelier.core.scope import label as scope_label
 from examples.atelier.features.shell import shell
-from examples.atelier.features.taches_data import par_perimetre, par_phase
+from examples.atelier.features.tasks_data import by_phase, by_scope
+from examples.atelier.features.tools_data import session_profile
 
 
 def cycles_cell(value, _row):
-    """Les cycles moyens d'une session, peints par la règle."""
+    """A session's average cycles, painted by the rule."""
     return ui.text(f"{value:.1f}", size="sm",
                    color="error" if value > CYCLES_MAX else "success")
 
 
-#: Partagées avec l'écran des sessions : une seule définition de ce qu'on
-#: montre d'une session, sinon les deux écrans divergent.
-COLONNES_SESSION = [
-    ui.column("court", label="Session"),
-    ui.column("debut", label="Début"),
-    ui.column("taches", label="Tâches", align="right"),
-    ui.column("echanges", label="Échanges", align="right"),
-    ui.column("appels", label="Appels", align="right"),
-    ui.column("erreurs", label="Erreurs", align="right"),
-    ui.column("cycles", label="Cycles moyens", align="right",
+#: Shared with the sessions screen: a single definition of what is shown
+#: of a session, otherwise the two screens diverge.
+SESSION_COLUMNS = [
+    ui.column("short", label="Session"),
+    ui.column("started", label="Start"),
+    ui.column("tasks", label="Tasks", align="right"),
+    ui.column("exchanges", label="Exchanges", align="right"),
+    ui.column("calls", label="Calls", align="right"),
+    ui.column("errors", label="Errors", align="right"),
+    ui.column("cycles", label="Mean cycles", align="right",
               render=cycles_cell),
-    ui.column("reussite", label="Du premier coup", align="right"),
+    ui.column("success", label="First time", align="right"),
 ]
 
 
-def lignes_session(limite: int | None = None) -> list[dict]:
-    """Les sessions, mises en forme pour :data:`COLONNES_SESSION`."""
-    lignes = profil_session()
-    if limite is not None:
-        lignes = lignes[:limite]
+def session_rows(limit: int | None = None) -> list[dict]:
+    """The sessions, shaped for :data:`SESSION_COLUMNS`."""
+    rows = session_profile()
+    if limit is not None:
+        rows = rows[:limit]
     return [
         {
-            "id": ligne["id"],
-            "court": ligne["id"][:8],
-            "debut": (ligne["debut"] or "")[:16].replace("T", " "),
-            "taches": ligne["taches"],
-            "echanges": ligne["echanges"],
-            "appels": ligne["appels"],
-            "erreurs": ligne["erreurs"],
-            "cycles": ligne["cycles"] or 0,
-            "reussite": f"{ligne['premier']}/{ligne['taches']}",
+            "id": row["id"],
+            "short": row["id"][:8],
+            "started": (row["started"] or "")[:16].replace("T", " "),
+            "tasks": row["tasks"],
+            "exchanges": row["exchanges"],
+            "calls": row["calls"],
+            "errors": row["errors"],
+            "cycles": row["cycles"] or 0,
+            "success": f"{row['first']}/{row['tasks']}",
         }
-        for ligne in lignes
+        for row in rows
     ]
 
 
-COULEURS = {
-    "lecture": "info",
-    "ecriture": "primary",
-    "verification": "warning",
-    "livraison": "success",
-    "autre": "muted",
+COLOURS = {
+    "reading": "info",
+    "writing": "primary",
+    "verifying": "warning",
+    "delivering": "success",
+    "other": "muted",
 }
 
 
 @page("/phases", title="Phases", layout=shell)
 def phases_page() -> None:
-    """Le profil de travail, et son évolution par session."""
-    répartition = par_phase()
+    """The work profile, and how it changes from session to session."""
+    breakdown = by_phase()
 
     with ui.vstack(gap="lg"):
-        ui.heading("Les phases", level=1)
+        ui.heading("The phases", level=1)
         ui.text(
-            "Chaque appel d'outil est rangé dans une phase. C'est de ce "
-            "classement que vient la frise, et donc le jugement porté sur "
-            "chaque tâche.",
+            "Every tool call is filed under a phase. It is from that "
+            "classification that the strip comes, and therefore the "
+            "judgement passed on each task.",
             color="muted",
         )
 
         with ui.vstack(gap="sm"):
-            for ligne in répartition:
+            for row in breakdown:
                 with ui.hstack(gap="md", align="center"):
-                    ui.text(ligne["phase"], size="sm", weight="medium",
+                    ui.text(row["phase"], size="sm", weight="medium",
                             classes="w-32")
-                    ui.progress(value=ligne["part"], max=100,
-                                color=COULEURS.get(ligne["phase"], "muted"),
+                    ui.progress(value=row["share"], max=100,
+                                color=COLOURS.get(row["phase"], "muted"),
                                 classes="flex-1")
-                    ui.text(f"{ligne['part']} %", size="sm",
+                    ui.text(f"{row['share']} %", size="sm",
                             classes="w-16 text-right")
-                    ui.text(f"{ligne['appels']} appels", size="xs",
+                    ui.text(f"{row['calls']} calls", size="xs",
                             color="muted", classes="w-28 text-right")
-                ui.text(LIBELLES[ligne["phase"]], size="xs", color="muted",
+                ui.text(LABELS[row["phase"]], size="xs", color="muted",
                         classes="pl-36")
 
-        part_autre = next(
-            (bloc["part"] for bloc in répartition if bloc["phase"] == AUTRE),
+        other_share = next(
+            (block["share"] for block in breakdown if block["phase"] == OTHER),
             0.0,
         )
-        if part_autre >= 15:
+        if other_share >= 15:
             ui.alert(
-                f"{part_autre} % des appels ne sont pas classés. Au-delà "
-                "de quelques pour cent, la frise cesse d'être croyable : "
-                "c'est l'heuristique de `core/phases.py` qu'il faut "
-                "corriger, pas la mesure qu'il faut croire.",
+                f"{other_share} % of the calls are unclassified. Beyond a "
+                "few per cent, the strip stops being believable: it is "
+                "`core/phases.py`'s heuristic that needs fixing, not the "
+                "measurement that should be believed.",
                 color="warning",
             )
 
-        ui.heading("Par périmètre", level=3)
+        ui.heading("By scope", level=3)
         ui.text(
-            "La question posée : bâtir le socle demande de le lire en "
-            "entier et de le vérifier souvent — du travail sain qui "
-            "ressemble à de l'aller-retour. Une app écrite AVEC le "
-            "framework ne devrait presque rien exiger. L'écart entre les "
-            "deux lignes est la mesure utile.",
+            "The question asked: building the base layer requires reading "
+            "it whole and verifying often — healthy work that looks like "
+            "back-and-forth. An app written WITH the framework should "
+            "demand almost nothing. The gap between the two rows is the "
+            "useful measurement.",
             size="sm", color="muted",
         )
         ui.table(
             columns=[
-                ui.column("nom", label="Périmètre"),
-                ui.column("taches", label="Tâches", align="right"),
-                ui.column("cycles", label="Cycles moyens", align="right",
+                ui.column("name", label="Scope"),
+                ui.column("tasks", label="Tasks", align="right"),
+                ui.column("cycles", label="Mean cycles", align="right",
                           render=cycles_cell),
-                ui.column("premier", label="Du premier coup", align="right"),
-                ui.column("surface", label="`describe` avant", align="right"),
-                ui.column("contrat", label="`check --deep`", align="right"),
+                ui.column("first", label="First time", align="right"),
+                ui.column("surface", label="`describe` first", align="right"),
+                ui.column("contract", label="`check --deep`", align="right"),
             ],
             rows=[
                 {
-                    "nom": label_perimetre(r["perimetre"]),
-                    "taches": r["taches"],
+                    "name": scope_label(r["scope"]),
+                    "tasks": r["tasks"],
                     "cycles": r["cycles"] or 0,
-                    "premier": f"{r['premier']}/{r['taches']}",
-                    "surface": f"{r['surface']}/{r['taches']}",
-                    "contrat": f"{r['contrat']}/{r['taches']}",
+                    "first": f"{r['first']}/{r['tasks']}",
+                    "surface": f"{r['surface']}/{r['tasks']}",
+                    "contract": f"{r['contract']}/{r['tasks']}",
                 }
-                for r in par_perimetre()
+                for r in by_scope()
             ],
-            row_key="nom",
+            row_key="name",
         )
 
-        ui.heading("Par session", level=3)
+        ui.heading("By session", level=3)
         ui.text(
-            "La même mesure dans le temps : est-ce que le rythme "
-            "s'améliore ?",
+            "The same measurement over time: is the rhythm improving?",
             size="sm", color="muted",
         )
-        ui.table(columns=COLONNES_SESSION, rows=lignes_session(30),
+        ui.table(columns=SESSION_COLUMNS, rows=session_rows(30),
                  row_key="id")
 
 
 feature = Feature(
     name="phases_page",
     kind="page",
-    uses=["taches_data", "outils_data", "shell", "phases", "perimetre"],
+    uses=["tasks_data", "tools_data", "shell", "phases", "scope"],
     provides=[phases_page],
 )

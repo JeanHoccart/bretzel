@@ -70,7 +70,7 @@ class _Probe:
     **Deux fichiers séparés, et c'est nécessaire.** La première version
     n'en avait qu'un, et vérifiait le sens 2 en cherchant l'absence d'une
     sous-chaîne dans le rapport entier. Ça s'est cassé le jour même :
-    ``theme-vocabulaire-inconnu`` produit un *hint* qui contient le mot
+    ``unknown-theme-vocabulary`` produit un *hint* qui contient le mot
     ``sidebar`` (« ``sidebar_section`` s'écrit sous ``'sidebar'`` »), donc
     la forme légitime paraissait signalée alors que le constat portait
     ailleurs. Une assertion qui peut être mise en défaut par la PROSE d'un
@@ -94,7 +94,7 @@ class _Probe:
 
 
 _PROBES: dict[str, _Probe] = {
-    "lien-dans-un-lien": _Probe(
+    "link-inside-a-link": _Probe(
         faulty=textwrap.dedent(
             """
             from bretzel import ui
@@ -132,7 +132,7 @@ _PROBES: dict[str, _Probe] = {
         zero_on_corpus=True,
         why="un `<a>` dans un `<a>` n'a aucune forme légitime",
     ),
-    "zone-qui-ecoute-trop": _Probe(
+    "zone-listening-too-widely": _Probe(
         faulty=textwrap.dedent(
             """
             from bretzel import refreshable, ui
@@ -187,7 +187,7 @@ _PROBES: dict[str, _Probe] = {
         zero_on_corpus=True,
         why="porter la dependance d'un enfant autonome n'a pas de forme legitime",
     ),
-    "palier-de-taille-a-moitie-surcharge": _Probe(
+    "half-overridden-size-step": _Probe(
         faulty=textwrap.dedent(
             """
             from bretzel.theme import Theme
@@ -228,7 +228,7 @@ _PROBES: dict[str, _Probe] = {
         why="une surcharge partielle se corrige, elle ne se gèle pas",
     ),
 
-    "page-declaree-dans-une-fonction": _Probe(
+    "page-declared-in-a-function": _Probe(
         faulty=textwrap.dedent(
             """
             from bretzel import Bretzel, page, ui
@@ -294,7 +294,7 @@ _PROBES: dict[str, _Probe] = {
             "autres passent la fonction à `include`, et sont épargnées."
         ),
     ),
-    "client-de-test-sans-lifespan": _Probe(
+    "test-client-without-lifespan": _Probe(
         faulty=textwrap.dedent(
             """
             from fastapi.testclient import TestClient
@@ -349,7 +349,7 @@ _PROBES: dict[str, _Probe] = {
             "forme en deux temps aussi."
         ),
     ),
-    "palier-de-theme-change-de-forme": _Probe(
+    "theme-step-changed-shape": _Probe(
         faulty=textwrap.dedent(
             """
             from bretzel.theme import Theme
@@ -395,12 +395,12 @@ _PROBES: dict[str, _Probe] = {
         why=(
             "Elle ne juge que les clés DÉJÀ livrées, et seulement leur forme. "
             "Une clé neuve est exempte — c'est la façon supportée d'étendre le "
-            "thème, que `theme-vocabulaire-inconnu` protège explicitement. "
+            "thème, que `unknown-theme-vocabulary` protège explicitement. "
             "Vérifié le 2026-09-10 : zéro constat sur les 292 fichiers "
             "d'`examples/`."
         ),
     ),
-    "etat-construit-sur-la-boucle": _Probe(
+    "state-built-on-the-loop": _Probe(
         faulty=textwrap.dedent(
             """
             from __future__ import annotations
@@ -447,7 +447,7 @@ _PROBES: dict[str, _Probe] = {
             "lève avec Redis — la faute attend la prod pour se montrer"
         ),
     ),
-    "compteur-partage-non-declare": _Probe(
+    "undeclared-shared-counter": _Probe(
         faulty=textwrap.dedent(
             """
             from __future__ import annotations
@@ -503,7 +503,7 @@ _PROBES: dict[str, _Probe] = {
             "un second utilisateur peut le révéler"
         ),
     ),
-    "kwargs-inconnu": _Probe(
+    "unknown-kwarg": _Probe(
         faulty=textwrap.dedent(
             """
             from bretzel import ui
@@ -530,7 +530,7 @@ _PROBES: dict[str, _Probe] = {
         zero_on_corpus=True,
         why="un kwarg mort n'a jamais de bonne raison d'exister",
     ),
-    "theme-vocabulaire-inconnu": _Probe(
+    "unknown-theme-vocabulary": _Probe(
         faulty=textwrap.dedent(
             """
             from bretzel.theme import Theme
@@ -576,7 +576,7 @@ _PROBES: dict[str, _Probe] = {
         zero_on_corpus=True,
         why="un nom de thème inconnu ne rend rien, jamais, nulle part",
     ),
-    "valeur-hors-table": _Probe(
+    "value-outside-the-table": _Probe(
         faulty=textwrap.dedent(
             """
             from bretzel import ui
@@ -643,7 +643,7 @@ _PROBES: dict[str, _Probe] = {
         zero_on_corpus=True,
         why="une variante hors table retire la classe et laisse le composant nu",
     ),
-    "tailles-melangees": _Probe(
+    "mixed-sizes": _Probe(
         # Les deux fautes RÉELLES trouvées dans ce dépôt le 2026-08-23,
         # reproduites telles quelles. La première est celle qu'un
         # utilisateur a vue sur une capture d'écran ; la seconde n'avait
@@ -710,7 +710,7 @@ _PROBES: dict[str, _Probe] = {
         zero_on_corpus=False,
         why="un banc qui compare deux tailles est un mélange délibéré",
     ),
-    "classe-doublee-par-une-prop": _Probe(
+    "class-duplicates-a-prop": _Probe(
         # Les trois façons dont une classe de `classes=` rencontre une prop
         # sur le MÊME élément : contre un DÉFAUT (`justify` vaut `start`
         # sans qu'on demande rien — le cas réel, deux fois de suite dans
@@ -769,7 +769,7 @@ _PROBES: dict[str, _Probe] = {
             "« centrées » qui ne l'étaient pas. La règle est un cliquet."
         ),
     ),
-    "etat-perdu-par-un-cast": _Probe(
+    "state-lost-by-a-cast": _Probe(
         faulty=textwrap.dedent(
             """
             from bretzel import ui
@@ -823,10 +823,10 @@ _PROBES: dict[str, _Probe] = {
 #: Règles antérieures au cliquet, sans sonde. Égalité stricte : une entrée
 #: qui gagne sa sonde sort d'ici. Mesuré au 2026-08-16.
 _NO_PROBE_DEBT: frozenset[str] = frozenset({
-    "classe-tailwind-assemblee",
-    "handler-lambda",
-    "html-non-litteral",
-    "transport-a-la-main",
+    "assembled-tailwind-class",
+    "lambda-handler",
+    "non-literal-html",
+    "hand-written-transport",
 })
 
 
@@ -875,7 +875,7 @@ def test_the_rule_catches_the_fabricated_case(rule: str, tmp_path: Path) -> None
     assert report.findings, f"[{rule}] le cas fabriqué ne produit aucun constat"
     # Les MESSAGES seuls, jamais les hints. Un message nomme son sujet ; un
     # hint explique, et son explication peut citer une autre forme —
-    # `theme-vocabulaire-inconnu` écrit « `sidebar_section` s'écrit sous
+    # `unknown-theme-vocabulary` écrit « `sidebar_section` s'écrit sous
     # `'sidebar'` », ce qui rendait l'assertion vraie sans qu'aucun constat
     # ne porte là-dessus. Mesuré le 2026-08-16 : la mutation qui indexait
     # par nom `ui.*` au lieu de `THEME_KEY` laissait la gate verte, dans
@@ -963,7 +963,7 @@ def test_declared_theme_is_seen_across_files(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    report = run([tmp_path], rules=("valeur-hors-table",))
+    report = run([tmp_path], rules=("value-outside-the-table",))
     subjects = "\n".join(f.message for f in report.findings)
 
     assert "brnad" in subjects, (

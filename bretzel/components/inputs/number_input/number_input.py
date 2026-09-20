@@ -102,7 +102,7 @@ class NumberInput(Component):
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, value=value,
             min=min, max=max, step=step,
@@ -413,14 +413,14 @@ class NumberInput(Component):
     # ── Helpers ────────────────────────────────────────────────────────
 
     def _render_chevron(self, name: str) -> Element:
-        """Le glyphe d'un bouton stepper, habillé par le slot ``chevron``.
+        """A stepper button's glyph, dressed by the ``chevron`` slot.
 
-        Le slot était déclaré dans le thème et documenté, mais jamais
-        appliqué (audit F36) : une surcharge
+        The slot was declared in the theme and documented, but never
+        applied (audit F36): an override
         ``Theme(components={"number_input": {"slots": {"chevron": …}}})``
-        ne faisait rien. Sans conséquence visuelle — le ``shrink-0``
-        qu'il porte vient DÉJÀ du slot root d'Icon — mais le contrat de
-        thème était rompu.
+        did nothing. With no visual consequence — the ``shrink-0`` it
+        carries ALREADY comes from Icon's root slot — but the theme's
+        contract was broken.
         """
         icon = Icon(name, size="xs")
         Component._detach_from_parent(icon)
@@ -442,8 +442,8 @@ class NumberInput(Component):
     ) -> str:
         """The bz-data scope.
 
-        Quatre pièces d'état (le compte disait « three » jusqu'au
-        2026-08-01, pour les quatre puces qui suivent) :
+        Four pieces of state (the count said "three" until 2026-08-01,
+        for the four bullets that follow):
 
         - **``value``** : the canonical numeric value (or ``null`` ⇄
           empty). Lives locally (no binding) or in
@@ -485,26 +485,26 @@ class NumberInput(Component):
             initial_value_js = json.dumps(float(initial_value))
             initial_draft_js = json.dumps(str(initial_value))
 
-        # ``_min`` / ``_max`` / ``_step`` sont de la CONFIG : le serveur en
-        # est toujours propriétaire, le client ne les écrit jamais. Ils
-        # doivent donc être re-semés SANS condition — ``absorb`` ne réécrit
-        # jamais un signal existant (``03_scope.js``), donc sans ça un
-        # ``min=`` / ``max=`` / ``step=`` changé côté serveur restait figé à
-        # sa valeur du premier montage : le banc bougeait le contrôle, le
-        # composant gardait ses anciennes bornes. Même racine que
-        # ``_total`` / ``_maxVisible`` de Pagination.
+        # ``_min`` / ``_max`` / ``_step`` are CONFIG: the server always
+        # owns them, the client never writes them. They must therefore be
+        # re-seeded UNCONDITIONALLY — ``absorb`` never rewrites an
+        # existing signal (``03_scope.js``), so without that a ``min=`` /
+        # ``max=`` / ``step=`` changed server-side stayed frozen at its
+        # first mount's value: the bench moved the control, the component
+        # kept its old bounds. Same root as Pagination's ``_total`` /
+        # ``_maxVisible``.
         #
-        # ⚠️ Surtout PAS ``_draft`` / ``_focused`` / ``_precCache`` : ce sont
-        # des tampons CLIENT. Les re-semer écraserait la saisie en cours à
-        # chaque swap voisin — exactement le sinistre que la garde
-        # ci-dessous évite pour ``value``.
+        # ⚠️ Most certainly NOT ``_draft`` / ``_focused`` / ``_precCache``:
+        # these are CLIENT buffers. Re-seeding them would overwrite the
+        # typing in progress at every neighbouring swap — exactly the
+        # damage the guard below avoids for ``value``.
         config_sync = ["_min", "_max", "_step"]
 
         if value_binding is None:
-            # ``value`` reste GATÉ, lui : re-semé seulement si le serveur en
-            # est propriétaire (``value=state.champ``). Pour un littéral, le
-            # bridge réécrirait le signal à chaque swap et écraserait la
-            # saisie de l'utilisateur.
+            # ``value`` stays GATED: re-seeded only if the server owns
+            # it (``value=state.field``). For a literal, the bridge would
+            # rewrite the signal at every swap and overwrite the user's
+            # typing.
             keys = (
                 ["value", *config_sync]
                 if self._value_server_backed()
@@ -519,8 +519,8 @@ class NumberInput(Component):
                 "_write(v) { this.value = v; },"
             )
         else:
-            # Valeur en ClientBinding : le store en est propriétaire, rien à
-            # re-semer pour elle — mais la config reste server-owned.
+            # The value as a ClientBinding: the store owns it, nothing
+            # to re-seed for it — but the config stays server-owned.
             value_field = f"{server_sync_marker(*config_sync, enabled=True).lstrip()}"
             read_write = (
                 f"_read() {{ const v = {write}; "

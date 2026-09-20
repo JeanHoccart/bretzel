@@ -1,20 +1,20 @@
-"""kanban/logic — les handlers. Ils mutent le tableau, l'affichage suit.
+"""kanban/logic — the handlers. They mutate the board, the display
+follows.
 
-Aucun ne touche au DOM, aucun ne rend de HTML : ils écrivent dans un
-état, et les zones ``@refreshable`` qui en dépendent se re-rendent — chez
-l'auteur du geste par ``deps=``, chez les autres par ``broadcast=``.
+None touches the DOM, none returns HTML: they write into a state, and the
+``@refreshable`` zones depending on it re-render — at the author of the
+gesture through ``deps=``, at the others through ``broadcast=``.
 
-**Toute écriture passe par :func:`journaliser`.** Une carte n'est jamais
-modifiée sur place : on prend son instantané avant, on construit celui
-d'après, et le couple part au journal. Trois choses en découlent sans
-qu'aucune soit codée deux fois — l'annulation, le rétablissement, et le
-fil d'activité qui dit qui a fait quoi.
+**Every write goes through :func:`journaliser`.** A card is never
+modified in place: we take its snapshot before, build the one after, and
+the pair goes to the journal. Three things follow without any being coded
+twice — undo, redo, and the activity feed that says who did what.
 
-⚠️ **Une collection se RÉASSIGNE, elle ne se mute pas en place.**
-``tableau.cartes[0]["titre"] = "x"`` écrit bien la valeur mais ne change
-pas l'identité de la liste : la détection de changement ne voit rien et
-aucune zone ne se re-rend (``traps.md`` § mutation de collection). D'où
-:func:`poser`, qui rebâtit la liste autour de la carte touchée.
+⚠️ **A collection is REASSIGNED, it is not mutated in place.**
+``tableau.cartes[0]["titre"] = "x"`` does write the value but does not
+change the list's identity: change detection sees nothing and no zone
+re-renders (``traps.md`` § collection mutation). Hence :func:`poser`,
+which rebuilds the list around the card touched.
 """
 
 from __future__ import annotations
@@ -24,10 +24,10 @@ from typing import Any
 
 from bretzel import Feature, ui
 from bretzel.components import Move
+from examples.kanban.core.i18n import tr
 from examples.kanban.features.donnees import (
     CLES,
     LIB_ETIQUETTE,
-    LIBELLES,
     LIMITES,
     NOMS,
     Tableau,
@@ -35,6 +35,7 @@ from examples.kanban.features.donnees import (
     colonne_de,
     copie,
     entre,
+    libelles,
     pleine,
 )
 from examples.kanban.features.state import (
@@ -47,27 +48,26 @@ from examples.kanban.features.state import (
     Vue,
 )
 
-#: Le groupe de glissement. Le nommer est ce qui autorise une colonne à
-#: recevoir : chacune déclare ``accepts=[GROUPE]``. Sans ça, une zone ne
-#: reçoit que ses propres cartes — recevoir d'ailleurs est un opt-in.
+#: The drag group. Naming it is what allows a column to receive: each
+#: declares ``accepts=[GROUPE]``. Without that, a zone receives only its
+#: own cards — receiving from elsewhere is an opt-in.
 GROUPE = "carte"
 
-#: Le ``name=`` de la zone d'archivage du bandeau. Elle accepte tout et
-#: ne laisse rien repartir (``locked=True``) : c'est le cas que la
-#: distinction ``accepts`` / ``locked`` existe pour exprimer.
+#: The ``name=`` of the banner's archive zone. It accepts everything and
+#: lets nothing leave (``locked=True``): it is the case the
+#: ``accepts`` / ``locked`` distinction exists to express.
 ZONE_ARCHIVE = "archive"
 
 
-# ── Le socle d'écriture : poser une carte, et l'inscrire au journal ───
+# ── The writing base: place a card, and record it in the journal ─────
 
 
 def poser(ident: str, etat: dict[str, Any] | None) -> None:
-    """Écrire l'état d'une carte : la remplacer, l'ajouter, ou la retirer.
+    """Write a card's state: replace it, add it, or remove it.
 
-    ``None`` retire. L'ordre dans la liste n'a aucune importance —
-    l'affichage trie par ``rang`` — donc réinsérer en fin suffit, et
-    c'est ce qui rend l'annulation d'une suppression aussi simple qu'une
-    modification.
+    ``None`` removes. The order in the list does not matter at all — the
+    display sorts by ``rang`` — so reinserting at the end is enough, and
+    that is what makes undoing a deletion as simple as a modification.
     """
     tableau = Tableau()
     autres = [c for c in tableau.cartes if c["id"] != ident]
@@ -76,13 +76,12 @@ def poser(ident: str, etat: dict[str, Any] | None) -> None:
 
 def journaliser(ident: str, avant: dict[str, Any] | None,
                 apres: dict[str, Any] | None, texte: str) -> None:
-    """Appliquer un changement ET l'inscrire dans l'histoire du tableau.
+    """Apply a change AND record it in the board's history.
 
-    Une action neuve TRONQUE ce qui suivait le curseur : après trois
-    annulations, écrire quelque chose abandonne les trois rétablissements
-    possibles. C'est le comportement de toutes les piles d'annulation, et
-    l'alternative — garder une branche — demanderait une interface pour
-    la choisir.
+    A new action TRUNCATES what followed the cursor: after three undos,
+    writing something abandons the three possible redos. It is the
+    behaviour of every undo stack, and the alternative — keeping a branch
+    — would need an interface to choose it.
     """
     tableau = Tableau()
     poser(ident, apres)
@@ -95,11 +94,11 @@ def journaliser(ident: str, avant: dict[str, Any] | None,
 
 
 def modifier(carte: dict[str, Any], texte: str, **champs: Any) -> None:
-    """Le cas courant : changer quelques champs d'une carte existante.
+    """The common case: change a few fields of an existing card.
 
-    Un changement qui ne change rien n'entre pas au journal — sans quoi
-    reposer une carte à l'endroit où on l'a prise remplirait la pile
-    d'annulations de gestes sans effet.
+    A change that changes nothing does not enter the journal — otherwise
+    putting a card back where it was picked up would fill the undo stack
+    with gestures that had no effect.
     """
     avant = copie(carte)
     apres = {**avant, **champs}
@@ -109,26 +108,25 @@ def modifier(carte: dict[str, Any], texte: str, **champs: Any) -> None:
 
 
 def carte_ouverte() -> dict[str, Any] | None:
-    """La carte affichée dans le tiroir, si elle existe encore.
+    """The card shown in the drawer, if it still exists.
 
-    Elle peut avoir disparu sous les yeux du lecteur — quelqu'un d'autre
-    vient de l'archiver. Le tiroir doit alors se fermer proprement, pas
-    lever.
+    It may have vanished under the reader's eyes — somebody else has
+    just archived it. The drawer must then close cleanly, not raise.
     """
     ouverte = Vue().ouverte
     return carte_par_id(ouverte) if ouverte else None
 
 
-# ── Annuler / rétablir ────────────────────────────────────────────────
+# ── Undo / redo ───────────────────────────────────────────────────────
 
 
 def annuler() -> None:
-    """Défaire la dernière écriture du tableau, quelle qu'en soit la main.
+    """Undo the board's last write, whoever's hand made it.
 
-    Sur un tableau partagé, l'histoire appartient au tableau : le journal
-    dit qui avait fait le geste, et n'importe qui peut le défaire. Une
-    pile par personne poserait la question sans réponse de ce qu'annule
-    la seconde main quand la première a déjà redéplacé la carte.
+    On a shared board, the history belongs to the board: the journal says
+    who made the gesture, and anybody can undo it. A stack per person
+    would raise the unanswerable question of what the second hand undoes
+    when the first has already moved the card again.
     """
     tableau = Tableau()
     if tableau.curseur == 0:
@@ -141,7 +139,7 @@ def annuler() -> None:
 
 
 def refaire() -> None:
-    """Refaire ce que la dernière annulation avait défait."""
+    """Redo what the last undo had undone."""
     tableau = Tableau()
     if tableau.curseur >= len(tableau.journal):
         return
@@ -152,21 +150,21 @@ def refaire() -> None:
         fermer()
 
 
-# ── Le glisser-déposer ────────────────────────────────────────────────
+# ── Drag and drop ─────────────────────────────────────────────────────
 
 
 def deposer(m: Move) -> None:
-    """Ce qu'un dépôt applique — ou refuse.
+    """What a drop applies — or refuses.
 
-    **Refuser, c'est ne rien muter.** Le navigateur a déjà bougé la carte
-    quand ce code s'exécute ; un rendu serveur qui le contredit la remet
-    en place par le morph. Il n'y a donc pas de ``reject()`` à appeler, et
-    c'est pour ça que la limite d'en-cours s'écrit en trois lignes.
+    **Refusing is mutating nothing.** The browser has already moved the
+    card by the time this code runs; a server render that contradicts it
+    puts it back through the morph. So there is no ``reject()`` to call,
+    and that is why the work-in-progress limit is written in three lines.
 
-    Les voisins sont relus DANS LA FENÊTRE FILTRÉE, avec la fonction qui a
-    servi au rendu. Calculer un rang entre deux cartes que le lecteur ne
-    voyait pas déposerait la carte ailleurs que sous son doigt, sans la
-    moindre erreur pour le dire.
+    The neighbours are re-read INSIDE THE FILTERED WINDOW, with the
+    function that served the rendering. Computing a rank between two
+    cards the reader could not see would drop the card somewhere other
+    than under their finger, without the slightest error to say so.
     """
     carte = carte_par_id(m.item_key)
     if carte is None or m.to_zone not in CLES:
@@ -175,10 +173,14 @@ def deposer(m: Move) -> None:
     transfert = m.to_zone != carte["colonne"]
     if transfert and pleine(m.to_zone):
         ui.notification(
-            f"« {LIBELLES[m.to_zone]} » est à sa limite de "
-            f"{LIMITES[m.to_zone]} cartes. Il faut en sortir une avant "
-            f"d'en accepter une autre.",
-            variant="warning", title="Dépôt refusé", duration_ms=4000,
+            tr(f"“{libelles()[m.to_zone]}” is at its limit of "
+               f"{LIMITES[m.to_zone]} cards. One has to come out before "
+               f"another is accepted.",
+               f"« {libelles()[m.to_zone]} » est à sa limite de "
+               f"{LIMITES[m.to_zone]} cartes. Il faut en sortir une avant "
+               f"d'en accepter une autre."),
+            variant="warning", duration_ms=4000,
+            title=tr("Drop refused", "Dépôt refusé"),
         )
         return
 
@@ -193,49 +195,55 @@ def deposer(m: Move) -> None:
         voisins[place - 1]["rang"] if place > 0 else None,
         voisins[place]["rang"] if place < len(voisins) else None,
     )
-    verbe = (f"a déplacé « {carte['titre']} » vers {LIBELLES[m.to_zone]}"
-             if transfert else f"a réordonné « {carte['titre']} »")
+    verbe = (
+        tr(f"moved “{carte['titre']}” to {libelles()[m.to_zone]}",
+           f"a déplacé « {carte['titre']} » vers {libelles()[m.to_zone]}")
+        if transfert else
+        tr(f"reordered “{carte['titre']}”",
+           f"a réordonné « {carte['titre']} »")
+    )
     modifier(carte, verbe, colonne=m.to_zone, rang=rang)
 
 
 def sortir(carte: dict[str, Any]) -> None:
-    """Retirer une carte du tableau, quel que soit le geste qui l'a dit."""
+    """Remove a card from the board, whichever gesture said so."""
     if Vue().ouverte == carte["id"]:
         fermer()
     journaliser(carte["id"], copie(carte), None,
-                f"a archivé « {carte['titre']} »")
+                tr(f"archived “{carte['titre']}”",
+                   f"a archivé « {carte['titre']} »"))
 
 
 def archiver(m: Move) -> None:
-    """Sortir une carte en la lâchant sur la zone d'archive du bandeau."""
+    """Take a card out by dropping it on the banner's archive zone."""
     carte = carte_par_id(m.item_key)
     if carte is not None:
         sortir(carte)
 
 
 def archiver_ouverte() -> None:
-    """Le même geste, au bouton du tiroir.
+    """The same gesture, from the drawer's button.
 
-    Deux chemins pour une action, et c'est voulu : glisser vers
-    l'archive est le geste naturel quand on a la carte en main, mais il
-    n'existe pas pour qui lit la carte ouverte — et il n'existe pas non
-    plus au clavier.
+    Two paths for one action, and it is intended: dragging to the archive
+    is the natural gesture when the card is in hand, but it does not
+    exist for whoever is reading the open card — and it does not exist
+    from the keyboard either.
     """
     carte = carte_ouverte()
     if carte is not None:
         sortir(carte)
 
 
-# ── Le tiroir : ouvrir, et recopier la carte dans le brouillon ────────
+# ── The drawer: open, and copy the card into the draft ───────────────
 
 
 def charger(carte: dict[str, Any]) -> None:
-    """Recopier la carte dans le brouillon d'édition.
+    """Copy the card into the editing draft.
 
-    Le serveur écrit un ``ClientState`` : la valeur redescend dans le
-    patch de la réponse, comme la rédaction d'une réponse dans
-    ``examples/messagerie``. C'est ce qui permet au brouillon d'être
-    amorcé par le serveur ET de survivre à un re-rendu venu d'ailleurs.
+    The server writes a ``ClientState``: the value comes back down in the
+    response's patch, like composing a reply in ``examples/messagerie``.
+    That is what lets the draft be seeded by the server AND survive a
+    re-render coming from elsewhere.
     """
     Fiche().carte_id = carte["id"]
     brouillon = Brouillon()
@@ -251,7 +259,7 @@ def charger(carte: dict[str, Any]) -> None:
 
 
 def ouvrir(ident: str) -> None:
-    """Afficher une carte dans le tiroir, brouillon rechargé."""
+    """Show a card in the drawer, draft reloaded."""
     carte = carte_par_id(ident)
     if carte is None:
         return
@@ -262,11 +270,11 @@ def ouvrir(ident: str) -> None:
 
 
 def fermer() -> None:
-    """Refermer le tiroir — les deux champs ensemble, toujours.
+    """Close the drawer — both fields together, always.
 
-    Câblé aussi sur ``on_close`` du tiroir : fermer à l'échappement ou en
-    cliquant le fond doit se savoir côté serveur, sinon le prochain
-    re-rendu rouvrirait le panneau.
+    Wired on the drawer's ``on_close`` too: closing with Escape or by
+    clicking the backdrop must be known server side, otherwise the next
+    re-render would reopen the panel.
     """
     vue = Vue()
     vue.ouverte = ""
@@ -274,17 +282,17 @@ def fermer() -> None:
 
 
 def enregistrer() -> None:
-    """Écrire les champs libres du brouillon sur la carte.
+    """Write the draft's free fields onto the card.
 
-    ⚠️ Aucun paramètre typé, et ce n'est PAS l'étourderie que la règle B1
-    de ``livrer-une-app.md`` interdit : un paramètre typé sert à hydrater
-    un état SERVEUR depuis le corps du POST. Le brouillon est un
-    ``ClientState`` — le magasin du navigateur voyage avec chaque action,
-    donc ``Brouillon()`` rend déjà des valeurs fraîches.
+    ⚠️ No typed parameter, and it is NOT the carelessness rule B1 of
+    ``livrer-une-app.md`` forbids: a typed parameter serves to hydrate a
+    SERVER state from the POST body. The draft is a ``ClientState`` — the
+    browser's store travels with every action, so ``Brouillon()`` already
+    returns fresh values.
 
-    ``Fiche().carte_id`` plutôt que ``Vue().ouverte`` : la fiche dit à
-    quelle carte le brouillon appartient, donc un enregistrement parti
-    pendant qu'on en ouvrait une autre ne peut pas écrire sur la mauvaise.
+    ``Fiche().carte_id`` rather than ``Vue().ouverte``: the sheet says
+    which card the draft belongs to, so a save that left while another
+    one was being opened cannot write on the wrong one.
     """
     brouillon = Brouillon()
     carte = carte_par_id(Fiche().carte_id)
@@ -293,7 +301,8 @@ def enregistrer() -> None:
         return
     qui = str(brouillon.qui)
     modifier(
-        carte, f"a modifié « {carte['titre']} »",
+        carte, tr(f"edited “{carte['titre']}”",
+                  f"a modifié « {carte['titre']} »"),
         titre=titre,
         description=str(brouillon.description).strip()[:800],
         qui=qui if qui in NOMS else carte["qui"],
@@ -303,80 +312,95 @@ def enregistrer() -> None:
 
 
 def basculer_etiquette(cle: str) -> None:
-    """Poser ou retirer une étiquette sur la carte ouverte."""
+    """Set or remove a label on the open card."""
     carte = carte_ouverte()
     if carte is None or cle not in LIB_ETIQUETTE:
         return
     posees = list(carte["etiquettes"])
     if cle in posees:
         posees.remove(cle)
-        verbe = f"a retiré l'étiquette {LIB_ETIQUETTE[cle]}"
+        verbe = tr(f"removed the {LIB_ETIQUETTE[cle]} label",
+                   f"a retiré l'étiquette {LIB_ETIQUETTE[cle]}")
     else:
         posees.append(cle)
-        verbe = f"a posé l'étiquette {LIB_ETIQUETTE[cle]}"
-    modifier(carte, f"{verbe} sur « {carte['titre']} »", etiquettes=posees)
+        verbe = tr(f"set the {LIB_ETIQUETTE[cle]} label",
+                   f"a posé l'étiquette {LIB_ETIQUETTE[cle]}")
+    modifier(carte,
+             tr(f"{verbe} on “{carte['titre']}”",
+                f"{verbe} sur « {carte['titre']} »"),
+             etiquettes=posees)
 
 
-# ── Sous-tâches et commentaires : au clic, sans « enregistrer » ───────
+# ── Subtasks and comments: on click, with no "save" ──────────────────
 
 
 def ajouter_sous_tache() -> None:
-    """Une sous-tâche de plus, prise du champ du tiroir."""
+    """One more subtask, taken from the drawer's field."""
     brouillon = Brouillon()
     carte = carte_par_id(Fiche().carte_id)
     texte = str(brouillon.sous_tache).strip()[:120]
     if carte is None or not texte:
         return
-    modifier(carte, f"a ajouté « {texte} » à « {carte['titre']} »",
+    modifier(carte,
+             tr(f"added “{texte}” to “{carte['titre']}”",
+                f"a ajouté « {texte} » à « {carte['titre']} »"),
              sous_taches=[*[dict(s) for s in carte["sous_taches"]],
                           {"texte": texte, "fait": False}])
     brouillon.sous_tache = ""
 
 
 def basculer_sous_tache(rang: int) -> None:
-    """Cocher ou décocher la sous-tâche numéro ``rang``."""
+    """Tick or untick subtask number ``rang``."""
     carte = carte_ouverte()
     if carte is None or not 0 <= rang < len(carte["sous_taches"]):
         return
     sous = [dict(s) for s in carte["sous_taches"]]
     sous[rang]["fait"] = not sous[rang]["fait"]
-    etat = "faite" if sous[rang]["fait"] else "à refaire"
-    modifier(carte, f"a marqué « {sous[rang]['texte']} » {etat}",
+    fait = sous[rang]["fait"]
+    etat = tr("done" if fait else "to do again",
+              "faite" if fait else "à refaire")
+    modifier(carte,
+             tr(f"marked “{sous[rang]['texte']}” {etat}",
+                f"a marqué « {sous[rang]['texte']} » {etat}"),
              sous_taches=sous)
 
 
 def retirer_sous_tache(rang: int) -> None:
-    """Supprimer la sous-tâche numéro ``rang``."""
+    """Delete subtask number ``rang``."""
     carte = carte_ouverte()
     if carte is None or not 0 <= rang < len(carte["sous_taches"]):
         return
     sous = [dict(s) for i, s in enumerate(carte["sous_taches"]) if i != rang]
-    modifier(carte, f"a retiré une sous-tâche de « {carte['titre']} »",
+    modifier(carte,
+             tr(f"removed a subtask from “{carte['titre']}”",
+                f"a retiré une sous-tâche de « {carte['titre']} »"),
              sous_taches=sous)
 
 
 def commenter() -> None:
-    """Ajouter un commentaire signé de l'identité courante."""
+    """Add a comment signed with the current identity."""
     brouillon = Brouillon()
     carte = carte_par_id(Fiche().carte_id)
     texte = str(brouillon.commentaire).strip()[:600]
     if carte is None or not texte:
         return
-    modifier(carte, f"a commenté « {carte['titre']} »",
+    modifier(carte,
+             tr(f"commented on “{carte['titre']}”",
+                f"a commenté « {carte['titre']} »"),
              commentaires=[*[dict(c) for c in carte["commentaires"]],
                            {"qui": Moi().membre, "texte": texte,
                             "t": time.time()}])
     brouillon.commentaire = ""
 
 
-# ── Créer, et les contrôles du bandeau ────────────────────────────────
+# ── Create, and the banner's controls ────────────────────────────────
 
 
 def identifiant_libre() -> str:
-    """Le prochain identifiant de carte, dérivé du plus grand existant.
+    """The next card identifier, derived from the largest existing one.
 
-    Un compteur stocké serait un second état à tenir cohérent avec la
-    liste ; le dériver ne peut pas dériver.
+    A stored counter would be a second state to keep consistent with the
+    list; deriving it cannot drift.
     """
     nombres = [
         int(c["id"][1:]) for c in Tableau().cartes
@@ -386,16 +410,19 @@ def identifiant_libre() -> str:
 
 
 def creer(nouvelle: Nouvelle) -> None:
-    """Une carte neuve, en tête de la colonne choisie, et on l'ouvre."""
+    """A new card, at the head of the chosen column, and we open it."""
     titre = str(nouvelle.titre).strip()[:120]
     colonne = str(nouvelle.colonne)
     if not titre:
         return
     if pleine(colonne):
         ui.notification(
-            f"« {LIBELLES[colonne]} » est à sa limite de "
-            f"{LIMITES[colonne]} cartes.",
-            variant="warning", title="Création refusée", duration_ms=4000,
+            tr(f"“{libelles()[colonne]}” is at its limit of "
+               f"{LIMITES[colonne]} cards.",
+               f"« {libelles()[colonne]} » est à sa limite de "
+               f"{LIMITES[colonne]} cartes."),
+            variant="warning", duration_ms=4000,
+            title=tr("Creation refused", "Création refusée"),
         )
         return
     premieres = colonne_de(colonne)
@@ -406,30 +433,31 @@ def creer(nouvelle: Nouvelle) -> None:
         "description": "", "sous_taches": [], "commentaires": [],
         "rang": entre(None, premieres[0]["rang"] if premieres else None),
     }
-    journaliser(ident, None, neuve, f"a créé « {titre} »")
+    journaliser(ident, None, neuve,
+                tr(f"created “{titre}”", f"a créé « {titre} »"))
     nouvelle.titre = ""
     ouvrir(ident)
 
 
 def filtrer(filtres: Filtres) -> None:
-    """Rien à faire : la valeur du contrôle est hydratée, ``deps=`` suit.
+    """Nothing to do: the control's value is hydrated, ``deps=`` follows.
 
-    ⚠️ **Le paramètre typé n'est pas décoratif — c'est LUI qui hydrate.**
-    Écrit ``def filtrer()`` sans paramètre, le handler se déclenche, ne
-    lève pas, et le serveur répond zéro octet : il n'a lu aucune valeur,
-    donc aucun état n'a changé, donc aucune zone n'est à re-rendre. Les
-    trois filtres étaient inertes et rien ne le disait — mesuré au probe,
-    invisible à la lecture.
+    ⚠️ **The typed parameter is not decorative — it is what HYDRATES.**
+    Written ``def filtrer()`` with no parameter, the handler fires, does
+    not raise, and the server answers zero bytes: it read no value, so no
+    state changed, so no zone is to be re-rendered. The three filters
+    were inert and nothing said so — measured by probe, invisible when
+    reading.
     """
 
 
 def changer_de_membre(moi: Moi) -> None:
-    """``Moi.membre`` est hydraté par le sélecteur ; rien d'autre à faire.
+    """``Moi.membre`` is hydrated by the selector; nothing else to do.
 
-    Pas d'authentification ici, et c'est écrit : cet exemple met en scène
-    l'état partagé, pas l'identité — ``examples/auth`` fait l'autre.
-    Le validateur de :class:`Moi` ramène toute valeur inconnue, donc ce
-    handler n'a rien à contrôler.
+    No authentication here, and it is written down: this example stages
+    shared state, not identity — ``examples/auth`` does the other one.
+    :class:`Moi`'s validator pulls any unknown value back, so this
+    handler has nothing to check.
     """
 
 

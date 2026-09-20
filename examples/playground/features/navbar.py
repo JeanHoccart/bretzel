@@ -1,20 +1,19 @@
 """``Navbar`` test bench.
 
-Quatre cartes obligatoires — Reference / Edge cases / A11y / Server
-playground — plus Slots et Composability. ``BINDABLE_PROPS = ()``,
-``EVENTS = ()`` et aucune API impérative : pas de carte client, pas de
-carte événement.
+Four mandatory cards — Reference / Edge cases / A11y / Server playground
+— plus Slots and Composability. ``BINDABLE_PROPS = ()``, ``EVENTS = ()``
+and no imperative API: no client card, no event card.
 
-Ce banc est né le 2026-08-30, en supprimant la famille ``/matrix`` : elle
-était le SEUL endroit du playground où ``ui.navbar`` était construit.
-Supprimée, le composant se retrouvait livré et démontré nulle part — ce
-que ``test_playground_demos_the_api`` a dit tout de suite.
+This bench was born on 2026-08-30, by deleting the ``/matrix`` family: it
+was the playground's ONLY place where ``ui.navbar`` was built. Deleted,
+the component found itself shipped and demonstrated nowhere — which
+``test_playground_demos_the_api`` said straight away.
 
-⚠️ Aucune barre de cette page n'est ``sticky=True`` hors du bac de
-démonstration : la coque du playground fait défiler le document, donc une
-barre épinglée se collerait au haut de la fenêtre et couvrirait la vraie
-navigation. Le paramètre se règle dans le *Server playground*, où
-l'aperçu vit dans un conteneur qui défile pour lui.
+⚠️ No bar on this page is ``sticky=True`` outside the demonstration tray:
+the playground's shell scrolls the document, so a pinned bar would stick
+to the top of the window and cover the real navigation. The parameter is
+set in the *Server playground*, where the preview lives in a container
+that scrolls for it.
 """
 
 from bretzel import refreshable, ui
@@ -94,11 +93,11 @@ def control(label: str):
 
 
 def demo_bar(**kwargs) -> None:
-    """Une barre complète : les trois sections, dans l'ordre de lecture.
+    """A complete bar: the three sections, in reading order.
 
-    Écrite ici plutôt que recopiée dans chaque carte — les six aperçus de
-    la page ne diffèrent QUE par les kwargs de la barre, et c'est
-    exactement ce qu'on veut pouvoir comparer.
+    Written here rather than copied into every card — the page's six
+    previews differ ONLY by the bar's kwargs, and it is exactly what one
+    wants to be able to compare.
     """
     with ui.navbar(**kwargs):
         with ui.navbar_section(side="left"):
@@ -121,8 +120,8 @@ def server_panel() -> None:
                       on_change=server_changed)
         with control("sticky"):
             ui.select(value=state.sticky,
-                      options=[("off", "False (défaut)"),
-                               ("on", "True (épinglée au défilement)")],
+                      options=[("off", 'False (default)'),
+                               ("on", 'True (pinned while scrolling)')],
                       on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes, placeholder="shadow-lg",
@@ -142,21 +141,21 @@ def server_panel() -> None:
                         placeholder="data-test=nav",
                         on_change=server_changed)
         with control("tooltip"):
-            ui.input(value=state.tooltip, placeholder="La barre du haut",
+            ui.input(value=state.tooltip, placeholder='The top bar',
                      on_change=server_changed)
         with control("visible"):
             ui.select(value=state.visible,
-                      options=[("on", "True (défaut)"),
-                               ("off", "False (pas de rendu)")],
+                      options=[("on", 'True (default)'),
+                               ("off", 'False (nothing rendered)')],
                       on_change=server_changed)
 
     ui.divider()
 
     kwargs = build_preview(state)
     ui.text(
-        "Le bac ci-dessous DÉFILE : c'est le seul moyen de juger "
-        "``sticky`` sans épingler la barre au haut de la fenêtre, "
-        "par-dessus la navigation du playground.",
+        'The tray below SCROLLS: it is the only way to judge ``sticky`` '
+            'without pinning the bar to the top of the window, over the '
+            "playground's navigation.",
         color="muted", size="xs",
     )
     with ui.container(
@@ -165,7 +164,7 @@ def server_panel() -> None:
         demo_bar(**kwargs)
         with ui.vstack(gap="sm", classes="pt-3"):
             for index in range(8):
-                ui.text(f"Ligne de contenu {index + 1} — faites défiler.",
+                ui.text(f"Ligne de contenu {index + 1}' — scroll it.'",
                         color="muted", size="sm")
 
     ui.divider()
@@ -181,14 +180,13 @@ def page() -> None:
     with ui.container(), ui.vstack():
         ui.heading("Navbar", level=1)
         ui.text(
-            "La barre du haut — un <header> qui possède son "
-            "``current_path``, comme la sidebar possède le sien. C'est "
-            "la moitié horizontale du même trio : navbar / "
-            "navbar_section / navbar_item, miroir de sidebar / "
-            "sidebar_section / sidebar_item. Deux usages, et ils ne se "
-            "ressemblent pas : la barre d'un site public, et la "
-            "navigation MOBILE d'une app dont le bureau montre une "
-            "sidebar.",
+            'The top bar — a <header> that owns its ``current_path``, the'
+                ' way the sidebar owns its own. It is the horizontal half of '
+                'the same trio: navbar / navbar_section / navbar_item, '
+                'mirroring sidebar / sidebar_section / sidebar_item. Two '
+                'uses, and they look nothing alike: the bar of a public site,'
+                ' and the MOBILE navigation of an app whose desktop shows a '
+                'sidebar.',
             color="muted",
         )
 
@@ -203,10 +201,10 @@ def page() -> None:
 
             ui.heading("variant", level=3)
             ui.text(
-                "``standard`` colle la barre au bord de la page. "
-                "``floating`` la détache en carte arrondie — l'allure "
-                "des sites Stripe ou Linear, qui ne va qu'avec un fond "
-                "de page visible autour.",
+                "``standard`` sticks the bar to the page's edge. "
+                    '``floating`` detaches it as a rounded card — the look of'
+                    ' the Stripe or Linear sites, which only works with a '
+                    'visible page background around it.',
                 color="muted", size="xs",
             )
             with ui.vstack(gap="md"):
@@ -218,12 +216,11 @@ def page() -> None:
 
             ui.heading("sticky", level=3)
             ui.text(
-                "``sticky=True`` épingle la barre au haut pendant le "
-                "défilement. Elle n'est PAS démontrée épinglée ici : la "
-                "coque du playground fait défiler le document, donc "
-                "elle se collerait par-dessus la vraie navigation. Le "
-                "bac qui défile du *Server playground* est fait pour "
-                "ça.",
+                '``sticky=True`` pins the bar to the top while scrolling.'
+                    " It is NOT demonstrated pinned here: the playground's "
+                    'shell scrolls the document, so it would stick over the '
+                    "real navigation. The *Server playground*'s scrolling "
+                    'tray is made for that.',
                 color="muted", size="xs",
             )
             ui.code(
@@ -235,14 +232,14 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Slots", level=2)
             ui.text(
-                "La barre n'a pas de slot au sens ``with`` : elle a des "
-                "SECTIONS. ``ui.navbar_section(side=…)`` est le seul "
-                "enfant qu'on lui donne, et son ``side`` décide de la "
-                "place — pas l'ordre d'écriture.",
+                'The bar has no slot in the ``with`` sense: it has '
+                    'SECTIONS. ``ui.navbar_section(side=…)`` is the only '
+                    'child you give it, and its ``side`` decides the '
+                    'placement — not the order you write them in.',
                 color="muted", size="sm",
             )
 
-            ui.heading("Les trois côtés", level=3)
+            ui.heading('The three sides', level=3)
             with ui.vstack(gap="md"):
                 for side in SIDES:
                     with ui.vstack(gap="xs"):
@@ -252,12 +249,12 @@ def page() -> None:
                             with ui.navbar_section(side=side):
                                 ui.text(f"contenu {side}")
 
-            ui.heading("navbar_item — l'état actif se calcule", level=3)
+            ui.heading('navbar_item — the active state computes itself', level=3)
             ui.text(
-                "Un item ne dit jamais qu'il est actif : la barre porte "
-                "``current_path`` dans son scope client, et chaque item "
-                "compare son ``href``. C'est pourquoi « Docs » "
-                "ci-dessous est allumé — la page EST /navbar.",
+                'An item never says it is active: the bar carries '
+                    '``current_path`` in its client scope, and every item '
+                    'compares its own ``href``. That is why “Docs” below is '
+                    'lit — the page IS /navbar.',
                 color="muted", size="xs",
             )
             with ui.navbar():
@@ -270,27 +267,27 @@ def page() -> None:
             ui.heading("Edge cases", level=2)
 
             ui.heading("Barre vide", level=3)
-            ui.text("Aucune section : la barre garde sa hauteur, donc "
-                    "la page ne saute pas quand le contenu arrive.",
+            ui.text('No section: the bar keeps its height, so the page does not '
+                'jump when the content arrives.',
                     color="muted", size="xs")
             ui.navbar()
 
-            ui.heading("Une seule section, à droite", level=3)
+            ui.heading('A single section, on the right', level=3)
             ui.text(
-                "La marge automatique tient sans voisine — c'est le cas "
-                "qui casse dans une barre bâtie à la main en flex.",
+                'The automatic margin holds with no neighbour — that is '
+                    'the case that breaks in a bar hand-built with flex.',
                 color="muted", size="xs",
             )
             with ui.navbar():
                 with ui.navbar_section(side="right"):
                     ui.button("Se connecter", size="sm")
 
-            ui.heading("Trop d'items pour la largeur", level=3)
+            ui.heading('Too many items for the width', level=3)
             ui.text(
-                "La barre ne replie rien toute seule : les items "
-                "débordent ou se serrent selon la place. Une vraie app "
-                "bascule vers un menu à ce moment-là — c'est une "
-                "décision de mise en page, pas du composant.",
+                'The bar folds nothing away on its own: the items '
+                    'overflow or squeeze depending on the space. A real app '
+                    'switches to a menu at that point — that is a layout '
+                    "decision, not the component's.",
                 color="muted", size="xs",
             )
             with ui.navbar():
@@ -299,11 +296,11 @@ def page() -> None:
                         ui.navbar_item(f"Rubrique {index + 1}",
                                        href="/navbar")
 
-            ui.heading("Libellé très long", level=3)
+            ui.heading('A very long label', level=3)
             with ui.navbar():
                 with ui.navbar_section(side="left"):
                     ui.navbar_item(
-                        "Une rubrique dont le nom n'a pas été relu",
+                        'A section whose name was never proofread',
                         href="/navbar",
                     )
 
@@ -312,16 +309,16 @@ def page() -> None:
             ui.heading("Composability", level=2)
 
             ui.heading("Barre de site public", level=3)
-            ui.text("Marque à gauche, liens au centre, appel à "
-                    "l'action à droite — la forme la plus courante.",
+            ui.text('Brand on the left, links in the middle, call to action on '
+                'the right — the most common shape.',
                     color="muted", size="xs")
             demo_bar(variant="floating")
 
             ui.heading("Barre d'application", level=3)
             ui.text(
-                "Pas de liens : le titre de l'écran et le compte. Sur "
-                "mobile, c'est CETTE barre qui remplace la sidebar — la "
-                "coque branche sur ``Screen().is_mobile``.",
+                "No links: the screen's title and the account. On mobile "
+                    'it is THIS bar that replaces the sidebar — the shell '
+                    'switches on ``Screen().is_mobile``.',
                 color="muted", size="xs",
             )
             with ui.navbar():
@@ -331,12 +328,12 @@ def page() -> None:
                     ui.icon_button("bell", variant="ghost")
                     ui.avatar(initials="JH", size="sm")
 
-            ui.heading("Dans une cellule de grille contrainte", level=3)
+            ui.heading('Inside a constrained grid cell', level=3)
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 for name in VARIANTS:
                     with ui.navbar(variant=name):
                         with ui.navbar_section(side="left"):
-                            ui.text("Étroite")
+                            ui.text('Narrow')
                         with ui.navbar_section(side="right"):
                             ui.button("OK", size="sm")
 
@@ -344,28 +341,28 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("A11y", level=2)
             ui.text(
-                "La racine est un vrai ``<header>``, donc un lecteur "
-                "d'écran l'annonce comme un repère et permet d'y sauter "
-                "directement — ce qu'un ``<div>`` stylé ne donne pas. "
-                "Les items sont des liens réels : ils s'atteignent au "
-                "Tab, s'ouvrent dans un nouvel onglet au clic du "
-                "milieu, et se lisent dans la liste des liens de la "
-                "page.",
+                'The root is a real ``<header>``, so a screen reader '
+                    'announces it as a landmark and lets you jump straight to'
+                    ' it — which a styled ``<div>`` does not give. The items '
+                    'are real links: they are reached with Tab, open in a new'
+                    " tab on a middle click, and read in the page's link "
+                    'list.',
                 color="muted", size="sm",
             )
             ui.text(
-                "L'état actif ne tient pas qu'à la couleur : l'item "
-                "courant porte aussi son marqueur dans le DOM, ce qui "
-                "compte pour qui ne distingue pas la teinte du fond.",
+                'The active state does not hang on colour alone: the '
+                    'current item also carries its marker in the DOM, which '
+                    'matters for anyone who cannot tell the tint from the '
+                    'background.',
                 color="muted", size="sm",
             )
 
             ui.heading("aria-label quand plusieurs barres coexistent",
                        level=3)
             ui.text(
-                "Deux repères de navigation sans nom s'annoncent "
-                "pareil. Dès qu'il y en a deux sur une page, chacun a "
-                "besoin du sien.",
+                'Two unnamed navigation landmarks announce themselves '
+                    'identically. As soon as there are two on a page, each '
+                    'needs its own.',
                 color="muted", size="xs",
             )
             with ui.navbar(attrs={"aria-label": "Navigation principale"}):
@@ -379,9 +376,9 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Server playground", level=2)
             ui.text(
-                "Chaque prop ET chaque échappatoire câblée à un "
-                "contrôle ; l'aperçu et le HTML émis se rafraîchissent "
-                "à chaque changement.",
+                'Every prop AND every escape hatch is wired to a control;'
+                    ' the preview and the emitted HTML both refresh on every '
+                    'change.',
                 color="muted", size="sm",
             )
             server_panel()

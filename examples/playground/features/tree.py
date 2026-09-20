@@ -85,7 +85,7 @@ class TreeEvents(PageState):
 # emits NO ``_serverSync``. Binding to a server field whose handler does
 # not persist it would make every morph re-adopt ``sel=""`` and the
 # change-emit effect fire a phantom ``change(value='')`` (cf. traps.md
-# § "Select/Combobox non-lié dans un @refreshable → double change"). This
+# § "Unbound Select/Combobox in a @refreshable → double change"). This
 # mirrors ``AccordionServerEvents`` / ``ToggleGroupServerEvents``.
 class TreeServerEvents(ClientState, persist="memory"):
     picked: str = field(default="")

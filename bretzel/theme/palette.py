@@ -62,10 +62,10 @@ def _to_hex(r: int, g: int, b: int) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-#: Les coefficients WCAG de la luminance relative. Nommés — et non
-#: laissés en littéraux — parce qu'ils sont MIROITÉS en JavaScript par le
-#: theme studio, qui ne peut pas importer Python. C'est le même dispositif
-#: que ``protocol.py`` ↔ ``runtime.js``, et la même gate le garde :
+#: The WCAG relative-luminance coefficients. Named — rather than left
+#: as literals — because they are MIRRORED in JavaScript by the theme
+#: studio, which cannot import Python. Same arrangement as
+#: ``protocol.py`` ↔ ``runtime.js``, and the same gate guards it:
 #: ``test_the_foreground_algebra_is_mirrored_in_js``.
 _LUM_COEFFICIENTS: Final[tuple[float, float, float]] = (0.2126, 0.7152, 0.0722)
 _LUM_LINEAR_CUTOFF: Final[float] = 0.03928
@@ -74,22 +74,22 @@ _LUM_GAMMA_OFFSET: Final[float] = 0.055
 _LUM_GAMMA_DIVISOR: Final[float] = 1.055
 _LUM_GAMMA_EXPONENT: Final[float] = 2.4
 
-#: Le seuil W3C « à partir d'ici, écris en sombre sur ce fond ».
+#: The W3C threshold "from here on, write dark on this background".
 _FG_DARK_CUTOFF: Final[float] = 0.179
-#: La clarté du texte sombre, et celle du clair.
+#: The lightness of dark text, and that of light text.
 _FG_DARK_LIGHTNESS: Final[float] = 0.08
 _FG_LIGHT_LIGHTNESS: Final[float] = 0.96
-#: La teinte que le texte emprunte au fond, et son plafond. C'est ce qui
-#: rend la paire « d'un seul morceau » au lieu de noir-ou-blanc.
+#: The hue the text borrows from the background, and its ceiling. That is
+#: what makes the pair feel "of a piece" instead of black-or-white.
 _FG_TINT_FACTOR: Final[float] = 0.12
 _FG_TINT_CAP: Final[float] = 0.08
 
-#: Le contraste que ``--bz-on-solid`` doit atteindre — WCAG AA texte
-#: normal. Une valeur, pas un « à peu près » : c'est le seuil que la gate
-#: ``test_the_colour_steps_stay_readable`` applique.
+#: The contrast ``--bz-on-solid`` must reach — WCAG AA normal text. A
+#: value, not an "about right": it is the threshold the
+#: ``test_the_colour_steps_stay_readable`` gate applies.
 _FG_AA_TARGET: Final[float] = 4.5
-#: Le nombre de crans de la remontée. Cinq suffisent : le pire cas mesuré
-#: (``plum``) clôt AA au deuxième.
+#: The number of back-off steps. Five are enough: the worst measured
+#: case (``plum``) clears AA at the second.
 _FG_ESCALATION_STEPS: Final[int] = 5
 
 
@@ -128,18 +128,18 @@ def _contrast_ratio(rgb_a: tuple[int, int, int], rgb_b: tuple[int, int, int]) ->
 def resolve_color_pair(hex_color: str) -> tuple[str, str]:
     """Return ``(bg_hex, fg_hex)`` for a single hex.
 
-    Strategy : compare the background's luminance to a perceptual
+    Strategy: compare the background's luminance to a perceptual
     midpoint and pick a near-black or near-white foreground, then
     tint it lightly with the background's hue so the pair still
     feels of-a-piece visually — and back that tint off if it would
     cost readability (:func:`_readable_fg`).
 
-    ⚠️ Cette ligne disait « clears AA Large (>= 3.0) … and AA (>= 4.5)
-    for MOST » jusqu'au 2026-09-01, et le « most » était une concession
-    chiffrable que personne n'avait chiffrée : trois couleurs de la
-    palette livrée en sortaient. Depuis la remontée, AA est tenu pour
-    toutes — c'est une garantie, plus une tendance, et
-    ``test_the_colour_steps_stay_readable`` la vérifie.
+    ⚠️ This line said "clears AA Large (>= 3.0) … and AA (>= 4.5) for
+    MOST" until 2026-09-01, and the "most" was a quantifiable concession
+    nobody had quantified: three colours of the shipped palette fell
+    outside it. Since the back-off, AA holds for all of them — it is a
+    guarantee, no longer a tendency, and
+    ``test_the_colour_steps_stay_readable`` checks it.
 
     A pure invert-lightness approach (the v1 attempt) crashes on
     mid-luminance colors like ``#3e63dd`` whose inverted lightness
@@ -165,31 +165,31 @@ def resolve_color_pair(hex_color: str) -> tuple[str, str]:
 def _readable_fg(
     bg: tuple[int, int, int], hue: float, base_l: float, base_s: float
 ) -> str:
-    """Le foreground teinté, RECULÉ jusqu'à ce qu'il soit lisible.
+    """The tinted foreground, BACKED OFF until it is readable.
 
-    Pourquoi ça existe (2026-09-01)
-    --------------------------------
-    Trois couleurs de la palette livrée manquaient AA sur leur propre
-    ``--bz-on-solid``, et la table ``_KNOWN_BELOW`` de la gate les
-    portait en dette : ``muted`` 4,36 · ``pink`` 4,48 · ``plum`` 4,33.
+    Why this exists (2026-09-01)
+    ----------------------------
+    Three colours of the shipped palette missed AA on their own
+    ``--bz-on-solid``, and the gate's ``_KNOWN_BELOW`` table carried them
+    as debt: ``muted`` 4.36 · ``pink`` 4.48 · ``plum`` 4.33.
 
-    Le coupable n'était **pas** la direction du foreground. Mesuré, le
-    seuil de 0,179 choisit déjà le meilleur des deux candidats pour les
-    31 couleurs — sur ``plum``, un noir pur donnerait 4,42 là où le
-    blanc pur donne 4,75. Le coupable est la **teinte** : les 0,08 de
-    lumière gardés en réserve et la saturation empruntée au fond coûtent
-    entre 0,40 et 0,61 de ratio, et c'est ce qui fait passer ces trois-là
-    sous la barre.
+    The culprit was **not** the foreground's direction. Measured, the
+    0.179 threshold already picks the better of the two candidates for
+    all 31 colours — on ``plum``, pure black would give 4.42 where pure
+    white gives 4.75. The culprit is the **tint**: the 0.08 of lightness
+    held in reserve and the saturation borrowed from the background cost
+    between 0.40 and 0.61 of ratio, and that is what takes those three
+    under the bar.
 
-    D'où la forme : on garde la teinte, mais on la RECULE — vers
-    l'extrême de lumière et vers zéro de saturation — jusqu'à ce que AA
-    soit clos, et on s'arrête au premier cran qui suffit. L'unité
-    visuelle est une intention ; la lisibilité est un contrat.
+    Hence the shape: the tint is kept, but BACKED OFF — towards the
+    lightness extreme and towards zero saturation — until AA is cleared,
+    stopping at the first step that suffices. Visual unity is an
+    intention; readability is a contract.
 
-    Ce que ça change, et c'est le point : **rien pour les autres**. Une
-    couleur qui clôt AA au cran 0 sort au cran 0, à l'octet près — 73
-    des 78 couples (nom, mode) du thème par défaut. Seules les trois en
-    dette bougent : ``pink`` au cran 1, ``muted`` et ``plum`` au cran 2.
+    What it changes, and this is the point: **nothing for the others**. A
+    colour that clears AA at step 0 comes out at step 0, byte for byte —
+    73 of the default theme's 78 (name, mode) pairs. Only the three in
+    debt move: ``pink`` at step 1, ``muted`` and ``plum`` at step 2.
     """
     extreme = 0.0 if base_l < 0.5 else 1.0
     fg = (0, 0, 0)
@@ -254,33 +254,32 @@ DEFAULT_PALETTE: Final[dict[str, str]] = {
 # green) collapsed into confusable tints. Enforced by
 # ``tests/consistency/test_palette_distinctness.py`` (min ΔE gate) — retune a
 # hue here and the gate fails if it re-introduces a collision.
-# ⚠️ **Les neutres sont STRICTEMENT ACHROMATIQUES, et c'est une décision du
-# 2026-09-13.** Ils étaient le ``slate`` de Tailwind — donc bleutés, et
-# reconnaissables au premier coup d'œil comme « un projet qui n'a pas choisi
-# ses couleurs ». Un gris qui porte une teinte prend parti pour elle : il
-# réchauffe ou refroidit tout ce qu'on pose dessus, et il se querelle avec
-# l'accent de l'app dès que celui-ci part dans l'autre sens. À teinte nulle,
-# le fond ne dit rien et **la marque est la seule couleur de l'écran** — ce
-# qui est exactement ce qu'on attend du défaut d'un framework, qui ne
-# connaît pas la marque de l'app qui l'utilisera.
+# ⚠️ **The neutrals are STRICTLY ACHROMATIC, and that is a decision of
+# 2026-09-13.** They used to be Tailwind's ``slate`` — so bluish, and
+# recognisable at a glance as "a project that did not choose its colours".
+# A grey carrying a hue takes that hue's side: it warms or cools
+# everything laid on it, and it quarrels with the app's accent as soon as
+# that accent goes the other way. At zero hue, the background says
+# nothing and **the brand is the only colour on screen** — which is
+# exactly what one expects of a framework's default, since it does not
+# know the brand of the app that will use it.
 #
-# ⚠️ **``interface`` ne vaut plus ``background``.** Les deux étaient à
-# ``#f8fafc`` en clair : un champ, un panneau de select, un creux de
-# contrôle rendaient donc EXACTEMENT la couleur de la page, et toute la
-# hiérarchie de profondeur reposait sur la seule bordure. Ce n'était pas un
-# choix — c'était le même jeton recopié deux fois.
+# ⚠️ **``interface`` is no longer equal to ``background``.** Both were at
+# ``#f8fafc`` in light mode: a field, a select panel, a control's recess
+# therefore rendered EXACTLY the page colour, and the whole depth
+# hierarchy rested on the border alone. That was not a choice — it was
+# the same token copied twice.
 DEFAULT_SEMANTIC_LIGHT: Final[dict[str, str]] = {
-    # L'accent : un indigo PROFOND plutôt que le bleu roi d'avant
-    # (``#2f5fd0``). Il cesse de crier sur une page claire, il reste
-    # franchement distinct du cyan d'``info``, et il porte assez de
-    # violet pour ne pas se confondre avec un lien de navigateur.
+    # The accent: a DEEP indigo rather than the previous royal blue
+    # (``#2f5fd0``). It stops shouting on a light page, it stays plainly
+    # distinct from ``info``'s cyan, and it carries enough violet not to
+    # be mistaken for a browser link.
     #
-    # Le second est une PRUNE sourde, et sa distance est mesurée : ΔE 47
-    # de l'accent, 47 du rouge d'erreur, 96 du vert. Un améthyste (#8455ab)
-    # a été essayé le même jour et refusé par
-    # ``test_palette_distinctness`` — ΔE 21 de l'accent, donc deux
-    # couleurs sémantiques qui se ressemblent et une matrice de variantes
-    # ambiguë.
+    # The second is a muted PLUM, and its distance is measured: ΔE 47
+    # from the accent, 47 from the error red, 96 from the green. An
+    # amethyst (#8455ab) was tried the same day and refused by
+    # ``test_palette_distinctness`` — ΔE 21 from the accent, so two
+    # semantic colours that look alike and an ambiguous variant matrix.
     "primary":    "#682747",
     "secondary":  "#3a52b0",
     "success":    "#2f9e64",
@@ -297,14 +296,14 @@ DEFAULT_SEMANTIC_LIGHT: Final[dict[str, str]] = {
 
 # Only the slots that actually swap in dark mode — everything else
 # falls through to light (the brand colors stay constant).
-# Le sombre est neutre lui aussi, et **ce n'est plus un quasi-noir marine**.
-# ``#020617`` était presque du noir pur ET très bleu : sous un aplat saturé
-# il fatigue en quelques secondes, et l'écart jusqu'à ``surface`` était un
-# saut. Les trois plans montent maintenant par crans réguliers, ce qui est
-# ce qui fait lire une profondeur.
+# The dark is neutral too, and **it is no longer a near-black navy**.
+# ``#020617`` was almost pure black AND very blue: under a saturated
+# fill it tires the eye within seconds, and the gap up to ``surface`` was
+# a jump. The three planes now climb in regular steps, which is what
+# makes depth readable.
 #
-# Seuls les slots qui BASCULENT vraiment sont ici — les couleurs de marque
-# et de statut gardent leur valeur claire dans les deux modes.
+# Only the slots that really SWAP are here — the brand and status colours
+# keep their light value in both modes.
 DEFAULT_SEMANTIC_DARK: Final[dict[str, str]] = {
     "background": "#0a0a0a",
     "surface":    "#151515",
@@ -371,30 +370,28 @@ class Palette:
                 "Every slot in SEMANTIC_COLOR_NAMES must be defined."
             )
 
-        # Reject unknown semantic keys. C'est ICI que le silence vivait :
-        # ``semantic_light`` était recomposé par compréhension SUR
-        # ``SEMANTIC_COLOR_NAMES`` (donc une clé en trop n'était jamais
-        # itérée) et ``semantic_dark`` portait un ``if name in
-        # SEMANTIC_COLOR_NAMES`` qui la filtrait. Dans les deux cas
-        # ``Theme(semantic={"primry": "#f00"})`` était accepté, la clé
-        # disparaissait, et rien — ni erreur, ni CSS, ni indice — ne
-        # distinguait ça d'une couleur appliquée.
+        # Reject unknown semantic keys. THIS is where the silence lived:
+        # ``semantic_light`` was recomposed by comprehension OVER
+        # ``SEMANTIC_COLOR_NAMES`` (so a surplus key was never iterated)
+        # and ``semantic_dark`` carried an ``if name in
+        # SEMANTIC_COLOR_NAMES`` that filtered it out. In both cases
+        # ``Theme(semantic={"primry": "#f00"})`` was accepted, the key
+        # vanished, and nothing — no error, no CSS, no hint —
+        # distinguished that from an applied colour.
         #
-        # Les slots sémantiques sont **fermés** : ce sont les 11 noms que
-        # tout composant connaît, c'est-à-dire de la grammaire du
-        # framework. Une clé hors liste ne peut rien vouloir dire d'autre
-        # qu'une faute — au contraire de ``palette=``, qui est une liste
-        # OUVERTE et le reste (le charter : « the user can add, remove or
-        # override entries »).
+        # The semantic slots are **closed**: they are the 11 names every
+        # component knows, that is to say framework grammar. A key
+        # outside the list can mean nothing but a mistake — unlike
+        # ``palette=``, which is an OPEN list and stays one (the charter:
+        # "the user can add, remove or override entries").
         for label, mapping in (("semantic", semantic_light), ("semantic_dark", semantic_dark)):
             unknown = sorted(set(mapping or {}) - set(SEMANTIC_COLOR_NAMES))
             if unknown:
                 raise ThemeError(
-                    f"Theme({label}=…) : slot(s) inconnu(s) {unknown}. "
-                    f"Les 11 slots sémantiques sont "
-                    f"{list(SEMANTIC_COLOR_NAMES)} — une clé hors de cette "
-                    f"liste n'est lue par aucun composant. Pour ajouter une "
-                    f"couleur NOMMÉE (liste ouverte), c'est `palette=`."
+                    f"Theme({label}=…): unknown slot(s) {unknown}. "
+                    f"The 11 semantic slots are "
+                    f"{list(SEMANTIC_COLOR_NAMES)} — a key outside that "
+                    f"list is read by no component. To add a NAMED colour "
                 )
 
         # Reject collisions between palette names and semantic ones —
@@ -412,9 +409,10 @@ class Palette:
             name: _coerce_pair(name, semantic_light[name])
             for name in SEMANTIC_COLOR_NAMES
         }
-        # Plus de filtre ``if name in SEMANTIC_COLOR_NAMES`` : la garde
-        # ci-dessus a déjà levé, donc il ne pourrait plus rien retirer. Le
-        # laisser ferait croire qu'une clé hors liste peut arriver ici.
+        # No more ``if name in SEMANTIC_COLOR_NAMES`` filter: the guard
+        # above has already raised, so it could no longer remove
+        # anything. Leaving it would suggest a key outside the list can
+        # reach here.
         self._semantic_dark = {
             name: _coerce_pair(name, value)
             for name, value in (semantic_dark or {}).items()
@@ -460,16 +458,16 @@ class Palette:
         raise ThemeError(self.unknown_color_message(color))
 
     def unknown_color_message(self, color: str) -> str:
-        """Le message d'une couleur refusée — écrit UNE fois.
+        """The message for a refused colour — written ONCE.
 
-        Il dit la conséquence, pas seulement la faute, parce que la
-        conséquence est invisible : la classe finale est ASSEMBLÉE au
-        rendu, donc elle n'existe dans aucune source, donc le compilateur
-        Tailwind de production ne la génère pas. Ça marche en dev (le
-        compilateur navigateur lit le DOM vivant) et ça sort sans style
-        en prod, avec un HTML identique des deux côtés. Un message qui
-        dirait juste « couleur inconnue » laisserait l'auteur croire à un
-        détail cosmétique.
+        It states the consequence, not only the fault, because the
+        consequence is invisible: the final class is ASSEMBLED at render
+        time, so it exists in no source, so the production Tailwind
+        compiler does not generate it. It works in dev (the browser
+        compiler reads the live DOM) and comes out unstyled in
+        production, with identical HTML on both sides. A message that
+        merely said "unknown colour" would let the author believe it was
+        a cosmetic detail.
         """
         from bretzel.theme.slots import COLOR_KEYWORDS
 
@@ -477,20 +475,20 @@ class Palette:
             {*SEMANTIC_COLOR_NAMES, *self._palette_light, *self._palette_dark}
         )
         return (
-            f"Couleur inconnue : {color!r}.\n\n"
-            f"Cette palette accepte : {', '.join(known)}.\n"
-            f"Plus les mots-clés CSS : {', '.join(sorted(COLOR_KEYWORDS))}.\n\n"
-            f"Pourquoi ça LÈVE au lieu de passer : le thème écrit "
-            f"``bg-{{bg_color}}/15``, qui devient ``bg-{color}/15`` au rendu "
-            f"— une classe qui n'apparaît littéralement dans AUCUNE source. "
-            f"Le compilateur Tailwind de PRODUCTION ne génère que ce qu'il "
-            f"trouve écrit, et la safelist ne développe que les couleurs "
-            f"ci-dessus. L'élément serait donc sorti SANS STYLE en prod, tout "
-            f"en étant correct en dev (le compilateur navigateur, lui, lit le "
-            f"DOM vivant). HTML identique des deux côtés, aucune erreur : "
-            f"invisible avant déploiement.\n\n"
-            f"Pour une couleur de marque, déclare-la — elle entre alors dans "
-            f"la safelist : Theme(palette={{{color!r}: '#hex'}})."
+            f"Unknown colour: {color!r}.\n\n"
+            f"This palette accepts: {', '.join(known)}.\n"
+            f"Plus the CSS keywords: {', '.join(sorted(COLOR_KEYWORDS))}.\n\n"
+            f"Why this RAISES instead of passing: the theme writes "
+            f"``bg-{{bg_color}}/15``, which becomes ``bg-{color}/15`` at "
+            f"render time — a class that appears literally in NO source. "
+            f"The PRODUCTION Tailwind compiler only generates what it finds "
+            f"written, and the safelist only expands the colours above. The "
+            f"element would therefore have come out UNSTYLED in production, "
+            f"while being correct in dev (the browser compiler reads the "
+            f"live DOM). Identical HTML on both sides, no error: invisible "
+            f"before deployment.\n\n"
+            f"For a brand colour, declare it — it then enters the safelist: "
+            f"Theme(palette={{{color!r}: '#hex'}})."
         )
 
     def fg_class(self, color: str) -> str:
@@ -509,7 +507,7 @@ class Palette:
     def envelope_dict(self) -> dict[str, dict[str, str]]:
         """Compact JSON-friendly summary for the runtime envelope.
 
-        Format de sortie, destiné au runtime ::
+        Output format, meant for the runtime ::
 
             { "primary": {"bg": "primary", "fg": "primary-foreground"}, … }
 

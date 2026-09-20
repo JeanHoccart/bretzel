@@ -1,1 +1,2 @@
-"""Doc vivante Bretzel — dogfood du framework qu'elle documente."""
+"""The Bretzel living documentation — it dogfoods the framework it
+documents."""

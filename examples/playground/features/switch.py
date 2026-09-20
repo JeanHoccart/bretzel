@@ -580,7 +580,7 @@ def page() -> None:
                     with ui.hstack(align="center", gap="md"):
                         ui.switch(label="Notifications",
                                   checked=bound.checked)
-                        ui.text("Status : on",
+                        ui.text('Status: on',
                                 color="success",
                                 visible=bound.checked)
                         ui.text("Status : off",
@@ -595,22 +595,21 @@ def page() -> None:
                         level=3,
                     )
                     ui.text(
-                        "Binding fournie ET on appelle ``.set()`` / "
-                        "``.toggle()`` "
-                        "``.toggle()`` / ``.set(bool)`` sur "
-                        "l'instance. Le framework détecte la binding "
-                        "et délègue à ``binding.set(...)`` — **le DOM "
-                        "dispatch n'est pas utilisé**, single source "
-                        "of truth préservée. Les boutons impératifs "
-                        "et la valeur bound convergent sur le même "
-                        "flag.",
+                        'A binding supplied AND ``.set()`` / '
+                            '``.toggle()`` ``.toggle()`` / ``.set(bool)`` '
+                            'called on the instance. The framework detects '
+                            'the binding and delegates to '
+                            '``binding.set(...)`` — **the DOM dispatch is not'
+                            ' used**, single source of truth preserved. The '
+                            'imperative buttons and the bound value converge '
+                            'on the same flag.',
                         color="muted", size="sm",
                     )
                     both = SwitchClient(key="both")
                     with ui.hstack(align="center", gap="md", wrap=True):
                         m3 = ui.switch(label="Bound + imperative",
                                        checked=both.checked)
-                        ui.text("Status : on",
+                        ui.text('Status: on',
                                 color="success",
                                 visible=both.checked)
                         ui.button("Check via .set(True)",

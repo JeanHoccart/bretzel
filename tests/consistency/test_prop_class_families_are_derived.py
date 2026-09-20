@@ -1,4 +1,4 @@
-"""Gate : la règle `classe-doublee-par-une-prop` lit le composant VIVANT.
+"""Gate : la règle `class-duplicates-a-prop` lit le composant VIVANT.
 
 `bretzel.lint.rules.specificity` ne porte aucune table `justify →
 justify-*` : elle la dérive de `THEME_TABLES`, du `THEME` et des défauts

@@ -83,22 +83,21 @@ DRAWER_THEME: dict[str, Any] = {
     # Per-side container alignment + panel border + CLOSED translate.
     # ``border-l`` / ``border-r`` etc. picks up the panel's
     # ``border-text/10`` so the edge against the page is hairlined.
-    # ``closed`` est le translate hors-ecran, appliqué à l'état fermé ;
-    # ouvert = pas de translate (panneau glissé en place).
+    # ``closed`` is the off-screen translate, applied to the closed
+    # state; open = no translate (the panel slid into place).
     #
-    # ⚠️ Il porte la variante ENTIÈRE, ``data-[open=false]:`` compris, et
-    # ça n'est pas une redondance. Le compilateur Tailwind de prod scanne
-    # les fichiers SOURCE : il ne connaît que les chaînes littérales. Tant
-    # que ce tableau ne portait que ``translate-x-full`` et que le
-    # composant écrivait ``f"data-[open=false]:{closed}"``, la classe
-    # complète n'existait **dans aucun fichier** — donc pas dans
-    # ``style.css``.
+    # ⚠️ It carries the WHOLE variant, ``data-[open=false]:`` included,
+    # and that is not a redundancy. The production Tailwind compiler
+    # scans the SOURCE files: it only knows literal strings. As long as
+    # this table carried only ``translate-x-full`` and the component
+    # wrote ``f"data-[open=false]:{closed}"``, the complete class existed
+    # **in no file** — so not in ``style.css`` either.
     #
-    # En dev, ``@tailwindcss/browser`` scanne le DOM vivant et la génère :
-    # le tiroir glissait. En prod, plus de translate du tout, donc plus
-    # d'animation — le panneau apparaissait d'un coup. Rapporté le
-    # 2026-08-07, invisible à toute suite : le HTML émis est identique des
-    # deux côtés, seule la feuille compilée diffère. Gaté par
+    # In dev, ``@tailwindcss/browser`` scans the live DOM and generates
+    # it: the drawer slid. In prod, no translate at all, so no animation
+    # — the panel appeared all at once. Reported on 2026-08-07, invisible
+    # to every suite: the emitted HTML is identical on both sides, only
+    # the compiled sheet differs. Gated by
     # ``tests/consistency/test_emitted_classes_exist_in_source.py``.
     "sides": {
         "left":   {"container": "justify-start", "panel": "h-full border-r-(length:--bz-stroke)", "closed": "data-[open=false]:-translate-x-full"},

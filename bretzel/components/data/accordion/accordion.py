@@ -18,7 +18,7 @@ Usage ::
         with ui.accordion_item("b", label="Item B"):
             ui.text("body B")
 
-Deux modes, via ``multiple=`` :
+Two modes, through ``multiple=``:
 
 - **single** (default) : at most one item open at a time. ``value`` is
   a string (the open item's id, ``""`` when nothing is open).
@@ -42,7 +42,7 @@ data, with the server change handler relocated onto it (same idiom as
 ``hx-trigger="change"`` ; a string ``on_change`` produces
 ``bz-on:change``. Both are relocated off the root ``<div>`` (which has
 no ``name`` / ``value``) onto the hidden ``<input>`` so the dispatched
-FormData is non-empty (cf. ``traps.md`` § "bz-event:change sur un div").
+FormData is non-empty (cf. ``traps.md`` § "bz-event:change on a div").
 
 Imperative API : ``acc.expand(v)`` / ``collapse(v)`` / ``toggle(v)``
 + ``expand_all()`` / ``collapse_all()``. Write-only ; write-through
@@ -88,32 +88,32 @@ def _build_bz_data(
     all_ids: list[str],
     server_synced: bool,
 ) -> str:
-    """Le ``bz-data`` de l'instance : **des données, pas du code**.
+    """The instance's ``bz-data``: **data, not code**.
 
-    Les méthodes (``isOpen`` / ``toggle`` / ``expand`` / ``collapse`` /
-    ``expandAll`` / ``collapseAll``) vivent une seule fois dans
-    ``$bz.accordion.single`` ou ``$bz.accordion.multi``
+    The methods (``isOpen`` / ``toggle`` / ``expand`` / ``collapse`` /
+    ``expandAll`` / ``collapseAll``) live once in
+    ``$bz.accordion.single`` or ``$bz.accordion.multi``
     (``bretzel/runtime/_src/16_accordion.js``).
 
-    Avant cette bascule, ce builder sérialisait les six corps dans CHAQUE
-    instance — 622 octets — et y cuisait la configuration :
-    ``if (true)`` pour ``collapsible``, la liste des ids en dur dans
-    ``expandAll``. Deux accordéons de configurations différentes
-    produisaient donc deux CODES différents, pas deux états.
+    Before that switch, this builder serialised the six bodies into
+    EVERY instance — 622 bytes — and baked the configuration into them:
+    ``if (true)`` for ``collapsible``, the list of ids hard-coded in
+    ``expandAll``. Two accordions with different configurations
+    therefore produced two different CODES, not two states.
 
-    Deux variantes de scope plutôt qu'une paramétrée : single porte une
-    CHAÎNE, multi un TABLEAU — les fusionner obligerait chaque méthode à
-    re-tester le type à l'exécution. Même raison que
-    ``$bz.select.single`` / ``$bz.select.multi``.
+    Two scope variants rather than one parameterised: single carries a
+    STRING, multi an ARRAY — merging them would force every method to
+    re-test the type at runtime. Same reason as ``$bz.select.single`` /
+    ``$bz.select.multi``.
 
-    ``_read`` / ``_write`` couvrent les deux modes de valeur (champ local
-    ``value`` ou cellule du store) avec les mêmes méthodes. Pas de
-    ``get expanded()`` : ``scope.absorb`` invoque chaque clé à
-    l'enregistrement et figerait le getter (cf. traps.md).
+    ``_read`` / ``_write`` cover both value modes (the local ``value``
+    field or the store cell) with the same methods. No ``get
+    expanded()``: ``scope.absorb`` invokes each key at registration and
+    would freeze the getter (cf. traps.md).
     """
-    # Sérialisation JS de l'état et de la config — inchangée, seul leur
-    # DESTINATAIRE change : elles partent en données au lieu d'être cuites
-    # dans des corps de méthode.
+    # JS serialisation of the state and the config — unchanged, only
+    # their DESTINATION changes: they leave as data instead of being
+    # baked into method bodies.
     initial_js = (
         json.dumps(
             list(initial_value)
@@ -127,17 +127,18 @@ def _build_bz_data(
     collapsible_js = "true" if collapsible else "false"
     is_multiple = multiple
 
-    # ``_allIds`` / ``_collapsible`` sont de la CONFIG : la liste des
-    # panneaux et le mode viennent du serveur, le client ne les écrit
-    # jamais → re-semés sans condition. ``absorb`` ne réécrit jamais un
-    # signal existant, donc sans ça un accordéon qui gagne ou perd un
-    # panneau gardait son ancienne liste d'ids (``expand_all`` en oubliait
-    # un). Même racine que ``_total`` de Pagination.
+    # ``_allIds`` / ``_collapsible`` are CONFIG: the list of panels and
+    # the mode come from the server, the client never writes them →
+    # re-seeded unconditionally. ``absorb`` never rewrites an existing
+    # signal, so without that an accordion that gains or loses a panel
+    # kept its old list of ids (``expand_all`` forgot one). Same root as
+    # Pagination's ``_total``.
     config_sync = ["_allIds"] if is_multiple else ["_allIds", "_collapsible"]
 
     if has_local_value:
-        # La VALEUR reste gatée : sans propriété serveur, le morph d'un
-        # @refreshable voisin effacerait l'expand/collapse du client.
+        # The VALUE stays gated: with no server ownership, a
+        # neighbouring @refreshable's morph would erase the client's
+        # expand/collapse.
         keys = [scope_key, *config_sync] if server_synced else config_sync
         sync = server_sync_marker(*keys, enabled=True)
         state = f"{scope_key}: {initial_js},{sync} "
@@ -156,8 +157,8 @@ def _build_bz_data(
     variant = "multi" if is_multiple else "single"
     config = f"_allIds: {all_ids_js},"
     if not is_multiple:
-        # ``collapsible`` ne concerne que le mode single : en multi, tout
-        # panneau se referme toujours.
+        # ``collapsible`` only concerns single mode: in multi, every
+        # panel always closes.
         config += f"_collapsible: {collapsible_js},"
 
     return (
@@ -209,15 +210,15 @@ class Accordion(Component):
         on_change: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Garde : sans elle un ancien ``type="multiple"`` filerait dans
-        # **kwargs → attribut HTML mort → accordion silencieusement single.
+        # Guard: without it an old ``type="multiple"`` would slip into
+        # **kwargs → a dead HTML attribute → a silently single accordion.
         if "type" in kwargs:
             raise TypeError(
-                "Accordion(type='single'|'multiple') a été remplacé "
-                "par multiple=True|False — même API que Select / "
+                "Accordion(type='single'|'multiple') has been replaced "
+                "by multiple=True|False — the same API as Select / "
                 "Combobox / FileUpload / ToggleGroup."
             )
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             value=value,
             multiple=multiple,
@@ -253,11 +254,11 @@ class Accordion(Component):
         return self._dispatch_command("bz-expand", value=str(item_value))
 
     def _imperative_collapse(self, item_value: str) -> str:
-        # Toujours le dispatcher, binding ou pas : savoir si l'item à
-        # replier EST celui qui est ouvert ne se décide pas au serveur,
-        # seul le runtime connaît la valeur vivante. (Il y avait ici un
-        # branchement binding/multiple/collapsible dont les deux bras
-        # retournaient la MÊME expression — audit F33.)
+        # Always the dispatcher, binding or not: knowing whether the
+        # item to collapse IS the open one is not decided on the server,
+        # only the runtime knows the live value. (There was a
+        # binding/multiple/collapsible branch here whose two arms
+        # returned the SAME expression — audit F33.)
         return self._dispatch_command("bz-collapse", value=str(item_value))
 
     def _imperative_toggle(self, item_value: str) -> str:
@@ -314,13 +315,13 @@ class Accordion(Component):
         hidden_value_expr = binding_path or scope_key
 
         # ── Walk children, collect AccordionItem ids ─────────────────
-        # Les couples ``(item, rehabillage)`` : un item ENVELOPPÉ — zone
-        # ``@refreshable``, ``ui.fragment`` — n'est pas une instance
-        # d'``AccordionItem``, donc le tri par type le ratait. Il tombait
-        # alors dans la branche « enfant étranger », dont le rendu nu est
-        # un ``<div>`` avec le CORPS et rien d'autre : plus d'en-tête,
-        # plus de libellé, plus de bascule. Mesuré le 2026-08-23 : deux
-        # boutons d'en-tête → un, et le libellé disparu.
+        # The ``(item, rewrap)`` pairs: a WRAPPED item — a
+        # ``@refreshable`` zone, a ``ui.fragment`` — is not an instance
+        # of ``AccordionItem``, so sorting by type missed it. It then
+        # fell into the "foreign child" branch, whose bare render is a
+        # ``<div>`` with the BODY and nothing else: no more header, no
+        # more label, no more toggle. Measured on 2026-08-23: two header
+        # buttons → one, and the label gone.
         item_children: list[tuple[AccordionItem, Any]] = []
         passthrough: list[Element] = []
         for raw in self._children:
@@ -501,7 +502,7 @@ class AccordionItem(Component):
         # already auto-detaches any Component value landing in a
         # reactive_prop (cf. component.py's generic reactive-props loop),
         # so no manual adopt_slot/detach is needed here.
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             value=value,
             label=label,
@@ -559,9 +560,10 @@ class AccordionItem(Component):
         # Label — string, Component (already adopted), or ClientBinding
         # passing through the standard emit_text_slot helper.
         label_span_attrs: dict[str, Any] = {"class": label_class}
-        # Pas de branche ClientBinding : ``label`` n'est pas bindable et un
-        # binding vit dans ``_binding_metadata``, jamais ``_reactive_values``
-        # — cf. traps.md § « Lire un binding via _reactive_values + isinstance ».
+        # No ClientBinding branch: ``label`` is not bindable and a
+        # binding lives in ``_binding_metadata``, never
+        # ``_reactive_values`` — cf. traps.md § "Reading a binding
+        # through _reactive_values + isinstance".
         if isinstance(label_value, Component):
             label_span: Node = Element(
                 tag="span",
@@ -630,8 +632,8 @@ class AccordionItem(Component):
         # (A ``@refreshable`` morph strips this dynamic class back to the
         # SSR baseline, then the afterSwap rescan re-applies it — the
         # per-BIND managed set in the ``bz-class`` handler makes that
-        # re-apply actually happen, cf. traps.md § "bz-class perdue après
-        # un morph".)
+        # re-apply actually happen, cf. traps.md § "bz-class lost after a
+        # morph".)
         body_attrs: dict[str, Any] = {
             "id": body_id,
             "role": "region",

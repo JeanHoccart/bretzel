@@ -188,7 +188,7 @@ def test_a_counter_must_start_at_zero() -> None:
     plutôt que rattrapé au commit — le backend n'a pas à connaître les
     défauts de chaque état.
     """
-    with pytest.raises(TypeError, match="part de zéro"):
+    with pytest.raises(TypeError, match="starts at zero"):
 
         class Mauvais(ServerState, scope="app"):
             vues: int = field(default=10, merge="add")
@@ -222,12 +222,12 @@ def test_a_sum_is_refused_on_something_that_cannot_be_summed() -> None:
     PRODUCTION : le dev tourne en mémoire, où additionner deux chaînes
     lève ailleurs et autrement.
     """
-    with pytest.raises(TypeError, match="ADDITIONNE"):
+    with pytest.raises(TypeError, match="SUMS"):
 
         class Mauvais(ServerState, scope="app"):
             nom: str = field(default="", merge="add")
 
 
 def test_a_typo_in_merge_is_refused() -> None:
-    with pytest.raises(ValueError, match="valeurs acceptées"):
+    with pytest.raises(ValueError, match="accepted values"):
         field(merge="ad")

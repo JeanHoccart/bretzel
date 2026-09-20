@@ -1,26 +1,27 @@
-"""features/vue_classe — state : ce qu'on regarde d'une classe.
+"""features/vue_classe — state: what is being looked at of a class.
 
-``kind="state"`` : une feature qui ne porte qu'un état typé, et qui
-existe pour une raison précise — **casser un cycle de contrat**.
+``kind="state"``: a feature carrying only a typed state, and existing for
+a precise reason — **breaking a contract cycle**.
 
-Comment elle est née
---------------------
-L'écran de classe (``features/classe.py``) monte ses onglets, et chaque
-onglet est une feature à part : ``evaluations`` au lot 5, le bilan au 6,
-le plan au 7. Les deux côtés ont besoin de la même chose — quelle classe,
-quel trimestre — donc le premier jet a mis ``VueClasse`` dans
-``classe.py`` et fait importer le panneau depuis là. Résultat :
-``classe`` importe ``evaluations`` qui importe ``classe``.
+How it came about
+------------------
+The class screen (``features/classe.py``) mounts its tabs, and every tab
+is a separate feature: ``evaluations`` in batch 5, the summary in 6, the
+plan in 7. Both sides need the same thing — which class, which term — so
+the first attempt put ``VueClasse`` in ``classe.py`` and made the panel
+import from there. Result: ``classe`` imports ``evaluations`` which
+imports ``classe``.
 
-``bretzel check --deep`` l'a dit en trois lignes (*« la feature `classe`
-importe ['evaluations'] sans le déclarer »*), et déclarer le ``uses`` des
-deux côtés aurait fermé le cycle dans le CONTRAT au lieu de le retirer du
-code — c'est-à-dire écrit noir sur blanc qu'on l'assume.
+``bretzel check --deep`` said so in three lines (*"the feature `classe`
+imports ['evaluations'] without declaring it"*), and declaring the
+``uses`` on both sides would have closed the cycle in the CONTRACT
+instead of removing it from the code — that is, written in so many words
+that it is accepted.
 
-L'état partagé dans sa propre feature coûte dix lignes et rend le graphe
-acyclique : ``classe`` et ``evaluations`` en dépendent tous les deux,
-aucun ne dépend de l'autre. C'est aussi ce qui a permis de retirer
-l'unique import différé de l'app.
+The shared state in its own feature costs ten lines and makes the graph
+acyclic: ``classe`` and ``evaluations`` both depend on it, neither
+depends on the other. It is also what allowed removing the app's only
+deferred import.
 """
 
 from __future__ import annotations
@@ -30,17 +31,17 @@ from bretzel.state import PageState, field
 
 
 class VueClasse(PageState, addressable=True):
-    """La classe ouverte et le trimestre regardé.
+    """The class open and the term being looked at.
 
-    ⚠️ **``classe_id`` vit ici et pas dans la signature des zones**, et
-    c'est le socle qui l'impose : une zone ``@refreshable`` est rappelée
-    SANS argument au rafraîchissement. Un paramètre obligatoire lève un
-    500 à la première action qui touche un ``deps`` — jamais au
-    chargement, donc jamais en relisant la page ; un paramètre à valeur
-    par défaut ne lève rien et re-rend simplement une AUTRE classe.
+    ⚠️ **``classe_id`` lives here and not in the zones' signature**, and
+    it is the base layer that imposes it: a ``@refreshable`` zone is
+    called back WITHOUT arguments on refresh. A required parameter raises
+    a 500 at the first action touching a ``deps`` — never on load, hence
+    never on re-reading the page; a parameter with a default value raises
+    nothing and simply re-renders ANOTHER class.
 
-    Seul ``trimestre`` porte un ``url=`` : la classe est dans le CHEMIN,
-    c'est un identifiant de ressource et pas un réglage de vue (EF-U1).
+    Only ``trimestre`` carries a ``url=``: the class is in the PATH, it
+    is a resource identifier and not a view setting (EF-U1).
     """
 
     classe_id: int = field(default=0)
@@ -48,19 +49,20 @@ class VueClasse(PageState, addressable=True):
 
 
 def changer_trimestre(vue: VueClasse) -> None:
-    """Le corps est vide **et c'est le mécanisme** : le socle a hydraté
-    ``vue.trimestre`` avant l'appel, et la mutation seule re-rend les
-    zones qui déclarent ``deps=[VueClasse]``. Le paramètre TYPÉ est ce
-    qui hydrate — sans lui, le handler répondrait zéro octet."""
+    """The body is empty **and that is the mechanism**: the base layer
+    hydrated ``vue.trimestre`` before the call, and the mutation alone
+    re-renders the zones declaring ``deps=[VueClasse]``. The TYPED
+    parameter is what hydrates — without it, the handler would answer
+    zero bytes."""
 
 
 @refreshable(deps=[VueClasse])
 def selecteur_trimestre() -> None:
-    """Le trimestre regardé (EF-C2), et il vit dans l'adresse (EF-U1).
+    """The term being looked at (EF-C2), and it lives in the address
+    (EF-U1).
 
-    Une zone à lui seul : il commande TOUS les panneaux de l'écran — les
-    élèves, les évaluations, le bilan — donc il ne peut vivre dans aucun
-    d'eux.
+    A zone of its own: it commands ALL the screen's panels — the pupils,
+    the assessments, the summary — so it cannot live in any of them.
     """
     vue = VueClasse()
     with ui.hstack(gap="md", align="center", wrap=True):

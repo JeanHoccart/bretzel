@@ -47,23 +47,24 @@ class Link(Component):
         disabled: bool = False,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive ``None``.
-        # ``external`` / ``download`` / ``disabled`` sont des booléens
-        # design-time → à part.
+        # Direct forward: the base layer drops reactive ``None`` kwargs.
+        # ``external`` / ``download`` / ``disabled`` are design-time
+        # booleans → handled separately.
         super().__init__(href=href, variant=variant, color=color, **kwargs)
-        # ``adopt_slot`` détache un Component passé en slot (sinon il rend
-        # deux fois) ; string / ClientBinding traversent intacts. Cf.
-        # traps.md § « Slot Component stocké sans adopt_slot ».
+        # ``adopt_slot`` detaches a Component passed as a slot
+        # (otherwise it renders twice); string / ClientBinding pass
+        # through intact. Cf. traps.md § "A Component slot stored without
+        # adopt_slot".
         self._label = Component.adopt_slot(label)
         self._external = external
         self._download = download
         self._disabled = disabled
 
     def render(self) -> Element:
-        # ``compose_class`` reads slots + variant. On ajoute la couleur
-        # du texte ici pour ne pas polluer les gabarits de variante — et
-        # c'est le PALIER qu'on écrit, pas un nom de couleur : le pont
-        # que le socle pose sur cette même racine dit lequel.
+        # ``compose_class`` reads slots + variant. We add the text's
+        # colour here so as not to pollute the variant templates — and it
+        # is the STEP we write, not a colour name: the bridge the base
+        # layer sets on that same root says which one.
         cls_string = f'{self.compose_class("root")} text-(--bz-text)'.strip()
 
         attrs = self.emit_attrs()
@@ -74,25 +75,25 @@ class Link(Component):
             attrs.setdefault("target", "_blank")
             attrs.setdefault("rel", "noopener noreferrer")
 
-        # ── Download : ce lien porte un FICHIER, pas une navigation ──
+        # ── Download: this link carries a FILE, not a navigation ─────
         #
-        # ⚠️ ``hx-boost="false"`` n'est pas une option : la coque pose
-        # ``hx-boost`` sur la page, donc htmx intercepte TOUT ``<a>``,
-        # va chercher la cible en XHR et l'injecte dans le document.
-        # Sur un CSV, ça ne télécharge rien et ça remplace la page par
-        # du texte brut — sans erreur, sans requête échouée, rien à
-        # voir côté serveur.
+        # ⚠️ ``hx-boost="false"`` is not an option: the shell sets
+        # ``hx-boost`` on the page, so htmx intercepts EVERY ``<a>``,
+        # fetches the target by XHR and injects it into the document. On
+        # a CSV, that downloads nothing and replaces the page with plain
+        # text — with no error, no failed request, nothing to see on the
+        # server side.
         #
-        # Mesuré le 2026-09-02 sur `/meta` du playground, avant ce
-        # correctif : ``resource_type: 'xhr'`` et l'URL passée à
-        # ``/meta-demo.csv``. C'est le mécanisme que l'export du
-        # datatable neutralisait déjà à la main (`datatable.py:745`) ;
-        # ceci le rend disponible à tout le monde plutôt que de le
-        # laisser se redécouvrir.
+        # Measured on 2026-09-02 on the playground's `/meta`, before this
+        # fix: ``resource_type: 'xhr'`` and the URL switched to
+        # ``/meta-demo.csv``. It is the mechanism the datatable's export
+        # already neutralised by hand (`datatable.py:745`); this makes it
+        # available to everybody rather than leaving it to be
+        # rediscovered.
         #
-        # L'attribut HTML ``download`` en plus : il dit au navigateur de
-        # ne PAS afficher le fichier même s'il sait le rendre (un SVG,
-        # un PDF), et il laisse le serveur nommer via
+        # The HTML ``download`` attribute in addition: it tells the
+        # browser NOT to display the file even if it knows how to render
+        # it (an SVG, a PDF), and it lets the server name it through
         # ``Content-Disposition``.
         if self._download:
             attrs.setdefault("hx-boost", "false")

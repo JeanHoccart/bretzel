@@ -1,98 +1,100 @@
-"""Règle : une classe de ``classes=`` que la MÊME prop pose déjà.
+"""Rule: a class in ``classes=`` that the SAME prop already sets.
 
-Le silence qu'elle ferme
-------------------------
+The silence it closes
+---------------------
 
-``ui.vstack`` émet ``justify-start`` sans qu'on lui demande rien : la prop
-``justify`` a un défaut, et un défaut émet. Écrire ::
+``ui.vstack`` emits ``justify-start`` without being asked: the
+``justify`` prop has a default, and a default emits. Writing ::
 
     ui.vstack(gap="none", align="start", classes="h-full w-full justify-center px-3")
 
-met donc **deux** ``justify-*`` sur le même élément ::
+therefore puts **two** ``justify-*`` on the same element ::
 
     <div class="flex flex-col items-start justify-start gap-0 h-full w-full justify-center px-3">
 
-Les deux sélecteurs ont la même spécificité, donc c'est l'ordre de la
-**feuille** Tailwind qui les départage — pas l'ordre de l'attribut
-``class``, que tout le monde lit d'abord. Mesuré le 2026-09-06 sur
-``examples/playground/features/diagram/ui.py`` : ``justify-start`` gagnait, le
-contenu restait collé en haut alors que le code disait « centre ».
+Both selectors have the same specificity, so it is the Tailwind
+**sheet**'s order that settles them — not the order of the ``class``
+attribute, which everyone reads first. Measured on 2026-09-06 on
+``examples/playground/features/diagram/ui.py``: ``justify-start`` won,
+the content stayed stuck at the top although the code said "centre".
 
-C'est le mode d'échec préféré du dépôt : rien ne lève, rien ne manque dans
-le HTML, et une **relecture des classes ne voit rien** — les deux sont là,
-toutes les deux correctes, toutes les deux voulues par quelqu'un. Même
-mécanique que le « survol une ligne sur deux » de
-``bretzel/components/data/table/theme.py`` (« hover vs striped
-specificity »), où deux règles de spécificité égale se départagent par la
+It is the repository's favourite failure mode: nothing raises, nothing is
+missing from the HTML, and **re-reading the classes shows nothing** —
+both are there, both correct, both wanted by somebody. Same mechanics as
+the "hover on every other row" of
+``bretzel/components/data/table/theme.py`` ("hover vs striped
+specificity"), where two rules of equal specificity are settled by the
 source.
 
-La faute s'est produite **deux fois de suite** dans le même fichier
-(commits ``9cdd7627`` puis ``db1b574c``), ce qui est la définition d'une
-faute facile et invisible.
+The fault happened **twice in a row** in the same file (commits
+``9cdd7627`` then ``db1b574c``), which is the definition of an easy and
+invisible fault.
 
-La table prop → famille est DÉRIVÉE, jamais recopiée
------------------------------------------------------
+The prop → family table is DERIVED, never copied
+------------------------------------------------
 
-Un linter qui porterait sa propre table ``justify → justify-*`` dériverait
-du code qu'il juge — même refus que :mod:`bretzel.lint.rules.kwargs` et
-:mod:`bretzel.lint.rules.variant`. Ici tout vient du composant vivant :
+A linter carrying its own ``justify → justify-*`` table would drift from
+the code it judges — same refusal as :mod:`bretzel.lint.rules.kwargs` and
+:mod:`bretzel.lint.rules.variant`. Here everything comes from the live
+component:
 
-- ``THEME_TABLES`` donne **prop → groupe de thème** (déclaré sur
-  :class:`~bretzel.components.layout.flex.flex.Flex`, gardé par
-  ``test_a_flex_family_declares_every_table``) ;
-- le groupe donne les **classes réellement émises**, donc le préfixe de la
-  famille et la valeur de prop qui produit chacune ;
-- ``__reactive_props__`` donne le **défaut**, c'est-à-dire ce qui est émis
-  quand l'appel ne passe rien.
+- ``THEME_TABLES`` gives **prop → theme group** (declared on
+  :class:`~bretzel.components.layout.flex.flex.Flex`, guarded by
+  ``test_a_flex_family_declares_every_table``);
+- the group gives the **classes actually emitted**, hence the family's
+  prefix and the prop value producing each one;
+- ``__reactive_props__`` gives the **default**, that is to say what is
+  emitted when the call passes nothing.
 
-Une prop dont le composant change le défaut change donc la règle sans
-qu'on la touche : ``HStack.align`` vaut ``center`` là où ``Flex.align``
-vaut ``stretch``, et les deux sont lus, pas supposés.
+A prop whose component changes the default therefore changes the rule
+with nothing touched: ``HStack.align`` is ``center`` where ``Flex.align``
+is ``stretch``, and both are read, not assumed.
 
-⚠️ **Portée : les composants qui déclarent ``THEME_TABLES``** — les cinq de
-la famille flex (``flex``, ``vstack``, ``hstack``, ``pane``, ``viewport``).
-Les autres écrivent la correspondance prop → groupe dans leur ``render``,
-où aucune lecture statique ne va la chercher ; ``ui.grid(gap=…)`` et
-``ui.carousel(gap=…)`` sont donc hors de portée jusqu'à ce qu'ils la
-déclarent. Écrit plutôt que deviné : mesuré le 2026-09-06, ni ``grid``, ni
-``carousel``, ni ``resizable`` n'a un seul ``classes=`` de cette famille
-dans le dépôt — l'angle mort ne coûte aujourd'hui rien, et le jour où il
-coûtera, c'est ``THEME_TABLES`` qu'il faut poser, pas une table ici.
+⚠️ **Scope: the components that declare ``THEME_TABLES``** — the five of
+the flex family (``flex``, ``vstack``, ``hstack``, ``pane``,
+``viewport``). The others write the prop → group correspondence in their
+``render``, where no static read goes looking for it; ``ui.grid(gap=…)``
+and ``ui.carousel(gap=…)`` are therefore out of scope until they declare
+it. Written rather than guessed: measured on 2026-09-06, neither
+``grid``, nor ``carousel``, nor ``resizable`` has a single ``classes=``
+of this family in the repository — the blind spot costs nothing today,
+and the day it costs, it is ``THEME_TABLES`` that must be set, not a
+table here.
 
-Ce qu'elle ne signale PAS, et c'est le cœur du réglage
-------------------------------------------------------
+What it does NOT report, and that is the heart of the tuning
+------------------------------------------------------------
 
-``classes=`` **est** l'échappatoire légitime, et une règle qui la
-condamnerait en gros se ferait désactiver le premier jour. La famille est
-donc fermée sur ce que la prop sait dire : les classes que la table émet,
-plus le préfixe suivi d'une de ses **clés** (c'est ainsi que
-``justify-center`` en fait partie, alors que le thème rend
-``[justify-content:safe_center]`` — un centrage ``safe``).
+``classes=`` **is** the legitimate escape hatch, and a rule condemning it
+wholesale would be disabled on day one. The family is therefore closed on
+what the prop can say: the classes the table emits, plus the prefix
+followed by one of its **keys** (that is how ``justify-center`` belongs,
+although the theme renders ``[justify-content:safe_center]`` — a ``safe``
+centring).
 
-Trois conséquences mesurées :
+Three measured consequences:
 
-- ``justify-normal`` / ``items-normal`` : hors table, aucune valeur de prop
-  ne les rend → **jamais signalés**, c'est de l'échappatoire ;
-- ``flex-1`` sur un ``ui.flex`` : la famille de ``direction`` est
-  exactement ``flex-row|flex-col|flex-row-reverse|flex-col-reverse``, pas
-  ``flex-*`` → épargné (le préfixe seul aurait fait quatre faux positifs
-  par app) ;
-- ``md:justify-center``, ``justify-center!``, ``[justify-content:…]`` :
-  écarts **délibérés** de spécificité ou de portée, qui gagnent pour de
-  bon → jamais signalés.
+- ``justify-normal`` / ``items-normal``: outside the table, no prop value
+  renders them → **never reported**, that is escape-hatch territory;
+- ``flex-1`` on a ``ui.flex``: ``direction``'s family is exactly
+  ``flex-row|flex-col|flex-row-reverse|flex-col-reverse``, not
+  ``flex-*`` → spared (the prefix alone would have made four false
+  positives per app);
+- ``md:justify-center``, ``justify-center!``, ``[justify-content:…]``:
+  **deliberate** departures in specificity or scope, which win for good →
+  never reported.
 
-Angle mort assumé : ``gap-3`` (un palier hors table) se bat vraiment avec
-le ``gap-4`` du défaut, et n'est pas signalé — il n'existe comme valeur
-d'aucune prop, donc le signaler reviendrait à refuser l'échappatoire.
+Accepted blind spot: ``gap-3`` (a step outside the table) really does
+fight with the default's ``gap-4``, and is not reported — it exists as no
+prop's value, so reporting it would amount to refusing the escape hatch.
 
-Mesure avant livraison
------------------------
+Measurement before shipping
+---------------------------
 
-2026-09-06 : **21 constats** sur ``examples/``, **0** sur
-``tests/e2e/apps``, **0** dans ``bretzel/``. Les 21 étaient tous le même
-motif — un ``justify-*`` de ``classes=`` contre le ``justify-start`` du
-défaut, dont sept pages d'erreur « centrées » qui ne l'étaient pas. Tous
-corrigés en passant à la prop ; ``examples/`` est à zéro et gelé par
+2026-09-06: **21 findings** over ``examples/``, **0** over
+``tests/e2e/apps``, **0** in ``bretzel/``. All 21 were the same pattern —
+a ``justify-*`` from ``classes=`` against the default's
+``justify-start``, including seven "centred" error pages that were not.
+All fixed by moving to the prop; ``examples/`` is at zero and frozen by
 ``test_lint_baseline_on_examples``.
 """
 
@@ -106,30 +108,30 @@ from typing import Any
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 
-RULE = "classe-doublee-par-une-prop"
+RULE = "class-duplicates-a-prop"
 
-#: Les kwargs dont la valeur atterrit dans l'attribut ``class``.
+#: The kwargs whose value lands in the ``class`` attribute.
 _CLASS_KWARGS = ("classes", "class_")
 
-#: Un caractère qui sort une classe du jugement. ``:`` = un variant
-#: (``md:``, ``hover:``) donc une autre portée ET un autre rang dans la
-#: feuille ; ``[`` / ``]`` = une valeur arbitraire, écrite exprès ; ``!`` =
-#: l'important de Tailwind, c'est-à-dire un écart assumé qui gagne. Aucun
-#: des trois n'est le doublon silencieux que cette règle cherche.
+#: A character that takes a class out of judgement. ``:`` = a variant
+#: (``md:``, ``hover:``) hence another scope AND another rank in the
+#: sheet; ``[`` / ``]`` = an arbitrary value, written on purpose; ``!`` =
+#: Tailwind's important, that is to say an accepted departure that wins.
+#: None of the three is the silent duplicate this rule looks for.
 _DELIBERATE = "[]:!"
 
 
 @dataclass(frozen=True)
 class _Family:
-    """Ce qu'une prop pose sur l'élément, vu depuis les classes."""
+    """What a prop sets on the element, seen from the classes."""
 
     prop: str
-    #: classe → la valeur de prop qui la rend. C'est la famille.
+    #: class → the prop value that renders it. That is the family.
     members: dict[str, str]
-    #: valeur de prop → la classe (ou les classes) qu'elle rend.
+    #: prop value → the class (or classes) it renders.
     emits: dict[str, str]
-    #: Ce que la prop rend quand l'appel ne passe rien. Vide = elle n'émet
-    #: rien par défaut (``grow``), donc aucun conflit à supposer.
+    #: What the prop renders when the call passes nothing. Empty = it
+    #: emits nothing by default (``grow``), so no conflict to assume.
     default: str
 
 
@@ -138,16 +140,16 @@ def _deliberate(token: str) -> bool:
 
 
 def _family_members(table: dict[str, Any]) -> dict[str, str]:
-    """Les classes que ``table`` sait rendre, indexées par valeur de prop.
+    """The classes ``table`` can render, indexed by prop value.
 
-    Le préfixe se DÉDUIT des classes émises et doit être unique : un
-    groupe qui mélangerait deux préfixes n'a pas de « famille » au sens de
-    cette règle, et on préfère ne rien dire que dire n'importe quoi.
+    The prefix is DERIVED from the emitted classes and must be unique: a
+    group mixing two prefixes has no "family" in this rule's sense, and
+    we would rather say nothing than say anything.
 
-    Les clés de la table sont ensuite recollées au préfixe, ce qui rattrape
-    les valeurs que le thème rend autrement qu'en utilitaire nommé —
-    ``center`` rend ``[justify-content:safe_center]``, mais
-    ``justify-center`` appartient bien à la famille.
+    The table's keys are then glued back to the prefix, which catches the
+    values the theme renders otherwise than as a named utility —
+    ``center`` renders ``[justify-content:safe_center]``, but
+    ``justify-center`` does belong to the family.
     """
     emitted = {
         token
@@ -171,11 +173,11 @@ def _family_members(table: dict[str, Any]) -> dict[str, str]:
 
 @cache
 def _families_of(cls: type) -> tuple[_Family, ...]:
-    """Les familles de classes que les props de ``cls`` pilotent.
+    """The class families ``cls``'s props drive.
 
-    Vide pour tout composant qui ne déclare pas ``THEME_TABLES`` — la
-    correspondance prop → groupe vit alors dans son ``render``, hors de
-    portée d'une lecture statique.
+    Empty for any component that does not declare ``THEME_TABLES`` — the
+    prop → group correspondence then lives in its ``render``, out of a
+    static read's reach.
     """
     tables = getattr(cls, "THEME_TABLES", None)
     theme = getattr(cls, "THEME", None)
@@ -187,8 +189,8 @@ def _families_of(cls: type) -> tuple[_Family, ...]:
     for prop, group in sorted(tables.items()):
         table = theme.get(group)
         if not isinstance(table, dict):
-            # Groupe scalaire (``wrap`` est la chaîne ``flex-wrap``) : pas
-            # une famille, et poser deux fois la même classe ne fait rien.
+            # A scalar group (``wrap`` is the string ``flex-wrap``): not
+            # a family, and setting the same class twice does nothing.
             continue
         members = _family_members(table)
         if not members:
@@ -206,7 +208,7 @@ def _families_of(cls: type) -> tuple[_Family, ...]:
 
 
 def _judged() -> dict[str, tuple[_Family, ...]]:
-    """``ui.<nom>`` → ses familles, pour les composants qu'on sait lire."""
+    """``ui.<name>`` → its families, for the components we can read."""
     from bretzel.components import ui
     from bretzel.components.base.component import Component
     from bretzel.introspect import ui_symbol_names
@@ -236,14 +238,14 @@ def _finding(
     token: str,
     keywords: dict[str, ast.expr],
 ) -> Finding | None:
-    """Le constat, ou ``None`` si la prop n'émet rien ici.
+    """The finding, or ``None`` when the prop emits nothing here.
 
-    Le ``None`` est load-bearing : une prop dont le défaut est vide
-    (``grow``) ne pose aucune classe tant que l'appel ne lui en donne pas,
-    donc il n'y a rien à départager. Une valeur passée mais **calculée**
-    retombe sur le défaut : quoi qu'elle vaille, le socle rend soit sa
-    classe, soit celle du défaut — dans les deux cas une classe de cette
-    famille, donc le conflit tient.
+    The ``None`` is load-bearing: a prop whose default is empty
+    (``grow``) sets no class as long as the call gives it none, so there
+    is nothing to settle. A value that is passed but **computed** falls
+    back on the default: whatever it is worth, the base layer renders
+    either its class or the default's — in both cases a class of this
+    family, so the conflict holds.
     """
     passed = _constant_str(keywords.get(family.prop))
     value = passed or family.default
@@ -251,31 +253,31 @@ def _finding(
         return None
 
     posed = family.emits.get(value, f"la classe de `{family.prop}={value!r}`")
-    origin = "passé ici" if passed else "son défaut"
+    origin = "passed here" if passed else "its default"
     wanted = family.members[token]
 
     if posed == token:
         message = (
-            f"`ui.{ui_name}(classes=…)` répète `{token}` : la prop "
-            f"`{family.prop}=` la pose déjà ({origin})."
+            f"`ui.{ui_name}(classes=…)` repeats `{token}`: the prop "
+            f"`{family.prop}=` already sets it ({origin})."
         )
         hint = (
-            f"Retire `{token}` de `classes=` — `{family.prop}={value!r}` "
-            f"suffit, et c'est lui qui reste vrai si le thème change."
+            f"Remove `{token}` from `classes=` — `{family.prop}={value!r}` "
+            f"is enough, and it is what stays true if the theme changes."
         )
     else:
         message = (
-            f"`ui.{ui_name}(classes=…)` pose `{token}` sur le MÊME élément "
-            f"que la prop `{family.prop}=`, qui émet déjà `{posed}` "
-            f"({origin}). Deux classes de même spécificité : c'est l'ordre "
-            f"de la FEUILLE Tailwind qui tranche, pas celui de l'attribut "
-            f"`class` — le HTML porte les deux et rien ne dit laquelle a "
-            f"gagné."
+            f"`ui.{ui_name}(classes=…)` sets `{token}` on the SAME element "
+            f"as the `{family.prop}=` prop, which already emits `{posed}` "
+            f"({origin}). Two classes of equal specificity: it is the "
+            f"Tailwind SHEET's order that settles it, not the `class` "
+            f"attribute's — the HTML carries both and nothing says which "
+            f"one won."
         )
         hint = (
-            f"Écris `{family.prop}={wanted!r}` : c'est la valeur qui rend "
-            f"`{token}`. `classes=` ne sert qu'à ce qu'aucune prop ne "
-            f"couvre."
+            f"Write `{family.prop}={wanted!r}`: it is the value that "
+            f"renders `{token}`. `classes=` is only for what no prop "
+            f"covers."
         )
     return Finding(
         rule=RULE,
@@ -287,7 +289,7 @@ def _finding(
 
 
 def check(module: Module) -> list[Finding]:
-    """Les classes de ``classes=`` qu'une prop du même appel pose déjà."""
+    """The ``classes=`` entries a prop of the same call already sets."""
     calls = [
         node
         for node in ast.walk(module.tree)

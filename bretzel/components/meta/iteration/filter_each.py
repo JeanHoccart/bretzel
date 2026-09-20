@@ -44,9 +44,9 @@ from bretzel.state.scopes.client import ClientBinding, ClientExpression
 def _query_js(query: ClientBinding | str) -> str:
     """The lowercased query as a JS sub-expression."""
     if isinstance(query, ClientBinding):
-        # ``binding_path()`` est polymorphe (une expression porte déjà son
-        # préfixe, un binding simple se voit préfixer) — équivalent de
-        # ``Component.path_of`` sans l'import du composant.
+        # ``binding_path()`` is polymorphic (an expression already
+        # carries its prefix, a plain binding gets one) — the equivalent
+        # of ``Component.path_of`` without importing the component.
         ref = query.binding_path()
     else:
         ref = json.dumps(str(query or ""))

@@ -1,20 +1,20 @@
-"""features/appreciations — les tuiles, le texte, la relecture, le bilan.
+"""features/appreciations — the tiles, the text, the review, the summary.
 
-EF-E1 à EF-E9 et EF-F1 à EF-F4. Trois surfaces, une feature :
+EF-E1 to EF-E9 and EF-F1 to EF-F4. Three surfaces, one feature:
 
-- le **panneau d'un élève** (tuiles + appréciation), monté dans sa fiche ;
-- l'**onglet Bilan** d'une classe (EF-F) ;
-- l'**écran de relecture** ``/appreciations/{classe_id}`` (EF-E9), qui
-  est une page à lui seul parce que c'est un moment d'usage à part :
-  *« en fin de trimestre, deux heures, la lecture de masse »*.
+- a pupil's **panel** (tiles + comment), mounted in their sheet;
+- a class's **Bilan tab** (EF-F);
+- the **review screen** ``/appreciations/{classe_id}`` (EF-E9), which is
+  a page of its own because it is a separate moment of use: *"at the end
+  of term, two hours, reading in bulk"*.
 
-La règle qui décide de tout, et elle est invisible
----------------------------------------------------
-EF-E3 : *« dès que le professeur écrit son propre texte, l'application ne
-le réécrit plus jamais »*. À l'écran, ça veut dire qu'un même geste —
-cocher une tuile — fait deux choses différentes selon l'histoire de la
-fiche. L'écran le DIT, parce qu'un comportement qui change sans
-explication se lit comme une panne.
+The rule that decides everything, and it is invisible
+------------------------------------------------------
+EF-E3: *"as soon as the teacher writes their own text, the application
+never rewrites it again"*. On screen, that means one and the same gesture
+— ticking a tile — does two different things depending on the sheet's
+history. The screen SAYS so, because a behaviour that changes with no
+explanation reads as a failure.
 """
 
 from __future__ import annotations
@@ -46,9 +46,9 @@ from examples.ecole.features.notes_data import notes_du_trimestre
 from examples.ecole.features.shell import shell
 from examples.ecole.features.vue_classe import VueClasse
 
-#: La teinte d'une tuile, en chaînes ENTIÈRES — jamais assemblées, pour
-#: la raison écrite dans ``emploi_du_temps.py`` : une classe construite
-#: en f-string n'existe qu'en développement.
+#: A tile's tint, in WHOLE strings — never assembled, for the reason
+#: written in ``emploi_du_temps.py``: a class built in an f-string only
+#: exists in development.
 TEINTES: dict[int, str] = {
     1: "border-success text-success",
     2: "border-info text-info",
@@ -64,7 +64,8 @@ TEINTE_COCHEE: dict[int, str] = {
 
 
 class VueEleveFiche(PageState):
-    """L'élève dont on remplit la fiche, et sa classe. La page sème."""
+    """The pupil whose sheet is being filled, and their class. The page
+    seeds."""
 
     eleve_id: int = field(default=0)
     classe_id: int = field(default=0)
@@ -72,7 +73,7 @@ class VueEleveFiche(PageState):
 
 
 def moyenne_pour(eleve_id: int, classe_id: int, trimestre: int) -> float | None:
-    """La moyenne d'un trimestre, par la règle unique du § 5.2."""
+    """A term's average, by § 5.2's single rule."""
     from examples.ecole.core.domain import moyenne_de
 
     lignes = notes_du_trimestre(eleve_id, classe_id, trimestre)
@@ -81,11 +82,11 @@ def moyenne_pour(eleve_id: int, classe_id: int, trimestre: int) -> float | None:
 
 
 def texte_propose(eleve_id: int, classe_id: int, trimestre: int) -> str:
-    """Compose l'appréciation d'EF-E2 depuis ce qu'on sait de l'élève.
+    """Compose EF-E2's comment from what is known of the pupil.
 
-    Trois entrées, et le cahier les nomme : *« les observations cochées,
-    les notes du trimestre, et l'évolution entre trimestres »*. La
-    troisième est ce qui oblige à lire aussi le trimestre PRÉCÉDENT.
+    Three inputs, and the specification names them: *"the ticked
+    observations, the term's marks, and the change between terms"*. The
+    third is what forces reading the PREVIOUS term too.
     """
     fiche = fiche_de(eleve_id, classe_id, trimestre)
     observations = {
@@ -105,11 +106,11 @@ def texte_propose(eleve_id: int, classe_id: int, trimestre: int) -> str:
 # ── Les handlers ─────────────────────────────────────────────────────
 
 def basculer(critere_id: int, niveau_id: int, deja_coche: bool) -> None:
-    """Coche ou décoche une tuile, puis REPROPOSE le texte (EF-E2).
+    """Tick or untick a tile, then REPROPOSE the text (EF-E2).
 
-    *« Cocher une observation repropose une appréciation »* — mais
-    ``proposer`` refuse si le professeur a écrit (EF-E3), et c'est cette
-    fonction-là qui porte le refus, pas celle-ci.
+    *"Ticking an observation reproposes a comment"* — but ``proposer``
+    refuses if the teacher has written (EF-E3), and it is that function
+    that carries the refusal, not this one.
     """
     vue = VueEleveFiche()
     annee_id = annee_regardee()["id"]
@@ -122,7 +123,7 @@ def basculer(critere_id: int, niveau_id: int, deja_coche: bool) -> None:
 
 
 def enregistrer_texte() -> None:
-    """Le professeur écrit : le drapeau tombe DÉFINITIVEMENT (EF-E3)."""
+    """The teacher writes: the flag falls PERMANENTLY (EF-E3)."""
     vue = VueEleveFiche()
     ecrire_a_la_main(int(vue.eleve_id), int(vue.classe_id),
                      int(vue.trimestre), annee_regardee()["id"],
@@ -134,7 +135,7 @@ def enregistrer_texte() -> None:
 
 
 def reproposer() -> None:
-    """Le bouton d'EF-E3 — la seule façon de rendre la main à la fabrique."""
+    """EF-E3's button — the only way of handing back to the factory."""
     vue = VueEleveFiche()
     annee_id = annee_regardee()["id"]
     eleve_id, classe_id = int(vue.eleve_id), int(vue.classe_id)
@@ -144,14 +145,14 @@ def reproposer() -> None:
              texte_propose(eleve_id, classe_id, trimestre))
 
 
-# ── Le panneau d'un élève ────────────────────────────────────────────
+# ── A pupil's panel ──────────────────────────────────────────────────
 
 def rangee_de_tuiles(bloc: dict, cochee: dict, fige: bool) -> None:
-    """Une rangée d'EF-E1 : un critère, ses niveaux, une seule coche.
+    """A row of EF-E1: a criterion, its levels, a single tick.
 
-    *« La teinte de la tuile dit si c'est favorable (1-2) ou une
-    difficulté (3-4). »* La couleur n'est donc pas décorative : c'est la
-    seule information qu'on lit en diagonale sur trente fiches.
+    *"The tile's tint says whether it is favourable (1-2) or a difficulty
+    (3-4)."* So the colour is not decorative: it is the only information
+    read at a glance across thirty sheets.
     """
     choisie = cochee.get(bloc["critere"], {}).get("niveau_id")
     with ui.vstack(gap="sm"):
@@ -171,9 +172,9 @@ def rangee_de_tuiles(bloc: dict, cochee: dict, fige: bool) -> None:
                 )
 
 
-# ``FichesRev`` dans les deps, et c'est ce qui manquait : cocher une
-# tuile n'écrit qu'en BASE, donc sans jeton de révision la zone ne se
-# re-rend jamais et le texte proposé reste invisible.
+# ``FichesRev`` in the deps, and it is what was missing: ticking a tile
+# only writes to the DATABASE, so without a revision token the zone never
+# re-renders and the proposed text stays invisible.
 @refreshable(deps=[AnneeVue, VueEleveFiche, FichesRev])
 def panneau_appreciation() -> None:
     vue = VueEleveFiche()
@@ -192,9 +193,9 @@ def panneau_appreciation() -> None:
             rangee_de_tuiles(bloc, fiche["niveaux"], fige)
 
         ui.divider(label="Appréciation")
-        # EF-E3 : le comportement change selon l'histoire de la fiche, et
-        # l'écran le DIT. Un geste qui n'a pas le même effet d'une fois
-        # sur l'autre sans explication se lit comme une panne.
+        # EF-E3: the behaviour changes with the sheet's history, and
+        # the screen SAYS so. A gesture that does not have the same
+        # effect twice running with no explanation reads as a failure.
         ui.banner(
             message=(
                 "Texte écrit à la main : cocher une observation ne le "
@@ -213,8 +214,8 @@ def panneau_appreciation() -> None:
                         maxlength=LIMITE, disabled=fige)
             with ui.hstack(gap="md", justify="between", align="center",
                            wrap=True):
-                # EF-E4 : le compteur, parce que 400 est une limite dure
-                # et qu'on écrit à l'aveugle sans lui.
+                # EF-E4: the counter, because 400 is a hard limit and
+                # one writes blind without it.
                 ui.text(f"{len(texte)} / {LIMITE} caractères",
                         color="error" if len(texte) > LIMITE else "muted")
                 with ui.hstack(gap="sm"):
@@ -226,7 +227,7 @@ def panneau_appreciation() -> None:
                               disabled=fige)
 
 
-# ── L'onglet Bilan d'une classe (EF-F) ───────────────────────────────
+# ── A class's Bilan tab (EF-F) ───────────────────────────────────────
 
 @refreshable(deps=[AnneeVue, VueClasse, FichesRev])
 def panneau_bilan() -> None:
@@ -242,10 +243,10 @@ def panneau_bilan() -> None:
         with ui.card(padding="lg"), ui.vstack(gap="md"):
             ui.heading(f"Bilan du trimestre {trimestre}", level=2, size="lg")
             ui.text(texte)
-            # EF-F2 : le bilan PART de ce qui domine et présente la
-            # difficulté comme une nuance. L'écran ne peut pas garantir
-            # ça — c'est la fabrique qui le fait — mais il peut dire
-            # pourquoi il se tait quand il se tait (EF-F4).
+            # EF-F2: the summary STARTS from what dominates and
+            # presents the difficulty as a nuance. The screen cannot
+            # guarantee that — the factory does — but it can say why it
+            # keeps quiet when it keeps quiet (EF-F4).
             ui.text(
                 f"{len(moyennes)} moyenne(s) disponible(s) sur "
                 f"{len(eleves)} élèves.",
@@ -275,10 +276,11 @@ def panneau_bilan() -> None:
                 variant="underline")
 
 
-# ── L'écran de relecture (EF-E9) ─────────────────────────────────────
+# ── The review screen (EF-E9) ────────────────────────────────────────
 
 class VueRelecture(PageState, addressable=True):
-    """La classe et le trimestre relus. Le trimestre vit dans l'adresse."""
+    """The class and the term being reviewed. The term lives in the
+    address."""
 
     classe_id: int = field(default=0)
     trimestre: int = field(default=1, url="t")
@@ -307,10 +309,10 @@ def liste_de_relecture() -> None:
                         if ligne["ecrite_main"]:
                             ui.badge(label="écrite à la main", size="xl",
                                      variant="outline", icon_left="pen-line")
-                        # EF-E9 : *« avec le compteur de caractères de
-                        # chacune »*. C'est ce qu'on relit en fin de
-                        # trimestre — une appréciation trop longue est
-                        # tronquée par École Directe, pas refusée.
+                        # EF-E9: *"with each one's character counter"*.
+                        # It is what is re-read at the end of term — a
+                        # comment that is too long is truncated by École
+                        # Directe, not refused.
                         ui.text(
                             f"{len(ligne['appreciation'])} / {LIMITE}",
                             color="error"

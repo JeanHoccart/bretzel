@@ -73,61 +73,58 @@ HEADER_BZ_TS: Final[str] = "X-Bz-Ts"                # render timestamp signed in
 HEADER_PAGE_ID: Final[str] = "X-Bretzel-Page-ID"    # page identity
 HEADER_CSRF: Final[str] = "X-Bretzel-CSRF"          # CSRF token
 
-#: Les zones ``@refreshable`` que le NAVIGATEUR a réellement sous les
-#: yeux, en clair, séparées par des virgules. Envoyé sur les POST
-#: d'action uniquement.
+#: The ``@refreshable`` zones the BROWSER actually has in front of it,
+#: in clear text, comma-separated. Sent on action POSTs only.
 #:
-#: Sans lui, ``enqueue_deps`` enfile TOUTES les zones déclarées sur une
-#: classe d'état changée, y compris celles qui vivent sur d'autres
-#: pages : le serveur les rend, les sérialise, les compresse, les
-#: envoie — et le navigateur les jette faute de cible. Mesuré le
-#: 2026-09-05 sur ``examples/mad`` : une action depuis ``/patients``
-#: rendait la zone du tableau de bord pour rien, **8,4 ms** contre
-#: 9,6 ms pour la zone utile, soit près de la moitié du drain. Sur
-#: ``examples/crm``, ``ViewerPrefs`` traîne 14 zones sur 8 modules
-#: pour 4 au plus par page.
+#: Without it, ``enqueue_deps`` queues EVERY zone declared on a changed
+#: state class, including those living on other pages: the server
+#: renders them, serialises them, compresses them, sends them — and the
+#: browser throws them away for want of a target. Measured on 2026-09-05
+#: on ``examples/mad``: an action from ``/patients`` rendered the
+#: dashboard's zone for nothing, **8.4 ms** against 9.6 ms for the useful
+#: zone, so nearly half the drain. On ``examples/crm``, ``ViewerPrefs``
+#: drags 14 zones across 8 modules for 4 at most per page.
 #:
-#: ⚠️ Un en-tête ABSENT veut dire « je ne sais pas », pas « aucune
-#: zone » : le serveur ne filtre alors rien. C'est ce qui rend le
-#: réglage sûr — un runtime en cache, un client tiers ou un test qui
-#: POSTe à la main retombent sur l'ancien comportement, jamais sur une
-#: zone qui cesse silencieusement de se rafraîchir.
-#: L'identité de l'ONGLET, tirée une fois par chargement de page.
+#: ⚠️ An ABSENT header means "I do not know", not "no zone": the server
+#: then filters nothing. That is what makes the setting safe — a cached
+#: runtime, a third-party client or a test POSTing by hand falls back on
+#: the old behaviour, never on a zone that silently stops refreshing.
+#: The TAB identity, drawn once per page load.
 #:
-#: Elle sert à une seule chose, et c'est une économie : exclure l'onglet
-#: qui vient d'agir de sa PROPRE diffusion. Il a déjà reçu ses zones dans
-#: la réponse de son action ; les re-demander par le flux temps réel est
-#: un aller-retour par zone, pour un rendu identique.
+#: It serves one thing only, and it is a saving: excluding the tab that
+#: has just acted from its OWN broadcast. It already received its zones
+#: in its action's response; asking for them again through the real-time
+#: stream is one round trip per zone, for an identical render.
 #:
-#: Mesuré sur ``examples/kanban`` avant l'exclusion : cocher une
-#: sous-tâche coûtait **cinq requêtes et 354 Ko** — l'action (177 Ko) plus
-#: quatre re-lectures qui renvoyaient exactement ce que la première venait
-#: de livrer.
+#: Measured on ``examples/kanban`` before the exclusion: ticking a
+#: subtask cost **five requests and 354 KB** — the action (177 KB) plus
+#: four re-reads returning exactly what the first had just delivered.
 #:
-#: ⚠️ Exclure l'onglet, pas la SESSION. Deux onglets de la même personne
-#: doivent continuer à se voir : c'est le cas d'usage même d'un tableau
-#: partagé qu'on ouvre deux fois pour comparer.
+#: ⚠️ Exclude the tab, not the SESSION. Two tabs of the same person must
+#: keep seeing each other: that is the very use case of a shared board
+#: opened twice to compare.
 HEADER_TAB: Final[str] = "X-Bretzel-Tab"
 
-#: Le même identifiant, porté par l'URL du flux — un ``EventSource`` ne
-#: sait pas poser d'en-tête.
+#: The same identifier, carried by the stream's URL — an ``EventSource``
+#: cannot set a header.
 SSE_TAB_PARAM: Final[str] = "tab"
 
 HEADER_ZONES: Final[str] = "X-Bretzel-Zones"
 
-#: **Réponse → client** : l'empreinte de chaque zone que cette réponse
-#: vient d'expédier, en ``id:empreinte`` séparés par des virgules. Le
-#: runtime la garde et la renvoie dans :data:`HEADER_ZONES` à la requête
-#: suivante ; le serveur peut alors TAIRE une zone dont le rendu neuf est
-#: identique à celui que le navigateur porte déjà.
+#: **Response → client**: the fingerprint of every zone this response
+#: has just shipped, as comma-separated ``id:fingerprint``. The runtime
+#: keeps it and sends it back in :data:`HEADER_ZONES` on the next
+#: request; the server can then STAY SILENT about a zone whose fresh
+#: render is identical to the one the browser already carries.
 #:
-#: Mesuré sur ``examples/messagerie`` : basculer un drapeau de lecture
-#: expédiait 93 075 octets pour 115 réellement changés — deux zones sur
-#: trois revenaient octet pour octet identiques.
+#: Measured on ``examples/messagerie``: toggling a read flag shipped
+#: 93 075 bytes for 115 actually changed — two zones out of three came
+#: back byte for byte identical.
 #:
-#: Le serveur ne STOCKE rien : c'est le client qui porte l'empreinte de
-#: ce qu'il affiche. Une empreinte périmée ou absente ne peut donc que
-#: faire ré-expédier la zone — jamais la taire à tort.
+#: The server STORES nothing: it is the client that carries the
+#: fingerprint of what it displays. A stale or absent fingerprint can
+#: therefore only cause a zone to be re-shipped — never wrongly
+#: silenced.
 HEADER_ZONE_HASHES: Final[str] = "X-Bretzel-Zone-Hashes"
 
 
@@ -139,74 +136,74 @@ ROUTE_PREFIX: Final[str] = "/_bretzel"
 ROUTE_RUNTIME_JS: Final[str] = f"{ROUTE_PREFIX}/runtime.js"
 ROUTE_THEME_CSS: Final[str] = f"{ROUTE_PREFIX}/theme.css"
 ROUTE_STYLE_CSS: Final[str] = f"{ROUTE_PREFIX}/style.css"
-# Les scripts tiers rapatriés dans ``./.bretzel/vendor/`` — htmx,
-# idiomorph, iconify. Servis depuis ici plutôt que depuis trois CDN :
-# le ``DOMContentLoaded`` d'une page passe de 644 à 110 ms (mesuré le
-# 2026-08-27). Cf. ``bretzel/render/vendor.py``.
+# The third-party scripts brought in-house under ``./.bretzel/vendor/``
+# — htmx, idiomorph, iconify. Served from here rather than from three
+# CDNs: a page's ``DOMContentLoaded`` goes from 644 to 110 ms (measured
+# on 2026-08-27). Cf. ``bretzel/render/vendor.py``.
 ROUTE_VENDOR: Final[str] = f"{ROUTE_PREFIX}/vendor"
-# Les DONNÉES d'icône, relayées et mises en cache. Le composant web
-# iconify va chercher ses glyphes chez trois hôtes tiers
-# (``api.iconify.design`` et deux secours) : mesuré le 2026-09-13, les
-# trois coupés rendent **0 glyphe sur 25**. Rapatrier le composant ne
-# rapatrie pas ses glyphes — c'est une seconde dépendance, dans la même
-# page, et elle survit à l'autre.
+# The icon DATA, relayed and cached. The iconify web component fetches
+# its glyphs from three third-party hosts (``api.iconify.design`` and two
+# fallbacks): measured on 2026-09-13, with all three cut off it renders
+# **0 glyphs out of 25**. Bringing the component in-house does not bring
+# its glyphs in-house — that is a second dependency, in the same page,
+# and it outlives the other one.
 ROUTE_ICONS: Final[str] = f"{ROUTE_PREFIX}/icons"
-# La marque du framework, servie par défaut quand une app ne pose pas
-# son ``favicon=``. Deux fichiers et pas un de plus : le SVG suit
-# ``prefers-color-scheme``, le PNG existe parce qu'iOS ne lit pas le
-# SVG pour son écran d'accueil. Cf. ``bretzel/static/``.
+# The framework's mark, served by default when an app sets no
+# ``favicon=``. Two files and not one more: the SVG follows
+# ``prefers-color-scheme``, the PNG exists because iOS does not read the
+# SVG for its home screen. Cf. ``bretzel/static/``.
 ROUTE_FAVICON: Final[str] = f"{ROUTE_PREFIX}/favicon.svg"
 ROUTE_TOUCH_ICON: Final[str] = f"{ROUTE_PREFIX}/apple-touch-icon.png"
 ROUTE_ACTION: Final[str] = f"{ROUTE_PREFIX}/action"
 ROUTE_SSE: Final[str] = f"{ROUTE_PREFIX}/sse"
-# Les assets utilisateur (``Bretzel(static_dir=…)``) — HORS du préfixe
-# ``/_bretzel``, qui est réservé au framework : ce chemin-là apparaît
-# dans les URLs que l'app écrit elle-même.
+# The user assets (``Bretzel(static_dir=…)``) — OUTSIDE the
+# ``/_bretzel`` prefix, which is reserved for the framework: that path
+# appears in the URLs the app writes itself.
 ROUTE_STATIC_DIR: Final[str] = "/static"
 # NOT a live channel — a standard HTTP GET hit by the runtime AFTER an
 # SSE state-dirty event, to fetch the updated HTML of a subscribing
 # zone. The SSE stream is the only long-lived connection.
 ROUTE_REFETCH: Final[str] = f"{ROUTE_PREFIX}/refetch"
 
-#: Les routes du framework qu'une garde d'auth peut laisser OUVERTES.
+#: The framework routes an auth guard may leave OPEN.
 #:
-#: Elles ne portent aucune donnée d'app : le runtime, la feuille générée
-#: depuis le thème, la feuille compilée, et les trois scripts tiers
-#: rapatriés. Une page de connexion en a besoin **avant** que quiconque
-#: soit connecté — sans elles, elle s'affiche sans style, son formulaire
-#: ne POSTe pas, et sans htmx elle n'a même plus de bridge.
+#: They carry no app data: the runtime, the sheet generated from the
+#: theme, the compiled sheet, and the three third-party scripts brought
+#: in-house. A login page needs them **before** anyone is signed in —
+#: without them it renders unstyled, its form does not POST, and without
+#: htmx it no longer even has a bridge.
 #:
-#: ⚠️ **Tout le reste de ``/_bretzel`` reste FERMÉ**, et ce n'est pas
-#: intuitif : ``/_bretzel/refetch/…`` re-rend une zone, ``/_bretzel/sse``
-#: pousse des rendus, ``/_bretzel/action/…`` exécute du code d'app et
-#: ``/_bretzel/datatable.csv`` exporte des lignes. Les ouvrir, c'est
-#: laisser une app entière se rendre pour un anonyme.
+#: ⚠️ **All the rest of ``/_bretzel`` stays CLOSED**, and that is not
+#: intuitive: ``/_bretzel/refetch/…`` re-renders a zone,
+#: ``/_bretzel/sse`` pushes renders, ``/_bretzel/action/…`` runs app code
+#: and ``/_bretzel/datatable.csv`` exports rows. Opening them means
+#: letting a whole app render for an anonymous visitor.
 #:
-#: **Pourquoi cette constante existe.** Le premier exemple à écrire une
-#: garde (``examples/crm``, 2026-08-20) a dû énumérer ces trois chemins à
-#: la main ET raisonner sur les quatre autres. C'est de la connaissance
-#: du framework dans du code d'app : le jour où une route interne est
-#: ajoutée, chaque garde se casse ou s'ouvre **en silence**. Le classement
-#: appartient donc à celui qui monte les routes.
+#: **Why this constant exists.** The first example to write a guard
+#: (``examples/crm``, 2026-08-20) had to enumerate those three paths by
+#: hand AND reason about the four others. That is framework knowledge
+#: inside app code: the day an internal route is added, every guard
+#: breaks or opens **silently**. The classification therefore belongs to
+#: whoever mounts the routes.
 #:
-#: Gaté par ``tests/consistency/test_framework_routes_are_classified.py``,
-#: qui lit les routes RÉELLEMENT montées et exige que chacune soit d'un
-#: côté ou de l'autre.
+#: Gated by ``tests/consistency/test_framework_routes_are_classified.py``,
+#: which reads the routes ACTUALLY mounted and requires each to be on one
+#: side or the other.
 PUBLIC_ASSET_ROUTES: Final[frozenset[str]] = frozenset({
     ROUTE_RUNTIME_JS,
     ROUTE_THEME_CSS,
     ROUTE_STYLE_CSS,
-    # Motif de chemin, pas une URL : la route est montée avec un
-    # paramètre. ⚠️ Une garde ne peut donc PAS comparer un chemin reçu à
-    # cet ensemble — il faut :func:`is_public_asset_path`.
+    # A path pattern, not a URL: the route is mounted with a parameter.
+    # ⚠️ A guard therefore CANNOT compare a received path to this set —
+    # it needs :func:`is_public_asset_path`.
     f"{ROUTE_VENDOR}/{{filename}}",
-    # Même raison, même forme : les glyphes d'une page de connexion sont
-    # demandés avant que quiconque soit connecté.
-    f"{ROUTE_ICONS}/{{chemin:path}}",
-    # L'icône, pour la même raison que les feuilles : une page de
-    # connexion la demande AVANT que quiconque soit connecté. Fermée,
-    # elle rendrait la page de login (200, du HTML) là où le navigateur
-    # attend une image — donc pas d'icône, et rien dans les logs.
+    # Same reason, same shape: a login page's glyphs are requested
+    # before anyone is signed in.
+    f"{ROUTE_ICONS}/{{icon_path:path}}",
+    # The icon, for the same reason as the sheets: a login page
+    # requests it BEFORE anyone is signed in. Closed, it would return
+    # the login page (200, HTML) where the browser expects an image —
+    # so no icon, and nothing in the logs.
     ROUTE_FAVICON,
     ROUTE_TOUCH_ICON,
 })
@@ -252,12 +249,12 @@ SSE_EVENT_STATE_DIRTY: Final[str] = "state-dirty"
 DATA_SUBSCRIBE_STATE: Final[str] = "data-bz-subscribe-state"
 DATA_SUBSCRIBE_URL: Final[str] = "data-bz-subscribe-url"
 
-#: Le marqueur qu'une zone ``@refreshable`` pose sur son élément, portant
-#: son propre identifiant. Il existe pour que le runtime puisse énumérer
-#: les zones du document sans deviner : l'identifiant vient de
-#: ``_stable_id`` et commence par ``refresh_``, mais ce préfixe est une
-#: convention Python — le lire en JS ferait un miroir qui dérive au
-#: premier renommage. Alimente :data:`HEADER_ZONES`.
+#: The marker a ``@refreshable`` zone sets on its element, carrying its
+#: own identifier. It exists so the runtime can enumerate the document's
+#: zones without guessing: the identifier comes from ``_stable_id`` and
+#: starts with ``refresh_``, but that prefix is a Python convention —
+#: reading it in JS would make a mirror that drifts at the first rename.
+#: Feeds :data:`HEADER_ZONES`.
 DATA_ZONE: Final[str] = "data-bz-zone"
 
 # Viewport cookie — a client→server wire string, so it lives here (single
@@ -267,13 +264,12 @@ DATA_ZONE: Final[str] = "data-bz-zone"
 # Cf. ``.claude/bretzel/screen-responsive-nav.md``.
 SCREEN_COOKIE: Final[str] = "bz_screen"
 
-# Le cookie de LANGUE. Il gagne sur ``Accept-Language`` — l'en-tête décrit
-# la configuration de l'OS, pas un choix de lecture, donc sans ce cookie
-# un visiteur au système anglais qui veut lire en français n'aurait aucun
-# moyen de le dire. Posé par ``Language.set()``, lu par le middleware
-# de contexte de rendu. Même rôle que ``bz_screen`` juste au-dessus : le
-# navigateur sait, le cookie porte, le serveur rend depuis une vraie
-# valeur.
+# The LANGUAGE cookie. It wins over ``Accept-Language`` — the header
+# describes the OS configuration, not a reading choice, so without this
+# cookie a visitor on an English system who wants to read in French would
+# have no way to say so. Set by ``Language.set()``, read by the render
+# context middleware. Same role as ``bz_screen`` just above: the browser
+# knows, the cookie carries, the server renders from a real value.
 LANG_COOKIE: Final[str] = "bz_lang"
 
 # Global the pre-paint sync script defines (``render/shell.py``) and the runtime
@@ -301,16 +297,17 @@ PATCH_TAG_NAME: Final[str] = "bz-patch"        # delta patches (per response)
 # V2 precedent : ``#bz-script-outbox``.
 SINK_ELEMENT_ID: Final[str] = "bz-sink"
 
-# Clé RÉSERVÉE du registre ``$bz.pending`` : « une NAVIGATION est en
-# vol ». Le bridge l'arme en plus de l'élément déclencheur quand la
-# requête est boostée ou porte ``hx-push-url``, et la barre de shell
-# (``render/shell.nav_progress_html``) n'est qu'un ``bz-show`` dessus.
+# RESERVED key of the ``$bz.pending`` registry: "a NAVIGATION is in
+# flight". The bridge arms it in addition to the triggering element when
+# the request is boosted or carries ``hx-push-url``, and the shell bar
+# (``render/shell.nav_progress_html``) is nothing but a ``bz-show`` on
+# it.
 #
-# Le ``@`` initial met la clé hors d'atteinte d'un ``action_id``, qui
-# vaut toujours ``module::qualname``. C'est ici et pas dans le shell
-# parce que les deux côtés du fil la nomment — le Python l'écrit dans
-# l'attribut, le JS l'arme (``__NAV_PENDING_KEY__``, substitué au
-# build comme les balises d'enveloppe et de patch).
+# The leading ``@`` puts the key out of reach of an ``action_id``, which
+# is always ``module::qualname``. It is here and not in the shell because
+# both sides of the wire name it — Python writes it into the attribute,
+# JS arms it (``__NAV_PENDING_KEY__``, substituted at build time like the
+# envelope and patch tags).
 NAV_PENDING_KEY: Final[str] = "@nav"
 
 

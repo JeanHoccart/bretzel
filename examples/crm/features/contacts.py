@@ -1,17 +1,16 @@
-"""features/contacts — écran 3 : maître-détail, et la SÉLECTION.
+"""features/contacts — screen 3: master-detail, and SELECTION.
 
-Ce que cet écran met sous contrainte, et qu'aucune des 17 apps ne construit :
-une **liste sélectionnable**. Cliquer une ligne ne navigue pas — elle marque
-un choix, la ligne le montre, et un panneau voisin suit.
+What this screen puts under constraint, and that none of the 17 apps
+builds: a **selectable list**. Clicking a row does not navigate — it
+marks a choice, the row shows it, and a neighbouring panel follows.
 
-La coque deux colonnes est un ``ui.resizable`` : c'est le seul composant du
-catalogue qui exprime « deux panneaux et une poignée entre eux ». ``ui.grid``
-ne sait pas donner deux tiers à l'un de ses enfants — il n'a pas de portée de
-colonne.
+The two-column shell is a ``ui.resizable``: it is the catalogue's only
+component expressing "two panels and a handle between them". ``ui.grid``
+cannot give two thirds to one of its children — it has no column span.
 
-Les deux panneaux sont **deux zones distinctes**, et le ``resizable`` vit en
-dehors des deux : une largeur qu'on vient de tirer à la main ne doit pas
-être rejouée par le serveur au premier clic de sélection.
+The two panels are **two distinct zones**, and the ``resizable`` lives
+outside both: a width one has just dragged by hand must not be replayed
+by the server at the first selection click.
 """
 
 from __future__ import annotations
@@ -39,13 +38,14 @@ from examples.crm.features.shell import shell
 
 
 class ContactsUI(PageState):
-    """Ce que le lecteur regarde : son filtre, sa page, et son CHOIX."""
+    """What the reader is looking at: their filter, their page, and their
+    CHOICE."""
 
     needle: str = field(default='')
     status: str = field(default='all')
     page: int = field(default=1)
-    #: 0 = rien de sélectionné. Le panneau de droite le lit ; c'est tout
-    #: l'état que la sélection demande.
+    #: 0 = nothing selected. The right panel reads it; it is all the
+    #: state the selection needs.
     selected_id: int = field(default=0)
 
     @validator("status")
@@ -58,13 +58,14 @@ class ContactsUI(PageState):
 
 
 def filter_changed(state: ContactsUI) -> None:
-    """Un filtre qui bouge remet à la page 1 : rester page 7 d'une liste
-    qu'on vient de restreindre montre des lignes que personne n'a demandées."""
+    """A filter that moves resets to page 1: staying on page 7 of a list
+    one has just narrowed shows rows nobody asked for."""
     state.page = 1
 
 
 def page_changed(state: ContactsUI) -> None:
-    """La pagination hydrate ``page`` ; la zone se re-render par ``deps=``."""
+    """The pagination hydrates ``page``; the zone re-renders through
+    ``deps=``."""
 
 
 def select_contact(contact_id: int) -> None:
@@ -72,16 +73,16 @@ def select_contact(contact_id: int) -> None:
 
 
 def contact_row(contact: dict, selected: bool) -> None:
-    """Une ligne sélectionnable — l'état choisi ne tient qu'à des props.
+    """A selectable row — the chosen state hangs on props alone.
 
-    ``color="primary"`` sur la carte sélectionnée avait été ESSAYÉ d'abord
-    et retiré : ``ui.card`` peignait ``bg-{bg_color}`` sans jamais poser
-    ``text-{fg_color}``, donc fond teal foncé et texte sombre — contraste
-    mesuré à 3,12, sous le seuil AA. C'était le finding [3] du chantier ;
-    il est **réparé depuis le 2026-08-21** (contraste 5,21), et le signal
-    fort revient donc ici. Le contournement qui vivait à sa place — une
-    surface ``interface`` plus deux accents — est parti avec lui, et c'est
-    ça la preuve que la réparation sert.
+    ``color="primary"`` on the selected card was TRIED first and removed:
+    ``ui.card`` painted ``bg-{bg_color}`` without ever setting
+    ``text-{fg_color}``, hence a dark teal background and dark text —
+    contrast measured at 3.12, below the AA threshold. It was the work's
+    finding [3]; it has been **fixed since 2026-08-21** (contrast 5.21),
+    so the strong signal comes back here. The workaround that lived in
+    its place — an ``interface`` surface plus two accents — went with it,
+    and that is the proof the fix serves.
     """
     with ui.card(padding="sm", hoverable=True,
                  color="primary" if selected else None,
@@ -103,14 +104,14 @@ def contact_row(contact: dict, selected: bool) -> None:
             ui.badge(label, color=color, variant="soft", size="xs")
 
 
-# ``ViewerPrefs`` dans les ``deps`` : sans lui, changer de portefeuille
-# dans la barre latérale laisserait la zone sur la donnée de l'ancien.
+# ``ViewerPrefs`` in the ``deps``: without it, changing portfolio in the
+# sidebar would leave the zone on the previous one's data.
 @refreshable(deps=[ContactsUI, ContactsRev, ViewerPrefs])
 def contact_list() -> None:
     state = ContactsUI()
-    # Le réglage de l'écran 10 est LU ici. Sans ce fil, « Lignes par page »
-    # serait un contrôle qui ne commande rien — et une page de paramètres
-    # dont aucun réglage n'agit est une maquette, pas un écran.
+    # Screen 10's setting is READ here. Without this thread, "Lignes par
+    # page" would be a control commanding nothing — and a settings page
+    # where no setting acts is a mock-up, not a screen.
     per_page = max(1, int(Preferences().par_page))
     rows, total = search_contacts(
         state.needle, state.status, int(state.page), per_page,
@@ -121,20 +122,20 @@ def contact_list() -> None:
         with ui.hstack(justify="between", align="center"):
             ui.text(f"{total} contacts", color="muted", size="sm")
             ui.text(f"page {state.page} / {pages}", color="muted", size="xs")
-        # ``ui.pane`` porte les quatre classes de l'idiome, dont la
-        # quatrième — ``[&>*]:shrink-0`` — qui ne se devine pas : la racine
-        # de ``ui.card`` clippe, donc sa hauteur minimale automatique vaut
-        # ZÉRO et les cartes se compriment sous leur contenu dès que la
-        # liste remplit la colonne. Mesuré ICI avant que le composant
-        # existe : 73 px libre contre 34 px contraint, 39 px coupés, et
-        # invisible sur la dernière page faute de lignes.
+        # ``ui.pane`` carries the idiom's four classes, including the
+        # fourth — ``[&>*]:shrink-0`` — which cannot be guessed:
+        # ``ui.card``'s root clips, so its automatic minimum height is
+        # ZERO and the cards compress under their content as soon as the
+        # list fills the column. Measured HERE before the component
+        # existed: 73 px free against 34 px constrained, 39 px cut, and
+        # invisible on the last page for want of rows.
         with ui.pane(gap="xs", classes="pr-1"):
             if rows:
                 for contact in ui.each(rows, key="id"):
                     contact_row(contact, contact["id"] == state.selected_id)
             else:
                 ui.empty_state("Aucun contact", icon="user-x",
-                               description="Ajuste la recherche ou le statut.")
+                               description="Adjust the search or the status.")
         ui.pagination(value=state.page, total_pages=pages, max_visible=5,
                       size="sm", on_change=page_changed)
 
@@ -146,8 +147,8 @@ def contact_panel() -> None:
                if state.selected_id else None)
     if contact is None:
         ui.empty_state(
-            "Aucun contact sélectionné", icon="mouse-pointer-click",
-            description="Choisis un contact à gauche pour voir sa fiche.",
+            "No contact selected", icon="mouse-pointer-click",
+            description="Pick a contact on the left to see its sheet.",
         )
         return
 
@@ -164,11 +165,11 @@ def contact_panel() -> None:
                 ui.text(f"{contact['title']} · {contact['account_name']}",
                         color="muted", size="sm", truncate=True)
             ui.badge(label, color=color, variant="soft")
-            # ``variant="underline"`` et pas un bouton : ``ui.link`` n'offre
-            # que trois variantes de TEXTE (hover / text / underline), et
-            # ``ui.button`` n'a pas de ``href=``. Un appel à l'action qui
-            # navigue n'a donc pas de forme dans le catalogue.
-            ui.link("Ouvrir la fiche", href=f"/contacts/{contact['id']}",
+            # ``variant="underline"`` and not a button: ``ui.link``
+            # offers only three TEXT variants (hover / text / underline),
+            # and ``ui.button`` has no ``href=``. A call to action that
+            # navigates therefore has no shape in the catalogue.
+            ui.link("Open the sheet", href=f"/contacts/{contact['id']}",
                     variant="underline", color="primary")
 
         with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
@@ -177,13 +178,13 @@ def contact_panel() -> None:
                 ("phone", contact["phone"]),
                 ("building-2", f"{contact['account_name']} · "
                                f"{contact['account_city']}"),
-                ("calendar", f"Client depuis le {contact['created_at']}"),
+                ("calendar", f"Customer since {contact['created_at']}"),
             ):
                 with ui.hstack(gap="sm", align="center"):
                     ui.icon(icon, color="muted", size="sm")
                     ui.text(value, size="sm", truncate=True)
 
-        ui.divider(label="Dernières activités")
+        ui.divider(label="Latest activities")
         activities = contact_activities(contact["id"], limit=6)
         if activities:
             for activity in ui.each(activities, key="id"):
@@ -191,25 +192,25 @@ def contact_panel() -> None:
                     ui.text(activity["at"], color="muted", size="xs")
                     ui.text(activity["subject"], size="sm", truncate=True)
         else:
-            ui.text("Rien d'enregistré pour ce contact.", color="muted",
+            ui.text("Nothing recorded for this contact.", color="muted",
                     size="sm")
 
 
 def filter_bar() -> None:
-    # ``ui.grid`` et non ``ui.hstack`` : la racine d'un ``ui.form_field`` est
-    # ``w-full``, donc dans une rangée flex chaque champ prend la largeur
-    # entière et le suivant passe à la ligne. Une grille donne une colonne
-    # bornée à chacun, sans avoir à poser de classe.
+    # ``ui.grid`` and not ``ui.hstack``: a ``ui.form_field``'s root is
+    # ``w-full``, so in a flex row each field takes the whole width and
+    # the next wraps. A grid gives each a bounded column, without having
+    # to set a class.
     state = ContactsUI()
     with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
-        with ui.form_field(label="Recherche"):
-            ui.input(value=state.needle, placeholder="Nom, email, compte…",
+        with ui.form_field(label="Search"):
+            ui.input(value=state.needle, placeholder="Name, email, account…",
                      icon_left="search", clearable=True,
                      on_change=filter_changed, debounce=300)
-        with ui.form_field(label="Statut"):
+        with ui.form_field(label="Status"):
             ui.select(
                 value=state.status,
-                options=[("all", "Tous les statuts"),
+                options=[("all", "Every status"),
                          *[(k, lbl) for k, (lbl, _c) in CONTACT_STATUS.items()]],
                 on_change=filter_changed,
             )
@@ -220,33 +221,33 @@ def contacts_page() -> None:
     with ui.vstack(gap="lg"):
         ui.heading("Contacts", level=1, size="2xl")
         filter_bar()
-        # Le groupe redimensionnable a besoin d'une hauteur : dans un flux
-        # vertical, ses panneaux n'en ont aucune à hériter.
-        # Une hauteur EXPLICITE, pas ``flex-1`` : dans un flux vertical,
-        # ``flex-1`` grandit avec son contenu tant que le parent n'a pas de
-        # hauteur, et la liste débordait sous le pied de page. Mesuré : la
-        # pagination sortait du viewport.
+        # The resizable group needs a height: in a vertical flow, its
+        # panels have none to inherit.
+        # An EXPLICIT height, not ``flex-1``: in a vertical flow,
+        # ``flex-1`` grows with its content as long as the parent has no
+        # height, and the list overflowed below the footer. Measured: the
+        # pagination went outside the viewport.
         with ui.resizable(sizes=[34, 66], orientation="horizontal",
                           gap="md", name="contacts_split",
                           classes="h-[calc(100vh-14rem)]"):
-            # ⚠️ Les DEUX panneaux sont habillés pareil, et c'est le
-            # finding [28]. ``ui.resizable_panel`` n'a aucun padding — il
-            # ne rend aucune classe à lui, c'est écrit et assumé — donc
-            # celui de gauche collait au bord de la fenêtre ET à la
-            # poignée, pendant que celui de droite avait l'air correct
-            # PAR ACCIDENT : sa ``ui.card`` apportait le sien.
+            # ⚠️ BOTH panels are dressed the same, and it is finding
+            # [28]. ``ui.resizable_panel`` has no padding — it renders no
+            # class of its own, which is written and accepted — so the
+            # left one stuck to the window's edge AND to the handle,
+            # while the right one looked right BY ACCIDENT: its
+            # ``ui.card`` brought its own.
             #
-            # La réponse n'est pas un ``padding=`` sur le panneau : ce
-            # serait du vocabulaire propriétaire pour ce que du Tailwind
-            # standard écrit déjà, et ``ui.card`` est le seul composant
-            # du catalogue à exposer cette échelle. C'est l'app qui
-            # décide de sa respiration.
+            # The answer is not a ``padding=`` on the panel: that would
+            # be proprietary vocabulary for what standard Tailwind
+            # already writes, and ``ui.card`` is the catalogue's only
+            # component exposing that scale. It is the app that decides
+            # how it breathes.
             #
-            # Le ``gap="md"`` du groupe, lui, est du framework de plein
-            # droit et fait l'autre moitié : les cartes touchaient la
-            # poignée (2 px entre les deux surfaces), parce qu'aucun
-            # padding d'ancêtre ne peut créer d'espace À L'INTÉRIEUR du
-            # groupe. Seul le parent des panneaux sait où est la poignée.
+            # The group's ``gap="md"``, for its part, is framework by
+            # full right and does the other half: the cards touched the
+            # handle (2 px between the two surfaces), because no
+            # ancestor's padding can create space INSIDE the group. Only
+            # the panels' parent knows where the handle is.
             with ui.resizable_panel(min_size=22):
                 with ui.card(padding="md", classes="h-full min-h-0"):
                     contact_list()

@@ -1,27 +1,27 @@
-"""features/import_data — data : l'import en deux temps, et les archives.
+"""features/import_data — data: the two-step import, and the archives.
 
-``kind="data"``. EF-J1 à EF-J8 et EF-N1 à EF-N3.
+``kind="data"``. EF-J1 to EF-J8 and EF-N1 to EF-N3.
 
-EF-J1 — **on analyse, PUIS on valide**
-----------------------------------------
-*« Rien n'entre en base avant que le professeur ait vu la liste — un
-import est la seule opération qui crée trois cents élèves d'un coup. »*
-D'où deux fonctions et pas une : :func:`analyser` ne touche à rien,
-:func:`valider` écrit.
+EF-J1 — **one analyses, THEN one validates**
+----------------------------------------------
+*"Nothing enters the database before the teacher has seen the list — an
+import is the only operation that creates three hundred pupils at
+once."* Hence two functions and not one: :func:`analyser` touches
+nothing, :func:`valider` writes.
 
-EF-J5 — **l'appariement se fait par NOM, jamais par position**
-----------------------------------------------------------------
-**Piège n° 5**, et c'est le plus visible de tous : *« un élève parti
-pendant l'été suffirait à décaler tout le reste, et à poser chaque visage
-sur son voisin »*. La comparaison porte sur le nom ET le prénom
-ensemble, sans accents ni casse (EF-J6) — « courty leane » doit retrouver
-« COURTY Léane » — et les deux champs restent DISTINCTS (EF-C7).
+EF-J5 — **the matching is done by NAME, never by position**
+--------------------------------------------------------------
+**Trap no. 5**, and it is the most visible of all: *"one pupil gone over
+the summer would be enough to shift all the rest, and to put every face
+on its neighbour"*. The comparison covers the surname AND the first name
+together, without accents or case (EF-J6) — "courty leane" must find
+"COURTY Léane" — and the two fields stay DISTINCT (EF-C7).
 
-EF-J3 — une classe qui a DÉJÀ des élèves est refusée
-------------------------------------------------------
-*« Un second passage y dupliquerait la liste entière. »* Une classe créée
-vide par l'emploi du temps (EF-B6) est en revanche retrouvée par son code
-et remplie : c'est exactement le cas normal de la rentrée.
+EF-J3 — a class that ALREADY has pupils is refused
+----------------------------------------------------
+*"A second pass would duplicate the whole list there."* A class created
+empty by the timetable (EF-B6) is, on the other hand, found by its code
+and filled: it is exactly the normal case at the start of term.
 """
 
 from __future__ import annotations
@@ -37,40 +37,40 @@ from examples.ecole.features.annees import garde_ecriture
 
 
 class ImportRev(AppState):
-    """Le jeton des zones d'import. Même raison que les autres."""
+    """The import zones' token. The same reason as the others."""
 
     rev: int = field(default=0, merge="add")
 
 
 def sans_accents(texte: str) -> str:
-    """La forme comparable d'un nom (EF-J6).
+    """A name's comparable form (EF-J6).
 
-    *« La comparaison porte sur le nom ET le prénom ensemble, sans
-    accents ni casse : "courty leane" doit retrouver "COURTY Léane". »*
-    Les deux champs restent distincts — c'est l'appelant qui les
-    rapproche, pas cette fonction qui les fond.
+    *"The comparison covers the surname AND the first name together,
+    without accents or case: 'courty leane' must find 'COURTY Léane'."*
+    The two fields stay distinct — it is the caller that brings them
+    together, not this function that merges them.
     """
     plie = unicodedata.normalize("NFKD", texte)
     return "".join(c for c in plie if not unicodedata.combining(c)).lower()
 
 
 def cle_de(nom: str, prenom: str) -> str:
-    """La clé d'appariement : nom ET prénom, jamais l'un des deux."""
+    """The matching key: surname AND first name, never one of the two."""
     return f"{sans_accents(nom.strip())}|{sans_accents(prenom.strip())}"
 
 
 def lire_csv(texte: str) -> list[dict]:
-    """Le dépôt d'EF-K (hors périmètre : les `.xls` BIFF8, § 3.2).
+    """EF-K's drop (out of scope: the BIFF8 `.xls`, § 3.2).
 
-    Une ligne par élève, ``NOM;Prénom`` ou ``NOM,Prénom``. Le format est
-    volontairement pauvre : *« lire les .xls de l'établissement mesure la
-    bibliothèque, pas le framework »*, donc le cahier le remplace par un
-    dépôt CSV.
+    One row per pupil, ``SURNAME;Firstname`` or ``SURNAME,Firstname``.
+    The format is deliberately poor: *"reading the school's .xls measures
+    the library, not the framework"*, so the specification replaces it
+    with a CSV drop.
 
-    ⚠️ Ce qui n'est PAS reconnu est rendu tel quel (EF-J7) : *« un nom
-    absent de la classe, deux homonymes, un élève sans photo sont rendus
-    tels quels, à l'écran, pour que le professeur décide »*. Une ligne
-    illisible devient donc une ligne en erreur, pas une ligne sautée.
+    ⚠️ What is NOT recognised is returned as is (EF-J7): *"a name absent
+    from the class, two homonyms, a pupil with no photo are returned as
+    they are, on screen, so the teacher decides"*. So an unreadable row
+    becomes a row in error, not a row skipped.
     """
     lignes: list[dict] = []
     for numero, brute in enumerate(texte.splitlines(), start=1):
@@ -89,11 +89,11 @@ def lire_csv(texte: str) -> list[dict]:
 
 
 def analyser(annee_id: int, code: str, texte: str) -> dict:
-    """EF-J1 — **le premier temps : on regarde, on n'écrit rien.**
+    """EF-J1 — **the first step: one looks, one writes nothing.**
 
-    Rend ``{classe, refus, lignes, doublons, connus, inconnus}``. Aucune
-    écriture, aucune exception : l'écran doit pouvoir tout montrer, y
-    compris ce qui cloche.
+    Returns ``{classe, refus, lignes, doublons, connus, inconnus}``. No
+    write, no exception: the screen must be able to show everything,
+    including what is wrong.
     """
     code = code.strip()
     classes = query(
@@ -109,8 +109,8 @@ def analyser(annee_id: int, code: str, texte: str) -> dict:
             "SELECT COUNT(*) FROM inscriptions WHERE classe_id = ? "
             "AND fin IS NULL", (classe["id"],)) or 0
         if effectif:
-            # EF-J3 : *« un second passage y dupliquerait la liste
-            # entière »*.
+            # EF-J3: *"a second pass would duplicate the whole list
+            # there"*.
             refus = (f"{code} a déjà {effectif} élèves. Un second import y "
                      f"dupliquerait la liste entière. Pour remplacer les "
                      f"photos, c'est le bouton séparé.")
@@ -125,7 +125,7 @@ def analyser(annee_id: int, code: str, texte: str) -> dict:
     for ligne in lignes:
         if not ligne["erreur"] and vues[cle_de(ligne["nom"],
                                                ligne["prenom"])] > 1:
-            # EF-J7 : deux homonymes sont DITS, pas départagés au hasard.
+            # EF-J7: two homonyms are SAID, not decided at random.
             ligne["erreur"] = "en double dans le fichier"
 
     deja = deja_en_base(annee_id) if classe is None else {}
@@ -144,10 +144,10 @@ def analyser(annee_id: int, code: str, texte: str) -> dict:
 
 
 def deja_en_base(annee_id: int) -> dict[str, str]:
-    """``clé → code de classe`` pour les élèves déjà inscrits cette année.
+    """``key → class code`` for the pupils already enrolled this year.
 
-    Sert à DIRE qu'un nom du fichier est déjà ailleurs (EF-J7), pas à
-    l'écarter : c'est le professeur qui décide.
+    Serves to SAY that a name in the file is already elsewhere (EF-J7),
+    not to discard it: it is the teacher who decides.
     """
     return {
         cle_de(r["nom"], r["prenom"]): r["code"]
@@ -163,11 +163,11 @@ def deja_en_base(annee_id: int) -> dict[str, str]:
 
 
 def valider(annee_id: int, code: str, lignes: list[dict]) -> int:
-    """EF-J1 — **le second temps : maintenant on écrit.**
+    """EF-J1 — **the second step: now one writes.**
 
-    Une classe absente est CRÉÉE (le cas de la rentrée) ; une classe
-    créée vide par l'emploi du temps est retrouvée par son code et
-    remplie (EF-J3). Rend le nombre d'élèves ajoutés.
+    An absent class is CREATED (the start-of-term case); a class created
+    empty by the timetable is found by its code and filled (EF-J3).
+    Returns the number of pupils added.
     """
     garde_ecriture(annee_id)
     classes = query(
@@ -201,14 +201,14 @@ def valider(annee_id: int, code: str, lignes: list[dict]) -> int:
 
 def apparier_photos(annee_id: int, classe_id: int,
                     lignes: list[dict]) -> dict:
-    """EF-J4, EF-J5 — **remplacer les photos, sans toucher à la classe.**
+    """EF-J4, EF-J5 — **replace the photos, without touching the class.**
 
-    *« "Remplacer les photos" est un bouton SÉPARÉ de "Ajouter les
-    élèves". On ne veut surtout pas créer trente doublons en croyant
-    rafraîchir des photos. »* Cette fonction ne crée donc AUCUN élève et
-    n'en retire aucun : elle apparie par NOM et pose les images.
+    *""Remplacer les photos" is a button SEPARATE from "Ajouter les
+    élèves". We above all do not want to create thirty duplicates while
+    thinking we are refreshing photos."* So this function creates NO
+    pupil and removes none: it matches by NAME and sets the images.
 
-    Rend ``{poses, absents}`` — et les absents sont DITS (EF-J7).
+    Returns ``{poses, absents}`` — and the absent ones are SAID (EF-J7).
     """
     garde_ecriture(annee_id)
     en_classe = {
@@ -229,10 +229,10 @@ def apparier_photos(annee_id: int, classe_id: int,
         if eleve_id is None:
             absents.append(f"{ligne['nom']} {ligne['prenom']}")
             continue
-        # EF-J8 : le cadrage est une TRANSFORMATION, pas un remplacement —
-        # l'image d'origine est conservée. Ici le jeu de démonstration ne
-        # porte que des initiales (§ 12), donc on note l'ÉTAT du cadrage
-        # plutôt qu'un fichier : c'est lui que l'écran distingue.
+        # EF-J8: the cropping is a TRANSFORMATION, not a replacement —
+        # the original image is kept. Here the demonstration set carries
+        # only initials (§ 12), so we record the cropping's STATE rather
+        # than a file: it is that state the screen distinguishes.
         execute("UPDATE eleves SET photo = ? WHERE id = ?",
                 ("cadrage-par-defaut", eleve_id))
         poses += 1
@@ -240,14 +240,14 @@ def apparier_photos(annee_id: int, classe_id: int,
     return {"poses": poses, "absents": absents}
 
 
-# ── Les archives (EF-N) ──────────────────────────────────────────────
+# ── The archives (EF-N) ──────────────────────────────────────────────
 
 def archive_de(classe_id: int) -> dict:
-    """EF-N1 — *« tout y est, dans l'ordre où on le cherche »*.
+    """EF-N1 — *"everything is there, in the order one looks for it"*.
 
-    Trombinoscope, notes des TROIS trimestres, appréciations, bilan. Une
-    seule lecture, parce que l'archive se fabrique d'un coup (EF-N3) et
-    qu'une page par trimestre obligerait à trois passages.
+    Photo board, marks for all THREE terms, comments, summary. A single
+    read, because the archive is produced in one go (EF-N3) and a page
+    per term would require three passes.
     """
     classes = query(
         "SELECT c.id, c.code, c.libelle, c.cycle, c.prof_principal, "
@@ -287,11 +287,11 @@ def classes_archivables(annee_id: int) -> list[dict]:
 
 
 def photo_datee() -> str:
-    """La date d'aujourd'hui, pour l'en-tête d'une archive (EF-N2).
+    """Today's date, for an archive's header (EF-N2).
 
-    *« C'est une ARCHIVE, pas un bulletin : elle doit se relire dans dix
-    ans sans le programme qui l'a produite. »* Une archive sans sa date
-    de fabrication ne se situe pas.
+    *"It is an ARCHIVE, not a report card: it must be re-readable in ten
+    years without the program that produced it."* An archive without its
+    production date does not situate itself.
     """
     return date.today().isoformat()
 

@@ -22,7 +22,7 @@ Ce qui a été CORRIGÉ plutôt qu'inscrit
 ---------------------------------------
 
 Deux constats ne sont pas dans la table, et c'est le point de cette gate.
-`page-declaree-dans-une-fonction` — née le même jour — a trouvé une page
+`page-declared-in-a-function` — née le même jour — a trouvé une page
 `/` MORTE dans `test_static_dir.py` et dans `test_protocol_compat_gate.py` :
 déclarée dans le corps de la fabrique d'app, donc invisible à
 `include(__name__)`, qui ne balaie que le premier niveau d'un module.
@@ -68,10 +68,10 @@ _BASELINE: dict[tuple[str, str], int] = {
     # Le linter voit l'appel, jamais le `raises` qui l'entoure. Retirer
     # ces appels reviendrait à supprimer les tests qui garantissent que
     # le framework refuse ces formes.
-    ("tests/unit/components/actions/button/test_button.py", "handler-lambda"): 1,
-    ("tests/unit/components/base/test_component.py", "handler-lambda"): 1,
-    ("tests/unit/components/layout/test_viewport_pane.py", "kwargs-inconnu"): 1,
-    # `kwargs-inconnu` est la règle dont `test_examples_pass_real_kwargs`
+    ("tests/unit/components/actions/button/test_button.py", "lambda-handler"): 1,
+    ("tests/unit/components/base/test_component.py", "lambda-handler"): 1,
+    ("tests/unit/components/layout/test_viewport_pane.py", "unknown-kwarg"): 1,
+    # `unknown-kwarg` est la règle dont `test_examples_pass_real_kwargs`
     # exige ZÉRO, au motif qu'un kwarg mort n'a jamais de bonne raison
     # d'exister. C'est vrai d'une app ; ici l'appel est
     # `ui.pane(wrap=True)` sous `raises(TypeError, match="ne se replie
@@ -84,8 +84,8 @@ _BASELINE: dict[tuple[str, str], int] = {
     # nommé : `gauge` est un composant TIERS, donc absent du vocabulaire
     # dérivé de `ui.*`. Un thème tiers valide sera toujours signalé —
     # c'est la limite de `theme_vocabulary`, pas une faute du test.
-    ("tests/consistency/test_theme_refuses_unknown_keys.py", "theme-vocabulaire-inconnu"): 2,
-    ("tests/integration/test_a_third_party_component_can_be_themed.py", "theme-vocabulaire-inconnu"): 1,
+    ("tests/consistency/test_theme_refuses_unknown_keys.py", "unknown-theme-vocabulary"): 2,
+    ("tests/integration/test_a_third_party_component_can_be_themed.py", "unknown-theme-vocabulary"): 1,
     # ── L'état construit hors du bon contexte : le sujet des tests d'état ─
     #
     # Ces fichiers montent des registres à la main pour éprouver le cycle
@@ -93,12 +93,12 @@ _BASELINE: dict[tuple[str, str], int] = {
     # exercent DÉLIBÉRÉMENT le geste que la règle refuse — le corps
     # `async def` d'`test_an_async_only_backend_still_hydrates` est
     # documenté « le geste qui ne PEUT pas marcher ».
-    ("tests/consistency/test_no_state_is_built_through_the_metaclass.py", "etat-construit-sur-la-boucle"): 1,
-    ("tests/integration/server/test_an_async_only_backend_still_hydrates.py", "etat-construit-sur-la-boucle"): 1,
-    ("tests/integration/test_an_async_zone_renders_on_both_paths.py", "etat-construit-sur-la-boucle"): 1,
-    ("tests/unit/state/test_a_business_type_survives_the_store.py", "etat-construit-sur-la-boucle"): 1,
-    ("tests/unit/state/test_a_commit_writes_in_one_window.py", "etat-construit-sur-la-boucle"): 1,
-    ("tests/unit/state/test_snapshot_diff.py", "etat-construit-sur-la-boucle"): 2,
+    ("tests/consistency/test_no_state_is_built_through_the_metaclass.py", "state-built-on-the-loop"): 1,
+    ("tests/integration/server/test_an_async_only_backend_still_hydrates.py", "state-built-on-the-loop"): 1,
+    ("tests/integration/test_an_async_zone_renders_on_both_paths.py", "state-built-on-the-loop"): 1,
+    ("tests/unit/state/test_a_business_type_survives_the_store.py", "state-built-on-the-loop"): 1,
+    ("tests/unit/state/test_a_commit_writes_in_one_window.py", "state-built-on-the-loop"): 1,
+    ("tests/unit/state/test_snapshot_diff.py", "state-built-on-the-loop"): 2,
     # ── Le compteur partagé sans `merge="add"` ──────────────────────────
     #
     # La règle vise l'incrément perdu entre DEUX utilisateurs. Ces
@@ -106,22 +106,22 @@ _BASELINE: dict[tuple[str, str], int] = {
     # regroupement d'une rafale, le rendu d'une zone async — avec une
     # seule session, où le mode d'échec ne peut pas se produire. Le
     # compteur y est le décor le plus court pour observer un re-rendu.
-    ("tests/integration/server/test_action_roundtrip.py", "compteur-partage-non-declare"): 1,
-    ("tests/integration/server/test_an_async_only_backend_still_hydrates.py", "compteur-partage-non-declare"): 3,
-    ("tests/integration/test_an_async_zone_renders_on_both_paths.py", "compteur-partage-non-declare"): 1,
-    ("tests/runtime_js/test_a_burst_of_mutations_is_one_refetch.py", "compteur-partage-non-declare"): 1,
+    ("tests/integration/server/test_action_roundtrip.py", "undeclared-shared-counter"): 1,
+    ("tests/integration/server/test_an_async_only_backend_still_hydrates.py", "undeclared-shared-counter"): 3,
+    ("tests/integration/test_an_async_zone_renders_on_both_paths.py", "undeclared-shared-counter"): 1,
+    ("tests/runtime_js/test_a_burst_of_mutations_is_one_refetch.py", "undeclared-shared-counter"): 1,
     # ── Deux crochets de sonde, pas du code d'app ───────────────────────
     #
     # `classes=f"bz-probe-{nom}"` n'est pas une classe Tailwind : c'est un
     # sélecteur que le test cherche ensuite dans le DOM. Rien à styler,
     # donc rien à clôturer en safelist — mais la règle ne peut pas
     # distinguer un préfixe maison d'un utilitaire.
-    ("tests/runtime_js/test_a_burst_of_mutations_is_one_refetch.py", "classe-tailwind-assemblee"): 1,
+    ("tests/runtime_js/test_a_burst_of_mutations_is_one_refetch.py", "assembled-tailwind-class"): 1,
     # `hx-post` écrit à la main dans un `attrs=` : le test construit
     # exprès le porteur brut pour vérifier qu'un changement relocalisé
     # l'atteint. C'est la famille que
     # `test_raw_htmx_stays_in_the_allowlist` gèle côté framework.
-    ("tests/consistency/test_a_relocated_change_reaches_its_carrier.py", "transport-a-la-main"): 3,
+    ("tests/consistency/test_a_relocated_change_reaches_its_carrier.py", "hand-written-transport"): 3,
 }
 
 
@@ -159,7 +159,7 @@ def test_the_two_404_rules_stay_at_zero() -> None:
     empêche d'inscrire dans la table, un jour de fatigue, les deux fautes
     que cette gate vient de faire corriger.
     """
-    interdites = {"page-declaree-dans-une-fonction", "client-de-test-sans-lifespan"}
+    interdites = {"page-declared-in-a-function", "test-client-without-lifespan"}
     assert interdites <= set(STATIC), (
         f"règle(s) disparue(s) : {sorted(interdites - set(STATIC))} — ce test "
         f"serait vert sans rien garder."

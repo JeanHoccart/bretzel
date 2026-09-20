@@ -1,1 +1,1 @@
-"""examples/shared — code partagé entre plusieurs démos (pas une app)."""
+"""examples/shared — code shared between several demos (not an app)."""

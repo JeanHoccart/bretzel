@@ -123,17 +123,16 @@
             files: [],
             errors: [],
 
-            // ⚠️ Pas de ``destroy()`` : le moteur de scope V3 n'a AUCUN
-            // hook de démontage — la méthode qui vivait ici venait de
-            // l'ère Alpine, où elle était appelée automatiquement, et
-            // n'a plus jamais tourné depuis (audit F22/F74). Les blob
-            // URLs des previews sont révoquées aux trois endroits qui
-            // retirent un fichier (remplacement single-file, removeFile,
-            // clear) ; ce qui reste non libéré, ce sont les previews
-            // d'un composant retiré du DOM avec des fichiers encore
-            // dedans. Dette connue, tracée dans inventory.md : la
-            // rouvrir demande un vrai hook d'unmount côté runtime, pas
-            // une méthode que personne n'appelle.
+            // ⚠️ No ``destroy()``: the V3 scope engine has NO unmount
+            // hook — the method that lived here came from the Alpine
+            // era, where it was called automatically, and has never run
+            // since (audit F22/F74). The previews' blob URLs are revoked
+            // in the three places that remove a file (single-file
+            // replacement, removeFile, clear); what stays unfreed are
+            // the previews of a component removed from the DOM with
+            // files still in it. A known debt, tracked in inventory.md:
+            // reopening it asks for a real unmount hook on the runtime
+            // side, not a method nobody calls.
 
             // ── Validation + add ───────────────────────────────────
             handleFiles(fileList) {
@@ -395,12 +394,12 @@
                 const form = new FormData();
                 form.append('file', file, entry0.name);
                 xhr.open('POST', uploadUrl);
-                // Le middleware CSRF de Bretzel est TOUJOURS actif et
-                // protège tout POST hors ``/_bretzel/action/*``. Sans ce
-                // header, l'upload async se prend un 403 — donc
-                // ``upload_url=`` ne pouvait fonctionner dans AUCUNE app,
-                // le framework rejetant son propre composant. Même source
-                // et même en-tête que le bridge (05_bridge.js).
+                // Bretzel's CSRF middleware is ALWAYS active and
+                // protects every POST outside ``/_bretzel/action/*``.
+                // Without this header, the async upload takes a 403 — so
+                // ``upload_url=`` could work in NO app, the framework
+                // rejecting its own component. Same source and same
+                // header as the bridge (05_bridge.js).
                 if ($bz._csrf) {
                     xhr.setRequestHeader('X-Bretzel-CSRF', $bz._csrf);
                 }

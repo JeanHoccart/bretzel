@@ -1,16 +1,16 @@
-"""Assembler les sources ``_src/[0-9]*_*.js`` dans l'ordre de leur nom.
+"""Assemble the ``_src/[0-9]*_*.js`` sources in the order of their names.
 
-``python -m bretzel.runtime._build`` produit ``runtime.js`` et
-``runtime.min.js``. L'option ``--check`` vérifie que les deux fichiers
-commités correspondent aux sources, sans les réécrire.
+``python -m bretzel.runtime._build`` produces ``runtime.js`` and
+``runtime.min.js``. The ``--check`` option verifies that the two committed
+files match the sources, without rewriting them.
 
-Chaque source garde son IIFE. Les substitutions déclarées dans ``_TOKENS``
-reprennent les constantes de :mod:`bretzel.runtime.protocol` ; la réduction
-est fournie par :mod:`bretzel.runtime._minify`.
+Each source keeps its IIFE. The substitutions declared in ``_TOKENS`` take
+the constants from :mod:`bretzel.runtime.protocol`; the size reduction is
+provided by :mod:`bretzel.runtime._minify`.
 
-Le serveur sert le bundle lisible en mode dev et sa réduction en prod.
-La fraîcheur des bundles est testée ; aucun budget de taille n'est imposé.
-Voir ``.claude/bretzel/runtime.md`` pour le contrat du runtime.
+The server serves the readable bundle in dev mode and its reduced form in
+production. Bundle freshness is tested; no size budget is enforced.
+See ``.claude/bretzel/runtime.md`` for the runtime contract.
 """
 
 from __future__ import annotations
@@ -54,8 +54,9 @@ def _bundle() -> str:
     return bundle
 
 
-#: Le bundle lisible (servi en dev) et sa réduction (servie en prod).
-#: Les deux sont committés : un paquet installé ne rejoue pas le build.
+#: The readable bundle (served in dev) and its reduced form (served in
+#: prod). Both are committed: an installed package does not replay the
+#: build.
 READABLE = HERE / "runtime.js"
 MINIFIED = HERE / "runtime.min.js"
 
@@ -74,11 +75,11 @@ def build() -> Path:
 
 
 def check() -> int:
-    """CI helper : non-zero when either bundle is stale vs ``_src/``.
+    """CI helper: non-zero when either bundle is stale vs ``_src/``.
 
-    Les DEUX sont vérifiés. Un ``runtime.min.js`` périmé ne se voit pas
-    en dev — qui sert l'autre fichier — et ne casserait qu'en
-    production, c'est-à-dire à l'endroit où on le découvre le plus mal.
+    BOTH are checked. A stale ``runtime.min.js`` does not show in dev —
+    which serves the other file — and would only break in production,
+    that is to say in the place where it is discovered worst.
     """
     bundle = _bundle()
     for target, expected in ((READABLE, bundle), (MINIFIED, minify(bundle))):

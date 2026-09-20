@@ -1,13 +1,13 @@
-"""features/pipeline — écran 1 : le pipeline, en kanban glissable.
+"""features/pipeline — screen 1: the pipeline, as a draggable kanban.
 
-Ce que cet écran met sous contrainte : ``ui.dropzone`` + ``ui.drag_each``
-dans des colonnes qui **défilent**, avec des cartes en largeur contrainte.
-Les 17 apps existantes ne glissent que des listes de trois éléments dans un
-conteneur qui ne déborde jamais.
+What this screen puts under constraint: ``ui.dropzone`` + ``ui.drag_each``
+in columns that **scroll**, with cards of constrained width. The 17
+existing apps only drag lists of three items in a container that never
+overflows.
 
-Le drop est OPTIMISTE : le navigateur bouge la carte avant toute requête, le
-handler mute ou refuse, et le morph remet en place ce que le serveur
-contredit. Refuser, c'est ne rien muter — il n'y a pas de ``reject()``.
+The drop is OPTIMISTIC: the browser moves the card before any request,
+the handler mutates or refuses, and the morph puts back what the server
+contradicts. Refusing is mutating nothing — there is no ``reject()``.
 """
 
 from __future__ import annotations
@@ -30,23 +30,23 @@ from examples.crm.features.deals_data import (
 )
 from examples.crm.features.analyse_nav import analyse_nav
 
-#: Les horizons proposés, en jours. Un pipeline se lit sur un trimestre ;
-#: « tout » n'est pas une option — 9 400 cartes ne sont pas une vue.
+#: The horizons offered, in days. A pipeline reads over a quarter;
+#: "everything" is not an option — 9 400 cards are not a view.
 HORIZONS: tuple[tuple[str, str], ...] = (
-    ("30", "30 jours"), ("90", "90 jours"), ("180", "6 mois"),
+    ("30", "30 days"), ("90", "90 days"), ("180", "6 months"),
 )
 
-#: Le groupe de glissement. Une carte d'affaire ne tombe que dans une colonne
-#: d'affaires — le jour où l'écran gagne une autre zone, le groupe la refuse.
+#: The drag group. A deal card only falls into a deals column — the day
+#: the screen gains another zone, the group refuses it.
 DEAL_GROUP = "deal"
 
 
 class PipelineUI(PageState):
-    """Jusqu'où on regarde. **Plus « qui »** : le portefeuille est un
-    cadrage, pas un filtre d'écran, et il vit dans la barre latérale
-    (cf. ``access.visible_owner``). Un sélecteur ici serait un second
-    contrôle pour la même chose — et, pour un commercial, un contrôle
-    qui n'aurait le droit d'avoir qu'une valeur."""
+    """How far we look. **No more "who"**: the portfolio is a scoping,
+    not a screen filter, and it lives in the sidebar (cf.
+    ``access.visible_owner``). A selector here would be a second control
+    for the same thing — and, for a salesperson, a control entitled to
+    only one value."""
 
     horizon: str = field(default='90')
 
@@ -57,17 +57,18 @@ class PipelineUI(PageState):
 
 
 def filter_changed(state: PipelineUI) -> None:
-    """La valeur du contrôle changé est hydratée ; ``deps=`` re-render."""
+    """The changed control's value is hydrated; ``deps=`` re-renders."""
 
 
 def drop_deal(m: Move) -> None:
-    """Ce qu'un drop applique — ou refuse. La vue suffit à le décrire."""
+    """What a drop applies — or refuses. The view is enough to describe
+    it."""
     ui_state = PipelineUI()
     if not move_deal(m, owner=visible_owner(),
                      horizon_days=int(ui_state.horizon)):
         ui.notification(
-            "Déplacement refusé — l'affaire n'existe plus, ou la colonne "
-            "n'accepte pas cette carte.",
+            "Move refused — the deal no longer exists, or the column "
+            "does not accept this card.",
             variant="warning", duration_ms=3000,
         )
 
@@ -86,8 +87,8 @@ def deal_card(deal: dict) -> None:
 
 def stage_column(stage: str, deals: list[dict], total: dict | None) -> None:
     shown, overall = len(deals), (total or {}).get("n", 0)
-    # Le montant de la FENÊTRE, pas celui des cartes affichées : le plafond
-    # coupe le rendu, pas le pipeline.
+    # The WINDOW's amount, not that of the cards shown: the cap cuts the
+    # rendering, not the pipeline.
     amount = (total or {}).get("total") or 0
     with ui.vstack(gap="sm", classes="min-h-0"):
         with ui.hstack(justify="between", align="center"):
@@ -96,17 +97,18 @@ def stage_column(stage: str, deals: list[dict], total: dict | None) -> None:
                 ui.badge(f"{shown} / {overall}", variant="soft",
                          color=STAGE_COLOR[stage], size="xs")
             ui.text(euros(amount), color="muted", size="xs")
-        # La colonne défile : c'est ce que l'écran met sous contrainte. La
-        # hauteur est bornée par le viewport, pas par le nombre de cartes.
+        # The column scrolls: it is what the screen puts under
+        # constraint. The height is bounded by the viewport, not by the
+        # number of cards.
         #
-        # ⚠️ **C'est la ZONE qui défile, pas un conteneur autour d'elle.**
-        # L'inverse — une ``dropzone`` posée DANS le conteneur qui défile —
-        # fait glisser sa bordure avec les cartes : mesuré, après 300 px de
-        # défilement la boîte de la zone passe de [52, 472] à [-248, 172],
-        # donc son cadre coupe le milieu de la colonne au lieu de
-        # l'encadrer, et le surlignage « cette colonne accepte » sort de
-        # l'écran pendant le glisser — au moment précis où il sert.
-        # Ici la zone EST la fenêtre : sa boîte ne bouge pas d'un pixel.
+        # ⚠️ **It is the ZONE that scrolls, not a container around it.**
+        # The reverse — a ``dropzone`` placed INSIDE the scrolling
+        # container — makes its border slide with the cards: measured,
+        # after 300 px of scrolling the zone's box goes from [52, 472] to
+        # [-248, 172], so its frame cuts the middle of the column instead
+        # of framing it, and the "this column accepts" highlight leaves
+        # the screen during the drag — at the precise moment it serves.
+        # Here the zone IS the window: its box does not move by a pixel.
         with ui.dropzone(
             name=stage, accepts=[DEAL_GROUP], on_move=drop_deal,
             classes="min-h-0 max-h-[calc(100vh-19rem)] overflow-y-auto pr-1",
@@ -129,11 +131,11 @@ def board() -> None:
 
 
 def filter_bar() -> None:
-    # ``ui.grid``, pas ``ui.hstack`` : cf. le commentaire jumeau dans
-    # ``contacts.py`` — un ``form_field`` est ``w-full``.
+    # ``ui.grid``, not ``ui.hstack``: cf. the twin comment in
+    # ``contacts.py`` — a ``form_field`` is ``w-full``.
     ui_state = PipelineUI()
     with ui.grid(cols={"base": 1, "md": 4}, gap="md"):
-        with ui.form_field(label="Échéance sous"):
+        with ui.form_field(label="Closing within"):
             ui.select(value=ui_state.horizon, options=list(HORIZONS),
                       on_change=filter_changed)
 

@@ -11,8 +11,8 @@
  *   4. Wire the HTMX bridge listeners.
  *   5. Wire the OS color-scheme listener ($bz._osScheme signal).
  *   6. Scan the document : bz-data scopes + all bz-* directives.
- *      (L'ordre 5/6 était inversé dans ce commentaire jusqu'au
- *      2026-08-01 — le listener OS est câblé AVANT le scan.)
+ *      (Steps 5/6 were inverted in this comment until 2026-08-01 — the
+ *      OS listener is wired BEFORE the scan.)
  *   7. Wire the SSE EventSource + data-bz-subscribe-* zones.
  *   8. Add .bz-ready on <html> (releases [bz-data]{visibility:hidden}),
  *      dispatch bz:ready.
@@ -25,29 +25,29 @@
   const $bz = (window.$bz = window.$bz || {});
   $bz.version = "__PROTOCOL_VERSION__";
 
-  // Le vocabulaire de config de transport que le CLIENT consomme, déclaré
-  // en UN endroit et copié en boucle plus bas. C'est un point d'ancrage
-  // SYNTAXIQUE, pas du style : la gate
-  // ``tests/consistency/test_client_state_transport_config.py`` lit ce
-  // littéral pour vérifier que le serveur émet bien tout ce qu'on lit.
-  // Sans lui, elle devait deviner les lectures à la regex (``cfg.<x>``),
-  // ce qui ramassait ``cfg.mode`` / ``cfg.weekstart`` du calendrier — et
-  // compensait par une liste de noms écrite à la main, donc ne couvrait
-  // PAS la clé suivante. Même rôle que le ``kind === "…"`` sur lequel
-  // s'ancre la gate soeur des kinds d'erreur.
+  // The transport-config vocabulary the CLIENT consumes, declared in
+  // ONE place and copied in the loop below. It is a SYNTACTIC anchor,
+  // not style: the gate
+  // ``tests/consistency/test_client_state_transport_config.py`` reads
+  // this literal to check the server really emits everything we read.
+  // Without it, it had to guess the reads with a regex (``cfg.<x>``),
+  // which picked up the calendar's ``cfg.mode`` / ``cfg.weekstart`` —
+  // and compensated with a hand-written list of names, so did NOT cover
+  // the next key. Same role as the ``kind === "…"`` the sibling gate for
+  // error kinds anchors on.
   const CONFIG_KEYS = ["send_to_server"];
 
-  // Adopter la config de transport d'UNE instance. Deux appelants, un
-  // seul corps : le boot (depuis l'``<bz-envelope>``) et le bridge
-  // (depuis le ``<bz-patch>`` de seed d'une nav partielle). Avant le
-  // 2026-08-15 ce corps n'existait qu'inline dans le boot, donc un
-  // ``ClientState`` découvert en nav partielle recevait ses champs sans
-  // sa config : ``send_to_server`` ignoré, et ``persist`` sans
-  // adaptateur — donc une valeur sauvegardée jamais relue.
+  // Adopt ONE instance's transport config. Two callers, a single body:
+  // the boot (from the ``<bz-envelope>``) and the bridge (from a partial
+  // nav's seed ``<bz-patch>``). Before 2026-08-15 this body only existed
+  // inline in the boot, so a ``ClientState`` discovered during a partial
+  // nav got its fields without its config: ``send_to_server`` ignored,
+  // and ``persist`` with no adapter — so a saved value never read back.
   //
-  // ⚠️ À appeler APRÈS avoir semé les champs de l'instance : ``register``
-  // superpose le snapshot déjà stocké, qui doit gagner sur les défauts du
-  // serveur (« the user's browser knows better », 04_persistence.js).
+  // ⚠️ To be called AFTER seeding the instance's fields: ``register``
+  // superimposes the already stored snapshot, which must beat the
+  // server's defaults ("the user's browser knows better",
+  // 04_persistence.js).
   function adoptConfig(path, entry) {
     const cfg = {};
     for (const key of CONFIG_KEYS) cfg[key] = entry[key];
@@ -76,21 +76,21 @@
       else flat.get(path).set(value);
       if ($bz._persistence) $bz._persistence.notify(path, value);
     },
-    // Poser une valeur INITIALE : ne fait rien si le champ en a déjà une.
+    // Set an INITIAL value: does nothing if the field already has one.
     //
-    // C'est ce qui sépare « semer » de « pousser », et la différence a
-    // coûté le mode de couleur de l'utilisateur : à chaque navigation
-    // partielle, le serveur ré-émet TOUTES les instances de la page
-    // (`include_unchanged=True`) — avec ses valeurs à lui, c'est-à-dire
-    // les défauts, puisqu'il ne peut pas connaître celles du navigateur.
-    // Un `set` les écrasait, et comme `set` notifie la persistance, le
-    // défaut partait dans localStorage AVANT que `adoptConfig` n'aille y
-    // relire le snapshot. Le choix de l'utilisateur était détruit, pas
-    // seulement masqué.
+    // It is what separates "seeding" from "pushing", and the difference
+    // cost the user's colour mode: at every partial navigation, the
+    // server re-emits ALL the page's instances
+    // (`include_unchanged=True`) — with its own values, that is to say
+    // the defaults, since it cannot know the browser's. A `set`
+    // overwrote them, and since `set` notifies the persistence, the
+    // default went into localStorage BEFORE `adoptConfig` went and read
+    // the snapshot back from it. The user's choice was destroyed, not
+    // merely hidden.
     //
-    // `undefined` compte comme absent : `get()` auto-crée un signal vide
-    // pour qu'un effet puisse s'abonner avant le premier patch, donc
-    // l'existence du signal ne dit pas qu'il porte une valeur.
+    // `undefined` counts as absent: `get()` auto-creates an empty signal
+    // so an effect can subscribe before the first patch, so the signal's
+    // existence does not say it carries a value.
     seed(path, value) {
       if (flat.has(path) && flat.get(path).peek() !== undefined) return;
       this.set(path, value);
@@ -145,74 +145,72 @@
   let _sseUrl = null;
   let _sseSource = null;
 
-  /* L'identité de CET onglet, tirée une fois par chargement de page.
-     Elle ne désigne rien côté serveur, ne survit pas à la fermeture de
-     l'onglet, et sert à une seule chose : permettre au serveur de ne PAS
-     rediffuser à celui qui vient d'écrire ce qu'il vient de recevoir.
-     Sans elle, cocher une case sur un tableau partagé coûtait cinq
-     requêtes au lieu d'une — l'action, puis une re-lecture par zone
-     abonnée, chacune renvoyant exactement ce que la première avait
-     livré (mesuré sur `examples/kanban` : 354 Ko pour 177 Ko utiles).
+  /* THIS tab's identity, drawn once per page load.
+     It designates nothing on the server side, does not survive the tab
+     closing, and serves one thing only: letting the server NOT
+     re-broadcast to whoever has just written what it has just received.
+     Without it, ticking a box on a shared table cost five requests
+     instead of one — the action, then one re-read per subscribed zone,
+     each returning exactly what the first had delivered (measured on
+     `examples/kanban`: 354 kB for 177 kB of use).
 
-     `crypto.randomUUID` n'est pas garanti hors contexte sécurisé — un
-     `http://192.168.x.x` de test le perd — d'où le repli. La valeur n'a
-     aucune exigence cryptographique : elle doit seulement être unique
-     parmi les onglets ouverts d'une même personne. */
+     `crypto.randomUUID` is not guaranteed outside a secure context — a
+     test `http://192.168.x.x` loses it — hence the fallback. The value
+     has no cryptographic requirement: it only has to be unique among
+     one person's open tabs. */
   $bz._tabId = (function () {
     try {
       if (window.crypto && window.crypto.randomUUID) {
         return window.crypto.randomUUID();
       }
-    } catch (e) { /* contexte non sécurisé */ }
+    } catch (e) { /* insecure context */ }
     return (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
   })();
 
-  // ── Le refetch d'UNE zone abonnee ────────────────────────────────
+  // ── Refetching ONE subscribed zone ────────────────────────────────
   //
-  // ⚠️ Ceci s'ecrivait, jusqu'au 2026-09-04 :
+  // ⚠️ This was written, until 2026-09-04:
   //
   //     window.htmx.ajax("GET", url, { swap: "none" })
   //
-  // Sans ``source``, htmx rattache la requete a ``document.body`` —
-  // donc les N zones d'une page partagent UN element, et son
-  // ``hx-sync`` implicite les fait se supprimer les unes les autres.
-  // Mesure sur trois zones abonnees au meme etat, sur un client qui ne
-  // recoit QUE le flux (pas les swaps OOB de sa propre action) :
+  // With no ``source``, htmx attaches the request to ``document.body``
+  // — so a page's N zones share ONE element, and its implicit
+  // ``hx-sync`` makes them cancel each other. Measured on three zones
+  // subscribed to the same state, on a client that receives ONLY the
+  // stream (not the OOB swaps of its own action):
   //
-  //     tour 1   a=5    b=0    c=5     (attendu 5 partout)
-  //     tour 2   a=5    b=0    c=10    (attendu 10)
-  //     tour 3   a=10   b=0    c=15    (attendu 15)
+  //     round 1   a=5    b=0    c=5     (expected 5 everywhere)
+  //     round 2   a=5    b=0    c=10    (expected 10)
+  //     round 3   a=10   b=0    c=15    (expected 15)
   //
-  // La zone du MILIEU ne se rafraichit jamais, la premiere reste un
-  // tour en arriere, seule la derniere est juste. Ce n'est pas une
-  // lenteur, c'est de la donnee FAUSSE affichee indefiniment — et rien
-  // ne le signale, ni console, ni reseau : les requetes perdues n'ont
-  // jamais ete emises.
+  // The MIDDLE zone never refreshes, the first stays a round behind,
+  // only the last is right. It is not slowness, it is WRONG data
+  // displayed indefinitely — and nothing reports it, neither console
+  // nor network: the lost requests were never emitted.
   //
-  // ``source: zone`` rend a chaque zone son propre cycle de requete.
+  // ``source: zone`` gives each zone back its own request cycle.
   //
-  // ── Et la coalescence, qui est l'autre moitie ─────────────────────
+  // ── And the coalescing, which is the other half ────────────────────
   //
-  // Le meme evenement SSE reveille tous les clients a la meme
-  // milliseconde, et deux signaux rapproches valent deux requetes dont
-  // la premiere decrit deja un etat perime. D'ou une fenetre par zone
-  // (on garde la DERNIERE demande) et un decalage aleatoire par client
-  // (on etale la horde).
+  // The same SSE event wakes every client on the same millisecond, and
+  // two close signals are two requests, the first of which already
+  // describes a stale state. Hence a window per zone (we keep the LAST
+  // demand) and a random offset per client (we spread the herd).
   //
-  // Les deux nombres sont petits a dessein : au-dela, un « temps reel »
-  // cesse d'en etre un. 40 ms de fenetre tiennent une rafale de
-  // signaux, 60 ms d'etalement suffisent a desynchroniser des clients
-  // que le meme evenement reveille ensemble.
+  // Both numbers are small on purpose: beyond that, a "real time" stops
+  // being one. 40 ms of window holds a burst of signals, 60 ms of
+  // spread is enough to desynchronise clients the same event wakes
+  // together.
   const REFETCH_WINDOW_MS = 40;
   const REFETCH_SPREAD_MS = 60;
 
-  // Le decalage est tire UNE fois par page : le re-tirer a chaque
-  // evenement re-synchroniserait les clients en moyenne, ce qui est
-  // exactement ce qu'on cherche a eviter.
+  // The offset is drawn ONCE per page: redrawing it at every event
+  // would re-synchronise the clients on average, which is exactly what
+  // we are trying to avoid.
   const _refetchJitter = Math.random() * REFETCH_SPREAD_MS;
 
-  // Cle par ELEMENT : une zone remplacee par un morph perd son entree
-  // avec lui, et n'herite pas du minuteur de l'ancienne.
+  // Keyed by ELEMENT: a zone replaced by a morph loses its entry with
+  // it, and does not inherit the old one's timer.
   const _refetchPending = new WeakMap();
 
   function refetchZone(zone, url) {
@@ -221,8 +219,8 @@
       state = { timer: null };
       _refetchPending.set(zone, state);
     }
-    // Une demande plus recente remplace celle qui attendait : elles
-    // decrivent le meme etat final, et seule la derniere le connait.
+    // A more recent demand replaces the one that was waiting: they
+    // describe the same final state, and only the last one knows it.
     if (state.timer) clearTimeout(state.timer);
     state.timer = setTimeout(function () {
       state.timer = null;
@@ -279,9 +277,10 @@
       const clientState = config.client_state || {};
       for (const path of Object.keys(clientState)) {
         const entry = clientState[path];
-        // Les champs D'ABORD, la config ENSUITE : ``adoptConfig`` appelle
-        // ``register``, qui superpose le snapshot stocké — il doit écraser
-        // les défauts du serveur, pas l'inverse.
+        // The fields FIRST, the config AFTERWARDS: ``adoptConfig``
+        // calls ``register``, which superimposes the stored snapshot —
+        // it must overwrite the server's defaults, not the other way
+        // round.
         const fields = entry.fields || {};
         for (const field of Object.keys(fields)) {
           $bz._store.set(path + "." + field, fields[field]);
@@ -289,39 +288,39 @@
         adoptConfig(path, entry);
       }
       $bz._csrf = config.csrf || null;
-      // L'identite de page, que le pont pose en en-tete sur chaque
-      // action. Sans elle, le serveur en forge une neuve et l'action
-      // repart avec un etat de scope ``page`` VIERGE. Elle n'arrivait
-      // jusque-la que par le ``hx-headers`` du conteneur de page, dont
-      // un panneau teleporte dans <body> est sorti — d'ou un handler de
-      // dropdown / dialog / drawer qui perdait l'etat en silence.
+      // The page identity, which the bridge sets as a header on every
+      // action. Without it, the server forges a new one and the action
+      // leaves with a BLANK ``page`` scope state. Until then it only
+      // arrived through the page container's ``hx-headers``, which a
+      // panel teleported into <body> left — hence a dropdown / dialog /
+      // drawer handler that lost the state in silence.
       $bz._pageId = config.page_id || null;
       $bz._endpoints = config.endpoints || {};
 
-      // ── L'adresse, corrigee ────────────────────────────────────────
+      // ── The address, corrected ─────────────────────────────────────
       //
-      // Un etat de portee ``session`` se souvient d'un tri ou d'un
-      // filtre par-dela les navigations : revenir sur ``/comptes`` nu
-      // rend une vue triee sous une adresse qui n'en dit rien, et le
-      // lien copie montre autre chose chez qui le recoit. Le serveur
-      // sait les deux et pose ici l'adresse juste.
+      // A ``session``-scoped state remembers a sort or a filter beyond
+      // navigations: coming back to a bare ``/accounts`` renders a
+      // sorted view under an address that says nothing about it, and the
+      // copied link shows something else to whoever receives it. The
+      // server knows both and sets the right address here.
       //
-      // ``replaceState`` et PAS ``pushState`` : corriger n'est pas
-      // naviguer. Empiler une entree a chaque chargement rendrait le
-      // bouton retour inutilisable — il faudrait deux clics pour un
-      // mouvement.
+      // ``replaceState`` and NOT ``pushState``: correcting is not
+      // navigating. Stacking an entry at every load would make the back
+      // button unusable — it would take two clicks for one move.
       //
-      // ``history.state`` est preserve : htmx y range le sien, et le lui
-      // ecraser casserait sa restauration sur les entrees qu'il a creees.
+      // ``history.state`` is preserved: htmx files its own there, and
+      // overwriting it would break its restoration on the entries it
+      // created.
       if (config.address) {
         try {
           window.history.replaceState(
             window.history.state, "", config.address,
           );
         } catch (e) {
-          // Une adresse refusee (origine differente) ne doit pas empecher
-          // la page de booter : l'adresse restera muette, la vue est
-          // juste. On degrade, on ne casse pas.
+          // A refused address (a different origin) must not stop the
+          // page booting: the address will stay silent, the view is
+          // right. We degrade, we do not break.
           console.error("bz: adresse non corrigeable", config.address, e);
         }
       }
@@ -350,17 +349,17 @@
     if ($bz._store.peek("ColorScheme.default.mode") === undefined) {
       $bz._store.set("ColorScheme.default.mode", "system");
     }
-    // La resolution mode -> sombre, en UN endroit. L'effet ci-dessous la
-    // pose sur <html> ; ``ColorScheme.toggle()`` (Python) l'appelle pour
-    // basculer contre CE QU'ON VOIT et non contre le jeton stocke.
+    // The mode -> dark resolution, in ONE place. The effect below sets
+    // it on <html>; ``ColorScheme.toggle()`` (Python) calls it to flip
+    // against WHAT IS SEEN and not against the stored token.
     //
-    // Sans ca, partir de ``system`` sur un OS sombre rendait le PREMIER
-    // clic invisible : il ecrivait ``dark``, deja la valeur resolue.
-    // Mesure sur les deux apps de demo le 2026-09-04 -- l'utilisateur l'a
-    // rapporte comme "le bouton ne marche pas", ce qui est la bonne
-    // lecture d'un controle qui ne fait rien une fois sur deux.
+    // Without that, starting from ``system`` on a dark OS made the FIRST
+    // click invisible: it wrote ``dark``, already the resolved value.
+    // Measured on both demo apps on 2026-09-04 — the user reported it as
+    // "the button does not work", which is the right reading of a
+    // control that does nothing one time in two.
     //
-    // Lit deux signaux, donc appele DANS l'effet il garde le suivi.
+    // Reads two signals, so called INSIDE the effect it keeps tracking.
     $bz._isDark = function () {
       const m = $bz._store.get("ColorScheme.default.mode");
       return (
@@ -390,8 +389,8 @@
     }
 
     if ($bz._endpoints && $bz._endpoints.sse) {
-      // L'identité passe par l'URL : `EventSource` n'a aucune façon de
-      // poser un en-tête.
+      // The identity goes through the URL: `EventSource` has no way of
+      // setting a header.
       _sseUrl = $bz._endpoints.sse
         + ($bz._endpoints.sse.indexOf("?") >= 0 ? "&" : "?")
         + "tab=" + encodeURIComponent($bz._tabId);

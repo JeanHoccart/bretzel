@@ -32,12 +32,12 @@ from bretzel.theme.tokens import BREAKPOINTS
 # "smallest", and Tailwind has no ``xs:`` variant to collide with).
 BASE_KEYS = frozenset({"base", "xs", "", "default"})
 
-# Tailwind's default breakpoint ladder — RÉ-EXPORTÉE depuis
-# ``theme.tokens``, qui la possède. Une clé hors de cet ensemble
-# émettrait un préfixe que Tailwind ne génère jamais (un no-op
-# silencieux) : on refuse plutôt que d'expédier des classes mortes.
-# La safelist doit clôturer sur le même ensemble, d'où la source unique
-# dans la couche theme — cf. le commentaire là-bas.
+# Tailwind's default breakpoint ladder — RE-EXPORTED from
+# ``theme.tokens``, which owns it. A key outside this set would emit a
+# prefix Tailwind never generates (a silent no-op): we refuse rather than
+# ship dead classes.
+# The safelist must close over the same set, hence the single source in
+# the theme layer — cf. the comment over there.
 
 _ALLOWED = "base, " + ", ".join(BREAKPOINTS)
 
@@ -78,23 +78,23 @@ def responsive_classes(value: Any, resolve: Callable[[Any], str]) -> str:
 
 
 def looks_like_a_breakpoint_dict(value: Any) -> bool:
-    """Ce dict est-il une échelle de paliers, ou de la DONNÉE ?
+    """Is this dict a scale of steps, or DATA?
 
-    La question se pose parce que le socle refuse désormais un dict de
-    paliers sur un prop non gradué (:meth:`Component._reject_stray_breakpoints`),
-    et qu'il doit le faire sans jamais se tromper sur un prop qui prend
-    légitimement un dict — les lignes d'un tableau, une carte de
-    valeurs, un attribut composé.
+    The question arises because the base layer now refuses a step dict on
+    a non-graded prop (:meth:`Component._reject_stray_breakpoints`), and
+    it has to do so without ever being wrong about a prop that
+    legitimately takes a dict — a table's rows, a map of values, a
+    composite attribute.
 
-    D'où le discriminant : **toutes** les clés sont des paliers connus.
-    ``{"base": …, "md": …}`` ne peut pas être autre chose ;
-    ``{"id": 1, "nom": "x"}`` n'est jamais confondu. Un dict vide n'est
-    pas une échelle non plus — il ne dit rien, et le refuser
-    n'apprendrait rien à personne.
+    Hence the discriminant: **all** the keys are known steps.
+    ``{"base": …, "md": …}`` cannot be anything else; ``{"id": 1,
+    "name": "x"}`` is never confused with one. An empty dict is not a
+    scale either — it says nothing, and refusing it would teach nobody
+    anything.
 
-    ⚠️ Le versant coûteux est le LICITE : une gate qui rougit sur du
-    code juste se fait débrancher. C'est pourquoi le test n'est pas
-    « c'est un dict » mais « c'est un dict de paliers ».
+    ⚠️ The expensive side is the LEGITIMATE one: a gate that goes red on
+    correct code gets unplugged. That is why the test is not "it is a
+    dict" but "it is a dict of steps".
     """
     return (
         isinstance(value, dict)
@@ -106,48 +106,45 @@ def looks_like_a_breakpoint_dict(value: Any) -> bool:
 def reject_stray_breakpoints(
     owner: str, prop: str, value: Any, responsive_props: frozenset[str]
 ) -> None:
-    """Un dict de paliers sur un prop qui n'est pas gradué : on le DIT.
+    """A step dict on a prop that is not graded: we SAY so.
 
-    Sans ce refus, le dict continue jusqu'à un lookup de table de thème
-    et meurt trois frames plus bas sur ::
+    Without this refusal, the dict carries on to a theme-table lookup and
+    dies three frames below on ::
 
         TypeError: cannot use 'dict' as a dict key (unhashable type: 'dict')
 
-    — qui ne nomme ni le composant, ni le prop, ni le fait qu'un dict de
-    paliers n'a pas sa place là. Mesuré le 2026-09-04 : **80 couples
-    ``Classe.prop``** mouraient comme ça, recensés un par un dans
-    ``tests/consistency/_not_graded.txt`` parce qu'on ne savait pas les
-    réparer d'un coup.
+    — which names neither the component, nor the prop, nor the fact that
+    a step dict has no place there. Measured on 2026-09-04: **80
+    ``Class.prop`` pairs** died like that, listed one by one in
+    ``tests/consistency/_not_graded.txt`` because we did not know how to
+    repair them in one go.
 
-    Le framework avait pourtant DÉJÀ la bonne forme d'erreur —
-    ``ui.card(size=…)`` répond « ce composant ne lit pas ``size`` »,
-    clair et actionnable. Ce qui manquait n'était pas le message, c'était
-    qu'il soit ATTEINT : l'ancien garde ``reject_responsive`` existait
-    mais n'était câblé que sur ``flex`` et ``carousel``, deux composants
-    sur une centaine, une ligne à la main par prop. Appelé depuis le
-    socle avec la déclaration ``RESPONSIVE_PROPS``, il devient universel
-    sans une ligne par prop, et sans rien à oublier sur un composant
-    neuf.
+    Yet the framework ALREADY had the right shape of error —
+    ``ui.card(size=…)`` answers "this component does not read ``size``",
+    clear and actionable. What was missing was not the message, it was
+    that it be REACHED: the old ``reject_responsive`` guard existed but
+    was wired only on ``flex`` and ``carousel``, two components out of a
+    hundred, one hand-written line per prop. Called from the base layer
+    with the ``RESPONSIVE_PROPS`` declaration, it becomes universal with
+    no line per prop, and with nothing to forget on a new component.
 
-    ⚠️ Le discriminant est :func:`looks_like_a_breakpoint_dict`, pas
-    « c'est un dict » : plusieurs props prennent légitimement un dict de
-    DONNÉES, et un garde qui les refuserait serait débranché dans la
-    semaine.
+    ⚠️ The discriminant is :func:`looks_like_a_breakpoint_dict`, not "it
+    is a dict": several props legitimately take a dict of DATA, and a
+    guard that refused them would be unplugged within the week.
     """
     if prop in responsive_props or not looks_like_a_breakpoint_dict(value):
         return
-    gradues = sorted(responsive_props)
-    ce_qui_marche = (
-        "Sur ce composant, "
-        + ", ".join(f"``{p}``" for p in gradues)
-        + (" le prend." if len(gradues) == 1 else " le prennent.")
-        if gradues
-        else "Aucun prop de ce composant n'est gradué."
+    graded = sorted(responsive_props)
+    what_works = (
+        "On this component, "
+        + ", ".join(f"``{p}``" for p in graded)
+        + (" takes one." if len(graded) == 1 else " take one.")
+        if graded
+        else "No prop of this component is graded."
     )
     raise ComponentUsageError(
-        f"{owner}({prop}=…) : ``{prop}`` ne prend pas de dict de paliers. "
-        f"{ce_qui_marche} Un choix qui n'est pas une GRADUATION est "
-        f"structurel — branchez-le dans votre mise en page avec "
-        f"``if Screen().is_mobile:``, qui dit la même chose sans une "
-        f"seconde manière de le dire."
+        f"{owner}({prop}=…): ``{prop}`` does not take a step dict. "
+        f"{what_works} A choice that is not a GRADUATION is structural "
+        f"— branch it in your layout with ``if Screen().is_mobile:``, "
+        f"which says the same thing without a second way of saying it."
     )

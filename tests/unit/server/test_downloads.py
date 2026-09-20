@@ -78,7 +78,7 @@ class TestFormesRendues:
         def x() -> object:
             return object()
 
-        with TestClient(_app(x)) as client, pytest.raises(TypeError, match="rendu un"):
+        with TestClient(_app(x)) as client, pytest.raises(TypeError, match="returned a"):
             client.get("/x.dat")
 
     def test_an_async_function_is_awaited(self) -> None:
@@ -154,11 +154,11 @@ class TestMarque:
             return ""
 
         download("/a.csv")(f)
-        with pytest.raises(DownloadAlreadyMarkedError, match="déjà marquée"):
+        with pytest.raises(DownloadAlreadyMarkedError, match="already marked"):
             download("/b.csv")(f)
 
     def test_a_path_without_a_leading_slash_is_REFUSED(self) -> None:
-        with pytest.raises(ValueError, match="commence par"):
+        with pytest.raises(ValueError, match="starts with"):
             download("clients.csv")
 
     def test_re_marking_with_the_SAME_path_is_allowed(self) -> None:

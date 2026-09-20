@@ -1,52 +1,52 @@
-/* 21_signature_pad.js — scope partagé du composant SignaturePad.
+/* 21_signature_pad.js — the SignaturePad component's shared scope.
  *
- * **Le premier et le seul `<canvas>` du dépôt** (vérifié : zéro autre
- * occurrence, les charts sont en SVG). Tout ce qui suit découle de deux
- * propriétés du canvas que le reste du framework n'a jamais eu à gérer :
- * il n'a aucune taille intrinsèque, et **le redimensionner l'efface**.
+ * **The repository's first and only `<canvas>`** (checked: zero other
+ * occurrence, the charts are SVG). Everything that follows comes from
+ * two properties of the canvas the rest of the framework never had to
+ * deal with: it has no intrinsic size, and **resizing it clears it**.
  *
- * ── Troisième membre de la famille pointer-drag ───────────────────────
- *   - `12_slider.js`      = pointeur → une VALEUR sur une échelle ;
- *   - `20_resizable.js`   = pointeur → une DIMENSION ;
- *   - ici                 = pointeur → un TRACÉ.
- * Rien à voir avec le node-DnD de `19_dnd.js`. La capture de pointeur
- * passe par `$bz.helpers.capturePointer`, extraite le 2026-08-13 en
- * livrant `resizable` — ce fichier est son premier appelant neuf.
+ * ── The third member of the pointer-drag family ───────────────────────
+ *   - `12_slider.js`      = pointer → a VALUE on a scale;
+ *   - `20_resizable.js`   = pointer → a DIMENSION;
+ *   - here                = pointer → a STROKE.
+ * Nothing to do with `19_dnd.js`'s node-DnD. The pointer capture goes
+ * through `$bz.helpers.capturePointer`, extracted on 2026-08-13 while
+ * shipping `resizable` — this file is its first new caller.
  *
  *   bz-data="{...$bz.signaturePad.scope, value: '', _canvas: null,
  *             _strokes: [], _drawing: null, _base: null,
  *             _read(){…}, _write(v){…}}"
  *
- * ── Pourquoi on garde les POINTS, alors qu'il n'y a pas d'undo ────────
- * Ce n'est pas pour annuler — l'API n'expose que `.clear()`, une
- * signature se refait et ne se retouche pas. C'est parce qu'un canvas
- * **perd son contenu à chaque changement de taille**, et qu'un pad dans
- * un formulaire responsive en change pour de vrai : un téléphone qu'on
- * tourne, un panneau qu'on ouvre, un `resizable` qu'on tire. Sans les
- * points, la signature disparaît à la rotation. L'alternative — relire
- * le bitmap et le redessiner à l'échelle — dégrade à chaque passe.
+ * ── Why we keep the POINTS, when there is no undo ─────────────────────
+ * It is not to undo — the API only exposes `.clear()`, a signature is
+ * redone and not touched up. It is because a canvas **loses its content
+ * at every size change**, and a pad in a responsive form really does
+ * change: a phone you turn, a panel you open, a `resizable` you drag.
+ * Without the points, the signature disappears on rotation. The
+ * alternative — reading the bitmap back and redrawing it to scale —
+ * degrades at every pass.
  *
- * ── La valeur est VIDE tant que rien n'est tracé ──────────────────────
- * Un canvas neuf rend un PNG parfaitement valide : un rectangle blanc.
- * Le publier ferait passer « pas encore signé » pour « signé », côté
- * serveur, sans que rien ne semble faux. Zéro trait ⇒ chaîne vide.
+ * ── The value is EMPTY as long as nothing is drawn ────────────────────
+ * A fresh canvas returns a perfectly valid PNG: a white rectangle.
+ * Publishing it would pass "not signed yet" off as "signed", on the
+ * server side, with nothing looking wrong. Zero strokes ⇒ empty string.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  //: Épaisseur du trait, en pixels CSS. Une constante et pas un prop :
-  //: une signature n'a qu'une graisse qui marche, et la rendre réglable
-  //: n'ajouterait aucun pouvoir (memory `project_api_opinionation_thesis`).
+  //: The stroke's thickness, in CSS pixels. A constant and not a prop:
+  //: a signature has only one weight that works, and making it settable
+  //: would add no power (memory `project_api_opinionation_thesis`).
   const LINE_WIDTH = 2;
 
   $bz.signaturePad = {
     scope: {
-      // ── Le canvas et sa taille ───────────────────────────────────
-      // ⚠️ Redimensionner un canvas l'EFFACE, et lui donner une taille
-      // en pixels CSS ne suffit pas : sans le facteur de densité, le
-      // trait est flou sur tout écran retina — c'est-à-dire sur tous
-      // les téléphones, l'environnement de test de ce dépôt.
+      // ── The canvas and its size ──────────────────────────────────
+      // ⚠️ Resizing a canvas CLEARS it, and giving it a size in CSS
+      // pixels is not enough: without the density factor, the stroke is
+      // blurry on every retina screen — that is to say on every phone,
+      // this repository's test environment.
       _resize() {
         const c = this._canvas;
         if (!c) return;
@@ -55,10 +55,10 @@
         const dpr = window.devicePixelRatio || 1;
         const w = Math.round(box.width * dpr);
         const h = Math.round(box.height * dpr);
-        // Ne rien faire quand rien n'a bougé : une écriture sur
-        // ``canvas.width`` efface le contenu MÊME si la valeur est
-        // identique. L'observer rapporte au premier branchement, donc
-        // sans cette garde le pad s'effacerait à chaque rescan.
+        // Do nothing when nothing has moved: a write to
+        // ``canvas.width`` clears the content EVEN if the value is
+        // identical. The observer reports at the first wiring, so
+        // without that guard the pad would clear at every rescan.
         if (c.width === w && c.height === h) return;
         c.width = w;
         c.height = h;
@@ -67,11 +67,11 @@
         this._redraw();
       },
 
-      // Rebrancher l'observer à chaque rescan plutôt qu'au ``bz-init``,
-      // et le ranger sur le NŒUD : ``bz-init`` est one-shot par nœud et
-      // idiomorph morphe en place, donc un observer installé là ne
-      // reverrait jamais un canvas remplacé. Même choix, même raison que
-      // ``_observeGeom`` du Carousel.
+      // Re-wire the observer at every rescan rather than at the
+      // ``bz-init``, and file it on the NODE: ``bz-init`` is one-shot
+      // per node and idiomorph morphs in place, so an observer installed
+      // there would never see a replaced canvas again. Same choice, same
+      // reason as the Carousel's ``_observeGeom``.
       _observe() {
         const c = this._canvas;
         if (!c) return;
@@ -86,24 +86,24 @@
         this._hydrate();
       },
 
-      // ── La signature DÉJÀ LÀ ─────────────────────────────────────
-      // Un dossier rouvert rend sa data-URL au SSR. Sans ce chargement,
-      // le cadre s'affichait VIDE — et sans invite, puisque le serveur
-      // avait déjà posé ``data-empty="false"``. Le composant annonçait
-      // donc « il y a une signature » en n'en montrant aucune.
+      // ── The signature ALREADY THERE ──────────────────────────────
+      // A reopened record returns its data URL at SSR. Without that
+      // load, the frame showed EMPTY — and with no prompt, since the
+      // server had already set ``data-empty="false"``. The component
+      // therefore announced "there is a signature" while showing none.
       //
-      // L'image chargée devient une COUCHE DE FOND, distincte des
-      // points : ``_redraw`` la peint d'abord, les traits par-dessus.
-      // C'est ce qui la fait survivre au redimensionnement comme le
-      // reste — sans ça elle disparaîtrait au premier changement de
-      // taille, avec le canvas qu'on efface pour le redimensionner.
+      // The loaded image becomes a BACKGROUND LAYER, distinct from the
+      // points: ``_redraw`` paints it first, the strokes over it. It is
+      // what makes it survive a resize like the rest — without that it
+      // would disappear at the first size change, along with the canvas
+      // we clear in order to resize it.
       //
-      // Une seule fois par NŒUD (``_bzHydrated``), et pas dans un effet
-      // réactif : ``_publish`` écrit dans le même état, donc un effet
-      // qui le lit se rechargerait lui-même à chaque trait. Après le
-      // boot, c'est le canvas qui fait foi. Propriété de nœud et pas
-      // champ de scope, pour la même raison que ``_bzPadRo`` — une
-      // durée de vie qui est celle du canvas.
+      // Once per NODE only (``_bzHydrated``), and not in a reactive
+      // effect: ``_publish`` writes into the same state, so an effect
+      // that reads it would reload itself at every stroke. After the
+      // boot, it is the canvas that is authoritative. A node property
+      // and not a scope field, for the same reason as ``_bzPadRo`` — a
+      // lifetime that is the canvas's.
       _hydrate() {
         const c = this._canvas;
         if (!c || c._bzHydrated) return;
@@ -120,11 +120,11 @@
         img.src = src;
       },
 
-      // ── Le tracé ─────────────────────────────────────────────────
-      // L'encre est LUE sur l'élément (``color`` calculée), jamais
-      // configurée : le thème décide, et la valeur suit le mode sombre
-      // toute seule. Un prop ``pen_color`` aurait figé une couleur qui
-      // devient invisible sur l'autre fond.
+      // ── The stroke ───────────────────────────────────────────────
+      // The ink is READ on the element (the computed ``color``), never
+      // configured: the theme decides, and the value follows dark mode
+      // by itself. A ``pen_color`` prop would have frozen a colour that
+      // becomes invisible on the other background.
       _ink() {
         return getComputedStyle(this._canvas).color || "#000";
       },
@@ -136,15 +136,15 @@
         const w = c.width / dpr;
         const h = c.height / dpr;
         ctx.clearRect(0, 0, w, h);
-        // La signature déjà là, sous les traits neufs. Étirée à la
-        // boîte courante : une image matricielle n'a pas d'autre
-        // option, et le cadre d'origine n'est pas connu — c'est le même
-        // compromis que n'importe quel rendu raster redimensionné.
+        // The signature already there, under the new strokes. Stretched
+        // to the current box: a raster image has no other option, and
+        // the original frame is not known — it is the same compromise
+        // as any resized raster render.
         if (this._base) {
           try {
             ctx.drawImage(this._base, 0, 0, w, h);
           } catch (err) {
-            /* image cassée / cross-origin : on garde les traits */
+            /* a broken / cross-origin image: we keep the strokes */
           }
         }
         ctx.lineWidth = LINE_WIDTH;
@@ -153,8 +153,8 @@
         ctx.strokeStyle = this._ink();
         for (const stroke of this._strokes) {
           if (stroke.length < 2) {
-            // Un point isolé : un tap sans mouvement doit laisser une
-            // marque, sinon signer d'un point ne produit rien.
+            // A lone point: a tap with no movement must leave a mark,
+            // otherwise signing with a dot produces nothing.
             if (stroke.length === 1) {
               ctx.beginPath();
               ctx.arc(
@@ -181,9 +181,9 @@
 
       _start(e) {
         if (this._locked()) return;
-        // Empêche le navigateur de comprendre le geste comme une
-        // sélection de texte ou un défilement. ``touch-none`` sur le
-        // canvas couvre le défilement ; ceci couvre le reste.
+        // Stops the browser reading the gesture as a text selection or
+        // a scroll. ``touch-none`` on the canvas covers the scroll; this
+        // covers the rest.
         e.preventDefault();
         $bz.helpers.capturePointer(this._canvas, e);
         this._drawing = [this._at(e)];
@@ -202,32 +202,33 @@
         if (!this._drawing) return;
         $bz.helpers.releasePointer(this._canvas, e);
         this._drawing = null;
-        // Publier au LEVER du stylo, pas à chaque point : un PNG fait
-        // des dizaines de kilo-octets, et l'émettre par frame ferait
-        // partir autant de POST si un ``on_change`` est câblé. Même
-        // règle que le relâchement de poignée du Resizable.
+        // Publish when the pen LIFTS, not at every point: a PNG is
+        // tens of kilobytes, and emitting it per frame would send as
+        // many POSTs if an ``on_change`` is wired. Same rule as the
+        // Resizable's handle release.
         this._publish();
       },
 
-      // ── La valeur ────────────────────────────────────────────────
-      // Écrite dans l'ÉTAT (``_write``), pas sur le porteur : c'est le
-      // ``bz-attr:value`` du porteur qui la reporte dans le DOM, et son
-      // ``bz-effect`` qui en tire le ``change``. Un seul auteur, la même
-      // mécanique que Slider / Carousel / Resizable — écrire les deux
-      // ferait diverger le champ de formulaire de l'état dès qu'un
-      // écrivain externe passe par le second.
+      // ── The value ────────────────────────────────────────────────
+      // Written into the STATE (``_write``), not onto the carrier: it is
+      // the carrier's ``bz-attr:value`` that reports it into the DOM,
+      // and its ``bz-effect`` that draws the ``change`` from it. A
+      // single author, the same mechanics as Slider / Carousel /
+      // Resizable — writing both would make the form field diverge from
+      // the state as soon as an external writer goes through the
+      // second.
       _publish() {
-        // ``_base`` compte autant que les traits : un dossier rouvert
-        // puis soumis sans y toucher ne doit pas EFFACER la signature
-        // qu'il portait.
+        // ``_base`` counts as much as the strokes: a reopened record
+        // then submitted without being touched must not ERASE the
+        // signature it carried.
         const inked = this._strokes.length || this._base;
         this._write(inked ? this._canvas.toDataURL("image/png") : "");
       },
 
-      // Le marqueur que le thème lit pour montrer / cacher l'invite.
-      // Un attribut et pas une classe : ``data-[empty=true]:`` est le
-      // variant Tailwind que le reste du dépôt utilise pour les états
-      // pilotés par le JS.
+      // The marker the theme reads to show / hide the prompt. An
+      // attribute and not a class: ``data-[empty=true]:`` is the
+      // Tailwind variant the rest of the repository uses for JS-driven
+      // states.
       _empty(value) {
         if (this._canvas && this._canvas.parentElement) {
           this._canvas.parentElement.setAttribute(
@@ -242,14 +243,14 @@
         );
       },
 
-      // ── Impératif ────────────────────────────────────────────────
-      // ``.clear()`` et rien d'autre : une signature se refait, elle ne
-      // se retouche pas. Les points gardés en mémoire servent au
-      // redimensionnement (cf. l'en-tête), pas à un undo.
+      // ── Imperative ───────────────────────────────────────────────
+      // ``.clear()`` and nothing else: a signature is redone, it is not
+      // touched up. The points kept in memory serve the resize (cf. the
+      // header), not an undo.
       clear() {
         this._strokes.length = 0;
-        // La couche de fond part AVEC les traits : « effacer » veut
-        // dire un cadre vide, pas « revenir à la signature d'avant ».
+        // The background layer goes WITH the strokes: "clear" means an
+        // empty frame, not "go back to the previous signature".
         this._base = null;
         this._drawing = null;
         this._redraw();

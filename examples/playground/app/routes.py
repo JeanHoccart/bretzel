@@ -108,10 +108,10 @@ PAGES = [
     page(card.PATH,        layout=shell)(card.page),
     page(container.PATH,   layout=shell)(container.page),
     page(screen.PATH,      layout=shell)(screen.page),
-    # SANS ``layout=`` — un ``ui.viewport`` est ``fixed inset-0``,
-    # donc il recouvrirait la coque. C'est la seule page du
-    # playground qui doit se monter nue, et c'est la propriété du
-    # composant qui l'exige.
+    # WITHOUT ``layout=`` — a ``ui.viewport`` is ``fixed inset-0``, so
+    # it would cover the shell. It is the playground's only page that
+    # must mount bare, and it is the component's property that requires
+    # it.
     page(screen.DEMO_PATH)(screen.full_demo),
     page(flex.PATH,        layout=shell)(flex.page),
     page(grid.PATH,        layout=shell)(grid.page),
@@ -179,10 +179,10 @@ PAGES = [
     page(iframe.PATH,  layout=shell)(iframe.page),
     page(audio.PATH,   layout=shell)(audio.page),
     page(meta.PATH,    layout=shell)(meta.page),
-    # ⚠️ Un ``@download`` n'est PAS une page : il ne prend ni coque
-    # ni layout, et le pipeline de rendu ne le touche pas. Il se
-    # monte en passant la fonction MARQUÉE telle quelle — c'est
-    # ``include`` qui lit ``_bz_download`` et pose la route.
+    # ⚠️ A ``@download`` is NOT a page: it takes neither shell nor
+    # layout, and the render pipeline does not touch it. It is mounted by
+    # passing the MARKED function as it is — it is ``include`` that reads
+    # ``_bz_download`` and sets the route.
     meta.fruits_csv,
     page(toggle_group.PATH, layout=shell)(toggle_group.page),
 ]

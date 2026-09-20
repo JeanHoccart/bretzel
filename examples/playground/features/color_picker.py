@@ -1,14 +1,15 @@
 """``ColorPicker`` test bench.
 
-Neuf cartes, le gabarit de `.claude/bretzel/playground-pattern.md`.
-``ColorPicker.BINDABLE_PROPS = ("value", "disabled")`` — la couleur et le
-verrou ; ``clearable`` / ``placeholder`` / ``color`` / ``size`` restent
-design-time. ``EVENTS = ("change", "focus", "blur")``. Aucune API
-impérative, donc pas de carte §7 — comme les trois pickers de date.
+Nine cards, `.claude/bretzel/playground-pattern.md`'s template.
+``ColorPicker.BINDABLE_PROPS = ("value", "disabled")`` — the colour and
+the lock; ``clearable`` / ``placeholder`` / ``color`` / ``size`` stay
+design-time. ``EVENTS = ("change", "focus", "blur")``. No imperative API,
+so no §7 card — like the three date pickers.
 
-⚠️ Ce composant n'a **pas** de ``swatches=`` : sa grille vient de la
-palette du thème. Le banc le montre plutôt que de le dire — c'est
-``Theme(palette=…)`` qui décide, et donc la même grille partout.
+⚠️ This component has **no** ``swatches=``: its grid comes from the
+theme's palette. The bench shows it rather than saying it — it is
+``Theme(palette=…)`` that decides, and therefore the same grid
+everywhere.
 """
 
 from bretzel import refreshable, ui
@@ -120,8 +121,8 @@ def build_preview(state: ColorPickerPlayground) -> dict:
         "required": state.required,
         "clearable": state.clearable,
     }
-    # Chaîne vide = ne pas passer le kwarg, sinon le défaut du composant
-    # n'est jamais celui qu'on teste.
+    # An empty string = do not pass the kwarg, otherwise the component's
+    # default is never the one being tested.
     if state.name:
         kwargs["name"] = state.name
     if state.classes:
@@ -236,20 +237,20 @@ def events_panel() -> None:
     state = ColorPickerEvents()
 
     ui.text(
-        "Les trois events sont câblés — mais sur TROIS instances, et "
-        "c'est structurel : un élément ne porte qu'UN ``hx-post``, donc "
-        "deux handlers serveur sur le même picker lèvent au construct "
-        "(``HandlerError``). Pour en combiner plusieurs sur un seul "
-        "champ, le second passe en expression client.",
+        'All three events are wired — but on THREE instances, and that is'
+            ' structural: an element carries only ONE ``hx-post``, so two '
+            'server handlers on the same picker raise at construct time '
+            '(``HandlerError``). To combine several on a single field, the '
+            'second one goes through a client expression.',
         color="muted", size="sm",
     )
     ui.text(
-        "Où ils partent : ``change`` depuis l'input caché (le porteur de "
-        "form data), donc il part aussi bien au clic sur une pastille "
-        "qu'à la frappe ; ``focus`` et ``blur`` sont relocalisés sur le "
-        "champ éditable — la racine est un ``<div>`` non focusable, et "
-        "ces deux events NE BULLENT PAS, donc un handler laissé là ne "
-        "pourrait structurellement jamais partir.",
+        'Where they leave from: ``change`` from the hidden input (the '
+            'form-data carrier), so it fires on a swatch click just as much '
+            'as on typing; ``focus`` and ``blur`` are relocated onto the '
+            'editable field — the root is a non-focusable ``<div>``, and '
+            'those two events DO NOT BUBBLE, so a handler left there could '
+            'structurally never fire.',
         color="muted", size="sm",
     )
 
@@ -276,16 +277,16 @@ def events_panel() -> None:
                 ui.text(f"{i}. {evt}",
                         color="muted", size="sm", classes="font-mono")
     else:
-        ui.text("(no events yet — cliquez le champ, puis une pastille)",
+        ui.text('(no events yet — click the field, then a swatch)',
                 color="muted", size="sm")
 
     ui.divider()
 
     emitted_html_block(
-        "Emitted HTML (ColorPicker with on_change) — le bundle hx-* est "
-        "relocalisé sur l'input caché par relocate_server_action, qui "
-        "lit hx-trigger pour choisir le porteur : un on_focus= partirait "
-        "sur le champ éditable, seul élément à recevoir focus.",
+        'Emitted HTML (ColorPicker with on_change) — the hx-* bundle is '
+            'relocated onto the hidden input by relocate_server_action, which'
+            ' reads hx-trigger to pick the carrier: an on_focus= would leave '
+            'from the editable field, the only element that receives focus.',
         serialize_html(
             ui.color_picker(value=picked.picked, on_change=log_change)
         ),
@@ -296,15 +297,13 @@ def page() -> None:
     with ui.container(), ui.vstack():
         ui.heading("Color picker", level=1)
         ui.text(
-            "Champ de couleur : une pastille qui rend la valeur, un "
-            "hexadécimal éditable, et un panneau qui propose la palette "
-            "du thème. La valeur est une chaîne \"#rrggbb\" — c'est ce "
-            "qu'attend un Theme(semantic=…) et ce qu'une form data "
-            "transporte tel quel. Aucun widget natif : un "
-            "<input type=\"color\"> n'est pas thématisable, change "
-            "d'allure selon le navigateur, et ne connaît pas la "
-            "palette — qui est justement ce qu'on veut choisir neuf "
-            "fois sur dix.",
+            'A colour field: a swatch rendering the value, an editable '
+                "hex code, and a panel offering the theme's palette. The "
+                'value is a "#rrggbb" string — what a Theme(semantic=…) '
+                'expects and what form data carries as is. No native widget: '
+                'an <input type="color"> cannot be themed, changes shape from'
+                ' browser to browser, and does not know the palette — which '
+                'is precisely what one wants to pick nine times out of ten.',
             color="muted",
         )
 
@@ -322,20 +321,20 @@ def page() -> None:
 
             ui.heading("placeholder", level=3)
             ui.text(
-                "Le seul texte du composant, et il sert deux fois : "
-                "l'invite du champ vide ET son ``aria-label`` de repli. "
-                "\"#rrggbb\" par défaut, parce qu'il dit la FORME "
-                "attendue.",
+                "The component's only text, and it serves twice: the "
+                    "empty field's prompt AND its fallback ``aria-label``. "
+                    '"#rrggbb" by default, because it states the expected '
+                    'SHAPE.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.vstack(gap="xs"):
-                    ui.text("défaut", color="muted", size="xs")
+                    ui.text('default', color="muted", size="xs")
                     ui.color_picker()
                 with ui.vstack(gap="xs"):
-                    ui.text("placeholder=\"Choisir une teinte…\"",
+                    ui.text('placeholder="Pick a shade…"',
                             color="muted", size="xs")
-                    ui.color_picker(placeholder="Choisir une teinte…")
+                    ui.color_picker(placeholder='Pick a shade…')
 
             ui.heading("Sizes", level=3)
             with ui.grid(cols={"base": 1, "md": 5}, gap="md"):
@@ -346,10 +345,10 @@ def page() -> None:
 
             ui.heading("Colors", level=3)
             ui.text(
-                "``color=`` ne change PAS la couleur choisie — c'est "
-                "l'accent du composant : l'anneau de focus, la bordure "
-                "au survol, le liseré de la pastille sélectionnée. La "
-                "valeur, elle, se voit dans la pastille.",
+                '``color=`` does NOT change the chosen colour — it is the'
+                    " component's accent: the focus ring, the hover border, "
+                    'the outline of the selected swatch. The value itself is '
+                    'visible in the swatch.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 4}, gap="md"):
@@ -367,16 +366,15 @@ def page() -> None:
                     ui.text("required", color="muted", size="xs")
                     ui.color_picker("#0090ff", required=True)
                 with ui.vstack(gap="xs"):
-                    ui.text("clearable=True (le × si rempli)",
+                    ui.text('clearable=True (the × when filled)',
                             color="muted", size="xs")
                     ui.color_picker("#0090ff", clearable=True)
 
             ui.heading("name", level=3)
             ui.text(
-                "Le nom du champ caché qui porte la couleur dans une "
-                "form data. Lié à un state il se dérive tout seul ; "
-                "``name=`` est l'échappatoire pour une valeur "
-                "littérale.",
+                'The name of the hidden field that carries the colour in '
+                    'form data. Bound to a state it derives itself; ``name=``'
+                    ' is the escape hatch for a literal value.',
                 color="muted", size="xs",
             )
             with ui.flex(classes="max-w-xs"):
@@ -386,17 +384,17 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Slots", level=2)
             ui.text(
-                "Le composant n'a pas de slot au sens ``with`` : il ne "
-                "reçoit aucun enfant, et sa seule surface textuelle est "
-                "le placeholder. Ce qui reste réglable, ce sont ses "
-                "onze slots de THÈME — ``slots={…}`` les surcharge à "
-                "l'instance, ``Theme(components={\"color_picker\": …})`` "
-                "pour toute l'app.",
+                'The component has no slot in the ``with`` sense: it '
+                    'receives no children, and its only textual surface is '
+                    'the placeholder. What stays adjustable is its eleven '
+                    'THEME slots — ``slots={…}`` overrides them per instance,'
+                    ' ``Theme(components={"color_picker": …})`` for the whole'
+                    ' app.',
                 color="muted", size="sm",
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.vstack(gap="xs"):
-                    ui.text("défaut", color="muted", size="xs")
+                    ui.text('default', color="muted", size="xs")
                     ui.color_picker("#e93d82")
                 with ui.vstack(gap="xs"):
                     ui.text("slots={'swatch': 'rounded-none w-10'}",
@@ -409,12 +407,12 @@ def page() -> None:
             ui.divider()
 
             ui.text(
-                "Il n'y a PAS de ``swatches=``, et c'est délibéré : la "
-                "grille est la palette du thème, donc tous les pickers "
-                "d'une app proposent la même. Une charte se déclare une "
-                "fois — ``Theme(palette={\"brand\": \"#…\"})`` — et le "
-                "champ reste libre pour tout le reste : n'importe quel "
-                "hexadécimal se tape à la main.",
+                'There is NO ``swatches=``, and that is deliberate: the '
+                    "grid is the theme's palette, so every picker in an app "
+                    'offers the same one. A brand is declared once — '
+                    '``Theme(palette={"brand": "#…"})`` — and the field stays'
+                    ' free for everything else: any hex value can be typed by'
+                    ' hand.',
                 color="muted", size="sm",
             )
 
@@ -426,36 +424,35 @@ def page() -> None:
 
             ui.heading("Valeur vide", level=3)
             ui.text(
-                "Le damier du thème transparaît. Une pastille BLANCHE "
-                "et une pastille SANS couleur se confondraient — d'où "
-                "le damier plutôt qu'un fond neutre.",
+                "The theme's chequerboard shows through. A WHITE swatch "
+                    'and a swatch with NO colour would look the same — hence '
+                    'the chequerboard rather than a neutral background.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 ui.color_picker()
                 ui.color_picker("")
 
-            ui.heading("Ce qui n'est pas un hexadécimal", level=3)
+            ui.heading('What is not a hex value', level=3)
             ui.text(
-                "Le champ ne le refuse pas, et c'est un choix : il est "
-                "éditable, donc l'utilisateur tape forcément des états "
-                "intermédiaires (\"#2f\"). La pastille reste vide tant "
-                "que le navigateur ne sait pas lire la valeur.",
+                'The field does not refuse it, and that is a choice: it '
+                    'is editable, so the user necessarily types intermediate '
+                    'states ("#2f"). The swatch stays empty as long as the '
+                    'browser cannot read the value.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
-                for raw in ("#2f", "rebeccapurple", "pas une couleur"):
+                for raw in ("#2f", "rebeccapurple", 'not a colour'):
                     with ui.vstack(gap="xs"):
                         ui.text(repr(raw), color="muted", size="xs")
                         ui.color_picker(raw)
 
-            ui.heading("Casse et forme courte", level=3)
+            ui.heading('Case and short form', level=3)
             ui.text(
-                "La pastille sélectionnée se compare en minuscules des "
-                "DEUX côtés, donc \"#8E4EC6\" coche bien la même "
-                "cellule que \"#8e4ec6\". La forme à trois chiffres "
-                "s'affiche, mais aucune cellule ne s'y reconnaît — le "
-                "panneau ne normalise pas.",
+                'The selected swatch is compared lower-cased on BOTH '
+                    'sides, so "#8E4EC6" does tick the same cell as '
+                    '"#8e4ec6". The three-digit form displays, but no cell '
+                    'recognises itself in it — the panel does not normalise.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
@@ -468,14 +465,14 @@ def page() -> None:
                             color="muted", size="xs")
                     ui.color_picker("#abc")
 
-            ui.heading("Blanc pur sur fond blanc", level=3)
-            ui.text("La pastille garde sa bordure, sinon elle "
-                    "disparaîtrait dans la surface.",
+            ui.heading('Pure white on a white background', level=3)
+            ui.text('The swatch keeps its border, otherwise it would vanish into '
+                'the surface.',
                     color="muted", size="xs")
             with ui.flex(classes="max-w-xs"):
                 ui.color_picker("#ffffff")
 
-            ui.heading("Dans une cellule étroite", level=3)
+            ui.heading('Inside a narrow cell', level=3)
             with ui.grid(cols={"base": 1, "md": 4}, gap="md"):
                 ui.color_picker("#2f5fd0")
                 ui.text("Voisine.", color="muted")
@@ -485,10 +482,10 @@ def page() -> None:
         # ── Card 4 — Composability ──────────────────────────────
         with ui.card(), ui.vstack():
             ui.heading("Composability", level=2)
-            ui.text("Le picker dans ses contextes habituels.",
+            ui.text('The picker in its usual contexts.',
                     color="muted", size="sm")
 
-            ui.heading("Dans un form_field", level=3)
+            ui.heading('Inside a form_field', level=3)
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.form_field(label="Couleur de marque",
                                    hint="Sert d'accent partout"):
@@ -496,12 +493,12 @@ def page() -> None:
                 with ui.form_field(label="Couleur d'alerte"):
                     ui.color_picker("#e5484d", clearable=True)
 
-            ui.heading("Une paire clair / sombre", level=3)
+            ui.heading('A light / dark pair', level=3)
             ui.text(
-                "Le cas d'usage réel — c'est exactement ce que fait "
-                "``/theme-studio`` pour ses vingt-deux jetons. Rien ne "
-                "lie les deux champs : ce sont deux valeurs "
-                "indépendantes, côte à côte.",
+                'The real use case — it is exactly what ``/theme-studio``'
+                    ' does for its twenty-two tokens. Nothing ties the two '
+                    'fields together: they are two independent values, side '
+                    'by side.',
                 color="muted", size="xs",
             )
             with ui.hstack(gap="sm", align="center"):
@@ -509,53 +506,53 @@ def page() -> None:
                 ui.text("→", color="muted")
                 ui.color_picker("#7da3f0", size="sm")
 
-            ui.heading("name= explicite (échappatoire)", level=3)
+            ui.heading('explicit name= (escape hatch)', level=3)
             ui.text(
-                "L'autoname couvre le cas lié (``value=state.brand`` "
-                "dérive ``name=\"brand\"``). Pour un picker à valeur "
-                "littérale qui doit quand même poster, ``name=`` est le "
-                "seul moyen d'avoir un porteur de formulaire sans "
-                "binding.",
+                'Autoname covers the bound case (``value=state.brand`` '
+                    'derives ``name="brand"``). For a picker with a literal '
+                    'value that must still post, ``name=`` is the only way to'
+                    ' have a form carrier without a binding.',
                 color="muted", size="xs",
             )
             with ui.flex(classes="max-w-xs"):
                 ui.color_picker("#30a46c", name="accent")
 
-            ui.heading("Dans un ui.dialog", level=3)
+            ui.heading('Inside a ui.dialog', level=3)
             with ui.dialog(title="Personnaliser", width="md") as dlg, \
                             ui.vstack():
                 with ui.form_field(label="Quelle teinte ?"):
                     ui.color_picker("#6e56cf")
                 ui.text(
-                    "Le panneau est ancré en position fixe, donc il "
-                    "échappe à l'overflow du dialog.",
+                    'The panel is anchored in fixed position, so it '
+                        "escapes the dialog's overflow.",
                     color="muted", size="xs",
                 )
-            ui.button("Ouvrir le dialog", on_click=dlg.open())
+            ui.button('Open the dialog', on_click=dlg.open())
 
         # ── Card 5 — A11y ───────────────────────────────────────
         with ui.card(), ui.vstack():
             ui.heading("A11y", level=2)
             ui.text(
-                "Le champ reste un vrai ``<input type=text>`` : on peut "
-                "saisir un hexadécimal au clavier sans jamais ouvrir le "
-                "panneau, ce qui est la voie la plus rapide pour qui "
-                "connaît son code. Chaque pastille du panneau est un "
-                "vrai ``<button>`` étiqueté par sa valeur — donc "
-                "atteignable au Tab et annoncée « #8e4ec6 », pas "
-                "« bouton ». Le déclencheur porte ``aria-expanded`` ; "
-                "Escape et le clic dehors referment.",
+                'The field stays a real ``<input type=text>``: a hex '
+                    'value can be typed from the keyboard without ever '
+                    'opening the panel, which is the fastest route for anyone'
+                    ' who knows their code. Every swatch in the panel is a '
+                    'real ``<button>`` labelled by its value — hence '
+                    'reachable with Tab and announced as “#8e4ec6”, not '
+                    '“button”. The trigger carries ``aria-expanded``; Escape '
+                    'and a click outside close it.',
                 color="muted", size="sm",
             )
             ui.text(
-                "Le nuancier ne peut pas être la SEULE façon de "
-                "distinguer deux choix — c'est le sens du champ texte à "
-                "côté : la valeur est toujours lisible en clair.",
+                'The swatch grid cannot be the ONLY way of telling two '
+                    'choices apart — that is the point of the text field '
+                    'beside it: the value is always readable in plain '
+                    'characters.',
                 color="muted", size="sm",
             )
             with ui.flex(classes="max-w-xs"):
                 ui.color_picker("#2f5fd0",
-                                aria_label="Couleur de la marque")
+                                aria_label='Brand colour')
 
         # ── Card 6 — Server playground ──────────────────────────
         with ui.card(), ui.vstack():
@@ -577,10 +574,10 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Client playground", level=2)
             ui.text(
-                "Mirror of BINDABLE_PROPS = ('value', 'disabled'). La "
-                "couleur est liée à un ClientState : le champ, la "
-                "pastille, le panneau et le miroir ci-dessous lisent la "
-                "MÊME cellule de store, sans aller-retour.",
+                "Mirror of BINDABLE_PROPS = ('value', 'disabled'). The "
+                    'colour is bound to a ClientState: the field, the swatch,'
+                    ' the panel and the mirror below all read the SAME store '
+                    'cell, with no round trip.',
                 color="muted", size="sm",
             )
             client = ColorPickerClient()
@@ -593,15 +590,15 @@ def page() -> None:
             ui.divider()
 
             with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
-                with control("le même, piloté par le switch"):
+                with control('the same one, driven by the switch'):
                     ui.color_picker(value=client.picked,
                                     disabled=client.locked)
                 with control("miroir"):
                     ui.text(
                         ClientExpression(
-                            "'valeur : ' + "
+                            "'value: ' + "
                             "($bz.state.ColorPickerClient"
-                            ".default.picked || '(vide)')"
+                            ".default.picked || '(empty)')"
                         ),
                         color="muted", size="sm",
                         classes="font-mono",
@@ -610,11 +607,11 @@ def page() -> None:
             ui.divider()
 
             emitted_html_block(
-                "Emitted HTML — tout adresse la cellule du store "
-                "directement : le champ en bz-model, l'input caché en "
-                "bz-attr:value, la pastille de tête en bz-attr:style, "
-                "et chaque cellule du panneau en bz-on:click qui ÉCRIT "
-                "dans la même cellule.",
+                'Emitted HTML — everything addresses the store cell '
+                    'directly: the field through bz-model, the hidden input '
+                    'through bz-attr:value, the leading swatch through bz-'
+                    'attr:style, and every cell of the panel through a bz-'
+                    'on:click that WRITES into that same cell.',
                 serialize_html(
                     ui.color_picker(value=client.picked,
                                     disabled=client.locked)
@@ -628,25 +625,26 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("External controls — the 3 modes", level=2)
                     ui.text(
-                        "Les sept méthodes arrivées le 2026-09-03. Un picker "
-                        "est DEUX natures à la fois : un panneau ancré (comme "
-                        "`dialog`) et un champ qui porte une valeur (comme "
-                        "`input`). Sa surface est donc l'union des deux "
-                        "vocabulaires déjà fixés par ses voisins — rien "
-                        "d'inventé.",
+                        'The seven methods that arrived on 2026-09-03. A '
+                            'picker is TWO natures at once: an anchored panel'
+                            ' (like `dialog`) and a field carrying a value '
+                            '(like `input`). Its surface is therefore the '
+                            'union of the two vocabularies its neighbours '
+                            'already fixed — nothing invented.',
                         color="muted", size="sm",
                     )
 
-                    # ── Mode 1 — Impératif seul ─────────────────────
+                    # ── Mode 1 — Imperative only ────────────────────
                     ui.heading("Mode 1 — Imperative only (default for "
                                "one-off writes)", level=3)
                     ui.text(
-                        "Aucun ClientState. `.open()` / `.close()` / "
-                        "`.toggle()` dispatchent `bz-open` / `bz-close` / "
-                        "`bz-toggle`, que la racine rattrape ; `.set()` "
-                        "dispatche `bz-set`. `.focus()` vise le champ "
-                        "VISIBLE — pas le porteur caché, qui est le premier "
-                        "`<input>` du composant et ne prend pas le focus.",
+                        'No ClientState. `.open()` / `.close()` / '
+                            '`.toggle()` dispatch `bz-open` / `bz-close` / '
+                            '`bz-toggle`, which the root catches; `.set()` '
+                            'dispatches `bz-set`. `.focus()` targets the '
+                            'VISIBLE field — not the hidden carrier, which is'
+                            " the component's first `<input>` and never takes"
+                            ' focus.',
                         color="muted", size="sm",
                     )
                     m1 = ui.color_picker()
@@ -666,12 +664,12 @@ def page() -> None:
 
                     ui.divider()
 
-                    # ── Mode 2 — ClientBinding seule ────────────────
+                    # ── Mode 2 — ClientBinding only ─────────────────
                     ui.heading("Mode 2 — ClientBinding only (when another "
                                "component must read or react)", level=3)
                     ui.text(
-                        "`value=binding` : la valeur vit dans le store, "
-                        "donc un voisin la lit sans aller-retour.",
+                        '`value=binding`: the value lives in the store, '
+                            'so a neighbour reads it with no round trip.',
                         color="muted", size="sm",
                     )
                     lie = ColorPickerClient(key="ext_binding")
@@ -687,14 +685,14 @@ def page() -> None:
 
                     ui.divider()
 
-                    # ── Mode 3 — Les deux ───────────────────────────
+                    # ── Mode 3 — Both ───────────────────────────────
                     ui.heading("Mode 3 — Both (write-through)", level=3)
                     ui.text(
-                        "Binding fournie ET méthodes appelées. `.set()` "
-                        "détecte la binding et écrit DEDANS — le dispatch "
-                        "DOM n'est pas utilisé, la source de vérité reste "
-                        "unique. `.open()` reste un dispatch : le panneau "
-                        "n'est pas une valeur.",
+                        'A binding supplied AND the methods called. '
+                            '`.set()` detects the binding and writes INTO it '
+                            '— the DOM dispatch is not used, the source of '
+                            'truth stays single. `.open()` stays a dispatch: '
+                            'the panel is not a value.',
                         color="muted", size="sm",
                     )
                     deux = ColorPickerClient(key="ext_both")
@@ -708,14 +706,14 @@ def page() -> None:
                         ui.text(
                             ClientExpression(
                                 "'Store : ' + ($bz.state.ColorPickerClient"
-                                ".ext_both.picked || '(vide)')"
+                                ".ext_both.picked || '(empty)')"
                             ),
                             color="muted", size="sm", classes="font-mono",
                         )
 
             ui.heading("Client events", level=2)
-            ui.text("change câblé à une expression client qui empile la "
-                    "nouvelle couleur dans un ClientState. Zéro réseau.",
+            ui.text('change wired to a client expression that pushes the new '
+                'colour onto a ClientState. Zero network.',
                     color="muted", size="sm")
             cevents = ColorPickerClientEvents()
             _new_value = ClientExpression("$event.target.value")
@@ -747,8 +745,9 @@ def page() -> None:
             ui.divider()
 
             emitted_html_block(
-                "Emitted HTML — le handler bz-on:change vit sur l'input "
-                "caché, le seul porteur qui expose name et value.",
+                'Emitted HTML — the bz-on:change handler lives on the '
+                    'hidden input, the only carrier that exposes a name and a'
+                    ' value.',
                 serialize_html(
                     ui.color_picker(
                         "#00a2c7",

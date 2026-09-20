@@ -1,4 +1,4 @@
-"""``SignaturePad`` — signer au doigt ou à la souris, dans un formulaire.
+"""``SignaturePad`` — sign with a finger or a mouse, inside a form.
 
 Usage ::
 
@@ -7,64 +7,65 @@ Usage ::
 
     with ui.form(on_submit=sign):
         ui.signature_pad(value=contract.signature)
-        ui.button("Signer", type="submit")
+        ui.button("Sign", type="submit")
 
     def sign(doc: Contract) -> None:
         doc.signature      # "data:image/png;base64,iVBORw0KG…"
 
-**La valeur est un PNG en data-URL**, et elle vit dans ton `ServerState`.
-``AUTONAME_FROM = "value"`` dérive le ``name`` de l'input caché depuis le
-champ que tu lui passes, et
-:func:`~bretzel.server.routing.actions._hydrate_state` le réécrit dans
-l'instance à la soumission — comme n'importe quel champ de formulaire. Ni
-endpoint, ni encodage à écrire.
+**The value is a PNG data URL**, and it lives in your `ServerState`.
+``AUTONAME_FROM = "value"`` derives the hidden input's ``name`` from the
+field you pass it, and
+:func:`~bretzel.server.routing.actions._hydrate_state` writes it back
+into the instance on submit — like any form field. No endpoint, no
+encoding to write.
 
-Le PNG plutôt que les points ou du SVG : le consommateur d'une signature
-veut une IMAGE (l'embarquer dans un PDF, l'afficher dans un dossier, la
-stocker). Rendre les points obligerait chaque appelant à réécrire le
-rasteur.
+The PNG rather than the points or SVG: the consumer of a signature wants
+an IMAGE (to embed it in a PDF, show it in a record, store it).
+Returning the points would force every caller to rewrite the rasteriser.
 
-⚠️ **``value`` est bindable, mais y lier un ``ClientState`` se paie.**
-Le socle l'exige (``TWO_WAY_PROPS ⊆ BINDABLE_PROPS`` : un champ que le
-client écrit ne peut pas être form-bound sans être bindable), et en mode
-LOCAL — le cas normal, ``value=doc.signature`` sur un ServerState — la
-data-URL vit dans le scope JS et ne coûte rien sur le fil. En revanche
-le snapshot ``ClientState`` part **entier à chaque POST d'action**
-(``runtime/_src/05_bridge.js``), donc un pad lié à un ``ClientState``
-renverrait ses dizaines de kilo-octets à chaque clic de la page. Il n'y
-a pas de mode « delta » pour l'éviter — il a été retiré le 2026-08-14,
-sa sémantique étant fausse (cf. le docstring de ``ClientState``). Le
-seul levier est ``send_to_server=False``, qui ne s'applique PAS ici :
-une signature est écrite par le client, elle doit remonter. À ne faire que si un autre composant doit lire la
-signature côté client.
+⚠️ **``value`` is bindable, but binding a ``ClientState`` to it costs.**
+The base layer requires it (``TWO_WAY_PROPS ⊆ BINDABLE_PROPS``: a field
+the client writes cannot be form-bound without being bindable), and in
+LOCAL mode — the normal case, ``value=doc.signature`` on a ServerState —
+the data URL lives in the JS scope and costs nothing on the wire. The
+``ClientState`` snapshot, on the other hand, leaves **whole on every
+action POST** (``runtime/_src/05_bridge.js``), so a pad bound to a
+``ClientState`` would send its tens of kilobytes back on every click of
+the page. There is no "delta" mode to avoid it — it was removed on
+2026-08-14, its semantics being wrong (cf. ``ClientState``'s docstring).
+The only lever is ``send_to_server=False``, which does NOT apply here: a
+signature is written by the client, it has to travel back. Only do this
+if another component has to read the signature on the client side.
 
-**Rien n'est publié pendant le geste** : la data-URL est écrite au LEVER
-du stylo. Un ``on_change`` câblé fait donc un POST par trait — c'est
-supportable et c'est explicite, là où publier par frame ne le serait pas.
+**Nothing is published during the gesture**: the data URL is written
+when the pen LIFTS. A wired ``on_change`` therefore makes one POST per
+stroke — that is bearable and it is explicit, where publishing per frame
+would not be.
 
-**Le pad est VIDE, pas blanc, tant que rien n'est tracé.** Un canvas neuf
-rend un PNG parfaitement valide — un rectangle blanc — et le publier
-ferait passer « pas encore signé » pour « signé » côté serveur, sans que
-rien ne semble faux. Zéro trait ⇒ chaîne vide.
+**The pad is EMPTY, not white, as long as nothing is drawn.** A fresh
+canvas returns a perfectly valid PNG — a white rectangle — and
+publishing it would pass "not signed yet" off as "signed" on the server
+side, with nothing looking wrong. Zero strokes ⇒ empty string.
 
-**Une signature déjà là est REPEINTE.** Passer une data-URL existante
-(un dossier rouvert) la charge à l'hydratation et la peint comme couche
-de fond, sous les traits neufs — donc elle survit au redimensionnement
-comme le reste, et resoumettre sans y toucher ne l'efface pas.
-``.clear()`` l'emporte avec les traits : « effacer » veut dire un cadre
-vide, pas « revenir à la signature d'avant ». *(La première version ne
-la chargeait pas : le cadre s'affichait vide ET sans invite, puisque le
-SSR avait déjà posé ``data-empty="false"`` — le composant annonçait une
-signature en n'en montrant aucune.)*
+**A signature already there is REPAINTED.** Passing an existing data URL
+(a reopened record) loads it at hydration and paints it as a background
+layer, under the new strokes — so it survives a resize like the rest,
+and resubmitting without touching it does not erase it. ``.clear()``
+takes it away along with the strokes: "clear" means an empty frame, not
+"go back to the previous signature". *(The first version did not load
+it: the frame showed empty AND with no prompt, since the SSR had already
+set ``data-empty="false"`` — the component announced a signature while
+showing none.)*
 
-Le trait est encré avec la couleur de texte LUE sur le canvas, jamais
-configurée : elle suit le mode sombre toute seule. Il n'y a donc pas de
-``pen_color=`` — il aurait figé une encre invisible sur l'autre fond.
+The stroke is inked with the text colour READ on the canvas, never
+configured: it follows dark mode by itself. So there is no
+``pen_color=`` — it would have frozen an invisible ink on the other
+background.
 
-Imperative API : ``.clear()``. Une signature se refait, elle ne se
-retouche pas — pas d'``undo()``. (Le runtime garde bien les points, mais
-pour redessiner après un changement de taille : un canvas s'efface quand
-on le redimensionne, et un téléphone qu'on tourne le redimensionne.)
+Imperative API : ``.clear()``. A signature is redone, it is not touched
+up — no ``undo()``. (The runtime does keep the points, but in order to
+redraw after a size change: a canvas clears when you resize it, and a
+phone you turn resizes it.)
 """
 
 from __future__ import annotations
@@ -90,40 +91,40 @@ class SignaturePad(Component):
 
     THEME: ClassVar[dict[str, Any]] = SIGNATURE_PAD_THEME
     THEME_KEY: ClassVar[str] = "signature_pad"
-    # ``value`` EST bindable, et l'invariant du socle l'exige :
-    # ``TWO_WAY_PROPS ⊆ BINDABLE_PROPS`` (``test_two_way_props``). Un
-    # champ que le client écrit — et il l'écrit, l'utilisateur dessine —
-    # ne peut pas être form-bound sans être bindable. La réserve sur le
-    # poids reste vraie et vit dans la docstring du module : elle ne
-    # concerne QUE le cas où l'appelant lie à un ``ClientState``.
+    # ``value`` IS bindable, and the base layer's invariant requires it:
+    # ``TWO_WAY_PROPS ⊆ BINDABLE_PROPS`` (``test_two_way_props``). A
+    # field the client writes — and it does write it, the user draws —
+    # cannot be form-bound without being bindable. The reservation about
+    # weight stays true and lives in the module's docstring: it concerns
+    # ONLY the case where the caller binds to a ``ClientState``.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value",)
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("clear",)
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
 
-    # ``names_field=True`` : c'est CETTE prop qui donne son ``name`` HTML
-    # au porteur caché, donc le champ ServerState qu'on lui passe. Le
-    # ClassVar ``AUTONAME_FROM`` en est DÉRIVÉ — le déclarer à la main
-    # est refusé au chargement (deux endroits pour un seul fait).
-    # ``writes=True`` est exigé par ``names_field`` et c'est juste : le
-    # CLIENT écrit bien cette valeur (il dessine) — et c'est précisément
-    # ce qui force ``value`` dans ``BINDABLE_PROPS`` ci-dessus. Ce qui ne
-    # remonte JAMAIS dans un signal, c'est le tracé lui-même : les points
-    # vivent dans le canvas, seule la data-URL atterrit sur le porteur.
-    # ``never_code`` : cette valeur est une **data-URL**, et son padding
-    # base64 s'écrit ``=`` ou ``==`` — donc un tracé sur quatre environ
-    # sortait classé « expression client » de l'heuristique, partait en
-    # ``bz-attr:value=`` et faisait planter le boot du runtime (mesuré le
-    # 2026-08-13). Ça avait été réparé par une exclusion ``data:`` DANS
-    # l'heuristique ; elle est retirée depuis le 2026-08-26 au profit de
-    # cette déclaration, qui dit le fait là où il est vrai. C'est le seul
-    # porteur d'URI dont le nom de prop ne l'annonce pas — d'où son entrée
-    # nominative dans ``test_a_url_prop_is_never_read_as_code``.
+    # ``names_field=True``: it is THIS prop that gives the hidden
+    # carrier its HTML ``name``, so the ServerState field passed to it.
+    # The ``AUTONAME_FROM`` ClassVar is DERIVED from it — declaring it by
+    # hand is refused at load time (two places for a single fact).
+    # ``writes=True`` is required by ``names_field`` and it is right: the
+    # CLIENT does write this value (it draws) — and that is precisely
+    # what forces ``value`` into ``BINDABLE_PROPS`` above. What NEVER
+    # goes back into a signal is the stroke itself: the points live in
+    # the canvas, only the data URL lands on the carrier.
+    # ``never_code``: this value is a **data URL**, and its base64
+    # padding is written ``=`` or ``==`` — so roughly one stroke in four
+    # came out classified "client expression" by the heuristic, left as
+    # ``bz-attr:value=`` and crashed the runtime's boot (measured on
+    # 2026-08-13). It had been repaired by a ``data:`` exclusion INSIDE
+    # the heuristic; that is gone since 2026-08-26 in favour of this
+    # declaration, which states the fact where it is true. It is the
+    # only URI carrier whose prop name does not announce it — hence its
+    # by-name entry in ``test_a_url_prop_is_never_read_as_code``.
     value: str | None = reactive_prop(
         default=None, emit_attr=False, writes=True, names_field=True,
         never_code=True,
     )
-    # ``None`` : un défaut de ``reactive_prop`` est résolu à l'import,
-    # donc figerait l'anglais quelle que soit la langue de l'app.
+    # ``None``: a ``reactive_prop`` default is resolved at import, so it
+    # would freeze English whatever the app's language.
     placeholder: str | None = reactive_prop(default=None, emit_attr=False)
     clear_label: str | None = reactive_prop(default=None, emit_attr=False)
     disabled: bool = reactive_prop(default=False, emit_attr=False)
@@ -144,7 +145,7 @@ class SignaturePad(Component):
         on_change: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None.
+        # Direct forward: the base layer drops reactive None kwargs.
         super().__init__(
             value=value,
             placeholder=placeholder,
@@ -157,18 +158,19 @@ class SignaturePad(Component):
             **kwargs,
         )
 
-    # ── API impérative ─────────────────────────────────────────────────
+    # ── Imperative API ─────────────────────────────────────────────────
 
     def clear(self) -> str:
-        """Effacer le tracé. Toujours un dispatch DOM.
+        """Clear the drawing. Always a DOM dispatch.
 
-        **Y compris quand ``value`` porte une binding**, et c'est la
-        seule raison qui tienne : effacer n'est pas « écrire la chaîne
-        vide ». Il faut aussi jeter ``_strokes``, oublier le ``_base``
-        d'une signature rouverte et repeindre le canvas — trois choses
-        que seul le runtime sait faire. Un write-through
-        (:meth:`Component._value_command`, le patron des onze ``.set()``)
-        laisserait le cadre montrer un tracé que l'état dit absent.
+        **Including when ``value`` carries a binding**, and it is the
+        only reason that holds: clearing is not "writing the empty
+        string". One also has to throw away ``_strokes``, forget the
+        ``_base`` of a reopened signature and repaint the canvas — three
+        things only the runtime knows how to do. A write-through
+        (:meth:`Component._value_command`, the pattern of the eleven
+        ``.set()``) would leave the frame showing a drawing the state
+        says is absent.
         """
         return self._dispatch_command("bz-clear")
 
@@ -181,9 +183,9 @@ class SignaturePad(Component):
         size_cfg = size_table.get(size_key, size_table.get("md", {}))
         disabled = bool(self._reactive_values.get("disabled"))
         initial = self._reactive_values.get("value") or ""
-        # ``is None`` et pas ``or`` : ``placeholder=""`` est un opt-out
-        # explicite qui doit rester silencieux, et un ``or`` lui
-        # redonnerait le défaut.
+        # ``is None`` and not ``or``: ``placeholder=""`` is an explicit
+        # opt-out that must stay silent, and an ``or`` would give it the
+        # default back.
         placeholder = self._reactive_values.get("placeholder")
         if placeholder is None:
             placeholder = text("signature_pad.placeholder")
@@ -199,28 +201,28 @@ class SignaturePad(Component):
         canvas_attrs: dict[str, Any] = {
             "class": self.slot_class("canvas"),
             "bz-ref": "bzcanvas",
-            # Le canvas n'est PAS focusable et ne porte aucun rôle : ce
-            # qui est annoncé et atteignable au clavier, c'est l'input
-            # caché (un vrai contrôle de formulaire, avec son ``name``)
-            # et le bouton Effacer. Poser un ``role`` sur une surface de
-            # dessin annoncerait un contrôle qu'aucune touche ne pilote.
+            # The canvas is NOT focusable and carries no role: what is
+            # announced and reachable from the keyboard is the hidden
+            # input (a real form control, with its ``name``) and the
+            # Clear button. Setting a ``role`` on a drawing surface would
+            # announce a control no key drives.
             "aria-hidden": "true",
         }
         if disabled:
-            # Lu par ``_locked()`` côté runtime. Un attribut plutôt qu'un
-            # champ de scope : ``disabled`` n'est pas bindable, donc la
-            # valeur est figée au rendu et n'a rien à faire dans un
-            # signal.
+            # Read by ``_locked()`` on the runtime side. An attribute
+            # rather than a scope field: ``disabled`` is not bindable, so
+            # the value is frozen at render and has no business being in
+            # a signal.
             canvas_attrs["data-bz-pad-locked"] = ""
         else:
             canvas_attrs["bz-on:pointerdown"] = "_start($event)"
             canvas_attrs["bz-on:pointermove"] = "_draw($event)"
             canvas_attrs["bz-on:pointerup"] = "_end($event)"
             canvas_attrs["bz-on:pointercancel"] = "_end($event)"
-            # Rebranché à chaque rescan, pas au ``bz-init`` : celui-ci
-            # est one-shot par nœud, or un canvas remplacé par un morph
-            # ne serait alors jamais observé (même raison, même remède
-            # que ``_observeGeom`` du Carousel).
+            # Re-wired at every rescan, not at ``bz-init``: that one is
+            # one-shot per node, yet a canvas replaced by a morph would
+            # then never be observed (same reason, same remedy as the
+            # Carousel's ``_observeGeom``).
             canvas_attrs["bz-effect"] = "_observe()"
 
         pad_children: list[Node] = [
@@ -239,9 +241,9 @@ class SignaturePad(Component):
                         "class": self.slot_class(
                             "hint", size_cfg.get("hint", "")
                         ),
-                        # Le même ``data-empty`` que le cadre porte : le
-                        # variant Tailwind de l'invite le lit sur
-                        # elle-même, donc il doit y être aussi.
+                        # The same ``data-empty`` the frame carries:
+                        # the prompt's Tailwind variant reads it on
+                        # itself, so it must be there too.
                         "data-empty": "false" if initial else "true",
                     },
                     children=(self.emit_text_slot(placeholder),),
@@ -252,19 +254,20 @@ class SignaturePad(Component):
             tag="div",
             attrs={
                 "class": self.slot_class("pad", size_cfg.get("pad", "")),
-                # SSR : vide sauf si une signature est déjà là (un
-                # dossier rouvert). Le runtime prend le relais au
-                # premier trait.
+                # SSR: empty unless a signature is already there (a
+                # reopened record). The runtime takes over at the first
+                # stroke.
                 "data-empty": "false" if initial else "true",
                 "data-locked": "true" if disabled else "false",
             },
             children=tuple(pad_children),
         )
 
-        # ── Input caché — form data + source du ``change`` ───────────
-        # Le porteur standard : ``bz-attr:value`` reporte l'état dans le
-        # DOM, ``change_emit_effect`` en tire le ``change``. Le runtime
-        # n'écrit donc QUE l'état, jamais l'input — un seul auteur.
+        # ── Hidden input — form data + source of the ``change`` ─────
+        # The standard carrier: ``bz-attr:value`` reports the state into
+        # the DOM, ``change_emit_effect`` draws the ``change`` from it.
+        # So the runtime writes ONLY the state, never the input — a
+        # single author.
         root_attrs = self.emit_attrs()
         relocated = pop_change_handler(root_attrs)
         field_name = (
@@ -283,10 +286,10 @@ class SignaturePad(Component):
             Element(tag="input", attrs=hidden_attrs, children=()),
         ]
 
-        # ── La barre d'actions ───────────────────────────────────────
-        # Le bouton EST un ``ui.button``, pas une imitation : c'est la
-        # règle de dogfooding du dépôt, et il apporte gratuitement le
-        # focus ring, l'état disabled et l'échelle de tailles.
+        # ── The action bar ───────────────────────────────────────────
+        # The button IS a ``ui.button``, not an imitation: it is the
+        # repository's dogfooding rule, and it brings the focus ring, the
+        # disabled state and the size scale for free.
         clear_label = self._reactive_values.get("clear_label")
         if clear_label is None:
             clear_label = text("signature_pad.clear")
@@ -321,8 +324,8 @@ class SignaturePad(Component):
             binding_path=binding_path,
             server_synced=self._value_server_backed("value"),
         )
-        # Une méthode de scope n'a pas ``$refs`` — c'est ici, en contexte
-        # de directive, qu'on capture le canvas dans le scope.
+        # A scope method has no ``$refs`` — it is here, in directive
+        # context, that we capture the canvas into the scope.
         root_attrs["bz-init"] = "_canvas = $refs.bzcanvas"
         root_attrs["bz-on:bz-clear"] = "clear()"
 
@@ -339,20 +342,19 @@ class SignaturePad(Component):
         binding_path: str | None,
         server_synced: bool,
     ) -> str:
-        """Le ``bz-data`` de l'instance : **des données, pas du code**.
+        """The instance's ``bz-data``: **data, not code**.
 
-        Le tracé (pointeur, redimensionnement, rendu, publication) vit
-        une seule fois dans ``$bz.signaturePad.scope``.
+        The drawing (pointer, resize, render, publish) lives once in
+        ``$bz.signaturePad.scope``.
 
-        ``_canvas`` est déclaré ``null`` puis rempli par le ``bz-init``
-        du root : une méthode de scope n'a pas accès à ``$refs``, seules
-        les directives en ont (même contrainte et même remède que
-        Slider, Carousel et Resizable).
+        ``_canvas`` is declared ``null`` then filled by the root's
+        ``bz-init``: a scope method has no access to ``$refs``, only
+        directives do (same constraint and same remedy as Slider,
+        Carousel and Resizable).
 
-        ``_strokes`` vit ICI plutôt que sur le nœud parce qu'il doit
-        survivre au rescan sans survivre au canvas — un scope est
-        réapparié par ``bz-id``, exactement comme la signature qu'il
-        porte.
+        ``_strokes`` lives HERE rather than on the node because it must
+        survive the rescan without surviving the canvas — a scope is
+        re-paired by ``bz-id``, exactly like the signature it carries.
         """
         if has_local_value:
             sync = server_sync_marker(scope_key, enabled=server_synced)
@@ -369,12 +371,12 @@ class SignaturePad(Component):
             + "_canvas: null,"
             + "_strokes: [],"
             + "_drawing: null,"
-            # La signature DÉJÀ LÀ, chargée une fois à l'hydratation et
-            # peinte SOUS les traits neufs. Déclarée ici plutôt que
-            # posée à la volée côté JS : un champ non déclaré devient un
-            # signal à sa première écriture, donc l'assigner depuis le
-            # ``onload`` de l'image réveillerait les effets du scope
-            # pour rien.
+            # The signature ALREADY THERE, loaded once at hydration and
+            # painted UNDER the new strokes. Declared here rather than
+            # set on the fly on the JS side: an undeclared field becomes
+            # a signal at its first write, so assigning it from the
+            # image's ``onload`` would wake the scope's effects for
+            # nothing.
             + "_base: null,"
             + f"_read() {{ return {target}; }},"
             + f"_write(v) {{ {target} = v; }}"

@@ -18,48 +18,48 @@ import socket
 
 
 class PortAlreadyTakenError(OSError):
-    """Le port est déjà tenu — dit AVANT de lancer quoi que ce soit.
+    """The port is already held — said BEFORE launching anything.
 
-    C'est le remède de la moitié cheap d'un défaut mesuré le 2026-09-03 :
-    ``watchfiles.run_process`` lance uvicorn dans un processus ENFANT, et
-    quand le parent meurt sans propager — terminal fermé, ``timeout``,
-    kill — **l'enfant survit et garde le port**. Le lancement suivant
-    échoue alors DANS l'enfant, et selon le terminal l'``[Errno 10048]``
-    ne remonte même pas : on voit « watching: … » puis le prompt, et rien
-    d'autre. Constaté en vrai, PID 5640 tenant le 8006 alors que
-    ``netstat`` n'en disait rien.
+    It is the cheap half of the remedy for a flaw measured on
+    2026-09-03: ``watchfiles.run_process`` launches uvicorn in a CHILD
+    process, and when the parent dies without propagating — terminal
+    closed, ``timeout``, kill — **the child survives and keeps the
+    port**. The next launch then fails INSIDE the child, and depending on
+    the terminal the ``[Errno 10048]`` does not even surface: one sees
+    "watching: …" then the prompt, and nothing else. Seen for real, PID
+    5640 holding 8006 while ``netstat`` said nothing about it.
 
-    Un essai de liaison dans le PARENT coûte une milliseconde et remet
-    l'erreur là où l'utilisateur la lit.
+    A bind attempt in the PARENT costs a millisecond and puts the error
+    back where the user reads it.
     """
 
 
 def ensure_port_is_free(host: str, port: int) -> None:
-    """Lève :class:`PortAlreadyTakenError` si ``(host, port)`` est pris.
+    """Raise :class:`PortAlreadyTakenError` if ``(host, port)`` is taken.
 
-    ⚠️ On ne nomme PAS le processus qui tient le port : la mesure du
-    2026-09-03 a montré que ``netstat`` peut ne rien rendre là où
-    ``Get-NetTCPConnection`` voit le tenant. Promettre un PID qu'on ne
-    sait pas obtenir de façon fiable serait pire que ne rien promettre —
-    on dit ce qu'on sait, et on dit comment le trouver.
+    ⚠️ We do NOT name the process holding the port: the 2026-09-03
+    measurement showed ``netstat`` can return nothing where
+    ``Get-NetTCPConnection`` sees the holder. Promising a PID we cannot
+    obtain reliably would be worse than promising nothing — we say what
+    we know, and we say how to find it.
 
-    La socket d'essai ne pose PAS ``SO_REUSEADDR`` : on veut exactement
-    la question que se posera uvicorn, pas une plus permissive.
+    The test socket does NOT set ``SO_REUSEADDR``: we want exactly the
+    question uvicorn will ask, not a more permissive one.
     """
     probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         probe.bind((host, port))
     except OSError as exc:
         raise PortAlreadyTakenError(
-            f"le port {port} est déjà pris sur {host} — rien n'a été "
-            f"lancé.\n"
-            f"  Cause la plus fréquente : un serveur de dev précédent dont "
-            f"le PARENT a été tué sans propager (terminal fermé, timeout). "
-            f"L'enfant uvicorn survit et garde le port.\n"
-            f"  Pour trouver le tenant sous Windows :\n"
+            f"port {port} is already taken on {host} — nothing was "
+            f"launched.\n"
+            f"  Most frequent cause: a previous dev server whose PARENT "
+            f"was killed without propagating (terminal closed, timeout). "
+            f"The uvicorn child survives and keeps the port.\n"
+            f"  To find the holder on Windows:\n"
             f"      Get-NetTCPConnection -LocalPort {port} | "
             f"Select-Object OwningProcess\n"
-            f"  (`netstat` peut ne RIEN rendre dans ce cas — mesuré.)"
+            f"  (`netstat` can return NOTHING in this case — measured.)"
         ) from exc
     finally:
         probe.close()
@@ -85,30 +85,30 @@ def run_dev_server(
     log_level: str,
     watch_dirs: list,
 ) -> None:
-    """Block on watchfiles' parent loop : spawn :func:`_run_uvicorn`
+    """Block on watchfiles' parent loop: spawn :func:`_run_uvicorn`
     as a child, restart it on every ``*.py`` change under
     ``watch_dirs``. Returns on Ctrl+C.
 
     ``watch_dirs`` accepts anything :func:`watchfiles.run_process`
-    accepts as a path : :class:`pathlib.Path` or :class:`str`. We
+    accepts as a path: :class:`pathlib.Path` or :class:`str`. We
     don't coerce — the caller (``Bretzel._derive_watch_dirs``)
     already passes resolved :class:`Path` objects.
 
-    ⚠️ Lève :class:`PortAlreadyTakenError` avant tout lancement si le port
-    est déjà tenu — cf. sa docstring pour le défaut que ça ferme.
+    ⚠️ Raises :class:`PortAlreadyTakenError` before any launch if the
+    port is already held — cf. its docstring for the flaw that closes.
 
-    ⚠️ **Ce qui reste ouvert** : la fin de vie de l'enfant. Un parent tué
-    brutalement ne lui propage rien, et c'est ce qui CRÉE la situation
-    détectée ici. Le remède propre sous Windows est un Job Object qui tue
-    ses enfants avec lui ; il n'est pas écrit. Détecter vaut mieux que
-    subir, mais ce n'est pas la racine.
+    ⚠️ **What stays open**: the child's end of life. A parent killed
+    abruptly propagates nothing to it, and that is what CREATES the
+    situation detected here. The clean remedy on Windows is a Job Object
+    that kills its children with it; it is not written. Detecting is
+    better than suffering, but it is not the root.
     """
     from watchfiles import PythonFilter, run_process
 
-    # AVANT le message « watching », et avant de lancer l'enfant : sinon
-    # l'échec de liaison arrive dans un processus dont la sortie ne
-    # remonte pas toujours, et l'utilisateur voit « watching » puis le
-    # prompt, sans rien pour comprendre.
+    # BEFORE the "watching" message, and before launching the child:
+    # otherwise the bind failure happens in a process whose output does
+    # not always surface, and the user sees "watching" then the prompt,
+    # with nothing to understand it by.
     ensure_port_is_free(host, port)
 
     print(f"[bretzel] watching: {[str(p) for p in watch_dirs]}")

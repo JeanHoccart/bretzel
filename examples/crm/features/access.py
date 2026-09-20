@@ -1,26 +1,25 @@
-"""features/access — logic : qui regarde, et ce qu'il a le droit de voir.
+"""features/access — logic: who is looking, and what they may see.
 
-La feature la plus courte du CRM, et celle que toutes les autres lisent.
-Elle répond à **une** question — :func:`visible_owner` — et toute la
-politique d'accès de l'app tient dans sa réponse :
+The CRM's shortest feature, and the one every other reads. It answers
+**one** question — :func:`visible_owner` — and the app's whole access
+policy sits in its answer:
 
-- un **commercial** est ramené à son propre portefeuille, toujours, sans
-  qu'aucun écran ait à le savoir ;
-- un **directeur** voit tout (``None``), ou se met à la place de quelqu'un
-  en choisissant un portefeuille.
+- a **commercial** is brought back to their own portfolio, always,
+  without any screen having to know;
+- a **directeur** sees everything (``None``), or stands in for somebody
+  by picking a portfolio.
 
-⚠️ **Le filtre est un PARAMÈTRE, pas une variable globale que les repos
-iraient lire.** Chaque fonction de lecture prend son ``owner`` et le pose
-dans son ``WHERE`` ; l'écran le passe. C'est plus verbeux, et c'est le
-point : on peut RELIRE une signature et voir si elle est cadrée. Un repo
-qui appellerait ``visible_owner()`` tout seul rendrait le filtrage
-invisible au call-site — et un chemin oublié le resterait.
+⚠️ **The filter is a PARAMETER, not a global variable the repos would go
+and read.** Every read function takes its ``owner`` and puts it in its
+``WHERE``; the screen passes it. It is more verbose, and that is the
+point: one can RE-READ a signature and see whether it is scoped. A repo
+calling ``visible_owner()`` on its own would make the filtering invisible
+at the call site — and a forgotten path would stay so.
 
-⚠️ ``ViewerPrefs`` est un :class:`~bretzel.state.UserState`, donc il **lève
-``AuthRequiredError`` (401) hors d'une session connectée**. C'est la
-segmentation d'état que le framework fournit, et la seule chose qu'il
-fournit en matière d'utilisateur : ne jamais le toucher depuis une page
-publique.
+⚠️ ``ViewerPrefs`` is a :class:`~bretzel.state.UserState`, so it **raises
+``AuthRequiredError`` (401) outside a signed-in session**. It is the
+state segmentation the framework provides, and the only thing it provides
+in the way of a user: never touch it from a public page.
 """
 
 from __future__ import annotations
@@ -34,47 +33,47 @@ from examples.crm.features.auth_data import find_by_id
 
 
 class ViewerPrefs(UserState):
-    """Les préférences attachées au COMPTE, pas à la session.
+    """The preferences attached to the ACCOUNT, not to the session.
 
-    Deux navigateurs connectés au même compte voient le même réglage ; deux
-    comptes sur le même navigateur n'en partagent aucun. C'est exactement ce
-    que ``scope="user"`` veut dire, et c'est la raison d'être de la classe.
+    Two browsers signed in to the same account see the same setting; two
+    accounts on the same browser share none. That is exactly what
+    ``scope="user"`` means, and it is the class's reason to exist.
     """
 
-    #: Le portefeuille qu'un DIRECTEUR regarde. Vide = tous. Un commercial
-    #: ne s'en sert pas : son portefeuille n'est pas un choix.
+    #: The portfolio a DIRECTOR is looking at. Empty = all. A commercial
+    #: does not use it: their portfolio is not a choice.
     portefeuille: str = field(default='')
 
 
-#: Le nom sous lequel le profil est posé sur ``request.state``. Une
-#: constante plutôt qu'un littéral répété : c'est une clé partagée avec
-#: le socle, sur un objet qui n'est pas à nous.
+#: The name under which the profile is set on ``request.state``. A
+#: constant rather than a repeated literal: it is a key shared with the
+#: base layer, on an object that is not ours.
 _PROFILE_SLOT = "crm_profile"
 
 
 def current_profile() -> dict | None:
-    """Le compte connecté, joint depuis l'identifiant du cookie.
+    """The signed-in account, joined from the cookie's identifier.
 
-    ``None`` quand personne n'est connecté — ou quand le cookie désigne un
-    compte supprimé, ce qui doit se comporter pareil.
+    ``None`` when nobody is signed in — or when the cookie names a
+    deleted account, which must behave the same.
 
-    ⚠️ **Mémorisé pour la durée de la REQUÊTE**, sur ``request.state``.
-    Sans ce cache, chaque appel rouvrait une connexion SQLite : le choix
-    « le cadrage est un paramètre » fait appeler :func:`visible_owner`
-    une fois par zone, et l'écran des rapports en comptait **neuf par
-    rendu** (sept zones + deux pour la barre latérale), soit neuf
-    ouvertures de fichier à 1,6 ms pour répondre « qui regarde ».
-    Mesuré : 54,4 ms → 36,6 ms sur ``/rapports`` (−33 %).
+    ⚠️ **Memoised for the duration of the REQUEST**, on ``request.state``.
+    Without this cache, every call reopened a SQLite connection: the
+    choice "the scoping is a parameter" makes :func:`visible_owner` be
+    called once per zone, and the reports screen counted **nine per
+    render** (seven zones + two for the sidebar), that is nine file
+    openings at 1.6 ms to answer "who is looking". Measured: 54.4 ms →
+    36.6 ms on ``/rapports`` (−33 %).
 
-    Le cache est **par requête**, pas global (anti-règle 2) : deux
-    requêtes ne partagent rien, et une reconnexion en cours de requête
-    n'existe pas — la page de connexion ne lit aucun profil.
+    The cache is **per request**, not global (anti-rule 2): two requests
+    share nothing, and a re-sign-in mid-request does not exist — the
+    sign-in page reads no profile.
     """
     try:
         state = current_context().request.state
     except RuntimeError:
-        # Hors contexte de rendu (un test qui appelle directement) : pas
-        # de requête à quoi accrocher un cache, on lit à chaque fois.
+        # Outside a render context (a test calling directly): no
+        # request to hang a cache on, we read every time.
         return read_profile()
     cached = getattr(state, _PROFILE_SLOT, _MISSING)
     if cached is _MISSING:
@@ -83,8 +82,8 @@ def current_profile() -> dict | None:
     return cached
 
 
-#: Sentinelle : ``None`` est une valeur de cache LÉGITIME (personne n'est
-#: connecté), donc elle ne peut pas dire « pas encore lu ».
+#: Sentinel: ``None`` is a LEGITIMATE cache value (nobody is signed in),
+#: so it cannot mean "not read yet".
 _MISSING = object()
 
 
@@ -98,31 +97,31 @@ def is_director() -> bool:
     return bool(profile) and profile["role"] == "directeur"
 
 
-#: Le cadrage d'un ANONYME. Ce n'est pas ``None`` — ``None`` veut dire
-#: « tous », et le défaut d'une politique d'accès ne peut pas être « tout ».
-#: Aucun propriétaire ne s'appelle ``""``, donc ``WHERE owner = ''`` ne
-#: rend rien : c'est un refus qui passe par le même chemin que le reste,
-#: sans qu'aucune lecture ait à connaître le cas.
+#: An ANONYMOUS visitor's scoping. It is not ``None`` — ``None`` means
+#: "all", and an access policy's default cannot be "everything". No owner
+#: is called ``""``, so ``WHERE owner = ''`` returns nothing: it is a
+#: refusal going through the same path as the rest, without any read
+#: having to know the case.
 NOBODY = ""
 
 
 def visible_owner() -> str | None:
-    """Le propriétaire dont on a le droit de voir la donnée. ``None`` = tous.
+    """The owner whose data one may see. ``None`` = all.
 
-    L'unique porte de la politique d'accès. Trois cas, et l'ordre compte :
+    The access policy's single door. Three cases, and the order matters:
 
-    1. **personne n'est connecté** → :data:`NOBODY`, donc rien. La garde
-       middleware renvoie déjà sur la connexion ; ce retour est le
-       deuxième verrou, pour le jour où une route sortirait de la garde.
-       Rendre ``None`` ici serait ouvrir TOUTE la base à l'anonyme — la
-       forme d'erreur qu'on ne voit jamais en relisant, parce que la page
-       s'affiche parfaitement ;
-    2. **commercial** → son propre nom, TOUJOURS. Il n'y a pas de branche
-       où il pourrait en obtenir un autre : c'est la propriété qu'on veut
-       pouvoir relire d'un coup d'œil ;
-    3. **directeur** → ce qu'il a choisi, ou ``None`` s'il n'a rien choisi.
-       Un choix qui ne désigne pas un propriétaire connu est ignoré plutôt
-       que refusé — un réglage périmé ne doit pas bloquer une page.
+    1. **nobody is signed in** → :data:`NOBODY`, so nothing. The
+       middleware guard already sends them to the sign-in; this return is
+       the second lock, for the day a route steps outside the guard.
+       Returning ``None`` here would open the WHOLE database to an
+       anonymous visitor — the form of error one never sees when
+       re-reading, because the page renders perfectly;
+    2. **commercial** → their own name, ALWAYS. There is no branch where
+       they could obtain another: it is the property one wants to be able
+       to re-read at a glance;
+    3. **directeur** → what they chose, or ``None`` if they chose
+       nothing. A choice not naming a known owner is ignored rather than
+       refused — a stale setting must not block a page.
     """
     profile = current_profile()
     if profile is None:
@@ -134,35 +133,34 @@ def visible_owner() -> str | None:
 
 
 def sign_out() -> None:
-    """Déconnecte et ramène à la page de connexion.
+    """Sign out and go back to the sign-in page.
 
-    Ici et non dans ``features/login.py`` : la barre latérale en a
-    besoin, et la faire dépendre de la PAGE de connexion faisait
-    transitivement importer cette page par tous les écrans. Se
-    déconnecter est de la logique d'accès, pas du contenu d'écran.
+    Here and not in ``features/login.py``: the sidebar needs it, and
+    making it depend on the sign-in PAGE made every screen transitively
+    import that page. Signing out is access logic, not screen content.
 
-    ``disconnect`` fait tourner l'identifiant de session en plus
-    d'effacer le cookie : tout ce qui était attaché à la session
-    précédente — un brouillon d'import, un filtre — repart à zéro, ce
-    qui est le comportement attendu quand on quitte un compte sur un
-    poste partagé.
+    ``disconnect`` rotates the session identifier as well as clearing the
+    cookie: everything attached to the previous session — an import
+    draft, a filter — starts over, which is the expected behaviour when
+    leaving an account on a shared machine.
     """
     auth.logout()
     redirect(LOGIN_PATH)
 
 
 def portfolio_options() -> list[tuple[str, str]]:
-    """Les choix du sélecteur de la direction. ``""`` = tous."""
-    return [("", "Tous les portefeuilles"), *((o, o) for o in OWNERS)]
+    """The directorate selector's choices. ``""`` = all."""
+    return [("", "Every portfolio"), *((o, o) for o in OWNERS)]
 
 
 def set_portfolio(prefs: ViewerPrefs) -> None:
-    """Le directeur change de portefeuille ; ``deps=`` re-render les zones.
+    """The director changes portfolio; ``deps=`` re-renders the zones.
 
-    ⚠️ Le corps est vide **et c'est le mécanisme** : le socle a déjà
-    hydraté ``prefs.portefeuille`` avant d'appeler le handler, et la
-    mutation seule déclenche le re-render des zones qui déclarent
-    ``deps=[ViewerPrefs]``. Écrire quoi que ce soit ici serait redondant.
+    ⚠️ The body is empty **and that is the mechanism**: the base layer
+    has already hydrated ``prefs.portefeuille`` before calling the
+    handler, and the mutation alone triggers the re-render of the zones
+    declaring ``deps=[ViewerPrefs]``. Writing anything here would be
+    redundant.
     """
 
 

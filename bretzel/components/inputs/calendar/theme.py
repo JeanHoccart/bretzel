@@ -5,14 +5,15 @@ Five visual zones :
 - ``root`` : grid layout (header + weekday row + 6 week rows)
 - ``header`` : month label + prev/next buttons row
 - ``nav_button`` : the chevron buttons in the header
-- ``month_label`` : centered ``"March 2026"`` text (les défauts sont
-  ANGLAIS — cf. ``calendar.py`` ; le FR passe par ``month_names=``)
+- ``month_label`` : centered ``"March 2026"`` text (the defaults are
+  ENGLISH — cf. ``calendar.py``; other languages go through
+  ``month_names=``)
 - ``weekday_row`` / ``weekday`` : the ``Sun Mon Tue Wed Thu Fri Sat``
-  strip (défauts anglais, surchargeables via ``weekday_names=``)
+  strip (English defaults, overridable via ``weekday_names=``)
 - ``week_row`` : flex row of 7 day cells
-- ``month_grid`` / ``month_cell`` : la grille d'ANNÉE du mode ``month``
-  (12 cellules, 3 × 4) — un second type de grille, rendu à la place de
-  ``weekday_row`` + ``week_row``, jamais en plus
+- ``month_grid`` / ``month_cell`` : the YEAR grid of ``month`` mode
+  (12 cells, 3 × 4) — a second kind of grid, rendered instead of
+  ``weekday_row`` + ``week_row``, never in addition
 - ``day_cell`` : each clickable day button
   - ``data-selected="true"`` : single-pick / range endpoints
   - ``data-in-range="true"`` : middles of an active range
@@ -28,16 +29,16 @@ from typing import Any
 CALENDAR_THEME: dict[str, Any] = {
     "slots": {
         "root": (
-            # ⚠️ PAS de ``w-fit`` : la largeur vient de la table de
-            # tailles (``sizes[<size>]["root"]``), et c'est un correctif,
-            # pas une préférence. En ``w-fit`` la racine valait
-            # ``max(en-tête, grille)`` — or le libellé du mois est du
-            # texte de largeur variable, donc « septembre » élargissait
-            # tout le calendrier. Mesuré le 2026-08-25 : 278 px en août,
-            # 292,8 px en septembre, et **la flèche « mois suivant » se
-            # déplaçait de 14,8 px**. On clique, la cible bouge, on doit
-            # re-viser. (La hauteur, elle, ne bougeait pas : la grille
-            # complète toujours ses 6 semaines.)
+            # ⚠️ NO ``w-fit``: the width comes from the sizes table
+            # (``sizes[<size>]["root"]``), and it is a fix, not a
+            # preference. With ``w-fit`` the root was
+            # ``max(header, grid)`` — yet the month's label is text of
+            # variable width, so "septembre" widened the whole calendar.
+            # Measured on 2026-08-25: 278 px in August, 292.8 px in
+            # September, and **the "next month" arrow moved by 14.8 px**.
+            # You click, the target moves, you have to re-aim. (The
+            # height, for its part, did not move: the grid always
+            # completes its 6 weeks.)
             "bz-calendar inline-flex flex-col gap-2 "
             "h-fit max-w-full "
             "p-3 rounded-box border-(length:--bz-stroke) border-text/10 bg-interface "
@@ -45,17 +46,17 @@ CALENDAR_THEME: dict[str, Any] = {
             # Disabled feedback : whole grid fades + cursor reflects it.
             "aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
         ),
-        # ``min-w-0`` : sans lui, un enfant flex refuse de rétrécir sous
-        # sa taille de contenu, et le ``truncate`` du libellé ne se
-        # déclencherait jamais — l'en-tête déborderait de la largeur
-        # fixe au lieu de s'y plier.
-        # ``gap-1.5`` et non ``gap-2`` : trois espaces à 6 px au lieu de
-        # 8 rendent 6 px au libellé, assez pour que « septembre » ne
-        # déclenche PAS le ``truncate`` à ``md``. Le truncate reste le
-        # filet — une langue aux mois plus longs le trouvera.
+        # ``min-w-0``: without it, a flex child refuses to shrink below
+        # its content size, and the label's ``truncate`` would never
+        # fire — the header would overflow the fixed width instead of
+        # folding into it.
+        # ``gap-1.5`` and not ``gap-2``: three 6 px spaces instead of 8
+        # give 6 px to the label, enough for "septembre" NOT to trigger
+        # the ``truncate`` at ``md``. The truncate stays the net — a
+        # language with longer months will find it.
         "header": "flex items-center justify-between gap-1.5 w-full min-w-0",
         "nav_button": (
-            # Taille (``w-8 h-8`` md) dans ``sizes``, pas ici — cf. weekday.
+            # Size (``w-8 h-8`` md) in ``sizes``, not here — cf. weekday.
             "inline-flex shrink-0 items-center justify-center rounded-selector "
             "text-text/70 not-disabled:hover:bg-text/5 not-disabled:hover:text-text "
             "disabled:opacity-40 disabled:cursor-not-allowed "
@@ -64,35 +65,35 @@ CALENDAR_THEME: dict[str, Any] = {
         "month_label": "font-semibold text-text truncate min-w-0",
         "weekday_row": "grid grid-cols-7 gap-0",
         "weekday": (
-            # ⚠️ Aucun token de TAILLE ici (w-/h-/text-<size>) : il vit
-            # dans ``sizes[<size>]["weekday"]``, ``md`` compris. Les mettre
-            # dans le slot les fait EMPILER avec la table → collision sur
-            # le même élément (Tailwind tranche par l'ordre de sa feuille,
-            # gagnant imprévisible). Cf. traps.md § « size= : collision
-            # slot ↔ table ».
+            # ⚠️ No SIZE token here (w-/h-/text-<size>): it lives in
+            # ``sizes[<size>]["weekday"]``, ``md`` included. Putting them
+            # in the slot makes them STACK with the table → a collision
+            # on the same element (Tailwind decides by its sheet's order,
+            # unpredictable winner). Cf. traps.md § "size=: slot ↔ table
+            # collision".
             "flex items-center justify-center "
             "font-medium text-text/50 uppercase tracking-wider"
         ),
-        # La pastille d'une case marquée. ABSOLUE, et c'est le point :
-        # posée dans le flux, elle transformerait la case en colonne et
-        # décalerait le numéro du jour de TOUTES les cases, marquées ou
-        # non. ``day_cell`` porte déjà ``relative``.
+        # The dot of a marked cell. ABSOLUTE, and that is the point:
+        # placed in the flow, it would turn the cell into a column and
+        # shift the day number of EVERY cell, marked or not.
+        # ``day_cell`` already carries ``relative``.
         #
-        # ``pointer-events-none`` : la case entière est le bouton, la
-        # pastille ne doit pas manger le clic. ``[&[data-selected=true]]``
-        # la repasse en avant-plan sur un jour sélectionné, dont le fond
-        # est déjà la couleur d'accent — sinon elle disparaîtrait dedans.
+        # ``pointer-events-none``: the whole cell is the button, the dot
+        # must not eat the click. ``[&[data-selected=true]]`` brings it
+        # back to the foreground on a selected day, whose background is
+        # already the accent colour — otherwise it would disappear into
+        # it.
         "day_mark": (
             "pointer-events-none absolute left-1/2 -translate-x-1/2 "
             "rounded-full bg-(--bz-solid) "
             "[[data-selected=true]_&]:bg-(--bz-on-solid)"
         ),
         "week_row": "grid grid-cols-7 gap-0",
-        # ── Mode ``month`` : une grille d'ANNÉE, 3 × 4 ───────────────
-        # 3 colonnes et non 4 : les libellés sont des mots (« August »),
-        # pas des nombres à deux chiffres, donc ils ont besoin de largeur.
-        # Quatre colonnes forceraient l'abréviation, et abréger « Juin »
-        # ne gagne rien.
+        # ── ``month`` mode: a YEAR grid, 3 × 4 ──────────────────────
+        # 3 columns and not 4: the labels are words ("August"), not
+        # two-digit numbers, so they need width. Four columns would force
+        # abbreviation, and abbreviating "Juin" gains nothing.
         "month_grid": "grid grid-cols-3 gap-1 p-1",
         "month_cell": (
             "inline-flex items-center justify-center rounded-selector "
@@ -108,8 +109,8 @@ CALENDAR_THEME: dict[str, Any] = {
             "aria-disabled:hover:bg-transparent"
         ),
         "day_cell": (
-            # Idem — la taille (``w-9 h-9 text-sm`` pour md) vit dans
-            # ``sizes``, pas ici.
+            # Same — the size (``w-9 h-9 text-sm`` for md) lives in
+            # ``sizes``, not here.
             "relative inline-flex items-center justify-center "
             "rounded-selector "
             "text-text "
@@ -140,24 +141,25 @@ CALENDAR_THEME: dict[str, Any] = {
             "disabled:opacity-30 disabled:cursor-not-allowed "
             "transition-colors"
         ),
-        # ⚠️ Le slot ``event_dot`` a été RETIRÉ le 2026-08-01 : rien ne le
-        # lisait (ni ``calendar.py``, ni ``07_calendar.js``, ni le
-        # ``theme_blob``), et la docstring de ce fichier le rattachait à un
-        # « mode view » qui n'existe pas (``_VALID_MODES = ("picker",
-        # "range")``). Il reviendra avec un vrai ``ui.event_calendar``.
+        # ⚠️ The ``event_dot`` slot was REMOVED on 2026-08-01: nothing
+        # read it (neither ``calendar.py``, nor ``07_calendar.js``, nor
+        # the ``theme_blob``), and this file's docstring attached it to a
+        # "view mode" that does not exist (``_VALID_MODES = ("picker",
+        # "range")``). It will come back with a real
+        # ``ui.event_calendar``.
     },
     # 5 paliers — same scale as every other input (Input / Button /
     # Select / NumberInput / Slider / Combobox / Avatar). Each entry
     # overrides the slot baselines (which target ``md``).
     "sizes": {
         "xs": {
-            # 224 px et non les 192 de la grille (7 × 24 + 24) : à ce
-            # palier l'EN-TÊTE est plus large qu'elle. Mesuré en
-            # français, « septembre » : 197 px de contenu contre 168 de
-            # grille, et le trop-plein écrasait le chevron du sélecteur
-            # de mois — « septembre2026 » collés. Les pistes de la
-            # grille étant en ``1fr``, les cellules absorbent le
-            # supplément ; ``w-6`` reste leur plancher.
+            # 224 px and not the grid's 192 (7 × 24 + 24): at this step
+            # the HEADER is wider than it is. Measured in French,
+            # "septembre": 197 px of content against 168 of grid, and the
+            # excess crushed the month selector's chevron —
+            # "septembre2026" stuck together. The grid's tracks being
+            # ``1fr``, the cells absorb the surplus; ``w-6`` stays their
+            # floor.
             "root": "w-56",
             "day_mark": "w-1 h-1 bottom-0.5",
             "day_cell": "w-6 h-6 text-[10px]",
@@ -168,7 +170,7 @@ CALENDAR_THEME: dict[str, Any] = {
             "chevron": "text-[10px]",
         },
         "sm": {
-            # 7 × 32 + 24 = 248 px : la grille, plus le ``p-3`` des deux bords.
+            # 7 × 32 + 24 = 248 px: the grid, plus the ``p-3`` of both edges.
             "root": "w-62",
             "day_mark": "w-1 h-1 bottom-1",
             "day_cell": "w-8 h-8 text-xs",
@@ -179,10 +181,10 @@ CALENDAR_THEME: dict[str, Any] = {
             "chevron": "text-xs",
         },
         "md": {
-            # 7 × 36 + 24 = 276 px : la grille, plus le ``p-3`` des deux bords.
+            # 7 × 36 + 24 = 276 px: the grid, plus the ``p-3`` of both edges.
             "root": "w-69",
-            # Le palier md vit dans la table comme les autres tailles
-            # (dans les slots, il empilerait avec elles sur le même élément).
+            # The md step lives in the table like the other sizes (in
+            # the slots, it would stack with them on the same element).
             "day_mark": "w-1.5 h-1.5 bottom-1",
             "day_cell": "w-9 h-9 text-sm",
             "month_cell": "h-9 text-sm",
@@ -192,7 +194,7 @@ CALENDAR_THEME: dict[str, Any] = {
             "chevron": "text-sm",
         },
         "lg": {
-            # 7 × 44 + 24 = 332 px : la grille, plus le ``p-3`` des deux bords.
+            # 7 × 44 + 24 = 332 px: the grid, plus the ``p-3`` of both edges.
             "root": "w-83",
             "day_mark": "w-1.5 h-1.5 bottom-1.5",
             "day_cell": "w-11 h-11 text-base",
@@ -203,17 +205,17 @@ CALENDAR_THEME: dict[str, Any] = {
             "chevron": "text-base",
         },
         "xl": {
-            # 7 × 13 + 6 = 97 crans : la grille, plus le ``p-3``
-            # des deux bords.
+            # 7 × 13 + 6 = 97 steps: the grid, plus the ``p-3`` of both
+            # edges.
             "root": "w-97",
             "day_mark": "w-2 h-2 bottom-1.5",
             "day_cell": "w-13 h-13 text-lg",
             "month_cell": "h-13 text-lg",
             "weekday": "w-13 h-10 text-base",
-            # ⚠️ Douze crans (36 px) et non onze : le chevron de ce bouton
-            # est un ``ui.icon`` au palier ``xl``, c'est-à-dire
-            # ``text-4xl`` — 32 px de glyphe, qui ne tiennent pas dans
-            # 33 px moins la bordure. Mesuré : 1,5 px dehors.
+            # ⚠️ Twelve steps (36 px) and not eleven: this button's
+            # chevron is a ``ui.icon`` at the ``xl`` step, that is to say
+            # ``text-4xl`` — a 32 px glyph, which does not fit in 33 px
+            # minus the border. Measured: 1.5 px outside.
             "nav_button": "w-12! h-12!",
             "month_label": "text-lg",
             "chevron": "text-lg",

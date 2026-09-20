@@ -122,10 +122,10 @@ async def _serve(bretzel_app: BretzelApp, request: Request) -> Response:
     registry = getattr(context, "state_registry", None) if context else None
     with use_registry(registry) if registry is not None else nullcontext():
         # A rows callable that hits a database is the tier's whole
-        # reason to exist — donc elle est awaitée si elle est ``async``,
-        # et DÉLESTÉE sur le threadpool si elle est ``def`` : une lecture
-        # bloquante ici gelait la boucle du worker le temps de l'export
-        # (cf. ``core/invoke``).
+        # reason to exist — so it is awaited when it is ``async``, and
+        # OFFLOADED onto the threadpool when it is a ``def``: a blocking
+        # read here froze the worker's loop for the duration of the
+        # export (cf. ``core/invoke``).
         rows, _total = await call_without_blocking(rows_source, query)
 
     return Response(

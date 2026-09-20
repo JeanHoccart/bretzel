@@ -44,28 +44,29 @@
       }
     }
     el.addEventListener("keydown", onKeydown);
-    /* Le focus initial RÉESSAIE frame par frame jusqu'à ce qu'il prenne.
+    /* The initial focus RETRIES frame by frame until it takes.
      *
-     * Ce n'est pas de la superstition : cet effet s'installe dans le flush
-     * réactif qui vient de passer ``open`` à vrai, donc avant que le style
-     * calculé ne bascule. Or ``focus()`` sur un élément en
-     * ``visibility: hidden`` est un **no-op silencieux** — pas d'erreur,
-     * pas de retour, rien. Relevé sur ``bench_dialog`` (2026-08-19), les
-     * trois boutons du panneau : cachés à +1 ms, visibles à +16 ms.
+     * It is not superstition: this effect installs itself in the
+     * reactive flush that has just turned ``open`` true, so before the
+     * computed style flips. Yet ``focus()`` on an element in
+     * ``visibility: hidden`` is a **silent no-op** — no error, no
+     * return, nothing. Observed on ``bench_dialog`` (2026-08-19), the
+     * panel's three buttons: hidden at +1 ms, visible at +16 ms.
      *
-     * Un délai FIXE ne suffit pas, et c'est mesuré aussi : la version à
-     * deux frames passait environ une fois sur trois — la frontière tombe
-     * pile dans la fenêtre cachée, et elle bouge d'un run à l'autre. On
-     * n'attend donc pas une durée, on attend le RÉSULTAT : on tente, on
-     * vérifie que le focus a atterri, et on retente sinon.
+     * A FIXED delay is not enough, and that is measured too: the
+     * two-frame version passed about one time in three — the boundary
+     * falls right inside the hidden window, and it moves from one run to
+     * the next. So we do not wait for a duration, we wait for the
+     * RESULT: we try, we check the focus landed, and we retry otherwise.
      *
-     * Sans ça, le trap était bien installé (``$el._bzTrap`` présent) et le
-     * focus restait sur le déclencheur. Le contrat rétabli est écrit dans
-     * ``dialog.py`` : « the first interactive child receives focus ».
+     * Without that, the trap was indeed installed (``$el._bzTrap``
+     * present) and the focus stayed on the trigger. The restored
+     * contract is written in ``dialog.py``: "the first interactive child
+     * receives focus".
      *
-     * Le DOM est RE-INTERROGÉ à chaque tentative : entre l'installation et
-     * la frame qui aboutit, un morph a pu remplacer le contenu du panneau,
-     * et un nœud détaché se focus dans le vide. */
+     * The DOM is RE-QUERIED at every attempt: between the installation
+     * and the frame that succeeds, a morph may have replaced the panel's
+     * content, and a detached node focuses into the void. */
     let attempts = 0;
     function focusFirst() {
       if (!el.isConnected) return;
@@ -74,7 +75,7 @@
         first.focus();
         if (el.contains(document.activeElement)) return;
       }
-      // ~20 frames (≈ 1/3 s) : au-delà, le panneau ne s'ouvrira pas.
+      // ~20 frames (≈ 1/3 s): beyond that, the panel will not open.
       if (++attempts < 20) requestAnimationFrame(focusFirst);
     }
     requestAnimationFrame(focusFirst);
@@ -164,14 +165,14 @@
   // Best-fit preference order — module constant so the scroll/resize
   // reposition path allocates nothing per tick.
   const SIDE_ORDER = ["bottom", "top", "right", "left"];
-  // Plancher de lisibilité d'un panneau ancré, en px. `matchWidth` ne
-  // descend jamais sous cette largeur, quelle que soit l'ancre : un
-  // `ui.select` posé dans une sidebar repliée en rail (`w-16`) rendait un
-  // panneau de ~48 px où les libellés s'enroulaient lettre par lettre,
-  // avec une barre de défilement horizontale (constaté sur `examples/crm`
-  // le 2026-08-29). 192 px = `12rem` — la valeur que le dépôt donne déjà
-  // à un panneau ancré : `min-w-[12rem]` chez `dropdown` et `popover`,
-  // `min-w-48` pour la taille `sm` du `panel_free` de `combobox`.
+  // The readability floor of an anchored panel, in px. `matchWidth`
+  // never goes below that width, whatever the anchor: a `ui.select`
+  // placed in a sidebar collapsed to a rail (`w-16`) rendered a ~48 px
+  // panel where the labels wrapped letter by letter, with a horizontal
+  // scrollbar (seen on `examples/crm` on 2026-08-29). 192 px = `12rem`
+  // — the value the repository already gives an anchored panel:
+  // `min-w-[12rem]` at `dropdown` and `popover`, `min-w-48` for
+  // `combobox`'s `sm` `panel_free`.
   const MIN_MATCHED_WIDTH = 192;
   function floating(anchor, el, opts) {
     opts = opts || {};
@@ -198,14 +199,14 @@
       el.style.position = "fixed";
       const a = anchor.getBoundingClientRect();
       if (matchWidth) {
-        // Le plancher s'applique à l'ANCRE, pas au résultat : au-dessus
-        // de `MIN_MATCHED_WIDTH`, `mw === a.width` et le comportement est
-        // identique au byte près (c'est ce qui rend ce correctif sûr pour
-        // les deux seuls appelants de `matchWidth`, Select et Combobox).
-        // Le plancher lui-même est borné au viewport : sur un écran plus
-        // étroit que 192 px, un panneau au plancher déborderait, et la
-        // correction de bord plus bas (`Math.max(4, Math.min(...))`) ne
-        // fait que le décaler, elle ne le rétrécit pas.
+        // The floor applies to the ANCHOR, not to the result: above
+        // `MIN_MATCHED_WIDTH`, `mw === a.width` and the behaviour is
+        // identical to the byte (that is what makes this fix safe for
+        // `matchWidth`'s only two callers, Select and Combobox). The
+        // floor itself is bounded to the viewport: on a screen narrower
+        // than 192 px, a panel at the floor would overflow, and the edge
+        // correction below (`Math.max(4, Math.min(...))`) only shifts
+        // it, it does not shrink it.
         const mw = Math.max(
           a.width,
           Math.min(MIN_MATCHED_WIDTH, Math.max(0, window.innerWidth - 8))
@@ -272,22 +273,22 @@
       // page scrolls under it.
       if (el.dataset.side !== side) el.dataset.side = side;
 
-      /* …et OÙ est l'ancre dans le panneau, pour que la flèche la vise.
-         Le milieu du panneau et le milieu du déclencheur coïncident tant
-         que rien ne pousse le panneau ; le recadrage de bord juste
-         au-dessus (`Math.max(4, Math.min(...))`) les sépare. La flèche
-         était posée en `left-1/2` — donc au milieu de la bulle — et
-         pointait à côté de son bouton dès qu'on approchait d'un bord.
-         Mesuré le 2026-09-09 sur `examples/kanban` : déclencheur centré
-         à 1468 px, flèche à 1443. */
+      /* …and WHERE the anchor is in the panel, so the arrow aims at it.
+         The panel's middle and the trigger's middle coincide as long as
+         nothing pushes the panel; the edge reframing just above
+         (`Math.max(4, Math.min(...))`) separates them. The arrow was set
+         at `left-1/2` — so in the middle of the bubble — and pointed
+         beside its button as soon as you approached an edge. Measured on
+         2026-09-09 on `examples/kanban`: trigger centred at 1468 px,
+         arrow at 1443. */
       const centre =
         side === "top" || side === "bottom"
           ? a.left + a.width / 2 - left
           : a.top + a.height / 2 - top;
-      // Bornée à l'intérieur du panneau : une flèche posée à 2 px du bord
-      // dépasse de l'arrondi des coins et flotte à côté de la bulle.
-      // 12 px couvre le rayon du panneau plus la demi-largeur de la
-      // flèche (un carré de 8 px tourné de 45°, ~11 px de diagonale).
+      // Bounded inside the panel: an arrow set 2 px from the edge
+      // sticks out of the corners' radius and floats beside the bubble.
+      // 12 px covers the panel's radius plus the arrow's half width (an
+      // 8 px square rotated 45°, ~11 px of diagonal).
       const etendue = side === "top" || side === "bottom" ? w : h;
       const vise = Math.max(12, Math.min(centre, etendue - 12));
       el.style.setProperty("--bz-arrow", vise + "px");
@@ -316,21 +317,21 @@
     return reduceMotionMQL.matches;
   }
 
-  /* ── L'adresse, côté client ────────────────────────────────────────
+  /* ── The address, on the client side ─────────────────────────────────
    *
-   * Le pendant EXACT de ``push_url()`` côté serveur (server/navigation.py),
-   * pour ce qui ne fait aucun aller-retour : un onglet bascule dans le
-   * scope, le serveur n'en sait rien, donc l'en-tête ``HX-Push-Url`` ne
-   * peut rien pour lui.
+   * The EXACT counterpart of ``push_url()`` on the server side
+   * (server/navigation.py), for what makes no round trip: a tab flips in
+   * the scope, the server knows nothing about it, so the ``HX-Push-Url``
+   * header can do nothing for it.
    *
-   * ``pushState`` et pas ``replaceState`` — décision de l'utilisateur le
-   * 2026-08-29 : « pushState pour les vues ». Un onglet EST une vue, donc
-   * le retour doit y revenir. Une préférence d'affichage (une densité, un
-   * thème) ne mérite pas une entrée d'historique et n'a rien à faire ici.
+   * ``pushState`` and not ``replaceState`` — the user's decision on
+   * 2026-08-29: "pushState for views". A tab IS a view, so the back
+   * button must return to it. A display preference (a density, a theme)
+   * does not deserve a history entry and has no business here.
    *
-   * On garde ``history.state`` intact : htmx y range le sien, et le lui
-   * écraser casserait sa propre restauration sur les entrées qu'il a
-   * créées.
+   * We keep ``history.state`` intact: htmx files its own there, and
+   * overwriting it would break its own restoration on the entries it
+   * created.
    */
   function pushUrl(param, value) {
     const url = new URL(window.location.href);
@@ -341,9 +342,9 @@
     window.history.pushState(window.history.state, "", url.href);
   }
 
-  /* La valeur COURANTE d'un paramètre, ou ``null``. Lue à chaud plutôt
-   * que mémorisée : après un retour, ``location`` a déjà bougé quand le
-   * ``popstate`` nous parvient. */
+  /* A parameter's CURRENT value, or ``null``. Read live rather than
+   * remembered: after a back, ``location`` has already moved by the time
+   * the ``popstate`` reaches us. */
   function urlParam(param) {
     return new URL(window.location.href).searchParams.get(param);
   }
@@ -379,24 +380,26 @@
       });
     },
 
-    // ── Capture de pointeur — la famille pointer-drag ────────────────
-    // Capturer, c'est dire au navigateur d'envoyer TOUS les événements
-    // du pointeur à cet élément-là jusqu'au relâchement, même quand le
-    // curseur en sort. Sans ça, le geste s'arrête au premier pixel qui
-    // quitte la boîte — et une poignée fait quelques points de large.
+    // ── Pointer capture — the pointer-drag family ────────────────────
+    // Capturing means telling the browser to send ALL the pointer's
+    // events to that element until release, even when the cursor leaves
+    // it. Without that, the gesture stops at the first pixel outside the
+    // box — and a handle is a few points wide.
     //
-    // Les deux gardes ne sont pas de la superstition, et c'est pour
-    // elles que ça vit ici plutôt que recopié :
-    //   - ``pointerId !== undefined`` : un événement synthétique (un
-    //     test, un script) n'en porte pas, et l'appel lèverait ;
-    //   - le ``try`` : le navigateur refuse la capture si le pointeur
-    //     n'est plus actif (relâché entre-temps, geste annulé par l'OS),
-    //     et cette exception-là ne doit pas casser le geste en cours.
+    // The two guards are not superstition, and it is for them that this
+    // lives here rather than being copied:
+    //   - ``pointerId !== undefined``: a synthetic event (a test, a
+    //     script) does not carry one, and the call would raise;
+    //   - the ``try``: the browser refuses the capture if the pointer is
+    //     no longer active (released in the meantime, gesture cancelled
+    //     by the OS), and that exception must not break the gesture in
+    //     progress.
     //
-    // Extrait le 2026-08-13, au 3ᵉ et 4ᵉ site (slider ×2, resizable ×2)
-    // — le seuil que le dépôt s'est fixé, « deux fois une coïncidence,
-    // trois fois un pattern ». Le prochain composant de la famille
-    // pointer-drag (``signature_pad``) appelle ça, il ne le recopie pas.
+    // Extracted on 2026-08-13, at the 3rd and 4th site (slider ×2,
+    // resizable ×2) — the threshold the repository set itself, "twice a
+    // coincidence, three times a pattern". The pointer-drag family's
+    // next component (``signature_pad``) calls this, it does not copy
+    // it.
     capturePointer: function (el, e) {
       if (!el || !e || e.pointerId === undefined) return;
       try { el.setPointerCapture(e.pointerId); } catch (err) {}
@@ -495,10 +498,11 @@
           : raw == null || raw === "" ? [] : [String(raw)],
       );
     },
-    // Vide la sélection SANS fermer le panneau : c'est une commande DE
-    // la barre d'en-tête, et une commande ne congédie pas ce qu'elle
-    // commande. Avec un ``on_close=`` câblé, fermer ici POSTAIT la
-    // sélection vide au serveur — cf. le filtre de colonne du datatable.
+    // Empties the selection WITHOUT closing the panel: it is a command
+    // OF the header bar, and a command does not dismiss what it
+    // commands. With an ``on_close=`` wired, closing here POSTED the
+    // empty selection to the server — cf. the datatable's column
+    // filter.
     _clearAll() { this._write([]); },
   };
 

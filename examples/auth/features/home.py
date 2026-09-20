@@ -1,10 +1,10 @@
-"""features/home — la page derrière la garde, et la preuve du dispositif.
+"""features/home — the page behind the guard, and the proof of it all.
 
-Elle lit un ``UserState``. C'est ce qui compte : ce scope n'existe que
-s'il y a une identité, et il fonctionne **à l'identique** que celle-ci
-vienne du formulaire, d'une porte OAuth ou d'un jeton de machine. Avant
-le 2026-08-23 c'était faux — seul le cookie du framework y donnait
-droit, et une app qui résolvait son propre utilisateur recevait 401.
+It reads a ``UserState``. That is what counts: this scope only exists if
+there is an identity, and it works **identically** whether that identity
+comes from the form, an OAuth door or a machine token. Before 2026-08-23
+that was false — only the framework's cookie granted it, and an app that
+resolved its own user got a 401.
 """
 
 from __future__ import annotations
@@ -16,15 +16,15 @@ from examples.auth.features.access import current_user, sign_out
 
 
 class Preferences(UserState):
-    """Un état par personne — la démonstration qu'une identité d'app
-    ouvre les mêmes portes qu'une identité du framework."""
+    """One state per person — the demonstration that an app identity
+    opens the same doors as a framework identity."""
 
-    visites: int = field(default=0)
+    visits: int = field(default=0)
 
 
-def compter() -> None:
+def count_a_visit() -> None:
     prefs = Preferences()
-    prefs.visites += 1
+    prefs.visits += 1
     refresh(identity_card)
 
 
@@ -34,28 +34,29 @@ def identity_card() -> None:
     with ui.card(padding="lg"), ui.vstack(gap="md"):
         with ui.hstack(gap="sm", align="center"):
             ui.icon("user-round", color="primary")
-            ui.heading(user["name"] if user else "Inconnu", level=2, size="lg")
+            ui.heading(user["name"] if user else "Unknown", level=2, size="lg")
         with ui.vstack(gap="xs"):
-            ui.text(f"user_id : {auth.user_id()}", size="sm", color="muted")
-            ui.text(f"adresse : {user['email'] if user else '—'}", size="sm",
-                    color="muted")
-            ui.text(f"visites comptées dans un UserState : {Preferences().visites}",
+            ui.text(f"user_id: {auth.user_id()}", size="sm", color="muted")
+            ui.text(f"address: {user['email'] if user else '—'}",
+                    size="sm", color="muted")
+            ui.text(f"visits counted in a UserState: {Preferences().visits}",
                     size="sm", color="muted")
         with ui.hstack(gap="sm"):
-            ui.button("Compter une visite", on_click=compter, variant="soft")
-            ui.button("Se déconnecter", on_click=sign_out, color="error",
+            ui.button("Count a visit", on_click=count_a_visit,
+                      variant="soft")
+            ui.button("Sign out", on_click=sign_out, color="error",
                       variant="ghost", icon_left="log-out")
 
 
-@page("/", title="Connecté")
+@page("/", title="Signed in")
 def home_page() -> None:
     with ui.viewport(), ui.pane(align="center", justify="center", padding="md"):
         with ui.vstack(gap="lg", classes="w-full max-w-md"):
-            ui.heading("Vous êtes entré", level=1, size="xl")
+            ui.heading("You are in", level=1, size="xl")
             ui.text(
-                "L'app ne sait plus par où — et n'a pas à le savoir. "
-                "C'est le partage : Bretzel possède l'identité et son "
-                "transport, l'app possède la preuve.",
+                "The app no longer knows through which door — and "
+                "does not have to. That is the split: Bretzel owns the "
+                "identity and its transport, the app owns the proof.",
                 color="muted",
             )
             identity_card()
@@ -64,6 +65,6 @@ def home_page() -> None:
 feature = Feature(
     name="home",
     kind="page",
-    provides=[home_page, Preferences, identity_card, compter],
+    provides=[home_page, Preferences, identity_card, count_a_visit],
     uses=["access"],
 )

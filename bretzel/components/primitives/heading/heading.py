@@ -3,8 +3,8 @@
 The HTML tag follows ``level=`` (an int 1-6) for SEO / a11y semantics,
 the visible size follows ``size=`` (or auto-derives from the level via
 the theme dict's ``level_sizes`` map). That decoupling lets you write
-``ui.heading("Section A", level=2, size="4xl")`` — un ``<h2>`` à la taille
-d'un h1.
+``ui.heading("Section A", level=2, size="4xl")`` — an ``<h2>`` at the
+size of an h1.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ class Heading(Component):
         color: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             level=level, size=size, weight=weight, color=color, **kwargs
         )
@@ -81,9 +81,9 @@ class Heading(Component):
         if weight_class:
             parts.append(weight_class)
         if color:
-            # Le PALIER : le pont de la racine porte la couleur.
+            # The STEP: the root's bridge carries the colour.
             parts.append("text-(--bz-text)")
-        # ``classes=`` posé par le wrap métaclasse — pas ici (doublon).
+        # ``classes=`` set by the metaclass wrap — not here (duplicate).
 
         attrs = self.emit_attrs()
         attrs["class"] = " ".join(p for p in parts if p).strip()

@@ -1,13 +1,13 @@
-"""Feature ``app_map`` — la carte de l'app CRM.
+"""Feature ``app_map`` — the CRM app's map.
 
-Tout le rendu vit dans le renderer partagé ``examples/shared/app_map_view.py``,
-réutilisé par mad. Ici il ne reste que le ``@page`` qui fournit le
-shell du CRM.
+All the rendering lives in the shared renderer
+``examples/shared/app_map_view.py``, reused by mad. Here only the
+``@page`` providing the CRM's shell is left.
 
-C'est l'app du dépôt où la carte dit le plus. Elle ne cite pas de chiffre :
-la version précédente en annonçait dix, et la tranche suivante en a ajouté
-huit sans que la phrase bouge — un compte recopié à la main dérive plus vite
-qu'il ne sert, et la page l'affiche elle-même, à jour par construction.
+It is the repository's app where the map says most. It quotes no figure:
+the previous version announced ten, and the next slice added eight
+without the sentence moving — a count copied by hand drifts faster than
+it serves, and the page shows it itself, up to date by construction.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from examples.crm.features.shell import shell
 from examples.shared.app_map_view import render_app_map
 
 
-@page("/_map", layout=shell, title="Carte de l'app")
+@page("/_map", layout=shell, title="App map")
 def app_map_page() -> None:
     render_app_map()
 

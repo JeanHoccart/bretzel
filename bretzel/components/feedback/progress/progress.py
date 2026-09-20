@@ -63,7 +63,7 @@ class Progress(Component):
         label: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             value=value, max=max,
             indeterminate=indeterminate,
@@ -121,10 +121,10 @@ class Progress(Component):
             if value_binding is not None:
                 # Live binding : ``bz-attr:style`` is the single writer
                 # rewriting the width ; the clamp bounds over/under values.
-                # ⚠️ Parenthéser ``path_of`` n'est PAS cosmétique : une
-                # ClientExpression est du JS brut, une comparaison ne
-                # s'auto-parenthèse pas. Sans les parens ``n > 0 / 100 *
-                # 100`` s'évalue en 100 au lieu de 1 — faux, silencieux.
+                # ⚠️ Parenthesising ``path_of`` is NOT cosmetic: a
+                # ClientExpression is raw JS, a comparison does not
+                # parenthesise itself. Without the parens ``n > 0 / 100 *
+                # 100`` evaluates to 100 instead of 1 — wrong, silently.
                 expr = (
                     f"`width: ${{Math.max(0, Math.min(100, "
                     f"(({self.path_of(value_binding)}) / {max_val}) * 100"
@@ -192,14 +192,14 @@ class Progress(Component):
                 )
             )
         elif custom_label:
-            # Label littéral — gagne sur ``show_label``, texte statique.
+            # A literal label — beats ``show_label``, static text.
             #
-            # C'est ici, et seulement ici, qu'un Component atterrit : la
-            # branche du dessus n'est prise que pour un ClientBinding.
-            # Les deux ne peuvent donc pas se disputer le même nœud —
-            # ``bz-text`` et du balisage arbitraire sont exclusifs par le
-            # TYPE de la valeur, pas concurrents. (Même forme que Badge,
-            # bindable sur ``label`` et acceptant un Component.)
+            # It is here, and only here, that a Component lands: the
+            # branch above is only taken for a ClientBinding. The two
+            # therefore cannot compete for the same node — ``bz-text``
+            # and arbitrary markup are exclusive by the value's TYPE, not
+            # competitors. (Same shape as Badge, bindable on ``label``
+            # and accepting a Component.)
             children.append(
                 Element(
                     tag="span",

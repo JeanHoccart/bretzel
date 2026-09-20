@@ -1,62 +1,63 @@
-"""Le verrou qu'une app demande, autour d'une lecture-modification-écriture.
+"""The lock an app asks for, around a read-modify-write.
 
-Ce qu'il répare
+What it repairs
 ---------------
 
-Le commit par champ (cf. ``registry.commit``) sauve ce qui se combine :
-deux requêtes qui écrivent des champs DIFFÉRENTS ne s'effacent plus, et
-un champ déclaré ``merge="add"`` additionne. Reste ce qui ne se combine
-pas — un geste qui CALCULE à partir de ce qu'il a lu ::
+The per-field commit (cf. ``registry.commit``) saves what combines: two
+requests writing DIFFERENT fields no longer erase each other, and a field
+declared ``merge="add"`` sums. What remains is what does not combine — a
+gesture that COMPUTES from what it read ::
 
-    store.tâches = [t for t in store.tâches if t["id"] != cible]
+    store.tasks = [t for t in store.tasks if t["id"] != target]
 
-Deux suppressions simultanées lisent la même liste, en retirent chacune
-un élément, et la seconde écriture réintroduit celui que la première
-venait d'ôter. Aucune opération de magasin ne peut résoudre ça : ni
-``RPUSH`` (ce n'est pas un ajout), ni un écart (ce n'est pas un nombre).
-La seule réponse générale est de **ne pas les laisser se chevaucher** ::
+Two simultaneous deletions read the same list, each removes one element,
+and the second write reintroduces the one the first had just taken out.
+No store operation can resolve that: not ``RPUSH`` (it is not an append),
+not a delta (it is not a number). The only general answer is to **not let
+them overlap** ::
 
-    def supprimer(cible: str) -> None:
+    def delete(target: str) -> None:
         with Kanban.lock() as store:
-            store.tâches = [t for t in store.tâches if t["id"] != cible]
+            store.tasks = [t for t in store.tasks if t["id"] != target]
 
-Ce que le bloc garantit
------------------------
+What the block guarantees
+-------------------------
 
-Il est une petite transaction sur la ligne de cet état :
+It is a small transaction on this state's row:
 
-1. **entrée** — le verrou est pris, puis l'état est RELU. Ce que tu lis
-   dedans est donc frais, même si tu l'avais déjà lu avant le bloc ;
-2. **sortie** — les champs modifiés sont écrits, puis le verrou est
-   relâché.
+1. **entry** — the lock is taken, then the state is RE-READ. What you read
+   inside is therefore fresh, even if you had already read it before the
+   block;
+2. **exit** — the modified fields are written, then the lock is released.
 
-L'écriture est DANS le bloc, et ce n'est pas un détail : si on se
-contentait de bloquer en laissant le commit de fin de requête écrire
-plus tard, une autre requête se glisserait entre la libération et
-l'écriture — le verrou n'aurait rien protégé.
+The write is INSIDE the block, and that is not a detail: if we merely
+blocked and let the end-of-request commit write later, another request
+would slip in between the release and the write — the lock would have
+protected nothing.
 
-``with`` et non ``async with``
+``with`` and not ``async with``
 -------------------------------
 
-Les handlers de ce framework s'écrivent ``def`` (mesuré : 1 659 contre
-16), parce qu'un corps synchrone est délesté sur un thread et ne gèle
-rien. Un ``async with`` les forcerait tous en ``async def``, c'est-à-dire
-sur la boucle, où le moindre appel bloquant coûte le worker entier. Le
-même objet accepte les deux formes — ``async with`` marche dans un corps
-``async def`` — mais la normale est synchrone.
+The handlers of this framework are written ``def`` (measured: 1 659
+against 16), because a synchronous body is offloaded to a thread and
+freezes nothing. An ``async with`` would force them all into ``async
+def``, that is to say onto the loop, where the slightest blocking call
+costs the whole worker. The same object accepts both forms — ``async
+with`` works in an ``async def`` body — but the normal one is
+synchronous.
 
-Ce qu'un verrou à durée ne peut pas
-------------------------------------
+What a time-bounded lock cannot do
+----------------------------------
 
-Il porte un ``ttl``, sans quoi un processus tué en le tenant le garderait
-pour toujours. La contrepartie est inhérente : **si ton bloc dépasse le
-``ttl``, un second porteur entre**. Le jeton empêche la libération
-croisée — tu ne relâcheras jamais le verrou de quelqu'un d'autre — pas le
-recouvrement. Garde le bloc court, et n'y mets ni appel réseau lent ni
-rendu.
+It carries a ``ttl``, without which a process killed while holding it
+would keep it forever. The counterpart is inherent: **if your block
+exceeds the ``ttl``, a second holder gets in**. The token prevents
+cross-release — you will never release someone else's lock — not the
+overlap. Keep the block short, and put neither a slow network call nor a
+render in it.
 
-Et il sérialise : deux requêtes sur la MÊME clé s'attendent. C'est le
-prix demandé, et il n'est payé que là où on l'a demandé.
+And it serialises: two requests on the SAME key wait for each other. That
+is the price asked, and it is only paid where it was asked for.
 """
 
 from __future__ import annotations
@@ -75,19 +76,19 @@ if TYPE_CHECKING:
     from bretzel.state.registry import StateRegistry
     from bretzel.state.scopes.server import ServerState
 
-#: Combien de temps un porteur garde le verrou s'il meurt sans relâcher.
-#: Cinq secondes : un bloc protégé fait une lecture, un calcul en mémoire
-#: et une écriture — jamais un appel lent. Au-delà, ce n'est plus une
-#: section critique, c'est un travail de fond.
+#: How long a holder keeps the lock if it dies without releasing. Five
+#: seconds: a protected block does a read, an in-memory computation and a
+#: write — never a slow call. Beyond that it is no longer a critical
+#: section, it is background work.
 DEFAULT_LOCK_TTL = 5
 
-#: Combien de temps on ATTEND son tour avant d'abandonner. Distinct du
-#: ``ttl`` : l'un borne la panne d'un porteur, l'autre la patience d'un
-#: suiveur. Trois secondes tient dans le budget d'une requête HTTP.
+#: How long we WAIT for our turn before giving up. Distinct from the
+#: ``ttl``: one bounds a holder's failure, the other a follower's
+#: patience. Three seconds fits in an HTTP request's budget.
 DEFAULT_LOCK_TIMEOUT = 3.0
 
-#: Entre deux tentatives. Court, parce que les sections protégées sont
-#: brèves ; pas nul, pour ne pas marteler le magasin.
+#: Between two attempts. Short, because protected sections are brief; not
+#: zero, so as not to hammer the store.
 _RETRY_DELAY = 0.02
 
 
@@ -96,12 +97,12 @@ class LockTimeoutError(BretzelError):
 
 
 class StateLock:
-    """Le gestionnaire de contexte rendu par ``MonEtat.lock()``.
+    """The context manager returned by ``MyState.lock()``.
 
-    Synchrone ET asynchrone : ``__enter__`` sert les corps ``def`` (le
-    cas courant, exécuté sur un thread du pool) en faisant exécuter les
-    appels du backend PAR la boucle ; ``__aenter__`` sert les corps
-    ``async def`` en les attendant directement.
+    Synchronous AND asynchronous: ``__enter__`` serves ``def`` bodies (the
+    common case, running on a pool thread) by having the backend calls
+    executed BY the loop; ``__aenter__`` serves ``async def`` bodies by
+    awaiting them directly.
     """
 
     __slots__ = ("_cls", "_key", "_registry", "_storage_key", "_timeout", "_token", "_ttl")
@@ -123,7 +124,7 @@ class StateLock:
         self._token = secrets.token_hex(8)
         self._storage_key: str | None = None
 
-    # ── Le travail, écrit une fois en async ─────────────────────────────
+    # ── The work, written once in async ─────────────────────────────────
 
     async def _acquire(self) -> ServerState:
         scope = self._cls.__scope__
@@ -131,22 +132,22 @@ class StateLock:
             scope, self._cls.__name__, self._key
         )
         backend = self._registry._backend
-        fin = time.monotonic() + self._timeout
+        deadline = time.monotonic() + self._timeout
         while True:
             if await backend.acquire(
                 scope, self._storage_key, self._token, ttl=self._ttl
             ):
                 break
-            if time.monotonic() >= fin:
+            if time.monotonic() >= deadline:
                 raise LockTimeoutError(
-                    f"{self._cls.__name__}.lock() n'a pas obtenu le verrou en "
-                    f"{self._timeout} s. Une autre requête tient la même clé "
-                    f"plus longtemps que prévu : regarde ce que fait le bloc "
-                    f"protégé — il doit lire, calculer et écrire, jamais "
-                    f"attendre le réseau."
+                    f"{self._cls.__name__}.lock() did not get the lock in "
+                    f"{self._timeout} s. Another request is holding the "
+                    f"same key longer than expected: look at what the "
+                    f"protected block does — it must read, compute and "
+                    f"write, never wait on the network."
                 )
             await anyio.sleep(_RETRY_DELAY)
-        # RELIRE sous le verrou : ce qu'on avait lu avant peut dater.
+        # RE-READ under the lock: what we read before may be stale.
         return await self._registry.reload(self._cls, self._key)
 
     async def _release(self) -> None:
@@ -155,15 +156,15 @@ class StateLock:
             if instance is not None:
                 await self._registry.write_one(self._cls, self._key, instance)  # type: ignore[arg-type]
         finally:
-            # Relâcher MÊME si l'écriture lève : garder le verrou en plus
-            # de l'erreur punirait les requêtes suivantes pour une faute
-            # qui n'est pas la leur.
+            # Release EVEN if the write raises: keeping the lock on top
+            # of the error would punish the following requests for a
+            # fault that is not theirs.
             assert self._storage_key is not None
             await self._registry._backend.release(
                 self._cls.__scope__, self._storage_key, self._token
             )
 
-    # ── Les deux portes ─────────────────────────────────────────────────
+    # ── The two doors ───────────────────────────────────────────────────
 
     def __enter__(self) -> Any:
         return _via_loop(self._acquire)
@@ -189,20 +190,20 @@ class StateLock:
 
 
 def _via_loop(coro_fn: Any) -> Any:
-    """Faire exécuter ``coro_fn`` PAR la boucle, depuis un thread du pool.
+    """Have ``coro_fn`` executed BY the loop, from a pool thread.
 
-    Le pendant exact de ``StateRegistry._load_via_loop`` : un corps
-    ``def`` tourne sur un thread où l'on a le droit d'attendre, et
-    ``anyio.from_thread.run`` ne marche QUE depuis un tel thread. Un
-    appel resté sur la boucle tombe donc dans le ``except`` — et là,
-    bloquer aurait gelé le worker.
+    The exact counterpart of ``StateRegistry._load_via_loop``: a ``def``
+    body runs on a thread where waiting is allowed, and
+    ``anyio.from_thread.run`` works ONLY from such a thread. A call left
+    on the loop therefore falls into the ``except`` — and there, blocking
+    would have frozen the worker.
     """
     try:
         return anyio.from_thread.run(coro_fn)
     except anyio.from_thread.NoEventLoopError:
         raise BretzelError(
-            "`with MonEtat.lock()` a été utilisé dans un corps `async def`, "
-            "où il ne peut pas attendre le magasin sans geler la boucle. "
-            "Écris `async with MonEtat.lock()` ici — ou repasse ce corps en "
-            "`def`, que le framework délestera sur un thread."
+            "`with MyState.lock()` was used in an `async def` body, where "
+            "it cannot wait on the store without freezing the loop. Write "
+            "`async with MyState.lock()` here — or put this body back to "
+            "`def`, which the framework will offload to a thread."
         ) from None

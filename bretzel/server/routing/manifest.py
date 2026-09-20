@@ -1,13 +1,13 @@
-"""``GET /manifest.webmanifest`` — le manifeste de l'app, quand elle en déclare un.
+"""``GET /manifest.webmanifest`` — the app's manifest, when it declares one.
 
-Route montée seulement si ``Bretzel(pwa=…)`` est renseigné : une app qui
-ne demande rien ne porte pas le vocabulaire.
+The route is only mounted when ``Bretzel(pwa=…)`` is set: an app that
+asks for nothing does not carry the vocabulary.
 
-⚠️ Le type MIME est ``application/manifest+json`` et pas
-``application/json``. Ce n'est pas de la coquetterie : c'est ce que la
-spec impose, et les outils de diagnostic des navigateurs refusent le
-manifeste servi autrement — donc l'app paraîtrait non installable sans
-qu'aucune erreur ne le dise.
+⚠️ The MIME type is ``application/manifest+json`` and not
+``application/json``. That is not fussiness: it is what the spec
+requires, and browsers' diagnostic tools refuse a manifest served
+otherwise — so the app would look non-installable with no error saying
+so.
 """
 
 from __future__ import annotations
@@ -25,13 +25,13 @@ if TYPE_CHECKING:
 
 
 def register_manifest_route(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
-    """Monte la route du manifeste, s'il y a un manifeste."""
+    """Mount the manifest route, if there is a manifest."""
     pwa = getattr(bretzel_app.config, "pwa", None)
     if pwa is None:
         return
 
-    corps = pwa.as_json()
+    body = pwa.as_json()
 
     @fastapi.get(MANIFEST_ROUTE, include_in_schema=False)
     async def _manifest() -> Response:
-        return Response(corps, media_type="application/manifest+json")
+        return Response(body, media_type="application/manifest+json")

@@ -304,7 +304,7 @@ _ASSET_ROUTE_SAMPLES: dict[str, str] = {
     # Les données d'icône : une page de connexion affiche des glyphes
     # avant que quiconque soit connecté, donc la route doit répondre sans
     # session — comme les feuilles et l'icône de l'onglet.
-    f"{ROUTE_ICONS}/{{chemin:path}}": f"{ROUTE_ICONS}/lucide.json",
+    f"{ROUTE_ICONS}/{{icon_path:path}}": f"{ROUTE_ICONS}/lucide.json",
 }
 
 

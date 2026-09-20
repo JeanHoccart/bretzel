@@ -1,50 +1,52 @@
-/* 17_carousel.js — scope partagé du composant Carousel.
+/* 17_carousel.js — the Carousel component's shared scope.
  *
- * Le défilement est du **CSS scroll-snap**, pas un translateX piloté d'ici :
- * la piste est un conteneur `overflow-x-auto snap-x snap-mandatory` et
- * chaque slide porte `snap-start`. Ce choix décide de tout ce fichier.
+ * The scrolling is **CSS scroll-snap**, not a translateX driven from
+ * here: the track is an `overflow-x-auto snap-x snap-mandatory`
+ * container and each slide carries `snap-start`. That choice decides
+ * this whole file.
  *
- * Ce que le navigateur fait, et qu'on n'écrit donc pas : le swipe tactile
- * avec son inertie et son rubber-banding, le scroll à la molette, le
- * clavier, et l'aimantation elle-même. Il reste ici deux choses — aller à
- * un index, et lire l'index depuis la position de scroll.
+ * What the browser does, and what we therefore do not write: the touch
+ * swipe with its inertia and its rubber-banding, the wheel scroll, the
+ * keyboard, and the snapping itself. Two things are left here — going
+ * to an index, and reading the index from the scroll position.
  *
  *   bz-data="{...$bz.carousel.scope, current: 0, _track: null,
  *             _read(){…}, _write(v){…}}"
  *
- * ``_track`` est capturé au ``bz-init`` du root (`_track = $refs.bztrack`)
- * : une méthode de scope n'a **pas** accès à ``$refs``, seules les
- * directives en ont (même contrainte que Slider, cf. sa docstring).
+ * ``_track`` is captured at the root's ``bz-init``
+ * (`_track = $refs.bztrack`): a scope method has **no** access to
+ * ``$refs``, only directives do (same constraint as Slider, cf. its
+ * docstring).
  *
- * ⚠️ **Toute la géométrie est LUE du DOM, jamais calculée.** La foulée
- * vient de l'écart réel entre deux slides, la borne de
- * ``scrollWidth - clientWidth``. C'est ce qui rend le ``per_view``
- * responsive (`{"base": 1, "md": 3}`) gratuit : le JS n'a aucun
- * breakpoint à connaître, il mesure ce que CSS a décidé.
+ * ⚠️ **All the geometry is READ from the DOM, never computed.** The
+ * stride comes from the real gap between two slides, the bound from
+ * ``scrollWidth - clientWidth``. That is what makes a responsive
+ * ``per_view`` (`{"base": 1, "md": 3}`) free: the JS has no breakpoint
+ * to know, it measures what CSS decided.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  //: Silence après le dernier événement de scroll avant de considérer que
-  //: la position est arrêtée. Sans ce délai, un défilement fluide de 0 à 3
-  //: publierait 1 puis 2 en passant — et sur un ``value`` lié au serveur,
-  //: chaque valeur intermédiaire partirait en ``change``.
+  //: The silence after the last scroll event before considering the
+  //: position settled. Without that delay, a smooth scroll from 0 to 3
+  //: would publish 1 then 2 on the way — and on a server-bound
+  //: ``value``, every intermediate value would leave as a ``change``.
   const SETTLE_MS = 120;
 
   $bz.carousel = {
     scope: {
-      // ── Géométrie ────────────────────────────────────────────────
-      // Des MÉTHODES, jamais des getters : ``scope.absorb`` invoque
-      // chaque clé à l'enregistrement et figerait un getter sur sa
-      // première valeur (cf. traps.md).
+      // ── Geometry ─────────────────────────────────────────────────
+      // METHODS, never getters: ``scope.absorb`` invokes each key at
+      // registration and would freeze a getter on its first value (cf.
+      // traps.md).
       _step() {
         const t = this._track;
         if (!t || !t.children.length) return 0;
         const a = t.children[0];
-        // L'écart entre DEUX slides, pas la largeur d'une seule : il
-        // comprend le gap, donc il reste juste quel que soit l'espacement
-        // du thème.
+        // The gap between TWO slides, not the width of one: it
+        // includes the gap, so it stays right whatever the theme's
+        // spacing.
         if (t.children.length > 1) {
           return (
             t.children[1].getBoundingClientRect().left -
@@ -54,22 +56,22 @@
         return a.getBoundingClientRect().width;
       },
       _maxIndex() {
-        // ``void this._geom`` n'est PAS mort : c'est la lecture qui
-        // INSCRIT la dépendance réactive de tout ce qui mesure. Une
-        // mesure DOM n'est pas un signal — sans ce lien, un
-        // ``bz-attr:disabled="_atEnd()"`` s'évalue une fois au scan, avec
-        // la mise en page de cet instant-là, et ne se relit jamais. Payé
-        // pour de vrai : hydraté avant que la feuille Tailwind s'applique,
-        // la piste n'est pas encore ``flex``, donc ``scrollWidth ===
-        // clientWidth``, donc la borne vaut 0, donc les DEUX flèches sont
-        // désactivées — et ``disabled:opacity-0`` les efface. Aucune
-        // flèche à la première visite, toutes au refresh. Cf.
-        // ``_observeGeom`` pour qui bouge ce signal.
+        // ``void this._geom`` is NOT dead: it is the read that
+        // REGISTERS the reactive dependency of everything that
+        // measures. A DOM measurement is not a signal — without that
+        // link, a ``bz-attr:disabled="_atEnd()"`` evaluates once at scan
+        // time, with that instant's layout, and is never re-read. Paid
+        // for real: hydrated before the Tailwind sheet applies, the
+        // track is not yet ``flex``, so ``scrollWidth === clientWidth``,
+        // so the bound is 0, so BOTH arrows are disabled — and
+        // ``disabled:opacity-0`` erases them. No arrow at the first
+        // visit, all of them on refresh. Cf. ``_observeGeom`` for what
+        // moves this signal.
         void this._geom;
-        // ``_step()`` rend déjà 0 sans piste, donc ce test couvre les
-        // deux cas — et ``_geomIndex`` juste dessous s'appuie sur la même
-        // propriété. Doubler la garde ici ferait croire que les deux
-        // voisins ne sont pas d'accord.
+        // ``_step()`` already returns 0 with no track, so this test
+        // covers both cases — and ``_geomIndex`` just below leans on the
+        // same property. Doubling the guard here would suggest the two
+        // neighbours disagree.
         const step = this._step();
         if (!step) return 0;
         const t = this._track;
@@ -80,58 +82,57 @@
         return step ? Math.round(this._track.scrollLeft / step) : 0;
       },
 
-      // ── Ce qui rend la mesure ré-évaluable ───────────────────────
-      // Appelé depuis un ``bz-effect`` porté par la PISTE, et surtout pas
-      // depuis le ``bz-init`` du root : ``bz-init`` est one-shot par NŒUD
-      // (``el._bzInitDone``), or idiomorph morphe EN PLACE — le nœud du
-      // root survit, donc le hook ne re-court pas, donc les slides
-      // ajoutées par un morph ne seraient jamais observées. Un
-      // ``bz-effect`` est jeté et refait à chaque rescan, ce qui
-      // ré-observe l'ensemble courant sans rien de plus à écrire.
-      // (``ui.carousel`` + ``ui.each`` dans une zone rafraîchie est le
-      // cas d'usage numéro un du composant : ce chemin-là n'est pas un
-      // coin.)
+      // ── What makes the measurement re-evaluable ──────────────────
+      // Called from a ``bz-effect`` carried by the TRACK, and most
+      // certainly not from the root's ``bz-init``: ``bz-init`` is
+      // one-shot per NODE (``el._bzInitDone``), yet idiomorph morphs IN
+      // PLACE — the root's node survives, so the hook does not run
+      // again, so the slides added by a morph would never be observed. A
+      // ``bz-effect`` is thrown away and redone at every rescan, which
+      // re-observes the current set with nothing more to write.
+      // (``ui.carousel`` + ``ui.each`` inside a refreshed zone is the
+      // component's number-one use case: that path is not a corner.)
       //
-      // Il ne doit PAS rejoindre l'effet du root, qui dépend déjà de
-      // ``_geom`` via ``_syncFromValue`` → ``_maxIndex`` : le bump du
-      // premier rapport de l'observer le relancerait, ce qui rebrancherait
-      // l'observer, qui rapporterait à nouveau — une boucle.
+      // It must NOT join the root's effect, which already depends on
+      // ``_geom`` through ``_syncFromValue`` → ``_maxIndex``: the bump
+      // of the observer's first report would relaunch it, which would
+      // re-wire the observer, which would report again — a loop.
       //
-      // Pourquoi un ResizeObserver et pas un ``window.resize`` : la borne
-      // bouge sans que la fenêtre bouge. Un ``per_view`` responsive
-      // change la largeur des SLIDES au breakpoint ; un carousel hydraté
-      // dans un panneau replié mesure zéro jusqu'à l'ouverture ; une
-      // feuille de style qui arrive après le scan retourne la piste de
-      // ``block`` à ``flex``. Les trois se voient sur une boîte observée,
-      // aucune ne passe par un événement de fenêtre.
+      // Why a ResizeObserver and not a ``window.resize``: the bound
+      // moves without the window moving. A responsive ``per_view``
+      // changes the SLIDES' width at a breakpoint; a carousel hydrated
+      // in a collapsed panel measures zero until it opens; a stylesheet
+      // arriving after the scan turns the track from ``block`` to
+      // ``flex``. All three show on an observed box, none goes through a
+      // window event.
       //
-      // UNE slide est observée en plus de la piste, et une seule suffit :
-      // elles portent toutes la MÊME chaîne de classes (``slide_class``
-      // est composée une fois côté Python puis appliquée à chacune), donc
-      // elles changent de taille ensemble. La première est un témoin
-      // fidèle du groupe ; observer les quatre-vingts autres n'apporterait
-      // pas une information de plus.
+      // ONE slide is observed in addition to the track, and one is
+      // enough: they all carry the SAME class string (``slide_class`` is
+      // composed once on the Python side then applied to each), so they
+      // change size together. The first is a faithful witness of the
+      // group; observing the other eighty would bring no extra
+      // information.
       _observeGeom() {
         const t = this._track;
         if (!t) return;
-        // L'observer est rangé sur le NŒUD observé, pas sur le scope —
-        // même choix que ``$bz._tick`` avec ``el._bzTickId``, et pour la
-        // même raison : sa durée de vie est celle de la piste, donc une
-        // piste détachée emporte son observer avec elle. Sur le scope, il
-        // survivrait à son sujet.
+        // The observer is filed on the OBSERVED node, not on the scope
+        // — the same choice as ``$bz._tick`` with ``el._bzTickId``, and
+        // for the same reason: its lifetime is the track's, so a
+        // detached track takes its observer with it. On the scope, it
+        // would outlive its subject.
         //
-        // Le ranger là évite AUSSI une boucle : cette méthode court dans
-        // un effet, et un champ de scope écrit depuis un effet qui le lit
-        // se rappellerait lui-même sans fin (un champ non déclaré devient
-        // un signal à la première écriture — cf. ``03_scope.js``). Une
-        // propriété de nœud n'est pas réactive, donc rien ne se relance.
+        // Filing it there ALSO avoids a loop: this method runs in an
+        // effect, and a scope field written from an effect that reads it
+        // would call itself endlessly (an undeclared field becomes a
+        // signal at the first write — cf. ``03_scope.js``). A node
+        // property is not reactive, so nothing relaunches.
         if (t._bzGeomRo) t._bzGeomRo.disconnect();
         const self = this;
-        // Bumper un compteur plutôt que publier la mesure : la mesure
-        // reste lue au moment où on en a besoin (une seule source), le
-        // signal ne sert qu'à dire « relis ». Pas de boucle possible —
-        // ce que l'effet écrit derrière (``disabled``, donc une opacité)
-        // ne change aucune boîte.
+        // Bumping a counter rather than publishing the measurement:
+        // the measurement stays read at the moment it is needed (a
+        // single source), the signal only says "read again". No loop
+        // possible — what the effect writes behind it (``disabled``, so
+        // an opacity) changes no box.
         const ro = new ResizeObserver(function () {
           self._geom = self._geom + 1;
         });
@@ -140,10 +141,10 @@
         t._bzGeomRo = ro;
       },
 
-      // ── Bornes — l'état désactivé des flèches ────────────────────
-      // Lire ``_read()`` inscrit la dépendance réactive (c'est lui qui
-      // bouge) ; la BORNE, elle, vient de la géométrie — donc aucun
-      // calcul de per_view ni de breakpoint.
+      // ── Bounds — the arrows' disabled state ──────────────────────
+      // Reading ``_read()`` registers the reactive dependency (it is
+      // what moves); the BOUND, for its part, comes from the geometry —
+      // so no per_view or breakpoint computation.
       _atStart() {
         return Number(this._read()) <= 0;
       },
@@ -157,16 +158,16 @@
         if (!t) return;
         const n = Math.max(0, Math.min(this._maxIndex(), Number(i) || 0));
         t.scrollTo({ left: n * this._step(), behavior: "smooth" });
-        // On n'écrit PAS l'état ici : ``_onScroll`` est la source unique
-        // de l'index, et il le publiera quand la position sera arrêtée.
-        // Écrire des deux côtés ferait diverger le signal de ce que
-        // l'utilisateur voit dès qu'il interrompt l'animation d'un doigt.
+        // We do NOT write the state here: ``_onScroll`` is the index's
+        // single source, and it will publish it when the position has
+        // settled. Writing on both sides would make the signal diverge
+        // from what the user sees as soon as they interrupt the
+        // animation with a finger.
       },
-      // ``next`` / ``prev`` BOUCLENT, et ce n'est pas en contradiction
-      // avec des flèches qui butent : les flèches sont désactivées aux
-      // bords, donc elles n'arrivent jamais ici au bout. Ce qui arrive
-      // ici au bout, c'est l'autoplay — et une rotation qui s'arrête
-      // n'est plus une rotation.
+      // ``next`` / ``prev`` LOOP, and it does not contradict arrows
+      // that stop: the arrows are disabled at the edges, so they never
+      // arrive here at the end. What arrives here at the end is the
+      // autoplay — and a rotation that stops is no longer a rotation.
       next() {
         const max = this._maxIndex();
         const cur = Number(this._read()) || 0;
@@ -177,7 +178,7 @@
         this.goTo(cur <= 0 ? this._maxIndex() : cur - 1);
       },
 
-      // ── Le pont position → état ──────────────────────────────────
+      // ── The position → state bridge ──────────────────────────────
       _onScroll() {
         clearTimeout(this._settleId);
         this._settleId = setTimeout(() => {
@@ -186,15 +187,15 @@
         }, SETTLE_MS);
       },
 
-      // ── Le pont état → position ──────────────────────────────────
-      // Appelé depuis un ``bz-effect`` du root : lire ``_read()`` inscrit
-      // la dépendance, donc un écrivain EXTERNE (une binding pilotée
-      // ailleurs, un `.set(i)`) fait défiler la piste.
+      // ── The state → position bridge ──────────────────────────────
+      // Called from the root's ``bz-effect``: reading ``_read()``
+      // registers the dependency, so an EXTERNAL writer (a binding
+      // driven elsewhere, a `.set(i)`) scrolls the track.
       //
-      // La garde ``!==`` est ce qui empêche la boucle avec ``_onScroll``,
-      // et elle suffit : pendant un défilement fluide, la position
-      // publiée finit par égaler la cible, l'effet se relance, ne trouve
-      // plus d'écart, et n'appelle pas ``scrollTo`` une seconde fois.
+      // The ``!==`` guard is what stops the loop with ``_onScroll``, and
+      // it is enough: during a smooth scroll, the published position
+      // ends up equalling the target, the effect relaunches, finds no
+      // gap any more, and does not call ``scrollTo`` a second time.
       _syncFromValue() {
         const t = this._track;
         if (!t) return;
@@ -203,26 +204,25 @@
           Math.min(this._maxIndex(), Number(this._read()) || 0)
         );
         if (this._geomIndex() === target) return;
-        // Le tout premier accord est INSTANTANÉ : un carousel rendu à
-        // value=2 doit s'afficher sur la slide 2, pas défiler depuis la 0
-        // sous les yeux de l'utilisateur au chargement.
+        // The very first snap is INSTANT: a carousel rendered at
+        // value=2 must show on slide 2, not scroll from 0 under the
+        // user's eyes on load.
         const behavior = this._booted ? "smooth" : "auto";
         this._booted = true;
         t.scrollTo({ left: target * this._step(), behavior: behavior });
       },
 
       // ── Autoplay ─────────────────────────────────────────────────
-      // Un seul geste de l'utilisateur et la rotation s'arrête, pour de
-      // bon. Pas de reprise après un délai : un contenu qui se remet à
-      // bouger pendant qu'on le lit est la plainte d'accessibilité
-      // numéro un sur les carrousels. Pas de pause au survol non plus —
-      // elle n'existe pas sur un pointeur grossier.
+      // A single gesture from the user and the rotation stops, for
+      // good. No resumption after a delay: a content that starts moving
+      // again while you are reading it is the number-one accessibility
+      // complaint about carousels. No pause on hover either — it does
+      // not exist on a coarse pointer.
       //
-      // ``still`` est un SIGNAL déclaré dans le ``bz-data`` (pas un champ
-      // posé à la volée) : c'est l'effet du root qui le lit, en
-      // ``$bz._tick($el, !still, ms)``, et un champ non déclaré ne
-      // relancerait jamais cet effet — l'autoplay tournerait pour
-      // toujours.
+      // ``still`` is a SIGNAL declared in the ``bz-data`` (not a field
+      // set on the fly): it is the root's effect that reads it, as
+      // ``$bz._tick($el, !still, ms)``, and an undeclared field would
+      // never relaunch that effect — the autoplay would run forever.
       _touch() {
         if (!this.still) this.still = true;
       },

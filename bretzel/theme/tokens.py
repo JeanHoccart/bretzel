@@ -16,17 +16,17 @@ from __future__ import annotations
 from typing import Final, Literal
 
 # ───────────────────────────────────────────────────────────────────────────
-# Breakpoints — l'échelle Tailwind, source unique
+# Breakpoints — the Tailwind scale, single source
 # ───────────────────────────────────────────────────────────────────────────
 #
-# Elle vit ICI et non dans ``components/base/responsive.py`` (qui la
-# ré-exporte) parce que la SAFELIST en a besoin : ``responsive_classes``
-# peut préfixer n'importe quelle classe graduée par n'importe lequel de
-# ces breakpoints, donc la clôture de la safelist porte sur les deux
-# axes. Or ``theme`` n'a pas le droit d'importer ``components`` — c'est
-# le sens du DAG, vérifié par ``import-linter``. Deux tuples parallèles
-# auraient dérivé : un breakpoint ajouté d'un côté aurait produit des
-# classes que le compilateur ne connaît pas, sans erreur.
+# It lives HERE and not in ``components/base/responsive.py`` (which
+# re-exports it) because the SAFELIST needs it: ``responsive_classes``
+# can prefix any graded class with any of these breakpoints, so the
+# safelist's closure spans both axes. And ``theme`` may not import
+# ``components`` — that is the DAG's meaning, checked by
+# ``import-linter``. Two parallel tuples would have drifted: a breakpoint
+# added on one side would have produced classes the compiler does not
+# know, with no error.
 
 BREAKPOINTS: Final[tuple[str, ...]] = ("sm", "md", "lg", "xl", "2xl")
 
@@ -70,110 +70,112 @@ SemanticColors = Literal[
 # Font slots — 3, fixed, and deliberately Tailwind's own three
 # ───────────────────────────────────────────────────────────────────────────
 #
-# Ce ne sont pas des noms inventés : ``--font-sans`` / ``--font-serif`` /
-# ``--font-mono`` sont les tokens que Tailwind v4 définit lui-même, et
-# ``--default-font-family: var(--font-sans)`` de son préréglage fait que
-# redéfinir ``sans`` change la fonte de la page ENTIÈRE via le preflight
-# (``html { font-family: var(--default-font-family, …) }``, vérifié dans le
-# CSS compilé). Les utilitaires ``font-sans`` / ``font-serif`` / ``font-mono``
-# suivent gratuitement — et ``Heading`` écrit déjà ``font-sans`` en dur dans
-# son thème, donc les titres suivent sans qu'un composant bouge.
+# These are not invented names: ``--font-sans`` / ``--font-serif`` /
+# ``--font-mono`` are the tokens Tailwind v4 defines itself, and its
+# preset's ``--default-font-family: var(--font-sans)`` means redefining
+# ``sans`` changes the WHOLE page's font through the preflight
+# (``html { font-family: var(--default-font-family, …) }``, verified in the
+# compiled CSS). The ``font-sans`` / ``font-serif`` / ``font-mono``
+# utilities follow for free — and ``Heading`` already hard-codes
+# ``font-sans`` in its theme, so headings follow without a component
+# moving.
 #
-# **Pas de quatrième slot** (``display``, ``heading``…) : il faudrait
-# l'inventer côté Tailwind ET réécrire le thème de Heading, alors qu'une
-# fonte de titre distincte s'obtient déjà par
-# ``Theme(components={"heading": {"slots": {...}}})``. Arbitré le
+# **No fourth slot** (``display``, ``heading``…): it would have to be
+# invented on the Tailwind side AND Heading's theme rewritten, when a
+# distinct heading font is already obtained through
+# ``Theme(components={"heading": {"slots": {...}}})``. Settled on
 # 2026-08-16.
 #
-# **Aucun défaut n'est recopié ici.** Une section ``fonts`` vide n'émet
-# rien et les piles de Tailwind tiennent. Recopier ``ui-sans-serif,
-# system-ui, …`` dans ce fichier créerait un doublon dont la seule
-# évolution possible est de diverger de l'amont, en silence.
+# **No default is copied here.** An empty ``fonts`` section emits nothing
+# and Tailwind's stacks hold. Copying ``ui-sans-serif, system-ui, …``
+# into this file would create a duplicate whose only possible evolution
+# is to diverge from upstream, silently.
 
 FONT_SLOT_NAMES: Final[tuple[str, ...]] = ("sans", "serif", "mono")
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# L'échelle — sa BASE, pas un multiplicateur
+# The scale — its BASE, not a multiplier
 # ───────────────────────────────────────────────────────────────────────────
 #
-# Deux jetons, et ce sont ceux de Tailwind v4 : ``--spacing``, l'unité dont
-# toute utilitaire d'espacement dérive (``h-10`` vaut
-# ``calc(var(--spacing) * 10)``, comme ``p-4``, ``gap-2`` et ``w-6``), et
-# ``--text-<palier>``, que les utilitaires ``text-*`` lisent.
+# Two tokens, and they are Tailwind v4's: ``--spacing``, the unit every
+# spacing utility derives from (``h-10`` is
+# ``calc(var(--spacing) * 10)``, like ``p-4``, ``gap-2`` and ``w-6``), and
+# ``--text-<step>``, which the ``text-*`` utilities read.
 #
-# ⚠️ **Bretzel pose ses propres valeurs, et c'est le sujet.** Ce n'est pas le
-# doublon d'amont que les fontes évitent : une valeur recopiée ne peut que
-# diverger, une valeur CHOISIE dit quelque chose. Tailwind vise des pages —
-# contrôle à 40 px, texte médian à 16 px — et Bretzel sert à faire des
-# OUTILS, qui montrent beaucoup dans peu de place. Hériter de l'échelle
-# d'un document était un défaut par omission, pas une décision (2026-09-13).
+# ⚠️ **Bretzel sets its own values, and that is the subject.** This is not
+# the upstream duplicate the fonts avoid: a copied value can only
+# diverge, a CHOSEN value says something. Tailwind targets pages —
+# controls at 40 px, body text at 16 px — and Bretzel is for building
+# TOOLS, which show a lot in little space. Inheriting a document's scale
+# was a flaw by omission, not a decision (2026-09-13).
 #
-# Le repère : les défauts d'Ant Design sont ``controlHeight`` 32 et
-# ``fontSize`` 14, à peu près où ceux-ci atterrissent, et son préréglage
-# « compact » descend ENCORE en dessous. C'était donc le défaut de Bretzel
-# qui était l'exception.
+# The reference point: Ant Design's defaults are ``controlHeight`` 32 and
+# ``fontSize`` 14, roughly where these land, and its "compact" preset goes
+# lower STILL. So it was Bretzel's default that was the exception.
 #
-# **Pourquoi la base et non un curseur.** Cette place a dit « la densité n'est
-# PAS ouverte » jusqu'au 2026-09-13, au motif que chaque composant a déjà son
-# ``size=`` et qu'un multiplicateur global serait une seconde manière de faire
-# la même chose. Le motif tient toujours — et sa propre clause de sortie
-# disait quoi ouvrir le jour où le besoin remonterait : *la BASE de cette
-# échelle, pas un axe neuf*. C'est ce qui est ici. ``size=`` continue de
-# choisir un palier ; le thème décide de quelle échelle.
+# **Why the base and not a slider.** This place said "density is NOT
+# open" until 2026-09-13, on the grounds that each component already has
+# its ``size=`` and that a global multiplier would be a second way of
+# doing the same thing. The grounds still hold — and its own get-out
+# clause said what to open the day the need came up: *the BASE of this
+# scale, not a new axis*. That is what is here. ``size=`` still picks a
+# step; the theme decides which scale.
 #
-# Une app qui veut l'échelle d'un DOCUMENT la reprend par la même porte :
-# ``Theme(spacing="0.25rem", text={"base": "16px", …})``. Il n'y a pas de
-# préréglage pour ça — ce serait un second nom pour les valeurs de Tailwind,
-# donc le doublon d'amont qu'on vient d'écarter.
+# An app wanting a DOCUMENT's scale takes it back through the same door:
+# ``Theme(spacing="0.25rem", text={"base": "16px", …})``. There is no
+# preset for it — that would be a second name for Tailwind's values,
+# hence the upstream duplicate we have just set aside.
 #
-# Le besoin est remonté deux fois, mesuré : ``examples/kanban`` puis
-# ``examples/ecole`` ont chacun réécrit la même correction — la première en
-# retaillant onze composants un par un, ce qui en a laissé onze autres au
-# défaut et mis quatre hauteurs de champ sur un même écran. Une liste écrite
-# à la main est une liste de composants qu'on a pensé à citer.
+# The need came up twice, measured: ``examples/kanban`` then
+# ``examples/ecole`` each rewrote the same correction — the first by
+# resizing eleven components one by one, which left eleven others at the
+# default and put four field heights on one screen. A hand-written list
+# is a list of the components one thought to name.
 #
-# **Le marché est unanime sur le mécanisme, pas sur le nom.** Ant Design
-# livre un préréglage entier (``compactAlgorithm``) piloté par des jetons de
-# graine — ``sizeUnit`` 4, ``sizeStep``, ``controlHeight`` 32, ``fontSize``
-# 14 ; Radix Themes et Reflex exposent un pourcentage (``scaling``) ; Mantine
-# un ``scale`` plus ses dicts ``fontSizes``/``spacing``. Tous déplacent une
-# base, aucun ne retaille composant par composant. Les noms retenus ici sont
-# ceux de Tailwind parce que ce sont les jetons RÉELLEMENT lus — même raison
-# que les trois slots de fonte, et même bénéfice : rien à traduire.
+# **The market is unanimous on the mechanism, not on the name.** Ant
+# Design ships a whole preset (``compactAlgorithm``) driven by seed
+# tokens — ``sizeUnit`` 4, ``sizeStep``, ``controlHeight`` 32,
+# ``fontSize`` 14; Radix Themes and Reflex expose a percentage
+# (``scaling``); Mantine a ``scale`` plus its ``fontSizes``/``spacing``
+# dicts. All move a base, none resizes component by component. The names
+# kept here are Tailwind's because they are the tokens ACTUALLY read —
+# same reason as the three font slots, and same benefit: nothing to
+# translate.
 
-#: Le pas d'espacement livré, et **3 px pile** — le chiffre rond est le
-#: sujet. À ``0.205rem``, ``h-10`` valait 32,8 px : un palier entre deux
-#: pixels, que les navigateurs arrondissent différemment selon la structure
-#: du contrôle (hauteur sur l'élément bordé, ou sur son enfant). Mesuré sur
-#: ``examples/ecole`` : 31 px d'un côté, 33 de l'autre, pour des champs que
-#: rien ne distingue dans le code. À 3 px, chaque cran tombe sur un entier.
+#: The shipped spacing step, and **exactly 3 px** — the round figure is
+#: the point. At ``0.205rem``, ``h-10`` was 32.8 px: a step between two
+#: pixels, which browsers round differently depending on the control's
+#: structure (height on the bordered element, or on its child). Measured
+#: on ``examples/ecole``: 31 px on one side, 33 on the other, for fields
+#: nothing distinguishes in the code. At 3 px, every notch lands on an
+#: integer.
 DEFAULT_SPACING: Final[str] = "0.1875rem"
 
-#: Le même pas en PIXELS, pour les apps qui doivent CALCULER — la hauteur
-#: d'un bloc de N heures dans une grille se compose d'un nombre de crans, et
-#: une classe Tailwind ne sait pas additionner (cf.
-#: ``examples/ecole/features/emploi_du_temps.py``). Deux autorités sur une
-#: même grandeur ne se composent pas : l'accord des deux est gaté.
+#: The same step in PIXELS, for apps that must CALCULATE — the height of
+#: an N-hour block in a grid is made of a number of notches, and a
+#: Tailwind class cannot add up (cf.
+#: ``examples/ecole/features/emploi_du_temps.py``). Two authorities over
+#: one quantity do not compose: their agreement is gated.
 DEFAULT_SPACING_PX: Final[int] = 3
 
-#: Les paliers de texte livrés — un cran sous ceux de Tailwind
-#: (12/14/16/18/20/24), qui est la mesure que deux apps avaient trouvée
-#: séparément avant que le framework tranche.
+#: The shipped text steps — one notch below Tailwind's
+#: (12/14/16/18/20/24), which is the measurement two apps had found
+#: separately before the framework settled it.
 #:
-#: ⚠️ **Les paliers d'affiche EN FONT PARTIE, et ça a été mesuré.** Cette
-#: place a dit « ``3xl`` et au-delà ne sont pas posés : aucun chrome ne les
-#: écrit ». C'était faux, et le prix a été un défaut : l'échelle de taille
-#: d'``ui.icon`` monte jusqu'à ``text-6xl`` (``xl`` vaut ``text-4xl``,
-#: ``2xl`` vaut ``text-6xl``), et ``ui.file_upload`` écrit ``text-5xl``.
-#: Un chevron resté à 36 px dans un bouton descendu à 33 sortait de
-#: **1,5 px** — invisible à toute lecture de classes, trouvé par
-#: ``probe_calendar_width`` en français ET en anglais.
+#: ⚠️ **The display steps ARE PART OF IT, and that was measured.** This
+#: place said "``3xl`` and above are not set: no chrome writes them".
+#: That was false, and the price was a defect: ``ui.icon``'s size scale
+#: goes up to ``text-6xl`` (``xl`` is ``text-4xl``, ``2xl`` is
+#: ``text-6xl``), and ``ui.file_upload`` writes ``text-5xl``. A chevron
+#: left at 36 px in a button brought down to 33 stuck out by **1.5 px** —
+#: invisible to any reading of classes, found by
+#: ``probe_calendar_width`` in French AND in English.
 #:
-#: C'est la forme générale du piège, et elle vaut au-delà d'ici : laisser
-#: une moitié d'une grandeur sur l'échelle d'amont et déplacer l'autre,
-#: ce sont deux autorités qui ne se composent pas. Une BOÎTE mesurée en
-#: crans et un GLYPHE mesuré en paliers de texte doivent bouger ensemble.
+#: That is the trap's general shape, and it holds beyond here: leaving
+#: half of one quantity on the upstream scale and moving the other is two
+#: authorities that do not compose. A BOX measured in notches and a GLYPH
+#: measured in text steps must move together.
 DEFAULT_TEXT: Final[dict[str, str]] = {
     "xs": "11px",
     "sm": "13px",
@@ -187,15 +189,16 @@ DEFAULT_TEXT: Final[dict[str, str]] = {
     "6xl": "54px",
 }
 
-#: Les paliers de ``--text-*``, c'est-à-dire ceux que Tailwind v4 définit.
-#: Fermé comme les fontes : ``Theme(text={"md": …})`` n'est pas une extension
-#: mais un jeton que rien ne lira — l'échelle de Tailwind dit ``base`` là où
-#: un ``size=`` de composant dit ``md``, et c'est le composant qui traduit.
+#: The ``--text-*`` steps, that is to say the ones Tailwind v4 defines.
+#: Closed like the fonts: ``Theme(text={"md": …})`` is not an extension
+#: but a token nothing will read — Tailwind's scale says ``base`` where a
+#: component's ``size=`` says ``md``, and it is the component that
+#: translates.
 #:
-#: ⚠️ La ligne d'en dessous du palier reste hors de portée : 39 chaînes de
-#: thème écrivent une taille littérale (``text-[10px]``, ``h-[1.75rem]``).
-#: Déplacer la base ne les bouge pas — c'est la dette « ``size=`` n'atteint
-#: pas tous les slots » de ``todo.md``, pas un trou de ce paramètre-ci.
+#: ⚠️ The line below the step stays out of reach: 39 theme strings write
+#: a literal size (``text-[10px]``, ``h-[1.75rem]``). Moving the base
+#: does not move them — that is the "``size=`` does not reach every slot"
+#: debt in ``todo.md``, not a hole in this parameter.
 TEXT_SLOT_NAMES: Final[tuple[str, ...]] = (
     "xs",
     "sm",
@@ -214,70 +217,70 @@ TEXT_SLOT_NAMES: Final[tuple[str, ...]] = (
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# Shape — les trois familles de rayon
+# Shape — the three radius families
 # ───────────────────────────────────────────────────────────────────────────
 #
-# Émises dans ``@theme`` comme ``--radius-<famille>``, donc Tailwind v4 en
-# fabrique de vraies utilitaires : ``rounded-box``, ``rounded-field``,
-# ``rounded-selector``, avec leurs variantes de coin (``rounded-l-field``).
-# Vérifié au binaire de prod le 2026-08-30.
+# Emitted in ``@theme`` as ``--radius-<family>``, so Tailwind v4 builds
+# real utilities from them: ``rounded-box``, ``rounded-field``,
+# ``rounded-selector``, with their corner variants (``rounded-l-field``).
+# Verified against the production binary on 2026-08-30.
 #
-# **Pourquoi trois familles et pas une échelle.** Le dépôt en avait six
-# (xl 46×, full 31×, md 28×, lg 12×, sm 7×, 2xl 3×) et rien n'écrivait
-# pourquoi un composant prenait l'un plutôt que l'autre. Un curseur
-# unique posé sur six jetons sans logique ne règle rien de décidable ;
-# trois familles NOMMÉES rendent la question décidable au call-site.
+# **Why three families and not a scale.** The repository had six (xl 46×,
+# full 31×, md 28×, lg 12×, sm 7×, 2xl 3×) and nothing wrote down why a
+# component took one rather than another. A single slider laid over six
+# tokens with no logic settles nothing decidable; three NAMED families
+# make the question decidable at the call site.
 #
-# La coupe est celle de daisyUI 5 (``--radius-box`` / ``--radius-field``
-# / ``--radius-selector``), seul système du marché à cloisonner par
-# famille — Radix, Material 3, Ant Design, Fluent, Bootstrap et Mantine
-# utilisent tous une échelle globale plus une assignation par composant.
+# The cut is daisyUI 5's (``--radius-box`` / ``--radius-field`` /
+# ``--radius-selector``), the only system on the market to partition by
+# family — Radix, Material 3, Ant Design, Fluent, Bootstrap and Mantine
+# all use a global scale plus a per-component assignment.
 #
-# ⚠️ **``rounded-full`` n'entre dans aucune famille, et c'est la règle la
-# plus importante ici.** Le rond d'un switch, d'un radio, d'un spinner ou
-# d'une barre de progression est leur FORME, pas leur style : les
-# équarrir ferait lire le switch comme une case à cocher. Radix Themes
-# arrive à la même conclusion et l'écrit — chez eux « full » rend un
-# bouton en pilule mais ne rendra jamais une checkbox ronde, « to prevent
-# any confusion between it and a Radio ». 32 slots restent donc en dur.
+# ⚠️ **``rounded-full`` belongs to no family, and that is the most
+# important rule here.** The roundness of a switch, a radio, a spinner or
+# a progress bar is their SHAPE, not their style: squaring them would
+# make the switch read as a checkbox. Radix Themes reaches the same
+# conclusion and writes it down — for them "full" makes a button a pill
+# but will never make a checkbox round, "to prevent any confusion between
+# it and a Radio". 32 slots therefore stay hard-coded.
 
-#: Les trois familles, et ce qu'elles veulent dire :
+#: The three families, and what they mean:
 #:
-#: - ``box`` — l'élément CONTIENT d'autres éléments (carte, panneau,
-#:   dialogue, surface).
-#: - ``field`` — un contrôle qu'on vise, avec son propre cadre (bouton,
-#:   champ, déclencheur de picker).
-#: - ``selector`` — une petite marque, ou un contrôle IMBRIQUÉ dans un
-#:   autre (case à cocher, badge, croix d'effacement, pastille).
+#: - ``box`` — the element CONTAINS other elements (card, panel, dialog,
+#:   surface).
+#: - ``field`` — a control one aims at, with a frame of its own (button,
+#:   field, picker trigger).
+#: - ``selector`` — a small mark, or a control NESTED inside another
+#:   (checkbox, badge, clear cross, dot).
 SHAPE_SLOT_NAMES: Final[tuple[str, ...]] = ("box", "field", "selector")
 
-#: Les valeurs de départ. Choisies pour être celles que la majorité des
-#: slots portait déjà : 12 px, c'est ``rounded-xl``, que 46 slots
-#: écrivaient ; 6 px, c'est ``rounded-md``, celui de la case à cocher et
-#: du badge. Le regroupement déplace 26 slots sur 96, tous de 6 px au
-#: plus — le recensement est dans le message de commit.
-#: La largeur de trait, et ses deux crans dérivés.
+#: The starting values. Chosen to be the ones most slots already
+#: carried: 12 px is ``rounded-xl``, which 46 slots wrote; 6 px is
+#: ``rounded-md``, the checkbox's and the badge's. The regrouping moves
+#: 26 slots out of 96, all by 6 px at most — the census is in the commit
+#: message.
+#: The stroke width, and its two derived steps.
 #:
-#: **Un seul réglage**, contrairement au rayon : le marché est unanime là
-#: où il diverge sur la forme. daisyUI (``--border``), Ant Design
-#: (``lineWidth``) et Bootstrap (``--bs-border-width``) exposent une
-#: largeur globale ; Radix, Mantine, Material 3 et shadcn n'en exposent
-#: aucune. Personne ne cloisonne, et le dépôt donne la raison : son
-#: vocabulaire de bordure est DÉJÀ décidable — 1 px partout, 2 px pour
-#: l'emphase (le bouton `outline`, l'onglet actif), 4 px pour un accent
-#: latéral (le bandeau, la citation), 0 pour retirer.
+#: **One single setting**, unlike the radius: the market is unanimous
+#: where it diverges on shape. daisyUI (``--border``), Ant Design
+#: (``lineWidth``) and Bootstrap (``--bs-border-width``) expose a global
+#: width; Radix, Mantine, Material 3 and shadcn expose none. Nobody
+#: partitions, and the repository gives the reason: its border vocabulary
+#: is ALREADY decidable — 1 px everywhere, 2 px for emphasis (the
+#: `outline` button, the active tab), 4 px for a side accent (the banner,
+#: the quotation), 0 to remove.
 #:
-#: D'où les deux crans DÉRIVÉS plutôt que réglés : si l'emphase était un
-#: nombre fixe, pousser la base à 2 px la ferait disparaître — le bouton
-#: `outline` cesserait de se distinguer du bouton plein. Ici le rapport
-#: tient à toutes les valeurs.
+#: Hence the two DERIVED steps rather than tuned ones: if emphasis were a
+#: fixed number, pushing the base to 2 px would make it disappear — the
+#: `outline` button would stop being distinguishable from the solid one.
+#: Here the ratio holds at every value.
 #:
-#: ⚠️ ``--bz-stroke`` et pas ``--bz-border`` : ce dernier est DÉJÀ un
-#: palier de couleur des ponts (:mod:`bretzel.theme.bridges`), et
-#: ``border-(--bz-border)`` compile en ``border-color``. La collision
-#: aurait été silencieuse dans un sens (une largeur lue comme couleur) et
-#: destructrice dans l'autre. Le nom vient de Fluent 2, qui appelle ses
-#: jetons de largeur ``strokeWidth*``.
+#: ⚠️ ``--bz-stroke`` and not ``--bz-border``: the latter is ALREADY a
+#: colour step of the bridges (:mod:`bretzel.theme.bridges`), and
+#: ``border-(--bz-border)`` compiles to ``border-color``. The collision
+#: would have been silent one way (a width read as a colour) and
+#: destructive the other. The name comes from Fluent 2, which calls its
+#: width tokens ``strokeWidth*``.
 DEFAULT_STROKE: Final[str] = "1px"
 
 DEFAULT_SHAPE: Final[dict[str, str]] = {

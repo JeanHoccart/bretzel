@@ -90,8 +90,9 @@ __all__ = [
     "template",
     "text",
     "DEFAULT_HTMX_URL",
-    # Scripts tiers rapatriés (``.bretzel/vendor/``) — la couche serveur
-    # les sert, elle passe donc par ici et non par le sous-module.
+    # Third-party scripts brought in-house (``.bretzel/vendor/``) — the
+    # server layer serves them, so it comes through here and not through
+    # the submodule.
     "ROUTE_ICONS",
     "ROUTE_VENDOR",
     "VendoredAsset",

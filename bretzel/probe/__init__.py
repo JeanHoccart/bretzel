@@ -5,13 +5,12 @@ from __future__ import annotations
 from bretzel.probe._probe import Net, Probe, ProbeFailedError, ScopeNotReadableError, probe
 from bretzel.probe._window import Box, DropMissedError, ElementNotFoundError, Window
 
-#: Les quatre refus du harnais sont PUBLICS, et pour une raison : un
-#: probe qui mesure un cas limite veut parfois les attraper — « ce
-#: sélecteur ne doit rien désigner », « ce dépôt doit rater ». Les
-#: laisser dans un module privé obligeait à écrire
-#: ``from bretzel.probe._window import …``, c'est-à-dire à dépendre d'un
-#: chemin que rien ne promet. Ajoutées le 2026-09-11, sur décision de
-#: l'utilisateur, après que la gate du glisser a dû le faire.
+#: The harness's four refusals are PUBLIC, and for a reason: a probe
+#: measuring an edge case sometimes wants to catch them — "this selector
+#: must designate nothing", "this drop must fail". Leaving them in a
+#: private module forced writing ``from bretzel.probe._window import …``,
+#: that is to say depending on a path nothing promises. Added on
+#: 2026-09-11, by the user's decision, after the drag gate had to do it.
 __all__ = [
     "Box",
     "DropMissedError",

@@ -1,18 +1,18 @@
-"""La fiche d'un symbole public qui n'est **pas** un ``ui.*``.
+"""The card of a public symbol that is **not** a ``ui.*``.
 
-``describe`` savait tout dire de ``ui.button`` et rien de ``@page``. Sur
-les 157 noms publics des sept modules, il ne rendait qu'une ligne
-d'index — nom, nature, résumé coupé à 62 caractères — et ``describe page``
-répondait « ``ui.page`` n'existe pas », ce qui est faux et oriente vers la
-mauvaise conclusion. Une IA en tirait que ``@page`` existe sans jamais
-pouvoir l'appeler.
+``describe`` could say everything about ``ui.button`` and nothing about
+``@page``. Of the seven modules' 157 public names, it returned only an
+index line — name, nature, summary cut at 62 characters — and
+``describe page`` answered "``ui.page`` does not exist", which is false
+and points at the wrong conclusion. An AI concluded from it that
+``@page`` exists without ever being able to call it.
 
-**Rien n'est relisté ici.** La population ET son classement viennent de
-:func:`~bretzel.introspect.modules.describe_module` — le même
-:class:`~bretzel.introspect.model.SurfaceSymbol` qui alimente l'index — et
-les quatre lectures de détail sont les primitives existantes appliquées
-selon la nature du symbole. Ce module est un aiguillage, pas un cinquième
-moteur.
+**Nothing is re-listed here.** The population AND its classification come
+from :func:`~bretzel.introspect.modules.describe_module` — the same
+:class:`~bretzel.introspect.model.SurfaceSymbol` that feeds the index —
+and the four detail readings are the existing primitives applied
+according to the symbol's nature. This module is a switch, not a fifth
+engine.
 """
 
 from __future__ import annotations
@@ -32,16 +32,16 @@ from bretzel.introspect.state import describe_state
 
 @cache
 def _table() -> MappingProxyType[str, tuple[tuple[str, SurfaceSymbol], ...]]:
-    """Nom public → ``((module, sa ligne d'index), …)``, ordre de lecture.
+    """Public name → ``((module, its index line), …)``, in reading order.
 
-    Lit :func:`describe_module`, donc la population, la nature et la
-    catégorie sont celles de l'index — une seule définition de « la
-    surface publique d'un module couvert ». Les recalculer ici aurait
-    laissé deux expressions de la même règle, et un classement recopié a
-    déjà dérivé une fois dans ce dépôt pour exactement cette raison.
+    Reads :func:`describe_module`, so the population, the nature and the
+    category are the index's — a single definition of "a covered module's
+    public surface". Recomputing them here would have left two
+    expressions of the same rule, and a copied classification has already
+    drifted once in this repository for exactly that reason.
 
-    Rendu en lecture seule : c'est un cache partagé par tous les
-    appelants, et une mutation par mégarde corromprait tous les suivants.
+    Returned read-only: it is a cache shared by every caller, and an
+    accidental mutation would corrupt all the following ones.
     """
     rows: dict[str, list[tuple[str, SurfaceSymbol]]] = {}
     for module_name in module_names():
@@ -52,13 +52,13 @@ def _table() -> MappingProxyType[str, tuple[tuple[str, SurfaceSymbol], ...]]:
 
 @cache
 def symbol_owners() -> MappingProxyType[str, tuple[str, ...]]:
-    """Nom public → les modules qui l'exportent, dans l'ordre de lecture.
+    """Public name → the modules exporting it, in reading order.
 
-    ``page``, ``refresh``, ``Feature`` et les ``*Error`` sortent de deux
-    modules à la fois — le même objet ré-exporté par la façade. Le premier
-    module de la liste est celui d'où on l'importe en pratique (``bretzel``
-    vient en tête de :data:`~bretzel.introspect.modules.SECTIONS`), les
-    suivants sont des chemins d'import également valides.
+    ``page``, ``refresh``, ``Feature`` and the ``*Error`` come out of two
+    modules at once — the same object re-exported by the facade. The
+    first module in the list is the one it is imported from in practice
+    (``bretzel`` heads :data:`~bretzel.introspect.modules.SECTIONS`), the
+    following ones are equally valid import paths.
     """
     return MappingProxyType(
         {name: tuple(module for module, _ in rows) for name, rows in _table().items()}
@@ -67,16 +67,16 @@ def symbol_owners() -> MappingProxyType[str, tuple[str, ...]]:
 
 @cache
 def symbol_names() -> tuple[str, ...]:
-    """Tous les noms décrivables hors ``ui.*``, triés."""
+    """Every describable name outside ``ui.*``, sorted."""
     return tuple(sorted(_table()))
 
 
 def describe_symbol(name: str) -> SymbolDetail:
-    """La fiche d'un symbole public d'un module du framework.
+    """The card of a public symbol of a framework module.
 
-    ``name`` s'écrit nu (``page``) ou qualifié (``bretzel.render.page``) —
-    la forme qualifiée est ce qu'un traceback affiche, l'exiger dans un
-    sens ou dans l'autre serait une friction gratuite.
+    ``name`` is written bare (``page``) or qualified
+    (``bretzel.render.page``) — the qualified form is what a traceback
+    shows, requiring one or the other would be needless friction.
     """
     bare, forced = _split(name)
     exported = _table().get(bare, ())
@@ -87,8 +87,8 @@ def describe_symbol(name: str) -> SymbolDetail:
     home, indexed = rows[0]
     value = getattr(importlib.import_module(home), bare)
     is_class = isinstance(value, type)
-    # UN seul appel : c'est aussi le prédicat « est-ce une constante ? », et
-    # son ``repr`` sur une grande valeur n'est pas gratuit.
+    # ONE single call: it is also the "is this a constant?" predicate,
+    # and its ``repr`` on a large value is not free.
     summary = value_summary(value)
 
     return SymbolDetail(
@@ -98,8 +98,8 @@ def describe_symbol(name: str) -> SymbolDetail:
         also_known_as=_also_known_as(bare),
         category=indexed.category,
         kind=indexed.kind,
-        # Une constante n'a pas de docstring : ``inspect.getdoc`` y rendrait
-        # celle de son TYPE, le bruit que ``value_summary`` élimine déjà.
+        # A constant has no docstring: ``inspect.getdoc`` would return
+        # its TYPE's, the noise ``value_summary`` already eliminates.
         doc=None if summary is not None else _docstring(value),
         signature=_signature(value),
         methods=_surface(value),
@@ -110,15 +110,15 @@ def describe_symbol(name: str) -> SymbolDetail:
 
 
 def _also_known_as(bare: str) -> tuple[str, ...]:
-    """Les autres surfaces qui portent ce nom.
+    """The other surfaces carrying this name.
 
-    Un seul cas aujourd'hui, et il est piégeur : ``text`` est le composant
-    ``ui.text`` **et** ``bretzel.render.text``, le mot du framework rendu
-    dans la langue de l'app. Porté par la DONNÉE et non par le texte rendu,
-    pour que les deux fiches le disent et que le JSON le porte aussi —
-    :mod:`bretzel.introspect.model` promet que texte et JSON ne peuvent pas
-    diverger, et une note collée au rendu aurait rendu cette promesse
-    fausse d'exactement une ligne.
+    One case today, and it is a trap: ``text`` is the ``ui.text``
+    component **and** ``bretzel.render.text``, the framework's word
+    rendered in the app's language. Carried by the DATA and not by the
+    rendered text, so that both cards say it and the JSON carries it too
+    — :mod:`bretzel.introspect.model` promises that text and JSON cannot
+    diverge, and a note glued to the rendering would have made that
+    promise false by exactly one line.
     """
     from bretzel.introspect.components import ui_symbol_names
 
@@ -128,33 +128,34 @@ def _also_known_as(bare: str) -> tuple[str, ...]:
 def _split(name: str) -> tuple[str, str | None]:
     """``bretzel.render.page`` → ``("page", "bretzel.render")``.
 
-    Le module forcé n'est retenu que s'il est couvert : ``a.b.c`` sur un
-    module inconnu retombe sur le nom nu, qui donnera l'erreur utile.
+    The forced module is only kept when it is covered: ``a.b.c`` on an
+    unknown module falls back on the bare name, which will give the
+    useful error.
     """
     module, _, bare = name.rpartition(".")
     return (bare, module) if module in module_names() else (name, None)
 
 
 def _docstring(value: object) -> str | None:
-    """La docstring ENTIÈRE — c'est la différence avec l'index."""
+    """The WHOLE docstring — that is the difference from the index."""
     doc = inspect.getdoc(value)
     return doc.strip() if doc else None
 
 
 def _signature(value: object):
-    """La signature vivante, ou ``None`` quand elle n'apprend rien.
+    """The live signature, or ``None`` when it teaches nothing.
 
-    Deux cas rendent ``None``. Un objet dont ``inspect`` ne sait pas lire
-    la signature — un module, une constante : best-effort assumé, la fiche
-    s'affiche sans plutôt que d'échouer entière. Et une signature
-    **entièrement** en ``*args, **kwargs`` : les cinq classes de portée
-    héritent celle d'``object``, et l'afficher sous « Paramètres »
-    donnerait ``args`` et ``kwargs`` pour des noms de paramètres, ce qui
-    est pire que se taire.
+    Two cases return ``None``. An object whose signature ``inspect``
+    cannot read — a module, a constant: an accepted best-effort, the card
+    renders without it rather than failing whole. And a signature that is
+    **entirely** ``*args, **kwargs``: the five scope classes inherit
+    ``object``'s, and showing it under "Parameters" would give ``args``
+    and ``kwargs`` as parameter names, which is worse than staying
+    silent.
 
-    ``info.params and all(…)`` : ``all(())`` vaut ``True``, donc sans
-    l'opérande de gauche toute fonction SANS paramètre perdrait sa
-    signature — et « zéro paramètre » est une réponse.
+    ``info.params and all(…)``: ``all(())`` is ``True``, so without the
+    left operand every function WITHOUT parameters would lose its
+    signature — and "zero parameters" is an answer.
     """
     try:
         info = describe_callable(value)
@@ -166,18 +167,19 @@ def _signature(value: object):
 
 
 def _surface(value: object) -> tuple[MethodInfo, ...]:
-    """Ce qu'on peut appeler SUR le symbole.
+    """What can be called ON the symbol.
 
-    Une classe rend ses méthodes publiques — sauf une classe d'algèbre,
-    dont les opérateurs sont rendus par
-    :attr:`~bretzel.introspect.model.SymbolDetail.algebra` avec leur forme
-    Python et le JS émis, ce que la surface de méthodes ne porte pas.
+    A class returns its public methods — except an algebra class, whose
+    operators are returned by
+    :attr:`~bretzel.introspect.model.SymbolDetail.algebra` with their
+    Python form and the JS emitted, which the method surface does not
+    carry.
 
-    Un module rend son ``__all__``. ``auth`` et ``oauth`` sont des modules
-    exportés au premier étage — sans ceci, leur fiche montrait la docstring
-    et **rien d'appelable**, alors que ``auth.login`` est exactement ce
-    qu'on vient y chercher. Lire ``vars()`` à la place donnerait 17 noms
-    pour 6 : tout ce que le module importe.
+    A module returns its ``__all__``. ``auth`` and ``oauth`` are modules
+    exported at the first tier — without this, their card showed the
+    docstring and **nothing callable**, although ``auth.login`` is
+    exactly what one comes looking for. Reading ``vars()`` instead would
+    give 17 names for 6: everything the module imports.
     """
     if isinstance(value, type):
         return () if _is_algebra(value) else describe_method_surface(value)
@@ -187,13 +189,14 @@ def _surface(value: object) -> tuple[MethodInfo, ...]:
 
 
 def _is_algebra(cls: type) -> bool:
-    """La classe **est**-elle son algèbre d'opérateurs ?
+    """Is the class **itself** its operator algebra?
 
-    Dérivé de l'héritage et non d'une liste de noms : ``ClientExpression``
-    descend de ``ClientBinding``. C'est la CLASSE qui est passée à
-    :func:`~bretzel.introspect.algebra.describe_client_algebra`, et non sa
-    base — sans quoi la fiche de ``ClientExpression`` annonçait, JS à
-    l'appui, les six mutateurs qu'elle redéfinit pour LEVER.
+    Derived from inheritance and not from a list of names:
+    ``ClientExpression`` descends from ``ClientBinding``. It is the CLASS
+    that is passed to
+    :func:`~bretzel.introspect.algebra.describe_client_algebra`, and not
+    its base — without which ``ClientExpression``'s card announced, with
+    JS to back it, the six mutators it redefines to RAISE.
     """
     from bretzel.state import ClientBinding
 
@@ -201,12 +204,12 @@ def _is_algebra(cls: type) -> bool:
 
 
 def _state(cls: type):
-    """La portée et les champs, si c'en est une classe d'état.
+    """The scope and the fields, if it is a state class.
 
-    Sur les cinq classes de base (``PageState``… ``ClientState``) les
-    champs sont vides et c'est la **portée** qui porte toute
-    l'information — la question qu'on se pose devant ``UserState`` est
-    « combien de temps ça vit », pas « quels champs ».
+    On the five base classes (``PageState``… ``ClientState``) the fields
+    are empty and it is the **scope** that carries all the information —
+    the question one asks in front of ``UserState`` is "how long does
+    this live", not "which fields".
     """
     from bretzel.state import ClientState, ServerState
 

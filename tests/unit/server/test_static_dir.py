@@ -53,7 +53,7 @@ class TestStaticDir:
         tenu alors qu'il ne sert rien.
         """
         ghost = tmp_path / "pas-la"
-        with pytest.raises(RuntimeError, match="ne pointe pas un dossier"):
+        with pytest.raises(RuntimeError, match="does not point at an existing folder"):
             with TestClient(_app(str(ghost))) as client:
                 client.get("/")
 

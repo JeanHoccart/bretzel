@@ -1,20 +1,20 @@
-"""features/accounts_data — data : le repo comptes, en SQL.
+"""features/accounts_data — data: the accounts repo, in SQL.
 
-Le cœur de l'écran 2 est :func:`load_accounts` — le ``rows=`` callable de
-``ui.datatable``. Il reçoit un ``Query`` (tri, page, recherche, filtres,
-``for_export``) et le traduit en UNE requête SQL. C'est le tier que la
-datatable a été conçue pour servir et qu'aucun exemple n'exerçait : à 50 000
-comptes, le tier liste demanderait de charger la table entière en Python à
-chaque frappe.
+Screen 2's heart is :func:`load_accounts` — ``ui.datatable``'s callable
+``rows=``. It receives a ``Query`` (sort, page, search, filters,
+``for_export``) and translates it into ONE SQL query. It is the tier the
+datatable was designed to serve and that no example exercised: at 50 000
+accounts, the list tier would require loading the whole table into Python
+at every keystroke.
 
-Les deux gardes qui comptent :
+The two guards that matter:
 
-- ``sort_key`` et les clés de filtre passent par une **liste blanche** avant
-  d'entrer dans le SQL. Une clé de tri vient du navigateur ; interpolée telle
-  quelle, c'est une injection.
-- ``filters[key] == []`` (l'utilisateur a tout décoché) doit matcher ZÉRO
-  ligne, pas « pas de filtre ». ``Query`` le dit explicitement, et les deux
-  cas se ressemblent assez pour qu'on se trompe.
+- ``sort_key`` and the filter keys go through an **allowlist** before
+  entering the SQL. A sort key comes from the browser; interpolated as
+  is, it is an injection.
+- ``filters[key] == []`` (the user unticked everything) must match ZERO
+  rows, not "no filter". ``Query`` says so explicitly, and the two cases
+  look alike enough to get wrong.
 """
 
 from __future__ import annotations
@@ -26,34 +26,35 @@ from bretzel import Feature
 from bretzel.components import Query
 from examples.crm.core.db import owner_scope, query, scalar
 
-#: ⚠️ ``owner=None`` veut dire **tous les propriétaires**, et c'est un
-#: privilège : seule une direction l'obtient (``access.visible_owner``).
-#: Le paramètre est explicite plutôt que lu d'un contexte global pour que
-#: le cadrage se VOIE à l'appel — un chemin de lecture non cadré doit
-#: sauter aux yeux dans une revue, pas se cacher dans un thread-local.
+#: ⚠️ ``owner=None`` means **every owner**, and it is a privilege: only
+#: a directorate gets it (``access.visible_owner``). The parameter is
+#: explicit rather than read from a global context so the scoping SHOWS
+#: at the call site — an unscoped read path must leap out in a review,
+#: not hide in a thread-local.
 
-#: Les colonnes sur lesquelles un tri est accepté. Liste blanche : la clé
-#: arrive du navigateur et finit dans un ``ORDER BY``.
+#: The columns a sort is accepted on. An allowlist: the key arrives from
+#: the browser and ends up in an ``ORDER BY``.
 SORTABLE: frozenset[str] = frozenset(
     {"name", "industry", "country", "city", "size", "arr", "owner", "created_at"}
 )
 
-#: Les colonnes filtrables, avec leur domaine déclaré. En mode callable le
-#: composant ne détient aucune ligne : il ne peut pas dériver les valeurs
-#: uniques, et lève si on lui demande ``filter=True``.
+#: The filterable columns, with their declared domain. In callable mode
+#: the component holds no row: it cannot derive the unique values, and
+#: raises if asked for ``filter=True``.
 FILTERABLE: frozenset[str] = frozenset({"industry", "country", "size", "owner"})
 
-#: Les colonnes balayées par la recherche globale.
+#: The columns the global search sweeps.
 SEARCHED: tuple[str, ...] = ("name", "city", "industry", "owner")
 
 
 def where_clause(q: Query, owner: str | None) -> tuple[str, list[Any]]:
-    """La clause ``WHERE`` commune au COUNT et au SELECT, et ses paramètres.
+    """The ``WHERE`` clause common to the COUNT and the SELECT, and its
+    parameters.
 
-    ``owner`` cadre la lecture sur un portefeuille — cf. la note en tête du
-    module. Il est appliqué EN PREMIER, avant la recherche et les filtres :
-    ce n'est pas une facette de plus que l'utilisateur choisirait, c'est la
-    borne de ce qu'il a le droit de voir.
+    ``owner`` scopes the read to a portfolio — cf. the note at the head of
+    the module. It is applied FIRST, before the search and the filters:
+    it is not one more facet the user would choose, it is the boundary of
+    what they may see.
     """
     clauses: list[str] = []
     params: list[Any] = []
@@ -72,8 +73,9 @@ def where_clause(q: Query, owner: str | None) -> tuple[str, list[Any]]:
         if key not in FILTERABLE:
             continue
         if not values:
-            # Tout décoché : la vue est vide. Sauter la clé rendrait la
-            # table COMPLÈTE, soit l'inverse de ce qui a été demandé.
+            # Everything unticked: the view is empty. Skipping the key
+            # would return the COMPLETE table, that is, the opposite of
+            # what was asked.
             clauses.append("1 = 0")
             continue
         clauses.append(f"{key} IN ({','.join('?' * len(values))})")
@@ -83,11 +85,12 @@ def where_clause(q: Query, owner: str | None) -> tuple[str, list[Any]]:
 
 
 def order_clause(q: Query) -> str:
-    """La clause ``ORDER BY``, ou l'ordre source si le tri est au neutre.
+    """The ``ORDER BY`` clause, or the source order if the sort is
+    neutral.
 
-    ``id`` en second critère : sans lui, deux comptes de même taille sortent
-    dans un ordre que SQLite ne garantit pas d'une page à l'autre — une ligne
-    peut alors apparaître deux fois en paginant, ou jamais.
+    ``id`` as a second criterion: without it, two accounts of the same
+    size come out in an order SQLite does not guarantee from one page to
+    the next — a row can then appear twice while paginating, or never.
     """
     if q.sort_key not in SORTABLE:
         return "ORDER BY id"
@@ -96,10 +99,10 @@ def order_clause(q: Query) -> str:
 
 
 def load_accounts(q: Query, owner: str | None) -> tuple[list[dict], int]:
-    """Le ``rows=`` callable de la datatable : ``(lignes de la page, total)``.
+    """The datatable's callable ``rows=``: ``(the page's rows, total)``.
 
-    ``for_export`` coupe la fenêtre de pagination — un CSV doit contenir
-    toutes les lignes filtrées, pas les vingt à l'écran.
+    ``for_export`` cuts the pagination window — a CSV must contain every
+    filtered row, not the twenty on screen.
     """
     where, params = where_clause(q, owner)
     total = scalar(f"SELECT COUNT(*) FROM accounts {where}", tuple(params))
@@ -113,13 +116,13 @@ def load_accounts(q: Query, owner: str | None) -> tuple[list[dict], int]:
 
 
 def get_account(account_id: int, owner: str | None) -> dict | None:
-    """Un compte, ou ``None`` — l'appelant décide du 404.
+    """An account, or ``None`` — the caller decides the 404.
 
-    Cadré comme le reste, et c'est ici que ça compte le plus : un compte
-    hors portefeuille doit être **introuvable**, pas seulement absent des
-    listes. Sans ça, l'URL ``/comptes/1641`` tapée à la main donnerait
-    accès à la fiche d'un compte qu'aucun écran ne montre — la fuite la
-    plus banale d'une app filtrée.
+    Scoped like the rest, and it is here that it matters most: an account
+    outside the portfolio must be **not found**, not merely absent from
+    the lists. Without that, the URL ``/accounts/1641`` typed by hand
+    would give access to the sheet of an account no screen shows — the
+    most ordinary leak of a filtered app.
     """
     scope, scope_params = owner_scope(owner, " AND owner = ?")
     rows = query(f"SELECT * FROM accounts WHERE id = ?{scope}",
@@ -128,11 +131,11 @@ def get_account(account_id: int, owner: str | None) -> dict | None:
 
 
 def account_totals(account_id: int) -> dict:
-    """Les chiffres de l'en-tête d'une fiche compte, en DEUX requêtes.
+    """An account sheet header's figures, in TWO queries.
 
-    Contacts et affaires vivent dans deux tables sans lien entre elles : les
-    compter ensemble demanderait un produit cartésien, qui multiplierait
-    chaque compte par chaque affaire avant de dédupliquer.
+    Contacts and deals live in two tables with no link between them:
+    counting them together would need a cartesian product, which would
+    multiply every account by every deal before deduplicating.
     """
     contacts = query(
         "SELECT COUNT(*) AS n FROM contacts WHERE account_id = ?",
@@ -141,23 +144,24 @@ def account_totals(account_id: int) -> dict:
     deals = query(
         "SELECT COUNT(*) AS n, "
         "SUM(CASE WHEN stage NOT IN ('won','lost') THEN amount ELSE 0 END) "
-        "  AS ouvert, "
-        "SUM(CASE WHEN stage = 'won' THEN amount ELSE 0 END) AS gagne "
+        "  AS open_amount, "
+        "SUM(CASE WHEN stage = 'won' THEN amount ELSE 0 END) AS won_amount "
         "FROM deals WHERE account_id = ?",
         (account_id,),
     )[0]
     return {"contacts": contacts["n"], "deals": deals["n"],
-            "ouvert": deals["ouvert"] or 0, "gagne": deals["gagne"] or 0}
+            "open": deals["open_amount"] or 0,
+            "won": deals["won_amount"] or 0}
 
 
 def accounts_summary(owner: str | None) -> dict:
-    """Les deux chiffres de l'en-tête : nombre de comptes et ARR cumulé.
+    """The header's two figures: number of accounts and cumulative ARR.
 
-    Une seule requête : deux ``scalar`` séparés rouvriraient deux connexions
-    pour une ligne d'en-tête. Le nombre de propriétaires N'est PAS compté ici
-    — un ``COUNT(DISTINCT owner)`` planifie un b-tree temporaire et pesait
-    11 ms des 14,7 ms de l'en-tête, pour redonner la longueur de ``OWNERS``,
-    qui est une constante du domaine.
+    A single query: two separate ``scalar`` would reopen two connections
+    for one header row. The number of owners is NOT counted here — a
+    ``COUNT(DISTINCT owner)`` plans a temporary b-tree and weighed 11 ms
+    of the header's 14.7 ms, to give back the length of ``OWNERS``, which
+    is a domain constant.
     """
     scope, scope_params = owner_scope(owner, " WHERE owner = ?")
     return query(

@@ -19,24 +19,24 @@ FLEX_THEME: dict[str, Any] = {
         "row-reverse": "flex-row-reverse",
         "col-reverse": "flex-col-reverse",
     },
-    #: ⚠️ ``center`` porte ``safe``, comme dans :data:`PANE_THEME` et
-    #: :data:`VIEWPORT_THEME`. Centrer un contenu plus haut que son cadre
-    #: le fait déborder des DEUX côtés, et le défilement ne remonte jamais
-    #: au-dessus de son origine : le haut devient **inatteignable**, pas
-    #: « difficile à voir ». Mesuré le 2026-08-24 sur la page de connexion
-    #: d'``examples/auth`` — contenu de 732 px dans 600, et à
-    #: ``scrollTop = 0`` le contenu commençait à −108 px.
+    #: ⚠️ ``center`` carries ``safe``, as in :data:`PANE_THEME` and
+    #: :data:`VIEWPORT_THEME`. Centring content taller than its frame
+    #: makes it overflow on BOTH sides, and scrolling never goes back
+    #: above its origin: the top becomes **unreachable**, not "hard to
+    #: see". Measured on 2026-08-24 on ``examples/auth``'s sign-in page —
+    #: 732 px of content in 600, and at ``scrollTop = 0`` the content
+    #: started at −108 px.
     #:
-    #: Cette table-ci ne déclare aucun débordement, et c'est justement
-    #: pourquoi elle en avait besoin : le défilement est posé au CALL-SITE
-    #: (``ui.vstack(classes="… overflow-y-auto")``, la recette d'``outlet``
-    #: et une zone de dépôt du CRM), donc aucune lecture locale ne pouvait
-    #: rapprocher les deux. ``safe`` ne change RIEN quand le contenu tient
-    #: — il n'y a donc aucune raison de centrer sans lui.
+    #: This table declares no overflow, and that is precisely why it
+    #: needed it: the scrolling is set at the CALL SITE
+    #: (``ui.vstack(classes="… overflow-y-auto")``, ``outlet``'s recipe
+    #: and one of the CRM's drop zones), so no local reading could bring
+    #: the two together. ``safe`` changes NOTHING when the content fits —
+    #: so there is no reason to centre without it.
     #:
-    #: Forme entre crochets et pas ``items-center-safe`` : cet utilitaire
-    #: n'existe que depuis Tailwind 4.1, et le compilateur navigateur du
-    #: mode dev peut être plus ancien.
+    #: The bracketed form and not ``items-center-safe``: that utility
+    #: only exists since Tailwind 4.1, and the dev mode's browser
+    #: compiler may be older.
     "alignments": {
         "start": "items-start",
         "center": "[align-items:safe_center]",
@@ -61,29 +61,29 @@ FLEX_THEME: dict[str, Any] = {
         "xl": "gap-8",
     },
     "wrap": "flex-wrap",
-    #: ``grow=`` — comment les enfants directs se partagent l'axe
-    #: PRINCIPAL. Absent par défaut : une pile qui ne demande rien
-    #: n'émet aucune de ces classes.
+    #: ``grow=`` — how the direct children share the MAIN axis. Absent
+    #: by default: a stack that asks for nothing emits none of these
+    #: classes.
     #:
-    #: Les clés nomment la BASE, pas un palier de l'échelle ``xs..xl``.
-    #: C'est délibéré : ``size="md"`` et ``grow="md"`` auraient nommé deux
-    #: choses sans rapport, et le lecteur d'un appel n'aurait eu aucun
-    #: moyen de les départager. Ici ``grow="16rem"`` se lit tel qu'il agit.
+    #: The keys name the BASIS, not a step of the ``xs..xl`` scale. It is
+    #: deliberate: ``size="md"`` and ``grow="md"`` would have named two
+    #: unrelated things, and the reader of a call would have had no way
+    #: of telling them apart. Here ``grow="16rem"`` reads as it acts.
     #:
-    #: Table FERMÉE, et c'est ce qui la rend sûre : chaque valeur est une
-    #: classe ENTIÈRE, donc visible au compilateur Tailwind de prod. Une
-    #: base assemblée en f-string (``f"*:basis-{n}"``) rendrait un HTML
-    #: identique en dev et sans style en prod
-    #: (memory ``project_assembled_tailwind_class_dev_only``). Pour une
-    #: valeur hors table, c'est ``classes=`` à l'appel — tier 2.
+    #: A CLOSED table, and that is what makes it safe: each value is a
+    #: WHOLE class, hence visible to the production Tailwind compiler. A
+    #: basis assembled in an f-string (``f"*:basis-{n}"``) would render
+    #: identical HTML in dev and no style in prod (memory
+    #: ``project_assembled_tailwind_class_dev_only``). For a value
+    #: outside the table, it is ``classes=`` at the call site — tier 2.
     "grows": {
-        # Parts strictement égales : la base vaut zéro, donc le contenu
-        # ne pèse pas dans le partage. C'est le ``<Group grow>`` de
-        # Mantine, et le seul mode qui ignore ``wrap=``.
+        # Strictly equal shares: the basis is zero, so the content does
+        # not weigh in the split. It is Mantine's ``<Group grow>``, and
+        # the only mode that ignores ``wrap=``.
         "equal": "*:grow *:basis-0",
         "12rem": "*:grow *:basis-48",
-        # La seule valeur que le dépôt utilisait vraiment : les trois
-        # ``BAR_FIELD = "basis-64 grow"`` d'examples/ valaient celle-ci.
+        # The only value the repository really used: the three
+        # ``BAR_FIELD = "basis-64 grow"`` of examples/ were this one.
         "16rem": "*:grow *:basis-64",
         "20rem": "*:grow *:basis-80",
     },

@@ -100,7 +100,7 @@ def test_a_typo_in_a_directive_is_refused_at_boot() -> None:
     La ressource est bloquée, sans message ailleurs que dans la console —
     exactement le mode d'échec que ce dépôt refuse de laisser passer.
     """
-    with pytest.raises(ConfigError, match="directive inconnue"):
+    with pytest.raises(ConfigError, match="unknown directive"):
         _app(csp=True, csp_sources={"img_src": ["https://x.test"]})
 
 

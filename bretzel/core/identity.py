@@ -4,15 +4,15 @@ Components need IDs that are reproducible across renders so that idiomorph
 can pair the old and new DOM nodes correctly. The :class:`IdGenerator`
 hands them out in a deterministic, scope-local fashion.
 
-Two flavours :
+Two flavours:
 
-- **Positional** : ``next(parent, kind)`` returns ``{parent}_{kind}_{n}``
+- **Positional**: ``next(parent, kind)`` returns ``{parent}_{kind}_{n}``
   where ``n`` is a per-(parent, kind) counter. Identity follows position.
-- **Keyed** : ``next(parent, kind, key="x")`` returns ``{parent}_{kind}_x``.
+- **Keyed**: ``next(parent, kind, key="x")`` returns ``{parent}_{kind}_x``.
   Identity follows the supplied key, surviving reordering and additions.
-  Une clé identifie un EMPLACEMENT, pas un composant : deux frères du
-  même genre sous la même clé sont deux composants, donc le second
-  reçoit ``…_x_1``. Cf. :meth:`IdGenerator.next`.
+  A key identifies a SLOT, not a component: two siblings of the same
+  kind under the same key are two components, so the second one gets
+  ``…_x_1``. Cf. :meth:`IdGenerator.next`.
 
 The framework owns one generator per render scope (cf. ``RenderContext``
 in the render layer). No module-level singleton — explicit lifetime.
@@ -29,7 +29,7 @@ def hash_segment(s: str) -> str:
 
     The function is deterministic across runs — same input yields the
     same digest every time, so idiomorph keeps pairing elements
-    correctly across renders. First 8 hex of SHA-1 : collision risk is
+    correctly across renders. First 8 hex of SHA-1: collision risk is
     negligible at this scale.
     """
     return hashlib.sha1(s.encode("utf-8")).hexdigest()[:8]
@@ -56,18 +56,18 @@ class IdGenerator:
         (use it for keyed lists). Without ``key``, the ID is positional and
         increments on each call to disambiguate sibling instances.
 
-        ⚠️ **Une clé désigne un emplacement, pas un composant.** Elle
-        répond « quelle ligne / quel onglet », jamais « lequel des trois
-        boutons de cette ligne » — donc elle ne peut pas suffire à elle
-        seule. La branche keyed compte comme l'autre, sur un compteur qui
-        lui est propre (``key`` fait partie du slot, sinon deux clés
-        distinctes se décaleraient l'une l'autre), et ne suffixe qu'à
-        partir du DEUXIÈME frère : le premier garde ``{parent}_{kind}_{key}``,
-        donc tout ce qui marchait rend le même octet.
+        ⚠️ **A key names a slot, not a component.** It answers "which
+        row / which tab", never "which of the three buttons on that row"
+        — so it cannot be enough on its own. The keyed branch counts like
+        the other one, on a counter of its own (``key`` is part of the
+        slot, otherwise two distinct keys would shift each other), and
+        only suffixes from the SECOND sibling on: the first keeps
+        ``{parent}_{kind}_{key}``, so everything that worked renders the
+        same byte.
 
-        Des frères de même genre sous une même clé reçoivent donc des ids
-        distincts, ce qui permet à idiomorph et ``scope.absorb`` de retrouver
-        sans ambiguïté le bon nœud après un swap.
+        Siblings of the same kind under the same key therefore get
+        distinct ids, which lets idiomorph and ``scope.absorb`` find the
+        right node unambiguously after a swap.
         """
         if key is not None:
             slot: tuple[str, ...] = (parent, kind, key)

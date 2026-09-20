@@ -35,13 +35,13 @@ NAVBAR_THEME: dict[str, Any] = {
     "slots": {
         # Outer ``<header>`` — full-bleed, surface background, optional
         # border. ``z-30`` sits below the sidebar (z-40) and dialog/drawer
-        # (z-50), donc un modal peint au-dessus de la navbar.
-        # ⚠️ La raison donnée ici jusqu'au 2026-08-01 — « un sidebar ouvert
-        # sur mobile assombrit aussi la navbar via son backdrop » — ne tient
-        # plus : la sidebar n'a PLUS de drawer mobile ni de backdrop (retiré
-        # du composant le 2026-07-14, le mobile est le ``if
-        # Screen().is_mobile`` du dev). L'ordre de z-index reste bon, pour
-        # les overlays téléportés.
+        # (z-50), so a modal paints over the navbar.
+        # ⚠️ The reason given here until 2026-08-01 — "a sidebar open on
+        # mobile also darkens the navbar through its backdrop" — no
+        # longer holds: the sidebar NO LONGER has a mobile drawer nor a
+        # backdrop (removed from the component on 2026-07-14, mobile is
+        # the dev's ``if Screen().is_mobile``). The z-index order stays
+        # right, for the teleported overlays.
         "root": (
             "group/navbar w-full bg-surface z-30 "
             "border-b-(length:--bz-stroke) border-text/10"
@@ -96,40 +96,42 @@ NAVBAR_ITEM_THEME: dict[str, Any] = {
             "active:scale-[0.97] "
             "whitespace-nowrap "
             "outline-none text-muted text-sm font-medium "
-            # ``-surface``, pas ``-background`` : l'écart de l'anneau est
-            # PEINT, donc il doit valoir le fond sur lequel l'entrée repose —
-            # et le ``<header>`` de la navbar est ``bg-surface``. Avec
-            # ``-background`` (plus sombre de deux crans) chaque entrée
-            # focalisée s'entourait d'un liseré noir. Même faute que la
-            # sidebar, corrigée le même jour ; gatée par
-            # ``test_ring_offset_matches_its_surface``. La navbar n'a AUCUN
-            # ``overflow``, donc contrairement à la sidebar elle n'avait pas
-            # besoin qu'on fasse de la place à l'anneau.
+            # ``-surface``, not ``-background``: the ring's offset is
+            # PAINTED, so it must equal the background the entry rests on
+            # — and the navbar's ``<header>`` is ``bg-surface``. With
+            # ``-background`` (two steps darker) every focused entry
+            # surrounded itself with a black outline. Same fault as the
+            # sidebar's, fixed the same day; gated by
+            # ``test_ring_offset_matches_its_surface``. The navbar has NO
+            # ``overflow``, so unlike the sidebar it did not need room
+            # made for the ring.
             "focus-visible:ring-2 focus-visible:ring-(--bz-focus) "
             "focus-visible:ring-offset-2 "
             "focus-visible:ring-offset-surface "
             "data-[active=false]:hover:bg-text/10 "
             "data-[active=false]:hover:text-text "
-            # Le survol et la pression sont neutralisés EXPLICITEMENT
-            # sur un item verrouillé : l'inertie vient du socle
-            # (``$bz._inert``, dérivé d'``aria-disabled``), pas d'un
-            # ``pointer-events-none`` — qui aurait annulé le curseur.
+            # Hover and press are neutralised EXPLICITLY on a locked
+            # item: the inertness comes from the base layer
+            # (``$bz._inert``, derived from ``aria-disabled``), not from a
+            # ``pointer-events-none`` — which would have cancelled the
+            # cursor.
             "aria-disabled:active:scale-100 "
             "aria-disabled:data-[active=false]:hover:bg-transparent "
             "aria-disabled:data-[active=false]:hover:text-muted "
             "aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
         ),
-        # ⚠️ ``data-[active=true]:`` sur le ``text-`` n'est PAS cosmétique.
-        # Le ``text-muted`` du root et un ``text-(--bz-text)`` NU sont deux
-        # utilitaires de MÊME spécificité (0,1,0) : le vainqueur est le
-        # dernier de la feuille Tailwind, et l'ordre de l'attribut
-        # ``class=`` n'y change rien. Mesuré sur `bottom_bar`, qui portait
-        # la même forme : deux couleurs sur six rendaient GRIS en dev — et
-        # dans le `@theme` généré (`theme/tailwind.py`), ``muted`` sort en
-        # DERNIER des onze couleurs sémantiques, donc un build compilé les
-        # perdrait vraisemblablement toutes. La variante monte la
-        # spécificité à (0,2,0) : le verdict ne dépend plus d'aucun ordre.
-        # Gardé par `tests/consistency/test_active_layer_outranks_root.py`.
+        # ⚠️ ``data-[active=true]:`` on the ``text-`` is NOT cosmetic.
+        # The root's ``text-muted`` and a BARE ``text-(--bz-text)`` are
+        # two utilities of the SAME specificity (0,1,0): the winner is the
+        # last one in the Tailwind sheet, and the order of the ``class=``
+        # attribute changes nothing. Measured on `bottom_bar`, which
+        # carried the same shape: two colours out of six rendered GREY in
+        # dev — and in the generated `@theme` (`theme/tailwind.py`),
+        # ``muted`` comes LAST of the eleven semantic colours, so a
+        # compiled build would most likely lose them all. The variant
+        # raises the specificity to (0,2,0): the verdict no longer depends
+        # on any order.
+        # Guarded by `tests/consistency/test_active_layer_outranks_root.py`.
         "active": (
             "bg-(--bz-bg) data-[active=true]:text-(--bz-text) "
             "data-[active=true]:hover:bg-(--bz-bg-hover)"

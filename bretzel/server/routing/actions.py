@@ -98,17 +98,18 @@ async def _dispatch(
     signature = request.headers.get(HEADER_BZ_SIG, "")
     ts = request.headers.get(HEADER_BZ_TS, "")
 
-    # Compat de protocole. Le bridge envoie ``X-Bretzel-Protocol`` sur chaque
-    # POST d'action depuis toujours, et ``check_compat`` existait avec ses
-    # tests — mais PERSONNE ne lisait le header (mesuré 2026-08-01 : zéro
-    # appelant hors des tests). Le cas réel : après un déploiement, un onglet
-    # resté ouvert garde son ``runtime.js`` en cache et POSTe vers un serveur
-    # de major différent. Sans ce contrôle, ça cassait sans message.
+    # Protocol compatibility. The bridge has sent
+    # ``X-Bretzel-Protocol`` on every action POST forever, and
+    # ``check_compat`` existed with its tests — but NOBODY read the
+    # header (measured 2026-08-01: zero callers outside the tests). The
+    # real case: after a deployment, a tab left open keeps its cached
+    # ``runtime.js`` and POSTs to a server of a different major. Without
+    # this check, it broke with no message.
     #
-    # On ne refuse QUE sur un major présent et différent : un header absent
-    # (ancien client, requête forgée, test) tombe dans le chemin HMAC
-    # ci-dessous, qui est la vraie barrière de sécurité. Ce contrôle-ci sert
-    # la LISIBILITÉ, pas la sûreté.
+    # We refuse ONLY on a present and different major: an absent header
+    # (old client, forged request, test) falls into the HMAC path below,
+    # which is the real security barrier. This check serves READABILITY,
+    # not safety.
     client_protocol = request.headers.get(HEADER_PROTOCOL, "")
     if client_protocol and not check_compat(client_protocol):
         return HTMLResponse(
@@ -184,16 +185,16 @@ async def _dispatch(
     bg = BackgroundTasks()
 
     try:
-        # Un formulaire ILLISIBLE n'est pas un formulaire vide. Faire
-        # tourner le handler ici, c'est lui faire écrire des champs
-        # blancs dans l'état : la panne ne se lit alors pas comme une
-        # panne, mais comme une saisie — et elle est irréversible.
+        # An UNREADABLE form is not an empty form. Running the handler
+        # here means making it write blank fields into the state: the
+        # failure then does not read as a failure, but as input — and it
+        # is irreversible.
         if ctx.form_error:
             raise BretzelError(
-                f"L'action n'a pas été exécutée : {ctx.form_error} Rien n'a "
-                f"été écrit dans l'état — un handler qui tourne sur un "
-                f"formulaire illisible effacerait les champs qu'il croit "
-                f"recevoir."
+                f"The action was not executed: {ctx.form_error} Nothing "
+                f"was written to the state — a handler running on an "
+                f"unreadable form would erase the fields it believes it is "
+                f"receiving."
             )
         with registry_cm, bind_background_tasks(bg):
             # Arg injection runs INSIDE the registry context so a
@@ -208,10 +209,10 @@ async def _dispatch(
             # only kicks in during the refreshable re-render below
             # (where ``ClientState.count`` should yield a binding the
             # runtime can patch).
-            # Délesté si synchrone — le cas COURANT ici (cf.
-            # ``core/invoke``) : un ``def`` qui appelle une base
-            # bloquante gèlerait la boucle du worker, et avec elle
-            # toutes les requêtes des autres utilisateurs.
+            # Offloaded when synchronous — the COMMON case here (cf.
+            # ``core/invoke``): a ``def`` calling a blocking database
+            # would freeze the worker's loop, and with it every other
+            # user's requests.
             await call_without_blocking(handler, *args, **kwargs)
 
             # Detect state mutations — including in-place list/dict ops the
@@ -222,22 +223,23 @@ async def _dispatch(
             # (raw values) and before ``drain_refresh_queue``.
             if ctx.state_registry is not None:
                 changed = ctx.state_registry.diff_and_notify()
-                # Les NOMS des champs, pas seulement les classes : un
-                # composant peut alors ne pas re-emettre une region que
-                # le changement ne peut pas avoir touchee. Vide ailleurs
-                # (page complete, refetch SSE), donc le defaut est
-                # « tout re-rendre » — le cote sur.
+                # The field NAMES, not only the classes: a component
+                # can then skip re-emitting a region the change cannot
+                # have touched. Empty elsewhere (full page, SSE refetch),
+                # so the default is "re-render everything" — the safe
+                # side.
                 ctx.changed_fields = dict(ctx.state_registry.changed_fields)
-                # Un champ déclaré ``URL = {…}`` a bougé → l'adresse
-                # affichée doit suivre, sinon la vue reste inatteignable
-                # au retour et au partage. Le contenu, lui, arrive par le
-                # swap ci-dessous : cet en-tête ne fait QUE renommer.
+                # A field declared ``URL = {…}`` has moved → the
+                # displayed address must follow, otherwise the view stays
+                # unreachable on return and on sharing. The content
+                # arrives through the swap below: this header ONLY
+                # renames.
                 #
-                # Le test est étroit — « un champ ADRESSABLE », pas « un
-                # état a changé ». Paginer une table dont seul le tri est
-                # déclaré ne pousse rien : sinon chaque clic empilerait
-                # une entrée identique, et sortir de la page demanderait
-                # dix retours.
+                # The test is narrow — "an ADDRESSABLE field", not "a
+                # state changed". Paginating a table whose sort alone is
+                # declared pushes nothing: otherwise every click would
+                # stack an identical entry, and leaving the page would
+                # take ten backs.
                 _push_addressable_url(request, ctx)
                 enqueue_deps(ctx, changed)
                 # Cross-tab fan-out for broadcast=[State] zones : every other
@@ -354,7 +356,7 @@ async def _hydrate_state(
     submission keep their persisted / default value, so a partial form
     never wipes the rest of the state.
 
-    Validation is **collected, not raised** : when a coercion or a
+    Validation is **collected, not raised**: when a coercion or a
     validator rejects a value, the (already rolled-back) assignment leaves
     the field at its prior value and the message is stashed under
     ``instance._bz_errors[field]``, surfaced via the ``State.errors``
@@ -363,11 +365,11 @@ async def _hydrate_state(
     message). Collecting — rather than stopping at the first bad field —
     lets the user see every error in one pass, the way real forms behave.
 
-    ``await state_cls.load()`` et non ``state_cls()`` : ce chemin-ci
-    tourne sur la BOUCLE — la route d'action est une coroutine, et
-    l'injection précède le délestage du handler —, donc le raccourci
-    synchrone n'y est pas hydratable quand le backend lit de façon
-    asynchrone. ``load()`` est exactement la porte prévue pour ça.
+    ``await state_cls.load()`` and not ``state_cls()``: this path runs on
+    the LOOP — the action route is a coroutine, and injection precedes
+    the handler's offload — so the synchronous shortcut cannot hydrate
+    there when the backend reads asynchronously. ``load()`` is exactly the
+    door provided for it.
     """
     instance = await state_cls.load()
     errors: dict[str, str] = {}
@@ -475,17 +477,17 @@ async def _inject_signature_args(
 
 
 def _push_addressable_url(request: Any, ctx: Any) -> None:
-    """Recomposer l'adresse depuis les états adressables, et la pousser.
+    """Recompose the address from the addressable states, and push it.
 
-    Le CHEMIN vient d'``HX-Current-URL`` : une action POSTe sur
-    ``/_bretzel/action/<id>``, donc sa propre URL ne dit rien de la page
-    qu'on regarde. Sans cet en-tête (un client qui n'est pas htmx), on ne
-    pousse rien plutôt que de deviner — une mauvaise adresse est pire
-    qu'une adresse absente.
+    The PATH comes from ``HX-Current-URL``: an action POSTs to
+    ``/_bretzel/action/<id>``, so its own URL says nothing about the page
+    being looked at. Without that header (a client that is not htmx), we
+    push nothing rather than guess — a wrong address is worse than an
+    absent one.
 
-    Les paramètres NON déclarés de l'URL courante sont conservés : une
-    app peut porter les siens (``?utm_source=…``, un id de campagne), et
-    les écraser au premier tri serait une régression silencieuse.
+    The UNDECLARED parameters of the current URL are preserved: an app
+    can carry its own (``?utm_source=…``, a campaign id), and
+    overwriting them on the first sort would be a silent regression.
     """
     registry = ctx.state_registry
     if registry is None or not registry.addressable_changed(ctx.changed_fields):
@@ -496,16 +498,15 @@ def _push_addressable_url(request: Any, ctx: Any) -> None:
 
     split = urlsplit(current)
     params = dict(parse_qsl(split.query, keep_blank_values=True))
-    # Les paramètres DÉCLARÉS sont recomposés en ENTIER, pas fusionnés.
-    # Un champ revenu à son défaut sort de ``addressable_params()`` ; le
-    # fusionner laisserait donc l'ancienne valeur en place — et comme
-    # l'URL fait foi à l'action suivante, elle re-sèmerait ce que
-    # l'utilisateur vient de quitter. Mesuré : trier « Secteur » puis
-    # « Compte » gardait ``?tri=secteur``, et tous les clics suivants
-    # retombaient dessus.
+    # The DECLARED parameters are recomposed IN FULL, not merged. A
+    # field back at its default leaves ``addressable_params()``; merging
+    # it would therefore leave the old value in place — and since the URL
+    # is authoritative on the next action, it would re-seed what the user
+    # has just left. Measured: sorting by "Sector" then "Account" kept
+    # ``?sort=sector``, and every subsequent click fell back on it.
     #
-    # Ce que l'app portait elle-même (``?utm_source=``, un id de
-    # campagne) n'est pas déclaré, donc survit.
+    # What the app carried itself (``?utm_source=``, a campaign id) is
+    # not declared, so it survives.
     for stale in registry.addressable_param_names():
         params.pop(stale, None)
     params.update(registry.addressable_params())

@@ -1,31 +1,30 @@
-"""``WeekPicker`` — champ de SEMAINE, sélection par ligne.
+"""``WeekPicker`` — a WEEK field, selected by row.
 
 Usage ::
 
-    ui.week_picker(value=state.semaine)               # "2026-08-03"
-    ui.week_picker(value=state.semaine, weekstart=0)  # semaines du dimanche
+    ui.week_picker(value=state.week)               # "2026-08-03"
+    ui.week_picker(value=state.week, weekstart=0)  # Sunday weeks
 
-**La valeur est la date ISO du PREMIER jour de la semaine.** Une semaine
-EST son premier jour — c'est ce que la plupart des back-ends stockent, et
-ça reste une date ordinaire : comparable, filtrable, affichable, et
-compatible avec tout ce qui mange déjà de l'ISO. Qui veut la fin ajoute
-six jours.
+**The value is the ISO date of the week's FIRST day.** A week IS its
+first day — it is what most back ends store, and it stays an ordinary
+date: comparable, filterable, displayable, and compatible with anything
+that already eats ISO. Whoever wants the end adds six days.
 
-Le jour de départ suit ``weekstart`` (défaut lundi). Ce n'est pas un
-détail cosmétique : la même date n'appartient pas à la même semaine selon
-le réglage, donc rendre le lundi quand l'utilisateur a demandé des
-semaines du dimanche serait un mensonge sur la valeur.
+The starting day follows ``weekstart`` (default Monday). It is not a
+cosmetic detail: the same date does not belong to the same week
+depending on the setting, so returning the Monday when the user asked
+for Sunday weeks would be a lie about the value.
 
-**Le recalage vaut aussi pour la SAISIE.** Taper une date quelconque dans
-le champ ne laisse pas cette date : elle est ramenée au début de sa
-semaine au blur, exactement comme un clic. Sans ça, le champ et la grille
-diraient deux choses différentes — et la valeur postée dépendrait de la
-façon dont l'utilisateur l'a entrée.
+**The snapping applies to TYPING too.** Typing any date into the field
+does not leave that date: it is brought back to the start of its week on
+blur, exactly like a click. Without that, the field and the grid would
+say two different things — and the posted value would depend on how the
+user entered it.
 
-Le composant est mince : cadre, popover, input caché et routage viennent
-de ``_picker_field`` ; la grille et le surlignage de ligne viennent de
-``ui.calendar(mode="week")``. Ce qui reste ici est le codec et le
-normaliseur.
+The component is thin: frame, popover, hidden input and routing come
+from ``_picker_field``; the grid and the row highlighting come from
+``ui.calendar(mode="week")``. What is left here is the codec and the
+normaliser.
 """
 
 from __future__ import annotations
@@ -44,16 +43,16 @@ from bretzel.components.inputs.week_picker.theme import WEEK_PICKER_THEME
 from bretzel.core.tree import Element
 from bretzel.render import text
 
-#: Saisie libre → date ISO, PUIS recalage sur le début de semaine.
+#: Free input → ISO date, THEN snapped to the start of the week.
 #:
-#: Le second temps est ce qui distingue ce normaliseur de celui de
-#: DatePicker : sans lui, taper « 2026-08-06 » laisserait le jeudi dans
-#: le champ pendant que la grille surligne la semaine du lundi 3 — deux
-#: vérités pour une valeur.
+#: The second step is what sets this normaliser apart from DatePicker's:
+#: without it, typing "2026-08-06" would leave the Thursday in the field
+#: while the grid highlights the week of Monday the 3rd — two truths for
+#: one value.
 #:
-#: ``{V}`` est l'expression de valeur, ``{WS}`` le jour de départ. Le
-#: modulo est doublé pour la même raison que dans le custom element : JS
-#: rend un reste NÉGATIF pour un dividende négatif.
+#: ``{V}`` is the value expression, ``{WS}`` the starting day. The modulo
+#: is doubled for the same reason as in the custom element: JS returns a
+#: NEGATIVE remainder for a negative dividend.
 NORMALISE_TO_WEEK_TEMPLATE = (
     "(() => {{ const raw = String({V} || '').trim(); "
     "if (!raw) {{ {V} = ''; return; }} "
@@ -68,15 +67,16 @@ NORMALISE_TO_WEEK_TEMPLATE = (
 
 
 def normalise_to_week_js(value_expr: str, weekstart: int) -> str:
-    """Le normaliseur saisie-libre → début de semaine ISO."""
+    """The free-input → start-of-week ISO normaliser."""
     return NORMALISE_TO_WEEK_TEMPLATE.format(
         V=value_expr, WS=int(weekstart) % 7
     )
 
 
 def _week_to_iso(value: Any) -> str:
-    """``WeekPicker``'s date coercion — la partagée, liée au nom de ce
-    composant pour le message d'erreur (même contrat que ses voisins)."""
+    """``WeekPicker``'s date coercion — the shared one, bound to this
+    component's name for the error message (same contract as its
+    neighbours)."""
     return date_to_iso(value, owner="WeekPicker")
 
 
@@ -87,10 +87,10 @@ class WeekPicker(Component):
     THEME_KEY: ClassVar[str] = "week_picker"
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
-    #: Un picker est les DEUX natures à la fois : un panneau ancré
-    #: (comme `dialog`) et un champ qui porte une valeur (comme
-    #: `input`). Sa surface est donc l'union des deux vocabulaires
-    #: déjà fixés par ses voisins — rien d'inventé ici.
+    #: A picker is BOTH natures at once: an anchored panel (like
+    #: `dialog`) and a field carrying a value (like `input`). Its surface
+    #: is therefore the union of the two vocabularies already fixed by
+    #: its neighbours — nothing invented here.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
@@ -102,8 +102,8 @@ class WeekPicker(Component):
     )
     min: Any = reactive_prop(default=None, emit_attr=False)
     max: Any = reactive_prop(default=None, emit_attr=False)
-    # ``emit_attr=False`` : la racine est un ``<div>``, où ``disabled`` ne
-    # fait rien. Forwardé à la main sur les trois porteurs réels.
+    # ``emit_attr=False``: the root is a ``<div>``, where ``disabled``
+    # does nothing. Forwarded by hand onto the three real carriers.
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -133,29 +133,28 @@ class WeekPicker(Component):
         **kwargs: Any,
     ) -> None:
         self._placeholder = placeholder
-        # Transmis tel quel : meme grille de jours que
-        # ``ui.calendar``, donc une marque a une cellule ou
-        # atterrir. ``ui.month_picker`` ne l'a pas : sa grille
-        # est faite de MOIS.
+        # Passed on as is: the same day grid as ``ui.calendar``, so a
+        # mark has a cell to land in. ``ui.month_picker`` does not have
+        # it: its grid is made of MONTHS.
         self._marks = marks
         self._weekstart = int(weekstart) % 7
         self._weekday_names = list(weekday_names) if weekday_names else None
         self._month_names = list(month_names) if month_names else None
         self._clearable = clearable
         self._close_on_pick = close_on_pick
-        # Forward direct : le socle drope les kwargs reactive None (garde le défaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             name=name, value=value, min=min, max=max,
             color=color, size=size, disabled=disabled, required=required,
             on_change=on_change, on_focus=on_focus, on_blur=on_blur,
             **kwargs,
         )
-        # APRÈS `super().__init__` : les deux installeurs lisent
-        # `_binding_metadata`, qui n'est peuplé qu'à ce moment-là.
+        # AFTER `super().__init__`: both installers read
+        # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ PAS `"input"` : le premier `<input>` d'un picker est le
-        # porteur CACHÉ (`hidden_carrier`), qui ne prend pas le
-        # focus. Mesuré — `.focus()` ne faisait rien sur les six.
+        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
+        # carrier (`hidden_carrier`), which does not take focus.
+        # Measured — `.focus()` did nothing on all six.
         install_value_commands(
             self, focus_selector="input:not([type=hidden])"
         )
@@ -192,10 +191,10 @@ class WeekPicker(Component):
         def sized(slot: str) -> str:
             return self.slot_class(slot, size_cfg.get(slot, ""))
 
-        # La valeur d'une semaine est une date ISO scalaire, donc le
-        # miroir est EXACTEMENT celui de DatePicker — granularité par
-        # défaut, y compris sa garde « n'écris que si c'est une ISO
-        # complète » qui évite d'effacer la sélection pendant une frappe.
+        # A week's value is a scalar ISO date, so the mirror is EXACTLY
+        # DatePicker's — default granularity, including its "only write
+        # if it is a complete ISO" guard that avoids erasing the
+        # selection mid-typing.
         return render_calendar_field(
             self,
             initial=initial,
@@ -209,9 +208,10 @@ class WeekPicker(Component):
             calendar_kwargs=cal_kwargs,
             root_css=self.compose_class(
                 "root", apply_variant_size_modifiers=False),
-            # ``sized`` et non ``compose_class`` : la hauteur du palier
-            # vit sur le CADRE, qui porte la bordure (cf. la note du
-            # thème) — sinon le contrôle rend 2 px de trop.
+            # ``sized`` and not ``compose_class``: the step's height
+            # lives on the FRAME, which carries the border (cf. the
+            # theme's note) — otherwise the control renders 2 px too
+            # many.
             frame_css=sized("input_frame"),
             panel_css=self.compose_class(
                 "panel", apply_variant_size_modifiers=False),

@@ -96,7 +96,7 @@ def test_an_app_without_features_is_refused_not_silently_green() -> None:
     en disant pourquoi.
     """
     bare = Bretzel(title="Nue", secret_key="gate-secret-change-me")
-    with pytest.raises(ValueError, match="aucune `Feature`"):
+    with pytest.raises(ValueError, match="exposes no `Feature`"):
         lint_app(bare, origin=_ORIGIN)
 
 

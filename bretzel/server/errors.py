@@ -1,7 +1,7 @@
 """Server-layer error types + ``abort`` + default error pages.
 
-Trois concerns dans un fichier court, tous à la même frontière : ce sont
-les sorties **non-nominales** d'un handler.
+Three concerns in a short file, all at the same boundary: they are a
+handler's **non-nominal** exits.
 
 - :class:`BretzelError` — generic framework runtime error.
 - :class:`AuthRequiredError` — raised by ``UserState()`` when no user.
@@ -23,7 +23,7 @@ from starlette.exceptions import HTTPException
 # (``core < state < server``). This module re-exports the server-facing names.
 from bretzel.core.errors import AuthRequiredError, BretzelError
 
-#: Surface explicite du module, dont deux ré-exports intentionnels.
+#: The module's explicit surface, two of them intentional re-exports.
 __all__ = [
     "AuthRequiredError",
     "BretzelError",

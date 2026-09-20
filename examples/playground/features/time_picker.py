@@ -1,8 +1,8 @@
 """``TimePicker`` test bench.
 
-Nine cards. ``TimePicker.BINDABLE_PROPS = ("value", "disabled")`` — la
-valeur et le verrou ; ``step`` / ``min`` / ``max`` / ``color`` / ``size``
-restent design-time. ``EVENTS = ("change", "focus", "blur")``.
+Nine cards. ``TimePicker.BINDABLE_PROPS = ("value", "disabled")`` — the
+value and the lock; ``step`` / ``min`` / ``max`` / ``color`` / ``size``
+stay design-time. ``EVENTS = ("change", "focus", "blur")``.
 """
 
 import datetime as dt
@@ -126,7 +126,7 @@ def build_preview(state: TimePickerPlayground) -> dict:
         "hour_label": state.hour_label,
         "minute_label": state.minute_label,
     }
-    # Chaîne vide = ne pas passer le kwarg.
+    # An empty string = do not pass the kwarg.
     if state.min:
         kwargs["min"] = state.min
     if state.max:
@@ -178,10 +178,10 @@ def server_panel() -> None:
             ui.select(value=state.step,
                       options=[(s, str(s)) for s in STEPS],
                       on_change=server_changed)
-        with control("min (vide = pas de plancher)"):
+        with control('min (empty = no floor)'):
             ui.input(value=state.min, placeholder="09:00",
                      on_change=server_changed)
-        with control("max (vide = pas de plafond)"):
+        with control('max (empty = no ceiling)'):
             ui.input(value=state.max, placeholder="18:00",
                      on_change=server_changed)
         with control("placeholder"):
@@ -215,7 +215,7 @@ def server_panel() -> None:
             ui.input(value=state.custom_id, placeholder="my-time",
                      on_change=server_changed)
         with control("aria-label"):
-            ui.input(value=state.aria_label, placeholder="Heure de début",
+            ui.input(value=state.aria_label, placeholder='Start time',
                      on_change=server_changed)
         with control("style"):
             ui.input(value=state.style, placeholder="max-width: 200px",
@@ -259,19 +259,19 @@ def events_panel() -> None:
     state = TimePickerEvents()
 
     ui.text(
-        "Les trois events sont câblés — mais sur TROIS instances, et "
-        "c'est structurel : un élément ne porte qu'UN ``hx-post``, donc "
-        "deux handlers serveur sur le même picker lèvent au construct "
-        "(``HandlerError``). Pour en combiner plusieurs sur un seul "
-        "champ, le second passe en expression client.",
+        'All three events are wired — but on THREE instances, and that is'
+            ' structural: an element carries only ONE ``hx-post``, so two '
+            'server handlers on the same picker raise at construct time '
+            '(``HandlerError``). To combine several on a single field, the '
+            'second one goes through a client expression.',
         color="muted", size="sm",
     )
     ui.text(
-        "Où ils partent : ``change`` depuis l'input caché (le porteur "
-        "de form data) ; ``focus`` et ``blur`` sont relocalisés sur le "
-        "champ éditable — la racine est un ``<div>`` non focusable, et "
-        "ces deux events NE BULLENT PAS, donc un handler laissé là ne "
-        "pourrait structurellement jamais partir.",
+        'Where they leave from: ``change`` from the hidden input (the '
+            'form-data carrier); ``focus`` and ``blur`` are relocated onto '
+            'the editable field — the root is a non-focusable ``<div>``, and '
+            'those two events DO NOT BUBBLE, so a handler left there could '
+            'structurally never fire.',
         color="muted", size="sm",
     )
 
@@ -297,16 +297,16 @@ def events_panel() -> None:
                 ui.text(f"{i}. {evt}",
                         color="muted", size="sm", classes="font-mono")
     else:
-        ui.text("(no events yet — cliquez le champ, puis une heure)",
+        ui.text('(no events yet — click the field, then a time)',
                 color="muted", size="sm")
 
     ui.divider()
 
     emitted_html_block(
-        "Emitted HTML (TimePicker with on_change) — le bundle hx-* est "
-        "relocalisé sur l'input caché par relocate_server_action, qui "
-        "lit hx-trigger pour choisir le porteur : un on_focus= partirait "
-        "sur le champ éditable, seul élément à recevoir focus.",
+        'Emitted HTML (TimePicker with on_change) — the hx-* bundle is '
+            'relocated onto the hidden input by relocate_server_action, which'
+            ' reads hx-trigger to pick the carrier: an on_focus= would leave '
+            'from the editable field, the only element that receives focus.',
         serialize_html(
             ui.time_picker(value=picked.picked, on_change=log_change)
         ),
@@ -317,12 +317,12 @@ def page() -> None:
     with ui.container(), ui.vstack():
         ui.heading("Time picker", level=1)
         ui.text(
-            "Champ d'heure : un champ éditable et un popover à deux "
-            "colonnes aimantées. La valeur est une chaîne \"HH:MM\" "
-            "— zéro-paddée, donc elle se trie comme elle se lit. "
-            "Aucun calendrier n'est impliqué, et aucun widget natif "
-            "non plus : un <input type=\"time\"> n'est pas "
-            "thématisable et change d'allure selon le navigateur.",
+            'A time field: an editable field and a popover with two '
+                'snapping columns. The value is an "HH:MM" string — zero-'
+                'padded, so it sorts the way it reads. No calendar is '
+                'involved, and no native widget either: an <input '
+                'type="time"> cannot be themed and changes shape from browser'
+                ' to browser.',
             color="muted",
         )
 
@@ -340,9 +340,8 @@ def page() -> None:
 
             ui.heading("step", level=3)
             ui.text(
-                "Combien de minutes existent. 15 par défaut — "
-                "step=1 donne les soixante, et c'est là que la "
-                "colonne défile vraiment.",
+                'How many minutes exist. 15 by default — step=1 gives all'
+                    ' sixty, and that is when the column really scrolls.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
@@ -353,10 +352,10 @@ def page() -> None:
 
             ui.heading("min / max", level=3)
             ui.text(
-                "Les heures hors bornes sont grisées. Nuance : "
-                "une HEURE n'est exclue que si aucune de ses "
-                "minutes ne tient — sinon min=\"09:30\" griserait "
-                "09 entière et 09:45 serait inatteignable.",
+                'Out-of-bounds hours are greyed out. A subtlety: an HOUR '
+                    'is only excluded if none of its minutes fits — otherwise'
+                    ' min="09:30" would grey out the whole of 09 and 09:45 '
+                    'would be unreachable.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
@@ -396,16 +395,16 @@ def page() -> None:
                     ui.text("required", color="muted", size="xs")
                     ui.time_picker(dt.time(9, 0), required=True)
                 with ui.vstack(gap="xs"):
-                    ui.text("clearable=False (pas de ×)",
+                    ui.text('clearable=False (no ×)',
                             color="muted", size="xs")
                     ui.time_picker(dt.time(9, 0), clearable=False)
 
             ui.heading("close_on_pick", level=3)
             ui.text(
-                "À True (défaut) le panneau se referme quand on "
-                "clique une MINUTE, pas une heure — l'ordre de "
-                "lecture est heure puis minute, refermer à "
-                "l'heure couperait le geste en deux.",
+                'At True (the default) the panel closes when you click a '
+                    'MINUTE, not an hour — the reading order is hour then '
+                    'minute, and closing on the hour would cut the gesture in'
+                    ' two.',
                 color="muted", size="xs",
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
@@ -423,19 +422,18 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Slots", level=2)
             ui.text(
-                "Le composant n'a pas de slot au sens ``with`` : "
-                "sa seule surface de contenu est textuelle — le "
-                "placeholder du champ et les deux entêtes de "
-                "colonne, pour l'i18n.",
+                'The component has no slot in the ``with`` sense: its '
+                    "only content surface is textual — the field's "
+                    'placeholder and the two column headers, for i18n.',
                 color="muted", size="sm",
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.vstack(gap="xs"):
-                    ui.text("défaut (H / M)", color="muted",
+                    ui.text('default (H / M)', color="muted",
                             size="xs")
                     ui.time_picker(dt.time(9, 30))
                 with ui.vstack(gap="xs"):
-                    ui.text("i18n : placeholder + entêtes",
+                    ui.text('i18n: placeholder + headers',
                             color="muted", size="xs")
                     ui.time_picker(dt.time(9, 30),
                                    placeholder="Heure…",
@@ -448,40 +446,40 @@ def page() -> None:
             ui.text("Edge inputs and exotic combinations.",
                     color="muted", size="sm")
 
-            ui.heading("Saisie libre reparsée au blur", level=3)
+            ui.heading('Free typing re-parsed on blur', level=3)
             ui.text(
-                "Tapez 9h30, 9:30, 9.30, 930 ou juste 9, puis "
-                "sortez du champ — tout devient 09:30. Ce qui "
-                "n'est pas une heure se vide.",
+                'Type 9h30, 9:30, 9.30, 930 or just 9, then leave the '
+                    'field — everything becomes 09:30. Anything that is not a'
+                    ' time clears.',
                 color="muted", size="xs",
             )
             with ui.flex(classes="max-w-xs"):
                 ui.time_picker(placeholder="tapez 930 puis Tab")
 
-            ui.heading("Minuit et 23:59", level=3)
+            ui.heading("Midnight and 23:59", level=3)
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 ui.time_picker(dt.time(0, 0))
                 ui.time_picker(dt.time(23, 59), step=1)
 
-            ui.heading("step=60 (une seule minute possible)",
+            ui.heading('step=60 (a single possible minute)',
                        level=3)
             with ui.flex(classes="max-w-xs"):
                 ui.time_picker(dt.time(14, 0), step=60)
 
-            ui.heading("min == max (un seul créneau)", level=3)
+            ui.heading('min == max (a single slot)', level=3)
             with ui.flex(classes="max-w-xs"):
                 ui.time_picker(dt.time(12, 0),
                                min="12:00", max="12:00")
 
             ui.heading("Valeur hors bornes", level=3)
-            ui.text("La valeur reste affichée — on ne réécrit "
-                    "jamais ce que le serveur a envoyé.",
+            ui.text('The value stays displayed — what the server sent is never '
+                'rewritten.',
                     color="muted", size="xs")
             with ui.flex(classes="max-w-xs"):
                 ui.time_picker(dt.time(3, 0),
                                min="09:00", max="18:00")
 
-            ui.heading("Dans une cellule étroite", level=3)
+            ui.heading('Inside a narrow cell', level=3)
             with ui.grid(cols={"base": 1, "md": 4}, gap="md"):
                 ui.time_picker(dt.time(9, 30))
                 ui.text("Voisine.", color="muted")
@@ -491,23 +489,22 @@ def page() -> None:
         # ── Card 4 — Composability ──────────────────────────────
         with ui.card(), ui.vstack():
             ui.heading("Composability", level=2)
-            ui.text("Le picker dans ses contextes habituels.",
+            ui.text('The picker in its usual contexts.',
                     color="muted", size="sm")
 
-            ui.heading("Dans un form_field", level=3)
+            ui.heading('Inside a form_field', level=3)
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
-                with ui.form_field(label="Heure de début",
-                                   hint="Ouverture du créneau"):
+                with ui.form_field(label='Start time',
+                                   hint='Slot opening'):
                     ui.time_picker(dt.time(9, 0), min="08:00")
                 with ui.form_field(label="Heure de fin"):
                     ui.time_picker(dt.time(18, 0), max="20:00")
 
-            ui.heading("Un créneau, deux champs", level=3)
+            ui.heading('One slot, two fields', level=3)
             ui.text(
-                "Le cas d'usage le plus courant. Note : la "
-                "contrainte croisée (fin.min = début) n'est PAS "
-                "automatique — min/max ne sont pas bindables "
-                "ici, contrairement à la famille date.",
+                'The most common use case. Note: the cross constraint '
+                    '(end.min = start) is NOT automatic — min/max are not '
+                    'bindable here, unlike in the date family.',
                 color="muted", size="xs",
             )
             with ui.hstack(gap="sm", align="center"):
@@ -515,49 +512,47 @@ def page() -> None:
                 ui.text("→", color="muted")
                 ui.time_picker(dt.time(17, 30), size="sm")
 
-            ui.heading("name= explicite (échappatoire)", level=3)
+            ui.heading('explicit name= (escape hatch)', level=3)
             ui.text(
-                "L'autoname couvre le cas lié (``value=state.x`` "
-                "dérive ``name=\"x\"``). Pour un picker à valeur "
-                "littérale qui doit quand même poster, ``name=`` "
-                "est le seul moyen d'avoir un porteur de "
-                "formulaire sans binding.",
+                'Autoname covers the bound case (``value=state.x`` '
+                    'derives ``name="x"``). For a picker with a literal value'
+                    ' that must still post, ``name=`` is the only way to have'
+                    ' a form carrier without a binding.',
                 color="muted", size="xs",
             )
             with ui.flex(classes="max-w-xs"):
                 ui.time_picker(dt.time(9, 0), name="start_at")
 
-            ui.heading("Dans un ui.dialog", level=3)
+            ui.heading('Inside a ui.dialog', level=3)
             with ui.dialog(title="Planifier", width="md") as dlg, \
                             ui.vstack():
-                with ui.form_field(label="À quelle heure ?"):
+                with ui.form_field(label='At what time?'):
                     ui.time_picker(dt.time(14, 0))
                 ui.text(
-                    "Le panneau est ancré en position fixe, donc "
-                    "il échappe à l'overflow du dialog.",
+                    'The panel is anchored in fixed position, so it '
+                        "escapes the dialog's overflow.",
                     color="muted", size="xs",
                 )
-            ui.button("Ouvrir le dialog", on_click=dlg.open())
+            ui.button('Open the dialog', on_click=dlg.open())
 
         # ── Card 5 — A11y ───────────────────────────────────────
         with ui.card(), ui.vstack():
             ui.heading("A11y", level=2)
             ui.text(
-                "Le champ reste un vrai ``<input type=text>`` : "
-                "on peut TOUT faire au clavier sans jamais "
-                "ouvrir le panneau, ce qui est la voie la plus "
-                "rapide pour qui connaît son heure. Les deux "
-                "colonnes sont des ``role=listbox`` étiquetés, "
-                "et chaque cellule un vrai ``<button>`` — donc "
-                "atteignable au Tab et réellement ``disabled`` "
-                "hors bornes, pas seulement grisée. Escape et le "
-                "clic dehors referment.",
+                'The field stays a real ``<input type=text>``: EVERYTHING'
+                    ' can be done from the keyboard without ever opening the '
+                    'panel, which is the fastest route for anyone who knows '
+                    'their time. The two columns are labelled '
+                    '``role=listbox``es, and every cell a real ``<button>`` —'
+                    ' hence reachable with Tab and genuinely ``disabled`` out'
+                    ' of bounds, not merely greyed. Escape and a click '
+                    'outside close it.',
                 color="muted", size="sm",
             )
             with ui.flex(classes="max-w-xs"):
                 ui.time_picker(dt.time(9, 30),
                                min="09:00", max="18:00",
-                               aria_label="Heure du rendez-vous")
+                               aria_label='Appointment time')
 
         # ── Card 6 — Server playground ──────────────────────────
         with ui.card(), ui.vstack():
@@ -579,11 +574,10 @@ def page() -> None:
         with ui.card(), ui.vstack():
             ui.heading("Client playground", level=2)
             ui.text(
-                "Mirror of BINDABLE_PROPS = ('value', "
-                "'disabled'). La valeur est liée à un "
-                "ClientState : le champ, le panneau et le "
-                "miroir ci-dessous lisent la MÊME cellule de "
-                "store, sans aller-retour.",
+                "Mirror of BINDABLE_PROPS = ('value', 'disabled'). The "
+                    'value is bound to a ClientState: the field, the panel '
+                    'and the mirror below all read the SAME store cell, with '
+                    'no round trip.',
                 color="muted", size="sm",
             )
             client = TimePickerClient()
@@ -597,15 +591,15 @@ def page() -> None:
             ui.divider()
 
             with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
-                with control("le même, piloté par le switch"):
+                with control('the same one, driven by the switch'):
                     ui.time_picker(value=client.picked,
                                    disabled=client.locked)
                 with control("miroir"):
                     ui.text(
                         ClientExpression(
-                            "'valeur : ' + "
+                            "'value: ' + "
                             "($bz.state.TimePickerClient"
-                            ".default.picked || '(vide)')"
+                            ".default.picked || '(empty)')"
                         ),
                         color="muted", size="sm",
                         classes="font-mono",
@@ -614,10 +608,10 @@ def page() -> None:
             ui.divider()
 
             emitted_html_block(
-                "Emitted HTML — tout adresse la cellule du store "
-                "directement : le champ en bz-model, l'input "
-                "caché en bz-attr:value, et les 28 cellules via "
-                "les _read/_write du scope.",
+                'Emitted HTML — everything addresses the store cell '
+                    'directly: the field through bz-model, the hidden input '
+                    'through bz-attr:value, and the 28 cells through the '
+                    "scope's _read/_write.",
                 serialize_html(
                     ui.time_picker(value=client.picked,
                                    disabled=client.locked)
@@ -631,25 +625,26 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("External controls — the 3 modes", level=2)
                     ui.text(
-                        "Les sept méthodes arrivées le 2026-09-03. Un picker "
-                        "est DEUX natures à la fois : un panneau ancré (comme "
-                        "`dialog`) et un champ qui porte une valeur (comme "
-                        "`input`). Sa surface est donc l'union des deux "
-                        "vocabulaires déjà fixés par ses voisins — rien "
-                        "d'inventé.",
+                        'The seven methods that arrived on 2026-09-03. A '
+                            'picker is TWO natures at once: an anchored panel'
+                            ' (like `dialog`) and a field carrying a value '
+                            '(like `input`). Its surface is therefore the '
+                            'union of the two vocabularies its neighbours '
+                            'already fixed — nothing invented.',
                         color="muted", size="sm",
                     )
 
-                    # ── Mode 1 — Impératif seul ─────────────────────
+                    # ── Mode 1 — Imperative only ────────────────────
                     ui.heading("Mode 1 — Imperative only (default for "
                                "one-off writes)", level=3)
                     ui.text(
-                        "Aucun ClientState. `.open()` / `.close()` / "
-                        "`.toggle()` dispatchent `bz-open` / `bz-close` / "
-                        "`bz-toggle`, que la racine rattrape ; `.set()` "
-                        "dispatche `bz-set`. `.focus()` vise le champ "
-                        "VISIBLE — pas le porteur caché, qui est le premier "
-                        "`<input>` du composant et ne prend pas le focus.",
+                        'No ClientState. `.open()` / `.close()` / '
+                            '`.toggle()` dispatch `bz-open` / `bz-close` / '
+                            '`bz-toggle`, which the root catches; `.set()` '
+                            'dispatches `bz-set`. `.focus()` targets the '
+                            'VISIBLE field — not the hidden carrier, which is'
+                            " the component's first `<input>` and never takes"
+                            ' focus.',
                         color="muted", size="sm",
                     )
                     m1 = ui.time_picker()
@@ -669,12 +664,12 @@ def page() -> None:
 
                     ui.divider()
 
-                    # ── Mode 2 — ClientBinding seule ────────────────
+                    # ── Mode 2 — ClientBinding only ─────────────────
                     ui.heading("Mode 2 — ClientBinding only (when another "
                                "component must read or react)", level=3)
                     ui.text(
-                        "`value=binding` : la valeur vit dans le store, "
-                        "donc un voisin la lit sans aller-retour.",
+                        '`value=binding`: the value lives in the store, '
+                            'so a neighbour reads it with no round trip.',
                         color="muted", size="sm",
                     )
                     lie = TimePickerClient(key="ext_binding")
@@ -690,14 +685,14 @@ def page() -> None:
 
                     ui.divider()
 
-                    # ── Mode 3 — Les deux ───────────────────────────
+                    # ── Mode 3 — Both ───────────────────────────────
                     ui.heading("Mode 3 — Both (write-through)", level=3)
                     ui.text(
-                        "Binding fournie ET méthodes appelées. `.set()` "
-                        "détecte la binding et écrit DEDANS — le dispatch "
-                        "DOM n'est pas utilisé, la source de vérité reste "
-                        "unique. `.open()` reste un dispatch : le panneau "
-                        "n'est pas une valeur.",
+                        'A binding supplied AND the methods called. '
+                            '`.set()` detects the binding and writes INTO it '
+                            '— the DOM dispatch is not used, the source of '
+                            'truth stays single. `.open()` stays a dispatch: '
+                            'the panel is not a value.',
                         color="muted", size="sm",
                     )
                     deux = TimePickerClient(key="ext_both")
@@ -711,15 +706,14 @@ def page() -> None:
                         ui.text(
                             ClientExpression(
                                 "'Store : ' + ($bz.state.TimePickerClient"
-                                ".ext_both.picked || '(vide)')"
+                                ".ext_both.picked || '(empty)')"
                             ),
                             color="muted", size="sm", classes="font-mono",
                         )
 
             ui.heading("Client events", level=2)
-            ui.text("change câblé à une expression client qui "
-                    "empile la nouvelle heure dans un "
-                    "ClientState. Zéro réseau.",
+            ui.text('change wired to a client expression that pushes the new time'
+                ' onto a ClientState. Zero network.',
                     color="muted", size="sm")
             cevents = TimePickerClientEvents()
             _new_value = ClientExpression("$event.target.value")
@@ -751,9 +745,9 @@ def page() -> None:
             ui.divider()
 
             emitted_html_block(
-                "Emitted HTML — le handler bz-on:change vit sur "
-                "l'input caché, le seul porteur qui expose name "
-                "et value.",
+                'Emitted HTML — the bz-on:change handler lives on the '
+                    'hidden input, the only carrier that exposes a name and a'
+                    ' value.',
                 serialize_html(
                     ui.time_picker(
                         dt.time(9, 0),

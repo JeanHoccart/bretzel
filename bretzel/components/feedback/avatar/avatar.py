@@ -1,20 +1,21 @@
 """``Avatar`` — round / square user image with initials fallback.
 
-**``name=`` est la façon recommandée d'appeler ce composant** : il en
-dérive les initiales ET l'``alt`` de l'image, donc l'appelant n'a rien
-à oublier. ``ui.avatar(name="Jean Hoccart", src="/photo.png")`` rend
-``<img alt="Jean Hoccart">`` ; sans ``src``, la pastille affiche ``JH``.
+**``name=`` is the recommended way of calling this component**: it
+derives the initials AND the image's ``alt`` from it, so the caller has
+nothing to forget. ``ui.avatar(name="Jean Hoccart", src="/photo.png")``
+renders ``<img alt="Jean Hoccart">``; with no ``src``, the chip shows
+``JH``.
 
-Trois modes de rendu :
+Three render modes:
 
-- ``src=`` : une ``<img>`` couvre la pastille. Son ``alt`` vient de
-  ``alt=`` s'il est donné, sinon de ``name=``. ⚠️ Ni l'un ni l'autre
-  laisse ``alt=""``, qui déclare une image DÉCORATIVE — légitime à côté
-  d'un nom déjà écrit en toutes lettres, silencieux et faux ailleurs.
-- ``initials=`` ou ``name=`` (sans ``src``) : un carré teinté affiche
-  les lettres dans la ``color`` choisie. ``initials=`` l'emporte quand
-  les deux sont donnés.
-- Aucun des trois : une pastille vide dans la couleur choisie.
+- ``src=``: an ``<img>`` covers the chip. Its ``alt`` comes from
+  ``alt=`` if given, otherwise from ``name=``. ⚠️ Neither of the two
+  leaves ``alt=""``, which declares a DECORATIVE image — legitimate
+  beside a name already written out in full, silent and wrong elsewhere.
+- ``initials=`` or ``name=`` (with no ``src``): a tinted square shows
+  the letters in the chosen ``color``. ``initials=`` wins when both are
+  given.
+- None of the three: an empty chip in the chosen colour.
 
 Optional ``status=`` overlays a small dot in the bottom-right corner
 (``online`` / ``offline`` / ``busy`` / ``away``).
@@ -33,16 +34,16 @@ from bretzel.core.tree import Element, Node
 
 
 def initials_of(name: str) -> str:
-    """Les initiales d'un nom — ``"Jean Hoccart"`` → ``"JH"``.
+    """A name's initials — ``"Jean Hoccart"`` → ``"JH"``.
 
-    Première lettre du premier mot, première du DERNIER : c'est ce que
-    les quatre exemples du dépôt recopiaient chacun de leur côté, à la
-    lettre près. Un seul mot ne donne qu'une initiale, plutôt que ses
-    deux premières lettres — ``"Jean"`` → ``"J"``, pas ``"JE"``.
+    First letter of the first word, first of the LAST: it is what the
+    repository's four examples each copied on their own, to the letter.
+    A single word gives only one initial, rather than its first two
+    letters — ``"Jean"`` → ``"J"``, not ``"JE"``.
 
-    Rend ``""`` pour un nom vide ou blanc, et l'appelant décide : le
-    composant n'affiche alors aucune pastille de lettres, ce qui est
-    plus honnête qu'un ``"?"`` qui ressemble à une donnée.
+    Returns ``""`` for an empty or blank name, and the caller decides:
+    the component then shows no letter chip, which is more honest than a
+    ``"?"`` that looks like data.
     """
     parts = name.split()
     if not parts:
@@ -66,20 +67,21 @@ class Avatar(Component):
 
     src: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
     alt: str = reactive_prop(default="", emit_attr=False)
-    #: Le nom de la personne. **La façon recommandée d'appeler ce
-    #: composant** : il en dérive les initiales ET l'``alt`` de l'image.
+    #: The person's name. **The recommended way of calling this
+    #: component**: it derives the initials AND the image's ``alt`` from
+    #: it.
     #:
-    #: Le défaut que ça ferme : ``ui.avatar(src="/photo.png")`` émettait
-    #: ``alt=""``, ce qui ne veut pas dire « pas d'alternative » mais
-    #: **« image décorative, ignore-moi »** — la photo d'un utilisateur
-    #: devenait invisible au lecteur d'écran, en silence. ``ui.image``
-    #: exige son ``alt`` pour exactement cette raison, mais l'exiger ici
-    #: casserait tous les appels existants.
+    #: The defect that closes: ``ui.avatar(src="/photo.png")`` emitted
+    #: ``alt=""``, which does not mean "no alternative" but
+    #: **"decorative image, ignore me"** — a user's photo became
+    #: invisible to the screen reader, in silence. ``ui.image`` requires
+    #: its ``alt`` for exactly that reason, but requiring it here would
+    #: break every existing call.
     #:
-    #: Dériver plutôt qu'exiger est la voie qu'``ui.file_upload`` emprunte
-    #: déjà (sa vignette porte le nom du fichier) : l'appelant n'a rien à
-    #: savoir, donc rien à oublier. Et les call-sites y gagnent — ils
-    #: calculaient tous leurs initiales à la main.
+    #: Deriving rather than requiring is the route ``ui.file_upload``
+    #: already takes (its thumbnail carries the file's name): the caller
+    #: has nothing to know, so nothing to forget. And the call sites gain
+    #: — they all computed their initials by hand.
     name: str | None = reactive_prop(default=None, emit_attr=False)
     initials: str | None = reactive_prop(default=None, emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
@@ -100,7 +102,7 @@ class Avatar(Component):
         status: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward direct : le socle drope les kwargs reactive None (garde le defaut).
+        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             src=src, alt=alt, name=name, initials=initials,
             size=size, shape=shape, color=color,
@@ -115,14 +117,14 @@ class Avatar(Component):
 
         shape = self._reactive_values.get("shape") or "circle"
         src = self._reactive_values.get("src")
-        nom = self._reactive_values.get("name")
-        # ``alt`` explicite > nom > vide. Le vide reste possible et il est
-        # LICITE : un avatar purement decoratif a cote d'un nom deja ecrit
-        # en toutes lettres ne doit pas etre annonce deux fois.
-        alt = self._reactive_values.get("alt") or (str(nom) if nom else "")
-        # Idem pour les initiales : explicites > derivees du nom.
+        person = self._reactive_values.get("name")
+        # Explicit ``alt`` > name > empty. The empty stays possible and
+        # it is LEGITIMATE: a purely decorative avatar beside a name
+        # already written out in full must not be announced twice.
+        alt = self._reactive_values.get("alt") or (str(person) if person else "")
+        # Same for the initials: explicit > derived from the name.
         initials = self._reactive_values.get("initials") or (
-            initials_of(str(nom)) or None if nom else None
+            initials_of(str(person)) or None if person else None
         )
         status = self._reactive_values.get("status")
         size_map = sizes.get(size_key, sizes.get("md", {}))
@@ -148,21 +150,21 @@ class Avatar(Component):
                 # ``loading="lazy"`` saves bandwidth in avatar lists
                 # (table rows, contributor strips).
                 "loading": "lazy",
-                # ``src`` n'est pas bindable : l'``<img>`` reflète son
-                # attribut ``src`` statique, aucun carrier à câbler.
+                # ``src`` is not bindable: the ``<img>`` reflects its
+                # static ``src`` attribute, no carrier to wire.
             }
             children.append(
                 Element(tag="img", attrs=img_attrs, children=())
             )
         else:
-            # ``initials`` est design-time : ``BINDABLE_PROPS = ("status",)``,
-            # donc le socle LÈVE sur une ClientBinding avant d'arriver ici.
-            # La branche ``_binding_metadata.get("initials")`` qui vivait
-            # ici était inatteignable — retirée le 2026-08-01. Si la
-            # réactivité des initiales devient un besoin, il faut d'abord
-            # ajouter la prop à ``BINDABLE_PROPS``.
-            # Troncature à 3 caractères : un avatar est dimensionné pour
-            # 1-3 lettres par convention.
+            # ``initials`` is design-time: ``BINDABLE_PROPS = ("status",)``,
+            # so the base layer RAISES on a ClientBinding before reaching
+            # here. The ``_binding_metadata.get("initials")`` branch that
+            # lived here was unreachable — removed on 2026-08-01. If
+            # reactive initials become a need, the prop must first be
+            # added to ``BINDABLE_PROPS``.
+            # Truncated to 3 characters: an avatar is sized for 1-3
+            # letters by convention.
             if isinstance(initials, str) and len(initials) > 3:
                 initials = initials[:3]
             initials_node = self.emit_text_slot(initials)

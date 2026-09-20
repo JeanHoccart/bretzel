@@ -1,17 +1,18 @@
-"""Identity middleware — résout ``request.state.user`` à chaque requête.
+"""Identity middleware — resolves ``request.state.user`` on every request.
 
-Il délègue la lecture de l'identité à
-:func:`bretzel.server.auth.resolve_identity`, qui joue la chaîne — le
-cookie signé d'abord, puis les sources déclarées par l'app avec
-``@auth.source`` (JWT porté, clé d'API, en-tête d'un proxy SSO).
+It delegates reading the identity to
+:func:`bretzel.server.auth.resolve_identity`, which plays the chain — the
+signed cookie first, then the sources the app declared with
+``@auth.source`` (a bearer JWT, an API key, an SSO proxy's header).
 
-Les helpers de la couche 5 (:func:`user_id`, :func:`is_authenticated`)
-relisent ``state.user_id`` via le :class:`RenderContext` actif.
+The layer-5 helpers (:func:`user_id`, :func:`is_authenticated`) read
+``state.user_id`` back through the active :class:`RenderContext`.
 
-Cookie trafiqué, expiré ou absent — et source qui ne reconnaît rien —
-sortent tous en « anonyme », pas en erreur. Afficher un 401 sur une page
-publique serait faux ; c'est la page qui décide si elle exige une
-identité (via ``UserState`` ou un ``abort(401)`` explicite).
+A tampered, expired or absent cookie — and a source that recognises
+nothing — all come out as "anonymous", not as an error. Showing a 401 on
+a public page would be wrong; it is the page that decides whether it
+requires an identity (through ``UserState`` or an explicit
+``abort(401)``).
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from bretzel.server.middleware._state import ensure_state
 
 
 class AuthMiddleware:
-    """Résout ``request.state.user`` depuis la chaîne d'identité."""
+    """Resolve ``request.state.user`` from the identity chain."""
 
     def __init__(self, app: ASGIApp, *, bretzel_app: object) -> None:
         self.app = app
@@ -41,16 +42,16 @@ class AuthMiddleware:
             return
 
         state = ensure_state(scope)
-        # ``Request`` n'est qu'une vue sur le scope — aucune lecture de
-        # corps ici, donc pas besoin de ``receive``. Les sources y
-        # lisent en-têtes et cookies ; ``SessionMiddleware``, plus
-        # externe, a déjà rempli ``state.cookies``.
+        # ``Request`` is only a view onto the scope — no body read
+        # here, so no need for ``receive``. The sources read headers and
+        # cookies there; ``SessionMiddleware``, further out, has already
+        # filled ``state.cookies``.
         request = Request(scope)
-        # L'app est passée en clair plutôt que relue dans ``scope["app"]``
-        # : ce middleware peut être monté sur une pile de test sans
-        # FastAPI au-dessus, et une résolution d'identité qui dépendrait
-        # de la façon dont on est monté serait exactement le genre de
-        # silence que ce sujet ne supporte pas.
+        # The app is passed explicitly rather than read back from
+        # ``scope["app"]``: this middleware can be mounted on a test
+        # stack with no FastAPI above it, and an identity resolution that
+        # depended on how we are mounted would be exactly the kind of
+        # silence this subject does not tolerate.
         user_id = resolve_identity(request, self._bretzel)
         state.user = AuthUser(id=user_id) if user_id else None
         state.user_id = user_id

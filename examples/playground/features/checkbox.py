@@ -616,15 +616,14 @@ def page() -> None:
                         level=3,
                     )
                     ui.text(
-                        "Binding fournie ET on appelle ``.set()`` / "
-                        "``.toggle()`` "
-                        "/ ``.set(bool)`` / ``.toggle()`` sur "
-                        "l'instance. Le framework détecte la "
-                        "binding et délègue à ``binding.set(...)`` "
-                        "— **le DOM dispatch n'est pas utilisé**, "
-                        "single source of truth préservée. Le "
-                        "checkbox-mirror et les boutons impératifs "
-                        "convergent sur le même flag.",
+                        'A binding supplied AND ``.set()`` / '
+                            '``.toggle()`` / ``.set(bool)`` / ``.toggle()`` '
+                            'called on the instance. The framework detects '
+                            'the binding and delegates to '
+                            '``binding.set(...)`` — **the DOM dispatch is not'
+                            ' used**, single source of truth preserved. The '
+                            'mirror checkbox and the imperative buttons '
+                            'converge on the same flag.',
                         color="muted", size="sm",
                     )
                     both = CheckboxClient(key="both")

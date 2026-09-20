@@ -38,8 +38,8 @@
   }
 
   function makeScope(initialParent) {
-    // MUTABLE : le parent se RE-RÉSOUT (cf. ``reparent``). Les traps le
-    // lisent par la variable, jamais par une copie capturée.
+    // MUTABLE: the parent is RE-RESOLVED (cf. ``reparent``). The traps
+    // read it through the variable, never through a captured copy.
     let parent = initialParent;
     const signals = new Map();
     const helpers = new Map();
@@ -89,29 +89,29 @@
       parentScope() {
         return parent;
       },
-      /* Ré-accrocher ce scope à son parent COURANT.
+      /* Re-attach this scope to its CURRENT parent.
        *
-       * Un scope est indexé par son ``bz-id`` STRING et survit donc au
-       * remplacement de son nœud — c'est voulu. Mais son parent était
-       * capturé UNE fois, à la création, et plus jamais revu : un nœud
-       * qui réapparaît sous un autre parent gardait l'ancien à vie.
+       * A scope is indexed by its ``bz-id`` STRING and therefore
+       * survives its node being replaced — that is intended. But its
+       * parent was captured ONCE, at creation, and never looked at
+       * again: a node reappearing under another parent kept the old one
+       * for life.
        *
-       * Ça mordait sur une navigation ``hx-boost``, qui ne recharge pas
-       * le runtime : le ``<bz-calendar>`` d'un picker portait un id
-       * page-indépendant, donc la nouvelle page retrouvait le scope de
-       * l'ancienne, dont le parent était le picker de la page
-       * PRÉCÉDENTE. Le ``on_change`` écrivait sa valeur dans un scope
-       * mort — grille surlignée, champ vide, et un F5 pour s'en sortir.
+       * It bit on an ``hx-boost`` navigation, which does not reload the
+       * runtime: a picker's ``<bz-calendar>`` carried a page-independent
+       * id, so the new page found the old page's scope, whose parent was
+       * the PREVIOUS page's picker. The ``on_change`` wrote its value
+       * into a dead scope — highlighted grid, empty field, and an F5 to
+       * get out of it.
        *
-       * Les ids sont désormais uniques par page (``panel_calendar``),
-       * donc ce chemin n'est plus atteint par les pickers. Ceci est le
-       * durcissement : il ferme la CLASSE, pour que la prochaine
-       * collision d'id — quelle qu'elle soit — ne redevienne pas un bug
-       * silencieux.
+       * The ids are now unique per page (``panel_calendar``), so that
+       * path is no longer reached by the pickers. This is the hardening:
+       * it closes the CLASS, so that the next id collision — whatever it
+       * may be — does not become a silent bug again.
        *
-       * ``refs`` hérite par PROTOTYPE, donc se ré-accrocher demande de
-       * bouger le prototype aussi, sinon les ``$refs`` continueraient de
-       * résoudre chez l'ancien parent. */
+       * ``refs`` inherits by PROTOTYPE, so re-attaching means moving the
+       * prototype too, otherwise the ``$refs`` would go on resolving at
+       * the old parent's. */
       reparent(next) {
         if (next === parent) return;
         parent = next;
@@ -176,9 +176,9 @@
       scope = makeScope(parentScopeOf(el));
       scopes.set(id, scope);
     } else {
-      // Retrouvé, donc potentiellement sous un AUTRE parent qu'à sa
-      // création (cf. ``reparent``). Sur la même page c'est le même
-      // objet et l'appel ne fait rien.
+      // Found again, so potentially under ANOTHER parent than at its
+      // creation (cf. ``reparent``). On the same page it is the same
+      // object and the call does nothing.
       scope.reparent(parentScopeOf(el));
     }
     scope.absorb(evalDataLiteral(el.getAttribute("bz-data"), el));

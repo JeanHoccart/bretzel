@@ -285,10 +285,10 @@ def _common_prefix(seqs: list[list[str]]) -> list[str]:
     or empty). Shared by the folder-path derivation and the LCA placement —
     both want "how far do these paths agree from the start"."""
     out: list[str] = []
-    # ``strict=False`` explicite : la troncature à la plus COURTE séquence
-    # est le comportement voulu — un préfixe commun ne peut pas dépasser
-    # le plus court des chemins. C'est ce que `B905` demande d'écrire au
-    # lieu de le laisser deviner, et `strict=True` casserait la fonction.
+    # Explicit ``strict=False``: truncating to the SHORTEST sequence is
+    # the wanted behaviour — a common prefix cannot exceed the shortest
+    # of the paths. That is what `B905` asks to be written instead of
+    # left to guesswork, and `strict=True` would break the function.
     for tier in zip(*seqs, strict=False):
         if len(set(tier)) == 1:
             out.append(tier[0])
@@ -461,20 +461,20 @@ def describe_app(features: Iterable[Feature]) -> AppGraph:
 
 
 # ───────────────────────────────────────────────────────────────────────
-# Lints — le manifeste arbitré contre la réalité (le graphe ne peut pas
-# mentir : L1 attrape l'oubli, L2 attrape la dérive). Émis en WARN au
-# démarrage — jamais bloquants, contrairement à validate_features.
+# Lints — the manifest arbitrated against reality (the graph cannot lie:
+# L1 catches the omission, L2 catches the drift). Emitted as WARN at
+# startup — never blocking, unlike validate_features.
 # ───────────────────────────────────────────────────────────────────────
 
 
 def undeclared_provides(
     features: Iterable[Feature], registered: Iterable[Any]
 ) -> list[tuple[str, str]]:
-    """L1 — routables enregistrés (pages / handlers d'erreur) couverts par
-    AUCUNE ``Feature`` : ils tournent, mais la carte ne les voit pas et le
-    graphe ne les valide pas — le squelette mentirait par omission.
+    """L1 — registered routables (pages / error handlers) covered by NO
+    ``Feature``: they run, but the map does not see them and the graph
+    does not validate them — the skeleton would lie by omission.
 
-    Retourne ``[(label, route_ou_vide), ...]`` pour chaque orphelin.
+    Returns ``[(label, route_or_empty), ...]`` for each orphan.
     """
     covered = {id(obj) for f in features for obj in f.provides}
     out: list[tuple[str, str]] = []
@@ -489,16 +489,16 @@ def undeclared_provides(
 
 @dataclass(frozen=True)
 class DriftReport:
-    """L2 — l'écart d'UNE feature entre son contrat et ses imports réels."""
+    """L2 — ONE feature's gap between its contract and its real imports."""
 
     feature: str
-    missing: tuple[str, ...] = ()   # importé mais non déclaré (uses/reads)
-    stale: tuple[str, ...] = ()     # déclaré mais jamais importé
+    missing: tuple[str, ...] = ()   # imported but not declared (uses/reads)
+    stale: tuple[str, ...] = ()     # declared but never imported
 
 
 def _feature_prefix(module: str) -> str:
-    """Le package qu'une feature POSSÈDE : son module de contrat, débarrassé
-    du segment ``feature``/``__init__`` (dossier-feature → tout le dossier)."""
+    """The package a feature OWNS: its contract module, stripped of the
+    ``feature``/``__init__`` segment (feature-folder → the whole folder)."""
     parts = module.split(".") if module else []
     if parts and parts[-1] in ("feature", "__init__"):
         parts = parts[:-1]
@@ -506,10 +506,11 @@ def _feature_prefix(module: str) -> str:
 
 
 def _imports_of(file: str, module_name: str) -> set[str]:
-    """Modules (absolus) importés par ``file`` — top-level ET locaux (un
-    import différé est une vraie dépendance). Les relatifs sont résolus
-    contre le module. Limite documentée : un import sous ``TYPE_CHECKING``
-    compte aussi (rare dans du code de feature, et un WARN se discute)."""
+    """Modules (absolute) imported by ``file`` — top-level AND local (a
+    deferred import is a real dependency). Relative ones are resolved
+    against the module. Documented limit: an import under
+    ``TYPE_CHECKING`` counts too (rare in feature code, and a WARN is
+    debatable)."""
     try:
         tree = ast.parse(Path(file).read_text(encoding="utf-8"))
     except (OSError, SyntaxError, ValueError):
@@ -530,15 +531,16 @@ def _imports_of(file: str, module_name: str) -> set[str]:
 
 
 def dependency_drift(features: Iterable[Feature]) -> list[DriftReport]:
-    """L2 — confronte les ``uses``/``reads`` DÉCLARÉS aux imports RÉELS
-    (AST des modules de chaque feature, déjà chargés dans ``sys.modules``).
+    """L2 — confront the DECLARED ``uses``/``reads`` with the REAL
+    imports (AST of each feature's modules, already loaded in
+    ``sys.modules``).
 
-    Excusés : soi-même ; le parent de RENDU (une page importe son layout
-    via ``layout=`` — c'est un lien de rendu déclaré par le mark, pas une
-    dépendance à redire) ; tout module n'appartenant à aucune feature.
-    La distinction uses/reads n'étant pas dérivable d'un import, c'est
-    l'UNION déclarée qui est comparée. Le pattern est celui de Nx
-    (``enforce-module-boundaries``) : déclaré + dérivé + réconciliateur.
+    Excused: oneself; the RENDER parent (a page imports its layout
+    through ``layout=`` — that is a render link declared by the mark, not
+    a dependency to restate); any module belonging to no feature. Since
+    the uses/reads distinction is not derivable from an import, it is the
+    declared UNION that is compared. The pattern is Nx's
+    (``enforce-module-boundaries``): declared + derived + reconciler.
     """
     feats = list(features)
     prefixes = {f.name: _feature_prefix(f.module or "") for f in feats}
@@ -546,7 +548,7 @@ def dependency_drift(features: Iterable[Feature]) -> list[DriftReport]:
                     key=lambda t: -len(t[0]))
 
     def owner_of(mod: str) -> str:
-        for prefix, name in owners:   # plus long préfixe d'abord
+        for prefix, name in owners:   # longest prefix first
             if mod == prefix or mod.startswith(prefix + "."):
                 return name
         return ""

@@ -1,26 +1,26 @@
-"""Les types métier qu'un champ d'état peut porter, et comment ils voyagent.
+"""The business types a state field can carry, and how they travel.
 
-Un état se persiste en JSON — c'est ce que le magasin sait écrire, et le
-refus du pickle est délibéré (RCE). Or les types du quotidien d'une app
-métier n'y entrent pas : ``date``, ``Decimal``, ``UUID``, un ``Enum``.
-Ce module dit comment chacun s'écrit et se relit.
+State persists as JSON — that is what the store knows how to write, and
+refusing pickle is deliberate (RCE). But the everyday types of a business
+app do not fit in it: ``date``, ``Decimal``, ``UUID``, an ``Enum``. This
+module says how each one is written and read back.
 
-Une table, deux usages
-----------------------
+One table, two uses
+-------------------
 
-La même table sert à ENCODER avant l'écriture et à DÉCODER à la lecture,
-et le décodage est aussi ce qui coerce la chaîne d'un formulaire. Deux
-tables auraient divergé au premier type ajouté.
+The same table serves to ENCODE before the write and to DECODE on read,
+and decoding is also what coerces a form's string. Two tables would have
+diverged at the first added type.
 
-Elle est indexée par TYPE et non par champ : un ``Decimal`` s'écrit
-pareil partout, donc le déclarer une fois suffit. C'est aussi ce qui
-laisse l'annotation porter l'information — ``montant: Decimal`` se lit
-sans rien de plus dans ``field()``.
+It is indexed by TYPE and not by field: a ``Decimal`` is written the same
+way everywhere, so declaring it once is enough. That is also what lets the
+annotation carry the information — ``amount: Decimal`` reads without
+anything more in ``field()``.
 
-⚠️ Ne pas confondre avec ``merge=``. L'annotation dit ce que la valeur
-EST, ``field()`` dit comment elle se COMPORTE : un ``Decimal`` est un
-montant quel que soit son usage, tandis qu'un ``int`` est additif ou non
-selon ce que l'app en fait — aucun type standard ne peut le dire.
+⚠️ Do not confuse it with ``merge=``. The annotation says what the value
+IS, ``field()`` says how it BEHAVES: a ``Decimal`` is an amount whatever
+its use, whereas an ``int`` is additive or not depending on what the app
+makes of it — no standard type can say that.
 
 """
 
@@ -40,11 +40,11 @@ __all__ = ["register_type"]
 
 @dataclass(frozen=True, slots=True)
 class _Codec:
-    """Comment un type s'écrit en JSON et se relit.
+    """How a type is written to JSON and read back.
 
-    ``subclasses`` dit que ce codec vaut aussi pour les HÉRITIERS du type
-    inscrit. Son ``decode`` reçoit alors un argument de plus — la classe
-    concrète —, seule information que la table ne porte pas.
+    ``subclasses`` says this codec also covers the type's HEIRS. Its
+    ``decode`` then receives one more argument — the concrete class —,
+    the only information the table does not carry.
     """
 
     encode: Callable[[Any], Any]
@@ -52,20 +52,20 @@ class _Codec:
     subclasses: bool = False
 
 
-#: Les types que ``json`` sait déjà écrire. Rien à encoder pour eux.
+#: The types ``json`` already knows how to write. Nothing to encode.
 _JSON_NATIVE: Final[frozenset[type]] = frozenset(
     {str, int, float, bool, type(None), list, dict}
 )
 
-#: Les natifs SCALAIRES — ceux qui sortent de l'encodage sans même être
-#: parcourus. ``list`` et ``dict`` en sont exclus : leurs éléments, eux,
-#: peuvent demander un codec.
+#: The SCALAR natives — the ones that leave encoding without even being
+#: walked. ``list`` and ``dict`` are excluded: their elements can very
+#: well ask for a codec.
 _JSON_SCALAR: Final[frozenset[type]] = frozenset(
     {str, int, float, bool, type(None)}
 )
 
-#: Type → codec. Peuplée par :func:`register_type`, y compris pour les
-#: six que le framework connaît d'origine (juste en dessous).
+#: Type → codec. Populated by :func:`register_type`, including for the
+#: six the framework knows out of the box (just below).
 _CODECS: dict[type, _Codec] = {}
 
 
@@ -79,103 +79,103 @@ def register_type(
     """Register how ``cls`` is encoded to and decoded from JSON."""
     if not isinstance(cls, type):
         raise TypeError(
-            f"register_type attend une CLASSE, reçu {cls!r}. La table est "
-            f"indexée par type — c'est ce qui permet à l'annotation de "
-            f"porter l'information, sans rien ajouter dans field()."
+            f"register_type expects a CLASS, got {cls!r}. The table is "
+            f"indexed by type — that is what lets the annotation carry "
+            f"the information, with nothing added in field()."
         )
     _CODECS[cls] = _Codec(encode=encode, decode=decode, subclasses=subclasses)
 
 
-# ── Les six que le framework connaît ────────────────────────────────────
+# ── The six the framework knows ─────────────────────────────────────────
 #
-# L'ordre n'a pas d'importance ici — la table est indexée par type
-# exact — mais la remarque vaut d'être écrite : une ``datetime`` EST une
-# ``date`` en Python. ``encode_value`` remonte l'héritage et s'appuie sur
-# l'ordre du MRO pour trouver la plus précise ; ``decode_value``, qui
-# tient le type DÉCLARÉ, cherche exact.
+# Order does not matter here — the table is indexed by exact type — but
+# the remark is worth writing down: a ``datetime`` IS a ``date`` in
+# Python. ``encode_value`` walks up the inheritance chain and relies on
+# MRO order to find the most precise one; ``decode_value``, which holds
+# the DECLARED type, looks for an exact match.
 register_type(_dt.datetime, encode=_dt.datetime.isoformat,
               decode=_dt.datetime.fromisoformat)
 register_type(_dt.date, encode=_dt.date.isoformat,
               decode=_dt.date.fromisoformat)
 register_type(_dt.time, encode=_dt.time.isoformat,
               decode=_dt.time.fromisoformat)
-# ``str`` et non ``float`` : c'est toute la raison d'être de ``Decimal``.
-# Passer par un flottant rendrait ``Decimal("0.1")`` différent de
-# lui-même après un aller-retour, et le registre réécrirait le champ à
-# chaque requête en croyant qu'il a changé.
+# ``str`` and not ``float``: that is the whole point of ``Decimal``.
+# Going through a float would make ``Decimal("0.1")`` differ from itself
+# after a round trip, and the registry would rewrite the field on every
+# request believing it had changed.
 register_type(decimal.Decimal, encode=str, decode=decimal.Decimal)
 register_type(uuid.UUID, encode=str, decode=uuid.UUID)
-# ``Enum`` est une FAMILLE : c'est le seul des six dont le type déclaré
-# est un HÉRITIER de celui qu'on inscrit (``teinte: Couleur``, codec sur
-# ``Enum``). Il passe donc par ``subclasses=True``, exactement comme le
-# ferait la classe de base d'une app — et n'est plus un cas à part.
+# ``Enum`` is a FAMILY: it is the only one of the six whose declared type
+# is an HEIR of the registered one (``hue: Colour``, codec on ``Enum``).
+# It therefore goes through ``subclasses=True``, exactly as an app's base
+# class would — and is no longer a special case.
 register_type(
     Enum,
-    encode=lambda membre: membre.value,
-    decode=lambda brut, cible: cible(brut),
+    encode=lambda member: member.value,
+    decode=lambda raw, target: target(raw),
     subclasses=True,
 )
 
 
 def _codec_for_declared(type_: Any) -> _Codec | None:
-    """Le codec d'un type DÉCLARÉ, familles comprises.
+    """The codec of a DECLARED type, families included.
 
-    Exact d'abord, puis l'héritage — mais un ancêtre ne compte que s'il
-    s'est déclaré ``subclasses=True``. Sans cette condition, déclarer un
-    champ ``datetime`` retomberait sur le codec de ``date`` (une
-    ``datetime`` EST une ``date``) et perdrait l'heure en silence.
-    L'ordre du MRO fait le reste : le plus précis gagne.
+    Exact first, then inheritance — but an ancestor only counts if it
+    declared ``subclasses=True``. Without that condition, declaring a
+    ``datetime`` field would fall back on the ``date`` codec (a
+    ``datetime`` IS a ``date``) and silently lose the time. MRO order
+    does the rest: the most precise one wins.
     """
     if not isinstance(type_, type):
         return None
     codec = _CODECS.get(type_)
     if codec is not None:
         return codec
-    for ancetre in type_.__mro__[1:]:
-        codec = _CODECS.get(ancetre)
+    for ancestor in type_.__mro__[1:]:
+        codec = _CODECS.get(ancestor)
         if codec is not None and codec.subclasses:
             return codec
     return None
 
 
 def encode_value(value: Any) -> Any:
-    """Rendre ``value`` sous une forme que ``json`` accepte.
+    """Render ``value`` in a form ``json`` accepts.
 
-    Appelé par le registre AVANT de tendre quoi que ce soit au magasin —
-    donc une seule fois, pour les deux backends. La mémoire et Redis voient
-    ainsi la même représentation sérialisée.
+    Called by the registry BEFORE handing anything to the store — so once
+    only, for both backends. Memory and Redis therefore see the same
+    serialised representation.
 
-    Descend dans les conteneurs, et son jumeau :func:`decode_value` en
-    fait autant : c'est cette SYMÉTRIE qui permet d'écrire
-    ``list[date]`` ou ``dict[str, Decimal]`` sans règle à retenir.
+    It descends into containers, and its twin :func:`decode_value` does
+    the same: it is that SYMMETRY which allows writing ``list[date]`` or
+    ``dict[str, Decimal]`` with no rule to remember.
 
-    Une valeur inconnue passe telle quelle : c'est au magasin de la
-    refuser, avec le message qui nomme le champ.
+    An unknown value passes through untouched: it is up to the store to
+    refuse it, with the message that names the field.
     """
-    # Sortie rapide sur ce que ``json`` écrit déjà, et c'est le cas de la
-    # quasi-totalité des champs. Sans elle, chaque valeur payait une
-    # remontée de MRO avant même de regarder la table. Mesuré le
-    # 2026-09-06 : 381 ns → 168 ns par scalaire, et 387 µs → 137 µs sur
-    # une liste de 1 000 chaînes, où l'encodeur « qui ne fait rien »
-    # coûtait 6,7 fois ``json.dumps`` de la même liste.
+    # Fast exit on what ``json`` already writes, and that covers nearly
+    # every field. Without it, each value paid an MRO walk before even
+    # looking at the table. Measured on 2026-09-06: 381 ns → 168 ns per
+    # scalar, and 387 µs → 137 µs on a list of 1 000 strings, where the
+    # encoder "that does nothing" cost 6.7 times ``json.dumps`` of the
+    # same list.
     if type(value) in _JSON_SCALAR:
         return value
-    # ⚠️ On remonte l'HÉRITAGE ici SANS exiger ``subclasses`` : à
-    # l'encodage on tient une valeur concrète, pas un type déclaré, et le
-    # framework fabrique lui-même des sous-classes de ``date``
-    # (``_BoundDate``, posé sur une valeur lue pendant un rendu pour
-    # qu'elle porte le nom de son champ). Recopier un champ date d'un
-    # autre rangeait donc un objet que la table ne trouvait pas : il
-    # partait nu au magasin, la mémoire l'acceptait, Redis levait.
-    # L'ordre du MRO donne la bonne réponse sans arbitrage.
-    for ancetre in type(value).__mro__:
-        codec = _CODECS.get(ancetre)
+    # ⚠️ Inheritance IS walked here WITHOUT requiring ``subclasses``: at
+    # encoding time we hold a concrete value, not a declared type, and
+    # the framework builds subclasses of ``date`` itself (``_BoundDate``,
+    # set on a value read during a render so it carries its field's
+    # name). Copying one date field from another therefore stored an
+    # object the table could not find: it went to the store naked, memory
+    # accepted it, Redis raised. MRO order gives the right answer with no
+    # arbitration.
+    for ancestor in type(value).__mro__:
+        codec = _CODECS.get(ancestor)
         if codec is not None:
             return codec.encode(value)
     if isinstance(value, (list, tuple, set, frozenset)):
-        # ``tuple`` et ``set`` sortent en LISTE — json ne connaît qu'elle.
-        # ``decode_value`` les reconstruit depuis le type déclaré, ce qui
-        # est exactement ce qui permet de les accepter.
+        # ``tuple`` and ``set`` go out as a LIST — json knows only that
+        # one. ``decode_value`` rebuilds them from the declared type,
+        # which is exactly what makes accepting them possible.
         return [encode_value(v) for v in value]
     if isinstance(value, dict):
         return {encode_value(k): encode_value(v) for k, v in value.items()}
@@ -183,28 +183,28 @@ def encode_value(value: Any) -> Any:
 
 
 def decode_value(type_: Any, raw: Any) -> Any:
-    """Relire ``raw`` comme un ``type_``, ou le rendre inchangé.
+    """Read ``raw`` back as a ``type_``, or return it unchanged.
 
-    Sert DEUX chemins d'un coup, et c'est voulu : l'hydratation depuis le
-    magasin et l'écriture d'un formulaire passent toutes deux par
-    :meth:`Field.__set__`. Une ``date`` relue et une ``date`` saisie
-    suivent donc exactement le même code.
+    It serves TWO paths at once, and that is on purpose: hydrating from
+    the store and writing a form both go through :meth:`Field.__set__`. A
+    ``date`` read back and a ``date`` typed in therefore follow exactly
+    the same code.
 
-    **Descend dans les conteneurs**, symétriquement à
-    :func:`encode_value`. Tant qu'il ne le faisait pas, un ``list[date]``
-    s'écrivait en ``["2026-01-01"]`` et se relisait en chaînes : le
-    framework devait REFUSER ce champ à la déclaration, et c'était une
-    règle de plus à retenir. La symétrie la supprime.
+    **It descends into containers**, symmetrically to
+    :func:`encode_value`. As long as it did not, a ``list[date]`` was
+    written as ``["2026-01-01"]`` and read back as strings: the framework
+    had to REFUSE that field at declaration time, and that was one more
+    rule to remember. Symmetry removes it.
     """
     if raw is None or type_ is Any:
-        # ⚠️ Any est une CLASSE depuis Python 3.11, donc il passe le
-        # isinstance(type_, type) plus bas et fait lever
-        # isinstance(raw, Any). C'est l'échappatoire déclarée : on ne
-        # touche à rien, par définition.
+        # ⚠️ Any is a CLASS since Python 3.11, so it passes the
+        # isinstance(type_, type) below and makes isinstance(raw, Any)
+        # raise. It is the declared escape hatch: nothing is touched, by
+        # definition.
         return raw
     origin = get_origin(type_)
 
-    # ── Conteneurs : on décode les ÉLÉMENTS, puis on rebâtit ──────────
+    # ── Containers: decode the ELEMENTS, then rebuild ────────────────
     if origin in (list, set, frozenset, tuple):
         args = [a for a in get_args(type_) if a is not Ellipsis]
         if not isinstance(raw, (list, tuple, set, frozenset)):
@@ -234,54 +234,53 @@ def decode_value(type_: Any, raw: Any) -> Any:
     target = _unwrap_optional(type_)
     if target is None:
         return raw
-    # « Déjà du bon type, on ne touche pas » — un handler qui écrit un
-    # vrai ``date`` ne paie pas un aller-retour par chaîne.
+    # "Already the right type, leave it alone" — a handler writing a
+    # real ``date`` does not pay a round trip through a string.
     if isinstance(raw, target):
         return raw
     codec = _codec_for_declared(target)
     if codec is None:
         return raw
-    # Une FAMILLE reçoit la classe concrète : c'est la seule information
-    # que la table ne porte pas, et c'est ce qui permet à ``Enum`` de
-    # s'inscrire par la porte publique au lieu d'être un cas à part.
+    # A FAMILY receives the concrete class: it is the only information
+    # the table does not carry, and it is what lets ``Enum`` register
+    # through the public door instead of being a special case.
     return codec.decode(raw, target) if codec.subclasses else codec.decode(raw)
 
 
 def _unwrap_optional(type_: Any) -> Any:
-    """``T | None`` → ``T``. Toute autre union rend ``None``.
+    """``T | None`` → ``T``. Any other union returns ``None``.
 
-    Même règle que la coercition scalaire (``_resolve_scalar_target``) :
-    on ne déballe que lorsque ``None`` est le SEUL autre membre. Une
-    union véritable n'a pas de cible unique, donc rien à décoder.
+    Same rule as scalar coercion (``_resolve_scalar_target``): we only
+    unwrap when ``None`` is the ONLY other member. A genuine union has no
+    single target, so there is nothing to decode.
     """
     if isinstance(type_, type):
         return type_
     origin = get_origin(type_)
     if origin is Union or origin is _pytypes.UnionType:
-        autres = [a for a in get_args(type_) if a is not type(None)]
-        if len(autres) == 1 and isinstance(autres[0], type):
-            return autres[0]
+        others = [a for a in get_args(type_) if a is not type(None)]
+        if len(others) == 1 and isinstance(others[0], type):
+            return others[0]
     return None
 
 
 def is_storable(type_: Any) -> bool:
-    """Le type déclaré peut-il ARRIVER jusqu'au magasin, ET en revenir ?
+    """Can the declared type REACH the store, AND come back from it?
 
-    Lu par la métaclasse pour refuser au DÉMARRAGE un champ qui ne
-    pourrait pas se persister — plutôt qu'à la première écriture,
-    c'est-à-dire en production, le magasin mémoire du dev l'ayant laissé
-    passer.
+    Read by the metaclass to refuse AT STARTUP a field that could not
+    persist — rather than on the first write, that is to say in
+    production, the dev's memory store having let it through.
 
-    **Une seule règle, appliquée récursivement** : un type passe s'il a
-    un codec (directement ou par sa famille), s'il est natif pour
-    ``json``, si c'est un conteneur dont les éléments passent, une union
-    dont les membres passent, un ``Literal`` de constantes — ou ``Any``,
-    l'échappatoire assumée, où c'est le magasin qui arbitre.
+    **One rule, applied recursively**: a type passes if it has a codec
+    (directly or through its family), if it is native to ``json``, if it
+    is a container whose elements pass, a union whose members pass, a
+    ``Literal`` of constants — or ``Any``, the acknowledged escape hatch,
+    where the store arbitrates.
 
-    Il n'y a plus d'exception à retenir : ``list[date]``,
-    ``dict[str, Decimal]``, ``tuple[date, date]`` et ``set[UUID]``
-    passent, parce que l'encodage et le décodage descendent tous les deux
-    dans les conteneurs depuis le 2026-09-06.
+    There is no exception left to remember: ``list[date]``,
+    ``dict[str, Decimal]``, ``tuple[date, date]`` and ``set[UUID]`` all
+    pass, because encoding and decoding both descend into containers
+    since 2026-09-06.
     """
     if type_ is None or type_ is Any:
         return True
@@ -295,9 +294,9 @@ def is_storable(type_: Any) -> bool:
     if origin is Union or origin is _pytypes.UnionType:
         return all(is_storable(a) for a in get_args(type_))
     if origin in (list, dict, tuple, set, frozenset):
-        # ``tuple`` / ``set`` sortent en LISTE et sont RECONSTRUITS au
-        # décodage depuis le type déclaré. Les refuser était une règle
-        # de plus sans contrepartie.
+        # ``tuple`` / ``set`` go out as a LIST and are REBUILT at decode
+        # time from the declared type. Refusing them was one more rule
+        # with nothing in return.
         return all(
             a is Ellipsis or is_storable(a) for a in get_args(type_)
         )

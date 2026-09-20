@@ -9,11 +9,11 @@ This is also the point where we run the registered cleanup callbacks
 in LIFO order — anything that needs to happen after the response
 went through the middleware stack but before the connection closes.
 
-Form data (V3 wire) : when the inbound request is form-typed, the
-middleware buffers the body — **borné et déversé sur disque au-delà d'un
-seuil**, cf. ``_buffer_body`` —, parses it ONCE, and splits the namespaced
-client-state fields (``Class.key.field=value``, injected by the
-runtime bridge on every HTMX request) from the regular handler args
+Form data (V3 wire): when the inbound request is form-typed, the
+middleware buffers the body — **bounded and spilled to disk past a
+threshold**, cf. ``_buffer_body`` —, parses it ONCE, and splits the
+namespaced client-state fields (``Class.key.field=value``, injected by
+the runtime bridge on every HTMX request) from the regular handler args
 via :func:`bretzel.runtime.envelope.parse_client_payload`. The handler
 args land on ``ctx.form_data``, the client-state slice feeds the
 :class:`StateRegistry` hydration. Downstream consumers that still call
@@ -56,48 +56,48 @@ _BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
 
 _log = logging.getLogger("bretzel.server.request")
 
-#: Le plafond du CORPS entier. Il n'en existait aucun : ``_read_full_body``
-#: concaténait ce qui arrivait jusqu'à ce que le client s'arrête, donc un
-#: seul POST suffisait à faire allouer au worker autant de RAM que
-#: l'expéditeur voulait. ``_MAX_PART_BYTES`` ne protégeait pas de ça — il
-#: s'applique à une PART, et seulement après que le corps entier est déjà
-#: en mémoire.
+#: The ceiling on the whole BODY. There was none: ``_read_full_body``
+#: concatenated whatever arrived until the client stopped, so a single
+#: POST was enough to make the worker allocate as much RAM as the sender
+#: wanted. ``_MAX_PART_BYTES`` did not protect against that — it applies
+#: to a PART, and only after the whole body is already in memory.
 #:
-#: 32 Mio, la même valeur que le plafond d'une part : une part ne peut de
-#: toute façon pas dépasser le corps qui la contient. Au-delà, la réponse
-#: est un 413 — et c'est une amélioration franche par rapport à avant, où
-#: un corps trop gros passait le tampon puis échouait au parse, ce que le
-#: ``except`` transformait en formulaire vide, silencieusement.
+#: 32 MiB, the same value as a part's ceiling: a part cannot exceed the
+#: body containing it anyway. Beyond that, the answer is a 413 — and it
+#: is a clear improvement on what came before, where a body that was too
+#: large passed the buffer then failed to parse, which the ``except``
+#: turned into an empty form, silently.
 _MAX_BODY_BYTES = 32 * 1024 * 1024
 
-#: Au-delà de quoi le tampon part sur DISQUE.
+#: Past which the buffer goes to DISK.
 #:
-#: ``SpooledTemporaryFile`` garde tout en mémoire sous ce seuil et bascule
-#: sur un fichier au premier octet qui le dépasse. Le chemin chaud — une
-#: action, quelques centaines d'octets — ne touche donc jamais le disque,
-#: et un dépôt de 30 Mio coûte 1 Mio de RAM au lieu de 30. Sans ça, le
-#: déversement que Starlette fait déjà pour les parts fichier était
-#: annulé d'avance : on avait tout matérialisé avant qu'il ne le voie.
+#: ``SpooledTemporaryFile`` keeps everything in memory below this
+#: threshold and switches to a file at the first byte that exceeds it.
+#: The hot path — an action, a few hundred bytes — therefore never
+#: touches the disk, and a 30 MiB upload costs 1 MiB of RAM instead of
+#: 30. Without it, the spilling Starlette already does for file parts was
+#: cancelled in advance: we had materialised everything before it could
+#: see it.
 _SPOOL_THRESHOLD_BYTES = 1024 * 1024
 
-#: La taille d'un morceau relu du tampon. Le corps repart en PLUSIEURS
-#: messages ASGI quand il est gros — ce qui est aussi plus fidèle au
-#: protocole que l'unique message d'avant.
+#: The size of a chunk read back from the buffer. The body goes out in
+#: SEVERAL ASGI messages when it is large — which is also more faithful
+#: to the protocol than the single message we had before.
 _REPLAY_CHUNK_BYTES = 64 * 1024
 
 _TOO_LARGE = (
-    f"le corps de la requête dépasse {_MAX_BODY_BYTES // (1024 * 1024)} Mio."
+    f"the request body exceeds {_MAX_BODY_BYTES // (1024 * 1024)} MiB."
 )
 
 
 @dataclass(slots=True)
 class _BufferedBody:
-    """Le corps de la requête, relisible autant de fois qu'il faut.
+    """The request body, re-readable as many times as needed.
 
-    ``too_large`` dit que la lecture s'est arrêtée sur le plafond : le
-    contenu est alors tronqué et ne doit pas être parsé. On ne draine pas
-    le reste — répondre 413 sans finir d'écouter est le comportement
-    normal, et continuer à lire serait précisément ce qu'on refuse.
+    ``too_large`` says the read stopped at the ceiling: the content is
+    then truncated and must not be parsed. We do not drain the rest —
+    answering 413 without finishing listening is the normal behaviour,
+    and continuing to read would be precisely what we refuse.
     """
 
     spool: IO[bytes]
@@ -113,46 +113,45 @@ class _BufferedBody:
 
 
 def _zones_declared_by(request: Any) -> frozenset[str] | None:
-    """Les zones que le navigateur dit porter, ou ``None`` s'il se tait.
+    """The zones the browser says it carries, or ``None`` when it is silent.
 
-    ``None`` et l'ensemble vide ne veulent PAS dire la même chose : le
-    premier est « je ne sais pas » et laisse le drain se comporter comme
-    avant, le second serait « aucune zone » et les ferait toutes taire.
-    Le runtime n'envoie jamais l'en-tête vide, donc une valeur vide ou
-    blanche est traitée comme un silence.
+    ``None`` and the empty set do NOT mean the same thing: the first is
+    "I do not know" and lets the drain behave as before, the second would
+    be "no zone" and would silence them all. The runtime never sends the
+    header empty, so an empty or blank value is treated as silence.
 
-    Cf. :data:`~bretzel.runtime.protocol.HEADER_ZONES` pour la mesure qui
-    justifie l'en-tête.
+    Cf. :data:`~bretzel.runtime.protocol.HEADER_ZONES` for the
+    measurement justifying the header.
     """
-    brut = request.headers.get(HEADER_ZONES)
-    if not brut:
+    raw = request.headers.get(HEADER_ZONES)
+    if not raw:
         return None
-    # Chaque entrée est ``id`` ou ``id:empreinte`` — l'empreinte est lue
-    # par :func:`_zone_hashes_of`, ici on ne garde que l'identité.
+    # Each entry is ``id`` or ``id:fingerprint`` — the fingerprint is
+    # read by :func:`_zone_hashes_of`, here we keep only the identity.
     ids = frozenset(
         p.split(":", 1)[0]
-        for p in (m.strip() for m in brut.split(",")) if p
+        for p in (m.strip() for m in raw.split(",")) if p
     )
     return ids or None
 
 
 def _zone_hashes_of(request: Any) -> dict[str, str]:
-    """``{id: empreinte}`` de ce que le navigateur AFFICHE déjà.
+    """``{id: fingerprint}`` of what the browser is ALREADY displaying.
 
-    Vide quand le client se tait ou n'envoie que des identités — un
-    runtime plus ancien, ou le tout premier POST après un chargement
-    complet, qui n'a encore reçu aucune empreinte.
+    Empty when the client is silent or sends only identities — an older
+    runtime, or the very first POST after a full load, which has not yet
+    received any fingerprint.
     """
-    brut = request.headers.get(HEADER_ZONES)
-    if not brut:
+    raw = request.headers.get(HEADER_ZONES)
+    if not raw:
         return {}
-    connus: dict[str, str] = {}
-    for morceau in (m.strip() for m in brut.split(",")):
-        if ":" in morceau:
-            zone_id, empreinte = morceau.split(":", 1)
-            if zone_id and empreinte:
-                connus[zone_id] = empreinte
-    return connus
+    known: dict[str, str] = {}
+    for piece in (m.strip() for m in raw.split(",")):
+        if ":" in piece:
+            zone_id, digest = piece.split(":", 1)
+            if zone_id and digest:
+                known[zone_id] = digest
+    return known
 
 
 class RenderContextMiddleware:
@@ -181,9 +180,10 @@ class RenderContextMiddleware:
             scope, receive
         )
         if buffered is not None and buffered.too_large:
-            # Refus AVANT de construire quoi que ce soit : ni contexte,
-            # ni registre, ni route. Le corps est tronqué, il n'y a rien
-            # à en tirer, et 413 est la réponse que le client attend.
+            # Refusal BEFORE building anything: no context, no
+            # registry, no route. The body is truncated, there is nothing
+            # to be drawn from it, and 413 is the answer the client
+            # expects.
             buffered.close()
             await Response(_TOO_LARGE, status_code=413)(scope, receive, send)
             return
@@ -225,10 +225,10 @@ class RenderContextMiddleware:
             live_zones=_zones_declared_by(request),
             zone_hashes=_zone_hashes_of(request),
             tab_id=(request.headers.get(HEADER_TAB) or "").strip()[:64],
-            # La langue et les mots du framework voyagent PAR VALEUR
-            # jusqu'ici : un composant en couche 5 ne peut pas remonter
-            # lire la config en couche 7, et ``ui.text()`` doit marcher
-            # sans app complète (toute la suite unitaire).
+            # The language and the framework's words travel BY VALUE
+            # to here: a component in layer 5 cannot reach up to read the
+            # config in layer 7, and ``ui.text()`` must work without a
+            # complete app (the whole unit suite).
             lang=resolved_lang,
             texts=cfg.text_tables.for_language(resolved_lang),
         )
@@ -258,9 +258,9 @@ class RenderContextMiddleware:
                 await self.app(scope, replay_receive, wrapped_send)
             finally:
                 ctx.run_cleanups()
-                # Le tampon peut être un FICHIER : ne pas le fermer
-                # laisserait un temporaire par dépôt un peu gros, et le
-                # ramasse-miettes ne s'en occupe qu'à sa main.
+                # The buffer may be a FILE: not closing it would leave
+                # one temporary per slightly large upload, and the
+                # garbage collector gets to it in its own time.
                 if buffered is not None:
                     buffered.close()
 
@@ -273,19 +273,19 @@ class RenderContextMiddleware:
 async def _collect_form(
     scope: Scope, receive: Receive
 ) -> tuple[dict[str, Any], Receive, str | None, _BufferedBody | None]:
-    """``(form_data, receive aval, erreur éventuelle, tampon à fermer)``.
+    """``(form_data, downstream receive, possible error, buffer to close)``.
 
     Non-form-typed methods pass through with an empty form and the
     original ``receive``. Form-typed POSTs buffer the body so we can
     parse once here and replay it for any consumer that re-reads.
 
-    Le troisième élément est la RAISON d'un formulaire vide quand il y en
-    a une. Elle remonte jusqu'au dispatcher d'action, qui refuse plutôt
-    que de faire tourner un handler sur du vide — un formulaire illisible
-    valait sinon une saisie de champs blancs, écrite dans l'état.
+    The third element is the REASON for an empty form when there is one.
+    It surfaces as far as the action dispatcher, which refuses rather
+    than running a handler on nothing — an unreadable form was otherwise
+    worth an input of blank fields, written to the state.
 
-    Le quatrième est le tampon : l'appelant DOIT le fermer, sinon un
-    dépôt un peu gros laisse un fichier temporaire derrière lui.
+    The fourth is the buffer: the caller MUST close it, otherwise a
+    slightly large upload leaves a temporary file behind.
     """
     method = scope.get("method", "").upper()
     if method not in _BODY_METHODS:
@@ -299,7 +299,8 @@ async def _collect_form(
 
     buffered = await _buffer_body(receive)
     if buffered.too_large:
-        # Le corps est tronqué : rien à parser, et l'appelant répond 413.
+        # The body is truncated: nothing to parse, and the caller
+        # answers 413.
         return {}, _replay_receive(buffered), _TOO_LARGE, buffered
     replay = _replay_receive(buffered)
     if not buffered.size:
@@ -314,7 +315,7 @@ async def _collect_form(
             return (
                 {},
                 replay,
-                "le corps du formulaire n'est pas de l'UTF-8 valide.",
+                "the form body is not valid UTF-8.",
                 buffered,
             )
         return (
@@ -323,64 +324,64 @@ async def _collect_form(
             None,
             buffered,
         )
-    # multipart : delegate to Starlette so we inherit every quirk
+    # multipart: delegate to Starlette so we inherit every quirk
     # (boundary handling, file uploads, charset detection).
     #
-    # ``max_part_size`` relevé : le défaut de Starlette (1 Mo) s'applique à
-    # CHAQUE part, y compris celles qui ne sont pas des fichiers, et une
-    # part trop grosse lève — ce que le ``except`` ci-dessous transforme en
-    # formulaire VIDE, silencieusement. Un formulaire n'arrive ici que
-    # depuis août 2026, quand il contient un fichier (``ui.form`` dérive
-    # alors son ``hx-encoding``) ; avant, ces corps passaient par
-    # ``parse_qsl``, qui n'a aucune limite de champ. Sans ce relèvement, la
-    # réparation du dépôt de fichier aurait introduit une falaise à 1 Mo
-    # sur le CHAMP TEXTE voisin — un ``ui.signature_pad`` (data-URL base64)
-    # ou une longue zone de texte suffit à la franchir, et le handler
-    # recevrait un formulaire vide sans un mot.
+    # ``max_part_size`` raised: Starlette's default (1 MB) applies to
+    # EACH part, including those that are not files, and a part that is
+    # too large raises — which the ``except`` below turns into an EMPTY
+    # form, silently. A form only arrives here since August 2026, when it
+    # contains a file (``ui.form`` then derives its ``hx-encoding``);
+    # before that, those bodies went through ``parse_qsl``, which has no
+    # field limit. Without this raise, fixing file upload would have
+    # introduced a 1 MB cliff on the neighbouring TEXT FIELD — a
+    # ``ui.signature_pad`` (base64 data URL) or a long textarea is enough
+    # to cross it, and the handler would receive an empty form without a
+    # word.
     request = Request(scope, _replay_receive(buffered))
     try:
         raw_form = await request.form(max_part_size=_MAX_PART_BYTES)
         return {k: raw_form[k] for k in raw_form}, replay, None, buffered
     except Exception as exc:
-        # ⚠️ Ce ``except`` rendait un formulaire VIDE et se taisait. Le
-        # handler tournait alors sur des champs blancs et les écrivait
-        # dans l'état : la panne se lisait comme une saisie, ce qui est
-        # le pire des deux. On garde le passage — un ``raise`` ici
-        # casserait aussi les routes tierces qui lisent le corps
-        # elles-mêmes — mais la raison remonte, et le dispatcher refuse.
+        # ⚠️ This ``except`` returned an EMPTY form and said nothing.
+        # The handler then ran on blank fields and wrote them to the
+        # state: the failure read as input, which is the worse of the
+        # two. We keep the pass-through — a ``raise`` here would also
+        # break third-party routes that read the body themselves — but
+        # the reason surfaces, and the dispatcher refuses.
         _log.exception("Formulaire multipart illisible")
         return (
             {},
             replay,
-            f"le formulaire multipart n'a pas pu être lu : {exc}",
+            f"the multipart form could not be read: {exc}",
             buffered,
         )
 
 
-#: Le plafond d'une part multipart. 32 Mo : assez pour qu'un champ texte
-#: ne le rencontre jamais, et assez bas pour rester une borne. Le défaut de
-#: Starlette (1 Mo) vaut pour un champ ; il est trop bas dès qu'un
-#: formulaire porte un fichier, ce qui est le seul cas où on arrive ici.
+#: The ceiling on one multipart part. 32 MB: high enough that a text
+#: field never meets it, and low enough to stay a bound. Starlette's
+#: default (1 MB) is right for a field; it is too low as soon as a form
+#: carries a file, which is the only case we get here.
 _MAX_PART_BYTES = 32 * 1024 * 1024
 
 
 async def _buffer_body(receive: Receive) -> _BufferedBody:
-    """Draine ``receive`` dans un tampon BORNÉ et déversable sur disque.
+    """Drain ``receive`` into a BOUNDED buffer that can spill to disk.
 
-    Deux différences avec la version d'avant, et la première est une
-    faille fermée : on s'arrête au plafond au lieu d'allouer ce que
-    l'expéditeur veut, et on écrit dans un ``SpooledTemporaryFile`` au
-    lieu d'une liste d'octets — donc sous le seuil, c'est toujours de la
-    mémoire, et au-dessus, c'est un fichier.
+    Two differences from the previous version, and the first is a closed
+    hole: we stop at the ceiling instead of allocating whatever the
+    sender wants, and we write into a ``SpooledTemporaryFile`` instead of
+    a list of bytes — so below the threshold it is still memory, and
+    above, it is a file.
 
-    On cesse de lire dès le plafond franchi : finir d'écouter un corps
-    qu'on va refuser reviendrait à le laisser coûter ce qu'il voulait.
+    We stop reading as soon as the ceiling is crossed: finishing
+    listening to a body we are going to refuse would amount to letting it
+    cost whatever it wanted.
     """
-    # Pas de gestionnaire de contexte (SIM115) : le tampon vit plus
-    # longtemps que cette fonction — il doit survivre au parse ET au
-    # passage de la requête dans toute la pile. Sa fermeture est dans le
-    # ``finally`` du middleware, et
-    # ``test_the_buffer_is_closed_after_the_request`` la garde.
+    # No context manager (SIM115): the buffer outlives this function —
+    # it has to survive the parse AND the request's passage through the
+    # whole stack. Its closing is in the middleware's ``finally``, and
+    # ``test_the_buffer_is_closed_after_the_request`` guards it.
     spool: IO[bytes] = tempfile.SpooledTemporaryFile(  # noqa: SIM115
         max_size=_SPOOL_THRESHOLD_BYTES
     )
@@ -392,7 +393,7 @@ async def _buffer_body(receive: Receive) -> _BufferedBody:
         chunk = msg.get("body", b"")
         if size + len(chunk) > _MAX_BODY_BYTES:
             _log.warning(
-                "Corps de requête refusé : plus de %d octets.", _MAX_BODY_BYTES
+                "Request body refused: more than %d bytes.", _MAX_BODY_BYTES
             )
             return _BufferedBody(spool=spool, size=size, too_large=True)
         spool.write(chunk)
@@ -403,14 +404,13 @@ async def _buffer_body(receive: Receive) -> _BufferedBody:
 
 
 def _replay_receive(buffered: _BufferedBody) -> Receive:
-    """Rejouer le corps depuis le tampon, par morceaux.
+    """Replay the body from the buffer, in chunks.
 
-    Chaque appel rend un ``Receive`` INDÉPENDANT : il porte sa propre
-    position et repositionne le tampon avant chaque lecture, donc deux
-    consommateurs (le parse ici, puis la route en aval) le relisent tous
-    les deux depuis le début. Un curseur partagé donnerait un corps vide
-    au second, ce qui est exactement le bug qu'un tampon existe pour
-    éviter.
+    Each call returns an INDEPENDENT ``Receive``: it carries its own
+    position and repositions the buffer before every read, so two
+    consumers (the parse here, then the downstream route) both read it
+    from the start. A shared cursor would give the second an empty body,
+    which is exactly the bug a buffer exists to avoid.
     """
     position = 0
     done = False
@@ -462,17 +462,17 @@ def _apply_ctx_cookies_and_headers(ctx: RenderContext, message: Message) -> None
 
 
 def _addressable_params(scope: Scope) -> dict[str, str]:
-    """Les paramètres de l'URL que le NAVIGATEUR affiche.
+    """The parameters of the URL the BROWSER is displaying.
 
-    Deux sources, et les confondre casse un des deux chemins :
+    Two sources, and confusing them breaks one of the two paths:
 
-    - **une navigation** (GET, boostée ou non) porte sa query dans sa
-      propre URL. ``HX-Current-URL`` y désigne la page qu'on QUITTE —
-      s'en servir sèmerait l'état de la page précédente ;
-    - **une action** POSTe sur ``/_bretzel/action/<id>``, qui n'a aucune
-      query. Là, ``HX-Current-URL`` est la seule source, et c'est
-      justement ce qui rend l'URL autoritaire : même si le ``page_id``
-      est perdu, l'état se reconstruit depuis l'adresse affichée.
+    - **a navigation** (GET, boosted or not) carries its query in its own
+      URL. ``HX-Current-URL`` there designates the page being LEFT —
+      using it would seed the previous page's state;
+    - **an action** POSTs to ``/_bretzel/action/<id>``, which has no
+      query. There, ``HX-Current-URL`` is the only source, and that is
+      precisely what makes the URL authoritative: even if the ``page_id``
+      is lost, the state is rebuilt from the displayed address.
     """
     if scope.get("method", "GET").upper() == "GET":
         raw = scope.get("query_string", b"").decode("latin-1")

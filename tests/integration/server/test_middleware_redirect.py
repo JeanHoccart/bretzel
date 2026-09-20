@@ -166,7 +166,7 @@ class TestHtmxRequest:
 class TestGuards:
     def test_crlf_in_url_is_refused(self) -> None:
         """Response splitting : l'URL vient souvent d'un ``?next=``."""
-        with pytest.raises(ValueError, match="caractère de contrôle"):
+        with pytest.raises(ValueError, match="control character"):
             redirect_response(object(), "/ok\r\nX-Injected: 1")
 
     def test_empty_url_is_refused(self) -> None:

@@ -1,33 +1,34 @@
-"""core/seed — la fabrique du jeu de démonstration. Déterministe.
+"""core/seed — the demonstration set factory. Deterministic.
 
-**Noms inventés, aucune donnée réelle.** La frontière du § 3.3 du cahier
-est absolue : rien de ce qui vit dans les applications du professeur — ni
-un nom, ni une photo, ni une appréciation — n'apparaît ici. Les volumes,
-eux, sont ceux de sa base, mesurés le 2026-09-12 (§ 13), parce que c'est
-le volume qui charge le framework et pas la vraisemblance des noms.
+**Invented names, no real data.** The specification's § 3.3 boundary is
+absolute: nothing that lives in the teacher's applications — not a name,
+not a photo, not a comment — appears here. The volumes, on the other
+hand, are those of their database, measured on 2026-09-12 (§ 13), because
+it is the volume that loads the framework and not the plausibility of the
+names.
 
-Aucun ``random`` global : un ``Random(GRAINE)`` local, donc deux machines
-obtiennent la même base et un identifiant cité dans un test reste le même
-demain.
+No global ``random``: a local ``Random(GRAINE)``, so two machines get the
+same database and an identifier quoted in a test is still the same
+tomorrow.
 
-Le jeu est bâti AUTOUR d'aujourd'hui
-------------------------------------
-:data:`RENTREE` se déduit de la date du jour. L'année en cours contient
-donc toujours aujourd'hui — sans quoi la grille de la semaine s'ouvrirait
-sur des vacances et le cahier de texte ne proposerait rien. ``init_db``
-range :data:`RENTREE` à côté de la version du seed et refait la base
-quand elle change : le jeu se renouvelle tout seul, une fois par an.
+The set is built AROUND today
+------------------------------
+:data:`RENTREE` is deduced from today's date. The current year therefore
+always contains today — without which the week's grid would open on
+holidays and the lesson log would propose nothing. ``init_db`` files
+:data:`RENTREE` beside the seed's version and rebuilds the database when
+it changes: the set renews itself, once a year.
 
-Deux écarts assumés avec le § 13, et ils sont ici pour être relus
-------------------------------------------------------------------
-1. **Douze trimestres, pas trois.** EF-A3 exige une grille de *trois
-   numéros × deux cycles* — soit six lignes par année, douze pour deux.
-   Le « 3 » du § 13 compte un seul cycle d'une seule année. La règle
-   gagne sur l'inventaire.
-2. **Les vérifications ne sont pas au § 13**, et il en faut : EF-C1
-   demande une marque « à voir » sur la tuile d'une classe, et une
-   colonne vide ne montre pas la fonction. Vingt-cinq sont semées, dont
-   une part déjà faites — EF-H3 dit que rien ne s'efface.
+Two accepted departures from § 13, and they are here to be re-read
+-------------------------------------------------------------------
+1. **Twelve terms, not three.** EF-A3 requires a grid of *three numbers ×
+   two cycles* — that is six rows per year, twelve for two. The "3" of
+   § 13 counts a single cycle of a single year. The rule wins over the
+   inventory.
+2. **The checks are not in § 13**, and some are needed: EF-C1 asks for a
+   "to review" mark on a class's tile, and an empty column does not show
+   the function. Twenty-five are seeded, some already done — EF-H3 says
+   nothing is erased.
 """
 
 from __future__ import annotations
@@ -48,17 +49,17 @@ from examples.ecole.core.domain import (
     rang_du_niveau,
 )
 
-#: Fixe. Change de graine et tous les identifiants changent.
+#: Fixed. Change the seed and every identifier changes.
 GRAINE = 20260912
 
-#: L'année civile de la rentrée en cours. Lue une fois à l'import.
+#: The calendar year of the current school year. Read once at import.
 RENTREE: int = (
     date.today().year if date.today().month >= 8 else date.today().year - 1
 )
 
-#: Le service du professeur, année en cours : dix classes, deux cycles.
-#: Le libellé est celui que l'établissement imprime, le code celui que le
-#: professeur tape dans sa grille (EF-B6).
+#: The teacher's timetable, current year: ten classes, two cycles. The
+#: label is the one the school prints, the code the one the teacher types
+#: into their grid (EF-B6).
 CLASSES_EN_COURS: tuple[tuple[str, str, int], ...] = (
     ("6e2", "Sixième 2", 30),
     ("5e1", "Cinquième 1", 29),
@@ -72,8 +73,8 @@ CLASSES_EN_COURS: tuple[tuple[str, str, int], ...] = (
     ("T°S2", "Terminale spécialité 2", 32),
 )
 
-#: Le service de l'année PASSÉE. Elle existe pour prouver RT-1 : elle se
-#: consulte entièrement et refuse toute écriture.
+#: LAST year's timetable. It exists to prove RT-1: it is fully readable
+#: and refuses every write.
 CLASSES_PASSEES: tuple[tuple[str, str, int], ...] = (
     ("6e1", "Sixième 1", 29),
     ("5e3", "Cinquième 3", 28),
@@ -83,20 +84,21 @@ CLASSES_PASSEES: tuple[tuple[str, str, int], ...] = (
     ("1°S1", "Première spécialité 1", 29),
 )
 
-#: La grille type de l'année en cours : ``(jour, rang, semaine, code,
-#: nature, salle)``. Écrite à la main plutôt que tirée au sort, parce
-#: qu'elle doit EXERCER trois règles que la recette vérifie à l'écran :
+#: The current year's typical grid: ``(day, rank, week, code, nature,
+#: room)``. Written by hand rather than drawn at random, because it must
+#: EXERCISE three rules the acceptance checks on screen:
 #:
-#: - un **bloc** de deux heures consécutives (lundi s1-s2 en 6e2) ;
-#: - un **TP**, trois heures de suite avec la même classe (lundi s5-s6-s7
-#:   en 3e2 ; jeudi s2-s3-s4 en 2°GT4). La récréation de 15 minutes entre
-#:   s6 et s7 ne coupe pas le bloc, la pause de midi si (EF-B9) ;
-#: - une **nature**, qui ne se fond pas dans le bloc voisin et ne va pas
-#:   au cahier de texte (mardi s6, ``HVC`` en 4e3).
+#: - a **block** of two consecutive hours (Monday s1-s2 in 6e2);
+#: - a **practical**, three hours in a row with the same class (Monday
+#:   s5-s6-s7 in 3e2; Thursday s2-s3-s4 in 2°GT4). The 15-minute break
+#:   between s6 and s7 does not cut the block, the lunch break does
+#:   (EF-B9);
+#: - a **nature**, which does not merge into the neighbouring block and
+#:   does not go to the lesson log (Tuesday s6, ``HVC`` in 4e3).
 #:
-#: ⚠️ La salle est une SALLE, jamais une nature — c'est le piège n° 1, et
-#: ``L`` (le laboratoire) est précisément la saisie qui avait fait
-#: disparaître 31 créneaux sur 43.
+#: ⚠️ The room is a ROOM, never a nature — that is trap no. 1, and ``L``
+#: (the laboratory) is precisely the entry that had made 31 slots out of
+#: 43 vanish.
 GRILLE_EN_COURS: tuple[tuple[int, int, str, str, str, str], ...] = (
     # lundi
     (0, 1, "A", "6e2", "", "C209"), (0, 2, "A", "6e2", "", "C209"),
@@ -125,8 +127,7 @@ GRILLE_EN_COURS: tuple[tuple[int, int, str, str, str, str], ...] = (
     (4, 1, "B", "5e4", "", "C209"), (4, 2, "B", "5e4", "", "C209"),
 )
 
-#: La grille de l'année passée — plus courte, elle n'est là que pour se
-#: consulter.
+#: Last year's grid — shorter, it is only there to be looked at.
 GRILLE_PASSEE: tuple[tuple[int, int, str, str, str, str], ...] = (
     (0, 1, "A", "6e1", "", "C209"), (0, 2, "A", "6e1", "", "C209"),
     (0, 4, "A", "4e2", "", "C209"), (0, 5, "A", "4e2", "", "C209"),
@@ -140,11 +141,11 @@ GRILLE_PASSEE: tuple[tuple[int, int, str, str, str, str], ...] = (
     (3, 2, "B", "1°S1", "", "L"), (3, 3, "B", "1°S1", "", "L"),
 )
 
-#: Les quatre vacances de la zone B, en décalage de jours depuis la
-#: rentrée, puis cinq jours isolés — férié, pont, journée banalisée.
-#: **Même table, même règle** (EF-A4) : un jour férié est une période
-#: d'un seul jour, et c'est ce qui fait que la ligne bleue des périodes
-#: de travail ne se coupe que sur les VRAIES vacances (EF-A9).
+#: Zone B's four holidays, as day offsets from the start of the school
+#: year, then five isolated days — a public holiday, a bridge day, a
+#: staff day. **Same table, same rule** (EF-A4): a public holiday is a
+#: one-day period, and it is what makes the working periods' blue line
+#: cut only on REAL holidays (EF-A9).
 VACANCES: tuple[tuple[str, int, int], ...] = (
     ("Toussaint", 54, 69),
     ("Noël", 110, 125),
@@ -157,16 +158,16 @@ VACANCES: tuple[tuple[str, int, int], ...] = (
     ("Fête du Travail", 242, 242),
 )
 
-#: Les motifs courants d'une vérification (EF-H2) — elle se pose d'un
-#: seul geste, sinon c'est une note qu'on ne prend pas.
+#: A check's common reasons (EF-H2) — it is set in a single gesture,
+#: otherwise it is a note one does not take.
 MOTIFS: tuple[str, ...] = (
     "cahier incomplet", "cahier mal tenu", "travail non fait",
     "exercice à refaire", "signature des parents",
 )
 
-#: Les chapitres du programme, par niveau. Quatre à cinq par niveau, avec
-#: leurs séances — c'est ce que lisent la progression (EF-L1) et le
-#: cahier de texte (EF-K2).
+#: The syllabus chapters, per level. Four to five per level, with their
+#: sessions — it is what the progression (EF-L1) and the lesson log
+#: (EF-K2) read.
 PROGRAMME: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
     "6e": (
         ("Les états physiques de la matière", (
@@ -328,13 +329,13 @@ _GABARITS: tuple[tuple[str, list[int], list[int], int], ...] = (
 
 
 def iso(jour: date) -> str:
-    """Une date en ISO — le format stocké partout dans cette base."""
+    """A date in ISO — the format stored everywhere in this database."""
     return jour.isoformat()
 
 
 def build_seed() -> list[tuple[str, list[tuple]]]:
-    """``[(table, lignes), …]`` dans l'ordre où les clés étrangères le
-    demandent. Une seule fonction, appelée une seule fois."""
+    """``[(table, rows), …]`` in the order the foreign keys require. A
+    single function, called once."""
     rng = random.Random(GRAINE)
 
     debut_en_cours = date(RENTREE, 9, 1)
@@ -342,12 +343,12 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
     debut_passee = date(RENTREE - 1, 9, 1)
     fin_passee = date(RENTREE, 7, 5)
 
-    # ── Années ───────────────────────────────────────────────────────
+    # ── Years ────────────────────────────────────────────────────────
     #
-    # ``lundi_ref`` est le LUNDI de la semaine de rentrée, et c'est
-    # l'ancre de toute l'alternance (RT-5). L'année passée en porte une
-    # aussi : sans elle sa grille rendrait « on ne sait pas », ce qui est
-    # juste mais ne montre rien.
+    # ``lundi_ref`` is the MONDAY of the first week of term, and it is
+    # the anchor of the whole alternation (RT-5). Last year carries one
+    # too: without it its grid would return "we do not know", which is
+    # correct but shows nothing.
     annees = [
         (1, f"{RENTREE}-{RENTREE + 1}", iso(debut_en_cours),
          iso(fin_en_cours), 1, iso(lundi_de(debut_en_cours))),
@@ -371,12 +372,12 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
             par_code[(annee_id, code)] = classe_id
             effectifs[classe_id] = effectif
 
-    # ── Élèves et inscriptions ───────────────────────────────────────
+    # ── Pupils and enrolments ────────────────────────────────────────
     #
-    # Une inscription par élève : personne ne change de classe dans le
-    # jeu semé. Les mouvements (EF-C5) sont le lot 4 ; ce que le schéma
-    # doit prouver ici, c'est qu'un élève N'EST PAS dans une classe — il
-    # y est INSCRIT, à une date (RT-2).
+    # One enrolment per pupil: nobody changes class in the seeded set.
+    # The movements (EF-C5) are batch 4; what the schema must prove here
+    # is that a pupil IS NOT in a class — they are ENROLLED in it, on a
+    # date (RT-2).
     eleves: list[tuple] = []
     inscriptions: list[tuple] = []
     eleves_de: dict[int, list[int]] = {}
@@ -404,8 +405,8 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
             eleves_de[classe_id].append(eleve_id)
             inscriptions.append((
                 len(inscriptions) + 1, eleve_id, classe_id, iso(debut), None,
-                # Le demi-groupe de TP n'existe qu'au lycée (EF-G12) : au
-                # collège la classe vient entière.
+                # The practical half-group only exists at lycée
+                # (EF-G12): at collège the class comes whole.
                 (len(eleves_de[classe_id]) % 2) + 1
                 if code[0] in "21T" else None,
             ))
@@ -426,36 +427,36 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
                 semaine, par_code[(annee_id, code)], nature, salle,
             ))
 
-    # Deux heures exceptionnelles sur l'année en cours : une heure EN
-    # PLUS (sur une case LIBRE) et une ANNULATION (sur une case
-    # OCCUPÉE). C'est le seul moyen de montrer la règle d'EF-B11 — la
-    # case libre ne propose qu'un ajout, la case occupée qu'une
-    # annulation — sur une base fraîchement semée.
+    # Two exceptional hours on the current year: one EXTRA hour (on a
+    # FREE cell) and one CANCELLATION (on an OCCUPIED cell). It is the
+    # only way of showing EF-B11's rule — a free cell offers only an
+    # addition, an occupied cell only a cancellation — on a
+    # freshly-seeded database.
     #
-    # ⚠️ **Les deux dates sont choisies pour ne casser aucun bloc**, et
-    # ce n'est pas de la cosmétique. La première version les posait
-    # seize jours après la rentrée, sur le rang 3 d'un jeudi : elles
-    # tombaient au MILIEU du TP de 2°GT4 (s2-s3-s4) et le coupaient en
-    # deux. Le comportement était juste — une exception l'emporte sur la
-    # grille type — mais le jeu semé ne montrait plus qu'un TP sur les
-    # deux qu'il prétend poser, et c'est le probe qui l'a vu.
+    # ⚠️ **Both dates are chosen so as to break no block**, and it is not
+    # cosmetic. The first version put them sixteen days after the start
+    # of term, on rank 3 of a Thursday: they fell in the MIDDLE of
+    # 2°GT4's practical (s2-s3-s4) and cut it in two. The behaviour was
+    # correct — an exception wins over the typical grid — but the seeded
+    # set then showed only one of the two practicals it claims to set,
+    # and it was the probe that saw it.
     lundi_5 = lundi_de(debut_en_cours) + timedelta(weeks=5)
     exceptionnelles = [
-        # Mardi, dernière heure : libre dans les deux semaines.
+        # Tuesday, last hour: free in both weeks.
         (1, 1, iso(lundi_5 + timedelta(days=1)), horaire_de[(1, 8)],
          par_code[(1, "4e1")], "C209"),
-        # Lundi de la semaine suivante, première heure : la 6e2 y est
-        # dans les DEUX semaines, donc l'annulation se voit à coup sûr.
+        # Monday of the following week, first hour: 6e2 is there in
+        # BOTH weeks, so the cancellation is sure to show.
         (2, 1, iso(lundi_5 + timedelta(weeks=1)), horaire_de[(1, 1)],
          None, ""),
     ]
 
-    # ── Trimestres et vacances ───────────────────────────────────────
+    # ── Terms and holidays ───────────────────────────────────────────
     #
-    # Les fins diffèrent PAR CYCLE : au lycée le premier trimestre finit
-    # plus tôt (RT-3). Le troisième de l'année en cours est laissé VIDE —
-    # une case vide est normale (RT-4), et c'est l'état réel d'une base
-    # en septembre.
+    # The ends differ PER CYCLE: at lycée the first term ends earlier
+    # (RT-3). The current year's third is left EMPTY — an empty cell is
+    # normal (RT-4), and it is the real state of a database in
+    # September.
     trimestres: list[tuple] = []
     fins = {
         "college": (95, 195),
@@ -483,7 +484,7 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
         for libelle, d, f in VACANCES
     ]
 
-    # ── Compétences ──────────────────────────────────────────────────
+    # ── Skills ───────────────────────────────────────────────────────
     competences: list[tuple] = []
     comp_de: dict[tuple[str, str], int] = {}
     for cycle, liste in COMPETENCES.items():
@@ -492,7 +493,7 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
                 (len(competences) + 1, cycle, code, libelle, rang))
             comp_de[(cycle, code)] = len(competences)
 
-    # ── Critères d'observation ───────────────────────────────────────
+    # ── Observation criteria ─────────────────────────────────────────
     criteres: list[tuple] = []
     niveaux_critere: list[tuple] = []
     niveaux_de: dict[str, list[int]] = {}
@@ -504,18 +505,18 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
                 len(niveaux_critere) + 1, rang, n_rang, court, long_, teinte))
             niveaux_de[libelle].append(len(niveaux_critere))
 
-    # ── Évaluations, notes, corrections ──────────────────────────────
+    # ── Assessments, marks, corrections ──────────────────────────────
     #
-    # Quarante évaluations, environ trente notes chacune : c'est le
-    # volume qui rend la saisie de masse du lot 5 réaliste.
-    # ── Les phrases d'EF-E5 ──────────────────────────────────────────
+    # Forty assessments, about thirty marks each: it is the volume that
+    # makes batch 5's bulk entry realistic.
+    # ── EF-E5's sentences ────────────────────────────────────────────
     #
-    # Une formulation PAR TRIMESTRE pour chaque niveau : *« la même
-    # observation ne donne pas la même phrase au premier et au
-    # troisième »*. Le libellé long du niveau est le NOYAU ; c'est la
-    # fabrique de `core/redaction.py` qui l'enchâsse dans le cadre du
-    # trimestre. Écrire ici soixante-douze phrases entières à la main
-    # les ferait diverger des cadres dès la première retouche.
+    # One wording PER TERM for each level: *"the same observation does
+    # not give the same sentence in the first and the third"*. The
+    # level's long label is the CORE; it is `core/redaction.py`'s factory
+    # that sets it inside the term's frame. Writing seventy-two whole
+    # sentences by hand here would make them diverge from the frames at
+    # the first touch-up.
     phrases: list[tuple] = []
     for libelle, ids in niveaux_de.items():
         for position, niveau_id in enumerate(ids):
@@ -552,9 +553,9 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
                                                    bareme * 0.17))), 1)
                 notes.append(
                     (len(notes) + 1, eval_id, eleve_id, absent, valeur))
-        # Une correction à reporter par tranche de cinq classes : la
-        # liste ne s'efface que quand le professeur dit l'avoir fait
-        # (EF-D8), donc elle doit exister avant le premier écran.
+        # One correction to report per batch of five classes: the list
+        # is only cleared when the teacher says they have done it
+        # (EF-D8), so it must exist before the first screen.
         if annee_id == 1 and classe_id % 5 == 0:
             corrections.append((
                 len(corrections) + 1, evaluations[-1][0],
@@ -562,11 +563,11 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
                 iso(date.today() - timedelta(days=2)),
             ))
 
-    # ── Fiches d'observation ─────────────────────────────────────────
+    # ── Observation sheets ───────────────────────────────────────────
     #
-    # Toutes les classes de l'année en cours au premier trimestre, plus
-    # une centaine d'élèves de l'année passée au troisième : ~400 fiches,
-    # et deux trimestres différents pour que le sélecteur ait un sens.
+    # Every class of the current year in the first term, plus about a
+    # hundred pupils of last year in the third: ~400 sheets, and two
+    # different terms so the selector means something.
     fiches: list[tuple] = []
     fiches_niveaux: list[tuple] = []
 
@@ -575,9 +576,9 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
         fiches.append((fiche_id, eleve_id, classe_id, trimestre, "", 0))
         for rang, libelle in enumerate(CRITERES, start=1):
             choix = niveaux_de[libelle]
-            # Pondéré vers les rangs favorables : une classe où la
-            # moitié des élèves « perturbe le cours » ne ressemble à rien
-            # et fausserait le bilan du lot 6.
+            # Weighted towards the favourable ranks: a class where half
+            # the pupils "disrupt the lesson" looks like nothing and
+            # would skew batch 6's summary.
             place = min(len(choix) - 1, int(abs(rng.gauss(0, 1.6))))
             fiches_niveaux.append((fiche_id, rang, choix[place]))
 
@@ -590,12 +591,11 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
                 poser_fiche(eleve_id, classe_id, 3)
                 reste -= 1
 
-    # ── Plan de classe ───────────────────────────────────────────────
+    # ── Seating plan ─────────────────────────────────────────────────
     #
-    # Vingt-cinq salles pour seize classes : neuf classes en ont deux
-    # (EF-G11 — une classe reçue dans deux salles a deux plans). Sept
-    # salles de trente places et dix-huit de vingt-neuf font les 732
-    # places du § 13.
+    # Twenty-five rooms for sixteen classes: nine classes have two
+    # (EF-G11 — a class taught in two rooms has two plans). Seven rooms
+    # of thirty seats and eighteen of twenty-nine make § 13's 732 seats.
     salles: list[tuple] = []
     places: list[tuple] = []
     separations: list[tuple] = []
@@ -616,12 +616,12 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
                         len(places) + 1, salle_id, rangee, colonne,
                         assis.pop(0) if assis else None,
                         1 if colonne % 2 == 1 else 0,
-                        # Une allée est un COULOIR : la même colonne sur
-                        # toutes les rangées (EF-G4, piège n° 6), jamais
-                        # devant la première place (EF-G5).
+                        # An aisle is a CORRIDOR: the same column on
+                        # every row (EF-G4, trap no. 6), never in front
+                        # of the first seat (EF-G5).
                         60 if colonne in (3, 5) else 0,
                     ))
-        # Les contraintes sont attachées à la CLASSE (EF-G10).
+        # The constraints are attached to the CLASS (EF-G10).
         liste = eleves_de[classe_id]
         if len(liste) >= 4:
             separations.append(
@@ -636,7 +636,7 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
         for i, (nom, rangees, allees, largeur) in enumerate(_GABARITS)
     ]
 
-    # ── Vérifications ────────────────────────────────────────────────
+    # ── Checks ───────────────────────────────────────────────────────
     verifications: list[tuple] = []
     for classe_id, annee_id, *_ in classes:
         if annee_id != 1:
@@ -650,7 +650,7 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
                 iso(pose + timedelta(days=2)) if i % 3 == 2 else None,
             ))
 
-    # ── Chapitres, séances, cahier de texte, fiches de séance ────────
+    # ── Chapters, sessions, lesson log, session sheets ───────────────
     chapitres: list[tuple] = []
     seances: list[tuple] = []
     seances_de: dict[int, list[tuple[int, str]]] = {}
@@ -668,9 +668,9 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
     for chapitre_id, niveau, *_ in chapitres:
         chapitres_de_niveau.setdefault(niveau, []).append(chapitre_id)
 
-    # Les entrées remontent de la rentrée à aujourd'hui, jour par jour,
-    # en sautant les vacances et les fériés (RT-6). Une heure à NATURE
-    # n'a pas de séance à consigner (EF-K7) — elle n'entre donc pas.
+    # The entries go back from the start of term to today, day by day,
+    # skipping holidays and public holidays (RT-6). An hour with a
+    # NATURE has no session to record (EF-K7) — so it does not enter.
     cahier: list[tuple] = []
     creneaux_par_jour: dict[tuple[int, str], list[tuple]] = {}
     for _id, annee_id, jour_semaine, _h, semaine, classe_id, nature, _s in creneaux:
@@ -711,7 +711,7 @@ def build_seed() -> list[tuple[str, list[tuple]]]:
                 ))
         jour += timedelta(days=1)
 
-    # EF-M3 : la fiche est rattachée par le TITRE, jamais par le numéro.
+    # EF-M3: the sheet is attached by TITLE, never by number.
     fiches_seance: list[tuple] = []
     notes_fiche: list[tuple] = []
     for chapitre_id, _niveau, titre, _rang in chapitres[:40]:

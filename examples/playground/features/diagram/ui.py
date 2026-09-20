@@ -1,18 +1,18 @@
-"""Rendu du banc Diagram — ses cartes et leurs panneaux.
+"""The Diagram bench's rendering — its cards and their panels.
 
-HUIT, et c'est ``playground-pattern.md`` § 3 qui fixe lesquelles, pas
-une préférence : ``Diagram`` déclare un event et une prop bindable, donc
-Server events, Client events et Client playground sont OBLIGATOIRES
-(§ 4, § 6, § 5). Restent omis Slots et External controls — le composant
-n'a ni slot nommé ni API impérative, et le gabarit dit « no empty
-cards ».
+EIGHT, and it is ``playground-pattern.md`` § 3 that sets which, not a
+preference: ``Diagram`` declares an event and a bindable prop, so Server
+events, Client events and Client playground are MANDATORY (§ 4, § 6,
+§ 5). Slots and External controls stay omitted — the component has
+neither a named slot nor an imperative API, and the template says "no
+empty cards".
 
-⚠️ Trois de ces cartes ont manqué à la première livraison, et la raison
-était fausse de la même façon à chaque fois : je lisais des ClassVar
-VIDES et j'en concluais que le composant n'avait ni event ni sélection.
-Ils étaient vides parce que je ne les avais pas déclarés — pas parce
-qu'il n'y avait rien à déclarer. Le gabarit se lit contre le composant
-qu'on AURAIT dû écrire, pas contre celui qu'on vient d'écrire.
+⚠️ Three of these cards were missing from the first delivery, and the
+reason was wrong the same way each time: I read EMPTY ClassVar and
+concluded the component had neither event nor selection. They were empty
+because I had not declared them — not because there was nothing to
+declare. The template is read against the component one SHOULD have
+written, not against the one just written.
 """
 
 from bretzel import refreshable, ui
@@ -42,17 +42,17 @@ from examples.playground.features.inspection import emitted_html_block
 
 
 def card_node(spec):
-    """Un ``render=`` maison : le contenu d'un nœud appartient à l'auteur.
+    """A home-made ``render=``: a node's content belongs to the author.
 
-    ⚠️ Ce qu'une PROP sait faire passe par la prop. La première version
-    centrait par ``classes="justify-center"`` alors que ``ui.vstack``
-    émet déjà ``justify-start`` : deux ``justify-*`` sur le même élément
-    se départagent par l'ordre de la FEUILLE Tailwind, pas de
-    l'attribut, et le contenu restait collé en haut.
+    ⚠️ What a PROP can do goes through the prop. The first version
+    centred with ``classes="justify-center"`` although ``ui.vstack``
+    already emits ``justify-start``: two ``justify-*`` on the same
+    element are decided by the Tailwind SHEET's order, not the
+    attribute's, and the content stayed stuck at the top.
 
-    Et un palier du pont de couleur (``bg-(--bz-bg)``) est TEINTÉ : un
-    ``render=`` hérite du pont de la racine, donc ces nœuds-là
-    ressortaient colorés au milieu de nœuds neutres.
+    And a colour-bridge step (``bg-(--bz-bg)``) is TINTED: a ``render=``
+    inherits the root's bridge, so those nodes came out coloured in the
+    middle of neutral nodes.
     """
     with ui.vstack(gap="none", align="start", justify="center",
                    classes="h-full w-full px-3 rounded-box "
@@ -124,15 +124,16 @@ def control(label: str):
 
 @refreshable(deps=[Picked])
 def focus_panel() -> None:
-    """``focus=`` piloté par un clic serveur — le resserrement."""
+    """``focus=`` driven by a server click — the narrowing."""
     picked = Picked().key
     ui.diagram(nodes=NODES, edges=EDGES, focus=picked or None,
                on_item_click=pick)
     ui.text(
-        f"Centré sur « {picked} » — reclique dessus pour tout revoir."
+        f"'Centred on “'{picked}'” — click it again to see everything.'"
         if picked else
-        "Clique un nœud : la vue se resserre sur son voisinage (serveur). "
-        "Un simple clic éclaire déjà ses voisins, lui, sans requête.",
+        'Click a node: the view narrows onto its neighbourhood (server '
+            'side). A plain click already lights up its neighbours, and that '
+            'one costs no request.',
         color="muted", size="sm",
     )
 
@@ -142,9 +143,9 @@ def server_panel() -> None:
     state = DiagramPlayground()
 
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
-        with control("focus (nœud centré)"):
+        with control('focus (the centred node)'):
             ui.select(value=state.focus,
-                      options=[("", "None (tout le graphe)"),
+                      options=[("", 'None (the whole graph)'),
                                *[(n.key, n.key) for n in NODES]],
                       on_change=server_changed)
         with control("depth (sauts de voisinage)"):
@@ -162,9 +163,9 @@ def server_panel() -> None:
             ui.select(value=state.color,
                       options=[(c, c) for c in COLORS],
                       on_change=server_changed)
-        with control("render (contenu d'un nœud)"):
+        with control("render (a node's content)"):
             ui.select(value=state.render_mode,
-                      options=[("default", "Défaut (icône + label)"),
+                      options=[("default", 'Default (icon + label)'),
                                ("custom", "card_node (rappel)")],
                       on_change=server_changed)
         with control("on_item_click"):
@@ -172,7 +173,7 @@ def server_panel() -> None:
                       options=[("none", "None (aucun handler)"),
                                ("server", "Server callable")],
                       on_change=server_changed)
-        with control("edges (vide → l'état vide)"):
+        with control('edges (empty → the empty state)'):
             ui.switch(checked=state.empty, label="graphe vide",
                       on_change=server_changed)
         with control("empty_text"):
@@ -183,7 +184,7 @@ def server_panel() -> None:
                      on_change=server_changed)
         with control("empty_description"):
             ui.input(value=state.empty_desc,
-                     placeholder="Aucune feature n'en consomme une autre.",
+                     placeholder='No feature consumes another.',
                      on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes, placeholder="!max-h-64",
@@ -193,21 +194,21 @@ def server_panel() -> None:
                      on_change=server_changed)
         with control("aria-label"):
             ui.input(value=state.aria_label,
-                     placeholder="Dépendances entre features",
+                     placeholder='Dependencies between features',
                      on_change=server_changed)
         with control("style"):
             ui.input(value=state.style, placeholder="max-width: 480px",
                      on_change=server_changed)
-        with control("extra_attrs (un par ligne, clé=valeur)"):
+        with control('extra_attrs (one per line, key=value)'):
             ui.textarea(value=state.extra_attrs, rows=3,
                         placeholder="data-test=diagram",
                         on_change=server_changed)
         with control("tooltip"):
-            ui.input(value=state.tooltip, placeholder="L'axe dépendance",
+            ui.input(value=state.tooltip, placeholder='The dependency axis',
                      on_change=server_changed)
         with control("visible"):
             ui.select(value=state.visible,
-                      options=[("on", "True (défaut)"),
+                      options=[("on", 'True (default)'),
                                ("off", "False (aucun rendu)")],
                       on_change=server_changed)
 
@@ -229,9 +230,9 @@ def events_panel() -> None:
     state = DiagramServerEvents()
 
     ui.text(
-        "``item_click`` est le seul event de Diagram. Le handler reçoit "
-        "la CLÉ du nœud — c'est le nom de la feature, pas un index ni un "
-        "objet à re-résoudre.",
+        "``item_click`` is Diagram's only event. The handler receives the"
+            " node's KEY — the feature's name, not an index nor an object to "
+            'resolve again.',
         color="muted", size="sm",
     )
     ui.diagram(nodes=NODES, edges=EDGES, on_item_click=log_item_click)
@@ -248,7 +249,7 @@ def events_panel() -> None:
                 ui.text(f"{i}. {evt}", color="muted", size="sm",
                         classes="font-mono")
     else:
-        ui.text("(aucun event — clique un nœud ci-dessus)",
+        ui.text('(no events yet — click a node above)',
                 color="muted", size="sm")
 
     ui.divider()
@@ -261,22 +262,22 @@ def events_panel() -> None:
 
 
 def client_events_panel() -> None:
-    """Le MÊME event, câblé sur une expression cliente.
+    """The SAME event, wired onto a client expression.
 
-    Pas de ``@refreshable`` : c'est tout l'intérêt. Le journal vit dans
-    un ``ClientState`` et le texte se ré-évalue dans le navigateur —
-    aucune requête ne part, donc il n'y a rien à re-rendre côté serveur.
+    No ``@refreshable``: that is the whole point. The log lives in a
+    ``ClientState`` and the text is re-evaluated in the browser — no
+    request leaves, so there is nothing to re-render on the server side.
     """
     events = DiagramClientEvents()
 
     ui.text(
-        "``item_click`` câblé sur une expression cliente qui empile la "
-        "clé dans un ClientState. Zéro requête.",
+        '``item_click`` wired to a client expression that pushes the key '
+            'onto a ClientState. Zero requests.',
         color="muted", size="sm",
     )
-    # ``$event.detail`` porte la clé du nœud : c'est ce que le composant
-    # met dans le payload, et c'est la même valeur que reçoit un
-    # handler serveur.
+    # ``$event.detail`` carries the node's key: it is what the component
+    # puts in the payload, and it is the same value a server handler
+    # receives.
     clicked = ClientExpression("$event.currentTarget.dataset.bzNode")
     ui.diagram(nodes=NODES, edges=EDGES,
                on_item_click=events.log.push(clicked))
@@ -284,22 +285,21 @@ def client_events_panel() -> None:
     ui.divider()
 
     with ui.hstack(justify="between", align="center"):
-        ui.text("Live log (client-réactif — aucun rafraîchissement)",
+        ui.text('Live log (client-reactive — no refresh at all)',
                 color="muted", size="sm")
         ui.button("Clear", variant="ghost", size="xs",
                   on_click=events.log.clear())
-    # ⚠️ Chaîne BRUTE, et guillemets simples côté JS.
+    # ⚠️ A RAW string, and single quotes on the JS side.
     #
-    # Une version antérieure portait un vrai saut de ligne là où il faut
-    # la séquence d'échappement : le JS émis était `join("` suivi d'une
-    # fin de ligne, donc un littéral non terminé. Le prix n'est pas
-    # local — le runtime ENTIER cesse de démarrer, `html.bz-ready`
-    # n'arrive jamais, et plus une seule directive de la page ne
-    # fonctionne. Une expression cliente malformée ne dégrade pas :
-    # elle éteint.
+    # An earlier version carried a real line break where the escape
+    # sequence is needed: the emitted JS was `join("` followed by an end
+    # of line, hence an unterminated literal. The price is not local —
+    # the WHOLE runtime stops starting, `html.bz-ready` never arrives,
+    # and not a single directive on the page works any more. A malformed
+    # client expression does not degrade: it switches off.
     log_text = ClientExpression(
-        r"($bz.state.DiagramClientEvents.default.log || []).join('\n')"
-        r" || '(aucun event — clique un nœud ci-dessus)'"
+        "($bz.state.DiagramClientEvents.default.log || []).join('\\n') || "
+            "'(no events yet — click a node above)'"
     )
     ui.text(log_text, color="muted", size="sm",
             classes="font-mono whitespace-pre")
@@ -314,29 +314,29 @@ def client_events_panel() -> None:
 
 
 def client_panel() -> None:
-    """Le miroir du contrat ``BINDABLE_PROPS = ("value",)``.
+    """The mirror of the ``BINDABLE_PROPS = ("value",)`` contract.
 
-    Pas de ``@refreshable`` : c'est le point. ``value`` est lié au
-    magasin client, donc un clic écrit dedans et tout ce qui le lit
-    suit — la ligne de texte, l'aperçu, le champ caché — sans qu'une
-    seule requête parte. Le bloc HTML ci-dessous est une capture SSR :
-    ce que le runtime en fait ensuite ne s'y voit pas.
+    No ``@refreshable``: that is the point. ``value`` is bound to the
+    client store, so a click writes into it and everything reading it
+    follows — the text line, the preview, the hidden field — without a
+    single request leaving. The HTML block below is an SSR capture: what
+    the runtime then does with it does not show there.
     """
     pick = DiagramClient()
 
     ui.text(
-        "``value`` = le nœud sélectionné, ⇄ two-way. Le pilote client "
-        "est le clic sur un nœud ; c'est ce qui rend la prop bindable "
-        "plutôt que statique (client-reactive-surface.md § La règle).",
+        '``value`` = the selected node, ⇄ two-way. The client driver is '
+            'the click on a node; that is what makes the prop bindable rather'
+            ' than static (client-reactive-surface.md § The rule).',
         color="muted", size="sm",
     )
-    # ⚠️ Le CONTRÔLE EXTERNE est le cœur de cette carte, pas un
-    # ornement. Sans lui on ne montre qu'un sens — le composant qui
-    # écrit dans le magasin — et « ⇄ two-way » n'est plus qu'une
-    # affirmation. Ici le `select` est lié au MÊME champ : choisir dedans
-    # déplace la sélection du diagramme, cliquer un nœud déplace le
-    # `select`. Aucune requête dans un sens comme dans l'autre.
-    with control("value (lié) — le select ÉCRIT, le diagramme LIT"):
+    # ⚠️ The EXTERNAL CONTROL is this card's heart, not an ornament.
+    # Without it we show only one direction — the component writing into
+    # the store — and "⇄ two-way" is no more than an assertion. Here the
+    # `select` is bound to the SAME field: choosing in it moves the
+    # diagram's selection, clicking a node moves the `select`. No request
+    # in either direction.
+    with control('value (bound) — the select WRITES, the diagram READS'):
         with ui.hstack(gap="sm", align="center"):
             ui.select(
                 value=pick.node,
@@ -345,14 +345,14 @@ def client_panel() -> None:
             ui.button("Effacer", variant="ghost", size="xs",
                       on_click=pick.node.set(""))
     with ui.hstack(gap="sm", align="center"):
-        ui.text("valeur courante :", color="muted", size="sm")
+        ui.text("current value:", color="muted", size="sm")
         ui.text(pick.node, weight="medium", size="sm")
     ui.diagram(nodes=NODES, edges=EDGES, value=pick.node)
 
     ui.divider()
 
     emitted_html_block(
-        "Emitted HTML (value lié à un ClientState)",
+        'Emitted HTML (value bound to a ClientState)',
         serialize_html(ui.diagram(edges=[("a", "b")], value=pick.node)),
     )
 
@@ -362,12 +362,12 @@ def page() -> None:
         with ui.vstack(gap="lg"):
             ui.heading("Diagram", level=1)
             ui.text(
-                "Un graphe orienté placé en couches côté serveur : cycles "
-                "cassés, couches par plus long chemin, croisements réduits "
-                "à la médiane. Les arêtes vivent dans un ``<svg>``, les "
-                "nœuds sont du HTML positionné — donc chaque nœud reste un "
-                "composant thémé, tabulable et cliquable. Désigner un nœud "
-                "éclaire ce qui le touche, sans une requête.",
+                'A directed graph laid out in layers on the server: '
+                    'cycles broken, layers by longest path, crossings reduced'
+                    ' by the median heuristic. The edges live in an '
+                    '``<svg>``, the nodes are positioned HTML — so every node'
+                    ' stays a themed, tabbable, clickable component. Pointing'
+                    ' at a node lights up what touches it, with no request.',
                 color="muted",
             )
 
@@ -378,7 +378,7 @@ def page() -> None:
                     ui.text("Visual scan of every prop.",
                             color="muted", size="sm")
 
-                    ui.heading("Basic — les arêtes suffisent", level=3)
+                    ui.heading('Basic — the edges are enough', level=3)
                     ui.diagram(edges=EDGES)
 
                     ui.heading("nodes= + edges= (descripteurs)", level=3)
@@ -412,7 +412,7 @@ def page() -> None:
                     ui.diagram(edges=EDGES, focus="planning_engine")
                     ui.diagram(edges=EDGES, focus="planning_engine", depth=2)
 
-                    ui.heading("on_item_click — le resserrement serveur",
+                    ui.heading('on_item_click — the server-side narrowing',
                                level=3)
                     focus_panel()
 
@@ -421,52 +421,50 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Edge cases", level=2)
 
-                    ui.heading("Un cycle", level=3)
-                    ui.text("L'arête qui revient est inversée pour le "
-                            "PLACEMENT, jamais pour la flèche.",
+                    ui.heading('A cycle', level=3)
+                    ui.text('The returning edge is reversed for PLACEMENT, never '
+                        'for the arrowhead.',
                             color="muted", size="xs")
                     ui.diagram(edges=[("a", "b"), ("b", "c"), ("c", "a")])
 
-                    ui.heading("Une arête qui saute une couche", level=3)
-                    ui.text("Elle traverse à plat sous la couche du milieu ; "
-                            "elle ne passe pas SUR le nœud.",
+                    ui.heading('An edge that skips a layer', level=3)
+                    ui.text('It runs flat under the middle layer; it does not '
+                        'pass OVER the node.',
                             color="muted", size="xs")
                     ui.diagram(edges=[("a", "b"), ("b", "c"), ("a", "c")])
 
-                    ui.heading("Une boucle sur soi-même", level=3)
+                    ui.heading('A self-loop', level=3)
                     ui.diagram(edges=[("a", "a"), ("a", "b")])
 
-                    ui.heading("Un nœud isolé", level=3)
+                    ui.heading('An isolated node', level=3)
                     ui.diagram(nodes=[ui.node("seul", icon="circle")],
                                edges=[])
 
-                    ui.heading("focus= vers un nœud inexistant", level=3)
-                    ui.text("Une clé périmée retombe sur le graphe entier, "
-                            "pas sur un écran blanc.",
+                    ui.heading('focus= pointing at a node that does not exist', level=3)
+                    ui.text('A stale key falls back to the whole graph, not to a '
+                        'blank screen.',
                             color="muted", size="xs")
                     ui.diagram(edges=EDGES, focus="disparu")
 
-                    ui.heading("Un label à échapper (XSS)", level=3)
+                    ui.heading('A label to escape (XSS)', level=3)
                     ui.diagram(nodes=[ui.node("x", label="<script>alert(1)"),
                                       ui.node("y", label="a & b")],
                                edges=[("x", "y")])
 
                     ui.heading("Graphe vide", level=3)
-                    ui.diagram(edges=[], empty_text="Aucune dépendance.",
+                    ui.diagram(edges=[], empty_text='No dependency.',
                                empty_icon="unplug",
-                               empty_description="Aucune feature n'en "
-                                                 "consomme une autre.")
+                               empty_description='No feature consumes another.')
 
-                    ui.heading("Graphe vide — l'échappatoire ``empty=``",
+                    ui.heading('Empty graph — the ``empty=`` escape hatch',
                                level=3)
-                    ui.text("Les trois props de confort couvrent le cas "
-                            "courant ; ``empty=`` rend ce qu'on veut à "
-                            "leur place. Même API que ``ui.table`` et "
-                            "``ui.datatable``.",
+                    ui.text('The three convenience props cover the common case; '
+                        '``empty=`` renders whatever you want in their place.'
+                        ' The same API as ``ui.table`` and ``ui.datatable``.',
                             color="muted", size="xs")
                     ui.diagram(
                         edges=[],
-                        empty=lambda: ui.button("Déclarer une dépendance",
+                        empty=lambda: ui.button('Declare a dependency',
                                                 icon_left="plus",
                                                 color="primary"),
                     )
@@ -476,27 +474,27 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Composability", level=2)
                     ui.text(
-                        "Ce que le composant devient une fois posé "
-                        "AILLEURS — c'est là que se voient les fautes "
-                        "qu'un montage isolé ne montre jamais.",
+                        'What the component becomes once placed SOMEWHERE'
+                            ' ELSE — that is where the faults a solo mount '
+                            'never shows become visible.',
                         color="muted", size="sm")
 
-                    ui.heading("render= — un nœud est un sous-arbre ui.*",
+                    ui.heading('render= — a node is a ui.* subtree',
                                level=3)
                     ui.diagram(nodes=NODES, edges=EDGES, render=card_node,
                                size="lg")
 
-                    ui.heading("Dans une grille contrainte", level=3)
-                    ui.text("La cellule est plus étroite que le dessin : il "
-                            "doit DÉFILER, pas rétrécir.",
+                    ui.heading('In a constrained grid', level=3)
+                    ui.text('The cell is narrower than the drawing: it must '
+                        'SCROLL, not shrink.',
                             color="muted", size="xs")
                     with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                         ui.diagram(edges=EDGES)
                         ui.diagram(edges=EDGES, direction="down")
 
-                    ui.heading("Dans une colonne de hauteur bornée", level=3)
-                    ui.text("Le piège de traps.md : une racine qui clippe a "
-                            "une hauteur minimale de ZÉRO.",
+                    ui.heading('In a height-bounded column', level=3)
+                    ui.text("traps.md's trap: a clipping root has a minimum "
+                        'height of ZERO.',
                             color="muted", size="xs")
                     with ui.vstack(classes="h-[260px]"):
                         with ui.pane():
@@ -507,15 +505,15 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("A11y", level=2)
                     ui.text(
-                        "C'est là que se joue l'argument du composant. Un "
-                        "nœud est du HTML, pas un ``<rect>`` : il se tabule "
-                        "dans l'ordre des COUCHES, porte l'anneau de focus "
-                        "du thème, et Entrée / Espace l'activent quand il "
-                        "porte un handler. Le calque d'arêtes est "
-                        "``aria-hidden`` — ce qu'un lecteur d'écran doit "
-                        "parcourir, ce sont les nœuds.",
+                        "This is where the component's argument is "
+                            'settled. A node is HTML, not a ``<rect>``: it '
+                            "tabs in LAYER order, carries the theme's focus "
+                            'ring, and Enter / Space activate it when it '
+                            'carries a handler. The edge layer is ``aria-'
+                            'hidden`` — what a screen reader should walk '
+                            'through is the nodes.',
                         color="muted", size="sm")
-                    ui.text("Tabule ici : l'ordre suit les flèches.",
+                    ui.text('Tab here: the order follows the arrows.',
                             color="muted", size="xs")
                     ui.diagram(nodes=NODES, edges=EDGES, on_item_click=pick)
 
@@ -524,8 +522,8 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("Server playground", level=2)
                     ui.text(
-                        "Chaque prop, chaque échappatoire universelle, "
-                        "chaque modificateur — pilotés depuis un PageState.",
+                        'Every prop, every universal escape hatch, every '
+                            'modifier — all driven from a PageState.',
                         color="muted", size="sm")
                     server_panel()
 

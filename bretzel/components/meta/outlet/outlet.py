@@ -17,37 +17,37 @@ from the active layout name on the render context (``ctx.layout``).
 A custom suffix can be passed via ``id="left"`` to support multiple
 outlets in the same layout (``outlet_<layout>_left``).
 
-⚠️ **Layout pleine hauteur : l'outlet ne transmet AUCUNE contrainte.**
+⚠️ **Full-height layout: the outlet passes on NO constraint.**
 
-Le ``<main>`` est un bloc ordinaire, sans hauteur ni ``flex``. Une page
-qui veut occuper l'écran et faire défiler une zone INTERNE (chat, boîte
-mail, tableau de bord) doit donc câbler la chaîne à la main, sur DEUX
-maillons — le parent de l'outlet **et** l'outlet ::
+The ``<main>`` is an ordinary block, with no height and no ``flex``. A
+page that wants to fill the screen and scroll an INTERNAL zone (chat,
+mailbox, dashboard) must therefore wire the chain by hand, on TWO links
+— the outlet's parent **and** the outlet ::
 
     with ui.container(classes="flex-1 min-h-0 overflow-hidden flex flex-col"):
         ui.outlet(classes="flex-1 min-h-0 flex flex-col")
 
-    # puis, dans la page :
+    # then, in the page:
     with ui.vstack(classes="flex-1 min-h-0"):
         ...
-        with ui.vstack(classes="flex-1 min-h-0 overflow-y-auto"):  # ← défile
+        with ui.vstack(classes="flex-1 min-h-0 overflow-y-auto"):  # ← scrolls
 
-Les deux sont nécessaires : ``ui.container`` est un ``block``, donc son
-enfant ne peut pas prendre ``flex-1`` sans le ``flex flex-col``.
+Both are necessary: ``ui.container`` is a ``block``, so its child cannot
+take ``flex-1`` without the ``flex flex-col``.
 
-**Le mode d'échec est silencieux**, et c'est ce qui le rend cher :
-sans ces classes, la zone interne grandit avec son contenu au lieu de
-déborder, l'``overflow-y-auto`` n'a jamais rien à faire, et le trop-plein
-est simplement clippé par un ancêtre. Mesuré le 2026-08-15 en montant
-``examples/chat`` : ``<main>`` à 1 888 px dans un parent de 855 px,
-aucune barre de défilement, aucune erreur. Gate :
+**The failure mode is silent**, and that is what makes it expensive:
+without these classes, the internal zone grows with its content instead
+of overflowing, the ``overflow-y-auto`` never has anything to do, and
+the excess is simply clipped by an ancestor. Measured on 2026-08-15 by
+mounting ``examples/chat``: ``<main>`` at 1,888 px in an 855 px parent,
+no scrollbar, no error. Gate:
 ``tests/runtime_js/test_full_height_layout_scrolls.py``.
 
-Pourquoi ce n'est pas corrigé dans le composant : baker ces classes
-changerait tous les layouts existants, et ``display:contents`` — qui
-rendrait le slot vraiment transparent — risque de faire sauter le repère
-ARIA du ``<main>`` selon les navigateurs. À trancher quand le shell sera
-repensé ; chantier dans ``.claude/work/todo.md``.
+Why it is not fixed in the component: baking these classes in would
+change every existing layout, and ``display:contents`` — which would
+make the slot really transparent — risks dropping the ``<main>``'s ARIA
+landmark depending on the browser. To settle when the shell is
+redesigned; the work is in ``.claude/work/todo.md``.
 
 """
 
@@ -102,20 +102,20 @@ class Outlet(Component):
 
     @property
     def child_scope_id(self) -> str:
-        """L'id que les enfants de la page prennent pour parent.
+        """The id the page's children take as their parent.
 
-        **Il DIVERGE de ``self.id``, et c'est tout le mécanisme.**
-        L'outlet rend un id stable — htmx le renvoie en ``HX-Target``,
-        donc le bouger casserait la navigation partielle suivante. Mais
-        ce que la PAGE construit dessous doit être unique à la page :
-        sans ça, ``/accordion`` et ``/markdown`` émettent le même
-        ``outlet_shell_container_0_…_accordion_0``, et le magasin de
-        scopes du runtime — une ``Map`` indexée par cette chaîne, qu'un
-        ``hx-boost`` ne vide pas — rend à la seconde l'état de la
-        première.
+        **It DIVERGES from ``self.id``, and that is the whole
+        mechanism.** The outlet renders a stable id — htmx sends it back
+        as ``HX-Target``, so moving it would break the next partial
+        navigation. But what the PAGE builds beneath must be unique to
+        the page: without that, ``/accordion`` and ``/markdown`` emit the
+        same ``outlet_shell_container_0_…_accordion_0``, and the
+        runtime's scope store — a ``Map`` indexed by that string, which
+        an ``hx-boost`` does not empty — gives the second the first's
+        state.
 
-        Mesuré le 2026-08-13 : 13 collisions sur les 68 pages du
-        playground. Cf. ``RenderContext.page_scope``.
+        Measured on 2026-08-13: 13 collisions over the playground's 68
+        pages. Cf. ``RenderContext.page_scope``.
         """
         ctx = maybe_current_context()
         return f"{self.id}{ctx.child_scope_root}" if ctx else self.id

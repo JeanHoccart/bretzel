@@ -29,7 +29,7 @@ avec `px-3 py-1.5 border` ressemble à un bouton et n'en a pas la hauteur.
 
 > *Payé* : la zone « Archiver » du kanban sortait 7 px plus haut que ses
 > voisins. `bretzel check` ne pouvait pas le voir — sa règle
-> `tailles-melangees` compare les `size=` de la famille `inputs`, et du
+> `mixed-sizes` compare les `size=` de la famille `inputs`, et du
 > Tailwind brut n'a aucune taille à comparer. **Œil seul, par
 > construction.**
 
@@ -86,7 +86,7 @@ ui.drawer(open=vue.tiroir)                # un CHAMP booléen déclaré
 ```
 
 > *Payé* : le tiroir du kanban se re-rendait avec la bonne carte dedans
-> et restait fermé. **Le cast est gaté** (`etat-perdu-par-un-cast`), la
+> et restait fermé. **Le cast est gaté** (`state-lost-by-a-cast`), la
 > comparaison ne l'est pas encore — `work/todo.md`.
 
 **B4. Une collection se RÉASSIGNE, elle ne se mute pas en place.**

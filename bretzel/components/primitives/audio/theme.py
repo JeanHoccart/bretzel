@@ -1,13 +1,13 @@
-"""Default :class:`Audio` theme — le plus mince du dépôt, et c'est normal.
+"""Default :class:`Audio` theme — the repository's thinnest, and rightly so.
 
-Un ``<audio controls>`` est entièrement dessiné par le navigateur : sa
-barre, ses boutons, sa hauteur. Un thème qui prétendrait le styler
-mentirait — ``background``, ``border-radius`` et ``width`` sont à peu près
-tout ce qui traverse.
+An ``<audio controls>`` is drawn entirely by the browser: its bar, its
+buttons, its height. A theme claiming to style it would lie —
+``background``, ``border-radius`` and ``width`` are about all that gets
+through.
 
-Pas de ratio ici, contrairement à ``image`` / ``video`` / ``iframe`` : un
-lecteur audio a une hauteur FIXE, connue avant le chargement. Il ne
-provoque donc aucun saut de page, et la prop n'aurait rien à réserver.
+No ratio here, unlike ``image`` / ``video`` / ``iframe``: an audio player
+has a FIXED height, known before loading. So it causes no page jump, and
+the prop would have nothing to reserve.
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from typing import Any
 
 AUDIO_THEME: dict[str, Any] = {
     "slots": {
-        # ``w-full`` : le lecteur natif prend sinon une largeur arbitraire
-        # (~300 px) qui ne s'accorde à aucune colonne.
+        # ``w-full``: the native player otherwise takes an arbitrary
+        # width (~300 px) that matches no column.
         "root": "block w-full",
     },
 }

@@ -1,22 +1,22 @@
-"""chat/logic — les trois actions : envoyer, tirer un morceau, arrêter.
+"""chat/logic — the three actions: send, pull a piece, stop.
 
-Le cœur du démonstrateur est :func:`pull_chunk`, et sa forme mérite d'être
-lue avant d'être copiée.
+The heart of the demonstrator is :func:`pull_chunk`, and its shape is
+worth reading before being copied.
 
-**On réassigne, on n'accumule pas.** ``Draft`` est déclaré
-``send_to_server=False`` : ses champs ne remontent jamais, donc
-``Draft().answer`` vaut ``""`` dans un handler. Un ``+=`` repartirait de
-zéro à chaque tick. Le serveur publie donc la tranche que le curseur
-désigne — ``full[:cursor]`` — et reste seul auteur de la valeur.
+**We reassign, we do not accumulate.** ``Draft`` is declared
+``send_to_server=False``: its fields never travel up, so ``Draft().answer``
+is ``""`` inside a handler. A ``+=`` would start from nothing at every
+tick. The server therefore publishes the slice the cursor designates —
+``full[:cursor]`` — and stays the sole author of the value.
 
-**C'est le client qui bat la mesure.** ``ui.interval`` tire un morceau
-toutes les 120 ms tant que ``Draft().streaming`` est vrai. Basculer ce
-champ depuis le serveur coupe le timer instantanément, ce qui rend *Stop*
-honnête. Une boucle serveur (``@background``) ne saurait pas s'arrêter :
-elle est sans contexte de requête, donc incapable de relire l'état qui le
-lui dirait — c'est écrit noir sur blanc dans ``handlers.md`` § *background*,
-et le stepper du playground est passé de ce motif à ``ui.interval``
-exactement pour cette raison.
+**It is the client that keeps time.** ``ui.interval`` pulls a piece every
+120 ms as long as ``Draft().streaming`` is true. Flipping that field from
+the server cuts the timer instantly, which makes *Stop* honest. A server
+loop (``@background``) would not know how to stop: it has no request
+context, hence cannot re-read the state that would tell it — written in
+so many words in ``handlers.md`` § *background*, and the playground's
+stepper moved from that pattern to ``ui.interval`` for exactly this
+reason.
 """
 
 from __future__ import annotations
@@ -26,12 +26,12 @@ from examples.chat.features.state import Draft, Gen, Log, Prompt
 
 
 def send() -> None:
-    """Valider le message de l'utilisateur et armer la génération.
+    """Commit the user's message and arm the generation.
 
-    Le texte vient de ``Prompt``, un ``ClientState`` ordinaire — donc il
-    remonte avec le POST et se lit ici en valeur Python brute. C'est la
-    direction inverse de ``Draft``, et c'est pour ça que ce sont deux
-    états et pas un.
+    The text comes from ``Prompt``, an ordinary ``ClientState`` — so it
+    travels up with the POST and reads here as a plain Python value. That
+    is the opposite direction from ``Draft``, and it is why they are two
+    states and not one.
     """
     draft_prompt = Prompt()
     prompt = (draft_prompt.text or "").strip()
@@ -40,9 +40,9 @@ def send() -> None:
     draft_prompt.text = ""  # vider le champ de saisie
 
     log = Log()
-    # Réassignation et non ``.append()`` : une liste mutée en place ne
-    # déclenche pas la détection de changement, donc la zone ne se
-    # re-rendrait pas (cf. traps.md § mutation de collection).
+    # Reassignment and not ``.append()``: a list mutated in place does
+    # not trigger change detection, so the zone would not re-render (cf.
+    # traps.md § collection mutation).
     log.messages = [*log.messages, {"role": "user", "text": prompt}]
 
     gen = Gen()
@@ -59,7 +59,7 @@ def send() -> None:
 
 
 def pull_chunk() -> None:
-    """Publier un mot de plus. Appelé par ``ui.interval``, côté client."""
+    """Publish one more word. Called by ``ui.interval``, client side."""
     gen = Gen()
     if not gen.full or gen.cursor >= len(gen.full):
         stop()
@@ -69,9 +69,9 @@ def pull_chunk() -> None:
     slice_ = gen.full[: gen.cursor]
 
     gen.ticks += 1
-    # La tranche ENTIÈRE repart à chaque tick — c'est la propriété qu'on
-    # veut rendre visible, pas cacher. Le total croît en O(n²) sur la
-    # longueur de la réponse, et la page l'affiche.
+    # The WHOLE slice goes out again at every tick — that is the
+    # property we want visible, not hidden. The total grows as O(n²) on
+    # the answer's length, and the page shows it.
     gen.bytes_down += len(slice_.encode("utf-8"))
 
     draft = Draft()
@@ -84,12 +84,12 @@ def pull_chunk() -> None:
 
 
 def stop() -> None:
-    """Arrêter la génération et verser ce qui a été produit dans le log.
+    """Stop the generation and pour what was produced into the log.
 
-    Appelé par le bouton *Stop* comme par la fin naturelle du texte : dans
-    les deux cas ce qui a été écrit est conservé, parce qu'une réponse
-    interrompue reste une réponse — la jeter punirait l'utilisateur d'avoir
-    cliqué.
+    Called by the *Stop* button as well as by the natural end of the text:
+    in both cases what was written is kept, because an interrupted answer
+    is still an answer — throwing it away would punish the user for having
+    clicked.
     """
     gen = Gen()
     draft = Draft()
@@ -103,13 +103,13 @@ def stop() -> None:
     gen.cursor = 0
     draft.answer = ""
     draft.streaming = False
-    # ``ticks`` / ``bytes_down`` ne sont PAS remis à zéro ici : la mesure
-    # ne devient lisible qu'une fois la génération finie. Les effacer à
-    # l'arrivée viderait le panneau à la seconde où il devient utile.
+    # ``ticks`` / ``bytes_down`` are NOT reset here: the measurement only
+    # becomes readable once the generation is over. Clearing them on
+    # arrival would empty the panel the second it becomes useful.
 
 
 def reset() -> None:
-    """Vider la conversation — et là, oui, remettre les compteurs à zéro."""
+    """Clear the conversation — and there, yes, reset the counters."""
     Log().messages = []
     gen = Gen()
     gen.full = ""

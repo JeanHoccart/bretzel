@@ -1,28 +1,28 @@
-"""features/appreciations_data — data : les fiches d'observation.
+"""features/appreciations_data — data: the observation sheets.
 
-``kind="data"``. Elle porte EF-E1 à EF-E3 côté données, et **le drapeau
-qui décide de tout** : ``ecrite_main``.
+``kind="data"``. It carries EF-E1 to EF-E3 on the data side, and **the
+flag that decides everything**: ``ecrite_main``.
 
-EF-E3, en une ligne de schéma
-------------------------------
-*« Dès que le professeur écrit son propre texte, l'application ne le
-réécrit plus jamais — même si les observations changent ensuite. Un
-bouton permet de redemander explicitement une proposition. »*
+EF-E3, in one line of schema
+-----------------------------
+*"As soon as the teacher writes their own text, the application never
+rewrites it again — even if the observations change afterwards. A button
+allows explicitly asking for a proposal again."*
 
-Trois comportements, un seul drapeau :
+Three behaviours, one single flag:
 
 =========================  ======================================
-geste                      ce que devient ``ecrite_main``
+gesture                    what ``ecrite_main`` becomes
 =========================  ======================================
-cocher une observation     inchangé ; le texte est reproposé
-                           **seulement s'il vaut 0**
-écrire dans le champ       passe à 1, définitivement
-cliquer « reproposer »     repasse à 0, et le texte est refait
+tick an observation        unchanged; the text is reproposed
+                           **only if it is 0**
+write in the field         goes to 1, permanently
+click "repropose"          goes back to 0, and the text is redone
 =========================  ======================================
 
-Sans ce drapeau, la seule façon de ne pas écraser serait de comparer le
-texte à ce qu'on aurait proposé — ce qui échoue dès que le professeur
-corrige une virgule.
+Without this flag, the only way of not overwriting would be to compare
+the text with what would have been proposed — which fails as soon as the
+teacher fixes a comma.
 """
 
 from __future__ import annotations
@@ -35,34 +35,32 @@ from examples.ecole.features.annees import garde_ecriture
 
 
 class FichesRev(AppState):
-    """Le jeton que les zones surveillent. Bumpé à chaque écriture.
+    """The token the zones watch. Bumped at every write.
 
-    ⚠️ **Une écriture en base ne touche AUCUN état typé**, donc le
-    moteur de re-render ne la voit pas. Sans ce jeton, cocher une
-    tuile écrit correctement la fiche et **l'écran ne bouge pas** :
-    pas d'erreur, pas de trace, le texte reste vide et on cherche le
-    bug dans la fabrique d'appréciations.
+    ⚠️ **A database write touches NO typed state**, so the re-render
+    engine does not see it. Without this token, ticking a tile writes the
+    sheet correctly and **the screen does not move**: no error, no trace,
+    the text stays empty and one looks for the bug in the comment
+    factory.
 
-    C'est le patron d'``examples/crm`` (``ContactsRev``), et il a été
-    oublié ici jusqu'au probe : les écrans précédents marchaient par
-    accident, parce que leurs handlers mutaient AUSSI un brouillon
-    (``draft.ouvert = False``) et que cette mutation-là réveillait la
-    zone.
+    It is ``examples/crm``'s pattern (``ContactsRev``), and it was
+    forgotten here until the probe: the previous screens worked by
+    accident, because their handlers ALSO mutated a draft
+    (``draft.ouvert = False``) and that mutation woke the zone.
 
-    ``merge="add"`` et pas une affectation : deux écritures
-    simultanées perdraient un incrément, et le jeton cesserait
-    d'avancer aussi vite que les écritures.
+    ``merge="add"`` and not an assignment: two simultaneous writes would
+    lose an increment, and the token would stop advancing as fast as the
+    writes.
     """
 
     rev: int = field(default=0, merge="add")
 
 
 def criteres_et_niveaux() -> list[dict]:
-    """Les quatre critères et leurs niveaux, dans l'ordre du bulletin.
+    """The four criteria and their levels, in report-card order.
 
-    Une seule requête pour les vingt-quatre niveaux : quatre requêtes
-    seraient plus lisibles et coûteraient quatre ouvertures de fichier
-    par rendu de fiche.
+    A single query for the twenty-four levels: four queries would be more
+    readable and would cost four file openings per sheet render.
     """
     lignes = query(
         """
@@ -88,11 +86,11 @@ def criteres_et_niveaux() -> list[dict]:
 
 
 def fiche_de(eleve_id: int, classe_id: int, trimestre: int) -> dict:
-    """La fiche d'un élève, créée à la volée si elle n'existe pas.
+    """A pupil's sheet, created on the fly if it does not exist.
 
-    Une fiche vide n'est pas une absence de fiche : le trimestre existe,
-    l'élève aussi, et l'écran doit pouvoir cocher. La créer à la LECTURE
-    évite un « enregistrer d'abord » qui n'aurait aucun sens.
+    An empty sheet is not an absence of sheet: the term exists, so does
+    the pupil, and the screen must be able to tick. Creating it on READ
+    avoids a "save first" that would make no sense.
     """
     lignes = query(
         "SELECT id, appreciation, ecrite_main FROM fiches "
@@ -119,7 +117,7 @@ def fiche_de(eleve_id: int, classe_id: int, trimestre: int) -> dict:
 
 
 def fiches_de_classe(classe_id: int, trimestre: int) -> list[dict]:
-    """Toutes les appréciations d'une classe, pour la relecture (EF-E9)."""
+    """A class's every comment, for the review (EF-E9)."""
     return query(
         """
         SELECT e.id AS eleve_id, e.nom, e.prenom,
@@ -137,7 +135,7 @@ def fiches_de_classe(classe_id: int, trimestre: int) -> list[dict]:
 
 
 def teintes_de_classe(classe_id: int, trimestre: int) -> dict[str, list[int]]:
-    """``critère → [teintes cochées]`` — l'entrée du bilan (EF-F)."""
+    """``criterion → [ticked tints]`` — the summary's input (EF-F)."""
     resultat: dict[str, list[int]] = {}
     for ligne in query(
         """
@@ -155,10 +153,10 @@ def teintes_de_classe(classe_id: int, trimestre: int) -> dict[str, list[int]]:
 
 
 def phrase_du_niveau(niveau_id: int, trimestre: int) -> str:
-    """La formulation d'EF-E5, celle du TRIMESTRE demandé.
+    """EF-E5's wording, that of the term asked for.
 
-    Repli sur le libellé long si la table n'a rien : une phrase manquante
-    ne doit pas vider une appréciation.
+    Falls back on the long label if the table has nothing: a missing
+    sentence must not empty a comment.
     """
     lignes = query(
         "SELECT texte FROM phrases WHERE niveau_critere_id = ? "
@@ -170,7 +168,7 @@ def phrase_du_niveau(niveau_id: int, trimestre: int) -> str:
     return repli[0]["long"] if repli else ""
 
 
-# ── Les écritures ────────────────────────────────────────────────────
+# ── The writes ───────────────────────────────────────────────────────
 
 def assurer_fiche(eleve_id: int, classe_id: int, trimestre: int,
                   annee_id: int) -> int:
@@ -188,11 +186,10 @@ def assurer_fiche(eleve_id: int, classe_id: int, trimestre: int,
 
 def cocher(eleve_id: int, classe_id: int, trimestre: int, annee_id: int,
            critere_id: int, niveau_id: int | None) -> None:
-    """Coche (ou décoche) un niveau. **Au plus un par critère** (EF-E1).
+    """Tick (or untick) a level. **At most one per criterion** (EF-E1).
 
-    C'est la clé primaire ``(fiche_id, critere_id)`` qui le garantit, pas
-    un test ici : une règle tenue par le schéma tient quel que soit
-    l'écran.
+    It is the ``(fiche_id, critere_id)`` primary key that guarantees it,
+    not a test here: a rule held by the schema holds whatever the screen.
     """
     fiche_id = assurer_fiche(eleve_id, classe_id, trimestre, annee_id)
     if niveau_id is None:
@@ -211,11 +208,11 @@ def cocher(eleve_id: int, classe_id: int, trimestre: int, annee_id: int,
 
 def proposer(eleve_id: int, classe_id: int, trimestre: int, annee_id: int,
              texte: str) -> bool:
-    """Écrit une proposition — **sauf si le professeur a écrit** (EF-E3).
+    """Write a proposal — **unless the teacher has written** (EF-E3).
 
-    Rend vrai si le texte a été posé. Le refus n'est pas une erreur :
-    c'est le comportement attendu, et c'est pour ça que la fonction rend
-    un booléen plutôt que de lever.
+    Returns true if the text was set. The refusal is not an error: it is
+    the expected behaviour, and that is why the function returns a
+    boolean rather than raising.
     """
     fiche_id = assurer_fiche(eleve_id, classe_id, trimestre, annee_id)
     lignes = query("SELECT ecrite_main FROM fiches WHERE id = ?", (fiche_id,))
@@ -229,7 +226,7 @@ def proposer(eleve_id: int, classe_id: int, trimestre: int, annee_id: int,
 
 def ecrire_a_la_main(eleve_id: int, classe_id: int, trimestre: int,
                      annee_id: int, texte: str) -> None:
-    """Le professeur écrit : le drapeau tombe, **définitivement**."""
+    """The teacher writes: the flag falls, **permanently**."""
     fiche_id = assurer_fiche(eleve_id, classe_id, trimestre, annee_id)
     execute(
         "UPDATE fiches SET appreciation = ?, ecrite_main = 1 WHERE id = ?",
@@ -239,11 +236,11 @@ def ecrire_a_la_main(eleve_id: int, classe_id: int, trimestre: int,
 
 def redemander(eleve_id: int, classe_id: int, trimestre: int,
                annee_id: int) -> None:
-    """Le bouton d'EF-E3 : *« redemander explicitement une proposition »*.
+    """EF-E3's button: *"explicitly ask for a proposal again"*.
 
-    C'est la SEULE façon de repasser ``ecrite_main`` à zéro. Sans elle,
-    une correction malheureuse condamnerait la fiche à rester telle
-    quelle jusqu'à la fin de l'année.
+    It is the ONLY way of putting ``ecrite_main`` back to zero. Without
+    it, one unfortunate correction would condemn the sheet to stay as it
+    is until the end of the year.
     """
     fiche_id = assurer_fiche(eleve_id, classe_id, trimestre, annee_id)
     execute("UPDATE fiches SET ecrite_main = 0 WHERE id = ?", (fiche_id,))
