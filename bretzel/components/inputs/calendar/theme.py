@@ -76,8 +76,8 @@ CALENDAR_THEME: dict[str, Any] = {
             # ``sizes[<size>]["weekday"]``, ``md`` included. Putting them
             # in the slot makes them STACK with the table → a collision
             # on the same element (Tailwind decides by its sheet's order,
-            # unpredictable winner). Cf. traps.md § "size=: slot ↔ table
-            # collision".
+            # unpredictable winner). Cf. traps.md § "L'ordre dans `class=`
+            # ne tranche pas un conflit Tailwind".
             #
             # ``min-w-fit`` (a floor, not a size): an app's own
             # ``weekday_names=`` can be wider than the column; the column

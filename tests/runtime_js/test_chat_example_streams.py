@@ -44,7 +44,6 @@ def _start(browser, prompt: str) -> None:  # type: ignore[no-untyped-def]
 
 
 def test_the_answer_grows_and_stop_actually_stops() -> None:
-    from examples.chat.features.generator import answer_for
     from examples.chat.main import app
 
     with audit_server(app) as base_url:

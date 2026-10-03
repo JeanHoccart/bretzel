@@ -125,7 +125,7 @@ def sous_taches(carte: dict, brouillon: Brouillon) -> None:
                 # ``+`` and not an f-string: an f-string around a
                 # binding RAISES, because it would freeze the value at
                 # render time. ``binding + str`` stays ONE reactive text
-                # that follows the client counter (traps.md, « Un
+                # that follows the client counter (traps.md § « Un
                 # espace en tête d'un texte dans un hstack disparaît »).
                 ui.text(Avancement().faites + tr(f" of {total}",
                                                  f" sur {total}"),

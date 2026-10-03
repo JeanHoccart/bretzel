@@ -10,7 +10,7 @@ The hover lift is ``relative top-0 hover:-top-0.5 hover:shadow-md`` —
 subtle enough not to bounce, present enough to read as actionable.
 (A ``top`` offset, deliberately NOT a translate : a transform would
 make the card the containing block of its fixed-positioned overlay
-panels — cf. traps.md § « Hover lift en translate ».)
+panels — cf. traps.md § « Un overlay hérite des contraintes de ses ancêtres ».)
 """
 
 from __future__ import annotations
@@ -97,8 +97,7 @@ class Card(Component):
             # panel (Select, Tooltip, Dropdown…) is repositioned
             # ``position: fixed`` at open time by ``floating()`` and
             # escapes the clip box natively — so no auto-swap to
-            # ``overflow-visible`` is needed. Cf. traps.md § "Card
-            # auto-swap (REMOVED)".
+            # ``overflow-visible`` is needed.
             parts.append(root_class)
         padding_class = theme.get("paddings", {}).get(padding)
         if padding_class:

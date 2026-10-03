@@ -68,7 +68,7 @@ def main() -> int:
             page.goto(BASE + "/")
             page.wait_for_selector("html.bz-ready")
 
-            log = lambda: page.inner_text("#log")  # noqa: E731
+            log = lambda: page.inner_text("#log")
 
             print("\nClient events push to the bound log")
             check("starts empty", "no events yet" in log(), log())

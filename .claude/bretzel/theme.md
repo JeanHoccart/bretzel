@@ -324,7 +324,7 @@ module jamais importé. Le vocabulaire est dérivé une seule fois, dans
 `bretzel.introspect.theme_vocabulary()`, et consommé par les deux règles de
 lint ET la validation au démarrage : une seule table, un seul comportement.
 
-`_resolved_theme()` (méthode de `Component`) appelle `app.theme.merged_component_theme(<THEME_KEY>, cls.THEME)` : deep-merge **récursif** clé-par-clé à tous les étages (`merge_component_themes`, cf. `theme/slots.py`) — un override de `slots.root` n'efface ni les autres slots, ni `variants`/`sizes`. Une **feuille string** redéfinit son entrée en entier (fournir le template complet) — ≠ du `slots=` par-instance qui AJOUTE. Le merge est mémoïsé par `THEME_KEY` sur l'instance `Theme` (les deux entrées sont immuables après le boot ; `compose_class` résout le thème une fois PAR SLOT). Gate : `tests/consistency/test_theme_override_merge.py`. *(Avant le 2026-07-15, l'override remplaçait le dict livré ENTIER — cf. traps.md § « Theme(components=…) écrasait le thème livré ».)*
+`_resolved_theme()` (méthode de `Component`) appelle `app.theme.merged_component_theme(<THEME_KEY>, cls.THEME)` : deep-merge **récursif** clé-par-clé à tous les étages (`merge_component_themes`, cf. `theme/slots.py`) — un override de `slots.root` n'efface ni les autres slots, ni `variants`/`sizes`. Une **feuille string** redéfinit son entrée en entier (fournir le template complet) — ≠ du `slots=` par-instance qui AJOUTE. Le merge est mémoïsé par `THEME_KEY` sur l'instance `Theme` (les deux entrées sont immuables après le boot ; `compose_class` résout le thème une fois PAR SLOT). Gate : `tests/consistency/test_theme_override_merge.py`. *(Avant le 2026-07-15, l'override remplaçait le dict livré ENTIER.)*
 
 ---
 

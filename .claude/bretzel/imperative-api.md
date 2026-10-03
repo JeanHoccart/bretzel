@@ -50,6 +50,6 @@ doit énumérer les deux formes.
 4. Tester le chemin avec binding et le chemin local lorsqu'ils existent.
 5. Vérifier la fiche avec `bretzel describe <composant>`.
 
-Les gates `test_imperative_classvar_is_complete.py` et
-`test_imperative_methods_emit_valid_js.py` vérifient que la déclaration et les
-méthodes restent cohérentes.
+La gate `tests/consistency/test_imperative_classvar_is_complete.py` et
+`tests/unit/components/test_imperative_classvar.py` vérifient que la
+déclaration et les méthodes restent cohérentes.

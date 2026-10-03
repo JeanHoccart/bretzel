@@ -580,8 +580,7 @@ def _text_or_component(value: Any) -> Node:
 
     No ClientBinding branch — ``label`` / ``description`` are not
     bindable, and a binding lives in ``_binding_metadata``, never in
-    ``_reactive_values`` (cf. traps.md § "Reading a binding through
-    _reactive_values + isinstance").
+    ``_reactive_values``.
     """
     if isinstance(value, Component):
         return Component.render_detached(value)

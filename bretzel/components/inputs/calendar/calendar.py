@@ -1126,9 +1126,9 @@ class Calendar(Component):
         # The WIDTH comes from the sizes table, not from the slot: it
         # depends on the step (7 cells + the two edges), and putting it
         # in the slot would stack it with the table on the same element
-        # — the collision ``traps.md`` § "size=: slot ↔ table collision"
-        # describes, whose outcome Tailwind decides by its sheet's
-        # order.
+        # — the collision ``traps.md`` § "L'ordre dans `class=` ne tranche
+        # pas un conflit Tailwind" describes, whose outcome Tailwind
+        # decides by its sheet's order.
         root_attrs["class"] = " ".join(filter(None, (
             slots.get("root", ""),
             size_map.get("root", ""),

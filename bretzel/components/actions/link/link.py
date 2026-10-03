@@ -53,8 +53,8 @@ class Link(Component):
         super().__init__(href=href, variant=variant, color=color, **kwargs)
         # ``adopt_slot`` detaches a Component passed as a slot
         # (otherwise it renders twice); string / ClientBinding pass
-        # through intact. Cf. traps.md § "A Component slot stored without
-        # adopt_slot".
+        # through intact. Cf. traps.md § "Slot Component stocké sans
+        # `adopt_slot`".
         self._label = Component.adopt_slot(label)
         self._external = external
         self._download = download

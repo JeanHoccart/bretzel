@@ -8,8 +8,9 @@ Drives ``bench_card_hover.py`` (uvicorn :8962). Reads the computed
    hover:-top-0.5``) and never go back to ``translate`` : a transform
    makes the card the containing block of its descendants' ``fixed``
    overlay panels — a Select inside a hoverable card then opened 477px
-   below its trigger. Cf. traps.md § « Hover lift en translate »
-   (2026-07-15). Hence ``is_lifted`` reads ``top``, and
+   below its trigger (fixed 2026-07-15). Cf. traps.md § « Un overlay
+   hérite des contraintes de ses ancêtres ». Hence ``is_lifted`` reads
+   ``top``, and
    ``no_transform`` asserts the transform stays absent.
 
 Run :  py tests/probes/probe_card_hover.py

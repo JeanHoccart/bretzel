@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Playwright probe — le navigateur CHARGE-t-il vraiment les pistes ?
 
 Ce que le rendu serveur prouve, et ou il s'arrete

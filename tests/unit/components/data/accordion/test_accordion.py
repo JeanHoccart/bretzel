@@ -149,8 +149,7 @@ class TestStructure:
         # SSR row class). A @refreshable morph strips them back to the
         # SSR baseline, but the afterSwap rescan re-applies them — the
         # per-bind managed set in the bz-class handler makes that
-        # re-apply actually stick (cf. runtime_js morph regression +
-        # traps.md § "bz-class perdue après un morph").
+        # re-apply actually stick (cf. runtime_js morph regression).
         assert out.count("bz-class") >= 3
         assert "grid-rows-[1fr]" in out
         assert "grid-rows-[0fr]" in out
@@ -419,7 +418,7 @@ class TestEvents:
         set (``hx-post`` + ``hx-trigger`` + …). Those keys must ride the
         hidden ``<input>`` (which carries ``name`` + ``value``), NOT the
         root ``<div>`` (no name/value → empty FormData — cf.
-        ``traps.md`` § "bz-event:change sur un div")."""
+        ``traps.md`` § "Un event déclaré doit partir du bon élément")."""
         binding = ClientBinding(
             class_name="UI",
             instance_key="default",

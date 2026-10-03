@@ -10,7 +10,8 @@ Two guarded regressions :
 2. The lift must stay a POSITION offset (``relative top-0
    hover:-top-0.5``), never a ``translate`` — a transform would make
    the card the containing block of its descendants' ``fixed`` overlay
-   panels. Cf. traps.md § « Hover lift en translate » (2026-07-15).
+   panels (fixed 2026-07-15). Cf. traps.md § « Un overlay hérite des
+   contraintes de ses ancêtres ».
 
 Run :  py tests/probes/bench_card_hover.py
 """
@@ -48,10 +49,7 @@ if __name__ == "__main__":
     from tests.probes._serve import bench_port, use_local_tailwind
 
     # Le compilateur CSS depuis 127.0.0.1 et non depuis unpkg :
-
     # une suite ne doit pas dependre d'un tiers (cf. `_serve`).
-
     use_local_tailwind()
-
 
     uvicorn.run(app, host="127.0.0.1", port=bench_port(8962))

@@ -45,10 +45,8 @@ import re
 import socket
 import subprocess
 import sys
-import threading
 import time
 import urllib.request
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path

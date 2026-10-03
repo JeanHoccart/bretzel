@@ -36,8 +36,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         # **shrink-to-fit** parent — it is the ``w-0 min-w-full`` on
         # ``file_list`` (see that slot) that stops the strip inflating
         # the ancestor and really makes ``overflow-x-auto`` work. The two
-        # together = robust everywhere. Cf. traps.md § "overflow-x-auto
-        # undone by min-width:auto" (the family of the date_picker
+        # together = robust everywhere (the family of the date_picker
         # `w-fit` bug).
         #
         # The WIDTH is the variant's (``variants`` below), not the root's.
@@ -74,8 +73,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         # longer pulls the ancestor), but it fills 100% of the parent →
         # the cards overflow ITS width → ``overflow-x-auto`` finally
         # scrolls. Robust in any context (measured: shrink-parent AND
-        # full-width). Cf. traps.md § "overflow-x-auto undone by
-        # min-width:auto". The ``min-w-0`` on the root is still useful (a
+        # full-width). The ``min-w-0`` on the root is still useful (a
         # grid cell narrower than the dropzone).
         #
         # Padding trade-off : the remove × button floats ``-top-2

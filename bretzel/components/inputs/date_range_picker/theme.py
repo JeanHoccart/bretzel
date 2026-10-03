@@ -70,8 +70,7 @@ DATE_RANGE_PICKER_THEME: dict[str, Any] = {
         ),
         # Positioned by ``$bz.helpers.floating`` (fixed + inline top/left,
         # flip / clamp) — no static ``top-full left-0`` (those fight the inline
-        # coords under fixed ; cf. traps.md § "panel left-0 right-0 under
-        # floating"). Same as date_picker / Select / Combobox.
+        # coords under fixed). Same as date_picker / Select / Combobox.
         "panel": (
             "absolute z-40 mt-1 "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface shadow-lg "

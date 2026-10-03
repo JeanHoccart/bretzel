@@ -109,7 +109,6 @@ def run_probe() -> int:
 
     import uvicorn
 
-    from tests.probes._serve import bench_port, use_local_tailwind
     from playwright.sync_api import sync_playwright
 
     config = uvicorn.Config(app, host="127.0.0.1", port=PORT, log_level="error")
@@ -210,11 +209,10 @@ if __name__ == "__main__":
         raise SystemExit(run_probe())
     import uvicorn
 
+    from tests.probes._serve import bench_port, use_local_tailwind
+
     # Le compilateur CSS depuis 127.0.0.1 et non depuis unpkg :
-
     # une suite ne doit pas dependre d'un tiers (cf. `_serve`).
-
     use_local_tailwind()
-
 
     uvicorn.run(app, host="127.0.0.1", port=bench_port(PORT))

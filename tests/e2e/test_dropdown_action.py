@@ -1,8 +1,7 @@
 """End-to-end regression : a teleported dropdown item's server action must
 keep firing AFTER the board has refreshed.
 
-Guards the ``bindTeleport`` htmx-processing fix (traps.md § "Teleported
-``hx-post`` mort après un refresh"). Before the fix, the very first
+Guards the ``bindTeleport`` htmx-processing fix. Before the fix, the very first
 ``Move`` fired the POST (htmx's observer caught the first projection) but
 every subsequent one was dead : the refresh re-projected the panel clone
 under ``<body>`` via ``scan`` only, never ``htmx.process`` — so the item's

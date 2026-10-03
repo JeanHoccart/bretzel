@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Probe — le code exporte par le theme studio est-il du Python QUI MARCHE ?
 
 Le bloc du bas de ``/studio`` (examples/showcase) est la raison d'etre de la page : on

@@ -9,8 +9,8 @@
 #     la base autorise plus que la réalité et finit par ne plus rien
 #     mesurer. C'est le défaut exact qu'elle corrige.
 #
-# Mesuré avec **ruff 0.15.21**. Le `pyproject.toml` contraint `ruff>=0.8` :
-# une montée de version peut donc ajouter ou retirer des constats sans que
+# Mesuré avec **ruff 0.15.21**, la version que le `pyproject.toml` épingle :
+# une autre version installée peut ajouter ou retirer des constats sans que
 # personne ait touché au code. Si ce fichier rougit après un `pip install
 # -U`, vérifie la version AVANT de chercher dans le diff — le message
 # d'échec la rappelle.

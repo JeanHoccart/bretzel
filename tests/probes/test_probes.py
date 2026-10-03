@@ -97,7 +97,7 @@ PROBES_FLOOR = 45
 #: lue depuis la gate qui les tolère : deux listes divergeraient, et
 #: c'est précisément la copie manuelle qui a tué quatre probes le
 #: 2026-08-30.
-from tests.consistency.test_probe_benches_still_import import (  # noqa: E402
+from tests.consistency.test_probe_benches_still_import import (
     _ORPHANS_KNOWN,
 )
 

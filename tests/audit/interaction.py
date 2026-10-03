@@ -32,9 +32,7 @@ existing audit report.
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 from playwright.sync_api import Page
 
@@ -992,6 +990,5 @@ __all__ = [
     "probe_client_binding_lands_on_carrier",
     "probe_server_props_drive_dom",
     "probe_client_switches_drive_carrier",
-    "_SERVER_PROP_DOM_AFFECTING",
     "_SERVER_PROP_DOM_IRRELEVANT",
 ]

@@ -28,8 +28,8 @@ Pourquoi cette gate (2026-07-18). ``Banner`` (le × de fermeture) et ``Tree``
 Le × parasite était visible à l'œil dans le playground (bloc « Emitted HTML »
 = un banner rendu détaché) mais aucun test ne l'attrapait : le gate slot ne
 teste pas le render-time, et le SSR TestClient sérialise sans regarder la
-racine du contexte. Cf. traps.md § « Icon construit dans render() sans
-detach » + « Slot Component stocké sans adopt_slot ».
+racine du contexte. Cf. traps.md § « Icon construit dans `render()` sans
+détachement » + « Slot Component stocké sans `adopt_slot` ».
 """
 
 from __future__ import annotations
@@ -160,8 +160,8 @@ def test_render_leaks_no_root_orphan(cls: type) -> None:
         f"construit dans render() s'auto-enregistre au parent actif et fuit "
         f"quand le composant est détaché. Fix : "
         f"`Component._detach_from_parent(child)` AVANT `child.render()` "
-        f"(cf. badge/combobox/select ; traps.md § « Icon construit dans "
-        f"render() sans detach »)."
+        f"(cf. badge/combobox/select ; "
+        f"traps.md § « Icon construit dans `render()` sans détachement »)."
     )
 
 

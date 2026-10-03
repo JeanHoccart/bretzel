@@ -53,8 +53,7 @@ TABS_THEME: dict[str, Any] = {
         # hover gated by ``not-disabled:`` on the same element that owns the
         # ``:disabled`` state — the family idiom (Button / ToggleGroup /
         # Pagination) — so a disabled tab shows ``cursor-not-allowed``
-        # with no hover tint, no ``pointer-events`` hack needed. Cf.
-        # traps.md § "hover: sur un control disabled".
+        # with no hover tint, no ``pointer-events`` hack needed.
         "tab": (
             "group relative inline-flex items-center justify-center "
             "px-1.5 pb-1.5 -mb-px cursor-pointer outline-none text-muted "

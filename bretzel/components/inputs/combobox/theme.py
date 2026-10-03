@@ -73,8 +73,7 @@ COMBOBOX_THEME: dict[str, Any] = {
         ),
         # ``×`` to clear everything. Hidden when there's nothing
         # picked. Hover gated on ``not-disabled:`` so the × stays frozen
-        # when the parent Combobox is ``disabled`` — cf. traps.md §
-        # "hover: sur un control disabled".
+        # when the parent Combobox is ``disabled``.
         "clear": (
             "shrink-0 inline-flex items-center justify-center "
             "ml-1 rounded-selector text-muted not-disabled:hover:text-text "

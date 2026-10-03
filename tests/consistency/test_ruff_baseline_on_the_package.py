@@ -244,5 +244,5 @@ def test_the_population_has_not_moved() -> None:
         f"base autorise plus que la réalité.\n"
         f"  Ni l'un ni l'autre : regarde la version de ruff. La base a été "
         f"mesurée avec 0.15.21, l'environnement porte « {ruff_version()} », "
-        f"et le `pyproject.toml` ne contraint que `ruff>=0.8`."
+        f"alors que le `pyproject.toml` épingle `ruff==0.15.21`."
     )

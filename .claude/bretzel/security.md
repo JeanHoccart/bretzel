@@ -60,7 +60,7 @@ l'écrire la sort de ce repli et lui fait perdre ce dont elle héritait.
 `build_policy` amorce toute directive neuve avec les valeurs de
 `default-src` pour que le piège n'existe pas ici. Il a mordu pour de
 vrai le 2026-09-05 (`frame-src: ["data:"]` a bloqué une iframe
-même-origine du playground) ; cf. `traps.md` § Sécurité.
+même-origine du playground).
 
 Une clé mal orthographiée est refusée **au démarrage**, pas ignorée :
 `img_src` ou `image-src` ne fait rien du tout dans un navigateur, la

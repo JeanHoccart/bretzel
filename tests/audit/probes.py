@@ -12,7 +12,6 @@ caller composes them into a checklist (cf. :mod:`tests.audit.checklist`).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
 
 from playwright.sync_api import Page
 
@@ -51,9 +50,7 @@ def probe_color_distinctness(
 
     Samples ``borderColor`` + ``backgroundColor`` + ``color`` from
     ``getComputedStyle``. If two colors collapse to the same triple,
-    the theme uses ``{color}`` only on transient states — cf.
-    ``traps.md`` § "Theme utilise ``{bg_color}`` UNIQUEMENT sur états
-    transitoires".
+    the theme uses ``{color}`` only on transient states.
     """
     js = """
     (args) => {
@@ -262,8 +259,7 @@ def probe_tab_order(
 
     Catches the classic ``sr-only`` trap : a ``<input class="sr-only">``
     that should NOT be in the tab order but is, producing a phantom
-    Tab stop with a scroll jolt. Cf. ``traps.md`` § "``sr-only`` ne
-    retire PAS un élément du tab order".
+    Tab stop with a scroll jolt.
 
     Walks Tab from inside the component, records each focused element's
     tag + visible flag, and asserts the sequence makes sense.
@@ -331,8 +327,6 @@ def probe_no_body_overflow(page: Page) -> ProbeResult:
     pane's ``overflow-y-auto``. If body or html ALSO overflow, the
     browser surfaces a second scrollbar — the classic shell layout
     bug fixed via ``fixed inset-0`` instead of ``h-screen``.
-    Cf. ``traps.md`` § "Shell layout ``h-screen`` produit un double
-    scrollbar viewport".
     """
     report = page.evaluate("""() => ({
         bodyOverflow: document.body.scrollHeight - document.body.clientHeight,
@@ -413,9 +407,7 @@ def probe_no_clip(
     Walks elements that have ``position: absolute`` AND negative
     top/left/right/bottom (i.e. floating outside their parent corner)
     and checks that ``getBoundingClientRect`` is non-zero — if zero,
-    the element is rendered but clipped to invisibility. Cf.
-    ``traps.md`` § "Bouton positionné ``-top-X -right-X`` clipé par
-    ``overflow-hidden``".
+    the element is rendered but clipped to invisibility.
 
     ⚠️ **Seuls les éléments AFFICHÉS sont jugés.** « Rendu puis clipé »
     n'a pas de sens pour un nœud que le CSS cache déjà : un panneau

@@ -78,7 +78,8 @@ def test_imperative_component_needs_identity(ui_name: str, cls: type) -> None:
     ``.open()`` / ``.set()`` / … visent leur cible par
     ``getElementById(self.id)`` ; sans id rendu le dispatch trouve
     ``null`` et échoue **en silence** (aucune erreur console) — le piège
-    exact de traps.md § « API imperative sans id ». Auparavant chaque
+    exact de traps.md § « Une API impérative exige une identité ».
+    Auparavant chaque
     composant re-tapait ``def _needs_identity: return True`` (17 copies) ;
     c'est désormais DÉRIVÉ de ``IMPERATIVE`` dans la base (component.py).
     Cette gate fige l'invariant : peu importe qu'il soit dérivé ou

@@ -86,8 +86,8 @@ class Badge(Component):
         )
         # ``adopt_slot`` detaches a Component slot (already
         # auto-registered with the parent) otherwise it renders twice;
-        # string / ClientBinding pass through intact. Cf. traps.md § "A
-        # Component slot without adopt_slot".
+        # string / ClientBinding pass through intact. Cf. traps.md §
+        # "Slot Component stocké sans `adopt_slot`".
         self._label = Component.adopt_slot(label)
 
         # Icons scale with the badge size : resolve the matching

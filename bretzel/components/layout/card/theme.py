@@ -12,7 +12,8 @@ Tooltip…) opened while the pointer is on the card — i.e. always, the
 click IS a hover — paints double-offset (~card.top too low) and gets
 clippable by the card's ``overflow-hidden``. Measured live : panel top
 1006 for a trigger at 529. A ``top`` offset animates identically and
-creates no containing block. Cf. traps.md § « hover lift transform ».
+creates no containing block. Cf. traps.md § « Un overlay hérite des
+contraintes de ses ancêtres ».
 
 ``rounded-box`` + ``shadow-sm`` baseline + ``border-text/10`` hairline
 border + ``bg-surface`` (white by default) — the standard V1 look.
@@ -65,8 +66,8 @@ CARD_THEME: dict[str, Any] = {
     # Plain ``hover:`` lifts ; a "locked surface" (app sets
     # ``aria-disabled="true"`` via attrs=) NEUTRALISES the lift by
     # specificity — ``aria-disabled:hover:*`` (0,3,0) beats ``hover:*``
-    # (0,2,0). aria-disabled IS a built-in variant. Cf. traps.md
-    # § "hover: sur un control disabled" + the Link disabled fix.
+    # (0,2,0). aria-disabled IS a built-in variant. Cf. the Link
+    # disabled fix.
     "hoverable": (
         "transition-all duration-150 ease-out cursor-pointer "
         "relative top-0 "

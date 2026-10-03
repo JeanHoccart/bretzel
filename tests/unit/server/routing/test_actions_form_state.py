@@ -11,7 +11,7 @@ NB : these state classes rely on ``from __future__ import annotations`` so
 the metaclass sees their field annotations and wraps them as ``Field``
 descriptors (PEP 649 / 3.14 — without the future-import the namespace
 carries ``__annotate__`` instead of a populated ``__annotations__`` at
-class-build time, and no fields get created). Cf. ``traps.md`` § PEP 649.
+class-build time, and no fields get created).
 """
 
 from __future__ import annotations

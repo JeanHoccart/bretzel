@@ -17,8 +17,7 @@ Reactive contract :
 generic ``str | Component | ClientBinding`` slot contract most other
 components honour. ``text`` is the SOURCE Pygments highlights, not a
 content slot — a Component there used to be silently stringified to
-its Python ``repr()`` and syntax-highlighted as nonsense (cf. traps.md
-§ "Code.text=Component rendered gibberish"). Same class of bug, same
+its Python ``repr()`` and syntax-highlighted as nonsense. Same class of bug, same
 fix shape, as :class:`Markdown`'s ``ComponentUsageError`` on
 ``ClientBinding``. To compose Code with other components, wrap them :
 ``with ui.vstack(): ui.code(src) ; ui.button("Copy")``.

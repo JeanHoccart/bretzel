@@ -382,7 +382,8 @@ def _server_handler() -> None:  # pragma: no cover — jamais appelé, câblé
 
     Un ``def`` imbriqué dans un test porte ``<locals>`` dans son qualname
     et le socle le REJETTE (``HandlerError``) — cf. ``traps.md``
-    § « Closure capturée ». Une gate s'y est déjà fait prendre avec cinq
+    § « Pas de lambda ni de closure pour une action serveur ». Une gate
+    s'y est déjà fait prendre avec cinq
     faux échecs ; le piège se paie une fois, ici, plutôt qu'à chaque gate
     qui a besoin d'un ``on_<event>=`` callable.
     """

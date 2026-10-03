@@ -19,7 +19,7 @@ import pytest
 
 # Skip everything in this file if Playwright isn't available.
 playwright = pytest.importorskip("playwright.sync_api")
-from playwright.sync_api import BrowserContext, Page, expect
+from playwright.sync_api import Page, expect
 
 
 # ───────────────────────────────────────────────────────────────────────────

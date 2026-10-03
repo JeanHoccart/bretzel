@@ -36,10 +36,6 @@ from bretzel.core.tree import Element
 from bretzel.core.tree import FragmentNode as FragmentNode
 from bretzel.render.context import maybe_current_context
 
-# The three valid identifier kwargs for a ``<meta>`` tag. ``charset``
-# and ``viewport`` deliberately omitted (framework-owned per shell.py).
-_IDENTIFIER_KWARGS: tuple[str, ...] = ("name", "property", "http_equiv")
-
 
 class MetaTag(Component):
     """``<meta>`` element pushed into the request's head_extras."""

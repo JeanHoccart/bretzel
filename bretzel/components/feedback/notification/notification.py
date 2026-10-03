@@ -145,7 +145,7 @@ def skeleton_html() -> str:
             f'<div class="{slots["stack_inner"]}">'
             # ``:flip`` opts the stack into FLIP reflow so a dismissed toast's
             # neighbours glide into the freed slot instead of teleporting
-            # (cf. runtime bz-for + traps.md § "Toast reflow jumps").
+            # (cf. runtime bz-for).
             f"<template bz-for=\"t in stacks['{position}'] :key=t.id :flip\">"
             # Toast root + reactive chrome. ``bz-class`` MERGES the
             # variant classes onto the static ``root`` slot (a plain

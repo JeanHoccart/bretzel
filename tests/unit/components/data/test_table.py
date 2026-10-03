@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.data.table import Column, Table, column

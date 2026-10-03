@@ -152,8 +152,7 @@ def _assert_partial_nav(browser, marker: str = "vivant") -> None:  # type: ignor
     Sans ça un test de nav partielle mesure un rechargement : sans layout
     + outlet il n'y a pas de ``hx-boost``, le clic recharge le document,
     la page réémet son ``<bz-envelope>`` et tout a l'air de marcher.
-    Mesuré le 2026-08-15 — cf. ``traps.md`` § *Process trap — un test de
-    nav partielle sans témoin*.
+    Mesuré le 2026-08-15.
     """
     browser.evaluate(f"() => {{ window.__marker = '{marker}'; }}")
     browser.click("#vers-transport")

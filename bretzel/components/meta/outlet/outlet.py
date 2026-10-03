@@ -136,8 +136,7 @@ class Outlet(Component):
         # A gate keyed on "outlet WAS the swap target" would break nested
         # layouts — a partial-nav swap targets the OUTERMOST outlet, so an
         # inner sub-layout outlet never gets the event → stays hidden →
-        # sub-page renders BLANK. Cf. ``traps.md`` § "Nested partial-nav
-        # blanks the inner outlet".
+        # sub-page renders BLANK.
         children = self._render_children()
         return Element(tag=self._tag, attrs=attrs, children=children)
 

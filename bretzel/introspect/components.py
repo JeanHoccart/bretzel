@@ -220,13 +220,6 @@ def _theme_vocabulary(cls: type) -> tuple[tuple[str, tuple[str, ...]], ...]:
     )
 
 
-#: The props the BASE LAYER resolves by their value, in a theme table
-#: (``compose_class``). Two, no more: the other 24 table groups are read
-#: by each component's ``render``, with its own prop → group
-#: correspondence, which no general rule recomposes.
-_VALUE_ADDRESSED: tuple[str, ...] = ("variant", "size")
-
-
 def prop_vocabulary() -> dict[str, dict[str, frozenset[str]]]:
     """``THEME_KEY`` → ``variant`` / ``size`` → accepted values.
 

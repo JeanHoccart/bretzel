@@ -1,7 +1,6 @@
 """The application shell: sidebar on the left, page in the outlet.
 
-The same skeleton as ``examples/flat/features/shell.py`` (the reference
-that renders correctly): ``h-screen`` in the flow, ``sidebar_title`` +
+The skeleton: ``h-screen`` in the flow, ``sidebar_title`` +
 ``sidebar_footer`` + ``sidebar_footer_item``, and the content shifted
 under the mobile top bar through ``max-md:pt-[5.5rem]``.
 """

@@ -325,9 +325,10 @@ def test_an_orphan_pointer_recompiles_instead_of_crashing(
 ) -> None:
     """Une feuille évincée sous un pointeur encore là.
 
-    C'est l'état NORMAL après une éviction — les pointeurs ne sont pas
-    élagués — donc ce n'est pas un cas tordu, c'est le cas courant. Il
-    doit se comporter comme une absence de cache, pas lever.
+    L'éviction élague les pointeurs orphelins, mais seulement à la
+    compilation suivante, et un autre processus peut évincer entre-temps :
+    l'état reste donc courant. Il doit se comporter comme une absence de
+    cache, pas lever.
     """
     compilations([_ENTREE_A], tmp=tmp_path, monkeypatch=monkeypatch)
     (feuille,) = _sheets(tmp_path)
@@ -336,6 +337,85 @@ def test_an_orphan_pointer_recompiles_instead_of_crashing(
     n = compilations([_ENTREE_A], tmp=tmp_path, monkeypatch=monkeypatch)
     assert n == 1, "un pointeur orphelin doit provoquer une recompilation"
     assert len(_sheets(tmp_path)) == 1
+
+
+# ───────────────────────────────────────────────────────────────────────
+# Ce que l'éviction laisse derrière elle — pointeurs et brouillons
+# ───────────────────────────────────────────────────────────────────────
+#
+# Borner les feuilles ne bornait pas le dossier : chaque édition d'une
+# source balayée ajoute un pointeur, et une compilation interrompue
+# laisse son brouillon ``.tmp``. Mesuré le 2026-10-03 sur le poste de
+# dev : 868 pointeurs et 16 brouillons pour 12 feuilles.
+
+
+def test_pruning_drops_orphan_pointers_and_keeps_live_ones(
+    tmp_path: Path,
+) -> None:
+    """L'interdiction ET le versant licite, sur un même dossier.
+
+    Un pointeur dont la feuille existe est le cache lui-même : l'élaguer
+    ferait recompiler l'app suivante, exactement ce que ce fichier interdit.
+    """
+    css_dir = tmp_path / "css"
+    css_dir.mkdir()
+    (css_dir / "aaaa.css").write_text("/* a */", encoding="utf-8")
+    vivant = css_dir / "1111.key"
+    vivant.write_text("aaaa.css", encoding="utf-8")
+    orphelins = [css_dir / f"{i}{i}{i}{i}.key" for i in range(2, 6)]
+    for p in orphelins:
+        p.write_text("disparue.css", encoding="utf-8")
+    # Plancher : le lecteur du cache voit bien ces pointeurs comme orphelins,
+    # sinon l'assertion finale serait verte sur un élagage qui n'a rien visé.
+    vus_orphelins = [p for p in css_dir.glob("*.key") if build_mod._sheet_for(p) is None]
+    assert len(vus_orphelins) >= len(orphelins)
+
+    build_mod._prune_css_cache(css_dir)
+
+    assert vivant.is_file(), "un pointeur vers une feuille présente a été élagué"
+    restants = [p.name for p in orphelins if p.exists()]
+    assert not restants, f"pointeurs orphelins jamais élagués : {restants}"
+
+
+def test_pruning_drops_abandoned_scratches_but_not_one_in_progress(
+    tmp_path: Path,
+) -> None:
+    """Un brouillon récent peut être une compilation EN COURS dans un
+    autre processus : le supprimer ferait échouer son renommage. Seul un
+    brouillon plus vieux que ``_SCRATCH_MAX_AGE_S`` est abandonné."""
+    css_dir = tmp_path / "css"
+    css_dir.mkdir()
+    vieux = css_dir / ".abcd.old.tmp"
+    vieux.write_text("x", encoding="utf-8")
+    date = 1_700_000_000
+    os.utime(vieux, (date, date))
+    en_cours = css_dir / ".abcd.new.tmp"
+    en_cours.write_text("x", encoding="utf-8")
+
+    build_mod._prune_css_cache(css_dir)
+
+    assert not vieux.exists(), "un brouillon abandonné reste sur le disque"
+    assert en_cours.exists(), "un brouillon en cours de compilation a été supprimé"
+
+
+def test_a_failed_compilation_leaves_no_scratch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Une erreur Tailwind lève — et ne doit pas semer de brouillon."""
+
+    def compile_qui_echoue(theme_css, *, output_path, binary=None, minify=True, **kw):
+        output_path.write_text("/* moitié */", encoding="utf-8")
+        raise build_mod.CompilerError("faux échec")
+
+    monkeypatch.setattr(build_mod, "compile_with_lightning", compile_qui_echoue)
+    monkeypatch.setattr(build_mod, "find_lightning_binary", lambda: tmp_path / "faux")
+    monkeypatch.setattr(build_mod, "_cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(build_mod, "_content_fingerprint", lambda roots: "stable")
+
+    with pytest.raises(build_mod.CompilerError):
+        build_mod.get_or_build_css(_ENTREE_A)
+    restants = [p.name for p in (tmp_path / "css").glob(".*.tmp")]
+    assert not restants, f"brouillons laissés par l'échec : {restants}"
 
 
 def test_two_compilations_never_share_a_scratch_file(

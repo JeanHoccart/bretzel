@@ -76,8 +76,7 @@ threads, donc 41 handlers bloquants simultanés font attendre le 41ᵉ —
 sans commune mesure avec une boucle gelée, où c'est le worker entier
 qui s'arrête.
 
-⚠️ **Deux conséquences à connaître**, les deux dans `traps.md` §
-*Serveur* :
+⚠️ **Deux conséquences à connaître** :
 
 - un `ContextVar.set()` fait dans un handler synchrone ne remonte pas
   au-delà de l'appel (le thread reçoit une COPIE du contexte). Lire ce
@@ -86,7 +85,8 @@ qui s'arrête.
 - deux handlers `def` peuvent maintenant tourner **en même temps**. La
   boucle mono-thread les sérialisait ; elle ne le fait plus. Un
   `state.counter += 1` sur un état partagé peut perdre un incrément
-  entre deux onglets, là où il fallait avant deux workers.
+  entre deux onglets, là où il fallait avant deux workers (`traps.md` §
+  *Le code applicatif synchrone peut être concurrent*).
 
 Gaté par `tests/consistency/test_app_code_never_runs_on_the_loop.py`
 (la forme interdite, et les quatre portes nommées) et par

@@ -41,8 +41,9 @@ question tranche : **qui écrit la boucle ?**
 | réponse | valeur | ce que le composant DOIT alors offrir | exemples |
 |---|---|---|---|
 | l'auteur | `"author"` | des **enfants** (`IS_CONTAINER`), parce qu'il lui faut un endroit où poser son balisage. Un param de données (`items=`, `options=`) reste bienvenu comme **raccourci du cas simple**, et matérialise les mêmes enfants | `breadcrumb`, `toggle_group`, `tabs`, `stepper`, `accordion`, `tree`, `sidebar`, `navbar`, `dropdown`, `bottom_bar`, `carousel` |
-| le composant | `"component"` | un **rappel de contenu**, seul point d'entrée possible : l'auteur *ne peut pas* écrire cette boucle (`datatable` cherche, filtre, trie et pagine) | `table`, `datatable` (`ui.column(render=)`) |
-| le client | `"client"` | **ni l'un ni l'autre** — le navigateur re-rend la liste au runtime, un rappel Python ne s'y branche pas. Il faut un mécanisme propre, et la docstring doit dire lequel | `select`, `combobox` |
+| le composant | `"component"` | un **rappel de contenu**, seul point d'entrée possible : l'auteur *ne peut pas* écrire cette boucle (`datatable` cherche, filtre, trie et pagine) | `table`, `datatable` (`ui.column(render=)`), `select`, `combobox` — leur filtre JS est un `bz-show` : il CACHE des options rendues côté serveur, il n'en crée aucune |
+| le client | `"client"` | **ni l'un ni l'autre** — le navigateur crée les éléments au runtime (`bz-for`), un rappel Python ne s'y branche pas. Il faut un mécanisme propre, et la docstring doit dire lequel | `file_upload` (la liste des fichiers déposés) |
+| personne | `"data"` | **ni l'un ni l'autre** — les éléments ne portent aucun balisage, seulement des attributs : enfants et rappel n'auraient pas de destinataire | `video` (`tracks=`) |
 
 Deux conséquences qu'on ne voit pas tout de suite :
 
@@ -317,25 +318,27 @@ feature n'importe l'instance d'app.
 
 ## 7. Auto-relecture des pièges (AVANT de tester)
 
-Grep ton propre code pour ces patterns. Chaque ligne renvoie à sa section
-de `traps.md` **par son titre** — ce fichier n'a pas de numérotation, et
+Grep ton propre code pour ces patterns. Une ligne en *« … »* renvoie à sa
+section de `traps.md` **par son titre** — ce fichier n'a pas de numérotation, et
 dix renvois « Trap #22 / #33 / #42 » pointaient dans le vide jusqu'au
 2026-08-01.
 
 **Toujours**
 
-- *« Slot Component stocké sans `adopt_slot` → double-render »* — tout
+- *« Slot Component stocké sans `adopt_slot` »* (double-render) — tout
   slot Component-typé passe par `adopt_slot(...)` **dans `__init__`**.
-- *« Lire un binding via `_reactive_values` + `isinstance(ClientBinding)` »*
+- Ne jamais lire un binding via `_reactive_values` + `isinstance(ClientBinding)`
   — toujours `_binding_metadata.get(name)`.
-- *« Méthode d'instance avec le même nom qu'une `reactive_prop` »* — les
-  méthodes impératives sont assignées en **instance attr**.
-- *« Composant à API imperative sans `id` rendu → dispatch silent-fail »*
-  — si tu exposes `.open/.set/…`, `_needs_identity()` doit rendre `True`.
-- *« Élément `inline-flex` étiré pleine largeur dans un `vstack` »* — root
+- *« Une API impérative exige une identité »* (méthode homonyme d'une
+  `reactive_prop`) — les méthodes impératives sont assignées en
+  **instance attr**.
+- *« Une API impérative exige une identité »* (sans `id` rendu → dispatch
+  silent-fail) — si tu exposes `.open/.set/…`, `_needs_identity()` doit
+  rendre `True`.
+- Un élément `inline-flex` s'étire pleine largeur dans un `vstack` — root
   en `w-fit h-fit` (ou dimensions explicites), sinon un tooltip qui
   l'enveloppe se mal-positionne.
-- *« `aria-enabled:` n'est PAS un variant Tailwind »* — les `hover:` d'un
+- `aria-enabled:` n'est PAS un variant Tailwind — les `hover:` d'un
   control se préfixent `enabled:hover:`. Gardé par
   `test_disabled_affordance`.
 - Chaque `EVENTS` déclaré a un `$dispatch` atteignable — gardé par

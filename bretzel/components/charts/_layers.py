@@ -95,8 +95,8 @@ def render_empty_state(
 
     ⚠️ **``_detach_from_parent`` BEFORE ``render()``.** A Component built
     in a ``render()`` registers itself with the ACTIVE parent and leaks
-    — traps.md's "Icon built in render() without detach" trap, paid for
-    by ``diagram`` before us.
+    — the trap traps.md § "Icon construit dans `render()` sans
+    détachement", paid for by ``diagram`` before us.
     """
     from bretzel.components.base import coerce_children
     from bretzel.components.base.component import Component

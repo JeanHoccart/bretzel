@@ -83,8 +83,8 @@ class TestPane:
                 f"`{needed}` a disparu du pane. C'est l'une des quatre "
                 f"classes de l'idiome : sans `min-h-0` la boîte grandit au "
                 f"lieu de défiler, sans `[&>*]:shrink-0` ses items "
-                f"s'écrasent (mesuré : 39 px coupés). Cf. `traps.md` § "
-                f"« Une colonne qui défile ÉCRASE ses items »."
+                f"s'écrasent (mesuré : 39 px coupés). Cf. "
+                f"`traps.md` § « Une colonne qui défile ÉCRASE ses items »."
             )
 
     def test_it_carries_both_height_regimes(self) -> None:

@@ -251,7 +251,8 @@ class ToggleGroup(Component):
         # the existing ``value`` signal across the morph (preserving a
         # user's client click), so without an opt-in the new server value
         # never lands. Same ``_serverSync`` boundary the rich inputs use
-        # (cf. traps.md § a server-bound value follows the refresh). A
+        # (cf. traps.md § "Une config serveur se re-sème aussi quand la
+        # valeur est liée"). A
         # local literal stays client-owned (no re-adopt). Binding mode
         # needs nothing — the value lives in ``$bz._store``.
         value_server_backed = self._value_server_backed("value")

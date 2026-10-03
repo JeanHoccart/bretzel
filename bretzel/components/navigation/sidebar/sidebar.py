@@ -388,7 +388,7 @@ class Sidebar(Component):
         attrs.setdefault("bz-init", current_path_resync_init())
         # ⚠️ ``bz-init`` is ALREADY set above (resync ``current_path``).
         # Overlay mode wants a second one (Escape): we COMPOSE, we do not
-        # overwrite — it is traps.md's "clobbered internal handler" trap,
+        # overwrite — it is the "clobbered internal handler" trap,
         # the one that ate on_focus/on_blur on 2026-07-18.
         _base_init = attrs["bz-init"]
 
@@ -1006,7 +1006,7 @@ class SidebarTitle(Component):
         # rail, it occupies **40 × 40 px** at the head of the bar and
         # takes the FIRST focus — the first tab lands on a link you
         # cannot see. Same family as the closed overlay that kept its
-        # commands reachable (``traps.md`` § A11y).
+        # commands reachable.
         #
         # Reported by the user, who saw the hole: "you did not put a
         # logo, and now we see an empty space". With no glyph, the rail
@@ -1223,7 +1223,7 @@ class SidebarItem(Component):
             )
             # Compose, do not overwrite: a user ``on_mouseenter=`` has
             # already been set in ``attrs`` by ``emit_attrs``.
-            # Overwriting it is traps.md's "clobbered internal handler"
+            # Overwriting it is the "clobbered internal handler"
             # trap (the on_focus/on_blur pass, 2026-07-18).
             for event, internal in (
                 ("bz-on:mouseenter", enter),

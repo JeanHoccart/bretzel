@@ -6,9 +6,8 @@ mettre un fichier.
 > ⚠️ **Réécrit le 2026-08-01.** La version précédente décrivait un modèle
 > que le code avait dépassé : elle ne mentionnait **nulle part** le contrat
 > `Feature` — qui fait échouer le boot quand il est violé —, prescrivait
-> `h-screen` là où les shells réels faisaient `fixed inset-0` (et où
-> `traps.md` conclut « ne PAS re-reverter » — depuis le 2026-08-23 c'est
-> `ui.viewport` qui le porte), et bannissait `shared/` avec
+> `h-screen` là où les shells réels faisaient `fixed inset-0` (depuis le
+> 2026-08-23 c'est `ui.viewport` qui le porte), et bannissait `shared/` avec
 > trois contre-exemples vivants. Références vérifiées : `examples/crm`
 > pour la structure, `examples/docs` et `examples/playground` pour le
 > reste.
@@ -229,8 +228,8 @@ et le `[&>*]:shrink-0` que personne n'écrivait.
 
 🔴 **Ne pas revenir à `h-screen` sur la racine d'une coque.** Le piège a
 été reverté **deux fois** vers `h-screen`, chaque fois avec une
-justification que la mesure démentait ; `traps.md` conclut « ne PAS
-re-reverter ». ⚠️ Nuance ajoutée le 2026-08-23 : l'inflation
+justification que la mesure démentait : ne PAS re-reverter. ⚠️ Nuance
+ajoutée le 2026-08-23 : l'inflation
 (`html.scrollHeight` 7 657 pour un `clientHeight` de 800) **ne s'est pas
 reproduite** dans une forme minimale re-testée en Chromium, donc elle
 venait d'autre chose que du seul `h-screen`. Ça ne rouvre pas le sujet —
@@ -249,7 +248,7 @@ Un dossier de helpers partagés **dans** l'app est légitime dès qu'il évite l
 copie intra-app :
 
 - `examples/crm/core/ui.py` — la carte KPI, factorisée.
-- `examples/docs/lib/` — `introspect.py` + `blocks.py` ; l'app documente
+- `examples/docs/lib/` — `blocks.py`, `runtime_blocks.py`, `runtime_surface.py` ; l'app documente
   elle-même ce dossier comme partie de son squelette.
 - `examples/shared/app_map_view.py` — partagé **entre** exemples, importé par
   `crm` et le playground.

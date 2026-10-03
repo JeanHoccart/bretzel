@@ -80,10 +80,10 @@ def run_scenario(browser, os_scheme: str) -> None:
     page.reload()
     page.wait_for_selector("html.bz-ready", timeout=15000)
 
-    dark = lambda: page.evaluate(  # noqa: E731 — une sonde, pas une fonction
+    dark = lambda: page.evaluate(
         "document.documentElement.classList.contains('dark')"
     )
-    mode = lambda: page.evaluate(  # noqa: E731
+    mode = lambda: page.evaluate(
         "$bz.state.ColorScheme.default.mode"
     )
 

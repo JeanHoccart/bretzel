@@ -79,7 +79,7 @@ def validate_scalar_binding(
     same "cannot determine, stay permissive" rule. Reading ``.value``
     on one raises ``AttributeError`` : this guard is what made
     ``ui.button(disabled=expr)`` crash here, BEFORE the caller's own
-    handling. Cf. traps.md § « ClientExpression sur une reactive prop ».
+    handling.
     """
     if isinstance(binding, ClientExpression):
         return

@@ -73,8 +73,7 @@ TIME_PICKER_THEME: dict[str, Any] = {
         "button_icon": "inline-flex shrink-0 text-current",
         # Positioned by ``$bz.helpers.floating`` (``position: fixed`` +
         # inline coordinates). NO ``left-0`` / ``right-0``: under fixed
-        # position they fight the inline coordinates (cf. traps.md
-        # § "panel left-0 right-0 under floating").
+        # position they fight the inline coordinates.
         "panel": (
             "absolute z-40 mt-1 p-2 "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface shadow-lg "

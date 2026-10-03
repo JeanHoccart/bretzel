@@ -201,7 +201,7 @@ def test_a_wired_handler_is_declared(cls_name: str, missing: tuple[str, ...]) ->
         f"  Le routage par ÉLÉMENT (une ligne, une barre, une part, un "
         f"nœud) passe par `item_action_attrs` — le socle, lui, poserait "
         f"l'`hx-post` sur la racine.\n"
-        f"  Cf. `.claude/work/audit-declaration-2026-09-06.md`."
+        f"  Cf. le commit `28958bf3`, qui a posé cette gate."
     )
 
 

@@ -91,5 +91,5 @@ def test_an_inner_zone_scrolls_instead_of_the_document() -> None:
             assert not m["docOverflows"], (
                 "Le DOCUMENT déborde : c'est la page entière qui défile, pas "
                 "la zone interne. Un shell pleine hauteur doit sortir du flux "
-                "(`fixed inset-0`, cf. traps.md § Shell layout h-screen)."
+                "(`fixed inset-0`)."
             )

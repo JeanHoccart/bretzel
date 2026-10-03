@@ -13,7 +13,8 @@ twice — undo, redo, and the activity feed that says who did what.
 ⚠️ **A collection is REASSIGNED, it is not mutated in place.**
 ``tableau.cartes[0]["titre"] = "x"`` does write the value but does not
 change the list's identity: change detection sees nothing and no zone
-re-renders (``traps.md`` § collection mutation). Hence :func:`poser`,
+re-renders (``traps.md`` § "Les mutations en place doivent passer par les
+objets réactifs"). Hence :func:`poser`,
 which rebuilds the list around the card touched.
 """
 

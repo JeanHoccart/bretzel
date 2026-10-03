@@ -70,10 +70,7 @@ if __name__ == "__main__":
     from tests.probes._serve import bench_port, use_local_tailwind
 
     # Le compilateur CSS depuis 127.0.0.1 et non depuis unpkg :
-
     # une suite ne doit pas dependre d'un tiers (cf. `_serve`).
-
     use_local_tailwind()
-
 
     app.run(port=bench_port(8980))

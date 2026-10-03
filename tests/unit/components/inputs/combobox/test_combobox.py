@@ -782,8 +782,7 @@ class TestUserHandlerDoesNotClobberInternalWiring:
 
 class TestMethodShorthandScope:
     """Regression guard for the ``this.value`` rule in method
-    shorthand bodies — cf. ``traps.md`` § "open = false dans une
-    méthode shorthand x-data".
+    shorthand bodies.
 
     Methods declared in the ``bz-data`` object literal are bound to
     the scope proxy (``this`` = scope), but bare identifiers in a

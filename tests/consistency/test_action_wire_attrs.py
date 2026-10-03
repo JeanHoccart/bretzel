@@ -6,8 +6,8 @@ hidden ``<input>`` (``hx-post`` / ``hx-trigger`` / ``hx-target`` /
 copy-pasted into 8+ component modules. At the HMAC-v2 rollout four of
 those copies missed ``data-bz-ts`` : the signed render timestamp stayed
 on the handler-less root, the bridge forwarded an empty ``X-Bz-Ts`` and
-**every** action POST for those controls 403'd (cf. traps.md
-§ "data-bz-ts oublié au relocate" — the bug that kicked off this audit).
+**every** action POST for those controls 403'd (the bug that kicked off
+this audit).
 
 The tuple now lives once, in ``base/_wiring.SERVER_ACTION_ATTRS``, and
 every value-holding control imports it. This gate keeps it that way so

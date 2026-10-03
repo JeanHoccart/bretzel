@@ -150,6 +150,29 @@
         if (this._url) $bz.helpers.pushUrl(this._url, s);
       },
 
+      // The KEYBOARD, on the tablist (WAI-ARIA tabs pattern, automatic
+      // activation). The tabindex is roving — only the active tab is in
+      // the Tab order — so without this a keyboard user reached the
+      // active tab and nothing else. Arrows move to the neighbour (and
+      // wrap), Home/End to the ends; disabled tabs are skipped. The tab
+      // reached is focused AND activated.
+      tabKey(e, list) {
+        const step = { ArrowRight: 1, ArrowLeft: -1, Home: 0, End: 0 }[e.key];
+        if (step === undefined) return;
+        const tabs = Array.from(
+          list.querySelectorAll('[role="tab"]:not([disabled])'),
+        );
+        if (!tabs.length) return;
+        const from = tabs.indexOf(e.target.closest('[role="tab"]'));
+        let to;
+        if (e.key === "Home") to = 0;
+        else if (e.key === "End") to = tabs.length - 1;
+        else to = (Math.max(from, 0) + step + tabs.length) % tabs.length;
+        e.preventDefault();
+        tabs[to].focus();
+        this.setTab(tabs[to].dataset.tab);
+      },
+
       // The BACK button. Without it, the browser's arrow would change
       // the address and leave the tab where it is — worse than no
       // address at all, because the displayed URL would then lie about

@@ -48,7 +48,6 @@ plancher. Tout ce qui demande plus n'est probablement pas une
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 
 import pytest
 

@@ -1,10 +1,10 @@
 """Gate : aucune app d'exemple ne passe un kwarg que le composant ignore.
 
-``split_kwargs`` a un **catch-all raw-HTML** : tout kwarg inconnu est
-normalisé et émis tel quel comme attribut. C'est ce qui permet
-``data_testid=`` ou ``aria_live=`` sans les déclarer — utile. Mais ça veut
-dire qu'une **faute de frappe ou un prop supprimé passe en silence**, et
-sort dans le DOM comme un attribut inerte que rien ne lit.
+``split_kwargs`` avait un **catch-all raw-HTML** : tout kwarg inconnu
+était normalisé et émis tel quel comme attribut. C'est ce qui permettait
+``data_testid=`` ou ``aria_live=`` sans les déclarer — utile. Mais ça
+voulait dire qu'une **faute de frappe ou un prop supprimé passait en
+silence**, et sortait dans le DOM comme un attribut inerte que rien ne lit.
 
 Mesuré le 2026-08-01 sur ``examples/`` : **44 kwargs morts, 10 familles**.
 Le pire, ``ui.input(label="…")`` sur **22 sites** — dont une majorité dans
@@ -12,13 +12,13 @@ le playground, le banc d'essai censé démontrer l'API. Ils rendaient
 ``<input label="Display name">`` : **aucun libellé affiché**, alors que
 l'API prévue est ``ui.form_field(label=…)``. Vérifié par rendu, pas déduit.
 
-**Pourquoi une gate ici et pas un refus dans le socle.** Refuser tout
-kwarg inconnu à la construction serait plus fort, mais c'est un choix de
-design qui casse l'échappatoire raw-HTML — il est posé dans
-``.claude/work/chantier-introspect-2026-08-16.md`` (item 5), à trancher.
-En attendant, le playground est le corpus qui exerce toute la surface
-publique : le garder honnête suffit à empêcher la récidive là où ça fait
-mal.
+**Une gate ici ET un refus dans le socle.** Le choix a été tranché le
+2026-08-16 (commit ``2f4f1144``) : ``split_kwargs`` refuse désormais un
+kwarg inconnu à la construction, sauf l'échappatoire raw-HTML DÉCLARÉE
+(``aria_*``, ``data_*``, ``bz-*``, ``class_``, ``role``, la famille de
+l'ancre). La gate garde le corpus : le playground exerce toute la
+surface publique, et le garder honnête empêche la récidive là où ça
+fait mal.
 
 L'asymétrie qui a rendu ça possible mérite d'être notée : ``accordion.py``
 LÈVE un ``TypeError`` explicite pour son ancien ``type="single"``, mais

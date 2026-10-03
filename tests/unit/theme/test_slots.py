@@ -8,7 +8,6 @@ from bretzel.theme.palette import (
     DEFAULT_PALETTE,
     DEFAULT_SEMANTIC_LIGHT,
     Palette,
-    ThemeError,
 )
 from bretzel.theme.slots import merge_component_themes
 

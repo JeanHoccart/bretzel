@@ -33,7 +33,8 @@ def row(step: str) -> None:
 
     The fields sit in a grid: each is ``w-full``, so in a wrapping
     ``hstack`` each took the whole line and nothing stood side by side
-    (``traps.md``, « Un champ ``w-full`` dans un hstack avec wrap »).
+    (``traps.md`` § « Un champ `w-full` dans un hstack avec wrap forme une
+    pile »).
     """
     with ui.vstack(gap="xs", attrs={"data-ladder-row": step}):
         ui.text(f"size=\"{step}\"", size="xs", color="muted")

@@ -190,7 +190,7 @@ class TestClientBindingValue:
         # active tab stays put. Binding mode must therefore read
         # ``$bz.state.<path>`` DIRECTLY in every directive (bz-show /
         # data-selected / aria-selected / tabindex) and carry NO getter.
-        # Cf. traps.md § "getter de scope figé par absorb".
+        # Cf. traps.md § "Une valeur de scope calculée doit rester calculable".
         binding = self._binding(value="a")
         with render_isolated():
             out = serialize(_build_basic_tabs(value=binding).render())
@@ -427,13 +427,8 @@ class TestDisabledTab:
         # We can't simply assert " disabled " because the framework
         # also bakes ``disabled:opacity-50`` etc. into class names —
         # check for the bare attribute via the equality-free form.
-        opening_b = out.find("Bravo")  # bravo not actually in this test ; use 'B'
-        # Look for ``disabled>`` boolean-attr form on a button.
-        # The Bravo button is the second one — find it by its label.
-        bb = out[out.index('>B<'):out.index('>B<') + 100] if '>B<' in out else ''
-        # Easier check : there's exactly one bare ``disabled`` attr
-        # outside class strings — count buttons with disabled=true.
-        # Scan all <button …> opening tags.
+        # There's exactly one bare ``disabled`` attr outside class
+        # strings — count the <button …> opening tags that carry it.
         cursor = 0
         disabled_buttons = 0
         while True:

@@ -8,8 +8,8 @@ panneau à ``z-50`` et en déduit qu'il passe devant.
 **Cette déduction n'est vraie que si les deux vivent dans le MÊME contexte
 d'empilement.** Un ``z-index`` ne se compare qu'entre frères de contexte ;
 il ne traverse pas une frontière. Et toute app Bretzel en crée une : le
-shell recommandé est ``fixed inset-0`` (``traps.md`` § *Shell layout
-h-screen*), et ``position: fixed`` crée un contexte d'empilement. Un
+shell recommandé est ``fixed inset-0``, et ``position: fixed`` crée un
+contexte d'empilement. Un
 panneau à ``z-50`` posé DEDANS est donc enfermé dedans — face à un fond
 téléporté sous ``<body>`` à ``z-40``, la comparaison réelle devient
 « shell (``z-auto``) contre fond (``z-40``) », et le fond gagne.

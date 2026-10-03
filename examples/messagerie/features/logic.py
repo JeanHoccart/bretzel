@@ -8,7 +8,8 @@ line asking for it, because ``View`` declares its addressable fields.
 ⚠️ **A collection is REASSIGNED, it is not mutated in place.**
 ``mailbox.messages[0]["read"] = True`` does write the value, but does not
 change the list's identity: change detection sees nothing and the zone
-does not re-render (`traps.md` § collection mutation). Hence the
+does not re-render (`traps.md` § "Les mutations en place doivent passer
+par les objets réactifs"). Hence the
 rebuilding below, which remakes the list around the modified message.
 """
 

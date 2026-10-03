@@ -18,9 +18,7 @@ Fix (the established convention, already on 6 components) : ``w-fit``
 (``width: fit-content``, ≠ ``auto``) on the root. A non-auto width opts the
 flex item out of the ``align-items: stretch`` on that axis without touching
 alignment (unlike ``self-start``, which would hijack ``align-self`` and break
-a deliberately-centered hstack). Cf. ``.claude/bretzel/traps.md`` §
-"Root inline-flex étirée par un parent flex/grid items-stretch" and §
-"Élément inline-flex étiré pleine largeur dans un vstack".
+a deliberately-centered hstack).
 
 Signal (per-THEME-file, like ``test_truncate_needs_width`` /
 ``test_input_root_fills_width``) : a HUG root must carry a horizontal

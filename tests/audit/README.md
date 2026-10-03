@@ -184,7 +184,7 @@ interactive probes flagged within their first sweep :
 
 | Bug | Found by | Fix |
 |---|---|---|
-| `file_upload` variant=button kept dropzone classes after switch | `probe_server_props_drive_dom` (via the morph guard trap path) | `02_morph_hook.js` releases `:X` when new render drops it ; cf. [traps.md](traps.md) |
+| `file_upload` variant=button kept dropzone classes after switch | `probe_server_props_drive_dom` (via the morph guard trap path) | the morph hook releases `:X` when the new render drops it |
 | `file_upload` disabled / multiple ClientBinding landed on the wrapper `<div>` (no-op on a div) | `probe_client_binding_lands_on_carrier` | Forward bindings to inner `<input type="file">` |
 | `date_picker` / `date_range_picker` auto-emitted `bz-attr:value` on the wrapper `<div>` | `probe_client_binding_lands_on_carrier` | `root_attrs.pop("bz-attr:value")` — the component manages val sync via bz-init |
 | `avatar.src` ClientBinding stayed on wrapper `<span>` | `probe_client_binding_lands_on_carrier` | Forward to inner `<img>` |

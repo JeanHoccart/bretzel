@@ -59,8 +59,7 @@ SELECT_THEME: dict[str, Any] = {
         # ``top``/``left``), which pins ``min-width`` to the trigger via
         # ``match_width``. NO ``left-0 right-0`` here : under fixed
         # positioning the leftover ``right: 0`` stretches the panel to the
-        # viewport's right edge (cf. traps.md § "panel left-0 right-0
-        # under floating").
+        # viewport's right edge.
         "panel": (
             "absolute z-40 mt-1 overflow-y-auto "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface "
@@ -100,8 +99,9 @@ SELECT_THEME: dict[str, Any] = {
         # Mirror the slots Combobox carries for the same purpose
         # (pills + header bar). Identical recipes so a form mixing
         # Select-multi + Combobox-multi reads as one family —
-        # duplication is intentional pre-extraction (cf.
-        # components-roadmap.md).
+        # duplication is intentional pre-extraction (cf. the old
+        # components roadmap,
+        # ``git show 75f9a702:.claude/work/components-roadmap.md``).
         # No pill classes here : multi-mode pills source their styling
         # from :data:`BADGE_THEME` via ``_badge_pill_classes()`` in
         # ``combobox.combobox`` — single source of truth across pickers.
@@ -147,8 +147,7 @@ SELECT_THEME: dict[str, Any] = {
         ),
         # Clear-all × on the trigger right edge (multi mode). Hover
         # gated on ``not-disabled:`` so the × stays visually frozen when
-        # the parent Select is ``disabled`` — cf. traps.md § "hover:
-        # sur un control disabled".
+        # the parent Select is ``disabled``.
         "clear": (
             "shrink-0 inline-flex items-center justify-center "
             "ml-1 rounded-selector text-muted not-disabled:hover:text-text "

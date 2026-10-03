@@ -16,7 +16,7 @@ et 12 000 tests verts n'en savaient rien.
 Chaque test porte son **témoin** : la même action sur un jumeau NON
 désactivé. Sans lui, « il ne s'est rien passé » ne distingue pas un garde
 qui marche d'un harnais qui n'a rien déclenché — l'erreur exacte qu'un
-probe de ce dépôt a déjà commise (cf. ``traps.md`` § getComputedStyle).
+probe de ce dépôt a déjà commise.
 
 ⚠️ **``data-bz-sig`` sur les deux boutons n'est pas décoratif.** Depuis
 ``ad3b7f33`` (2026-08-27), le bridge refuse tout POST dont l'élément n'a

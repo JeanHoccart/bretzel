@@ -42,7 +42,7 @@ def send() -> None:
     log = Log()
     # Reassignment and not ``.append()``: a list mutated in place does
     # not trigger change detection, so the zone would not re-render (cf.
-    # traps.md § collection mutation).
+    # traps.md § "Les mutations en place doivent passer par les objets réactifs").
     log.messages = [*log.messages, {"role": "user", "text": prompt}]
 
     gen = Gen()

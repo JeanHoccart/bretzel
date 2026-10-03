@@ -153,7 +153,7 @@ async def test_one_failing_write_does_not_swallow_the_others() -> None:
         await registre.commit()
 
     ecrits = {
-        cle for cle in backend._data  # noqa: SLF001 — on inspecte le stockage
+        cle for cle in backend._data
         if "Deux" not in cle
     }
     assert len(ecrits) == 3, (

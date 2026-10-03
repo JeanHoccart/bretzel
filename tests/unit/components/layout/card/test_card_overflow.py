@@ -10,8 +10,8 @@ natively — the swap protected nothing and cost the card its
 rounded-corner clipping whenever ANY descendant carried a ``tooltip=``.
 The one case where clipping could still bite (the hover lift's
 ``translate`` turning the card into a containing block) was root-fixed
-by moving the lift to a ``top`` offset — cf. traps.md § « Hover lift en
-translate » and § « Card auto-swap (RETIRÉ) ».
+by moving the lift to a ``top`` offset — cf. traps.md § « Un overlay
+hérite des contraintes de ses ancêtres ».
 """
 
 from __future__ import annotations
@@ -76,8 +76,7 @@ class TestOverflowAlwaysHidden:
         ]
         assert not offenders, (
             f"OVERFLOWS_CONTAINER / _has_overflowing_descendant réintroduit "
-            f"sur : {offenders} — le swap a été retiré le 2026-07-15, cf. "
-            f"traps.md § « Card auto-swap (RETIRÉ) »."
+            f"sur : {offenders} — le swap a été retiré le 2026-07-15."
         )
 
 
@@ -97,6 +96,7 @@ class TestHoverLiftIsTopBased:
         assert "relative" in cls and "top-0" in cls
         assert "translate" not in cls, (
             f"le lift Card repasse en translate → containing block pour "
-            f"les overlays ancrés (cf. traps.md § « Hover lift en "
-            f"translate ») : {cls!r}"
+            f"les overlays ancrés (cf. "
+            f"traps.md § « Un overlay hérite des contraintes de ses ancêtres ») : "
+            f"{cls!r}"
         )

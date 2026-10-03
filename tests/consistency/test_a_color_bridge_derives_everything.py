@@ -215,7 +215,7 @@ def test_every_bridged_colour_is_one_a_component_can_ask_for() -> None:
             continue
         try:
             _PALETTE.bg_class(color)
-        except Exception:  # noqa: BLE001 — le type varie, le fait non
+        except Exception:
             unknown.append(color)
     assert not unknown, (
         f"Ces couleurs ont un pont mais aucun composant ne peut les "

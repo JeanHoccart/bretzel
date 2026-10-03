@@ -151,8 +151,7 @@ def render_anchored_overlay(
         # host, ``findScope`` walks up from the teleported panel to the
         # shared ``rootScope`` — where EVERY bound overlay registers the
         # same ``bztrigger``, last one wins — and the floating helper
-        # anchors the panel to ANOTHER overlay's trigger, off screen. Cf.
-        # traps.md § "bound overlay ref collision".
+        # anchors the panel to ANOTHER overlay's trigger, off screen.
         attrs["bz-data"] = "{}"
 
     # Open/close dispatch (no scroll lock for an anchored panel),

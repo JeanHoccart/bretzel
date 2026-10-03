@@ -8,8 +8,9 @@ changing a default is reflected on the next render, with no edit here.
 ⚠️ This module describes **a given class**. Describing the
 ``bretzel.state`` *module* itself — the four server scopes, ``field`` /
 ``computed`` / ``validator``, and which persistence backend serves which
-scope — belongs to item 3 of the project and is **not** here. Do not read
-the absence of those sections as "this is not introspectable".
+scope — is not derived anywhere yet (an open item of
+``.claude/work/todo.md``) and is **not** here. Do not read the absence
+of those sections as "this is not introspectable".
 """
 
 from __future__ import annotations

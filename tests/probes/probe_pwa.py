@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Probe — le NAVIGATEUR accepte-t-il le manifeste ?
 
 Un test Python peut affirmer que ``/manifest.webmanifest`` rend 200 avec

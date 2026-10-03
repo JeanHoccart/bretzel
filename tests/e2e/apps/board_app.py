@@ -10,9 +10,8 @@ The contract under test, and why it needs a real browser
 ---------------------------------------------------------
 A ``dropdown`` panel is **teleported** under ``<body>``. Its items carry a
 server action, so their ``hx-post`` must be processed by htmx *after every
-re-projection* — not just the first. The regression this guards (traps.md
-§ « Teleported ``hx-post`` mort après un refresh ») made the FIRST Move
-fire and every later one die silently : the refresh re-projected the panel
+re-projection* — not just the first. The regression this guards made the
+FIRST Move fire and every later one die silently : the refresh re-projected the panel
 clone with ``scan`` only, never ``htmx.process``, so the click ran the
 client-side close and nothing else. Both paths return 200 ; only a browser
 that clicks twice sees the difference.

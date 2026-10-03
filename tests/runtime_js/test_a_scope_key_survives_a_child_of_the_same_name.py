@@ -14,8 +14,7 @@ Pourquoi elle existe
 --------------------
 Le dépôt a répondu « la propriété DOM » pendant deux ans, et en a tiré
 une convention : ``ToggleGroup`` nomme sa clé ``picked`` plutôt que
-``value`` pour éviter la collision, ``traps.md`` § *Variable de scope
-``bz-data`` shadowée par un attribut HTML du même nom* en fait une règle
+``value`` pour éviter la collision, ``traps.md`` en faisait une règle
 générale (« ne JAMAIS nommer une variable de scope comme un attribut
 HTML standard »), et cette règle a essaimé : ``val``, ``active``,
 ``sel``, ``expanded``, ``current`` — **huit orthographes pour une seule

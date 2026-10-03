@@ -84,7 +84,7 @@ def refusal_of(cls: type, prop: str) -> BaseException | None:
     try:
         with render_isolated():
             cls(*_positional_for(cls), **bare_kwargs(cls), **{prop: "x"})
-    except BaseException as exc:  # noqa: BLE001 — c'est la mesure
+    except BaseException as exc:
         return exc
     return None
 

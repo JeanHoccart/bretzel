@@ -5,7 +5,8 @@ must re-adopt from the freshly-rendered attr (server wins), vs the
 client-owned keys ``absorb`` preserves. Its literal used to be hardcoded
 in ~11 component emit sites AND the JS scope reader (``03_scope.js``) —
 a rename on one side silently stops that control re-adopting its server
-value on refresh (traps.md § "Input lié-serveur ne reflète PAS…").
+value on refresh (traps.md § "Une config serveur se re-sème aussi quand la
+valeur est liée").
 
 Now single-sourced in ``protocol.SERVERSYNC_KEY``, mirrored into
 ``runtime.js`` by ``test_python_js_mirror`` (so a Python↔JS rename fails

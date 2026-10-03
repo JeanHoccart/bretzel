@@ -58,9 +58,9 @@ _IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
 _NO_CACHE = "no-store"
 
 #: The mark, shipped with the package. Two files, two jobs: the SVG is
-#: the tab icon and follows ``prefers-color-scheme``; the PNG exists
-#: because iOS does not read the SVG for its home screen, and does not
-#: handle transparency — hence its white background.
+#: the tab icon, on its own light tile so it reads on both tab themes;
+#: the PNG exists because iOS does not read the SVG for its home screen,
+#: and does not handle transparency — hence its white background.
 #:
 #: ⚠️ They are served from the INSTALLED PACKAGE, not from the
 #: repository: the path derives from this module. A wheel built without

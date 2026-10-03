@@ -47,8 +47,7 @@ class TestCloseOnPick:
         # the global store, but the root needs its own scope so the
         # teleported panel's ``bztrigger`` / ``bzpanel`` refs isolate
         # per-instance — else every bound dropdown collides on the shared
-        # ``rootScope`` and the menu anchors off-screen (traps.md § "bound
-        # overlay ref collision").
+        # ``rootScope`` and the menu anchors off-screen.
         assert el.attrs.get("bz-data") == "{}"
 
     def test_plain_item_dispatches_pick_on_click(self) -> None:

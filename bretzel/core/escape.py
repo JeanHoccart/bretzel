@@ -18,8 +18,7 @@ from typing import Any, Final
 # Order matters: ``&`` first to avoid double-encoding.
 #
 # Do NOT add a "does this string need escaping at all ?" pre-scan in front
-# of the loop — measured slower, not faster, on real render values (cf.
-# ``traps.md`` § "the `should we escape?` guard is a PESSIMISATION").
+# of the loop — measured slower, not faster, on real render values.
 _HTML_ESCAPES: tuple[tuple[str, str], ...] = (
     ("&", "&amp;"),
     ("<", "&lt;"),

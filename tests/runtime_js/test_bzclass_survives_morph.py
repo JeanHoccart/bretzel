@@ -90,5 +90,5 @@ def test_bzclass_reapplies_after_morph_clobber_and_rescan(base_url: str) -> None
         assert result["reapplied"], (
             "bz-class did NOT re-apply grid-rows-[1fr] after a rescan — the "
             "morph-clobber regression is back (el._bzClassDyn persisted across "
-            "the re-bind). Cf. traps.md § 'bz-class perdue après un morph'."
+            "the re-bind)."
         )

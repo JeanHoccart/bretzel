@@ -41,12 +41,15 @@ from bretzel.render import text
 # has its own dedicated component instead. Block at construction time
 # so the dev sees the right component to use, with a clear pointer.
 _NATIVE_PICKER_TYPES: dict[str, str] = {
-    "date":           "ui.date_picker (coming soon)",
-    "time":           "ui.time_picker (coming soon)",
-    "datetime-local": "ui.datetime_picker (coming soon)",
-    "month":          "ui.month_picker (coming soon)",
-    "color":          "ui.color_picker (coming soon)",
-    "file":           "ui.file_upload (coming soon)",
+    "date":           "ui.date_picker",
+    "time":           "ui.time_picker",
+    # No combined picker, on purpose: a date and a time side by side are
+    # simpler for a human to fill.
+    "datetime-local": "ui.date_picker and ui.time_picker side by side",
+    "month":          "ui.month_picker",
+    "week":           "ui.week_picker",
+    "color":          "ui.color_picker",
+    "file":           "ui.file_upload",
     # Native ``type=number`` has too many cross-browser quirks (leading
     # zeros stripped, ``e`` scientific notation, inconsistent clamp/step,
     # FormData returns a string that may not parse). ``ui.number_input``

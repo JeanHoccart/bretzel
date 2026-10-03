@@ -26,11 +26,12 @@ Elle tient en une question : **qui écrit le ``for`` ?**
   pagine : l'auteur **ne peut pas** écrire cette boucle, donc il n'a
   aucun endroit où mettre son balisage. Le composant DOIT lui offrir un
   rappel de contenu, seul point d'entrée possible.
-- ``"client"`` — le navigateur, au runtime. ``Combobox`` bâtit ses
-  options une fois côté serveur puis les re-rend en JS à chaque frappe
-  du filtre. Ni des enfants ni un rappel Python ne l'atteignent : il
-  faut un mécanisme d'une autre nature, et la docstring doit dire
-  lequel.
+- ``"client"`` — le navigateur, au runtime. ``FileUpload`` crée la
+  ligne de chaque fichier déposé en JS (``bz-for``). Ni des enfants ni
+  un rappel Python ne l'atteignent : il faut un mécanisme d'une autre
+  nature, et la docstring doit dire lequel. (``Combobox`` n'en est pas :
+  son filtre est un ``bz-show``, il cache des options rendues côté
+  serveur.)
 - ``"data"`` — personne, au sens où la question porte. Les éléments
   n'ont **aucun balisage** à porter : ``ui.video(tracks=[…])`` rend un
   ``<track>`` par piste, cinq attributs et rien d'autre. Des enfants et

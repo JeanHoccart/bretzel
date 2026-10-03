@@ -264,7 +264,7 @@ def item_action_attrs(
     accepts — raised a ``TypeError`` surfaced bare from
     ``functools.partial``, naming neither the component nor the prop.
     Measured on 2026-09-06 on the three shipped components
-    (``.claude/work/audit-declaration-2026-09-06.md``).
+    (commit ``28958bf3``, which declared the event and gated it).
 
     ``bind`` receives the callable and returns the version bound to THIS
     element — it is the only piece that differs from one caller to the

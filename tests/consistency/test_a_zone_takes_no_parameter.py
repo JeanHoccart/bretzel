@@ -160,7 +160,7 @@ def test_the_refusal_bites_on_a_parameterized_zone(
 ) -> None:
     """Le versant ILLICITE, sur des signatures fabriquées."""
     namespace: dict[str, object] = {}
-    exec(f"def zone_fabriquee{signature}: pass", namespace)  # noqa: S102
+    exec(f"def zone_fabriquee{signature}: pass", namespace)
 
     with pytest.raises(TypeError) as capture:
         refreshable(namespace["zone_fabriquee"])
@@ -192,7 +192,7 @@ def test_a_zone_without_named_parameters_is_accepted(
     faux positifs sur les formes réelles.
     """
     namespace: dict[str, object] = {}
-    exec(f"def zone_licite{signature}: pass", namespace)  # noqa: S102
+    exec(f"def zone_licite{signature}: pass", namespace)
 
     handle = refreshable(namespace["zone_licite"])
     assert handle.fn is namespace["zone_licite"], (

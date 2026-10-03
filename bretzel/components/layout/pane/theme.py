@@ -18,7 +18,7 @@ and a ``traps.md`` entry before being written here.
 ``min-h-0``
     Load-bearing. Without it, a flex item's automatic minimum height is
     its content's size: the box GROWS instead of scrolling, and nothing
-    reports it. Already in ``traps.md`` § *sidebar scroll*.
+    reports it.
 
 ``[&>*]:shrink-0``
     Load-bearing too, and even less guessable. ``ui.card``'s root
@@ -26,8 +26,8 @@ and a ``traps.md`` entry before being written here.
     ZERO: as soon as the list fills the column, the cards compress below
     their content. Measured on ``examples/crm``: 73 px free against
     34 px constrained, **39 px cut off** — and invisible on the last
-    page, which has too few rows to fill. ``traps.md`` § *A column that
-    scrolls CRUSHES its items*.
+    page, which has too few rows to fill. ``traps.md`` § *Une colonne qui
+    défile ÉCRASE ses items*.
 
 What is **not** here, and why
 ------------------------------

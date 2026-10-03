@@ -32,8 +32,7 @@ Three pieces, mirror of the Sidebar trio :
   rounded-card look. A ``sticky`` bar in a "frozen document" shell
   (``ui.viewport``) is subject to the same placement guard as
   ``ui.bottom_bar``, of which it is the upward mirror — cf. the latter's
-  docstring, and ``traps.md`` § *A `sticky` bar outside the frozen
-  frame*. Without ``sticky``, nothing is judged: the bar scrolls with
+  docstring. Without ``sticky``, nothing is judged: the bar scrolls with
   the document.
 - **NavbarSection** — positional grouping with ``side="left"`` /
   ``"center"`` / ``"right"``. No behaviour of its own, just a flex

@@ -1207,9 +1207,8 @@ class Component(metaclass=_ComponentMeta):
 
         Before this helper, the decision was retyped in 5 diverging
         dialects across 12 call sites — the mechanical cause of the 8
-        missed ``_serverSync``. Cf. todo.md § A3 and traps.md § "A
-        server-bound input does NOT reflect a value changed by the
-        SERVER".
+        missed ``_serverSync``. Cf. todo.md § A3 and traps.md § "Une
+        config serveur se re-sème aussi quand la valeur est liée".
         """
         if self._binding_metadata.get(prop) is not None:
             return False
@@ -1962,8 +1961,9 @@ class Component(metaclass=_ComponentMeta):
 
         Use this in every component whose render emits a nested
         carrier element distinct from the root. Cf.
-        ``.claude/bretzel/traps.md`` § "wrapper-vs-carrier" for the
-        bug class this primitive eliminates.
+        ``.claude/bretzel/traps.md`` § "Un champ de formulaire lié
+        possède un carrier réel" for the bug class this primitive
+        eliminates.
         """
         binding = self._binding_metadata.get(prop)
         if not isinstance(binding, ClientBinding):
@@ -2132,7 +2132,7 @@ class Component(metaclass=_ComponentMeta):
           non-empty): ``.open()`` / ``.set()`` / … target by
           ``getElementById(self.id)`` — with no rendered id the dispatch
           finds ``null`` and fails **silently** (cf. traps.md §
-          "imperative API with no id"). That behaviour is derived from
+          "Une API impérative exige une identité"). That behaviour is derived from
           ``IMPERATIVE`` and guarded by
           ``test_imperative_component_needs_identity``.
 

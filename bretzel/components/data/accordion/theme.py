@@ -42,8 +42,7 @@ ACCORDION_THEME: dict[str, Any] = {
             "disabled:opacity-50 disabled:cursor-not-allowed "
             # ``not-disabled:hover:`` (not bare ``hover:``) scopes the hover to
             # elements WITHOUT the ``disabled`` attribute — else disabled
-            # items still colour on hover and look interactive. Cf.
-            # ``traps.md`` § "hover on disabled controls".
+            # items still colour on hover and look interactive.
             "not-disabled:hover:text-(--bz-text) "
             "data-[open=true]:text-(--bz-text)"
         ),

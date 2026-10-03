@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from bretzel import Bretzel, page, ui
 
-import examples.playground.main  # noqa: F401, E402
+import examples.playground.main  # noqa: F401
 from examples.playground.app.layout import shell
 from examples.playground.features import sidebar as sidebar_feat
 
@@ -87,10 +87,7 @@ if __name__ == "__main__":
     from tests.probes._serve import bench_port, use_local_tailwind
 
     # Le compilateur CSS depuis 127.0.0.1 et non depuis unpkg :
-
     # une suite ne doit pas dependre d'un tiers (cf. `_serve`).
-
     use_local_tailwind()
-
 
     uvicorn.run(app, host="127.0.0.1", port=bench_port(8981))

@@ -32,7 +32,7 @@ from bretzel.core.serialize import serialize
 from bretzel.state.scopes.client import ClientBinding
 
 ITEMS = [NavbarItem, SidebarItem, BottomBarItem]
-_ids = lambda cls: cls.__name__  # noqa: E731 — lisibilité des ids pytest
+_ids = lambda cls: cls.__name__
 
 
 @pytest.fixture(params=ITEMS, ids=_ids)
@@ -121,7 +121,7 @@ class TestActiveState:
         expr = el.attrs.get("bz-attr:data-active", "")
         assert "current_path" in expr
         # Ternaire stringifié : ``bz-attr`` retirerait l'attribut sur un
-        # ``false`` nu (cf. traps.md § data-attrs stringifiés).
+        # ``false`` nu.
         assert expr.endswith("? 'true' : 'false'")
         assert el.attrs.get("bz-attr:aria-current", "").endswith("? 'page' : null")
 

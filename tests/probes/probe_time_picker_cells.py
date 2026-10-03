@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Probe — les cellules du ``time_picker`` naissent CÔTÉ CLIENT.
 
 Depuis le 2026-09-01, Python ne rend plus les 28 (ou 84) cellules du

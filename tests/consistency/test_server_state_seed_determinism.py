@@ -12,7 +12,7 @@ the handler runs → id-keyed actions silently no-op until the first mutation.
 This bit kanban / contacts / expenses at once (2026-07-14). The fix is stable
 seed identity — ``{"id": f"seed-{i}", …}`` — exactly what ``tracker._seed``
 (``f"iss-{1001+i}"``) already did. See ``.claude/bretzel/traps.md`` §
-"``default_factory`` NON-DÉTERMINISTE".
+"Un défaut serveur doit être déterministe".
 
 Scope, deliberately tight to stay precise :
 

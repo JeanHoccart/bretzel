@@ -43,6 +43,7 @@ right slice of the rendered DOM — no parent-stack lookup needed.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from typing import Any, ClassVar
 
@@ -267,6 +268,7 @@ class Tabs(Component):
                         pill_class=pill_class,
                         active_expr=active_expr,
                         initial_active=initial_value,
+                        owner_id=self.id,
                     )
                 ))
             elif isinstance(child, TabPanel):
@@ -275,6 +277,7 @@ class Tabs(Component):
                         panel_class=panel_class,
                         active_expr=active_expr,
                         initial_active=initial_value,
+                        owner_id=self.id,
                     )
                 ))
             else:
@@ -346,9 +349,16 @@ class Tabs(Component):
             # ``06_helpers.js`` documents for ``popstate``.
             root_attrs["bz-init"] = "_urlInit()"
 
+        # The keyboard lives on the tablist, once: arrows and Home/End
+        # move between tabs (``tabKey`` in ``16_accordion.js``). Without
+        # it the roving tabindex left a keyboard user on the active tab.
         tablist = Element(
             tag="div",
-            attrs={"class": tablist_class, "role": "tablist"},
+            attrs={
+                "class": tablist_class,
+                "role": "tablist",
+                "bz-on:keydown": "tabKey($event, $el)",
+            },
             children=tuple(tab_nodes),
         )
 
@@ -376,6 +386,21 @@ class Tabs(Component):
         return Element(
             tag=self._tag, attrs=root_attrs, children=tuple(children)
         )
+
+
+def _dom_slug(tab_id: str) -> str:
+    """A tab id made safe for an HTML ``id`` (no spaces, no quotes)."""
+    return re.sub(r"[^A-Za-z0-9_-]", "-", tab_id)
+
+
+def _tab_dom_id(owner_id: str, tab_id: str) -> str:
+    """The button's ``id`` — what its panel's ``aria-labelledby`` names."""
+    return f"{owner_id}-tab-{_dom_slug(tab_id)}"
+
+
+def _panel_dom_id(owner_id: str, tab_id: str) -> str:
+    """The panel's ``id`` — what its button's ``aria-controls`` names."""
+    return f"{owner_id}-panel-{_dom_slug(tab_id)}"
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -435,6 +460,7 @@ class Tab(Component):
         pill_class: str,
         active_expr: str,
         initial_active: str,
+        owner_id: str,
     ) -> Element:
         tab_id = str(self._reactive_values.get("tab_id") or "")
         # NO ``str(...)``: ``label`` is a textual slot (it accepts a
@@ -450,7 +476,7 @@ class Tab(Component):
         # mode (NO scope getter — cf. ``scope_literal``). Both resolve in
         # the directive's ``with($scope)`` wrap ; ``this.value`` would
         # read the DOM element, not the scope (cf. ``traps.md`` §
-        # "this.X in a directive").
+        # "`this` n'est pas le scope d'une expression").
         #
         # ``data-selected`` : the active-state driver. Rendered
         # STATIC server-side on the initial active tab so the
@@ -463,11 +489,14 @@ class Tab(Component):
         # and NOT ``.toString()``, which raises on ``null`` (dialect
         # unified on 2026-07-30). A bare boolean would make
         # ``bz-attr`` strip the attribute on ``false`` and the
-        # ``data-[selected=false]`` selectors would never match. Cf.
-        # ``traps.md`` § "bz-attr removes the attr on a bare false".
+        # ``data-[selected=false]`` selectors would never match.
         attrs: dict[str, Any] = {
             "type": "button",
             "role": "tab",
+            "id": _tab_dom_id(owner_id, tab_id),
+            "aria-controls": _panel_dom_id(owner_id, tab_id),
+            # Read by ``tabKey`` to activate the tab the keyboard reached.
+            "data-tab": tab_id,
             "class": tab_class,
             "bz-attr:data-selected": bool_attr(f"{active_expr} === {id_js}"),
             "bz-attr:aria-selected": bool_attr(f"{active_expr} === {id_js}"),
@@ -531,7 +560,12 @@ class TabPanel(Component):
     # ── Internal render — invoked by Tabs ─────────────────────────────
 
     def _render_panel(
-        self, *, panel_class: str, active_expr: str, initial_active: str
+        self,
+        *,
+        panel_class: str,
+        active_expr: str,
+        initial_active: str,
+        owner_id: str,
     ) -> Element:
         tab_id = str(self._reactive_values.get("tab") or "")
         id_js = json.dumps(tab_id)
@@ -547,6 +581,8 @@ class TabPanel(Component):
         # bind. Same idiom as the overlay ``bz-show`` ports.
         attrs: dict[str, Any] = {
             "role": "tabpanel",
+            "id": _panel_dom_id(owner_id, tab_id),
+            "aria-labelledby": _tab_dom_id(owner_id, tab_id),
             "class": panel_class,
             # ``active_expr`` — the local ``value`` signal or the
             # ``$bz.state.<path>`` store cell (cf. ``Tab._render_button``).

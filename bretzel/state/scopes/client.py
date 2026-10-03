@@ -382,7 +382,7 @@ class ClientBinding:
     # place : V3 signals are identity-compared (Object.is), so an
     # in-place ``arr.push(x)`` keeps the same array reference and the
     # signal never fires — the bound view wouldn't update. Cf. traps.md
-    # § "array mutations MUST reassign".
+    # § "Les mutations en place doivent passer par les objets réactifs".
 
     def toggle(self) -> str:
         path = self.binding_path()

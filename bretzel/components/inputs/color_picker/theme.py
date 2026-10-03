@@ -7,8 +7,7 @@ swatches instead of a grid of days.
 
 ⚠️ **The step's height is on the FRAME**, which carries the border.
 Setting it on the inner ``<input>`` renders 2 px more (``box-sizing:
-border-box`` counts the border), and the gap only shows on screen — cf.
-``traps.md`` § *A step's height on the CHILD*.
+border-box`` counts the border), and the gap only shows on screen.
 
 The head swatch is not decorative: it is the only place where the value
 reads **as a colour**. A hexadecimal does not read back.

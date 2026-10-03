@@ -32,8 +32,7 @@ TOGGLE_GROUP_THEME: dict[str, Any] = {
         # any tooltip / popover that anchors on the cluster centers on
         # the STRETCHED width, not on the actual button row, and the
         # panel floats off to the side. Same fix Popover + Dropdown
-        # carry — cf. traps.md § "An inline-flex root stretched by a
-        # flex/grid items-stretch parent".
+        # carry.
         #
         # Tight border-radius family from the form input design — same
         # scale as Input / Select / Combobox so a toggle group sits
@@ -43,8 +42,6 @@ TOGGLE_GROUP_THEME: dict[str, Any] = {
         # set on the root: an ``h-10`` on the item rendered a 42 px
         # cluster against 40 px for the select placed beside it in the
         # same grid — measured at every size, +2 px everywhere.
-        # Cf. traps.md § "A step's height lives on the bordered
-        # element".
         "root": (
             "inline-flex items-stretch w-fit select-none "
             "transition-colors duration-150 "

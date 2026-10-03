@@ -5,8 +5,7 @@ lit `theme["sizes"][<size>]`, voit une **string**, et l'append à la root
 ([component.py] étape 3). Rien à câbler.
 
 Un composant multi-slots range un **dict** par size — et là le composeur
-fait `if isinstance(size_classes, str)` puis **passe en silence** (cf.
-traps.md § "Substitution `{bg_color}` sur un dict de slot"). C'est au
+fait `if isinstance(size_classes, str)` puis **passe en silence**. C'est au
 `render()` de lire le dict et de composer slot par slot. Donc `size`
 n'atteint que les slots que l'auteur a (1) tapés dans la table ET (2)
 re-câblés dans `render()`. En oublier un n'est pas une erreur : c'est un
@@ -56,7 +55,7 @@ gate échoue tant que tu ne l'as pas RETIRÉ de la baseline. La liste ne
 peut donc pas pourrir.
 
 ⚠️ Les icônes se taillent en `text-*`, JAMAIS en `w-`/`h-` (traps.md §
-"iconify-icon dimensionne son glyphe par font-size"). Un slot d'icône se
+"Les icônes se dimensionnent par `font-size`"). Un slot d'icône se
 câble en passant un token de size au composant `Icon`, pas en ajoutant
 des dimensions à la table.
 """
@@ -155,8 +154,8 @@ def _conflicting_slots(theme: dict) -> dict[str, str]:
 
     Sinon les deux classes atterrissent sur le même élément et Tailwind
     tranche par l'ordre CANONIQUE de la feuille, pas par l'ordre de la
-    string (cf. traps.md § "Forcer l'héritage de couleur via
-    classes='text-current'"). Le gagnant est imprévisible.
+    string (cf. traps.md § "L'ordre dans `class=` ne tranche pas un
+    conflit Tailwind"). Le gagnant est imprévisible.
     """
     sizes = theme.get("sizes") or {}
     if not sizes:

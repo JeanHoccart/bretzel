@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Probe — un ``@download`` se TÉLÉCHARGE-t-il vraiment ?
 
 Un test Python peut affirmer qu'une route rend 200 avec le bon

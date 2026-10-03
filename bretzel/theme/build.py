@@ -24,6 +24,7 @@ import platform
 import re
 import stat
 import tempfile
+import time
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
@@ -350,6 +351,12 @@ def _store_sheet(scratch: Path, css_dir: Path, pointer: Path) -> Path:
     return sheet
 
 
+#: Age past which a ``.tmp`` scratch is abandoned rather than in progress.
+#: A compilation takes seconds; one interrupted (Ctrl+C, Tailwind error)
+#: leaves its scratch behind, and nothing else would ever remove it.
+_SCRATCH_MAX_AGE_S: Final[int] = 3600
+
+
 def _prune_css_cache(css_dir: Path, *, keep: int = CACHE_KEEP) -> int:
     """Keep only the ``keep`` MOST RECENTLY USED sheets.
 
@@ -358,9 +365,15 @@ def _prune_css_cache(css_dir: Path, *, keep: int = CACHE_KEEP) -> int:
     served ten times a day would be evicted by a variation compiled once
     and never read again.
 
-    Never raises. A file another process holds open refuses to be deleted
-    on Windows, and losing an eviction has no consequence — losing the
-    app's startup does.
+    Also drops what eviction leaves behind: the pointers whose sheet is
+    gone, and the abandoned scratches. Neither is ever read again — an
+    orphaned pointer is a cache miss — but each source edit adds one
+    pointer, so they were the unbounded part of the cache: 868 pointers
+    for 12 sheets, measured on 2026-10-03.
+
+    Returns the number of sheets evicted. Never raises. A file another
+    process holds open refuses to be deleted on Windows, and losing an
+    eviction has no consequence — losing the app's startup does.
     """
     try:
         entries = sorted(
@@ -377,6 +390,16 @@ def _prune_css_cache(css_dir: Path, *, keep: int = CACHE_KEEP) -> int:
             removed += 1
         except OSError:
             continue
+    with contextlib.suppress(OSError):
+        for pointer in css_dir.glob("*.key"):
+            if _sheet_for(pointer) is None:
+                with contextlib.suppress(OSError):
+                    pointer.unlink()
+        cutoff = time.time() - _SCRATCH_MAX_AGE_S
+        for scratch in css_dir.glob(".*.tmp"):
+            with contextlib.suppress(OSError):
+                if scratch.stat().st_mtime < cutoff:
+                    scratch.unlink()
     return removed
 
 
@@ -442,8 +465,6 @@ def get_or_build_css(
             raise
 
     print("[bretzel] Compiling Tailwind CSS ...")
-    import time
-
     t0 = time.time()
     # We compile to a TEMPORARY name: the final name is the fingerprint
     # of what comes out, and we only know it afterwards.
@@ -465,12 +486,17 @@ def get_or_build_css(
     )
     os.close(fd)
     scratch = Path(tmp_name)
-    result = compile_with_lightning(
-        theme_css,
-        output_path=scratch,
-        binary=binary,
-        minify=True,
-    )
+    try:
+        result = compile_with_lightning(
+            theme_css,
+            output_path=scratch,
+            binary=binary,
+            minify=True,
+        )
+    except BaseException:
+        with contextlib.suppress(OSError):
+            scratch.unlink()
+        raise
     elapsed = round(time.time() - t0, 1)
     css_path = _store_sheet(scratch, css_dir, pointer)
     size_kb = result.bytes_written // 1024

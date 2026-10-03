@@ -111,8 +111,9 @@ target-version = "py312"
 # ``archive`` : le V1 est READ-ONLY par charte (CLAUDE.md) — on ne corrigera
 # jamais ses 3 355 constats, et les garder dans le balayage rendait un
 # ``ruff check .`` nu illisible (3 795 constats dont 88 % intouchables),
-# donc jamais lancé. Le code actif en porte 62 (bretzel/) + 378 (tests/).
-extend-exclude = [".venv", "__pycache__", "playground", "examples", "archive"]
+# donc jamais lancé. Ceux de bretzel/ sont gelés par
+# ``tests/consistency/_ruff_baseline.txt`` ; tests/ n'a pas de base.
+extend-exclude = [".venv", "__pycache__", "examples", "archive"]
 
 [tool.ruff.lint]
 select = [
@@ -197,7 +198,7 @@ check_untyped_defs = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["tests.*", "playground.*", "examples.*"]
+module = ["tests.*", "examples.*"]
 disallow_untyped_defs = false
 
 # ─── Tests ───────────────────────────────────────────────────────────────────
@@ -221,7 +222,7 @@ addopts = [
     #   pytest                       # fast feedback (this file), ~3 min
     #   pytest -m e2e                # full-stack with browser (tests/e2e/), ~2 min
     #   pytest -m browser            # runtime_js WITHOUT the audit, ~10 min
-    #   pytest -m audit              # the per-component visual audit, ~52 min
+    #   pytest -m audit -n 4         # the per-component visual audit, ~9 min
     #   pytest -m probes             # les probes Playwright manuels, ~8 min
     #   pytest tests/e2e/            # same as -m e2e, by path
     #
@@ -262,7 +263,6 @@ markers = [
 [tool.coverage.run]
 branch = true
 source = ["bretzel"]
-omit = ["bretzel/cli/templates/*"]
 
 [tool.coverage.report]
 show_missing = true

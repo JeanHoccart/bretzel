@@ -74,7 +74,7 @@ class EmptyState(Component):
         # ``adopt_slot`` lets string / ClientBinding through intact (so
         # ``emit_text_slot`` always sees the binding) and detaches a
         # Component, which would otherwise render twice. Cf. traps.md
-        # § "A Component slot stored without adopt_slot".
+        # § "Slot Component stocké sans `adopt_slot`".
         self._title = Component.adopt_slot(title)
         self._description = Component.adopt_slot(description)
 

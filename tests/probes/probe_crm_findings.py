@@ -5,7 +5,8 @@ de l'app (une zone, un composant, rien d'autre) pour que ce qui rougit
 désigne le framework et pas ``examples/crm``.
 
 Ce probe est un CONSTAT, pas une gate : il rougit tant que les findings
-de [`bugs-usage-2026-08-21.md`](../../.claude/work/bugs-usage-2026-08-21.md)
+relevés le 2026-08-21 (rapport replié dans ``.claude/work/todo.md``,
+lisible par ``git show 75f9a702:.claude/work/bugs-usage-2026-08-21.md``)
 ne sont pas réparés. Il vert = ils le sont.
 
 Run :  py tests/probes/probe_crm_findings.py

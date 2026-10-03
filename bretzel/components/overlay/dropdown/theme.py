@@ -55,7 +55,6 @@ DROPDOWN_THEME: dict[str, Any] = {
             # menu that lingers reads as latency, not as care.
             #
             # Guarded by ``test_a_declared_transition_can_animate``.
-            # Detail and measurements: traps.md § "a DECLARED transition".
             "transition-[opacity,display] transition-discrete duration-150 "
             "starting:opacity-0"
         ),

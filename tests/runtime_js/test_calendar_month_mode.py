@@ -18,8 +18,7 @@ Trois invariants, chacun cassant en silence :
    valeur du mode, et il traverse une form data.
 
 Tourne sur ``about:blank`` + le runtime injecté, PAS sur une page de
-playground : cf. traps.md § « tester un custom element SUR une page de
-playground ».
+playground.
 
     py -m pytest tests/runtime_js/test_calendar_month_mode.py -q -m browser
 """

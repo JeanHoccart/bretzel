@@ -8,7 +8,7 @@ from bretzel.components.base.testing import render_isolated
 from bretzel.components.feedback.alert import Alert
 from bretzel.core.serialize import serialize
 from bretzel.state import ClientState, field
-from bretzel.state.scopes.client import ClientBinding, rendering_scope
+from bretzel.state.scopes.client import rendering_scope
 
 
 class _AlertState(ClientState, persist="memory"):

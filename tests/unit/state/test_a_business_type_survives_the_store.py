@@ -115,7 +115,7 @@ async def _ecrire() -> tuple[MemoryBackend, dict]:
     for nom, valeur in _VALEURS.items():
         setattr(etat, nom, valeur)
     await registre.commit()
-    ligne = next(iter(backend._data.values())).data  # noqa: SLF001
+    ligne = next(iter(backend._data.values())).data
     return backend, ligne
 
 

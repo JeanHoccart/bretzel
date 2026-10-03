@@ -290,8 +290,7 @@ class DateRangePicker(Component):
         #    each tick and writes through an equality guard.
         # 2. Mirror the (vstart, vend) pair onto the inner
         #    ``<bz-calendar>``'s observed ``value`` ATTRIBUTE, shared
-        #    with DatePicker via ``calendar_value_mirror`` (cf. traps.md
-        #    § bz-attr value on a custom element).
+        #    with DatePicker via ``calendar_value_mirror``.
         push_store = ""
         if store is not None:
             push_store = (

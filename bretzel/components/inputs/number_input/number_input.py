@@ -310,8 +310,7 @@ class NumberInput(Component):
         # FIRST so the committed state is consistent before the caller's
         # expression sees it. Server callables never collide here — they
         # route through ``hx-*``/``data-bz-sig`` (SERVER_ACTION_ATTRS),
-        # never a ``bz-on:<event>`` key. Cf. traps.md § "NumberInput
-        # on_blur= clobbers _commitDraft".
+        # never a ``bz-on:<event>`` key.
         for ev_attr in ("bz-on:focus", "bz-on:blur"):
             if ev_attr in relocated_to_input and ev_attr in input_attrs:
                 relocated_to_input[ev_attr] = (

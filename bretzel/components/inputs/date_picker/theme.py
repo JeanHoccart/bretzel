@@ -70,8 +70,7 @@ DATE_PICKER_THEME: dict[str, Any] = {
         # Select / Combobox / Popover — so it best-fits and never clips at a
         # viewport edge. NO ``top-full left-0`` : those are the old
         # ``absolute``-model anchors ; under fixed positioning the leftover
-        # ``left-0`` (and any ``right-0``) fights the inline coords (cf.
-        # traps.md § "panel left-0 right-0 under floating").
+        # ``left-0`` (and any ``right-0``) fights the inline coords.
         "panel": (
             "absolute z-40 mt-1 "
             "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface shadow-lg "

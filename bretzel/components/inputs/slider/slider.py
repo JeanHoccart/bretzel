@@ -232,7 +232,7 @@ class Slider(Component):
         # never fires focus/blur natively, and the line below used to
         # force-overwrite ``hx-trigger`` to ``"change"`` unconditionally
         # — so the handler silently fired on ``change`` instead. Cf.
-        # traps.md § "Slider on_focus/on_blur callable misrouted".
+        # traps.md § "Un event déclaré doit partir du bon élément".
         # The routing lives in the base layer. It also pins
         # ``hx-trigger="change"`` on the value carrier — an
         # ``<input type=hidden>`` never fires ``change`` natively, it is

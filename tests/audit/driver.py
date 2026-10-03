@@ -38,7 +38,6 @@ from tests.audit.probes import (
     probe_no_clip,
     probe_size_distinctness,
     probe_tab_order,
-    probe_theme_color_at_rest,
 )
 
 

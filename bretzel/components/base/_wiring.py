@@ -1194,8 +1194,7 @@ def anchored_dismiss_init(open_expr: str) -> str:
     A macrotask (``setTimeout``) is the earliest defer that is
     GUARANTEED to run only after the WHOLE click event finished both
     phases. A naive defer WITHOUT ``__w`` also breaks the open direction
-    (open→callback sees true→re-closes). Cf. ``traps.md`` § *anchored
-    overlay .toggle() only opens (microtask-between-listeners)*.
+    (open→callback sees true→re-closes).
     """
     return (
         f"$bz.helpers.escapeKey(() => {{ "
@@ -1581,8 +1580,7 @@ def calendar_value_mirror(
 
     V3 ``bz-attr:value`` on a custom element writes the JS *property*,
     which skips ``attributeChangedCallback`` — so the date pickers do
-    an explicit ``setAttribute`` from the wrapper instead (cf.
-    ``traps.md`` § *bz-attr value on a custom element*). The body :
+    an explicit ``setAttribute`` from the wrapper instead. The body :
 
     - captures ``value_expr`` ONCE (so a bound store path is read a
       single time per tick, not 2-3×) ;
@@ -1668,7 +1666,7 @@ def change_emit_effect(value_expr: str) -> str:
 # carries no ``name`` / ``value`` (Accordion, Pagination, Tree, Tabs,
 # Select, Combobox, ToggleGroup, Slider, NumberInput, Calendar) relocate
 # this bundle onto a hidden ``<input>`` so the dispatched FormData is
-# non-empty (cf. traps.md § "bz-event:change on a div").
+# non-empty (cf. traps.md § "Un event déclaré doit partir du bon élément").
 #
 # ``DATA_BZ_TS`` MUST travel with ``DATA_BZ_SIG`` : the HMAC v2 signature
 # is computed over ``action_id|args|render_ts`` and the bridge reads the
@@ -1676,9 +1674,8 @@ def change_emit_effect(value_expr: str) -> str:
 # Relocating the sig without the ts leaves the ts on the (now
 # handler-less) root, so the bridge forwards an empty ``X-Bz-Ts`` and
 # every POST 403s. This bit the framework once already : at the HMAC-v2
-# rollout four component-LOCAL copies of this tuple missed ``data-bz-ts``
-# (cf. traps.md § "data-bz-ts forgotten at relocate"). There are now NO
-# component-local copies — every value-holding control imports
+# rollout four component-LOCAL copies of this tuple missed ``data-bz-ts``.
+# There are now NO component-local copies — every value-holding control imports
 # ``SERVER_ACTION_ATTRS`` from here, so the sig+ts couple can only change
 # in one place. Guarded by ``tests/consistency/test_action_wire_attrs.py``.
 SERVER_ACTION_ATTRS: tuple[str, ...] = (

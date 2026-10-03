@@ -88,8 +88,7 @@ class Banner(Component):
         )
         # ``adopt_slot`` detaches a Component passed as a slot (otherwise
         # it renders twice); a string / a ClientBinding pass through
-        # intact. Cf. traps.md § "A Component slot stored without
-        # adopt_slot".
+        # intact. Cf. traps.md § "Slot Component stocké sans `adopt_slot`".
         self._title = Component.adopt_slot(title)
         self._message = Component.adopt_slot(message)
         # Explicit icon wins over the auto-pick. ``adopt_slot`` detaches a

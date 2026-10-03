@@ -33,7 +33,7 @@ class _S(AppState):
 class TestDualForm:
     def test_bare_form_defaults(self) -> None:
         @refreshable
-        def zone_bare() -> None:  # noqa: D401
+        def zone_bare() -> None:
             pass
 
         assert isinstance(zone_bare, RefreshableHandle)
@@ -207,7 +207,7 @@ class _FakeBroker:
         del except_tab, only_session
         self.published.append(qualname)
 
-    def subscribe(self, session_id: str, qualname: str) -> None:  # noqa: D401
+    def subscribe(self, session_id: str, qualname: str) -> None:
         pass
 
 

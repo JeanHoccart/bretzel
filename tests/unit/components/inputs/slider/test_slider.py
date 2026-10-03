@@ -8,7 +8,7 @@ from bretzel.components.base.testing import render_isolated
 from bretzel.components.inputs.slider import Slider
 from bretzel.core.serialize import serialize
 from bretzel.state import ClientState, field
-from bretzel.state.scopes.client import ClientBinding, rendering_scope
+from bretzel.state.scopes.client import rendering_scope
 from bretzel.state.scopes.server import _BoundFloat
 
 def _synced_keys(out: str) -> set[str]:

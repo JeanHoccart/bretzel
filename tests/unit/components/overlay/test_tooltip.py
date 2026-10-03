@@ -252,7 +252,7 @@ class TestFullWidthDetection:
     """Tooltip auto-swaps its ``inline-block`` wrapper to ``block w-full``
     when the wrapped trigger is full-width (Input / Form / Textarea /
     etc.). Without this, the trigger collapses to content width — a
-    V1 trap re-discovered in V2 (cf ``traps.md`` § Tooltip full-width)."""
+    V1 trap re-discovered in V2."""
 
     def test_input_inside_with_block_keeps_full_width(self) -> None:
         """Native CM path : ``with ui.tooltip(): ui.input(...)``."""
@@ -326,8 +326,7 @@ class TestWrapperResistsStretch:
     not get stretched by a vstack / grid parent with the default
     ``align-items: stretch``. Without ``w-fit h-fit`` on the wrapper,
     ``_pos()`` reads a stretched bounding rect and the panel floats
-    off to the side of the trigger. Cf. ``traps.md`` § "Root inline-
-    flex étirée par un parent flex/grid items-stretch"."""
+    off to the side of the trigger."""
 
     def test_default_wrapper_carries_w_fit_h_fit(self) -> None:
         with render_isolated():

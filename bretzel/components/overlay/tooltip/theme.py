@@ -29,9 +29,8 @@ TOOLTIP_THEME: dict[str, Any] = {
         # parent with the default ``items-stretch`` STRETCHES the
         # ``inline-block`` to 100% of the cross-axis, so the floating
         # helper reads a stretched rect and centers the panel on the row
-        # width instead of the trigger. Same fix Popover + Dropdown carry
-        # — cf. traps.md § "An inline-flex root stretched by a flex/grid
-        # items-stretch parent". When the trigger is ``w-full``, the
+        # width instead of the trigger. Same fix Popover + Dropdown carry.
+        # When the trigger is ``w-full``, the
         # renderer swaps both ``inline-block`` and ``w-fit``/``h-fit`` for
         # ``block w-full`` (see ``trigger_is_full_width``).
         "root": "inline-block w-fit h-fit",

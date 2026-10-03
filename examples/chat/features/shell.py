@@ -2,8 +2,8 @@
 
 ``fixed inset-0`` and not ``h-screen``: that takes the shell out of the
 flow, otherwise a scrollable panel inflates ``html.scrollHeight`` and the
-viewport ends up with a second scrollbar (cf. ``traps.md`` § *Shell layout
-h-screen*). The conversation container scrolls on its own.
+viewport ends up with a second scrollbar. The conversation container
+scrolls on its own.
 """
 
 from __future__ import annotations

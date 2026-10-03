@@ -29,7 +29,7 @@ from bretzel.runtime.protocol import SSE_EVENT_STATE_DIRTY
 from bretzel.server.sse import RedisBroker
 
 fakeredis = pytest.importorskip("fakeredis")
-from fakeredis import aioredis as fake_aioredis  # noqa: E402 — after importorskip
+from fakeredis import aioredis as fake_aioredis
 
 
 def _run(coro):

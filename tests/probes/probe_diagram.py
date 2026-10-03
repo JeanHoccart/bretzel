@@ -24,7 +24,7 @@ reste au navigateur, c'est tout ce qui depend du CSS :
 5. **Le piege de la colonne** : la racine clippe, donc sa hauteur
    minimale automatique vaut zero. Dans une colonne flex remplie elle
    s'ecrase et coupe le dessin, sans barre et sans erreur
-   (``traps.md`` § « Une colonne qui defile ECRASE ses items »).
+   (``traps.md`` § « Une colonne qui défile ÉCRASE ses items »).
 
 Run :  py tests/probes/probe_diagram.py
 """

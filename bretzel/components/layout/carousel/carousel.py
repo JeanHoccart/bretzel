@@ -323,7 +323,7 @@ class Carousel(Component):
                 # ``addEventListener``, so a ``.passive`` would listen
                 # for an event named "scroll.passive" and this bridge
                 # would be dead in silence. Paid right here (traps.md
-                # § "bz-on: has NO modifier"), gated since.
+                # § "`bz-on:` n'a pas de modificateur"), gated since.
                 "bz-on:scroll": "_onScroll()",
                 # The first gesture turns the autoplay off.
                 # ``pointerdown`` covers finger and mouse, ``wheel`` the

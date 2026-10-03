@@ -8,7 +8,7 @@ faisait passer un Button de 25 classes à 1 : plus de variant
 (``bg-primary``), plus de size (``h-*``), plus de focus ring.
 ``merge_component_themes`` (theme/slots.py) existait, documentait
 exactement ce cas dans son docstring, et n'était jamais appelé sur ce
-chemin. Cf. traps.md § « Theme(components=…) écrasait le thème livré ».
+chemin.
 
 Contrat verrouillé ici :
 

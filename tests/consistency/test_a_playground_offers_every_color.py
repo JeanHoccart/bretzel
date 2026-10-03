@@ -31,7 +31,6 @@ Les EXTRAS restent libres — ``ui.icon`` et ``ui.spinner`` ajoutent
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 
 import pytest
 

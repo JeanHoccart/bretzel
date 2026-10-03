@@ -111,8 +111,7 @@ class RadioGroup(Component):
         # that's consumed as state-sync, not handler kwargs). Pull the
         # checked radio into the request via ``hx-include`` scoped to this
         # group's id. Works for BOTH bound (autoname ``name="value"``) and
-        # unbound (explicit ``name=``) groups. (cf. traps.md § RadioGroup
-        # on_change value vide.)
+        # unbound (explicit ``name=``) groups.
         if "hx-post" in attrs:
             group_id = attrs.get("id")
             if group_id:

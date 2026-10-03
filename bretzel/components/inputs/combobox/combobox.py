@@ -397,9 +397,7 @@ class Combobox(Component):
         #   to the local scope's field.
         # - **method shorthand bodies** (``_pick(v) { ... }``) are NOT
         #   wrapped → bare ``value`` would create a global on
-        #   ``window`` instead of touching ``this.value``. Cf.
-        #   ``traps.md`` § "open = false in a shorthand method of a
-        #   ``bz-data`` scope".
+        #   ``window`` instead of touching ``this.value``.
         # ``"value"`` bare: a directive context.
         value_expr = (
             self.path_of(value_binding) if value_binding is not None else "value"

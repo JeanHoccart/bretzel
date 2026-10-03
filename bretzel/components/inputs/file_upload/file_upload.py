@@ -204,7 +204,8 @@ class FileUpload(Component):
     # (the wrapper ``<div>`` is just layout). The base walks the rendered
     # tree post-render and forwards the binding onto the element carrying
     # ``bz-ref="nativeInput"`` — no manual ``forward_binding`` needed.
-    # Cf. ``traps.md`` § "wrapper-vs-carrier". Every carrier key MUST sit
+    # Cf. ``traps.md`` § "Un champ de formulaire lié possède un carrier
+    # réel". Every carrier key MUST sit
     # in ``BINDABLE_PROPS`` (gate ``test_bindable_carriers_are_bindable_props``).
     BINDABLE_CARRIERS: ClassVar[dict[str, str]] = {
         "disabled": "nativeInput",
@@ -472,7 +473,7 @@ class FileUpload(Component):
         # ``BINDABLE_CARRIERS`` above). The wrapper ``<div>`` is just
         # layout ; without this forwarding the runtime would burn an
         # effect writing a no-op attribute onto the wrapper (cf.
-        # ``traps.md`` § "wrapper-vs-carrier").
+        # ``traps.md`` § "Un champ de formulaire lié possède un carrier réel").
         native_input = Element(
             tag="input", attrs=input_attrs, children=(),
         )
@@ -664,7 +665,8 @@ class FileUpload(Component):
         # Wrapper padding swaps between full / compact when files
         # exist — reactive class expression. ``bz-class`` MERGES the
         # dynamic toggles onto the static ``class=`` (``bz-attr:class``
-        # would REPLACE it — cf. ``traps.md`` § ":class → bz-class").
+        # would REPLACE it — cf. ``traps.md`` § "`bz-class` fusionne,
+        # `bz-attr:class` remplace").
         wrapper_base = s("dropzone_wrapper")
         # ⚠️ The padding is split by AXIS (cf. the theme): the
         # horizontal one is static, the vertical one is EXCLUSIVELY in

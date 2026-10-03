@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Non-regression — un tooltip survit-il a un swap ``@refreshable`` ?
 
 Le panneau d'un tooltip est **teleporte** sous ``<body>`` : il ne vit

@@ -201,7 +201,7 @@ def apply_active_state(
     The data-attr expressions are **stringified** ternaries on purpose:
     ``bz-attr`` REMOVES the attribute on a bare ``false``, and the
     theme's ``data-[active=false]:hover:*`` styles need the literal
-    string (cf. traps.md § stringified data-attrs).
+    string.
 
     ``bz-class`` only adds/removes the classes its expression produces —
     the static ``class=""`` emitted by the server is never touched. The

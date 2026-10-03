@@ -163,8 +163,7 @@ class TestOpenBinding:
         # resolves its ``bztrigger`` / ``bzpanel`` refs against the shared
         # ``rootScope``, where every bound overlay collides (last-write-
         # wins) and the floating helper anchors to the wrong trigger — the
-        # panel lands off-screen. Cf. traps.md § "bound overlay ref
-        # collision". The Escape arm lives inside ``bz-init``
+        # panel lands off-screen. The Escape arm lives inside ``bz-init``
         # (``anchored_dismiss_init``).
         from bretzel.state import ClientState
         from bretzel.state.scopes.client import rendering_scope

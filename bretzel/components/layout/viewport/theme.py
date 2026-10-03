@@ -18,8 +18,7 @@ frame out of the flow — ``html.scrollHeight`` falls back to
 that "``overflow-hidden`` + ``min-h-0`` are enough". That is false, and
 the trap of that belief is that it is true on SHORT pages: the inflation
 is zero as long as the content fits on screen, hence the feeling that
-``h-screen`` works. Do not re-revert. ``traps.md`` § *A shell layout
-h-screen produces a double viewport scrollbar*.
+``h-screen`` works. Do not re-revert.
 
 The flex tables are copied from :data:`FLEX_THEME` rather than shared —
 a theme in this repository is self-sufficient, so an override never has

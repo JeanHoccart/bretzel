@@ -313,11 +313,11 @@ def test_one_size_means_one_height(mesures, size) -> None:
         f"{hi - lo:.2f} px d'écart :\n"
         + "\n".join(f"    ui.{n:<20} {h:>7} px"
                     for n, h in sorted(hauteurs.items(), key=lambda kv: kv[1]))
-        + f"\n  La cause historique : la hauteur du palier posée sur "
-        f"l'`<input>` INTÉRIEUR pendant que le cadre porte la bordure. En "
-        f"`border-box`, le cadre vaut alors l'enfant + ses 2 px. La "
-        f"hauteur doit vivre sur l'élément QUI PORTE LA BORDURE — c'est ce "
-        f"que fait `ui.input`, et c'est lui la référence."
+        + "\n  La cause historique : la hauteur du palier posée sur "
+        "l'`<input>` INTÉRIEUR pendant que le cadre porte la bordure. En "
+        "`border-box`, le cadre vaut alors l'enfant + ses 2 px. La "
+        "hauteur doit vivre sur l'élément QUI PORTE LA BORDURE — c'est ce "
+        "que fait `ui.input`, et c'est lui la référence."
     )
 
 

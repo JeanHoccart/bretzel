@@ -11,8 +11,8 @@
  * live in a METHOD BODY. A ``bz-data`` field is evaluated ONCE, outside
  * any effect — ``absorb`` wraps its snapshot in a new signal decoupled
  * from the store cell, which nothing rewrites any more (a regression
- * measured on Pagination and Tooltip, cf. traps.md § "a bz-data field is
- * not reactive").
+ * measured on Pagination and Tooltip, cf. traps.md § "Une valeur de scope
+ * calculée doit rester calculable").
  *
  * Why a shared scope rather than inline expressions: a panel with 24
  * hours and 4 minutes is 28 buttons. Writing the pick and the selection

@@ -37,7 +37,7 @@ demandait un rig parent-aware — et a été traitée à la source : les 6
 composants concernés rendent désormais leur slot via ``emit_text_slot``
 (qui a une branche Component), les 2 autres refusent explicitement.
 
-Cf. traps.md § « Slot Component stocké sans adopt_slot ».
+Cf. traps.md § « Slot Component stocké sans `adopt_slot` ».
 """
 
 from __future__ import annotations
@@ -159,8 +159,8 @@ def test_component_slot_is_adopted_not_orphaned(cls: type, prop: str) -> None:
         f"il rendra DEUX FOIS (une en frère, une dans le slot). Fix : "
         f"`self._{prop} = Component.adopt_slot({prop})` dans __init__ "
         f"(PAS dans render() — trop tard, le parent a déjà émis "
-        f"l'orphelin). Cf. traps.md § « Slot Component stocké sans "
-        f"adopt_slot »."
+        f"l'orphelin). Cf. "
+        f"traps.md § « Slot Component stocké sans `adopt_slot` »."
     )
 
 

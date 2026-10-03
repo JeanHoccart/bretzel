@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Playwright probe — ``ui.filter_each`` filtre-t-il VRAIMENT sans serveur ?
 
 Le filtre de ``ui.filter_each`` est entierement client : chaque ligne est

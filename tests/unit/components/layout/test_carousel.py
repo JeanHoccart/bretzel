@@ -99,7 +99,7 @@ class TestStructure:
         # ``bz-on:`` passe son suffixe VERBATIM à ``addEventListener`` :
         # un ``.passive`` écouterait un événement nommé « scroll.passive »
         # et le pont position→état serait mort en silence. Payé ici même
-        # (cf. traps.md § « bz-on: n'a AUCUN modificateur »).
+        # (cf. traps.md § « `bz-on:` n'a pas de modificateur »).
         assert 'bz-on:scroll="' in out
         assert "bz-on:scroll." not in out
 

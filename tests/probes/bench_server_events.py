@@ -108,7 +108,7 @@ def home() -> None:
 
 
 @app.fastapi.get("/calls")
-async def calls():  # noqa: D401 — probe reads handler ground truth here
+async def calls():
     from starlette.responses import JSONResponse
     return JSONResponse(CALLS)
 
@@ -121,10 +121,7 @@ if __name__ == "__main__":
     from tests.probes._serve import bench_port, use_local_tailwind
 
     # Le compilateur CSS depuis 127.0.0.1 et non depuis unpkg :
-
     # une suite ne doit pas dependre d'un tiers (cf. `_serve`).
-
     use_local_tailwind()
-
 
     uvicorn.run(app, host="127.0.0.1", port=bench_port(8972))

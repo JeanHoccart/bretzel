@@ -50,7 +50,6 @@ import pytest
 from tests.consistency._discovery import (
     assert_runtime_sweep_is_not_vacuous,
     runtime_sources,
-    strip_js_comments,
 )
 
 #: Le test qui prouve que le détecteur mord — cf. la règle 8 du charter.

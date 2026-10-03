@@ -318,7 +318,7 @@ class TestSidebarRoot:
         """``bz-init`` porte DÉJÀ le resync ``current_path``. Le mode
         overlay en veut un second (Escape) : les deux doivent COEXISTER.
         Écraser au lieu de composer est le piège « handler interne
-        clobberé » de traps.md."""
+        clobberé »."""
         with render_isolated():
             out = serialize(Sidebar(collapsible="overlay").render())
         assert "onWindow('popstate'" in out

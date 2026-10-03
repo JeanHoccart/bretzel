@@ -58,8 +58,8 @@
       // at its mount value (measured: the switch flips, the pagination
       // stays clickable). A bound expression must live in a METHOD BODY,
       // the only place re-read at every call hence tracked by the
-      // calling effect. Cf. traps.md § "a bz-data field is not
-      // reactive".
+      // calling effect. Cf. traps.md § "Une valeur de scope calculée
+      // doit rester calculable".
       isDisabled() {
         return false;
       },

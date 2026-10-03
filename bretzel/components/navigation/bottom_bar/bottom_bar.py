@@ -76,7 +76,7 @@ once the tree is built) refuses both, with the gesture to write:
 
 The guard says nothing as long as no ``ui.viewport`` exists in the
 render: the default model — the document that scrolls — is not
-concerned. ``traps.md`` § *A `sticky` bar outside the frozen frame*.
+concerned.
 """
 
 from __future__ import annotations

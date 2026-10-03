@@ -286,7 +286,8 @@ class Select(Component):
         # @refreshable swap — desirable ONLY when the value is backed by
         # SERVER state (``value=server_state.field``, a stamp carrying a
         # ``field_name``) : there the server is authoritative, a
-        # re-render should win (cf. traps.md § a server-bound value). For
+        # re-render should win (cf. traps.md § "Une config serveur se
+        # re-sème aussi quand la valeur est liée"). For
         # an UNBOUND select (no ``value=``, or a plain literal) the value
         # is purely client-side ; re-adopting the static SSR initial on
         # every swap would WIPE the user's pick whenever an unrelated

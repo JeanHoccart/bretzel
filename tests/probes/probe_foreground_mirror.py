@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Probe — le miroir JS du foreground rend-il EXACTEMENT ce que Python rend ?
 
 Le foreground d'une couleur est derive du fond : une clarte choisie par un

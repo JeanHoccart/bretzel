@@ -49,13 +49,13 @@ question de la promouvoir se pose.
 1. **Reactive props** (déclarés via `reactive_prop(default=…, emit_attr=…)`). Stockés sur `_reactive_values` ; les `ClientBinding` vont en plus dans `_binding_metadata`.
 2. **Named slots** (présents dans `NAMED_SLOTS`). Stockés sur `_slot_components`.
 3. **Event handlers** (`on_<event>` où `<event>` est dans `EVENTS`). Routés via `register_action` → `action_attrs` : `hx-post` (route action) + `hx-trigger="<event>"` (parfois `"<event> from:#<root>"` pour la délégation) + `data-bz-sig`.
-4. **attributs bruts** (clés commençant par `:`, `@`, `x-`, `hx-`). Émis verbatim.
-5. **Raw HTML attrs** (le reste). Nom normalisé (`_` → `-`, trailing `_` strip), valeur émise telle quelle.
+4. **HTMX brut** (clés commençant par `hx-`). Émis verbatim — réservé aux quelques composants listés par `test_raw_htmx_stays_in_the_allowlist.py`. Les anciens préfixes Alpine `:`, `@`, `x-` **lèvent** `ComponentUsageError` depuis le 2026-07-30 : le moteur ne les lit pas, ils partaient inertes dans le DOM.
+5. **Raw HTML attrs**, une échappatoire DÉCLARÉE : les familles `aria_*`/`aria-*`, `data_*`/`data-*`, `bz-*` et quelques noms (`class_`, `role`…, `_RAW_HTML_NAMES` dans `attrs.py`). Nom normalisé (`_` → `-`, trailing `_` strip), valeur émise telle quelle. Tout autre kwarg inconnu **lève** (depuis le 2026-08-16).
 
-> **Précédence réelle** : ce classement est *conceptuel*. Dans le code (`attrs.py`), le bucket **attributs bruts** (passthrough `:@x-hx-`) est **testé en premier**, avant reactive props / slots / events. L'ordre 1→5 ci-dessus liste les buckets, pas leur priorité de matching.
+> **Précédence réelle** : ce classement est *conceptuel*. Dans le code (`attrs.py`), le passthrough `hx-` est **testé en premier**, avant reactive props / slots / events. L'ordre 1→5 ci-dessus liste les buckets, pas leur priorité de matching.
 
 → Si tu vois `aria_label="…"` dans le code, ça atterrit comme `aria-label="…"` dans le HTML.
-→ Si tu vois `**{"@click": "..."}`, ça atterrit verbatim — c'est l'**escape hatch** (à éviter en code app, cf. `traps.md`).
+→ Un comportement client s'écrit en `bz-*` (`**{"bz-on:click": "…"}`), jamais en `@click`.
 
 ---
 
@@ -246,8 +246,6 @@ moyen propre est que le sous-composant **n'émette pas** de
 `text-{couleur}` baked en premier lieu — d'où le défaut
 `color="current"`.
 
-Voir `traps.md` pour le détail historique du bug spinner-on-solid.
-
 ---
 
 ## Events — déclaration + routage
@@ -341,7 +339,7 @@ Tout indicator positionné par JS-measurement DOIT :
 3. Stamper le indicator SSR avec `style="opacity: 0;"` (anti-flash avant mesure).
 4. La méthode `updateIndicator()` mesure `btn.offsetLeft + offsetWidth`, écrit `style="transform: translateX(...); width: ...px; opacity: ;"`.
 5. `bz-init` wire **5 triggers** : un `bz-effect` sur `picked`, `$nextTick`, `window resize`, `ResizeObserver`, `document.fonts.ready` (optional, pour le font-load).
-6. **CRITIQUE** : `@htmx:after-swap.window` re-fire `updateIndicator()` après tout partial refresh. Sinon le morph écrase l'inline-style et le indicator est stuck. Cf. `traps.md` § "Sliding indicator desync après morph".
+6. **CRITIQUE** : `@htmx:after-swap.window` re-fire `updateIndicator()` après tout partial refresh. Sinon le morph écrase l'inline-style et le indicator est stuck.
 
 ### Imperative API (calquée Combobox)
 
@@ -358,7 +356,7 @@ PAS de `.add(v)` / `.remove(v)` / `.toggle(v)` per-item — les clicks UI s'en c
 
 ### Roots `w-fit h-fit` obligatoire
 
-Tout cluster sélecteur DOIT poser `w-fit h-fit` (ou des dimensions explicites) sur sa root, sinon les overlays qui l'enveloppent (Tooltip, Popover) se mal-positionnent à cause du stretch parent. Cf. `traps.md` § "Root inline-flex étirée par un parent flex/grid items-stretch".
+Tout cluster sélecteur DOIT poser `w-fit h-fit` (ou des dimensions explicites) sur sa root, sinon les overlays qui l'enveloppent (Tooltip, Popover) se mal-positionnent à cause du stretch parent.
 
 ---
 
@@ -426,7 +424,7 @@ Les composants render-time peuvent en pop des entrées (ex : Select déplace le 
 
 ## Primitives binding ↔ carrier (la VRAIE plomberie)
 
-Les composants composent souvent un wrapper + des enfants où la VRAIE cible d'un attribut HTML n'est pas le root. Six primitives sur `Component` couvrent les cas connus — utilise-les plutôt que de coder le forwarding à la main, sinon tu reproduis pile les bugs catalogués dans `traps.md` § "wrapper-vs-carrier".
+Les composants composent souvent un wrapper + des enfants où la VRAIE cible d'un attribut HTML n'est pas le root. Six primitives sur `Component` couvrent les cas connus — utilise-les plutôt que de coder le forwarding à la main, sinon tu reproduis pile les bugs catalogués dans `traps.md` § "Un champ de formulaire lié possède un carrier réel".
 
 ### `self.forward_binding(prop, target_attrs, *, as_attr=None, root_attrs=None)`
 
@@ -591,7 +589,7 @@ Pour chaque prop dans `BINDABLE_PROPS`, te poser ces questions :
 2. **Audit interactif** — ajouter une `ComponentSpec` dans `tests/audit/checklist.py` avec :
    - `route` + `root_selector` matchant l'instance demo dans chaque card
    - `has_color_axis`, `has_size_axis`, `is_interactive` selon le composant
-   - Si une prop bindable ne peut pas être observée par le probe (cas `skip_dynamic_props` dans `audit.md`), la lister avec un commentaire **Pourquoi**.
+   - Si une prop bindable ne peut pas être observée par le probe (cas `skip_dynamic_props` dans `tests/audit/README.md`), la lister avec un commentaire **Pourquoi**.
 
    Puis lancer `py -m tests.audit.driver <name>`. Si `carrier_landing` fail → un `forward_binding` manque. Si `client_switches_drive_carrier` fail → vérifier le binding via Playwright à la main (peut être un faux positif probe-side).
 
@@ -601,11 +599,8 @@ Pour chaque prop dans `BINDABLE_PROPS`, te poser ces questions :
 
 Avant de fermer ta PR, scan ces sections de `traps.md` :
 
-- "wrapper-vs-carrier" — la classe de bug que `forward_binding` élimine
-- "Morph guard preservait `class` même quand le nouveau render dropait `:class`" — gérer le cycle de vie des `:X` bindings
-- "Refreshable __call__ bypass" — si ton composant vit dans un `@refreshable`
-- "Une classe de couleur ne s'ASSEMBLE jamais" — si tu fais du theming
-- "sr-only ≠ tabindex=-1" — si ton composant a un sr-only `<input>` à côté d'un wrapper focus
+- "Un champ de formulaire lié possède un carrier réel" — la classe de bug que `forward_binding` élimine
+- "Une classe Tailwind assemblée peut disparaître en production" — si tu fais du theming
 
 ### E. Discipline de session
 

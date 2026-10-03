@@ -171,8 +171,8 @@ class Dropzone(Component):
         # dispatches ``move`` from ; rendering it only for the server case
         # would make a client-only ``on_move="…"`` a dead letter — the
         # event would have nothing to fire from, and the string shape is
-        # part of the declared surface (cf. traps.md § "``EVENTS = (...)``
-        # + an ``on_X=`` kwarg ≠ an event that fires"). The event bubbles,
+        # part of the declared surface (cf. traps.md § "Un event déclaré
+        # doit partir du bon élément"). The event bubbles,
         # so the root's ``bz-on:move`` catches it.
         carrier_attrs: dict[str, Any] = {
             "type": "hidden",

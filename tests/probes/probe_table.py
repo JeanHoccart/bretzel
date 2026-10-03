@@ -52,7 +52,7 @@ HTML = HERE / "_probe_table.html"
 RUNTIME_JS = (Path(_bz_runtime.__file__).resolve().parent / "runtime.js").as_uri()
 
 
-def row_action(id) -> None:  # noqa: A002 - mirrors a real handler signature
+def row_action(id) -> None:
     ...
 
 

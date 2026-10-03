@@ -94,5 +94,6 @@ First public alpha.
 - Tailwind CSS v4 theming, compiled with the standalone binary in production.
 - CLI: `bretzel new`, `bretzel dev`, `bretzel describe` and `bretzel check`.
 
-[Unreleased]: https://github.com/JeanHoccart/bretzel/compare/v0.1.0a1...HEAD
+[Unreleased]: https://github.com/JeanHoccart/bretzel/compare/v0.1.0a2...HEAD
+[0.1.0a2]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a2
 [0.1.0a1]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a1

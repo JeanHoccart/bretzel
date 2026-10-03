@@ -3,8 +3,8 @@
 ``EVENTS = ("close",)`` + accepter ``on_close=`` câble un listener sur
 le DOM. Mais si **rien ne dispatche jamais** l'event, le handler est un
 dead-letter : aucune erreur, aucun POST, le log reste vide. C'est une
-classe de bug documentée (traps.md § « ``EVENTS = (...)`` + ``on_X=``
-kwarg ≠ event qui fire ») — elle a déjà mordu Popover / Dialog /
+classe de bug documentée (traps.md § « Un event déclaré doit partir du
+bon élément ») — elle a déjà mordu Popover / Dialog /
 Dropdown en mai 2026, puis Alert / Banner (trouvés le 2026-07-15).
 
 Deux invariants, deux familles :
@@ -68,7 +68,8 @@ def _dummy_handler() -> None:
 
     Un ``def`` imbriqué dans un test porte ``<locals>`` dans son
     qualname et le framework le rejette (``HandlerError``) — cf.
-    traps.md § « Closure capturée ». La première version de cette
+    traps.md § « Pas de lambda ni de closure pour une action serveur ».
+    La première version de cette
     gate s'y est fait prendre : 5 faux échecs.
     """
 

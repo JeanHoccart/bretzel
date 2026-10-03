@@ -318,7 +318,7 @@ def client_events_panel() -> None:
     was mechanical. ``EVENTS`` was empty, so the template read "this
     component has no event" — although the page already carried its
     Server events card. The ClassVar was wrong, not the component. Cf.
-    ``.claude/work/audit-declaration-2026-09-06.md``.
+    commit ``28958bf3``.
     """
     events = BarChartClientEvents()
     ui.text(

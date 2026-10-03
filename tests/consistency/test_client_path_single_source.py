@@ -24,8 +24,7 @@ l'était pas** et émettait un chemin corrompu en production, pour
 ``ast.Constant``, jamais un ``ast.JoinedStr`` — le faux positif disparaît
 sans exemption.
 
-Cf. traps.md § « path_of — chemin client à source unique » et
-[[project_consistency_gates]] (la classe de gate qui manquait :
+Cf. [[project_consistency_gates]] (la classe de gate qui manquait :
 « la primitive livrée est-elle adoptée à tous ses call-sites ? »).
 """
 

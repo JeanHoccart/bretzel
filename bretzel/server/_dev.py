@@ -1,8 +1,7 @@
 """Bretzel-owned dev watcher.
 
 Replaces uvicorn's ``--reload`` (broken on Windows : worker
-subprocess never killed, cf. ``.claude/bretzel/traps.md`` section
-*Hot-reload uvicorn fragile sur Windows*). Owns the kill/respawn
+subprocess never killed). Owns the kill/respawn
 loop via :func:`watchfiles.run_process` in ``function`` mode so the
 child runs in a clean ``multiprocessing.get_context('spawn').Process``
 on every reload — no shell, no Windows-path quoting issues.

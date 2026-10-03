@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import math
 
-import pytest
 
 from bretzel.components.charts._svg import (
     arc_path,

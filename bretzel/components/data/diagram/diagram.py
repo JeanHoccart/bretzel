@@ -328,8 +328,8 @@ class Diagram(Component):
 
         # ⚠️ `_detach_from_parent` BEFORE `render()`. A Component built
         # in a `render()` registers itself with the ACTIVE parent and
-        # leaks when the component is detached — traps.md's "Icon built
-        # in render() without detach" trap.
+        # leaks when the component is detached — cf. traps.md § "Icon
+        # construit dans `render()` sans détachement".
         empty = EmptyState(
             self._empty_text,
             icon=self._empty_icon,

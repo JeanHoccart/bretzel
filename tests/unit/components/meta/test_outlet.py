@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import pytest
 
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.meta.outlet import Outlet
 from bretzel.core.serialize import serialize
-from bretzel.render.context import current_context
 
 
 class TestOutletId:
@@ -52,8 +50,7 @@ class TestOutletRender:
         when it WAS the swap target (``htmx:after-swap`` + ``$event.target
         === $el``). That blanked the inner outlet of a nested sub-layout on
         partial nav : the swap targets the OUTERMOST outlet, so an inner
-        outlet never received the event → it stayed ``display:none``. Cf.
-        ``traps.md`` § "Nested partial-nav blanks the inner outlet"."""
+        outlet never received the event → it stayed ``display:none``."""
         with render_isolated():
             el = Outlet().render()
         assert el.attrs.get("data-bz-outlet") == "1"

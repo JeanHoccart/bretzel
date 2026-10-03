@@ -38,8 +38,7 @@ Wired (both modes, ``V`` = ``_value_expr()``) :
 - a ``bz-effect`` on the wrapper mirrors ``V`` onto the calendar's
   observed ``value`` ATTRIBUTE via ``setAttribute`` — ``bz-attr:value``
   on a custom element writes the JS property, not the attribute, so it
-  would skip ``attributeChangedCallback`` (cf. ``traps.md`` § *bz-attr
-  value on a custom element*).
+  would skip ``attributeChangedCallback``.
 
 Form integration : ``AUTONAME_FROM = "value"`` derives the HTML
 ``name`` from the bound field, same idiom as Calendar / Input.

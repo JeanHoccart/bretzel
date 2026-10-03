@@ -126,7 +126,7 @@ def _render(cls: type, sonde: tuple[str, str] | None) -> str | None:
             prop=sonde[0] if sonde else None,
             value=sonde[1] if sonde else None,
         )
-    except Exception as exc:  # noqa: BLE001 — enregistre, pas avale
+    except Exception as exc:
         _REFUS[cle] = type(exc).__name__
         return None
 

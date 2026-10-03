@@ -42,7 +42,8 @@ data, with the server change handler relocated onto it (same idiom as
 ``hx-trigger="change"`` ; a string ``on_change`` produces
 ``bz-on:change``. Both are relocated off the root ``<div>`` (which has
 no ``name`` / ``value``) onto the hidden ``<input>`` so the dispatched
-FormData is non-empty (cf. ``traps.md`` § "bz-event:change on a div").
+FormData is non-empty (cf. ``traps.md`` § "Un event déclaré doit partir du
+bon élément").
 
 Imperative API : ``acc.expand(v)`` / ``collapse(v)`` / ``toggle(v)``
 + ``expand_all()`` / ``collapse_all()``. Write-only ; write-through
@@ -309,8 +310,9 @@ class Accordion(Component):
         # ── Hidden input — form integration ──────────────────────────
         # The change handler must ride an element exposing ``name`` +
         # ``value`` so the dispatched FormData is non-empty (the root
-        # ``<div>`` has neither — cf. ``traps.md`` § "bz-event:change sur
-        # un div"). Pop the handler keys ``emit_attrs`` stamped on the root
+        # ``<div>`` has neither — cf. ``traps.md`` § "Un event déclaré doit
+        # partir du bon élément"). Pop the handler keys ``emit_attrs``
+        # stamped on the root
         # (callable → ``hx-post`` set ; string → ``bz-on:change``) and
         # carry them onto the hidden input below.
         root_attrs = self.emit_attrs()
@@ -475,8 +477,7 @@ class AccordionItem(Component):
         label_span_attrs: dict[str, Any] = {"class": label_class}
         # No ClientBinding branch: ``label`` is not bindable and a
         # binding lives in ``_binding_metadata``, never
-        # ``_reactive_values`` — cf. traps.md § "Reading a binding
-        # through _reactive_values + isinstance".
+        # ``_reactive_values``.
         if isinstance(label_value, Component):
             label_span: Node = Element(
                 tag="span",
@@ -545,8 +546,7 @@ class AccordionItem(Component):
         # (A ``@refreshable`` morph strips this dynamic class back to the
         # SSR baseline, then the afterSwap rescan re-applies it — the
         # per-BIND managed set in the ``bz-class`` handler makes that
-        # re-apply actually happen, cf. traps.md § "bz-class lost after a
-        # morph".)
+        # re-apply actually happen.)
         body_attrs: dict[str, Any] = {
             "id": body_id,
             "role": "region",

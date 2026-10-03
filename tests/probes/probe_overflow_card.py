@@ -74,7 +74,7 @@ _MEASURE = """
         // Un panel bien ancré s'ouvre à ≤ ~12px sous son trigger.
         anchored: Math.abs(pr.top - tr.bottom) < 24,
         // Tailwind v4 pose la propriété INDIVIDUELLE `translate`, pas
-        // `transform` (cf. traps.md § -translate-x-*) — les deux créent
+        // `transform` — les deux créent
         // un containing block pour les descendants fixed. Le lift Card
         // est désormais en `top` (offset de position, AUCUN containing
         // block) — c'est précisément ce que ce probe verrouille.

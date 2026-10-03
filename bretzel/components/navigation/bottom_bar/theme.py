@@ -187,7 +187,8 @@ BOTTOM_BAR_ITEM_THEME: dict[str, Any] = {
         # No ``text-*`` here: ``<iconify-icon>`` sizes itself by
         # ``font-size``, and a size class set on the slot would compete
         # with the one the Icon component composes itself (cf. traps.md
-        # § iconify-icon). The size therefore goes through
+        # § "Les icônes se dimensionnent par `font-size`"). The size
+        # therefore goes through
         # ``Icon(size="lg")`` in ``__init__``.
         "icon": "shrink-0 text-current",
         # ⚠️ ``leading-tight`` and NOT ``leading-none``. ``truncate``

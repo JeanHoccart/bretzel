@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Probe — les verbes clients font-ils vraiment ce qu'ils annoncent ?
 
 Les CINQ verbes (``copy`` / ``print_page`` / ``fullscreen`` /

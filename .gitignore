@@ -14,9 +14,6 @@ htmlcov/
 *.egg-info/
 build/
 dist/
-# …except the launch site, whose dist/ IS the deliverable: it is
-# a static page, not a build artefact rebuilt from source here.
-!launch/site/dist/
 .release-wheel/
 .tox/
 
@@ -79,9 +76,6 @@ tests/probes/_probe_*.html
 
 # VSCode "Counter" extension output (local code stats)
 .VSCodeCounter/
-
-# MAD demo — SQLite seeded at startup, not source
-examples/mad/**/*.db
 
 # CRM demo — SQLite semé au démarrage, pas de la source
 examples/crm/**/*.db

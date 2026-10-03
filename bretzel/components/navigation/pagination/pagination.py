@@ -19,7 +19,8 @@ produces ``name="page"`` automatically. A hidden
 ``<input type="hidden">`` rides the page number into form data, with
 the change handler relocated onto it so the dispatcher reads ``name``
 + ``value`` off the input (the root ``<nav>`` has neither — cf.
-``traps.md`` § "bz-event:change on a div"). The relocated handler is
+``traps.md`` § "Un event déclaré doit partir du bon élément"). The
+relocated handler is
 either the native HTMX action set (``hx-post`` + ``hx-trigger`` + …,
 for a callable ``on_change``) or ``bz-on:change`` (for a string
 ``on_change``).

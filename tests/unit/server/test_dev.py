@@ -126,7 +126,6 @@ class TestDeriveWatchDirs:
         # Force the "bretzel is a local checkout" branch by patching
         # bretzel.__file__ to a path outside site-packages.
         import bretzel
-        from pathlib import Path
 
         fake_checkout = tmp_path / "fake_bretzel_checkout"
         fake_checkout.mkdir()
@@ -144,7 +143,6 @@ class TestDeriveWatchDirs:
         self, tmp_path, monkeypatch
     ) -> None:  # type: ignore[no-untyped-def]
         import bretzel
-        from pathlib import Path
 
         fake_install = tmp_path / "site-packages" / "bretzel"
         fake_install.mkdir(parents=True)
@@ -164,7 +162,6 @@ class TestDeriveWatchDirs:
     ) -> None:  # type: ignore[no-untyped-def]
         import sys
         import types
-        from pathlib import Path
 
         fake_main = types.ModuleType("__main__")
         fake_main.__file__ = str(tmp_path / "main.py")  # type: ignore[attr-defined]

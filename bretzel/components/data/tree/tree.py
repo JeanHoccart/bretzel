@@ -363,8 +363,7 @@ class Tree(Component):
         attrs = {"class": ctx.label_class}
         # No ClientBinding branch: ``label`` is not bindable and a
         # binding lives in ``_binding_metadata``, never
-        # ``_reactive_values`` — cf. traps.md § "Reading a binding
-        # through _reactive_values + isinstance".
+        # ``_reactive_values``.
         if isinstance(label, Component):
             return Element(tag="span", attrs=attrs, children=(label.render(),))
         # Empty / omitted label → fall back to the node id (a labelless

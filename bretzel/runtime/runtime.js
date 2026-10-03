@@ -844,8 +844,7 @@
       // Scoped to native form controls : custom elements (e.g.
       // <bz-calendar>) reflect ``value`` through their own
       // attributeChangedCallback and must NOT be short-circuited by a
-      // direct property write (cf. traps.md § bz-attr value on a custom
-      // element).
+      // direct property write.
       const tag = el.tagName;
       const formControl = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
       const idlValue = name === "value" && formControl;
@@ -884,8 +883,7 @@
       // starts empty, so the first run after a morph re-adds every class
       // from the real (clobbered) DOM baseline. Within a single bind the
       // closure persists across signal-driven re-runs, so normal
-      // add/remove diffing is unchanged. Cf. traps.md § "bz-class lost
-      // after a morph (tracking on the node)".
+      // add/remove diffing is unchanged.
       //
       // `managed` alone is NOT enough to keep that promise: it holds what
       // the EXPRESSION produced, not what was really added. Yet
@@ -896,9 +894,7 @@
       // first toggle (measured: a Pagination button that stopped being an
       // ellipsis lost `w-10 text-sm flex items-center justify-center` and
       // collapsed from 40 px to 8 px, `h-10` intact). Hence `base`: the
-      // baseline read at bind time, never removable. Cf. traps.md
-      // § "bz-class destroys a token the theme shares with its static
-      // layer".
+      // baseline read at bind time, never removable.
       let managed = new Set();
       const base = new Set(el.classList);
       elEffect(el, function () {
@@ -940,9 +936,8 @@
       // diverged.
       //
       // Affects the 9 components that emit `bz-class`, not only the
-      // sidebar. Cf. traps.md § "bz-class lost after a morph" — same
-      // family, opposite direction: the class SURVIVES instead of
-      // disappearing.
+      // sidebar. Same family as a class lost after a morph, opposite
+      // direction: the class SURVIVES instead of disappearing.
       disposers.push(function () {
         for (const cls of managed)
           if (!base.has(cls)) el.classList.remove(cls);
@@ -1139,8 +1134,8 @@
     // ``:flip`` opt-in (parsed above) makes surviving rows slide from their
     // old box to the new one when a sibling is inserted or removed, instead
     // of teleporting into the freed space. The notification stack uses it so
-    // a dismissed toast's neighbours glide up rather than snap (cf. traps.md
-    // § "Toast reflow jumps"). Reconciliation stays key-based (nodes are
+    // a dismissed toast's neighbours glide up rather than snap.
+    // Reconciliation stays key-based (nodes are
     // reused, never remounted) — FLIP only animates the layout delta of nodes
     // present both BEFORE and AFTER the update.
 
@@ -1258,7 +1253,7 @@
       // never the POST. We own projecting the clone, so we own processing
       // it — mirror of ``scan``. Idempotent : htmx skips already-initialised
       // nodes, so the first projection (caught by htmx's observer) is a
-      // no-op here. cf. traps.md § "Teleported hx-post dead after refresh".
+      // no-op here.
       if (window.htmx) window.htmx.process(node);
     }
     template._bzTeleportSig = sig;
@@ -1306,8 +1301,7 @@
     // change carrier) would otherwise see undefined — the child binds
     // later in document order, so the click→snap-to-min path lost its
     // track. Idempotent with HANDLERS.ref, which still owns the disposer
-    // for cleanup. (cf. traps.md § Slider click → 0 / bz-init descendant
-    // refs.)
+    // for cleanup.
     for (const el of els) {
       const refName = el.getAttribute("bz-ref");
       if (refName) $bz._scopeFor(el).refs[refName] = el;
@@ -5447,8 +5441,8 @@
       // at its mount value (measured: the switch flips, the pagination
       // stays clickable). A bound expression must live in a METHOD BODY,
       // the only place re-read at every call hence tracked by the
-      // calling effect. Cf. traps.md § "a bz-data field is not
-      // reactive".
+      // calling effect. Cf. traps.md § "Une valeur de scope calculée
+      // doit rester calculable".
       isDisabled() {
         return false;
       },
@@ -5674,6 +5668,29 @@
         if (String(this._read()) === s) return;
         this._write(s);
         if (this._url) $bz.helpers.pushUrl(this._url, s);
+      },
+
+      // The KEYBOARD, on the tablist (WAI-ARIA tabs pattern, automatic
+      // activation). The tabindex is roving — only the active tab is in
+      // the Tab order — so without this a keyboard user reached the
+      // active tab and nothing else. Arrows move to the neighbour (and
+      // wrap), Home/End to the ends; disabled tabs are skipped. The tab
+      // reached is focused AND activated.
+      tabKey(e, list) {
+        const step = { ArrowRight: 1, ArrowLeft: -1, Home: 0, End: 0 }[e.key];
+        if (step === undefined) return;
+        const tabs = Array.from(
+          list.querySelectorAll('[role="tab"]:not([disabled])'),
+        );
+        if (!tabs.length) return;
+        const from = tabs.indexOf(e.target.closest('[role="tab"]'));
+        let to;
+        if (e.key === "Home") to = 0;
+        else if (e.key === "End") to = tabs.length - 1;
+        else to = (Math.max(from, 0) + step + tabs.length) % tabs.length;
+        e.preventDefault();
+        tabs[to].focus();
+        this.setTab(tabs[to].dataset.tab);
       },
 
       // The BACK button. Without it, the browser's arrow would change
@@ -6043,8 +6060,8 @@
  * live in a METHOD BODY. A ``bz-data`` field is evaluated ONCE, outside
  * any effect — ``absorb`` wraps its snapshot in a new signal decoupled
  * from the store cell, which nothing rewrites any more (a regression
- * measured on Pagination and Tooltip, cf. traps.md § "a bz-data field is
- * not reactive").
+ * measured on Pagination and Tooltip, cf. traps.md § "Une valeur de scope
+ * calculée doit rester calculable").
  *
  * Why a shared scope rather than inline expressions: a panel with 24
  * hours and 4 minutes is 28 buttons. Writing the pick and the selection
@@ -6208,8 +6225,8 @@
  * `bz-init` that runs again double-binds (the bridge's rescan disposes
  * and re-binds the directives). A single listener on the document,
  * which finds its target through `closest()`, is **insensitive to the
- * morph** and keeps no state on the nodes — the constraint traps.md
- * § "bz-class lost after a morph" made non-negotiable.
+ * morph** and keeps no state on the nodes — the constraint a `bz-class`
+ * lost after a morph made non-negotiable.
  *
  * ── Why we move the REAL node, with no clone ─────────────────────────
  * The reordering is applied to the DOM during the gesture. So:

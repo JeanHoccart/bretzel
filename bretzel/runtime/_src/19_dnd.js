@@ -16,8 +16,8 @@
  * `bz-init` that runs again double-binds (the bridge's rescan disposes
  * and re-binds the directives). A single listener on the document,
  * which finds its target through `closest()`, is **insensitive to the
- * morph** and keeps no state on the nodes — the constraint traps.md
- * § "bz-class lost after a morph" made non-negotiable.
+ * morph** and keeps no state on the nodes — the constraint a `bz-class`
+ * lost after a morph made non-negotiable.
  *
  * ── Why we move the REAL node, with no clone ─────────────────────────
  * The reordering is applied to the DOM during the gesture. So:

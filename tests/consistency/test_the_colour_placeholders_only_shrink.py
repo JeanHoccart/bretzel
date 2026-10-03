@@ -14,7 +14,8 @@ Une migration qui stagne reste visible ; une qui recule rougit. La phase
 5 du chantier le mettra à zéro et transformera le compteur en
 interdiction pure.
 
-C'est la décision du 2026-08-30 (`.claude/work/chantier-jetons-couleur-2026-08-30.md`,
+C'est la décision du 2026-08-30 (chantier des jetons couleur, lisible par
+`git show 1aaf65a2:.claude/work/chantier-jetons-couleur-2026-08-30.md`,
 § *Les décisions*, point 2), et elle vient de ce que la coexistence est
 **gratuite** : ``resolve_slot`` laisse passer une chaîne sans trou, donc
 les deux formes vivent côte à côte sans une ligne de compatibilité. Ce
