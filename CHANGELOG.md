@@ -14,12 +14,24 @@ change between alpha releases.
   refetch their own, unchanged zone. `AppState` and the other scopes still
   reach every subscribed session.
 - Python 3.14 is tested in CI and declared in the package metadata.
+- `ui.input(type=...)` refusing a native picker type now names the shipped
+  component (`ui.date_picker`, `ui.week_picker`, …) instead of "coming soon".
 
 ### Fixed
 
+- `ui.tabs` can be used from the keyboard: arrow keys, Home and End move the
+  focus and the selection, skipping disabled tabs, and each tab is linked to
+  its panel (`aria-controls` / `aria-labelledby`).
+- The compiled-CSS cache in `.bretzel/css/` no longer grows without bound: it
+  prunes orphaned pointers and abandoned scratch files, and a failed
+  compilation leaves nothing behind.
 - The Kanban example's windows follow each other again: the board stays one
   per visitor, and two tabs of the same browser share it live.
 - The vendor download message is in English.
+
+### Removed
+
+- Three unused mark SVGs (1.5 MB) are no longer shipped in the wheel.
 
 ## [0.1.0a2] - 2026-09-29
 
