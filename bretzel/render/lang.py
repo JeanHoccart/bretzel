@@ -232,6 +232,10 @@ class Language:
         # in ``runtime/protocol.py``, the ``languages`` declaration in
         # ``server/config.py``.)
         from bretzel.render.context import current_context
+        from bretzel.server.auth import (
+            request_scheme,
+            resolve_cookie_secure,
+        )
         from bretzel.server.navigation import reload as _reload
 
         ctx = current_context()
@@ -246,11 +250,19 @@ class Language:
                 f"Language.set({code!r}): undeclared language. languages="
                 f"{list(languages)}.{hint}"
             )
+        # Same rule as the session and auth cookies (``auth.py``'s
+        # ``_ctx_cookie_secure``): ``Secure`` follows the TRANSPORT, and
+        # ``secure_cookies=`` overrides it behind a TLS-terminating proxy.
+        # Without it, this cookie is the odd one out — and a cookie
+        # missing ``Secure`` on https is a hole the others do not have.
+        config = getattr(ctx.app, "config", None)
+        override = getattr(config, "secure_cookies", None) if config else None
         ctx.set_cookie(
             LANG_COOKIE,
             code,
             max_age=cls._COOKIE_MAX_AGE,
             samesite="lax",
+            secure=resolve_cookie_secure(request_scheme(ctx.request), override),
             # Readable in JS ON PURPOSE, unlike the session cookie:
             # this is not a secret, and an app wanting to offer its
             # language client-side must be able to read it.
