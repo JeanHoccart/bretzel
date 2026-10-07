@@ -125,7 +125,7 @@ pytest -m probes
 pytest -m audit
 ```
 
-The public repository contains 249 consistency-test modules. They pin API,
+The public repository contains 262 consistency-test modules. They pin API,
 rendering, accessibility and architecture invariants so that fixes cannot
 silently drift back.
 

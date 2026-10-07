@@ -7,6 +7,11 @@ change between alpha releases.
 
 ## [Unreleased]
 
+### Added
+
+- The package ships a PEP 561 `py.typed` marker: type checkers now read
+  Bretzel's annotations in your project. Thanks to @sarel-myburgh (#5).
+
 ### Changed
 
 - A `broadcast=[State]` signal for a `SessionState` now reaches only the tabs
@@ -28,6 +33,9 @@ change between alpha releases.
 - The Kanban example's windows follow each other again: the board stays one
   per visitor, and two tabs of the same browser share it live.
 - The vendor download message is in English.
+- The language cookie set by `Language.set` follows the same transport rule as
+  the session cookies: `Secure` over https, `secure_cookies=` behind a
+  TLS-terminating proxy. Thanks to @sarel-myburgh (#6).
 
 ### Removed
 
