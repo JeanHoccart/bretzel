@@ -59,10 +59,6 @@ dev = [
     "fakeredis>=2.26",
     "pre-commit>=4.0",
 ]
-docs = [
-    "mkdocs>=1.6",
-    "mkdocs-material>=9.5",
-]
 # Compilateur Tailwind — nécessaire pour ``css="build"`` (le défaut en
 # prod). Sans lui, l'app retombe sur le compilateur navigateur en le
 # disant. Déclaré en extra plutôt que téléchargé au démarrage : 112 Mo
