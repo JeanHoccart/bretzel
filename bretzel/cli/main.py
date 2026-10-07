@@ -234,9 +234,16 @@ def _force_utf8_output() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from bretzel import __version__
+
     parser = argparse.ArgumentParser(
         prog="bretzel",
         description="Bretzel — a self-describing framework with built-in application checks.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
