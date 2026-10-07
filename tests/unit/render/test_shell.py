@@ -275,6 +275,11 @@ class TestScreenBoot:
         # it on resize.
         assert "SameSite=Lax" in out
         assert "HttpOnly" not in out
+        # Secure follows the transport, same rule as the language cookie:
+        # append only when the page itself is https so local http still works.
+        assert "location.protocol==='https:'" in out
+        assert "path=/" in out
+        assert "max-age=31536000" in out
 
     def test_runs_before_stylesheets(self) -> None:
         out = _shell()
