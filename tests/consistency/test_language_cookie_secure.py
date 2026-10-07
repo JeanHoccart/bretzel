@@ -21,6 +21,9 @@ from bretzel.render.lang import Language
 from bretzel.runtime.protocol import LANG_COOKIE
 
 _SECRET = "k" * 32
+
+#: The parametrized test checks both sides: https sets Secure, http does not.
+MUTATION_PROOF = "test_la_lang_suit_le_transport"
 _HX = {"HX-Request": "true"}
 
 
