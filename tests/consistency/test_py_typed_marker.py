@@ -16,6 +16,11 @@ import pathlib
 
 import bretzel
 
+MUTATION_NOT_APPLICABLE = (
+    "no detector: the test asserts the file itself — if the marker "
+    "disappears, the assertion is what fails"
+)
+
 
 def test_the_package_carries_its_py_typed_marker() -> None:
     """Le marqueur vit dans le répertoire du paquet, pas à côté."""
