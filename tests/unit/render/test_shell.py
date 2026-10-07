@@ -10,6 +10,7 @@ from bretzel.render.shell import (
     DEFAULT_ICONIFY_URL,
     DEFAULT_IDIOMORPH_URL,
     _fouc_script,
+    _screen_sync_script,
     default_shell,
 )
 from bretzel.runtime.protocol import (
@@ -275,6 +276,12 @@ class TestScreenBoot:
         # it on resize.
         assert "SameSite=Lax" in out
         assert "HttpOnly" not in out
+
+    def test_screen_cookie_is_secure_only_over_https(self) -> None:
+        script = _screen_sync_script(768)
+        assert "document.cookie='bz_screen='" in script
+        assert ";path=/;max-age=31536000;SameSite=Lax" in script
+        assert "+(location.protocol==='https:'?';Secure':'')" in script
 
     def test_runs_before_stylesheets(self) -> None:
         out = _shell()
