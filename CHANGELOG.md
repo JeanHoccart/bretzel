@@ -24,6 +24,7 @@ change between alpha releases.
 
 ### Fixed
 
+- The screen cookie includes `Secure` on https pages and remains usable over http (#9).
 - `ui.tabs` can be used from the keyboard: arrow keys, Home and End move the
   focus and the selection, skipping disabled tabs, and each tab is linked to
   its panel (`aria-controls` / `aria-labelledby`).
