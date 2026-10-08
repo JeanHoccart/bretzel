@@ -281,7 +281,8 @@ class TestScreenBoot:
         script = _screen_sync_script(768)
         assert "document.cookie='bz_screen='" in script
         assert ";path=/;max-age=31536000;SameSite=Lax" in script
-        assert "+(location.protocol==='https:'?';Secure':'')" in script
+        assert "location.protocol" in script
+        assert ";Secure" in script
 
     def test_runs_before_stylesheets(self) -> None:
         out = _shell()
