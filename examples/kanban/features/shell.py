@@ -26,10 +26,13 @@ from bretzel import (
     Feature,
     Language,
     LiveConnection,
+    auth,
+    copy,
     layout,
     refreshable,
     ui,
 )
+from bretzel.render import current_context
 from bretzel.theme import ColorScheme
 from examples.kanban.core.i18n import tr
 from examples.kanban.features.donnees import (
@@ -152,6 +155,69 @@ def theme_sombre() -> None:
         tooltip=tr("Switch to light", "Passer en clair"),
         classes="!hidden dark:!inline-flex",
     )
+
+
+def dialogue_api() -> None:
+    """This board's API: a ready command, and the reference.
+
+    The routes, and why the key reaches THIS board:
+    :mod:`examples.kanban.features.api`.
+
+    Two shells, because a ``curl`` written for bash does not survive
+    Windows PowerShell: there ``curl`` is another command, and its quoting
+    eats the JSON. The PowerShell one is a table of parameters handed to
+    ``Invoke-RestMethod``: short lines, no continuation character, so it
+    pastes as it reads. The tab shown first follows the visitor's system.
+    """
+    requete = current_context().request
+    origine = str(requete.base_url).rstrip("/")
+    cle = auth.session_key()
+    commandes = {
+        "bash": f"""curl -X POST {origine}/api/cartes \\
+  -H "Authorization: Bearer {cle}" \\
+  -H "Content-Type: application/json" \\
+  -d '{{"titre": "Hello from curl"}}'""",
+        "powershell": f"""$request = @{{
+  Method      = "Post"
+  Uri         = "{origine}/api/cartes"
+  Headers     = @{{ Authorization = "Bearer {cle}" }}
+  ContentType = "application/json"
+  Body        = '{{"titre": "Hello from PowerShell"}}'
+}}
+Invoke-RestMethod @request""",
+    }
+    windows = "Windows" in requete.headers.get("user-agent", "")
+    boite = ui.dialog(title=tr("This board's API", "L'API de ce tableau"),
+                      width="lg")
+    with boite, ui.vstack(gap="md"):
+        ui.text(tr("Run this command in a terminal: the card lands on THIS "
+                   "board, and the windows you have open follow, live.",
+                   "Lance cette commande dans un terminal : la carte arrive "
+                   "sur CE tableau, et tes fenêtres ouvertes suivent, en "
+                   "direct."), tag="p")
+        with ui.tabs(value="powershell" if windows else "bash",
+                     name="shell_api", size="sm"):
+            ui.tab("bash", label="bash")
+            ui.tab("powershell", label="PowerShell")
+            for langage, commande in commandes.items():
+                with ui.tab_panel(langage), ui.vstack(gap="sm",
+                                                      classes="pt-3"):
+                    ui.code(commande, lang=langage)
+                    with ui.hstack(justify="end"):
+                        ui.button(tr("Copy the command",
+                                     "Copier la commande"),
+                                  icon_left="copy", variant="soft",
+                                  on_click=copy(commande))
+        ui.link(tr("Every route, to try in the browser",
+                   "Toutes les routes, à essayer dans le navigateur"),
+                href="/docs", external=True)
+        ui.text(tr("The key opens your session: your board, nobody else's. "
+                   "Keep it to yourself.",
+                   "La clé ouvre ta session : ton tableau, celui de "
+                   "personne d'autre. Garde-la pour toi."),
+                size="sm", color="muted", tag="p")
+    ui.icon_button("code", variant="ghost", size="md",
+                   tooltip=tr("API", "API"), on_click=boite.open())
 
 
 def dialogue_nouvelle() -> None:
@@ -294,6 +360,7 @@ def shell() -> None:
                 ui.divider(orientation="vertical", classes="h-6")
                 theme_sombre()
                 langue()
+                dialogue_api()
                 identite()
                 dialogue_nouvelle()
 
@@ -303,6 +370,6 @@ def shell() -> None:
 feature = Feature(
     name="shell", kind="shell",
     provides=[shell, identite, connexion, langue, theme_sombre,
-              dialogue_nouvelle, commandes, filtres_du_bandeau],
+              dialogue_api, dialogue_nouvelle, commandes, filtres_du_bandeau],
     uses=["donnees", "state", "logic"],
 )

@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 #: **What the user writes** — what this docstring announces.
 #:
-#: The four VERBS act immediately; the two NOUNS declare, and nothing
+#: The VERBS act immediately; the two NOUNS declare, and nothing
 #: happens before ``app.include(...)``. The word's shape says which of
 #: the two you are reading — cf. the docstring of
 #: :mod:`bretzel.server.decorators.identity`.
@@ -33,6 +33,7 @@ __all__ = [
     "logout",
     "user_id",
     "is_authenticated",
+    "session_key",
     "source",
     "door",
 ]
@@ -44,6 +45,8 @@ _INTERNAL = [
     "COOKIE_AUTH",
     "COOKIE_SESSION",
     "verify_auth_cookie",
+    # ``middleware/session.py`` reads the key of :func:`session_key`.
+    "verify_session_key",
     # The identity chain, played on a raw request. ``AuthMiddleware``
     # calls it on every request and ``user_id(request)`` is its public
     # door — so an app never has to name it.
@@ -57,7 +60,7 @@ _INTERNAL = [
     # ``request.state.user``. An app neither builds nor reads it: it
     # reads ``auth.user_id()`` and joins on ITS user table.
     "AuthUser",
-    # Imported from ``render``, used by the four public functions. It
+    # Imported from ``render``, used by the public functions. It
     # appears here by plain module visibility — not a re-export.
     "current_context",
 ]
@@ -179,13 +182,9 @@ def login(user_id: str) -> None:
         raise TypeError("user_id must be a non-empty string.")
 
     ctx = current_context()
-    auth_key = _auth_key(ctx)
     max_age_days = _session_max_age_days(ctx)
     expires_at = int(time.time()) + max_age_days * 86400
-
-    payload = f"{user_id}:{expires_at}"
-    signature = _crypto_sign(auth_key, payload)
-    cookie_value = f"{payload}.{signature}"
+    cookie_value = _sign_until(_derived_key(ctx, "_auth_key"), user_id, expires_at)
 
     secure = _ctx_cookie_secure(ctx)
     ctx.set_cookie(
@@ -239,6 +238,33 @@ def logout() -> None:
     _attach_user(ctx, None)
 
 
+def session_key() -> str:
+    """A key that lets another program act in THIS browser session.
+
+    Sent as ``Authorization: Bearer <key>``, it makes a request run in the
+    session that minted it: the same ``SessionState``, saved the same way,
+    and the session's open windows refresh as after a click. A script, a
+    ``curl``, a phone that scanned a code joins the visitor's session
+    instead of opening its own.
+
+    It carries the session, not the identity: the signed-in user is not
+    in it, so a ``UserState`` stays out of reach. It CONTAINS the session
+    id, readable: whoever holds it holds the session, as with the cookie.
+    The signature makes it a key the server minted — a bearer token of
+    the app's own is not mistaken for a session — and its expiry, the
+    session's lifetime, bounds the key, not the id inside it. After
+    :func:`login` / :func:`logout`, which rotate the session, it still
+    opens the OLD one — the one the browser has left.
+
+    The expiry is rounded to the day: the key stays the same from one
+    render to the next, so a visitor who copied it and reloads sees the
+    one they copied.
+    """
+    ctx = current_context()
+    expires_at = (int(time.time()) // 86400 + _session_max_age_days(ctx) + 1) * 86400
+    return _sign_until(_derived_key(ctx, "_session_key"), ctx.session_id, expires_at)
+
+
 # ───────────────────────────────────────────────────────────────────────────
 # Read API
 # ───────────────────────────────────────────────────────────────────────────
@@ -271,22 +297,43 @@ def verify_auth_cookie(cookie_value: str, auth_key: bytes) -> str | None:
     ``auth_key`` is the **derived** key (``config._auth_key``), not the
     raw ``secret_key``.
     """
-    if not cookie_value or "." not in cookie_value:
+    return _verify_until(cookie_value, auth_key)
+
+
+def verify_session_key(key: str, session_key: bytes) -> str | None:
+    """Validate a :func:`session_key` and return the session id it opens.
+
+    ``session_key`` is the derived ``config._session_key``. Same refusals
+    as the auth cookie: malformed, expired, or a signature mismatch.
+    """
+    return _verify_until(key, session_key)
+
+
+def _sign_until(key: bytes, subject: str, expires_at: int) -> str:
+    """``subject:expires_at.signature`` — the auth cookie's shape, and the
+    session key's."""
+    payload = f"{subject}:{expires_at}"
+    return f"{payload}.{_crypto_sign(key, payload)}"
+
+
+def _verify_until(value: str, key: bytes) -> str | None:
+    """The subject of a :func:`_sign_until` value, or ``None``."""
+    if not value or "." not in value:
         return None
     try:
-        payload, supplied_sig = cookie_value.rsplit(".", 1)
-        user_id, expires_at_str = payload.split(":", 1)
+        payload, supplied_sig = value.rsplit(".", 1)
+        subject, expires_at_str = payload.split(":", 1)
         expires_at = int(expires_at_str)
     except (ValueError, IndexError):
         return None
 
-    if not _crypto_verify(auth_key, payload, supplied_sig):
+    if not _crypto_verify(key, payload, supplied_sig):
         return None
 
     if int(time.time()) >= expires_at:
         return None
 
-    return user_id
+    return subject
 
 
 def resolve_identity(request: Any, bretzel: Any = None) -> str | None:
@@ -425,8 +472,9 @@ def _from_signed_cookie(request: Any, bretzel: Any) -> str | None:
 # ───────────────────────────────────────────────────────────────────────────
 
 
-def _auth_key(ctx: object) -> bytes:
-    """Pull the derived auth key from ``ctx.app.config``.
+def _derived_key(ctx: object, name: str) -> bytes:
+    """Pull a derived key (``_auth_key``, ``_session_key``) from
+    ``ctx.app.config``.
 
     Fails loudly when no config / no key is reachable. **Asymmetric**
     with :func:`render.context.RenderContext._action_key`, which
@@ -441,15 +489,15 @@ def _auth_key(ctx: object) -> bytes:
     config = getattr(getattr(ctx, "app", None), "config", None)
     if config is None:
         raise RuntimeError(
-            "auth.login/logout needs ctx.app.config — none reachable. "
+            "auth.login/session_key needs ctx.app.config — none reachable. "
             "Build a stub via BretzelConfig(secret_key=...) and attach it "
             "to the test app."
         )
     try:
-        return config._auth_key
+        return getattr(config, name)
     except AttributeError:
         raise RuntimeError(
-            "ctx.app.config has no derived _auth_key. Always go through "
+            f"ctx.app.config has no derived {name}. Always go through "
             "BretzelConfig(secret_key=...) so __post_init__ derives the keys."
         ) from None
 

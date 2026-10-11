@@ -160,6 +160,20 @@ class StateRegistry:
         #: empty on a full page render, which is the right default: "we
         #: do not know what changed" must re-render everything.
         self.changed_fields: dict[type[State], set[str]] = {}
+        #: Set by :meth:`commit`. An action and a page commit themselves;
+        #: the render-context middleware commits for every other route
+        #: — an app's JSON API — and reads this to do it only once.
+        self.committed = False
+
+    def discard(self) -> None:
+        """Forget every state resolved so far, unsaved writes included.
+
+        An error page renders after the code that raised: what that code
+        half-wrote must not be committed with the page. The next
+        ``MyState()`` reads the store again.
+        """
+        self._instances.clear()
+        self.changed_fields = {}
 
     # ── Cache primitives — used by the metaclass on every State() call ──
 
@@ -482,6 +496,7 @@ class StateRegistry:
         # duplicated computation "would have diverged at the first
         # change". What it saved, one ``Task`` (~µs), is three orders of
         # magnitude below the RTT this grouping exists to hide.
+        self.committed = True
         await asyncio.gather(
             *(
                 self.write_one(cls, key, instance)

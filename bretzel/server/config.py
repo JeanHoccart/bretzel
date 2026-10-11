@@ -18,6 +18,7 @@ from bretzel.server.crypto import (
     PURPOSE_ACTION,
     PURPOSE_AUTH,
     PURPOSE_CSRF,
+    PURPOSE_SESSION,
     derive_key,
 )
 
@@ -64,11 +65,11 @@ class BretzelConfig:
     # (:func:`bretzel.server.crypto.derive_key`) — compromising the
     # action signing key doesn't compromise the auth cookie or vice
     # versa. The derivation happens once at config construction ; the
-    # three keys live in ``_action_key`` / ``_auth_key`` / ``_csrf_key``
-    # below and are addressed by name from the relevant call sites.
+    # keys below are addressed by name from the relevant call sites.
     _action_key: bytes = field(init=False, repr=False, compare=False, default=b"")
     _auth_key: bytes = field(init=False, repr=False, compare=False, default=b"")
     _csrf_key: bytes = field(init=False, repr=False, compare=False, default=b"")
+    _session_key: bytes = field(init=False, repr=False, compare=False, default=b"")
 
     # ── Persistence + scaling ─────────────────────────────────────────
     redis_url: str | None = None
@@ -148,6 +149,10 @@ class BretzelConfig:
     csp_sources: Mapping[str, Sequence[str]] = field(
         default_factory=dict, compare=False
     )
+
+    # ``/openapi.json`` + ``/docs`` over the app's JSON API ; off by
+    # default. Cf. ``bretzel.server.routing.api_docs``.
+    api_docs: bool = False
 
     # ── Language ──────────────────────────────────────────────────────
     # The document's language, in BCP-47 (``"fr"``, ``"fr-CA"``,
@@ -423,6 +428,7 @@ class BretzelConfig:
         object.__setattr__(self, "_action_key", derive_key(self.secret_key, PURPOSE_ACTION))
         object.__setattr__(self, "_auth_key", derive_key(self.secret_key, PURPOSE_AUTH))
         object.__setattr__(self, "_csrf_key", derive_key(self.secret_key, PURPOSE_CSRF))
+        object.__setattr__(self, "_session_key", derive_key(self.secret_key, PURPOSE_SESSION))
 
     # ── Helpers ───────────────────────────────────────────────────────
 

@@ -66,7 +66,11 @@ import re
 from collections.abc import Callable
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component, reactive_prop
+from bretzel.components.base import (
+    Component,
+    ComponentUsageError,
+    reactive_prop,
+)
 from bretzel.components.base._wiring import (
     bool_attr,
     coerce_index,
@@ -83,6 +87,7 @@ from bretzel.components.base.responsive import (
 from bretzel.components.layout.carousel.theme import (
     CAROUSEL_THEME,
     DOTS_HIDDEN,
+    PER_VIEW,
     _slide_basis,
 )
 from bretzel.components.primitives.icon import Icon
@@ -225,6 +230,32 @@ class Carousel(Component):
             on_change=on_change,
             **kwargs,
         )
+        self._check_per_view(per_view)
+
+    @staticmethod
+    def _check_per_view(per_view: Any) -> None:
+        """Refuse a ``per_view`` the production stylesheet does not hold.
+
+        A slide's width class comes from the theme's ``per_view`` table,
+        which the safelist closes over the breakpoints. A count outside
+        ``PER_VIEW`` would get a class no source writes and no safelist
+        names : right in dev — the browser compiler reads the live DOM —
+        and unsized slides in production, with no error. A breakpoint
+        dict is checked value by value.
+        """
+        values = per_view.items() if isinstance(per_view, dict) else (("", per_view),)
+        for breakpoint, n in values:
+            if isinstance(n, bool) or not isinstance(n, int) or n in PER_VIEW:
+                continue
+            where = f"per_view[{breakpoint!r}]" if breakpoint else "per_view"
+            raise ComponentUsageError(
+                f"ui.carousel({where}={n}): a slide count goes from "
+                f"{PER_VIEW.start} to {PER_VIEW.stop - 1}. The production "
+                f"stylesheet only holds the slide widths of that range — "
+                f"this carousel would be right in dev and unsized in "
+                f"production. Write the slide width whole at the call "
+                f'site instead: per_view="{_slide_basis(n)}".'
+            )
 
     # ── Imperative API ─────────────────────────────────────────────────
     #

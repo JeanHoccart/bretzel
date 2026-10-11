@@ -607,6 +607,7 @@ Le `secret_key` est un **master** ; chaque surface HMAC a sa propre **clé déri
 | `config._action_key` | sign/verify_action sur `/_bretzel/action/*` | `bretzel.action.v1` |
 | `config._auth_key` | sign cookie `Bretzel_auth` | `bretzel.auth.v1` |
 | `config._csrf_key` | CSRF token (`hmac(csrf_key, session_id)`) | `bretzel.csrf.v1` |
+| `config._session_key` | `auth.session_key()` / `verify_session_key` | `bretzel.session.v1` |
 
 **Pourquoi** : si une clé fuite via un sous-système (log, exception, dump mémoire), les autres tiennent. Dérivation = `HMAC-SHA256(master, purpose)` — KDF single-block qui produit 32 bytes indépendants par purpose. Pas besoin de HKDF Extract+Expand : le master est déjà haute entropie (validé ≥16 chars en config). Suffixe `.v1` pour rotation future.
 
@@ -621,7 +622,23 @@ Toute requête non-safe (POST/PUT/PATCH/DELETE) hors `/_bretzel/action/*` est CS
 - Origin/Referer check belt-and-suspenders : Origin host doit matcher `Host` request ou un `trusted_hosts` config
 - Action routes (`/_bretzel/action/*`) bypassent — leur HMAC sur `action_id + bound_args` les protège déjà
 
-Toujours-on, pas de knob `csrf=False`. Pour un webhook / endpoint API non-CSRF, l'exposer hors du router Bretzel.
+- Une requête qui porte `Authorization: Bearer <jeton>` est dispensée du **token** (pas de l'Origin) : le navigateur ne joint jamais ce jeton tout seul. C'est l'entrée d'une API JSON — une route `app.fastapi.post(...)` qui appelle la même fonction métier que l'écran, l'appelant reconnu par un `@auth.source` (§ plus haut) qui lit le même en-tête. Un programme n'envoie pas d'`Origin` et passe ; un front sur une autre origine doit être dans `trusted_hosts`, comme toute écriture cross-origin. `Basic` reste vérifié : le navigateur le rejoue seul, comme un cookie.
+
+Toujours-on, pas de knob `csrf=False`. Un appelant qui se prouve autrement qu'avec un jeton porteur (webhook qui signe son corps dans son propre en-tête) est refusé : toute route de `app.fastapi` passe par ce middleware. Cas ouvert, noté dans `.claude/work/todo.md`.
+
+```python
+@app.fastapi.post("/api/clients")
+def api_create_client(body: ClientIn, request: Request) -> Client:
+    if not request.state.user_id:                # rempli par @auth.source
+        raise HTTPException(401)
+    return create_client(body.name, body.email)  # la fonction de l'écran
+```
+
+`Bretzel(api_docs=True)` publie ces routes : `/openapi.json` et la page Swagger `/docs`. Le schéma déclare le jeton porteur (« Authorize » prend la clé, « Try it out » l'envoie) ; les routes du framework n'y figurent jamais (`include_in_schema=False`, tenu par `test_the_schema_lists_the_app_routes_and_the_bearer_key`). Sous `csp=`, `/docs` porte sa propre politique (Swagger vient de `cdn.jsdelivr.net`). Une route publique sort du cadenas avec `openapi_extra={"security": []}`. Désactivé par défaut : publier la carte de l'API est une décision de l'app. Une page déjà à `/docs` fait échouer le démarrage.
+
+**Une route lit et écrit l'état typé, comme une action.** Toute route qui n'est ni une action ni une page — l'API de l'app, un `@download`, une relecture de zone — lit l'état stocké avec `MyState()`, et ce qu'elle y écrit est sauvegardé quand la réponse COMMENCE. Une méthode d'écriture (POST, PUT, PATCH, DELETE) prévient en plus les fenêtres ouvertes d'un état diffusé (`broadcast=`), comme après un clic ; un GET, non (une relecture qui écrit ferait relire chaque fenêtre à son tour). Une réponse 4xx ou 5xx ne garde rien de ce que la route a écrit avant de refuser, `@error_page` comprise : elle rend depuis l'état stocké. Une écriture faite après le début de la réponse (corps streamé, tâche de fond) n'est pas vue. Tenu par `test_an_api_route_reads_and_saves_its_state.py`.
+
+**`auth.session_key()` : un programme dans la session d'un navigateur.** Envoyée en `Authorization: Bearer`, la clé fait travailler la requête dans la session qui l'a émise : même `SessionState`, et les fenêtres de cette session suivent. Elle porte la session, pas l'identité (un `UserState` reste hors d'atteinte). Elle CONTIENT l'identifiant de session en clair : qui la détient détient la session, comme avec le cookie. La signature dit seulement que le serveur l'a émise (un jeton porteur de l'app n'est pas pris pour une session) ; son expiration, la durée d'une session arrondie au jour, borne la clé, pas l'identifiant qu'elle contient. Après `auth.login` / `auth.logout` (rotation), elle ouvre encore l'ANCIENNE session, celle que le navigateur a quittée. L'exemple vivant : le bouton API du kanban (`examples/kanban/features/api.py`).
 
 ### Discipline secret_key
 

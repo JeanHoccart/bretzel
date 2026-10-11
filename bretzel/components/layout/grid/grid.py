@@ -6,7 +6,9 @@ single axis ; Grid aligns along both.
 
 API :
 
-- ``cols=int`` — static N columns at every breakpoint.
+- ``cols=int`` — static N columns at every breakpoint, N from 1 to 12.
+  Beyond, write the class whole (``cols="grid-cols-N"`` with the number):
+  an assembled one would only exist in dev.
 - ``cols=dict`` — responsive : ``{"base": 1, "sm": 2, "md": 3, "lg": 4}``.
   Keys are Tailwind breakpoint prefixes ; ``"base"`` (or empty / ``"xs"``)
   applies at all sizes and gets no prefix.
@@ -33,6 +35,7 @@ from bretzel.components.base import (
 )
 from bretzel.components.layout.grid.theme import GRID_THEME
 from bretzel.core.tree import Element
+from bretzel.theme.tailwind import GRID_COLS
 
 
 def _cols_class(cols: Any) -> str:
@@ -62,7 +65,8 @@ class Grid(Component):
     THEME_KEY: ClassVar[str] = "grid"
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     # ``cols`` does not go through a table: ``_cols_class`` assembles it
-    # as an f-string, and its domain is closed by ``_LAYOUT_CLASSES``.
+    # as an f-string, so ``__init__`` refuses an int outside
+    # ``GRID_COLS`` — the counts the production safelist holds.
     RESPONSIVE_THEME_KEYS: ClassVar[tuple[str, ...]] = ("gaps",)
     RESPONSIVE_PROPS: ClassVar[frozenset[str]] = frozenset({"cols", "gap"})
 
@@ -114,6 +118,32 @@ class Grid(Component):
         # ``ui.grid`` is at fault. Same trade-off as ``Flex.grow``.
         if min_col is not None:
             self._min_col_class(min_col, self._min_col_table())
+        self._check_cols(cols)
+
+    @staticmethod
+    def _check_cols(cols: Any) -> None:
+        """Refuse a column count the production stylesheet does not hold.
+
+        ``grid-cols-N`` is assembled at render, so only the safelist can
+        bring its rule into the compiled sheet. A count outside
+        ``GRID_COLS`` would give the right grid in dev — the browser
+        compiler reads the live DOM — and ONE column in production, with
+        no error. A breakpoint dict is checked value by value.
+        """
+        values = cols.items() if isinstance(cols, dict) else (("", cols),)
+        for breakpoint, n in values:
+            if isinstance(n, bool) or not isinstance(n, int) or n in GRID_COLS:
+                continue
+            where = f"cols[{breakpoint!r}]" if breakpoint else "cols"
+            raise ComponentUsageError(
+                f"ui.grid({where}={n}): an int column count goes from "
+                f"{GRID_COLS.start} to {GRID_COLS.stop - 1}. Its class is "
+                f"assembled at render, and the production stylesheet "
+                f"only holds the counts it safelists — this grid would "
+                f"be right in dev and ONE column in production. Write "
+                f"the class whole at the call site instead: "
+                f'cols="grid-cols-{n}".'
+            )
 
     def _min_col_table(self) -> dict[str, str]:
         """This component's ``min_cols`` table, user override included.

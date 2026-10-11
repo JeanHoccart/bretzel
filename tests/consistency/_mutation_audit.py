@@ -93,6 +93,8 @@ def _replace(old: str, new: str) -> Callable[[str], str]:
 
 
 CARD = COMPONENTS / "layout" / "card" / "card.py"
+GRID = COMPONENTS / "layout" / "grid" / "grid.py"
+CAROUSEL = COMPONENTS / "layout" / "carousel" / "carousel.py"
 BUTTON = COMPONENTS / "actions" / "button" / "button.py"
 COMPONENT = COMPONENTS / "base" / "component.py"
 WIRING = COMPONENTS / "base" / "_wiring.py"
@@ -316,6 +318,24 @@ MUTATIONS: tuple[Mutation, ...] = (
             "        theme = self._resolved_theme()",
             "        theme = self._resolved_theme()\n        "
             '_zz = f"$bz.state.{self.id}"  # ZZ MUTATION',
+        ),
+    ),
+    Mutation(
+        gate="test_every_accepted_count_is_safelisted.py",
+        what="ui.grid accepte un nombre de colonnes absent de la safelist",
+        target=GRID,
+        mutate=_replace(
+            "        self._check_cols(cols)\n",
+            "        pass  # ZZ MUTATION\n",
+        ),
+    ),
+    Mutation(
+        gate="test_every_accepted_count_is_safelisted.py",
+        what="ui.carousel accepte un per_view absent de la safelist",
+        target=CAROUSEL,
+        mutate=_replace(
+            "        self._check_per_view(per_view)\n",
+            "        pass  # ZZ MUTATION\n",
         ),
     ),
 )

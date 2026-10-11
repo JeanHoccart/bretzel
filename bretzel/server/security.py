@@ -65,6 +65,7 @@ from urllib.parse import urlsplit
 __all__ = [
     "BORING_HEADERS",
     "CSP_DIRECTIVES",
+    "CSP_HEADER",
     "ICON_API_ORIGINS",
     "build_policy",
     "script_hash",
@@ -88,6 +89,16 @@ BORING_HEADERS: Final[dict[str, str]] = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "SAMEORIGIN",
+}
+
+#: The header that carries the policy, by ``csp=`` value. ``report-only``
+#: does EVERYTHING but block: the browser evaluates the policy and reports
+#: what would have been dropped. It is the first rung, the one that lets
+#: a CSP be set on a real app without risking breaking it — you watch what
+#: comes back, you complete ``csp_sources``, then you move to ``csp=True``.
+CSP_HEADER: Final[dict[bool | str, str]] = {
+    True: "content-security-policy",
+    "report-only": "content-security-policy-report-only",
 }
 
 #: Iconify's historical hosts, kept in the policy for compatibility. The

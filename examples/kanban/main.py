@@ -54,6 +54,10 @@ addressable field**: ``URL = {…}`` is ``examples/messagerie``'s
 mechanic, taking it up here would give two subjects to an app that
 demonstrates one.
 
+**An API, on the same board** — ``features/api.py``: the banner's ``</>``
+button shows a ready ``curl`` whose card lands on the visitor's board,
+live, and ``/docs`` lists and tries the routes.
+
 This app does not use the ``Feature`` contracts: app structure is what
 ``examples/mad`` stages.
 """
@@ -63,6 +67,7 @@ import os
 from bretzel import Bretzel
 from examples.kanban.core.theme import THEME
 from examples.kanban.features import (
+    api,
     donnees,
     fiche,
     logic,
@@ -87,9 +92,11 @@ app = Bretzel(
     # ``core/i18n.tr``; the framework's own go through ``lang``.
     lang="en",
     languages=("en", "fr"),
+    api_docs=True,
 )
 
 app.include(donnees, state, logic, shell, fiche, tableau)
+app.fastapi.include_router(api.router)
 
 
 if __name__ == "__main__":

@@ -181,9 +181,21 @@ class TestPerView:
         out = _html(per_view=3, gap="md")
         assert 'style="--bz-gap:calc(var(--spacing) * 4)"' in out
 
-    def test_a_table_miss_is_computed_by_the_same_formula(self) -> None:
-        assert "basis-[calc((100%_-_13*var(--bz-gap))/14)]" in _html(
-            per_view=14, slides=20)
+    @pytest.mark.parametrize("per_view", [0, 13, 14, {"base": 1, "md": 14}])
+    def test_a_count_outside_the_safelist_is_refused(self, per_view) -> None:
+        with render_isolated(), pytest.raises(ComponentUsageError):
+            Carousel(per_view=per_view)
+
+    def test_the_refusal_names_the_breakpoint_and_the_escape_hatch(self) -> None:
+        with render_isolated(), pytest.raises(ComponentUsageError) as exc:
+            Carousel(per_view={"base": 1, "md": 14})
+        message = str(exc.value)
+        assert "per_view['md']=14" in message
+        assert 'per_view="basis-[calc((100%_-_13*var(--bz-gap))/14)]"' in message
+
+    def test_the_escape_hatch_passes_verbatim(self) -> None:
+        width = "basis-[calc((100%_-_13*var(--bz-gap))/14)]"
+        assert width in _html(per_view=width, slides=20)
 
 
 class TestGapLength:

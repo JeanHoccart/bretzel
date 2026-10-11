@@ -26,7 +26,8 @@ production.
 
 See it first: [component gallery](https://ui.bretzel-py.dev) ·
 [documentation](https://docs.bretzel-py.dev) ·
-[live Kanban](https://demo.bretzel-py.dev).
+[live Kanban](https://demo.bretzel-py.dev) and
+[its API](https://demo.bretzel-py.dev/docs).
 
 ## Quickstart
 

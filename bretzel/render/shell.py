@@ -745,6 +745,19 @@ def shell_sources(
     )
 
 
+def favicon_href(favicon: str | bool | None, cache_bust: str | None) -> str:
+    """The URL of the document's icon, for ``Bretzel(favicon=…)``.
+
+    ``False`` → ``data:,`` (cf. :func:`_icon_links`), ``None``/``True`` →
+    the framework's mark, a string → itself.
+    """
+    if favicon is False:
+        return "data:,"
+    if favicon is None or favicon is True:
+        return _bust(ROUTE_FAVICON, cache_bust)
+    return str(favicon)
+
+
 def _icon_links(favicon: str | bool | None, cache_bust: str | None) -> list[str]:
     """The document's icon ``<link>``. There is ALWAYS at least one.
 
@@ -761,16 +774,15 @@ def _icon_links(favicon: str | bool | None, cache_bust: str | None) -> list[str]
     - a string → the app's URL, with its MIME type if it can be guessed;
     - ``False`` → the empty ``<link>`` described above.
     """
+    href = favicon_href(favicon, cache_bust)
     if favicon is False:
-        return ['<link rel="icon" href="data:,"/>']
+        return [f'<link rel="icon" href="{href}"/>']
     if favicon is None or favicon is True:
         return [
-            '<link rel="icon" type="image/svg+xml" '
-            f'href="{escape_attr(_bust(ROUTE_FAVICON, cache_bust))}"/>',
+            f'<link rel="icon" type="image/svg+xml" href="{escape_attr(href)}"/>',
             '<link rel="apple-touch-icon" '
             f'href="{escape_attr(_bust(ROUTE_TOUCH_ICON, cache_bust))}"/>',
         ]
-    href = str(favicon)
     suffix = href.rsplit("?", 1)[0].rsplit("#", 1)[0].lower()
     mime = next((v for k, v in _ICON_TYPES.items() if suffix.endswith(k)), None)
     type_attr = f' type="{mime}"' if mime else ""

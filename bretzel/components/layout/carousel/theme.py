@@ -51,6 +51,10 @@ from typing import Any
 #: case.
 DOTS_HIDDEN = "dots_hidden"
 
+#: The ``per_view`` counts the theme table holds — hence the counts the
+#: production safelist closes over. ``Carousel`` refuses any other int.
+PER_VIEW = range(1, 13)
+
 
 def _slide_basis(count: int) -> str:
     """The width of one slide when ``count`` of them share the track.
@@ -149,9 +153,9 @@ CAROUSEL_THEME: dict[str, Any] = {
     # safelist closes over the breakpoints — the formula carries the
     # count, so no source file writes ``md:basis-[calc(…/3)]`` literally,
     # and without the safelist the production CSS would not have it.
-    # Twelve, like the ``grid-cols-N`` Tailwind ships; a larger count is
-    # computed by the same function, dev-only as it always was.
-    "per_view": {str(n): _slide_basis(n) for n in range(1, 13)},
+    # Twelve, like ``ui.grid``'s column counts; ``Carousel`` refuses a
+    # larger one rather than render a class only dev would have.
+    "per_view": {str(n): _slide_basis(n) for n in PER_VIEW},
     "sizes": {
         "xs": {
             "arrow": "w-7 h-7",
