@@ -61,6 +61,9 @@ change between alpha releases.
 - The language cookie set by `Language.set` follows the same transport rule as
   the session cookies: `Secure` over https, `secure_cookies=` behind a
   TLS-terminating proxy. Thanks to @sarel-myburgh (#6).
+- The screen cookie (`bz_screen`) follows the transport too: `Secure` on
+  https pages, still usable over http (#9). Thanks to @sricharanreddycheruku
+  (#11).
 
 ### Removed
 

@@ -196,7 +196,8 @@ def _screen_sync_script(breakpoint: int) -> str:
         f"var m=window.matchMedia('(max-width: {bp}px)').matches?1:0;"
         "var t=window.matchMedia('(pointer: coarse)').matches?1:0;"
         "var f=m+','+t;"
-        f"document.cookie='{c}='+f+';path=/;max-age=31536000;SameSite=Lax';"
+        f"document.cookie='{c}='+f+';path=/;max-age=31536000;SameSite=Lax'"
+        "+(location.protocol==='https:'?';Secure':'');"
         "return f===(e||'0,0');};"
     )
 
