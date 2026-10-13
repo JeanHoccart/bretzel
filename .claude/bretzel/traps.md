@@ -116,6 +116,15 @@ parle, lui, pour la page qui l'envoie : ne jamais le compter comme une
 navigation. Gates : `tests/integration/server/test_a_navigation_starts_a_fresh_page.py`
 et son pendant `tests/runtime_js/`.
 
+### Un plateau qui change à chaque tick ne se re-rend pas
+
+Une zone `@refreshable` reconstruit tous ses composants : 1 600 `ui.card`
+cliquables pèsent environ 1 Mo et 350 ms de rendu, donc cinq générations
+par seconde sont hors de portée. Rendre les cellules une fois, lier leur
+aspect à un `ClientState` que le handler réécrit
+(`classes=etat.vivantes.contains(i).then_else(...)`) : un tick ne
+transporte plus que la liste. Cf. `examples/life`.
+
 ### Un défaut serveur doit être déterministe
 
 Une `default_factory` aléatoire ou dépendante de l'heure reconstruit une valeur
@@ -239,6 +248,14 @@ espace de tête est avalé. `ui.text(" of 3")` après un compteur rendait
 Un liant et du texte se composent en UN nœud :
 `ui.text(etat.faites + " of 3")` reste réactif (seule la f-string lève).
 
+### Une colonne centrée rétrécit `ui.outlet()` à son contenu
+
+Un `ui.vstack(align="center")` n'étire pas ses enfants : l'outlet prend la
+largeur de ce qu'il contient, et un `w-full` posé dans la page se résout
+contre lui. La grille de `examples/life` sortait à la largeur de sa rangée
+de boutons, 332 px au lieu de 448. Donner `classes="w-full"` à l'outlet, et
+centrer la page avec `mx-auto`.
+
 ### Un champ `w-full` dans un hstack avec wrap forme une pile
 
 `w-full` consomme toute la ligne. Pour une barre qui doit se replier, donner au
@@ -263,6 +280,11 @@ Utiliser `with TestClient(app) as client:` lorsque le test dépend des routes,
 du broker ou des ressources initialisées au démarrage.
 Passer l'objet `Bretzel`, pas `app.fastapi` : sans le middleware de Bretzel,
 la page lève « No render context is active ».
+Chaque `with TestClient(app)` redémarre l'app, et le démarrage refait le
+stockage en mémoire : un second client ouvert APRÈS des requêtes efface ce
+qu'elles ont écrit. Ouvrir tous les clients d'un test d'un coup
+(`with TestClient(app) as a, TestClient(app) as b:`), sinon le test passe à
+vide — mesuré par mutation sur `test_a_session_key_opens_its_session.py`.
 
 ### Une lecture par requête ne vit pas au niveau module
 
@@ -308,6 +330,26 @@ Cloudflare ; c'est le redémarrage, pas une erreur de protocole. Gardé par
 Ne pas signer directement avec `secret_key`. Utiliser les clés dérivées du
 contexte pour les actions, le CSRF et l'authentification. Un test qui construit
 un faux contexte doit fournir les mêmes clés que le pipeline réel.
+
+### Seul `Bearer` dispense du CSRF, jamais `Authorization` en entier
+
+Le CSRF dispense du token une requête qui porte `Authorization: Bearer` : le
+navigateur ne joint jamais ce jeton de lui-même. Élargir à tout l'en-tête
+`Authorization` ouvrirait le trou : après un défi 401, le navigateur met les
+identifiants `Basic` en cache et les rejoue sur chaque requête vers
+l'origine — un identifiant ambiant, comme le cookie. Le contrôle d'`Origin`,
+lui, reste : une origine admise par `cors_origins` peut poser l'en-tête ET
+porter le cookie de la victime, que l'identité lit en premier. Gardé par
+`test_other_authorization_stays_checked` et
+`test_bearer_from_an_untrusted_origin_is_rejected`.
+
+### Une route d'API sauvegarde au début de la réponse, pas après
+
+Une route de `app.fastapi` voit son état typé sauvegardé quand la réponse
+commence, et seulement pour un succès. Ce qu'elle écrit APRÈS — dans le
+corps d'une `StreamingResponse`, dans une tâche de fond — n'est pas
+enregistré, sans erreur. Écrire l'état avant de rendre la réponse
+(`render_context._save_route_state`).
 
 ### Un POST d'action en TestClient re-rend toutes les zones dépendantes
 

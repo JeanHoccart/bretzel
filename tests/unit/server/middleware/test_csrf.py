@@ -10,6 +10,7 @@ expected token, send it back on the next POST.
 
 from __future__ import annotations
 
+import pytest
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
 from starlette.routing import Route
@@ -242,3 +243,61 @@ class TestOriginCheck:
                 },
             )
         assert response.status_code == 403
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Bearer token — an API caller, not a browser
+# ───────────────────────────────────────────────────────────────────────────
+
+
+class TestBearerToken:
+    """A bearer token replaces the session token ; nothing else does.
+
+    No session, no CSRF token: what another program sends when it calls
+    the app's JSON API. The Origin check still applies to it.
+    """
+
+    @pytest.mark.parametrize("authorization", ["Bearer api-key-123", "bearer api-key-123"])
+    def test_bearer_passes_without_session_or_token(self, authorization: str) -> None:
+        with TestClient(_build_app()) as client:
+            response = client.post("/submit", headers={"Authorization": authorization})
+        assert response.status_code == 200
+        assert response.text == "ok"
+
+    @pytest.mark.parametrize(
+        "authorization",
+        ["Basic dXNlcjpwYXNz", "Bearer  ", "Bearerish api-key-123"],
+        ids=["basic-is-ambient", "empty-bearer", "not-the-whole-word"],
+    )
+    def test_other_authorization_stays_checked(self, authorization: str) -> None:
+        with TestClient(_build_app()) as client:
+            _prime_session(client)
+            response = client.post("/submit", headers={"Authorization": authorization})
+        assert response.status_code == 403
+
+    def test_bearer_from_an_untrusted_origin_is_rejected(self) -> None:
+        # An origin granted through ``cors_origins`` can add the header
+        # AND carry the victim's cookies: the Origin check is what stops
+        # it acting as the cookie's user.
+        with TestClient(_build_app()) as client:
+            _prime_session(client)
+            response = client.post(
+                "/submit",
+                headers={
+                    "Authorization": "Bearer api-key-123",
+                    "Origin": "https://front.example.com",
+                },
+            )
+        assert response.status_code == 403
+        assert "origin" in response.text.lower()
+
+    def test_bearer_from_a_trusted_origin_passes(self) -> None:
+        with TestClient(_build_app(trusted_hosts=("front.example.com",))) as client:
+            response = client.post(
+                "/submit",
+                headers={
+                    "Authorization": "Bearer api-key-123",
+                    "Origin": "https://front.example.com",
+                },
+            )
+        assert response.status_code == 200

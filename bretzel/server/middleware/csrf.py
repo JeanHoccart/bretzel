@@ -27,12 +27,21 @@ into a malicious page therefore cannot compute the expected token
 without first leaking ``session_id`` AND ``csrf_key`` (server-only) —
 both required, impossible from a hostile origin.
 
-**Skipped paths** — ``/_bretzel/action/*`` uses its own per-call
-HMAC on ``action_id + bound_args`` (cf.
-:mod:`bretzel.server.handlers`) which already binds the request to
-something only the page render could have signed. Re-checking CSRF on
-top would be redundant ; this middleware short-circuits action routes
-so the dispatcher remains the single auth point there.
+**Exemptions** — two, for one reason each:
+
+- ``/_bretzel/action/*`` skips both checks: its own per-call HMAC on
+  ``action_id + bound_args`` (cf. :mod:`bretzel.server.handlers`)
+  already binds the request to something only the page render could
+  have signed. The dispatcher remains the single auth point there.
+- a request carrying ``Authorization: Bearer <token>`` — an app's JSON
+  API called by another program — skips the session-token check. The
+  browser attaches the session cookie on its own, never a bearer token,
+  and a page cannot add one without a CORS grant ; a program holding
+  the token has no session token to echo. The Origin check STAYS: an
+  origin granted through ``cors_origins`` can add the header AND carry
+  the victim's cookies, so it still needs ``trusted_hosts``, like any
+  cross-origin write. A program sends no Origin and passes it. The
+  bearer token itself is checked by the app's ``@auth.source``.
 
 """
 
@@ -57,6 +66,13 @@ _CSRF_HEADER_KEY = HEADER_CSRF.lower().encode("latin-1")
 _ORIGIN_KEY = b"origin"
 _REFERER_KEY = b"referer"
 _HOST_KEY = b"host"
+_AUTHORIZATION_KEY = b"authorization"
+
+# The one scheme a browser never sends by itself. ``Basic`` stays
+# checked: after a 401 challenge the browser caches the credentials and
+# replays them on every request to the origin — ambient, like a cookie.
+# Compared lower-cased: the scheme is case-insensitive (RFC 9110 § 11.1).
+_BEARER_SCHEME = b"bearer"
 
 # Truncation width of the token. 32 hex chars (~128 bits) — well above
 # brute-force resistance for a per-session value, short enough to keep
@@ -81,10 +97,11 @@ class CSRFMiddleware:
     """Verify the per-session CSRF token on non-safe HTTP methods.
 
     Always-on : there is no ``csrf=False`` knob on :class:`BretzelConfig`.
-    Apps that need an unprotected POST endpoint (webhook receivers,
-    OAuth callbacks) should expose it outside the Bretzel router or
-    explicitly handle auth there with a different mechanism — CSRF is
-    a browser-origin defence and doesn't apply to server-to-server.
+    A bearer-token caller skips the session token (cf. the module
+    docstring). A caller that proves itself some other way — a webhook
+    signing its body in its own header — is refused: every route of
+    ``app.fastapi`` sits behind this middleware, and that case is open
+    (``.claude/work/todo.md``).
     """
 
     def __init__(
@@ -130,13 +147,14 @@ class CSRFMiddleware:
             return
 
         # Single-pass scan of the ASGI headers list — avoids the
-        # per-request ``dict()`` alloc, picks up only the four entries
-        # we care about. Headers are normalised to lowercase bytes by
-        # the ASGI server.
+        # per-request ``dict()`` alloc, picks up only the entries we
+        # care about. Header NAMES are normalised to lowercase bytes
+        # by the ASGI server ; values are not.
         origin_b = b""
         referer_b = b""
         host_b = b""
         supplied_b = b""
+        authorization_b = b""
         for k, v in scope.get("headers", ()):
             if k == _ORIGIN_KEY:
                 origin_b = v
@@ -146,10 +164,19 @@ class CSRFMiddleware:
                 host_b = v
             elif k == _CSRF_HEADER_KEY:
                 supplied_b = v
+            elif k == _AUTHORIZATION_KEY:
+                authorization_b = v
 
         # 1. Origin / Referer same-origin (or trusted-host) check.
         if not self._origin_allowed(origin_b, referer_b, host_b):
             await _reject(send, "CSRF: untrusted origin")
+            return
+
+        # A bearer token speaks for the caller: no session token to
+        # check (cf. the module docstring).
+        scheme, _, token = authorization_b.partition(b" ")
+        if scheme.lower() == _BEARER_SCHEME and token.strip():
+            await self.app(scope, receive, send)
             return
 
         # 2. Session-bound token check.

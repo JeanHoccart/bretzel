@@ -460,6 +460,12 @@ def colonne_de(cle: str, qui: str = "tous", etiquette: str = "toutes",
     )
 
 
+def rang_en_tete(cle: str) -> float:
+    """The rank that puts a card above every other in ``cle``."""
+    premieres = colonne_de(cle)
+    return entre(None, premieres[0]["rang"] if premieres else None)
+
+
 def occupation(cle: str) -> int:
     """How many cards are IN the column — filters excluded.
 

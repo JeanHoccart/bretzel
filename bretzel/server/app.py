@@ -48,6 +48,7 @@ from bretzel.server.lifecycle import (
     bretzel_startup,
     build_middleware_stack,
 )
+from bretzel.server.routing.api_docs import OPENAPI_ROUTE
 from bretzel.server.routing.errors import register_error_handlers
 from bretzel.theme import Theme
 
@@ -56,8 +57,9 @@ class Bretzel:
     """The Bretzel application instance.
 
     Construction populates the resolved :class:`BretzelConfig` and
-    wires an internal :class:`FastAPI` (with no Swagger/Redoc, since
-    apps written in Bretzel are HTML-first, not API-first).
+    wires an internal :class:`FastAPI`, reachable as ``app.fastapi``:
+    that is where an app declares its JSON API, documented at ``/docs``
+    with ``api_docs=True``.
 
     The class is the natural ASGI app — pass it directly to gunicorn /
     uvicorn / hypercorn. ``app.run()`` is a convenience wrapper
@@ -88,6 +90,7 @@ class Bretzel:
         security_headers: bool = True,
         csp: bool | Literal["report-only"] = False,
         csp_sources: Mapping[str, Sequence[str]] | None = None,
+        api_docs: bool = False,
         mode: Literal["dev", "prod"] | None = None,
         secure_cookies: bool | None = None,
         expose_errors: bool | None = None,
@@ -121,6 +124,7 @@ class Bretzel:
             "security_headers": security_headers,
             "csp": csp,
             "csp_sources": csp_sources or {},
+            "api_docs": api_docs,
             "secure_cookies": secure_cookies,
             "expose_errors": expose_errors,
             "debug": debug,
@@ -199,13 +203,17 @@ class Bretzel:
         self._cache_bust: str = format(int(_time.time()), "x")
 
         # ── Underlying FastAPI ──────────────────────────────────────────
-        # Lifespan ties our startup / shutdown into ASGI ; docs URLs are
-        # disabled because Bretzel apps don't expose a JSON-API surface.
+        # Lifespan ties our startup / shutdown into ASGI. FastAPI's own
+        # docs pages stay off: ``/docs`` is mounted at startup by
+        # ``routing.api_docs``, which declares the bearer scheme and
+        # follows the CSP.
         self.fastapi = FastAPI(
             lifespan=self._lifespan,
+            title=self.config.title,
+            description=self.config.description or "",
             docs_url=None,
             redoc_url=None,
-            openapi_url=None,
+            openapi_url=OPENAPI_ROUTE if self.config.api_docs else None,
         )
         # The Bretzel instance, reachable from any request
         # (``request.app`` returns the FastAPI, not us). That is what lets

@@ -27,6 +27,7 @@ import hmac
 PURPOSE_ACTION = "bretzel.action.v1"   # handlers.sign_action / verify_action
 PURPOSE_AUTH = "bretzel.auth.v1"       # auth.login / verify_auth_cookie
 PURPOSE_CSRF = "bretzel.csrf.v1"       # middleware.csrf — token for user POSTs
+PURPOSE_SESSION = "bretzel.session.v1" # auth.session_key / verify_session_key
 
 
 def derive_key(master: str | bytes, purpose: str) -> bytes:

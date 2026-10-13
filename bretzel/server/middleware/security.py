@@ -24,17 +24,7 @@ from typing import Literal
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from bretzel.server.security import BORING_HEADERS, build_policy
-
-#: ``report-only`` does EVERYTHING but block: the browser evaluates the
-#: policy and reports what would have been dropped. It is the first rung,
-#: the one that lets a CSP be set on a real app without risking breaking
-#: it — you watch what comes back, you complete ``csp_sources``, then you
-#: move to ``csp=True``.
-_HEADER = {
-    True: "content-security-policy",
-    "report-only": "content-security-policy-report-only",
-}
+from bretzel.server.security import BORING_HEADERS, CSP_HEADER, build_policy
 
 
 class SecurityHeadersMiddleware:
@@ -57,7 +47,7 @@ class SecurityHeadersMiddleware:
         # The header name depends only on ``csp``, fixed here: reading
         # it back from a module dict on every response gained nothing.
         self._csp_header: str | None = (
-            None if csp is False else _HEADER[csp]
+            None if csp is False else CSP_HEADER[csp]
         )
         self._policy_cache: str | None = None
 

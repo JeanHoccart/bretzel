@@ -38,6 +38,7 @@ from bretzel.server.middleware.render_context import RenderContextMiddleware
 from bretzel.server.middleware.security import SecurityHeadersMiddleware
 from bretzel.server.middleware.session import SessionMiddleware
 from bretzel.server.routing.actions import register_action_route
+from bretzel.server.routing.api_docs import register_api_docs
 from bretzel.server.routing.datatable import register_datatable_export_route
 from bretzel.server.routing.downloads import register_download_routes
 from bretzel.server.routing.manifest import register_manifest_route
@@ -403,6 +404,7 @@ def _register_routes(app: Bretzel) -> None:
     register_manifest_route(app.fastapi, app)
     register_sse_route(app.fastapi, app)
     register_realtime_route(app.fastapi, app)
+    register_api_docs(app.fastapi, app)
 
 
 def _mount_login_doors(app: Bretzel) -> None:
@@ -430,7 +432,8 @@ def build_middleware_stack(app: Bretzel) -> None:
     - ``CSRFMiddleware`` (verifies ``X-Bretzel-CSRF`` on non-safe
       methods using the session id Session just populated;
       short-circuits ``/_bretzel/action/*`` since those carry their
-      own HMAC).
+      own HMAC, and waives the token for an ``Authorization: Bearer``
+      caller).
     - ``AuthMiddleware`` (reads the auth cookie).
     - ``RenderContextMiddleware`` (innermost — composes a
       :class:`RenderContext` from everything the upstream middleware
@@ -458,7 +461,8 @@ def build_middleware_stack(app: Bretzel) -> None:
     # ``request.state``, computes the expected token, and rejects
     # non-safe-method requests whose ``X-Bretzel-CSRF`` header doesn't
     # match. Action routes (``/_bretzel/action/*``) are bypassed —
-    # they carry their own per-call HMAC.
+    # they carry their own per-call HMAC — and a bearer-token caller
+    # needs no token (the Origin check still applies to it).
     app.fastapi.add_middleware(
         CSRFMiddleware,
         csrf_key=config._csrf_key,
@@ -473,6 +477,7 @@ def build_middleware_stack(app: Bretzel) -> None:
         # ``None`` = the middleware derives it from the scheme, per
         # request.
         secure=config.secure_cookies,
+        session_key=config._session_key,
     )
 
     # Optional CORS / TrustedHost. Both are no-ops without config.

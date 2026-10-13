@@ -9,11 +9,29 @@ change between alpha releases.
 
 ### Added
 
+- `Bretzel(api_docs=True)` publishes the app's JSON API: `/openapi.json` and a
+  Swagger UI page at `/docs`. The schema lists only the routes the app declares
+  on `app.fastapi`, and declares the bearer scheme, so "Authorize" takes an API
+  key and "Try it out" sends it. Under `csp=`, the page carries its own policy.
+  Off by default.
+- `auth.session_key()` lets another program act in the current browser session:
+  a request sending it as `Authorization: Bearer` reads and writes that
+  session's `SessionState`, and the session's open windows follow. It carries
+  the session, not the signed-in user.
+- The Kanban example has an API: list, create and move cards, tried at `/docs`.
+  The banner's API button shows a ready `curl` whose card lands on the
+  visitor's own board, live.
 - The package ships a PEP 561 `py.typed` marker: type checkers now read
   Bretzel's annotations in your project. Thanks to @sarel-myburgh (#5).
 
 ### Changed
 
+- An app can serve a JSON API next to its pages: a `POST`, `PUT`, `PATCH` or
+  `DELETE` carrying `Authorization: Bearer <token>` is no longer subject to the
+  CSRF check, so another program can call a route declared on `app.fastapi`.
+  The token is checked by the app's `@auth.source`. The origin check still
+  applies (a program sends no `Origin`); requests without a bearer token,
+  including `Basic` credentials, are checked as before.
 - A `broadcast=[State]` signal for a `SessionState` now reaches only the tabs
   of the session that changed it; other sessions are no longer asked to
   refetch their own, unchanged zone. `AppState` and the other scopes still
@@ -24,7 +42,13 @@ change between alpha releases.
 
 ### Fixed
 
-- The screen cookie includes `Secure` on https pages and remains usable over http (#9).
+- A route that is neither an action nor a page (a route declared on
+  `app.fastapi`, a `@download`, a zone refetch) now reads the stored typed
+  state and saves what it writes. It used to read the defaults and lose its
+  writes, silently. A write method (POST, PUT, PATCH, DELETE) also notifies the
+  open windows of a changed `broadcast=` state, as an action does. A 4xx or 5xx
+  response keeps nothing the route wrote, and an `@error_page` no longer saves
+  the writes of the code that failed before it.
 - `ui.tabs` can be used from the keyboard: arrow keys, Home and End move the
   focus and the selection, skipping disabled tabs, and each tab is linked to
   its panel (`aria-controls` / `aria-labelledby`).
@@ -37,6 +61,9 @@ change between alpha releases.
 - The language cookie set by `Language.set` follows the same transport rule as
   the session cookies: `Secure` over https, `secure_cookies=` behind a
   TLS-terminating proxy. Thanks to @sarel-myburgh (#6).
+- The screen cookie (`bz_screen`) follows the transport too: `Secure` on
+  https pages, still usable over http (#9). Thanks to @sricharanreddycheruku
+  (#11).
 
 ### Removed
 

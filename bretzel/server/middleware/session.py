@@ -22,8 +22,9 @@ from bretzel.server.auth import (
     COOKIE_SESSION,
     parse_cookies_from_scope,
     resolve_cookie_secure,
+    verify_session_key,
 )
-from bretzel.server.middleware._state import ensure_state
+from bretzel.server.middleware._state import ensure_state, read_header
 
 
 class SessionMiddleware:
@@ -35,9 +36,14 @@ class SessionMiddleware:
         *,
         max_age_seconds: int,
         secure: bool | None,
+        session_key: bytes = b"",
     ) -> None:
         self.app = app
         self._max_age = max_age_seconds
+        # Verifies the keys of :func:`bretzel.auth.session_key`. Empty in
+        # a rig that builds the middleware by hand: no key opens anything
+        # then — an empty HMAC key is forgeable by anyone.
+        self._session_key = session_key
         # ``None`` = derive from EACH request's scheme. The middleware
         # is built once at startup, and the transport is a property of
         # the request: the same app can be reached over http and over
@@ -55,7 +61,10 @@ class SessionMiddleware:
             return
 
         cookies = parse_cookies_from_scope(scope)
-        existing = cookies.get(COOKIE_SESSION)
+        # A program holding a session key acts in THAT session, ahead of
+        # any cookie: it named the session on purpose. No cookie is set
+        # back — the key is how it comes again.
+        existing = self._keyed_session(scope) or cookies.get(COOKIE_SESSION)
         if existing:
             session_id = existing
             mint_fresh = False
@@ -90,6 +99,16 @@ class SessionMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_cookie)
+
+
+    def _keyed_session(self, scope: Scope) -> str | None:
+        """The session an ``Authorization: Bearer`` session key opens."""
+        if not self._session_key:
+            return None
+        scheme, _, key = (read_header(scope, "authorization") or "").partition(" ")
+        if scheme.lower() != "bearer":
+            return None
+        return verify_session_key(key.strip(), self._session_key)
 
 
 #: The prefix of a session ``Set-Cookie``, in bytes — that is the form

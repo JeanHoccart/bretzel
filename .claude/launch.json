@@ -85,6 +85,15 @@
         "examples.showcase.main"
       ],
       "port": 8020
+    },
+    {
+      "name": "life",
+      "runtimeExecutable": "py",
+      "runtimeArgs": [
+        "-m",
+        "examples.life.main"
+      ],
+      "port": 8021
     }
   ]
 }

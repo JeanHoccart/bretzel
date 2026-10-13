@@ -42,6 +42,17 @@ class TestCols:
         assert "md:grid-cols-3" in out
         assert "lg:grid-cols-4" in out
 
+    @pytest.mark.parametrize("cols", [0, 13, 40, {"base": 1, "md": 16}])
+    def test_a_count_outside_the_safelist_is_refused(self, cols: object) -> None:
+        with render_isolated(), pytest.raises(ComponentUsageError):
+            Grid(cols=cols)
+
+    def test_the_refusal_names_the_breakpoint_and_the_escape_hatch(self) -> None:
+        with render_isolated(), pytest.raises(ComponentUsageError) as exc:
+            Grid(cols={"base": 1, "md": 16})
+        assert "cols['md']=16" in str(exc.value)
+        assert 'cols="grid-cols-16"' in str(exc.value)
+
     def test_cols_dict_xs_alias_emits_unprefixed(self) -> None:
         # ``xs`` is treated like ``base`` (no breakpoint prefix) so
         # the column count applies at every viewport size up to the

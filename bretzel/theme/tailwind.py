@@ -318,13 +318,18 @@ def _with_suffix(stem: str) -> str:
 #: dev (the browser compiler scans the live DOM).
 #:
 #: The domain is BOUNDED, so the complete closure is writable — that is
-#: exactly the colour safelist's argument. Beyond 12 columns, Tailwind
-#: has no utility anyway: one needs the ``cols="grid-cols-[…]"`` escape
-#: hatch, literal at the call site and therefore scanned.
+#: exactly the colour safelist's argument. Tailwind v4 has a utility for
+#: ANY column count, but only the counts listed here reach the compiled
+#: sheet; ``ui.grid`` refuses an int outside :data:`GRID_COLS` and
+#: points to the ``cols="grid-cols-…"`` escape hatch, literal at the call
+#: site and therefore scanned.
 #:
-#: Gated by ``tests/consistency/test_emitted_classes_exist_in_source.py``.
+#: Gated by ``tests/consistency/test_emitted_classes_exist_in_source.py``
+#: and ``tests/consistency/test_every_accepted_count_is_safelisted.py``.
+GRID_COLS = range(1, 13)
+
 _LAYOUT_CLASSES: tuple[str, ...] = (
-    *(f"grid-cols-{n}" for n in range(1, 13)),
+    *(f"grid-cols-{n}" for n in GRID_COLS),
     "grid-cols-none", "grid-cols-auto",
     "basis-full",
     *(f"basis-1/{n}" for n in range(2, 13)),

@@ -38,6 +38,7 @@ from examples.kanban.features.donnees import (
     entre,
     libelles,
     pleine,
+    rang_en_tete,
 )
 from examples.kanban.features.state import (
     Avancement,
@@ -426,18 +427,28 @@ def creer(nouvelle: Nouvelle) -> None:
             title=tr("Creation refused", "Création refusée"),
         )
         return
-    premieres = colonne_de(colonne)
+    ident = ajouter(titre, colonne,
+                    tr(f"created “{titre}”", f"a créé « {titre} »"))
+    nouvelle.titre = ""
+    ouvrir(ident)
+
+
+def ajouter(titre: str, colonne: str, texte: str) -> str:
+    """Put a new card at the head of ``colonne``, journaled; its id.
+
+    The caller has checked the limit: the banner's dialog answers with a
+    notification, the API with a 409 — two ways to say no, one way to
+    write.
+    """
     ident = identifiant_libre()
     neuve = {
         "id": ident, "colonne": colonne, "titre": titre,
         "qui": Moi().membre, "etiquettes": [], "echeance": "", "points": 0,
         "description": "", "sous_taches": [], "commentaires": [],
-        "rang": entre(None, premieres[0]["rang"] if premieres else None),
+        "rang": rang_en_tete(colonne),
     }
-    journaliser(ident, None, neuve,
-                tr(f"created “{titre}”", f"a créé « {titre} »"))
-    nouvelle.titre = ""
-    ouvrir(ident)
+    journaliser(ident, None, neuve, texte)
+    return ident
 
 
 def filtrer(filtres: Filtres) -> None:
@@ -469,6 +480,6 @@ feature = Feature(
               deposer, sortir, archiver, archiver_ouverte, charger, ouvrir,
               fermer, enregistrer, basculer_etiquette, ajouter_sous_tache,
               basculer_sous_tache, retirer_sous_tache, commenter,
-              identifiant_libre, creer, filtrer, devenir],
+              identifiant_libre, creer, ajouter, filtrer, devenir],
     uses=["donnees", "state"],
 )

@@ -26,6 +26,7 @@ from __future__ import annotations
 import logging
 import secrets
 import tempfile
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import IO, TYPE_CHECKING, Any
 from urllib.parse import parse_qsl
@@ -36,6 +37,7 @@ from starlette.responses import Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from bretzel.render.context import RenderContext, use_context
+from bretzel.render.decorators.refreshable import broadcast_deps
 from bretzel.render.lang import resolve_language
 from bretzel.runtime.envelope import parse_client_payload
 from bretzel.runtime.protocol import (
@@ -47,7 +49,7 @@ from bretzel.runtime.protocol import (
 )
 from bretzel.server.middleware._state import ensure_state, read_header
 from bretzel.server.middleware.csrf import csrf_token_for
-from bretzel.state.registry import StateRegistry
+from bretzel.state.registry import StateRegistry, use_registry
 
 if TYPE_CHECKING:
     from bretzel.render.types import BretzelApp
@@ -262,10 +264,19 @@ class RenderContextMiddleware:
 
         async def wrapped_send(message: Message) -> None:
             if message["type"] == "http.response.start":
+                if message.get("status", 200) < 400:
+                    await _save_route_state(ctx)
                 _apply_ctx_cookies_and_headers(ctx, message)
             await send(message)
 
-        with use_context(ctx):
+        # Bound for the whole request, so ``MyState()`` reads the stored
+        # state in any route, not only in an action or a page.
+        registry_cm = (
+            use_registry(ctx.state_registry)
+            if ctx.state_registry is not None
+            else nullcontext()
+        )
+        with use_context(ctx), registry_cm:
             try:
                 await self.app(scope, replay_receive, wrapped_send)
             finally:
@@ -275,6 +286,35 @@ class RenderContextMiddleware:
                 # garbage collector gets to it in its own time.
                 if buffered is not None:
                     buffered.close()
+
+
+#: The methods that read: they save what they wrote, and notify nobody.
+_READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+async def _save_route_state(ctx: RenderContext) -> None:
+    """Save what a route wrote into the typed state, as an action does.
+
+    An action and a page commit their state themselves; any other route —
+    an app's JSON API on ``app.fastapi``, a ``@download``, a zone refetch
+    — used to lose its writes, silently. Run when the response STARTS, so
+    a client reading right after its write finds it, and only for a
+    success: a route that refuses (4xx) or breaks keeps nothing it
+    half-wrote.
+
+    Only a WRITE method then notifies the open windows (``broadcast=``),
+    as an action does. A GET that wrote — a zone refetch, typically —
+    notifying them would make each of them refetch in turn, and write,
+    and notify. A write made after the response has started (a streamed
+    body, a background task) is not seen here.
+    """
+    registry = ctx.state_registry
+    if registry is None or registry.committed:
+        return
+    changed = registry.diff_and_notify()
+    await registry.commit()
+    if ctx.request.method not in _READ_METHODS:
+        broadcast_deps(ctx, changed)
 
 
 # ───────────────────────────────────────────────────────────────────────────

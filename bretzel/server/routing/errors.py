@@ -136,6 +136,8 @@ async def _render_error(
     if page_fn is not None:
         ctx = maybe_current_context()
         if ctx is not None:
+            if ctx.state_registry is not None:
+                ctx.state_registry.discard()
             try:
                 result = await render_page(app, page_fn, ctx=ctx)
                 return HTMLResponse(
