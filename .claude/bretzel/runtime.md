@@ -21,21 +21,26 @@ retirés, aucune ligne fusionnée, aucun identifiant renommé — pèse
 `tests/runtime_js/test_the_minified_runtime_boots.py`.
 
 Les trois scripts qui ne sont pas de nous — htmx, l'extension idiomorph,
-le composant web iconify — se rapatrient dans `./.bretzel/vendor/` par
-`python -m bretzel.render.vendor` (même patron que le binaire Tailwind
-dans `.bretzel/bin/` : un cache de projet, rien de tiers dans le dépôt,
-empreinte SHA-256 vérifiée). Tant que le cache est vide, le shell pointe
-sur le CDN et tout marche — le repli est la règle de départ, pas une
-panne.
+le composant web iconify — sont **livrés dans le wheel** depuis la 0.1.0a3,
+dans `bretzel/render/_vendor/` avec le jeu d'icônes Lucide (le jeu par
+défaut de `ui.icon`) : empreintes SHA-256 épinglées dans
+`bretzel/render/vendor.py`, licences dans `_vendor/THIRD_PARTY_LICENSES.md`.
+Une page de production ne parle à aucun hôte tiers sans commande préalable.
+Décidé le 2026-10-22 : jusque-là la prod chargeait les trois depuis leurs
+CDN tant que `python -m bretzel.render.vendor` n'avait pas tourné, une
+commande que seul un avertissement de démarrage nommait. La commande
+rapatrie encore le compilateur CSS navigateur (dev seulement) dans
+`./.bretzel/vendor/`.
 
 Ce que ça change, mesuré en mode prod, cache froid, sur une page
 minimale : `DOMContentLoaded` **644 ms → 110 ms**. Les trois scripts
 tombent de 593 / 592 / 489 ms à ~50 ms chacun, parce qu'ils passent par
 la connexion déjà ouverte de l'app au lieu de trois origines à résoudre
-et à négocier. Les données d'icône passent par `/_bretzel/icons`. Le
-navigateur reste en même origine ; le serveur consulte Iconify au premier
-manque, puis sert son cache de projet. Une production sans accès sortant
-doit donc préremplir ce cache ou éviter les glyphes qui n'y figurent pas.
+et à négocier. Les données d'icône passent par `/_bretzel/icons` : Lucide
+est répondu depuis le jeu livré ; pour un autre jeu (`mdi:…`), le serveur
+consulte Iconify au premier manque puis sert son cache de projet. Une
+production sans accès sortant qui utilise un autre jeu que Lucide doit
+donc préremplir ce cache.
 
 ---
 

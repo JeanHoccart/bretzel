@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bretzel"
-version = "0.1.0a2"
+version = "0.1.0a3"
 description = "Full-stack Python web framework: server-driven UI, typed state, 100+ components, zero npm."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -63,8 +63,12 @@ dev = [
 # prod). Sans lui, l'app retombe sur le compilateur navigateur en le
 # disant. Déclaré en extra plutôt que téléchargé au démarrage : 112 Mo
 # récupérés en effet de bord d'un lifespan, ce n'est pas acceptable.
+# ``tailwindcss-bin`` livre le CLI standalone en wheels par plateforme et
+# pose un script ``tailwindcss`` dans le venv (``_find_wheel_binary``).
+# Le nom ``tailwindcss`` sur PyPI n'est qu'une réservation (0.0.1) :
+# l'extra de la 0.1.0a2 ne s'installait pas.
 css = [
-    "tailwindcss>=4.1",
+    "tailwindcss-bin>=4.1",
 ]
 # ``bretzel probe`` — le framework pilote sa propre app dans un vrai
 # navigateur. Extra et jamais dépendance d'exécution : Playwright

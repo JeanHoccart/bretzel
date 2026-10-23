@@ -113,6 +113,7 @@ from bretzel.components.base import (
     stamp_display_none,
 )
 from bretzel.components.base._wiring import (
+    ARIA_OF_THE_FOCUSABLE,
     CHANGED_FLAG,
     ROOT_DISPATCHED_EVENTS,
     SERVER_ACTION_ATTRS,
@@ -458,6 +459,11 @@ class Combobox(Component):
         # ``bz-on:input`` ; the callable form re-pins its ``hx-trigger``
         # to ``input`` (with the debounce HTMX understands) so it POSTs
         # per keystroke.
+        # Name, description and validity name the FOCUSABLE element (the
+        # search input), not the wrapper.
+        for aria in ARIA_OF_THE_FOCUSABLE:
+            if aria in root_attrs:
+                relocated_to_input[aria] = root_attrs.pop(aria)
         if "bz-on:search" in root_attrs:
             relocated_to_input_search["bz-on:input"] = root_attrs.pop(
                 "bz-on:search"
@@ -815,6 +821,8 @@ class Combobox(Component):
                 "bz-attr:aria-expanded": bool_attr("open"),
                 # The search input is the floating anchor.
                 "bz-ref": "bztrigger",
+                **({"aria-labelledby": relocated_to_input["aria-labelledby"]}
+                   if "aria-labelledby" in relocated_to_input else {}),
                 # Click anywhere on the shell focuses the input —
                 # makes the whole bordered area feel like one widget.
                 "bz-on:click": "$refs.bzinput && $refs.bzinput.focus()",

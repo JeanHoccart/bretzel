@@ -13,6 +13,7 @@ FORM_FIELD_THEME: dict[str, Any] = {
     "slots": {
         "root": "flex flex-col gap-1.5 w-full",
         "label": "text-sm font-medium text-text",
+        "label_row": "flex items-baseline",  # label + "*" when required
         "label_required": "text-error ml-0.5",  # the "*" suffix
         "hint": "text-xs text-muted",
         "error": "text-xs text-error font-medium",

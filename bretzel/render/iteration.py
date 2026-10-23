@@ -16,6 +16,7 @@ in-flight animations).
 
 from __future__ import annotations
 
+import hashlib
 import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -105,8 +106,8 @@ def _extract_key(
     2. ``item.id`` — the most common ORM convention.
     3. ``item.pk`` — Django / SQLAlchemy primary key.
     4. ``item["id"]`` if ``item`` is a mapping.
-    5. ``hash(item)`` for hashable primitives (``str``, ``int``, ``tuple``,
-       ``bool``).
+    5. Hashable primitives: an ``int`` / ``bool`` gives ``hash(item)``,
+       a ``str`` / ``tuple`` a digest of its ``repr``.
     6. Positional fallback — the loop index. Emits a warning in debug mode
        so the developer notices and supplies an explicit key when needed.
 
@@ -130,9 +131,17 @@ def _extract_key(
     if isinstance(item, dict) and "id" in item:
         return str(item["id"])
 
-    # 5. Hashable primitive — hash gives a stable, deterministic key
-    if isinstance(item, (str, int, tuple, bool)):
+    # 5. Hashable primitive. ``hash()`` is NOT stable for a ``str`` (nor a
+    # ``tuple`` holding one): Python salts it per process
+    # (``PYTHONHASHSEED``), so the same list rendered after a restart, or
+    # by another worker, got other DOM ids, and a partial from one worker
+    # no longer morphed onto the page another one rendered. Found
+    # 2026-10-22 rendering the playground twice: ``vstack_-79869…``, then
+    # ``vstack_-21052…``. An ``int`` hashes to itself: kept as is.
+    if isinstance(item, (int, bool)):
         return str(hash(item))
+    if isinstance(item, (str, tuple)):
+        return hashlib.blake2b(repr(item).encode(), digest_size=8).hexdigest()
 
     # 6. Positional fallback — last resort. Warn so the dev catches it
     # before a bug report rolls in about disappearing menu state.

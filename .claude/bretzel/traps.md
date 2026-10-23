@@ -53,6 +53,15 @@ Un `bz-id` calculé uniquement depuis la position courante change lorsqu'un
 sous-arbre est rendu seul. Utiliser les helpers d'identité du socle et une
 `key=` métier pour les collections réordonnables.
 
+### `hash()` d'une chaîne change à chaque processus
+
+Une clé de boucle tirée de `hash(item)` sur un `str` (ou un `tuple` qui en
+contient) change à chaque redémarrage et d'un worker à l'autre : Python sale
+ces hachages (`PYTHONHASHSEED`). Les ids du DOM bougeaient avec, et un rendu
+partiel d'un worker ne fusionnait plus sur la page rendue par un autre.
+`_extract_key` prend un condensé du `repr` ; un `int` garde son hachage, qui
+est lui-même. Gate : `test_a_loop_key_survives_a_restart.py`.
+
 ### Custom elements et morph
 
 Le morph peut remplacer les enfants gérés par un custom element. Le composant
@@ -175,6 +184,15 @@ surcharge prévu, et les thèmes ne doivent pas empiler deux valeurs concurrente
 
 Une classe formée par concaténation ou f-string n'est pas forcément vue par le
 scanner. Utiliser des littéraux complets ou la safelist produite par le thème.
+
+### Un nom de paquet PyPI peut n'être qu'une réservation
+
+L'extra `css` de la 0.1.0a2 demandait `tailwindcss>=4.1` : sur PyPI, ce nom
+n'existe qu'en 0.0.1, une réservation. `pip install 'bretzel[css]'` échouait,
+alors que le message de démarrage le recommande. Le CLI standalone se publie
+sous `tailwindcss-bin` (un wheel par plateforme, qui pose un script
+`tailwindcss` dans le venv, trouvé par `_find_wheel_binary`). Avant de
+déclarer une dépendance, installer l'extra dans un venv neuf.
 
 ### Le cache `style.css` ne voit que ce que sa marche parcourt
 

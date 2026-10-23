@@ -21,7 +21,7 @@ production.
   <sub>One Python app, two windows: drag on the left, the right follows; undo on the right, both follow. No JavaScript written.</sub>
 </p>
 
-> **Alpha:** the latest public alpha is `0.1.0a2`. APIs may change between
+> **Alpha:** the latest public alpha is `0.1.0a3`. APIs may change between
 > alpha releases; only the latest alpha receives fixes.
 
 See it first: [component gallery](https://ui.bretzel-py.dev) ·

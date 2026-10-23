@@ -95,6 +95,14 @@ class Form(Component):
         # submit must keep its native / explicit semantics, not get
         # AJAX-swapped into the page outlet.
         attrs.setdefault("hx-boost", "false")
+        # Validation lives on the state: the server's messages are the
+        # contract. Left on, the browser's constraint validation cancelled
+        # the submit of an invalid ``type="email"`` in silence — no
+        # request, so no message, only a native bubble the app cannot
+        # style or word (found by an outside build, 2026-10-22).
+        # ``required`` / ``type=`` still serve assistive tech and mobile
+        # keyboards; ``attrs={"novalidate": False}`` restores the browser.
+        attrs.setdefault("novalidate", True)
         if contains_file_input(children_nodes):
             # ``hx-encoding`` is what htmx reads; ``enctype`` is what the
             # browser reads if the submission leaves natively. Both say

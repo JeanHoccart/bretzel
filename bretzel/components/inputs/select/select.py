@@ -60,6 +60,7 @@ from bretzel.components.base import (
     stamp_display_none,
 )
 from bretzel.components.base._wiring import (
+    ARIA_OF_THE_FOCUSABLE,
     SERVER_ACTION_ATTRS,
     anchored_dismiss_init,
     anchored_panel_effect,
@@ -401,6 +402,11 @@ class Select(Component):
         for ev_attr in ("bz-on:focus", "bz-on:blur"):
             if ev_attr in root_attrs:
                 relocated_to_trigger[ev_attr] = root_attrs.pop(ev_attr)
+        # Name, description and validity name the FOCUSABLE element: on
+        # the wrapper ``<div>`` a screen reader never reads them.
+        for aria in ARIA_OF_THE_FOCUSABLE:
+            if aria in root_attrs:
+                relocated_to_trigger[aria] = root_attrs.pop(aria)
 
         # Common keyboard handler — Enter picks/toggles depending on
         # mode ; ArrowDown/Up navigate, Space opens, Escape closes.

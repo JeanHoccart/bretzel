@@ -23,29 +23,24 @@ arrive in 20-40 ms — same connection, already open, already encrypted.
 Three third-party origins means three DNS resolutions, three TLS
 handshakes and three availabilities that do not depend on us.
 
-The pattern is the Tailwind binary's
-------------------------------------
+They ship inside the wheel
+--------------------------
 
-Nothing third-party enters the repository. The files are **downloaded on
-demand** into ``./.bretzel/vendor/``, exactly as
-:func:`bretzel.theme.build.download_binary` puts the Tailwind compiler in
-``./.bretzel/bin/``. The folder is a project cache, not a source — it
-does not have to be committed.
+Since 0.1.0a3 the three scripts and the Lucide icon set (the default
+``ui.icon`` set) live in ``bretzel/render/_vendor/`` and are part of the
+package: a production page talks to no third-party host, with no
+command to run first. Decided on 2026-10-22, after an outside build of a
+helpdesk app found that a production page loaded htmx, idiomorph and
+iconify from CDNs unless ``python -m bretzel.render.vendor`` had been run
+— a command only named in a startup warning — and fetched its glyphs
+from api.iconify.design at runtime. The four files weigh 95 KB gzipped.
 
-Consequence: the fallback is the rule, not the exception. As long as the
-download has not happened, the shell points at the CDN and everything
-works as before. That is a choice, not an accident: an app that has never
-run the command must not stop starting.
-
-    python -m bretzel.render.vendor
-
-⚠️ **In DEV, the app does it by itself since 2026-09-13**
-(:func:`ensure_vendored`, called on the first ASGI call). The command was
-only known to whoever had read it, so the CDN fallback was the rule for
-nearly everyone — and a suite of 84 probes, which runs in dev, depended
-on it without knowing. In production nothing changes: going out to the
-network when a server starts is an operator's decision, and the command
-stays the explicit path.
+What still goes through ``./.bretzel/vendor/``, the project cache: the
+dev-only browser CSS compiler (:func:`browser_css_asset`, 276 KB, never
+loaded in production) and the glyphs of icon sets other than Lucide,
+relayed once by the server then cached. ``python -m bretzel.render.vendor``
+still downloads the first; in DEV the app does it by itself
+(:func:`ensure_vendored`, called on the first ASGI call).
 
 The fingerprint is verified
 ---------------------------
@@ -59,9 +54,12 @@ serve it, since we would be lending it our name.
 from __future__ import annotations
 
 import hashlib
+import json
 import urllib.request
+from functools import cache
 from pathlib import Path
 from typing import Final, NamedTuple
+from urllib.parse import parse_qs, urlsplit
 
 from bretzel.runtime.protocol import ROUTE_ICONS, ROUTE_VENDOR
 
@@ -92,6 +90,16 @@ class VendoredAsset(NamedTuple):
     sha256: str
 
 
+#: The files shipped in the wheel. Third-party, pinned by fingerprint;
+#: licenses in ``_vendor/THIRD_PARTY_LICENSES.md``.
+PACKAGED_DIR: Final[Path] = Path(__file__).resolve().parent / "_vendor"
+
+
+def packaged_path(asset: VendoredAsset) -> Path:
+    """Where ``asset`` sits inside the installed package."""
+    return PACKAGED_DIR / asset.filename
+
+
 def vendor_dir() -> Path:
     """``./.bretzel/vendor/`` — the project cache, next to the cwd.
 
@@ -107,9 +115,15 @@ def cached_name(asset: VendoredAsset) -> str:
     return f"{stem}.{asset.sha256[:8]}.{extension}"
 
 
-def vendored_local_path(asset: VendoredAsset) -> Path:
-    """Return the local cache path for ``asset`` whether or not it exists."""
+def cache_path(asset: VendoredAsset) -> Path:
+    """Return the project-cache path for ``asset`` whether or not it exists."""
     return vendor_dir() / cached_name(asset)
+
+
+def vendored_local_path(asset: VendoredAsset) -> Path:
+    """The file to serve: the packaged copy, else the project cache."""
+    packaged = packaged_path(asset)
+    return packaged if packaged.is_file() else cache_path(asset)
 
 
 def vendored_is_available(asset: VendoredAsset) -> bool:
@@ -141,9 +155,11 @@ def download(asset: VendoredAsset, *, force: bool = False) -> Path:
     :func:`vendored_is_available` would declare good, and that the app
     would then serve instead of the CDN.
     """
-    target = vendored_local_path(asset)
-    if target.is_file() and not force:
-        return target
+    if not force and vendored_is_available(asset):
+        return vendored_local_path(asset)
+    # Always the project cache: ``force`` must never rewrite a file
+    # inside the installed package.
+    target = cache_path(asset)
 
     target.parent.mkdir(parents=True, exist_ok=True)
     print(f"[bretzel] Downloading {asset.filename} from {asset.url}")
@@ -299,8 +315,64 @@ def _icon_cache_file(path: str) -> Path:
     return icon_cache_dir() / f"{digest}.json"
 
 
+@cache
+def _packaged_icon_set(prefix: str) -> dict | None:
+    """A set shipped in ``_vendor/`` (Iconify JSON), read once: it never changes."""
+    path = PACKAGED_DIR / f"{prefix}.json"
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def packaged_icon_payload(path: str) -> bytes | None:
+    """Answer ``/<prefix>.json?icons=a,b`` from a set shipped in the wheel.
+
+    Speaks the one endpoint the web component calls, in the shape the
+    Iconify API answers it (``prefix``, ``icons``, ``aliases``,
+    ``not_found``), so the component cannot tell the difference. ``None``
+    when the set is not shipped: the caller then relays as before.
+    """
+    parts = urlsplit(path)
+    name = parts.path.lstrip("/")
+    if not name.endswith(".json"):
+        return None
+    data = _packaged_icon_set(name[: -len(".json")])
+    if data is None:
+        return None
+    wanted = [n for n in parse_qs(parts.query).get("icons", [""])[0].split(",") if n]
+    icons: dict[str, dict] = {}
+    aliases: dict[str, dict] = {}
+    missing: list[str] = []
+    for icon in wanted:
+        if icon in data["icons"]:
+            icons[icon] = data["icons"][icon]
+        elif icon in data.get("aliases", {}):
+            alias = data["aliases"][icon]
+            aliases[icon] = alias
+            parent = alias.get("parent")
+            if parent in data["icons"]:
+                icons[parent] = data["icons"][parent]
+        else:
+            missing.append(icon)
+    body: dict = {
+        "prefix": data["prefix"],
+        "icons": icons,
+        "width": data.get("width", 24),
+        "height": data.get("height", 24),
+        "lastModified": data.get("lastModified", 0),
+    }
+    if aliases:
+        body["aliases"] = aliases
+    if missing:
+        body["not_found"] = missing
+    return json.dumps(body, separators=(",", ":")).encode("utf-8")
+
+
 def icon_payload(path: str, *, allow_download: bool = True) -> bytes | None:
-    """Return an Iconify API response body from cache or upstream."""
+    """Return an Iconify API response body: shipped set, cache, then upstream."""
+    packaged = packaged_icon_payload(path)
+    if packaged is not None:
+        return packaged
     cached = _icon_cache_file(path)
     if cached.is_file():
         return cached.read_bytes()

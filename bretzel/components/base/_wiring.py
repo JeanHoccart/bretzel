@@ -426,18 +426,29 @@ def refuse_a_value_off_the_table(component: Any) -> None:
     old list of abstentions described that limit of the DETECTOR as if it
     were a property of the components.
     """
-    theme = component._resolved_theme()
     descriptors = type(component).__reactive_props__
+    theme: dict[str, Any] | None = None
     for prop, table_key in (("size", "sizes"), ("variant", "variants")):
         value = component._reactive_values.get(prop)
         descriptor = descriptors.get(prop)
+        if not isinstance(value, str):
+            continue
         declared = getattr(descriptor, "steps", None)
         if declared:
             steps = frozenset(declared)
         else:
+            # The descriptor's default is the anchor ``declared_steps``
+            # reads the table from, so it is in the table or the table
+            # is unreadable: either way it is never refused. Most
+            # instances carry their default, and resolving the theme for
+            # them cost 9 % of a 50-row table's render (profiled 2026-10-22).
             anchor = getattr(descriptor, "default", None)
+            if value == anchor:
+                continue
+            if theme is None:
+                theme = component._resolved_theme()
             steps = declared_steps(theme.get(table_key, {}), anchor=anchor)
-        if not steps or not isinstance(value, str) or value in steps:
+        if not steps or value in steps:
             continue
         raise ComponentUsageError(
             f"ui.{_ui_name_for_error(component)}: {prop}={value!r} is not "
@@ -1845,6 +1856,16 @@ def hidden_carrier_attrs(
             value_expr if dispatch == _SAME_AS_VALUE else dispatch
         )
     return attrs
+
+
+#: What names, describes and validates a control: a screen reader reads it
+#: on the FOCUSABLE element only. Components whose root is a layout
+#: wrapper (Select, Combobox) move these from the root onto that element.
+ARIA_OF_THE_FOCUSABLE: tuple[str, ...] = (
+    "aria-labelledby",
+    "aria-describedby",
+    "aria-invalid",
+)
 
 
 def relocate_server_action(

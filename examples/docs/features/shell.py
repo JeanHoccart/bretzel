@@ -182,7 +182,7 @@ def shell() -> None:
                         ui.sidebar_item(label, icon=icon, href=path)
             with ui.sidebar_footer(
                 name="Bretzel",
-                subtitle="v0.1.0a2 · Early alpha",
+                subtitle="v0.1.0a3 · Early alpha",
             ):
                 for value, label, icon in THEME_ITEMS:
                     ui.sidebar_footer_item(

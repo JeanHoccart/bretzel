@@ -195,6 +195,21 @@ _BUTTON_CURSOR = """\
 """
 
 
+# ``ui.viewport`` takes its frame out of the flow (``fixed inset-0``, cf.
+# its theme), so a shell page left ``<body>`` with NO in-flow content and
+# a box 0 px tall: a click on ``body`` was refused by Playwright ("not
+# visible"), and anything reading the body's size read zero. Found by an
+# outside build on 2026-10-22. A body at least as tall as the window
+# changes nothing for a normal page (it grows past it) and does not
+# inflate ``html.scrollHeight``, which is what ``fixed`` protects.
+_BODY_FILLS_THE_WINDOW = """\
+/* body fills the window — a viewport shell leaves it no in-flow content */
+@layer base {
+  body { min-height: 100dvh; }
+}
+"""
+
+
 # Tiny smoothing rule so toggling the ``.dark`` class doesn't snap.
 # 150ms feels alive without leaving ghost frames during fast clicks.
 _THEME_TRANSITIONS = """\
@@ -507,6 +522,7 @@ def generate_theme_css_full(
         generate_color_bridges(palette),
         _AUTOFILL_FIX,
         _BUTTON_CURSOR,
+        _BODY_FILLS_THE_WINDOW,
         _THEME_TRANSITIONS,
         _COLOR_SCHEME,
         _SELECTION,

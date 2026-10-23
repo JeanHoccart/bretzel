@@ -6651,6 +6651,13 @@
         if (Math.max(dx, dy) > TOUCH_TOLERANCE_PX) disarm();
       } else if (Math.max(dx, dy) > MOUSE_THRESHOLD_PX) {
         begin();
+        //: Follow THIS move too: a quick flick (or an automation tool's
+        //: single move) used to start the drag here and drop it in the
+        //: origin zone on the next `pointerup`, saving nothing.
+        if (active && e.pointerId === active.pointerId) {
+          movePreview(e.clientX, e.clientY);
+          hoverTo(e.clientX, e.clientY);
+        }
       }
       return;
     }

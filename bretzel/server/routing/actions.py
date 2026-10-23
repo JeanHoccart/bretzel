@@ -477,6 +477,8 @@ async def _inject_signature_args(
                 kwargs[name] = value
             elif param.default is inspect.Parameter.empty:
                 kwargs[name] = None
+        elif param.default is not inspect.Parameter.empty and form_data:
+            _say_a_parameter_got_no_field(ctx, handler, name, form_data)
 
     # A handler declared with ``**kwargs`` wants to receive every form
     # field that wasn't already bound — typical for generic mutators
@@ -490,6 +492,46 @@ async def _inject_signature_args(
             kwargs[name] = value
 
     return list(bound_args), kwargs
+
+
+#: Annotations a form field can fill — the only parameters worth a warning.
+_FIELD_SHAPED = (str, int, float, bool)
+
+
+def _say_a_parameter_got_no_field(
+    ctx: Any, handler: Callable[..., Any], name: str, form_data: dict[str, Any]
+) -> None:
+    """In dev, say once that a parameter ran on its default.
+
+    ``def set_search(q: str = "")`` with no field named ``q`` in the
+    submission runs with ``q=""``, answers 204, and nothing happens — the
+    most common cause being ``value=str(state.q)``, whose cast drops the
+    ``name=`` stamp. An outside build lost an afternoon to it on
+    2026-10-22 (21 failing tests for one cast). Dev only, once per
+    (handler, parameter): production keeps its logs quiet.
+    """
+    app = getattr(ctx, "app", None)
+    config = getattr(app, "config", None)
+    if not getattr(config, "is_dev", False):
+        return
+    annotation = _plain_hints(handler).get(name)
+    if annotation is not None and annotation not in _FIELD_SHAPED:
+        return
+    key = (getattr(handler, "__qualname__", repr(handler)), name)
+    said = getattr(app, "_bz_said_no_field", None)
+    if said is None:
+        said = set()
+        app._bz_said_no_field = said
+    if key in said:
+        return
+    said.add(key)
+    fields = ", ".join(sorted(k for k in form_data if not k.startswith("_"))) or "none"
+    print(
+        f"[bretzel] WARN: {key[0]}({name}): no field named {name!r} in the "
+        f"submission (fields: {fields}) — the handler ran with its default.\n"
+        f"[bretzel]       Name the input {name!r}, or pass the state field "
+        f"itself to value= (a str() cast drops its name)."
+    )
 
 
 def _push_addressable_url(request: Any, ctx: Any) -> None:

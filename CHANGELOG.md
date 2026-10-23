@@ -7,6 +7,8 @@ change between alpha releases.
 
 ## [Unreleased]
 
+## [0.1.0a3] - 2026-10-22
+
 ### Added
 
 - `Bretzel(api_docs=True)` publishes the app's JSON API: `/openapi.json` and a
@@ -23,6 +25,11 @@ change between alpha releases.
   visitor's own board, live.
 - The package ships a PEP 561 `py.typed` marker: type checkers now read
   Bretzel's annotations in your project. Thanks to @sarel-myburgh (#5).
+- `bretzel --version`. Thanks to @Muhtasim-Munif-Fahim (#14).
+- htmx, idiomorph, the iconify component and the Lucide icon set (the default
+  `ui.icon` set) ship inside the package: a production page loads nothing
+  from a third-party host, with no command to run first. Licenses are in
+  `bretzel/render/_vendor/THIRD_PARTY_LICENSES.md`.
 
 ### Changed
 
@@ -39,9 +46,36 @@ change between alpha releases.
 - Python 3.14 is tested in CI and declared in the package metadata.
 - `ui.input(type=...)` refusing a native picker type now names the shipped
   component (`ui.date_picker`, `ui.week_picker`, …) instead of "coming soon".
+- `bretzel new` creates a project that depends on `bretzel[css]`, so it serves
+  a stylesheet compiled once in production instead of compiling it in the
+  browser.
+- `ui.form` leaves validation to the server (`novalidate`): an invalid
+  `type="email"` no longer cancels the submit in silence, the state's messages
+  show instead. `attrs={"novalidate": False}` restores the browser's check.
+- In dev, a handler parameter that no submitted field fills is reported once
+  (`set_search(q): no field named 'q'…`): it used to run on its default with
+  no message, typically after a `str()` cast dropped an input's `name=`.
+- Rendering is faster: a component at its default size or variant no longer
+  resolves its theme to check it (a 50-row table's update: 122 → 101 ms).
 
 ### Fixed
 
+- `pip install 'bretzel[css]'` works: the extra required `tailwindcss`, a
+  placeholder name on PyPI; it now installs `tailwindcss-bin`, the Tailwind
+  standalone CLI as wheels.
+- A `ui.form_field` label names its control: screen readers and
+  `get_by_label` find the input, select or combobox (`aria-labelledby` on the
+  focusable element). Its `for=` pointed at an id no control carried. The
+  `required=True` asterisk sits next to the label, not inside its text.
+- `ui.select` and `ui.combobox` carry `aria-describedby` / `aria-invalid` on
+  their focusable element, not on the layout wrapper.
+- A drag that crosses the threshold and drops in a single pointer move (a
+  quick flick) now moves the card; it used to drop in the origin zone.
+- A page using `ui.viewport` no longer leaves `<body>` 0 px tall.
+- The DOM ids of a loop over strings or tuples are the same in every process:
+  they were derived from Python's per-process salted `hash()`, so they changed
+  at each restart and between workers, and a partial from one worker no longer
+  merged onto a page rendered by another.
 - A route that is neither an action nor a page (a route declared on
   `app.fastapi`, a `@download`, a zone refetch) now reads the stored typed
   state and saves what it writes. It used to read the defaults and lose its
@@ -68,6 +102,7 @@ change between alpha releases.
 ### Removed
 
 - Three unused mark SVGs (1.5 MB) are no longer shipped in the wheel.
+- The unused `docs` extra (mkdocs). Thanks to @Muhtasim-Munif-Fahim (#13).
 
 ## [0.1.0a2] - 2026-09-29
 

@@ -77,7 +77,7 @@ violation**.
 | `'unsafe-eval'` | Le moteur de directives compile chaque `bz-*` en fonction (`new Function`). Irréductible : cf. plus bas. |
 | Trois `'sha256-…'` | Les corps inline de la coque, qui sont déterministes. |
 | `https://api.iconify.design` + deux replis dans `connect-src` | Compatibilité conservée dans la CSP. La coque actuelle dirige les glyphes vers `/_bretzel/icons` ; le serveur relaie un manque puis le met en cache. |
-| Les origines des assets telles qu'elles sont | Le repli CDN est la règle tant que `python -m bretzel.render.vendor` n'a pas tourné : la politique lit les URL que la coque va **réellement** émettre. |
+| Les origines des assets telles qu'elles sont | Depuis la 0.1.0a3 les trois scripts tiers sont livrés dans le wheel ; un fichier manquant (installation cassée) ferait repasser par le CDN : la politique lit les URL que la coque va **réellement** émettre. |
 
 ## Pourquoi des empreintes et pas un `nonce`
 

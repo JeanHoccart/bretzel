@@ -167,13 +167,17 @@ class TestDefaultAssets:
     def test_the_shell_falls_back_to_the_cdn_without_a_local_copy(
         self, tmp_path, monkeypatch
     ) -> None:
-        """Le repli est la règle de départ, pas une panne.
+        """Le repli reste possible, pas une panne.
 
-        Un dépôt fraîchement cloné n'a pas ``.bretzel/vendor/`` — la page
-        doit alors charger les trois scripts depuis leur origine, sinon
-        elle demande trois fichiers qui n'existent pas.
+        Depuis la 0.1.0a3 les trois scripts sont livrés dans le paquet ;
+        sans copie livrée NI cache (installation cassée), la page doit
+        charger les trois scripts depuis leur origine, sinon elle demande
+        trois fichiers qui n'existent pas.
         """
+        from bretzel.render import vendor
+
         monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(vendor, "PACKAGED_DIR", tmp_path / "rien-de-livre")
         out = _shell()
         for url in (DEFAULT_HTMX_URL, DEFAULT_IDIOMORPH_URL, DEFAULT_ICONIFY_URL):
             assert url in out, url

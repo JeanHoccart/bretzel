@@ -12,7 +12,7 @@ def home_page() -> None:
         with ui.vstack(gap="xl"):
             with ui.hstack(align="center", gap="sm", wrap=True):
                 ui.badge("Documentation", color="primary", variant="soft")
-                ui.badge("v0.1.0a2 · Early alpha", color="warning", variant="outline")
+                ui.badge("v0.1.0a3 · Early alpha", color="warning", variant="outline")
 
             with ui.hstack(align="center", justify="between", gap="xl", wrap=True):
                 with ui.vstack(gap="md", classes="max-w-3xl"):

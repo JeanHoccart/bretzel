@@ -9,9 +9,9 @@ the right flags, surfacing errors with actionable messages. The
 actual compilation is the binary's job.
 
 Lightning CSS itself ships inside the Tailwind v4 binary distributed
-as a Python wheel (``tailwindcss-python`` or ``pytailwindcss``,
-TBD in phase 1). We don't pin which one yet — the binary resolver
-walks every plausible install location in order.
+as a Python wheel: ``tailwindcss-bin``, which ``bretzel[css]``
+installs. The binary resolver still walks every plausible install
+location in order.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def find_lightning_binary() -> Path:
     Resolution order :
 
     1. ``$BRETZEL_TAILWIND_BIN`` env var (explicit override).
-    2. The ``tailwindcss-python`` Python wheel, if installed
+    2. The ``tailwindcss-bin`` wheel (``bretzel[css]``), if installed
        (exposes a ``tailwindcss`` console script in the venv).
     3. ``shutil.which("tailwindcss")`` — system PATH lookup.
 
@@ -58,9 +58,9 @@ def find_lightning_binary() -> Path:
             "is not executable or doesn't exist."
         )
 
-    # Try the Python-wheel-installed console script first ; users on
-    # macOS / Windows often install via ``pip install tailwindcss-python``
-    # to avoid manual binary management.
+    # Try the Python-wheel-installed console script first:
+    # ``pip install 'bretzel[css]'`` installs ``tailwindcss-bin``, whose
+    # ``tailwindcss`` script lands in the venv's bin directory.
     wheel = _find_wheel_binary()
     if wheel is not None:
         return wheel
@@ -72,8 +72,7 @@ def find_lightning_binary() -> Path:
     raise CompilerError(
         "Could not locate the Tailwind v4 / Lightning CSS binary.\n\n"
         "Install one of :\n"
-        "  • pip install tailwindcss-python\n"
-        "  • pip install pytailwindcss\n"
+        "  • pip install 'bretzel[css]'   (the tailwindcss-bin wheel)\n"
         "  • a system-level binary on $PATH (named ``tailwindcss``)\n\n"
         "Or set BRETZEL_TAILWIND_BIN to an explicit path."
     )

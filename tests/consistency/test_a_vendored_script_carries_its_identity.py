@@ -74,7 +74,10 @@ def test_the_name_still_bites_when_a_version_is_bumped() -> None:
         "une version montée retombe sur le nom de l'ancienne — le cache "
         "servirait l'ancienne pour toujours."
     )
-    assert vendor.vendored_local_path(monte) != vendor.vendored_local_path(ancien)
+    # Le nom à empreinte ne vaut que pour le CACHE de projet : la copie
+    # livrée garde le nom amont, et c'est l'empreinte vérifiée par
+    # ``test_a_served_file_matches_its_pin`` qui la protège d'une montée.
+    assert vendor.cache_path(monte) != vendor.cache_path(ancien)
 
 
 def test_two_assets_do_not_collide() -> None:
@@ -119,8 +122,7 @@ def test_the_url_the_shell_emits_is_actually_served() -> None:
     with TestClient(app) as client:
         html = client.get("/").text
         for asset in vendor.vendored_assets():
-            if not vendor.vendored_is_available(asset):
-                continue          # non téléchargé : le shell pointe le CDN
+            # Livrés dans le paquet depuis la 0.1.0a3 : aucun n'est sauté.
             route = vendor.route_for(asset)
             assert route in html, (
                 f"{route} n'est pas dans le HTML alors que le fichier est là."

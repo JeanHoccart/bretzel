@@ -11,7 +11,7 @@ from bretzel.components import ui
 try:
     __version__ = _pkg_version("bretzel")
 except PackageNotFoundError:  # raw source tree, not installed as a distribution
-    __version__ = "0.1.0a2"
+    __version__ = "0.1.0a3"
 from bretzel.render import Language
 from bretzel.render.decorators import (
     download,

@@ -25,6 +25,19 @@ def test_new_creates_an_importable_application(tmp_path: Path, monkeypatch) -> N
     assert imported.app.config.title == "Hello"
 
 
+def test_a_new_project_installs_the_css_compiler(tmp_path: Path) -> None:
+    """A generated app depends on ``bretzel[css]``: in production it then
+    serves a stylesheet compiled once, instead of compiling in the
+    browser from a script fetched on unpkg. Bretzel itself keeps the
+    compiler optional (~40 MB), decided on 2026-10-22."""
+    import tomllib
+
+    destination = tmp_path / "hello"
+    assert main(["new", "Hello", "--directory", str(destination)]) == 0
+    project = tomllib.loads((destination / "pyproject.toml").read_text())["project"]
+    assert project["dependencies"] == ["bretzel[css]"]
+
+
 def test_generated_application_refuses_a_public_default_secret(
     tmp_path: Path, monkeypatch
 ) -> None:

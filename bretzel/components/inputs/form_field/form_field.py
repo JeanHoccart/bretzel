@@ -136,10 +136,21 @@ class FormField(Component):
         # ``required=True`` wins. Duck-typed on ``__reactive_props__`` to
         # avoid importing the concrete Input / Select / Textarea (circular).
         required = bool(self._reactive_values.get("required"))
+        # The label names its controls through ``aria-labelledby``. Its
+        # ``for=<name>`` pointed at an id no control carries (the input's
+        # id is the generated one, ``root_form_field_0_input_0``), so the
+        # label labelled NOTHING — a screen reader announced the
+        # placeholder, ``get_by_label`` found no field. Found by an
+        # outside build on 2026-10-22. ``aria-labelledby`` works on any
+        # element, and its name excludes the ``aria-hidden`` asterisk of
+        # ``required=True``, which ``<label for>`` text matching did not.
+        label_id = f"{self.id}-label" if self._reactive_values.get("label") else None
         for child in self._children:
             descriptors = getattr(type(child), "__reactive_props__", {})
             if "required" not in descriptors:
                 continue
+            if label_id is not None and "aria-labelledby" not in child._raw_attrs:
+                child._raw_attrs["aria-labelledby"] = label_id
             if required:
                 if not child._reactive_values.get("required"):
                     child._reactive_values["required"] = True
@@ -155,33 +166,43 @@ class FormField(Component):
         # ── Label ──────────────────────────────────────────────────────
         label = self._reactive_values.get("label")
         if label:
-            label_children: list[Any] = [self.emit_text_slot(label)]
-            if self._reactive_values.get("required"):
-                label_children.append(
-                    Element(
-                        tag="span",
-                        attrs={
-                            "class": slots.get("label_required", ""),
-                            "aria-hidden": "true",
-                        },
-                        children=(TextNode("*"),),
-                    )
-                )
-            label_attrs: dict[str, Any] = {"class": slots.get("label", "")}
+            label_attrs: dict[str, Any] = {"class": slots.get("label", ""), "id": label_id}
             # When the field has a ``name``, point the <label for=…> at
-            # the input id (HTML5 association — clicking the label
-            # focuses the input). The input typically uses ``name`` as
-            # the implicit id ; explicit author intent wins.
+            # it: an author who sets ``id=<name>`` on the control gets the
+            # click-to-focus of a native label. The name itself comes
+            # from ``aria-labelledby`` (cf. above).
             name = self._reactive_values.get("name")
             if name:
                 label_attrs["for"] = str(name)
-            children.append(
-                Element(
-                    tag="label",
-                    attrs=label_attrs,
-                    children=tuple(label_children),
-                )
+            label_el = Element(
+                tag="label",
+                attrs=label_attrs,
+                children=(self.emit_text_slot(label),),
             )
+            if self._reactive_values.get("required"):
+                # The asterisk sits NEXT TO the label, not inside it: inside,
+                # the label's text read "Email*" and a lookup by label text
+                # (Playwright's ``get_by_label("Email", exact=True)``, a
+                # test's most common call) found nothing.
+                children.append(
+                    Element(
+                        tag="div",
+                        attrs={"class": slots.get("label_row", "")},
+                        children=(
+                            label_el,
+                            Element(
+                                tag="span",
+                                attrs={
+                                    "class": slots.get("label_required", ""),
+                                    "aria-hidden": "true",
+                                },
+                                children=(TextNode("*"),),
+                            ),
+                        ),
+                    )
+                )
+            else:
+                children.append(label_el)
 
         # ── Children (the actual input(s)) ─────────────────────────────
         children.extend(self._render_children())

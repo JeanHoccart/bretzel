@@ -138,6 +138,25 @@ def test_mouse_drag_reorders_and_fills_the_carrier(page) -> None:
     assert move["from_zone"] == "tasks" and move["to_zone"] == "tasks"
 
 
+def test_a_single_move_past_the_threshold_still_drops(page) -> None:
+    """A quick flick — or an automation tool's ONE ``pointermove`` — used to
+    start the drag on that move and drop in the origin zone on ``pointerup``:
+    nothing reordered, nothing sent (found 2026-10-22 by an outside build
+    whose board saved no move). The move that begins the drag must also be
+    followed."""
+    assert page.evaluate(_ORDER) == "abc"
+    _pointer(page, "pointerdown", 100, 30)    # grab A
+    _pointer(page, "pointermove", 100, 100)   # ONE move, straight past B's middle
+    _pointer(page, "pointerup", 100, 100)
+    assert page.evaluate(_ORDER) == "bac", (
+        "a single move past the threshold did not move the card — a quick "
+        "flick saves nothing"
+    )
+    assert page.evaluate("() => document.getElementById('carrier').value"), (
+        "no Move payload after a single-move drag"
+    )
+
+
 def test_escape_puts_the_item_back(page) -> None:
     _pointer(page, "pointerdown", 100, 30)
     _pointer(page, "pointermove", 100, 40)

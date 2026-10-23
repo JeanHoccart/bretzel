@@ -28,7 +28,7 @@ def quickstart_page() -> None:
                 with ui.vstack(gap="sm"):
                     ui.heading("Install the public alpha", level=2, size="lg")
                     ui.text(
-                        "Bretzel 0.1.0a2 is available on PyPI. Use Python 3.12, 3.13 or 3.14; "
+                        "Bretzel 0.1.0a3 is available on PyPI. Use Python 3.12, 3.13 or 3.14; "
                         "the API may change between alpha releases.",
                         size="sm",
                     )

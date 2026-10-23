@@ -89,6 +89,10 @@ def _sources() -> tuple[Path, ...]:
         # ``runtime.js`` est le BUNDLE : il concatène ``_src/*.js``, donc
         # toute occurrence y est un doublon de sa source.
         and p.name != "runtime.js"
+        # ``render/_vendor/`` : les scripts TIERS livrés tels quels (htmx,
+        # idiomorph, iconify), empreinte épinglée. htmx parle d'``x-on:``
+        # pour ses propres raisons ; ce n'est pas notre prose.
+        and "_vendor" not in p.parts
     )
 
 

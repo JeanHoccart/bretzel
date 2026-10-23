@@ -273,12 +273,11 @@ class Bretzel:
         happened ONLY on explicit command, the CDN fallback was the rule
         for anyone unaware the command exists.
 
-        ⚠️ **Dev only.** In production, going out to the network at
-        startup would be a surprise; ``python -m bretzel.render.vendor``
-        stays the explicit path — a missing file is only ANNOUNCED at
-        startup — and it is worth even more there
-        (measured on 2026-08-27: ``DOMContentLoaded`` from 644 ms to
-        110 ms).
+        ⚠️ **Dev only.** In production the three scripts ship in the
+        wheel (``bretzel/render/_vendor/``, since 0.1.0a3), so nothing is
+        downloaded at startup; a missing one means a broken install and
+        is only ANNOUNCED. Going out to the network when a production
+        server starts would be a surprise.
 
         ⚠️ **On the threadpool**, never on the loop: these are four
         network downloads, and a slow proxy would block the worker's
@@ -296,10 +295,12 @@ class Bretzel:
             ]
             if missing:
                 print(
-                    f"[bretzel] WARN: {', '.join(missing)} not vendored — "
-                    "the pages will load them from their CDNs.\n"
-                    "[bretzel]       run ``python -m bretzel.render.vendor`` "
-                    "in the app's working directory (e.g. in the image build)."
+                    f"[bretzel] WARN: {', '.join(missing)} missing from the "
+                    "installed package — the pages will load them from their "
+                    "CDNs.\n"
+                    "[bretzel]       reinstall bretzel, or run "
+                    "``python -m bretzel.render.vendor`` in the app's working "
+                    "directory."
                 )
             return
         from bretzel.core import call_without_blocking

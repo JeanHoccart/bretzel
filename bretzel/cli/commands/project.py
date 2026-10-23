@@ -79,7 +79,9 @@ def create_project(destination: Path, *, display_name: str) -> list[Path]:
             name = "{package_name}"
             version = "0.1.0"
             requires-python = ">=3.12"
-            dependencies = ["bretzel"]
+            # [css]: the Tailwind compiler, so production serves a
+            # stylesheet compiled once instead of compiling in the browser.
+            dependencies = ["bretzel[css]"]
 
             [tool.hatch.build.targets.wheel]
             packages = ["app"]
