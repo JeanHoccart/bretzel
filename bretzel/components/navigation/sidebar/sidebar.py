@@ -415,7 +415,8 @@ class Sidebar(Component):
         # them: collapsing a rail on desktop must neither steal the
         # Escape key nor lock the page's scroll.
         if is_overlay:
-            attrs["bz-init"] = f"{_base_init}; {escape_init(open_expr)}"
+            attrs["bz-init"] = (f"{_base_init}; {escape_init(open_expr)}; "
+                                f"{_follow_closes_init(open_expr)}")
             attrs["bz-effect"] = modal_root_effect(open_expr)
 
         # ── Children layout ──────────────────────────────────────────
@@ -1467,6 +1468,23 @@ class SidebarFooterItem(MenuItem):
 # ───────────────────────────────────────────────────────────────────────────
 # Helpers
 # ───────────────────────────────────────────────────────────────────────────
+
+
+def _follow_closes_init(open_expr: str) -> str:
+    """``bz-init`` of ``overlay`` mode: following a link closes the panel.
+
+    The sidebar lives in the layout, so a partial navigation keeps it —
+    and its ``open`` — while the page changes behind it: on a phone the
+    menu stayed over the page the user had just asked for (helpdesk of
+    the comparison, 2026-10-23). A plain click on a link inside the aside
+    closes it; a modified click (new tab) leaves it open, the page does
+    not change.
+    """
+    return (
+        "$el.addEventListener('click', (e) => { "
+        "if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; "
+        f"if (e.target.closest('a[href]') && ({open_expr})) {{ {open_expr} = false; }} }})"
+    )
 
 
 def _render_backdrop(theme: dict, open_expr: str) -> Element:

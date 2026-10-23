@@ -402,8 +402,27 @@
         ((m === "system" || m === "auto") && $bz._osScheme.get() === "dark")
       );
     };
+    // The switch is INSTANT, like every other framework's: many
+    // components carry ``transition-colors`` for their hover, and those
+    // transitions also ran on the scheme change, so the page repainted in
+    // a staggered 150 ms wave (found 2026-10-23 next to seven other
+    // frameworks). Transitions are suspended for the one frame of the
+    // switch — the mechanism next-themes calls ``disableTransitionOnChange``.
     $bz.effect(function () {
-      document.documentElement.classList.toggle("dark", $bz._isDark());
+      const root = document.documentElement;
+      const dark = $bz._isDark();
+      if (root.classList.contains("dark") === dark) return;
+      const pause = document.createElement("style");
+      pause.textContent =
+        "*,*::before,*::after{transition:none!important}";
+      document.head.appendChild(pause);
+      root.classList.toggle("dark", $bz._isDark());
+      // Force the new styles to apply while transitions are off, then
+      // give transitions back on the next frame.
+      window.getComputedStyle(document.body).backgroundColor;
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { pause.remove(); });
+      });
     });
 
     // Boot scan timing — exposed as a ``performance.measure`` so the

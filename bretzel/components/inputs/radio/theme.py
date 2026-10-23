@@ -24,7 +24,7 @@ RADIO_GROUP_THEME: dict[str, Any] = {
 RADIO_THEME: dict[str, Any] = {
     "slots": {
         "root": (
-            "inline-flex items-center gap-2 group select-none cursor-pointer "
+            "inline-flex items-center align-middle gap-2 group select-none cursor-pointer "
             # Disabled visual — fully CSS-reactive via the hidden peer
             # ``<input disabled>`` descendant. Same shape as Checkbox /
             # Switch so the family stays uniform.
@@ -36,7 +36,7 @@ RADIO_THEME: dict[str, Any] = {
         ),
         "input": "peer sr-only",
         "circle": (
-            "block rounded-full border-(length:--bz-stroke) border-text/10 bg-interface "
+            "block rounded-full border-(length:--bz-stroke) border-text/25 bg-interface "
             "transition-all duration-200 ease-out "
             "peer-checked:border-(--bz-solid) peer-checked:border-(length:--bz-stroke-strong) "
             "peer-focus-visible:ring-2 peer-focus-visible:ring-(--bz-focus) "

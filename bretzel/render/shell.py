@@ -950,10 +950,11 @@ def _build_body(body_html: str, page_uuid: str, *, nav_progress: bool = True) ->
     It also sets ``text-base``: the theme's median step is the size a
     text inherits when nothing names one. ``ui.text`` and ``ui.link``
     write no size by default, nor does any plain container, and without
-    this they took the browser's 16 px — above the theme's 14, so a
-    message read larger than the heading over it. On ``<body>`` and not
-    on ``<html>``: the ``rem`` stays the browser's, so ``--spacing``
-    (``0.1875rem``) and every ``rem`` width keep their value.
+    this they took the browser's 16 px — which is the default median
+    since 2026-10-23, but not the median of a ``Theme(text=…)`` that
+    moves it, where a message would read larger than the heading over
+    it. On ``<body>`` and not on ``<html>``: the ``rem`` stays the
+    browser's, so ``--spacing`` and every ``rem`` width keep their value.
 
     Refreshable swaps ride ``hx-swap-oob="morph"`` through the
     idiomorph htmx-2 extension (``hx-ext="morph"`` on the body) ; the

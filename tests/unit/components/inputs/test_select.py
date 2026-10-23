@@ -682,10 +682,11 @@ class TestMultiMode:
         with the picked pills."""
         with render_isolated():
             out = serialize(_build_multi(value=["a"]).render())
-        # The pills template appears TWICE in multi : once inside
-        # the trigger (CLOSED visual), once in the panel header
-        # (OPEN visual). Single mode has zero.
-        assert out.count('bz-for="v in _picked() :key=v"') == 2
+        # Two pick templates in multi (single mode has zero): the
+        # panel's header carries every pick, the closed trigger only
+        # the first ("Alice Martin +3").
+        assert out.count('bz-for="v in _picked() :key=v"') == 1
+        assert out.count('bz-for="v in _picked().slice(0, 1) :key=v"') == 1
 
     def test_header_bar_absent_in_single(self) -> None:
         with render_isolated():

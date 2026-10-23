@@ -7,7 +7,7 @@ change between alpha releases.
 
 ## [Unreleased]
 
-## [0.1.0a3] - 2026-10-22
+## [0.1.0a3] - 2026-10-23
 
 ### Added
 
@@ -32,6 +32,15 @@ change between alpha releases.
   `bretzel/render/_vendor/THIRD_PARTY_LICENSES.md`.
 
 ### Changed
+
+- The default scale is Tailwind's again: a 4 px spacing step (40 px
+  controls at the default size) and text at 12 / 14 / 16 / 18 / 20 / 24 px.
+  The denser 3 px / 14 px scale made control labels sit 1.6 px above centre
+  (a fractional line height) and read cramped next to other frameworks; an
+  app that wants it writes `Theme(spacing="0.1875rem", text={…})`.
+- Corners are slightly squarer by default: 10 px for boxes (cards, panels,
+  dialogs), 8 px for fields and buttons, 4 px for small marks (checkboxes,
+  badges). Switches, radios and progress bars stay round.
 
 - An app can serve a JSON API next to its pages: a `POST`, `PUT`, `PATCH` or
   `DELETE` carrying `Authorization: Bearer <token>` is no longer subject to the
@@ -59,6 +68,20 @@ change between alpha releases.
   resolves its theme to check it (a 50-row table's update: 122 → 101 ms).
 
 ### Fixed
+
+- A multi-select re-rendered by its own `on_change` keeps showing its pills.
+  The morph recycled the first pill's node into the placeholder, and the
+  pills stayed hidden while the server held the value.
+- A checkbox, radio or switch without a label sits on the middle of its line;
+  in a table cell it stood 3 px above the row's centre. Its border is also
+  easier to see in light mode.
+- A multi-select with several picks stays on one line and reads
+  "Alice Martin +3": its pills wrapped and spilled out of the field.
+- An `overlay` sidebar closes when one of its links is followed; it stayed
+  open over the new page on a phone.
+- Switching between light and dark is instant. Each component's colour
+  transition ran on the switch too, and the page repainted in a staggered
+  wave.
 
 - `pip install 'bretzel[css]'` works: the extra required `tailwindcss`, a
   placeholder name on PyPI; it now installs `tailwindcss-bin`, the Tailwind

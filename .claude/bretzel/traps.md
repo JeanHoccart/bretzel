@@ -62,6 +62,25 @@ partiel d'un worker ne fusionnait plus sur la page rendue par un autre.
 `_extract_key` prend un condensé du `repr` ; un `int` garde son hachage, qui
 est lui-même. Gate : `test_a_loop_key_survives_a_restart.py`.
 
+### Un morph peut recycler une ligne de `bz-for`
+
+Le HTML du serveur ne porte jamais les lignes d'un `<template bz-for>` :
+idiomorph apparie par POSITION ce qui suit le gabarit, et peut recycler le
+nœud d'une ligne en un frère du serveur (la première pastille d'un select
+multiple devenait son texte d'attente). Les lignes portent `data-bz-row` ;
+au rebind, une ligne qui l'a perdu ou a changé de parent est abandonnée et
+reclonée. Test : `test_a_multi_select_keeps_its_pills_after_its_own_refresh.py`.
+
+### Une case locale garde son état à travers un refresh
+
+`ui.checkbox(checked=<littéral>, on_change=…)` tient sa valeur dans un petit
+scope (`add_local_value_scope`) que le morph conserve : c'est voulu, un
+clic ne doit pas être effacé par un refresh sans rapport. Conséquence : un
+re-rendu serveur avec `checked=False` ne décoche PAS une case que
+l'utilisateur a cochée. Pour remettre des cases à la valeur du serveur
+(« tout désélectionner »), changer leur identité (`id=` qui inclut un
+compteur), ou lier `checked=` à un champ d'état serveur.
+
 ### Custom elements et morph
 
 Le morph peut remplacer les enfants gérés par un custom element. Le composant
@@ -172,6 +191,16 @@ charge de cette identité. Une méthode dont le nom collisionne avec une
 atteignable. Le carrier doit porter l'action, la valeur et le déclencheur
 attendu, notamment pour `change`, `focus` et `blur`.
 
+### Une barre `overlay` survit à la navigation qu'elle déclenche
+
+La barre vit dans le layout : un lien remplace l'outlet et garde l'aside,
+`open` compris. Sur téléphone, le menu restait ouvert par-dessus la page
+demandée. Le mode `overlay` ferme la barre au clic simple sur un lien
+qu'elle contient. Pour le tester, ouvrir la page DIRECTEMENT à 390 px
+(`browser_page(..., viewport=(390, 844))`) : redimensionner après le
+chargement fait suivre le lien en navigation complète, qui ferme la barre
+par accident et rend le test aveugle.
+
 ## Thème et mise en page
 
 ### L'ordre dans `class=` ne tranche pas un conflit Tailwind
@@ -278,6 +307,24 @@ centrer la page avec `mx-auto`.
 
 `w-full` consomme toute la ligne. Pour une barre qui doit se replier, donner au
 champ une base et `grow`, ou changer explicitement de structure au breakpoint.
+
+### Un contrôle `inline-flex` sans texte se pose sur la ligne de base
+
+Une case, un radio ou un interrupteur sans libellé n'a pas de texte : sa
+ligne de base est le BAS de la boîte, et le `vertical-align: baseline`
+par défaut la pose sur la ligne de base du texte voisin. Dans une cellule
+de tableau, la case restait 3 px au-dessus du milieu de la ligne. Le
+`<label>` racine porte `align-middle` ; gardé par
+`tests/consistency/test_a_checkable_control_sits_mid_line.py`.
+
+### Un champ à hauteur fixe ne peut pas faire passer des pastilles à la ligne
+
+Le déclencheur d'un `ui.select(multiple=True)` a une hauteur fixe (`h-8`
+en `sm`). Ses pastilles passaient à la ligne et débordaient au-dessus et
+au-dessous de la boîte. Il affiche maintenant « Alice Martin +3 » sur une
+ligne ; les pastilles supprimables vivent dans l'en-tête du panneau. Le
+combobox, lui, grandit (`min-h-*`) : c'est l'autre réponse, à ne pas
+mélanger dans un même champ.
 
 ## Handlers, serveur et sécurité
 

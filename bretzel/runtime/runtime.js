@@ -402,8 +402,27 @@
         ((m === "system" || m === "auto") && $bz._osScheme.get() === "dark")
       );
     };
+    // The switch is INSTANT, like every other framework's: many
+    // components carry ``transition-colors`` for their hover, and those
+    // transitions also ran on the scheme change, so the page repainted in
+    // a staggered 150 ms wave (found 2026-10-23 next to seven other
+    // frameworks). Transitions are suspended for the one frame of the
+    // switch — the mechanism next-themes calls ``disableTransitionOnChange``.
     $bz.effect(function () {
-      document.documentElement.classList.toggle("dark", $bz._isDark());
+      const root = document.documentElement;
+      const dark = $bz._isDark();
+      if (root.classList.contains("dark") === dark) return;
+      const pause = document.createElement("style");
+      pause.textContent =
+        "*,*::before,*::after{transition:none!important}";
+      document.head.appendChild(pause);
+      root.classList.toggle("dark", $bz._isDark());
+      // Force the new styles to apply while transitions are off, then
+      // give transitions back on the next frame.
+      window.getComputedStyle(document.body).backgroundColor;
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { pause.remove(); });
+      });
     });
 
     // Boot scan timing — exposed as a ``performance.measure`` so the
@@ -1102,6 +1121,11 @@
   }
 
   // ── Structural : bz-for (on a <template>, single root child) ──────
+  //: Set on every row a bz-for clones. The server's HTML never has it, so
+  //: a morph that recycles a row into a server node strips it — which is
+  //: how a rebind tells a row from a node that only sits where one was.
+  const ROW_MARK = "data-bz-row";
+
   function bindFor(template) {
     let raw = template.getAttribute("bz-for");
     // ``:flip`` — optional trailing flag that opts the loop into FLIP reflow
@@ -1128,6 +1152,26 @@
       // Rebind after morph : rows are keyed in the Map, effect below
       // reconciles against it — dispose the old effect first.
       disposeEl(template);
+      // The server's HTML never carries the rows, so idiomorph matches
+      // them by POSITION against what follows the template — and may
+      // RECYCLE a row's node into a server sibling (a multi-select's
+      // first pill became its "Priority" placeholder: same node, row
+      // marker gone, hidden by its bz-show). The Map then held a
+      // connected node that was no longer a row, and the pill never
+      // came back (found 2026-10-23 on a filter re-rendered by its own
+      // action). A row that lost its marker, or left the template's
+      // parent, now belongs to the server's HTML: drop its stale
+      // bindings (the scan rebinds it as what it has become) and let the
+      // effect clone a fresh row.
+      for (const [key, row] of Array.from(template._bzForRows.entries())) {
+        const kept = row.node.isConnected
+          && row.node.hasAttribute(ROW_MARK)
+          && row.node.parentNode === template.parentNode;
+        if (!kept) {
+          disposeTree(row.node);
+          template._bzForRows.delete(key);
+        }
+      }
     }
     const rows = (template._bzForRows = template._bzForRows || new Map());
     const scope = $bz._scopeFor(template.parentElement || document.body);
@@ -1171,6 +1215,7 @@
         let row = rows.get(key);
         if (!row) {
           const node = content.cloneNode(true);
+          node.setAttribute(ROW_MARK, "");
           const itemScope = $bz._makeItemScope(scope, { [varName]: item, $index: index });
           node._bzItemScope = itemScope;
           row = { node: node, scope: itemScope };

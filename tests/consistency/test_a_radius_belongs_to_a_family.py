@@ -197,9 +197,11 @@ def test_the_three_variables_reach_the_stylesheet() -> None:
 
 def test_a_theme_can_move_a_whole_family() -> None:
     """Ce que le cloisonnement ACHÈTE, vérifié plutôt que promis."""
+    from bretzel.theme.tokens import DEFAULT_SHAPE
+
     css = Theme(shape={"box": "2rem"}).generate_css()
     assert "--radius-box: 2rem;" in css
-    assert "--radius-field: 0.75rem;" in css, (
+    assert f"--radius-field: {DEFAULT_SHAPE['field']};" in css, (
         "bouger `box` a bougé `field` : les familles ne sont pas "
         "indépendantes, donc elles ne cloisonnent rien."
     )

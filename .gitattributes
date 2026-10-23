@@ -1,0 +1,6 @@
+# The vendored scripts are pinned by their SHA-256
+# (bretzel/render/vendor.py). A Windows checkout with core.autocrlf
+# rewrote the ones that hold newlines in CRLF, and the bytes no longer
+# matched their pin: tests/consistency/test_vendored_scripts_stay_pinned.py
+# failed on every Windows CI job of 0.1.0a3. Their bytes stay as committed.
+bretzel/render/_vendor/** -text

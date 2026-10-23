@@ -147,8 +147,9 @@ class TestComposer:
         assert "@theme {" in out
         # Autofill fix.
         assert "input:-webkit-autofill" in out
-        # Transitions.
-        assert "transition:" in out
+        # No colour transition on :root: a scheme switch is instant
+        # (the runtime suspends transitions for that frame, 2026-10-23).
+        assert ":root, .dark {\n  transition" not in out
         # Selection highlight tints with --color-text (neutral, OS-like)
         # and overrides autofilled inputs whose box-shadow would
         # otherwise hide the normal ::selection background.

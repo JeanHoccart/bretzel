@@ -261,10 +261,9 @@ def check(module: Module) -> list[Finding]:
                     "breaks the invariant without raising anything "
                     "(measured: four field heights on one screen). Rather "
                     "than lengthening the list, move the scale's BASE: "
-                    'Theme(spacing="0.1875rem"). Tailwind\'s whole scale '
-                    "derives from it, so nothing can be forgotten — and "
-                    "the shipped default is already a tool's, so a table "
-                    "that only tightens may have become useless."
+                    'Theme(spacing="0.1875rem") for a dense tool. '
+                    "Tailwind's whole scale derives from it, so nothing "
+                    "can be forgotten."
                 ),
             )
         )

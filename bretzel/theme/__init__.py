@@ -441,11 +441,10 @@ def _merge_shape(
 def _merge_spacing(base: str | None, override: str | None) -> str:
     """The spacing step: a string, and it may stay absent.
 
-    Absent, it is :data:`DEFAULT_SPACING` that comes out — Bretzel
-    CHOOSES its scale instead of inheriting Tailwind's, which targets
-    pages. That is the opposite of the fonts' rule, and the difference is
-    clean: copying an upstream value can only diverge from it, choosing
-    one says something.
+    Absent, it is :data:`DEFAULT_SPACING` that comes out — Tailwind's
+    value since 2026-10-23, written down so the emitted ``@theme`` is
+    explicit and a ``Theme(text=…)`` override has a full scale to merge
+    onto.
 
     A CSS length and not a number, for the reason that already holds for
     the stroke: the value can be ``3px``, ``0.1875rem`` or ``0.2em``, and
@@ -457,9 +456,9 @@ def _merge_spacing(base: str | None, override: str | None) -> str:
     if not isinstance(override, str) or not override.strip():
         raise ThemeError(
             f"Theme(spacing={override!r}): expected a non-empty CSS "
-            f'length, for example "0.1875rem" (3 px, the shipped default) '
-            f'or "0.25rem" (Tailwind\'s, that is to say a document '
-            f"scale). To leave it alone, omit the keyword."
+            f'length, for example "0.25rem" (4 px, the shipped default, '
+            f'Tailwind\'s) or "0.1875rem" (3 px, a dense tool scale). '
+            f"To leave it alone, omit the keyword."
         )
     return override.strip()
 

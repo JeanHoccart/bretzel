@@ -106,11 +106,16 @@ SELECT_THEME: dict[str, Any] = {
         # from :data:`BADGE_THEME` via ``_badge_pill_classes()`` in
         # ``combobox.combobox`` — single source of truth across pickers.
         # Pills row INSIDE the trigger — used in multi mode CLOSED
-        # state. ``flex-1 min-w-0`` so pills wrap correctly while
-        # keeping the chevron + clear button to the right.
+        # state. ONE line: the trigger has a fixed height, and wrapped
+        # pills spilled out of it (four assignees in a toolbar filter,
+        # 2026-10-23). It reads "Alice Martin +3": ``pills_first`` (the
+        # first pick, plain text, truncated if it must) then
+        # ``pills_more``. The removable pills live in the panel's header.
         "pills_row": (
-            "flex flex-wrap items-center gap-1 flex-1 min-w-0"
+            "flex flex-nowrap items-center gap-1.5 flex-1 min-w-0 overflow-hidden"
         ),
+        "pills_first": "min-w-0 truncate text-text",
+        "pills_more": "shrink-0 text-muted tabular-nums",
         # Unified header bar at the top of the panel : counter +
         # pills + bulk actions. Sticky so it survives scroll.
         "header_bar": (

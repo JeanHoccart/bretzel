@@ -77,9 +77,7 @@ from bretzel.components.base._wiring import (
 )
 from bretzel.components.feedback.badge.theme import BADGE_THEME
 from bretzel.components.inputs._picker import (
-    badge_pill_classes,
     build_header_bar,
-    build_pills_template,
     has_picks,
     normalise_option,
     option_body,
@@ -491,17 +489,36 @@ class Select(Component):
                     "disabled", trigger_attrs, as_attr="aria-disabled",
                 )
 
-            # Pills row : <template bz-for> over picked values +
-            # placeholder span when no picks.
-            # Pill styling sourced from BADGE_THEME (mirroring
-            # Combobox) so a Badge theme tweak propagates here.
-            badge_pill_class, badge_remove_class = badge_pill_classes(
-                _resolve, size=size_map.get("pill_size", "sm"),
-                badge_theme=self._resolved_theme("badge", BADGE_THEME),
+            # One line, whatever the number of picks: "Alice Martin +3".
+            # The first pick as plain text, then the count — the trigger
+            # keeps its height in a toolbar. The removable pills are in
+            # the panel's header bar; the trigger's own × clears all.
+            pills_template = Element(
+                tag="template",
+                attrs={"bz-for": "v in _picked().slice(0, 1) :key=v"},
+                children=(Element(
+                    tag="span",
+                    attrs={"class": slots.get("pills_first", ""),
+                           "bz-text": "_labelOf(v) || v"},
+                    children=(),
+                ),),
             )
-            pills_template = build_pills_template(
-                pill_class=badge_pill_class,
-                remove_class=badge_remove_class,
+            n_picked = (len(initial_value)
+                        if isinstance(initial_value, (list, tuple, set)) else 0)
+            more_attrs: dict[str, Any] = {
+                "class": slots.get("pills_more", ""),
+                "bz-show": "_picked().length > 1",
+                "bz-text": "'+' + (_picked().length - 1)",
+                "bz-attr:title": (
+                    "_picked().slice(1).map(v => _labelOf(v) || v).join(', ')"
+                ),
+            }
+            if n_picked <= 1:
+                stamp_display_none(more_attrs)
+            more_span = Element(
+                tag="span",
+                attrs=more_attrs,
+                children=(TextNode(f"+{n_picked - 1}"),) if n_picked > 1 else (),
             )
             placeholder_span_attrs: dict[str, Any] = {
                 "class": (
@@ -520,7 +537,7 @@ class Select(Component):
             pills_row = Element(
                 tag="div",
                 attrs={"class": slots.get("pills_row", "")},
-                children=(pills_template, placeholder_span),
+                children=(pills_template, more_span, placeholder_span),
             )
             clear_attrs: dict[str, Any] = {
                 "type": "button",

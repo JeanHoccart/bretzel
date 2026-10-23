@@ -98,6 +98,23 @@ FONT_SLOT_NAMES: Final[tuple[str, ...]] = ("sans", "serif", "mono")
 # The scale — its BASE, not a multiplier
 # ───────────────────────────────────────────────────────────────────────────
 #
+# ⚠️ **Since 2026-10-23 the shipped base IS Tailwind's again** (4 px step,
+# 12/14/16/18/20/24 text). Jean's decision, on three variants of the same
+# form rendered side by side. The 3 px / 14 px tool scale chosen on
+# 2026-09-13 (history below) had two measured costs:
+#
+# - next to seven other frameworks rendering the same helpdesk
+#   (python-ui-shootout), Bretzel read cramped — 30 px fields, 13 px
+#   control text — where the others sit at 36 to 40 px;
+# - its 13 px text has a FRACTIONAL line height (18.57 px, Tailwind's
+#   ratio applied to a size it was not drawn for): a button's label sat
+#   1.6 px above centre (6.7 px above it, 8.3 below, measured in
+#   Chromium). Tailwind's steps all land on integer line heights; the
+#   same button at 40 px reads 12 / 12.
+#
+# The mechanism below is unchanged: an app that wants the dense tool
+# scale takes it back with ``Theme(spacing="0.1875rem", text={…})``.
+#
 # Two tokens, and they are Tailwind v4's: ``--spacing``, the unit every
 # spacing utility derives from (``h-10`` is
 # ``calc(var(--spacing) * 10)``, like ``p-4``, ``gap-2`` and ``w-6``), and
@@ -122,10 +139,10 @@ FONT_SLOT_NAMES: Final[tuple[str, ...]] = ("sans", "serif", "mono")
 # scale, not a new axis*. That is what is here. ``size=`` still picks a
 # step; the theme decides which scale.
 #
-# An app wanting a DOCUMENT's scale takes it back through the same door:
-# ``Theme(spacing="0.25rem", text={"base": "16px", …})``. There is no
-# preset for it — that would be a second name for Tailwind's values,
-# hence the upstream duplicate we have just set aside.
+# Since 2026-10-23 the default IS the document scale (cf. the warning at
+# the top of this section); an app wanting the dense tool scale writes
+# ``Theme(spacing="0.1875rem", text={"xs": "11px", "sm": "13px",
+# "base": "14px", …})`` — the 2026-09-13 values, still a valid choice.
 #
 # The need came up twice, measured: ``examples/kanban`` then
 # ``examples/ecole`` each rewrote the same correction — the first by
@@ -150,14 +167,14 @@ FONT_SLOT_NAMES: Final[tuple[str, ...]] = ("sans", "serif", "mono")
 #: on ``examples/ecole``: 31 px on one side, 33 on the other, for fields
 #: nothing distinguishes in the code. At 3 px, every notch lands on an
 #: integer.
-DEFAULT_SPACING: Final[str] = "0.1875rem"
+DEFAULT_SPACING: Final[str] = "0.25rem"
 
 #: The same step in PIXELS, for apps that must CALCULATE — the height of
 #: an N-hour block in a grid is made of a number of notches, and a
 #: Tailwind class cannot add up (cf.
 #: ``examples/ecole/features/emploi_du_temps.py``). Two authorities over
 #: one quantity do not compose: their agreement is gated.
-DEFAULT_SPACING_PX: Final[int] = 3
+DEFAULT_SPACING_PX: Final[int] = 4
 
 #: The shipped text steps — one notch below Tailwind's
 #: (12/14/16/18/20/24), which is the measurement two apps had found
@@ -177,16 +194,16 @@ DEFAULT_SPACING_PX: Final[int] = 3
 #: authorities that do not compose. A BOX measured in notches and a GLYPH
 #: measured in text steps must move together.
 DEFAULT_TEXT: Final[dict[str, str]] = {
-    "xs": "11px",
-    "sm": "13px",
-    "base": "14px",
-    "lg": "16px",
-    "xl": "18px",
-    "2xl": "22px",
-    "3xl": "27px",
-    "4xl": "32px",
-    "5xl": "43px",
-    "6xl": "54px",
+    "xs": "12px",
+    "sm": "14px",
+    "base": "16px",
+    "lg": "18px",
+    "xl": "20px",
+    "2xl": "24px",
+    "3xl": "30px",
+    "4xl": "36px",
+    "5xl": "48px",
+    "6xl": "60px",
 }
 
 #: The ``--text-*`` steps, that is to say the ones Tailwind v4 defines.
@@ -255,11 +272,12 @@ TEXT_SLOT_NAMES: Final[tuple[str, ...]] = (
 #:   (checkbox, badge, clear cross, dot).
 SHAPE_SLOT_NAMES: Final[tuple[str, ...]] = ("box", "field", "selector")
 
-#: The starting values. Chosen to be the ones most slots already
-#: carried: 12 px is ``rounded-xl``, which 46 slots wrote; 6 px is
-#: ``rounded-md``, the checkbox's and the badge's. The regrouping moves
-#: 26 slots out of 96, all by 6 px at most — the census is in the commit
-#: message.
+#: The starting values were 12 / 12 / 6 px (the ones most slots carried
+#: when the families were cut, 2026-08-30). On 2026-10-23 they became
+#: 10 / 8 / 4 px, Jean's call: "slightly squarer by default". On a 30 px
+#: field, 12 px of radius read as a pill everywhere; 8 px on 40 px reads
+#: as a rounded rectangle. ``rounded-full`` slots are untouched (cf.
+#: above: their roundness is their shape).
 #: The stroke width, and its two derived steps.
 #:
 #: **One single setting**, unlike the radius: the market is unanimous
@@ -285,9 +303,9 @@ SHAPE_SLOT_NAMES: Final[tuple[str, ...]] = ("box", "field", "selector")
 DEFAULT_STROKE: Final[str] = "1px"
 
 DEFAULT_SHAPE: Final[dict[str, str]] = {
-    "box": "0.75rem",
-    "field": "0.75rem",
-    "selector": "0.375rem",
+    "box": "0.625rem",
+    "field": "0.5rem",
+    "selector": "0.25rem",
 }
 
 

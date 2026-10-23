@@ -210,19 +210,6 @@ _BODY_FILLS_THE_WINDOW = """\
 """
 
 
-# Tiny smoothing rule so toggling the ``.dark`` class doesn't snap.
-# 150ms feels alive without leaving ghost frames during fast clicks.
-_THEME_TRANSITIONS = """\
-/* theme transitions — smooth toggle of the .dark class */
-:root, .dark {
-  transition:
-    background-color 150ms ease,
-    color 150ms ease,
-    border-color 150ms ease;
-}
-"""
-
-
 # Signal to the browser which scheme its **native widgets** should
 # render in : autofill / password-manager preview borders, native
 # scrollbars, OS-painted selection, the autofill yellow flash. Without
@@ -523,7 +510,6 @@ def generate_theme_css_full(
         _AUTOFILL_FIX,
         _BUTTON_CURSOR,
         _BODY_FILLS_THE_WINDOW,
-        _THEME_TRANSITIONS,
         _COLOR_SCHEME,
         _SELECTION,
         _RAIL_SCROLL,

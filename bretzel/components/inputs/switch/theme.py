@@ -22,7 +22,7 @@ SWITCH_THEME: dict[str, Any] = {
     "slots": {
         "root": (
             "bz-switch "
-            "inline-flex items-center gap-3 group select-none cursor-pointer "
+            "inline-flex items-center align-middle gap-3 group select-none cursor-pointer "
             # Disabled visual — fully CSS-reactive via the hidden peer
             # ``<input disabled>`` descendant. Same shape as Checkbox /
             # Radio so the family stays uniform.

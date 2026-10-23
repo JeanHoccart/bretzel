@@ -23,7 +23,7 @@ CHECKBOX_THEME: dict[str, Any] = {
     "slots": {
         "root": (
             "bz-checkbox "
-            "inline-flex items-center gap-2 group select-none cursor-pointer "
+            "inline-flex items-center align-middle gap-2 group select-none cursor-pointer "
             # Disabled visual — same pair as the rest of the family.
             # ``has-[:disabled]:`` keys off the hidden ``peer sr-only``
             # ``<input disabled>`` descendant so the toggle is fully
@@ -42,7 +42,7 @@ CHECKBOX_THEME: dict[str, Any] = {
         # ``peer-*`` modifier stack.
         "input": "peer sr-only",
         "box": (
-            "block rounded-selector border-(length:--bz-stroke) border-text/10 bg-interface "
+            "block rounded-selector border-(length:--bz-stroke) border-text/25 bg-interface "
             "transition-all duration-200 ease-out "
             "peer-checked:bg-(--bz-solid) peer-checked:border-(--bz-solid) "
             "peer-focus-visible:ring-2 peer-focus-visible:ring-(--bz-focus) "
