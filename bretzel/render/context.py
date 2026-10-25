@@ -253,6 +253,14 @@ class RenderContext:
     # to emit OOB swap fragments.
     refresh_queue: list[Any] = field(default_factory=list)
 
+    #: Queued zones refreshed for some ROWS only — ``refresh(zone,
+    #: rows=[…])`` — by zone id, the keys as strings. A zone queued
+    #: whole is absent: a whole refresh wins over rows.
+    zone_rows: dict[str, set[str]] = field(default_factory=dict)
+    #: While a zone renders for some rows: the keys, and what each keyed
+    #: ``ui.table`` files (``render/zone_diff.RowsOnly``).
+    rows_only: Any = None
+
     # ASYNC ``@refreshable`` zones whose body is still to be awaited.
     #
     # A zone is called ``zone()``, with no ``await``, including when its
@@ -273,6 +281,13 @@ class RenderContext:
     # Drained in a LOOP: an async zone can call another, which is added
     # here while we await the first.
     pending_async_zones: list[Any] = field(default_factory=list)
+
+    # The signals to other tabs that a broadcast state changed, held back
+    # by an action until its state is COMMITTED (``routing/actions.py``).
+    # Sent at once, they raced the write: another tab asked again after
+    # its 40 ms window, before the action had rendered and committed, read
+    # the old value, and never saw the change. ``None``: send at once.
+    deferred_broadcasts: list[Callable[[], None]] | None = None
 
     # Toast notifications queued by ``ui.notification(...)`` during the
     # request. Drained by the partial-renderer at end-of-action: they go

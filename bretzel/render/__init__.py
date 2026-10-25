@@ -64,6 +64,7 @@ from bretzel.render.vendor import (
     vendored_is_available,
     vendored_local_path,
 )
+from bretzel.render.zone_diff import RowReport, ZoneMaps
 
 __all__ = [
     # Context
@@ -76,6 +77,8 @@ __all__ = [
     "render_partial",
     "drain_refresh_queue",
     "RenderResult",
+    "ZoneMaps",
+    "RowReport",
     # Document assembly
     "default_shell",
     "shell_sources",

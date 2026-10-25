@@ -263,7 +263,7 @@ Dans `tests/unit/components/<group>/<name>/` :
 
 - structure du render (tags, classes clés, refs, carriers) ;
 - chaque axe `size=`/`color=`/`variant=` produit des classes distinctes ;
-- `value`/`checked`/`open` two-way : `bz-model` émis, `_serverSync` gated ;
+- `value`/`checked`/`open` two-way : `bz-model` émis, `_serverSync` gated (re-adopté à CHAQUE swap ; sans lui, le runtime re-adopte quand la valeur rendue a changé — `resyncScopes`) ;
 - un binding sur une prop **hors** `BINDABLE_PROPS` lève
   `ComponentUsageError` ;
 - chaque event a son affordance de dispatch ;

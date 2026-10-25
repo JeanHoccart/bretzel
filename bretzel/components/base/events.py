@@ -36,6 +36,7 @@ from typing import Any
 from bretzel.components.base.attrs import (
     EVENT_PATTERN,
     ComponentDefinitionError,
+    ComponentUsageError,
 )
 from bretzel.runtime.protocol import (
     BZ_ON_PREFIX,
@@ -167,6 +168,28 @@ def encode_handler_id(handler: Callable[..., Any]) -> str:
 def client_event_attr(event: str) -> str:
     """Attribute name for a client-only handler : ``bz-on:<event>``."""
     return f"{BZ_ON_PREFIX}{event}"
+
+
+def auto_busy(owner: str, value: Any, *, declared: bool) -> bool:
+    """Whether the runtime may show this component's triggers as busy
+    (:data:`~bretzel.runtime.protocol.DATA_BZ_BUSY`, ``05_bridge.js``)
+    while their request is unanswered — the default.
+
+    ``loading=False`` turns it off. A component that declares ``loading``
+    itself (a button, which draws its own spinner) keeps it only while
+    ``loading`` is left at its default: ``True`` or a binding means the
+    component shows the state on its own, and a second one would double it.
+    """
+    if declared or value is None:
+        return value is None
+    if value is False:
+        return False
+    raise ComponentUsageError(
+        f"{owner}(loading={value!r}): only ``loading=False`` is accepted here — "
+        "it turns off the busy state the runtime shows on its own while an "
+        "action is unanswered. To show a loading state yourself, use "
+        "``visible=ui.pending(...)`` on what should appear."
+    )
 
 
 def action_attrs(

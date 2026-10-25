@@ -806,55 +806,6 @@ _PROBES: dict[str, _Probe] = {
             "« centrées » qui ne l'étaient pas. La règle est un cliquet."
         ),
     ),
-    "state-lost-by-a-cast": _Probe(
-        faulty=textwrap.dedent(
-            """
-            from bretzel import ui
-
-            def page(draft, prefs):
-                ui.stepper(value=int(draft.etape))
-                ui.input(value=str(prefs["nom"]))
-                ui.calendar(month=draft.jour or draft.fin)
-                ui.input(value=f"{draft.nom}")
-            """
-        ).strip(),
-        must_flag=("draft.etape", "prefs['nom']", "draft.jour", "draft.nom"),
-        # Les formes qui RESSEMBLENT a la faute et n'en sont pas : la
-        # valeur nue (ce qu'il faut ecrire), un litteral assume, un cast
-        # sur un slot de TEXTE (aucun signal client a re-adopter), un cast
-        # qui n'enveloppe aucune lecture d'etat.
-        #
-        # Les trois dernieres gardent l'ELARGISSEMENT du 2026-08-30 : un
-        # `or` entre litteraux n'efface aucune provenance, une f-string
-        # sans lecture d'etat non plus, et l'ARITHMETIQUE reste dehors
-        # volontairement — ses trois sites du depot portent tous sur des
-        # litteraux (`'A' * 200`), et elargir jusque-la serait bruyant.
-        legitimate=textwrap.dedent(
-            """
-            from bretzel import ui
-
-            def page(draft):
-                ui.tabs(value=draft.onglet)
-                ui.stepper(value=2)
-                ui.badge(label=str(draft.n))
-                ui.text(content=str(draft.n))
-                ui.stepper(value=int(3))
-                ui.calendar(month="2026-01" or "2026-02")
-                ui.input(value=f"fixe")
-                ui.badge(label=draft.nom or "anonyme")
-            """
-        ).strip(),
-        zero_on_corpus=True,
-        why=(
-            "Les quatre sites du depot ont ete corriges le 2026-08-25 : "
-            "le stepper de l'ecran d'import du CRM et les trois entrees "
-            "de la page slider du playground. La regle est un cliquet. "
-            "Elargie aux `BoolOp` et `JoinedStr` le 2026-08-30 : UN site "
-            "de plus sur 384 fichiers, zero faux positif — le `month=jour "
-            "or fin` de l'agenda du CRM, ou l'estampille survivait quand "
-            "le jour etait rempli et disparaissait quand il etait vide."
-        ),
-    ),
 }
 
 #: Règles antérieures au cliquet, sans sonde. Égalité stricte : une entrée

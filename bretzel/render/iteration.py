@@ -53,6 +53,12 @@ def current_iteration_key() -> str | None:
     return "_".join(stack)
 
 
+def iteration_key_for(key: Any) -> str:
+    """The joined key an ``each`` loop running here would give the item
+    keyed ``key`` — the id of a row that is not in the list any more."""
+    return "_".join((*_KEY_STACK.get(), str(key)))
+
+
 @contextmanager
 def key_segment(segment: str) -> Iterator[None]:
     """Push an identity segment onto the stack, outside any loop.

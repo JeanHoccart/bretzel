@@ -279,6 +279,119 @@ elle peut être conditionnelle. Deux zones **sœurs** gardent chacune la
 sienne. Gaté par
 `tests/integration/test_a_nested_zone_ships_once.py`.
 
+### `refresh(zone, rows=[…])` — une ligne, pas le tableau
+
+```python
+@refreshable(deps=[ListView], broadcast=[TableChanged])
+def ticket_table() -> None:
+    ui.table(columns=COLUMNS, rows=db.list_tickets(filters()), row_key="id")
+
+
+def save_status(status: str = "") -> None:
+    db.update_ticket(Panel().ticket, me(), {"status": status})
+    refresh(ticket_table, rows=[Panel().ticket])
+```
+
+La zone est ré-exécutée (requête et construction du `ui.table` : ~1 ms),
+mais le `ui.table` à `row_key` ne rend que les lignes listées, et seules
+elles partent. Mesuré le 2026-10-23 sur le helpdesk : le tableau de 50
+lignes coûtait 64 ms pour une ligne changée.
+
+- **Ce que le framework fait seul** : une ligne toujours listée repart
+  seule ; une ligne sortie de la liste est retirée (`hx-swap-oob="delete"`).
+  Une ligne nouvelle, un nouvel ordre, une liste vide, un tableau sans
+  `row_key` ou une copie client inconnue : la zone repart entière. Ce que
+  tient le client, il le sait par le cache d'empreintes (`zone_diff.row_patch`).
+- **Les autres onglets** : sur une zone `broadcast`, le signal devient un
+  événement SSE `zone-rows` (zone + clés), et chaque onglet refetch
+  `?rows=[…]`.
+- **Une zone que la page n'affiche pas** (le panneau ouvert depuis le
+  Board) n'est pas rendue pour ses lignes — elle partirait entière pour
+  rien, le client n'en présentant aucune empreinte —, mais le signal part
+  quand même aux autres onglets. C'est le filtre d'`enqueue_deps`.
+- **Un rafraîchissement entier gagne** : si la même action change un
+  `deps` de la zone (ou appelle `refresh(zone)`), elle repart entière.
+  ⚠️ D'où la seule discipline à tenir : les `deps` d'un tableau rafraîchi
+  par lignes disent ce qui change sa STRUCTURE (filtres, tri, ajout,
+  suppression de masse), pas « quelque chose a été écrit ». Un compteur de
+  révision global dans ses `deps` le ferait repartir entier à chaque
+  écriture.
+- **Le contrat** : le rendu d'une ligne dépend de ses données et de ce qui
+  rafraîchit déjà le tableau entier. Sinon, la ligne reste périmée jusqu'au
+  rafraîchissement suivant, sans erreur — le risque de toute API explicite
+  (Turbo Streams, les streams de LiveView).
+
+Gaté par `tests/unit/render/test_refresh_rows.py`,
+`tests/integration/server/test_refresh_one_row.py` et, en navigateur à deux
+onglets, `tests/runtime_js/test_refresh_one_row.py`.
+
+### Une zone n'expédie que ce qui a changé
+
+Une zone rafraîchie ne repart plus entière : le serveur n'envoie que les
+éléments à `id` dont le contenu a changé, chacun en morph hors bande de son
+homonyme. Mesuré le 2026-10-23 sur le helpdesk du comparatif : un changement
+de statut passait de 18,6 Ko gzip (quatre zones entières) à 6,3 Ko.
+
+- **Le principe** (`render/zone_diff.py`) : chaque élément identifié a deux
+  empreintes. *whole* couvre tout le sous-arbre ; *own* couvre la même chose,
+  mais chaque descendant identifié n'y compte que par son `id`. Même *whole* :
+  rien à envoyer. Même *own* : la différence est plus bas, on descend. Sinon,
+  on envoie l'élément. Si la racine de la zone change de squelette, la zone
+  repart entière.
+- **Qui porte quoi** : l'empreinte de la zone vit SUR la zone
+  (`data-bz-h`), posée par le serveur à chaque rendu entier (page,
+  navigation partielle, zone expédiée entière), et remplacée par le runtime
+  depuis `X-Bretzel-Zone-Hashes` après un patch. Le serveur garde les
+  empreintes des éléments des versions récentes (`app.zone_maps`, LRU borné
+  à 100 000 éléments), indexées par l'empreinte de zone. Une empreinte
+  inconnue (évincée, autre worker, redémarrage) fait repartir la zone
+  entière : jamais un silence à tort.
+- **Ce qu'une empreinte ignore** : `data-bz-sig` (fonction des autres
+  attributs), `hx-swap-oob` (transport) et `data-bz-ts`, sauf pour une action
+  `@idempotent` (son horodatage est la clé de dédoublonnage, un bouton
+  re-rendu en reçoit un neuf) et, avec `action_max_age`, par demi-fenêtre
+  (l'élément repart avant l'expiration de sa signature). Compté, `data-bz-ts`
+  faisait paraître changé tout élément cliquable une seconde plus tard : le
+  silence des zones inchangées ne marchait que dans la même seconde.
+- **Réponses croisées** : une action et un refetch SSE partis avec la même
+  empreinte peuvent chacun patcher la zone. La réponse nomme sa base
+  (`X-Bretzel-Zone-Bases`) ; le runtime n'adopte la nouvelle empreinte que
+  s'il tient encore cette base, sinon il l'oublie, et l'échange suivant
+  renvoie la zone entière.
+- **Les éléments de tableau** (`tr`, `td`, `tbody`…) partent dans un
+  `<template>` : seuls en tête de réponse, l'analyseur HTML les jette.
+
+**Les éléments sans `id`** (2026-10-23) : un élément est adressé par son
+`id`, sinon par sa POSITION sous son parent (`ZonePrint.place`) — feuilles
+comprises : les laisser partir avec leur parent a été essayé et mesuré, le
+parent est souvent une grosse ligne (6,3 → 7,6 Ko sur un changement de
+statut). Un élément sans `id` qui change part seul, dans un
+`<bz-at zone anchor path shape>` ajouté hors bande au puits (`#bz-sink`) ;
+le runtime marche jusqu'à lui en sautant ce qu'il a inséré lui-même (lignes
+`bz-for`, montages `bz-if` : `data-bz-row` ; le serveur ne compte pas les
+`bz-if` non plus), vérifie à chaque pas l'**empreinte des enfants**
+(`shape_of`, djb2 des balises — une balise seule ne distingue pas deux
+`<span>` ; la balise d'un enfant entre dans l'empreinte propre du parent,
+qui part donc si elle change), puis le morphe. Un pas qui ne tombe pas
+oublie l'empreinte de la zone (le contrôle de base de `_adoptZoneHashes` la
+garde oubliée) et redemande aussitôt une zone abonnée ; une autre zone
+repart entière à l'échange suivant. Pas de marche par position sous un
+parent qui contient du HTML brut, ni dans un `<template>`, un `<svg>`, un
+`<math>` ou un élément personnalisé (qui construit son contenu lui-même) —
+un `id` y reste adressable. Mesuré sur le helpdesk : un changement de
+statut **8,9 → 3,9 Ko** gzip — le panneau du ticket, sans `id` à
+l'intérieur, partait entier.
+
+**Mesurer** : en `debug`, la réponse porte `Server-Timing` avec le temps de
+rendu de chaque zone (`zone_<fonction>;dur=…`), visible dans l'onglet
+Réseau des DevTools. Mesuré le 2026-10-23 sur le helpdesk : 64 des 110 ms
+d'un changement de statut partent dans le tableau de 50 lignes redessiné
+pour une seule ligne changée.
+
+Gaté par `tests/unit/render/test_zone_diff.py`,
+`tests/integration/server/test_a_zone_ships_only_what_changed.py` et, en
+navigateur, `tests/runtime_js/test_a_zone_ships_only_what_changed.py`.
+
 ---
 
 ## `current_context()` vs `maybe_current_context()`

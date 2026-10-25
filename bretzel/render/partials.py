@@ -18,10 +18,11 @@ post-action client-state patches. Layer 6 wraps it in a Starlette
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
-from collections.abc import Iterable
+import re
+import time
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -36,8 +37,26 @@ from bretzel.render.decorators.refreshable import (
 )
 from bretzel.render.fusion import BZ_ID_ATTR, fuse_or_wrap
 from bretzel.render.types import BretzelApp
+from bretzel.render.zone_diff import (
+    Fingerprinter,
+    RowPatch,
+    RowsOnly,
+    ZonePrint,
+    ZoneVersion,
+    as_patch,
+    at_position,
+    changed_elements,
+    removal,
+    row_patch,
+    stamp_zones,
+    stamped,
+)
 from bretzel.runtime.envelope import serialize_patch
-from bretzel.runtime.protocol import HEADER_ZONE_HASHES, TITLE_EVENT
+from bretzel.runtime.protocol import (
+    HEADER_ZONE_BASES,
+    HEADER_ZONE_HASHES,
+    TITLE_EVENT,
+)
 from bretzel.state.persistence.client_bridge import instance_key
 from bretzel.state.scopes.client import ClientState, rendering_scope
 
@@ -121,45 +140,90 @@ async def render_partial(
     #: What this response ships, by zone — sent back to the client, who
     #: will present it to us again on the next request.
     digests: dict[str, str] = {}
+    #: The fingerprint each PATCHED zone was diffed against (cf.
+    #: ``render/zone_diff.py``, "Crossed responses").
+    bases: dict[str, str] = {}
+    # Optional, so not in the ``BretzelApp`` protocol: an app without the
+    # cache (a test rig) still silences unchanged zones, and ships the
+    # others whole.
+    maps = getattr(app, "zone_maps", None)
+    fingerprinter = fingerprinter_for(app)
+    #: ``debug`` only: what each zone cost to render, in ``Server-Timing``
+    #: — the browser's DevTools show it next to the request. Measured
+    #: blind on 2026-10-23: a status change spent 64 of its 110 ms
+    #: re-rendering a 50-row table for one changed row, and nothing in
+    #: the response said so.
+    timings: list[str] = []
+    debug = bool(getattr(app, "debug", False))
     for h in ordered:
         if h.id in covered:
             continue
+        started = time.perf_counter()
+        held = ctx.zone_hashes.get(h.id)
+        # ── Rows only: ``refresh(zone, rows=[…])`` ───────────────────
+        # The zone runs again but its keyed table renders those rows
+        # alone; whatever cannot be done row by row falls through to the
+        # whole render just below (``render/zone_diff.row_patch``).
+        known = maps.get(held) if maps is not None and held else None
+        rows = ctx.zone_rows.get(h.id)
+        if rows and known:
+            patched = await _rows_only(app, h, ctx, rows, known, held, fingerprinter)
+            if patched is not None:
+                if debug:
+                    timings.append(_timing(h, time.perf_counter() - started))
+                maps.put_version(patched.digest, patched.version)
+                emitted[h.id] = _ship(patched.rows, patched.removed, fingerprinter, maps)
+                digests[h.id], bases[h.id] = patched.digest, held
+                continue
         try:
-            html, root = await _render_one(app, h, ctx, oob=True)
+            root = await _render_one(app, h, ctx, oob=True)
         except Exception as exc:  # broad on purpose — see the docstring next door
             emitted[h.id] = _zone_failure_fragment(app, h, exc)
             continue
+        if debug:
+            timings.append(_timing(h, time.perf_counter() - started))
         for zone_id in _zone_ids_inside(root, among=seen):
             covered.add(zone_id)
             emitted.pop(zone_id, None)
             digests.pop(zone_id, None)
-        # ── A zone whose render has not moved does not go out ─────────
+            bases.pop(zone_id, None)
+        # ── Silent, patched or whole ──────────────────────────────────
         #
         # The render is already paid for here — it is the shipping, the
-        # gzip and the morph that are saved. Measured on
-        # ``examples/messagerie`` on 2026-09-08: re-clicking an already
-        # open thread cost 9 461 bytes and 50 ms; 300 bytes and 10 ms
-        # once the three zones were silenced. A click that really changes
-        # something still pays full price, and that is normal.
-        #
-        # The server keeps NOTHING: the reference fingerprint comes from
-        # the client, who carries the HTML in question. An absent, stale
-        # or lying fingerprint can therefore only cause a re-ship — never
-        # a wrongful silence. That is what makes the optimisation safe by
-        # construction rather than by caution, and
-        # ``test_an_unchanged_zone_is_not_shipped`` guards both
-        # directions.
-        digest = _digest(html)
-        digests[h.id] = digest
-        if ctx.zone_hashes.get(h.id) == digest:
-            emitted.pop(h.id, None)
+        # gzip and the morph that are saved. A zone whose render has not
+        # moved does not go out (measured on ``examples/messagerie`` on
+        # 2026-09-08: re-clicking an open thread, 9 461 bytes and 50 ms →
+        # 300 bytes and 10 ms); one that moved sends only its changed
+        # elements when the client presents a fingerprint the cache knows.
+        # ``render/zone_diff.py`` holds the how and the guarantees: an
+        # absent, stale or lying fingerprint can only cause a re-ship.
+        printed = fingerprinter.zone(root) if isinstance(root, Element) else None
+        if printed is None:
+            emitted[h.id] = serialize(root)
             continue
-        emitted[h.id] = html
+        digests[h.id] = printed.digest
+        if maps is not None:
+            maps.put(printed)
+        if held == printed.digest:
+            bases[h.id] = held
+            continue
+        patch = changed_elements(printed, root, known.elements) if known else None
+        if patch is not None:
+            emitted[h.id] = _ship(
+                [printed.nodes[k] for k in patch if k not in printed.place], (),
+                fingerprinter, maps, zone_id=h.id, printed=printed,
+                placed=[k for k in patch if k in printed.place])
+            bases[h.id] = held
+            continue
+        inner = Element(root.tag, root.attrs, tuple(stamp_zones(root.children, fingerprinter, maps)))
+        emitted[h.id] = serialize(stamped(inner, printed, maps))
 
     if digests:
-        ctx.response_headers[HEADER_ZONE_HASHES] = ",".join(
-            f"{zone_id}:{e}" for zone_id, e in digests.items()
-        )
+        ctx.response_headers[HEADER_ZONE_HASHES] = _pairs(digests)
+    if bases:
+        ctx.response_headers[HEADER_ZONE_BASES] = _pairs(bases)
+    if timings:
+        ctx.response_headers["Server-Timing"] = ", ".join(timings)
 
     pieces: list[str] = list(emitted.values())
 
@@ -343,14 +407,85 @@ def _zone_failure_fragment(
     )
 
 
-def _digest(html: str) -> str:
-    """A zone fragment's short fingerprint.
+async def _rows_only(
+    app: BretzelApp,
+    handle: RefreshableHandle,
+    ctx: RenderContext,
+    rows: set[str],
+    known: ZoneVersion,
+    held: str,
+    fingerprinter: Fingerprinter,
+) -> RowPatch | None:
+    """Render ``handle`` for ``rows`` only and build the row patch, or
+    ``None`` to render it whole (a change that is not row by row). A
+    render that raises is left to the whole render, which isolates it the
+    usual way."""
+    ctx.rows_only = scope = RowsOnly(frozenset(rows))
+    try:
+        await _render_one(app, handle, ctx, oob=True)
+    except Exception:  # the whole render that follows reports it
+        return None
+    finally:
+        ctx.rows_only = None
+    return row_patch(scope.reports, known, held, fingerprinter)
 
-    ``blake2s`` over eight bytes: we compare strings rendered by the same
-    process a few milliseconds apart, not signed files — resistance to
-    adversarial collisions is not the subject, the header's brevity is.
-    """
-    return hashlib.blake2s(html.encode("utf-8"), digest_size=8).hexdigest()
+
+def _ship(
+    changed: Sequence[Element],
+    removed: Sequence[str],
+    fingerprinter: Fingerprinter,
+    maps: Any,
+    *,
+    zone_id: str = "",
+    printed: ZonePrint | None = None,
+    placed: Sequence[str] = (),
+) -> str:
+    """A zone's patch: its changed elements morphed in place (nested zones
+    stamped), its removed rows deleted, and its changed elements with no
+    ``id`` found by position (``zone_diff.at_position``). Those ride in
+    the sink, appended out of band: an action's body lands there, a
+    refetch's is not swapped at all."""
+    pieces = [*(serialize(as_patch(e)) for e in stamp_zones(changed, fingerprinter, maps)),
+              *(serialize(removal(ident)) for ident in removed)]
+    if placed and printed is not None:
+        fresh = stamp_zones([printed.nodes[k] for k in placed], fingerprinter, maps)
+        pieces.append(serialize(at_position(zone_id, printed, list(zip(placed, fresh, strict=True)))))
+    return "".join(pieces)
+
+
+def _timing(handle: RefreshableHandle, seconds: float) -> str:
+    """One ``Server-Timing`` entry: the zone's function name as metric
+    (a token: letters, digits, ``_``), its qualified name as description."""
+    name = re.sub(r"\W", "_", handle.zone_qualname.rsplit("::", 1)[-1].rsplit(".", 1)[-1])
+    return f'zone_{name};dur={seconds * 1000:.1f};desc="{handle.zone_qualname}"'
+
+
+def _pairs(values: dict[str, str]) -> str:
+    """``id:value`` pairs, comma-separated — the shape
+    ``render_context._zone_hashes_of`` reads back."""
+    return ",".join(f"{key}:{value}" for key, value in values.items())
+
+
+def fingerprinter_for(app: BretzelApp) -> Fingerprinter:
+    """The fingerprint rules of this app: its anti-replay window, and which
+    actions are ``@idempotent`` — decided as the action route decides,
+    from the handler the action id resolves to (cf. ``render/zone_diff.py``,
+    "What a fingerprint ignores")."""
+    # render → server, at call time: the route's own resolution, not a copy.
+    from bretzel.server.handlers import HandlerResolutionError, resolve_handler
+    from bretzel.server.idempotency import idempotent_ttl
+
+    def is_idempotent(action_id: str) -> bool:
+        try:
+            return idempotent_ttl(resolve_handler(action_id)) is not None
+        except HandlerResolutionError:
+            return False
+
+    config = getattr(app, "config", None)
+    return Fingerprinter(
+        action_max_age=getattr(config, "action_max_age", None),
+        is_idempotent=is_idempotent,
+    )
 
 
 async def _render_one(
@@ -359,13 +494,13 @@ async def _render_one(
     ctx: RenderContext,
     *,
     oob: bool,
-) -> tuple[str, Node]:
-    """Run ``handle.fn`` and return ``(serialised HTML, root node)``.
+) -> Node:
+    """Run ``handle.fn`` and return the zone's root node.
 
-    The node is returned alongside the bytes so the caller knows what
-    this fragment CONTAINS — that is what lets it avoid re-shipping a
-    nested zone. Reading it from the HTML would work too, but looking for
-    a substring in markup is a guess where the tree is an answer.
+    The caller serialises it: it first needs to know what this fragment
+    CONTAINS (a nested zone it need not re-ship) and what changed in it
+    (``render/zone_diff.py``). Reading either from the HTML would be a
+    guess where the tree is an answer.
 
     Drains ``ctx.root_children`` written by the function (the
     component-tree path), or accepts a directly-returned :class:`Node`
@@ -474,17 +609,16 @@ async def _render_one(
                 attrs=merged,
                 children=section_el.children,
             )
-        return serialize(section_el), section_el
+        return section_el
 
     # Fallback (defensive — shouldn't fire after the ``handle()`` fix
     # unless the user did something unusual). Stamp via fuse_or_wrap
     # like before.
-    fused = fuse_or_wrap(
+    return fuse_or_wrap(
         produced,
         bz_id=handle.id,
         extra_attrs=extra,
     )
-    return serialize(fused), fused
 
 
 def _zone_ids_inside(root: Node, *, among: set[str]) -> set[str]:

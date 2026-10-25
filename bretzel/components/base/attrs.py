@@ -15,6 +15,7 @@ constructor consumes one by one.
 from __future__ import annotations
 
 import re
+from functools import cache
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -257,7 +258,12 @@ def split_kwargs(
     passthrough: dict[str, Any] = {}
     raw_html: dict[str, Any] = {}
 
+    buckets = {"p": passthrough, "r": reactive, "s": slots, "e": events}
     for key, value in kwargs.items():
+        known = _known_bucket(cls, key)
+        if known is not None:
+            buckets[known][key] = value
+            continue
         # 0. An Alpine directive — dead since V3, loud refusal.
         reject_dead_alpine_attr(cls.__name__, key)
 
@@ -323,6 +329,30 @@ def split_kwargs(
         raw_html[normalize_attr_name(key)] = value
 
     return reactive, slots, events, passthrough, raw_html
+
+
+@cache
+def _known_bucket(cls: type[Component], key: str) -> str | None:
+    """The bucket of a kwarg that needs no look at its value — a
+    pass-through, a reactive prop, a slot, a declared event — or ``None``
+    for the rest (raw attributes and errors), which take the full path.
+
+    It depends on the class and the name only, both fixed after import,
+    and a page builds ~1 000 components with the same few dozen names:
+    measured on the comparison helpdesk (2026-10-23), the per-key checks
+    were a tenth of a component's construction.
+    """
+    if key.startswith(_DEAD_ALPINE_PREFIXES):
+        return None
+    if is_passthrough_attr(key):
+        return "p"
+    if key in (getattr(cls, "__reactive_props__", {}) or {}):
+        return "r"
+    if key in getattr(cls, "NAMED_SLOTS", ()):
+        return "s"
+    if EVENT_PATTERN.match(key) and key[3:] in getattr(cls, "EVENTS", ()):
+        return "e"
+    return None
 
 
 def _looks_like_component(value: Any) -> bool:

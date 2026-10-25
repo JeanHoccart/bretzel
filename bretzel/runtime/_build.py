@@ -25,12 +25,18 @@ sys.path.insert(0, str(PROJECT))
 
 from bretzel.runtime._minify import minify  # noqa: E402
 from bretzel.runtime.protocol import (  # noqa: E402
+    AT_TAG_NAME,
+    BUSY_CLASS,
+    DATA_BZ_BUSY,
     ENVELOPE_TAG_NAME,
     NAV_PENDING_KEY,
     PATCH_TAG_NAME,
     PROTOCOL_VERSION,
+    REFETCH_ROWS_PARAM,
     ROUTE_ACTION,
     SCREEN_SYNC_FN,
+    SINK_ELEMENT_ID,
+    SSE_EVENT_ZONE_ROWS,
     TITLE_EVENT,
 )
 
@@ -38,10 +44,16 @@ _TOKENS = {
     "__PROTOCOL_VERSION__": PROTOCOL_VERSION,
     "__ENVELOPE_TAG__": ENVELOPE_TAG_NAME,
     "__PATCH_TAG__": PATCH_TAG_NAME,
+    "__AT_TAG__": AT_TAG_NAME,
+    "__BUSY_ATTR__": DATA_BZ_BUSY,
+    "__BUSY_CLASS__": BUSY_CLASS,
+    "__SINK_ID__": SINK_ELEMENT_ID,
     "__SCREEN_SYNC_FN__": SCREEN_SYNC_FN,
     "__ROUTE_ACTION__": ROUTE_ACTION,
     "__NAV_PENDING_KEY__": NAV_PENDING_KEY,
     "__TITLE_EVENT__": TITLE_EVENT,
+    "__ZONE_ROWS_EVENT__": SSE_EVENT_ZONE_ROWS,
+    "__ROWS_PARAM__": REFETCH_ROWS_PARAM,
 }
 
 

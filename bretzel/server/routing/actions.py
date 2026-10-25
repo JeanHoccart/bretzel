@@ -183,6 +183,8 @@ async def _dispatch(
     # which appends here ; attached to the response below so Starlette
     # drains it AFTER the body ships (fire-and-forget after-response).
     bg = BackgroundTasks()
+    # Signals to the other tabs wait for the commit below.
+    ctx.deferred_broadcasts = []
 
     try:
         # An UNREADABLE form is not an empty form. Running the handler
@@ -255,6 +257,9 @@ async def _dispatch(
             # Persist any dirty server-state mutated by the handler.
             if ctx.state_registry is not None:
                 await ctx.state_registry.commit()
+            # Only now may the other tabs ask again: they read the store.
+            for send in ctx.deferred_broadcasts:
+                send()
     except AuthRequiredError:
         # Caught HERE rather than left to the app-level 401 handler
         # (``routing/errors.py``) on purpose : this response is swapped

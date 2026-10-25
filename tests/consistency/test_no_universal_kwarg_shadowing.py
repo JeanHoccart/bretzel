@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import pytest
 
-from bretzel.components.base.component import RESERVED_KWARGS
+from bretzel.components.base.component import RESERVED_KWARGS, SHARED_RESERVED_KWARGS
 from tests.consistency._discovery import public_component_classes
 
 #: Pas de détecteur à rendre aveugle — cf.
@@ -54,6 +54,13 @@ MUTATION_NOT_APPLICABLE = (
 # nom mort.
 _UNIVERSAL = frozenset(RESERVED_KWARGS)
 
+#: Sauf les kwargs PARTAGÉS : le socle les lit sans les retirer quand le
+#: composant les déclare (``loading`` : le bouton dessine son propre
+#: spinner, le socle lit la même valeur pour couper l'état occupé
+#: automatique). La prop reçoit donc bien sa valeur — c'est le défaut que
+#: cette gate traque qui n'existe pas pour eux.
+_SWALLOWED = _UNIVERSAL - frozenset(SHARED_RESERVED_KWARGS)
+
 
 def test_the_universal_set_was_found() -> None:
     """Garde-fou du garde-fou : si l'extraction rend une liste vide (le
@@ -68,7 +75,7 @@ def test_the_universal_set_was_found() -> None:
 
 @pytest.mark.parametrize("cls", public_component_classes(), ids=lambda c: c.__name__)
 def test_no_reactive_prop_shadows_a_universal_kwarg(cls: type) -> None:
-    offenders = sorted(set(getattr(cls, "__reactive_props__", {}) or {}) & _UNIVERSAL)
+    offenders = sorted(set(getattr(cls, "__reactive_props__", {}) or {}) & _SWALLOWED)
     assert not offenders, (
         f"{cls.__name__} déclare la/les reactive_prop {offenders}, dont le "
         f"nom est absorbé par `Component.__init__` pour TOUS les composants "

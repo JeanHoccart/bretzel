@@ -121,7 +121,8 @@ class SSEBroker(Protocol):
         ...
 
     def publish(
-        self, state_qualname: str, *, except_tab: str = "", only_session: str = ""
+        self, state_qualname: str, *, except_tab: str = "", only_session: str = "",
+        event: str = SSE_EVENT_STATE_DIRTY, data: str = "",
     ) -> None:
         """Push a ``state-dirty`` signal to every CONNECTION subscribed
         to ``state_qualname`` (one per open tab). Returns immediately;
@@ -130,7 +131,9 @@ class SSEBroker(Protocol):
         ``except_tab`` skips the tab that has just written — it already
         received its zones in its action's response. ``only_session``,
         when set, restricts delivery to that session's tabs (the scope of
-        a ``SessionState``).
+        a ``SessionState``). ``event`` / ``data`` are what the tabs
+        receive — by default ``state-dirty`` with the state's name; the
+        broker routes by state and never reads them.
         """
         ...
 
@@ -370,7 +373,8 @@ class MemoryBroker:
     # ── Publish ───────────────────────────────────────────────────────
 
     def publish(
-        self, state_qualname: str, *, except_tab: str = "", only_session: str = ""
+        self, state_qualname: str, *, except_tab: str = "", only_session: str = "",
+        event: str = SSE_EVENT_STATE_DIRTY, data: str = "",
     ) -> None:
         """Push a ``state-dirty`` event to every CONNECTION of every
         session subscribed to ``state_qualname``.
@@ -403,7 +407,7 @@ class MemoryBroker:
             return
         if only_session:
             sessions = {only_session} & sessions
-        chunk = _format_event(SSE_EVENT_STATE_DIRTY, state_qualname)
+        chunk = _format_event(event, data or state_qualname)
         # Snapshot with ``list(...)`` : a put_nowait below could race a
         # concurrent teardown mutating these sets.
         for session_id in list(sessions):
@@ -496,7 +500,8 @@ class RedisBroker:
     # ── Publish : cross-worker via Redis Pub/Sub ──────────────────────
 
     def publish(
-        self, state_qualname: str, *, except_tab: str = "", only_session: str = ""
+        self, state_qualname: str, *, except_tab: str = "", only_session: str = "",
+        event: str = SSE_EVENT_STATE_DIRTY, data: str = "",
     ) -> None:
         """PUBLISH the signal to the shared channel. Returns immediately;
         every worker's listener (this one included) does the local fanout.
@@ -515,8 +520,9 @@ class RedisBroker:
         """
         if not state_qualname:
             return
-        charge = (f"{state_qualname}	{except_tab}	{only_session}"
-                  if except_tab or only_session else state_qualname)
+        extra = event != SSE_EVENT_STATE_DIRTY or data
+        charge = (f"{state_qualname}	{except_tab}	{only_session}	{event}	{data}"
+                  if except_tab or only_session or extra else state_qualname)
         task = asyncio.create_task(
             self._client.publish(self._channel, charge)
         )
@@ -549,10 +555,11 @@ class RedisBroker:
             if isinstance(data, bytes):
                 data = data.decode("utf-8")
             if data:
-                qualname, _, rest = data.partition("	")
-                except_tab, _, only_session = rest.partition("	")
+                qualname, except_tab, only_session, event, payload = (
+                    *data.split("	", 4), "", "", "", "")[:5]
                 self._local.publish(qualname, except_tab=except_tab,
-                                    only_session=only_session)
+                                    only_session=only_session,
+                                    event=event or SSE_EVENT_STATE_DIRTY, data=payload)
 
     async def aclose(self) -> None:
         """Cancel the listener, unsubscribe, and close the client. Called on

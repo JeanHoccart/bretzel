@@ -27,6 +27,7 @@ from bretzel.core.serialize import serialize
 from bretzel.core.tree import Node
 from bretzel.runtime.protocol import (
     HEADER_PAGE_ID,
+    ICONS_DATA_ID,
     NAV_PENDING_KEY,
     ROUTE_FAVICON,
     ROUTE_ICONS,
@@ -262,7 +263,7 @@ _ANTI_FLASH_STYLE = (
     # AFTER boot (partial-nav morph) are visible in both versions — the
     # pair lifted them, this one does not hide them.
     "html:not(.bz-ready) [bz-data]{visibility:hidden}"
-    "bz-envelope,bz-patch{display:none}"
+    "bz-envelope,bz-patch,bz-at{display:none}"
     # Closed state of overlays (dialog / drawer), declared BEFORE the
     # first paint. Without it, the backdrop's Tailwind decoration
     # (``fixed inset-0 bg-black/50 backdrop-blur-sm``) arrives after the
@@ -699,8 +700,48 @@ def _icon_provider_script() -> str:
     ⚠️ It must run BEFORE the component's script, so without ``defer`` —
     placed after, the setting arrives when the glyphs have already gone
     out.
+
+    It also turns the component's LAZY mode off, once, when the browser
+    registers it. Lazy, an icon off screen leaves its host EMPTY (zero
+    wide) and empties it again when scrolled away: the label beside it
+    jumped sideways while scrolling (reported 2026-10-23). The switch is
+    the ``noobserver`` attribute, read only on insertion — it would have
+    to be on every emitter, components, apps and raw markup alike. Making
+    the class's ``startObserver`` a no-op before ``customElements.define``
+    upgrades the page covers them all; ``_ICON_STARTS_OBSERVER`` keeps
+    the vendored component honest about that method's name.
+
+    And it makes the component's first check synchronous: drawn from
+    preloaded data in the upgrade itself, an icon the server already drew
+    shows no empty frame between the two (``render/icons.py``).
+    ``_ICON_CHECKS`` keeps the vendored component honest about those
+    method names too.
     """
-    return f'window.IconifyProviders={{"":{{resources:["{ROUTE_ICONS}"]}}}};'
+    return (
+        f'window.IconifyProviders={{"":{{resources:["{ROUTE_ICONS}"]}}}};'
+        "(function(r){if(!r)return;var d=r.define;r.define=function(n,c,o){"
+        'if(n==="iconify-icon"){r.define=d;'
+        "var p=c&&c.prototype;if(p&&p.startObserver)p.startObserver=function(){};"
+        # The glyphs the server drew, handed over before the upgrade.
+        f'var j=document.getElementById("{ICONS_DATA_ID}");'
+        "if(j&&c.addCollection)try{JSON.parse(j.textContent).forEach(function(s){c.addCollection(s);});}catch(e){}"
+        # The first check, in the constructor, runs at once rather than
+        # on a timer: a preloaded glyph is drawn in the same task as the
+        # upgrade that emptied the server's one (``render/icons.py``).
+        "var q=p&&p._queueCheck;if(q&&p._check)p._queueCheck=function(){q.call(this);"
+        'if(!this._bzChecked){this._bzChecked=1;if(this.hasAttribute("icon"))this._check();}};}'
+        "return d.call(r,n,c,o);};})(window.customElements);"
+    )
+
+
+#: The method the icons script turns into a no-op. A vendored component
+#: that renamed it would bring lazy icons back without a word — the gate
+#: ``test_every_icon_renders_at_once`` reads the vendored file for it.
+_ICON_STARTS_OBSERVER = "startObserver(){"
+
+#: The two methods the icons script chains to make the first check
+#: synchronous — same reason, same gate.
+_ICON_CHECKS = ("_queueCheck(){", "_check(){")
 
 
 def inline_scripts(mobile_breakpoint: int) -> dict[str, str]:

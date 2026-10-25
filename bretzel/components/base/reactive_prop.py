@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from functools import cache, lru_cache
 from typing import Any, Final
 
 
@@ -457,6 +458,13 @@ def looks_like_client_expr(value: str) -> bool:
     """
     if not isinstance(value, str) or not value:
         return False
+    return _looks_like_code(value)
+
+
+@lru_cache(maxsize=4096)
+def _looks_like_code(value: str) -> bool:
+    """The heuristic itself, on a non-empty string — cached: a page asks
+    it ~15 000 times about a few dozen values (``"sm"``, ``"muted"``…)."""
 
     # Leading ``$`` — only when followed by an JS identifier
     # (letter / underscore / dot). Lone ``$`` (currency prefix) and
@@ -506,3 +514,21 @@ def looks_like_client_expr(value: str) -> bool:
     if not prefix:
         return True
     return all(c.isalnum() or c in "_.$" for c in prefix)
+
+
+@cache
+def _defaults_of(cls: type) -> tuple[tuple[str, Any, Callable[[], Any] | None], ...]:
+    """``(name, default, factory)`` for each reactive prop of ``cls``, in
+    declaration order — read once per class, not once per instance."""
+    return tuple(
+        (name, None if d.default is MISSING else d.default, d.default_factory)
+        for name, d in (getattr(cls, "__reactive_props__", {}) or {}).items()
+    )
+
+
+def fill_defaults(values: dict[str, Any], cls: type) -> None:
+    """Give every reactive prop not set by the caller its default, in
+    declaration order (a factory runs per instance)."""
+    for name, default, factory in _defaults_of(cls):
+        if name not in values:
+            values[name] = factory() if factory is not None else default

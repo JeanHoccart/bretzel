@@ -30,6 +30,7 @@ from typing import Any, Literal
 
 from fastapi import FastAPI
 
+from bretzel.render import ZoneMaps
 from bretzel.runtime import PUBLIC_ASSET_ROUTES
 from bretzel.server.config import BretzelConfig
 from bretzel.server.decorators.identity import MARK_DOOR, MARK_SOURCE
@@ -192,6 +193,11 @@ class Bretzel:
         # single-worker, Redis for multi-worker. Only ``@idempotent``
         # handlers touch it (opt-in dedup of same-render double-submits).
         self._idempotency_store: Any = None
+        # The fingerprints of the zone versions recently shipped, so a
+        # refreshed zone sends only the elements that changed
+        # (``render/zone_diff.py``). Per process: another worker, or an
+        # evicted version, ships the zone whole.
+        self._zone_maps = ZoneMaps()
         self._is_ready: bool = False
 
         # Cache-bust token : a process-start identifier used by the
@@ -343,6 +349,11 @@ class Bretzel:
         through every call site.
         """
         return self._sse_broker
+
+    @property
+    def zone_maps(self) -> ZoneMaps:
+        """The zone fingerprint cache read by the render pipeline."""
+        return self._zone_maps
 
     @property
     def idempotency_store(self) -> Any:

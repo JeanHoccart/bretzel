@@ -213,18 +213,34 @@
   // it, and does not inherit the old one's timer.
   const _refetchPending = new WeakMap();
 
-  function refetchZone(zone, url) {
+  /* ``rows``: the keys of a ``zone-rows`` signal — only those rows are
+   * refetched. Demands pending in the same window merge: their keys add
+   * up, and one demand for the whole zone (``rows`` undefined) wins. */
+  function refetchZone(zone, url, rows) {
     let state = _refetchPending.get(zone);
     if (!state) {
-      state = { timer: null };
+      state = { timer: null, rows: null, whole: false };
       _refetchPending.set(zone, state);
     }
+    if (rows === undefined) state.whole = true;
+    else if (!state.whole) state.rows = (state.rows || []).concat(rows);
     // A more recent demand replaces the one that was waiting: they
     // describe the same final state, and only the last one knows it.
     if (state.timer) clearTimeout(state.timer);
     state.timer = setTimeout(function () {
       state.timer = null;
-      window.htmx.ajax("GET", url, { source: zone, swap: "none" });
+      let target = url;
+      if (!state.whole && state.rows) {
+        const query = new URL(url, window.location.href);
+        query.searchParams.set("__ROWS_PARAM__", JSON.stringify(Array.from(new Set(state.rows))));
+        target = query.pathname + query.search;
+      }
+      state.rows = null;
+      state.whole = false;
+      // The zone's fingerprint rides along, as on an action POST: the
+      // server can then patch the zone instead of shipping it whole.
+      const headers = { "X-Bretzel-Zones": $bz._zoneEntry(zone) };
+      window.htmx.ajax("GET", target, { source: zone, swap: "none", headers: headers });
     }, REFETCH_WINDOW_MS + _refetchJitter);
   }
   $bz._refetchZone = refetchZone;
@@ -247,8 +263,11 @@
   let _sseRetryMs = SSE_RETRY_MIN_MS;
   let _sseWasDown = false;
 
-  function refetchSubscribedZones(qualname) {
+  /* ``rows`` (with ``zoneId``): a ``zone-rows`` signal — only that zone,
+   * only those rows. */
+  function refetchSubscribedZones(qualname, zoneId, rows) {
     for (const zone of document.querySelectorAll("[data-bz-subscribe-state]")) {
+      if (zoneId !== undefined && zone.getAttribute("bz-id") !== zoneId) continue;
       // A broadcast zone lists ALL its deps (space-separated) ; refetch
       // when the dirtied state is one of them.
       if (qualname !== undefined) {
@@ -256,7 +275,7 @@
         if (!states.includes(qualname)) continue;
       }
       const url = zone.getAttribute("data-bz-subscribe-url");
-      if (url && window.htmx) refetchZone(zone, url);
+      if (url && window.htmx) refetchZone(zone, url, rows);
     }
   }
 
@@ -292,6 +311,12 @@
     });
     source.addEventListener("state-dirty", function (event) {
       refetchSubscribedZones(event.data);
+    });
+    // ``refresh(zone, rows=[…])`` elsewhere: refetch that zone, those rows.
+    source.addEventListener("__ZONE_ROWS_EVENT__", function (event) {
+      let signal;
+      try { signal = JSON.parse(event.data); } catch (err) { return; }
+      refetchSubscribedZones(signal.state, signal.zone, signal.rows);
     });
   }
   $bz._ensureSse = ensureSse;

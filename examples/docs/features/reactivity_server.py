@@ -73,6 +73,35 @@ def reactivity_server_page() -> None:
                 lang="python",
             )
 
+        # ── refresh(rows=) ───────────────────────────────────────
+        with ui.card(), ui.vstack(gap="sm"):
+            ui.heading('One row only — refresh(zone, rows=[…])', level=2)
+            ui.text(
+                'A re-rendered zone already sends only the elements that '
+                'changed. When an action changes a few rows of a keyed '
+                '`ui.table`, name them too: the zone then RENDERS only '
+                'those rows, and the other tabs of a broadcast zone fetch '
+                'only them.',
+                color="muted", size="sm",
+            )
+            ui.code(
+                '@refreshable(deps=[Filters], broadcast=[TableChanged])\n'
+                'def tickets() -> None:\n'
+                '    ui.table(columns=COLUMNS, rows=db.list_tickets(),\n'
+                '             row_key="id")\n'
+                '\n'
+                'def set_status(ticket_id: int, status: str) -> None:\n'
+                '    db.update(ticket_id, status=status)\n'
+                '    refresh(tickets, rows=[ticket_id])\n',
+                lang="python",
+            )
+            ui.text(
+                'A row that enters, a new order, or a whole refresh in the '
+                'same action: the zone is re-rendered whole, by itself. A '
+                'row that left the list is removed.',
+                color="muted", size="xs",
+            )
+
         # ── broadcast ────────────────────────────────────────────
         with ui.card(), ui.vstack(gap="sm"):
             ui.heading('Realtime between clients — broadcast', level=2)

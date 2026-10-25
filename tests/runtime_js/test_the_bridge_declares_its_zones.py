@@ -85,7 +85,10 @@ def test_the_bridge_sends_the_zones_header_on_an_action() -> None:
         "morte en silence — c'est exactement ce que ce test existe pour "
         "voir."
     )
-    declarees = {p for p in entete.split(",") if p}
+    # ``id`` or ``id:fingerprint`` — the page stamps its zones since
+    # 2026-10-23 (``render/zone_diff.py``), so the first action already
+    # presents one.
+    declarees = {p.split(":", 1)[0] for p in entete.split(",") if p}
     assert zone_ici.id in declarees, (
         f"le pont a envoyé {sorted(declarees)}, sans la zone que la page "
         f"porte ({zone_ici.id}) : le filtre la ferait taire."

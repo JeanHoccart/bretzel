@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
+from urllib.parse import quote
 
 from bretzel.theme.bridges import generate_color_bridges
 from bretzel.theme.config import ScrollbarConfig
@@ -369,6 +370,96 @@ _DRAG_PREVIEW = """\
 """
 
 
+_ICON_BOX = """\
+/* An icon keeps its 1em box while its glyph is not drawn yet: until the
+   web component renders, its host is EMPTY, so the label next to it sat
+   one icon to the left and jumped when the icon appeared. ``min-``, not a
+   fixed size: a wider glyph still takes its own width. */
+iconify-icon[icon]:not([icon=""]) {
+  min-width: 1em;
+  min-height: 1em;
+}
+/* Before its script runs, the host is an unknown element, so INLINE: the
+   minimum sizes above do not apply to it, and the label still jumped
+   (screenshot of 2026-10-23). ``:where`` weighs nothing, so a ``hidden``
+   or ``inline-flex`` class on the icon still wins. */
+:where(iconify-icon:not(:defined)) {
+  display: inline-block;
+}
+"""
+
+
+#: A small spinner for a text field: a background image, so it needs no
+#: element of its own. Grey at mid-opacity reads on both themes; an image
+#: cannot take ``currentColor``.
+_FIELD_SPINNER = quote(
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' "
+    "stroke='#888' stroke-width='3'><circle cx='12' cy='12' r='9' stroke-opacity='.3'/>"
+    "<path d='M21 12a9 9 0 0 0-9-9' stroke-linecap='round'><animateTransform "
+    "attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' dur='.7s' "
+    "repeatCount='indefinite'/></path></svg>",
+    safe="",
+)
+
+_BUSY = f"""\
+/* The automatic busy state: the runtime sets the bz-busy class on a
+   trigger whose request is still unanswered after 200 ms, and on a zone
+   it asks again (runtime 05_bridge.js). Each shape keeps its size, so
+   nothing around it moves. ``loading=False`` renders "off" instead. */
+@keyframes bz-busy-spin {{ to {{ transform: rotate(360deg); }} }}
+@keyframes bz-busy-pulse {{ 50% {{ opacity: .4; }} }}
+@layer base {{
+  .bz-busy {{ cursor: progress; }}
+  /* The spinner is placed against the button; a utility that positions
+     it otherwise (absolute, fixed…) still wins, from its layer. */
+  button.bz-busy {{ position: relative; }}
+}}
+/* A button: its content hides — its width stays — and a spinner in its
+   own colour takes the middle. The label is often bare text, which no
+   ``> *`` reaches: its glyphs go transparent, while ``color`` — so the
+   spinner's ``currentColor`` — stays. */
+button.bz-busy {{ -webkit-text-fill-color: transparent; }}
+button.bz-busy > * {{ visibility: hidden; }}
+button.bz-busy::after {{
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 9999px;
+  animation: bz-busy-spin .7s linear infinite;
+}}
+/* A text field: a spinner at the end of its TEXT area — the content box,
+   so a clear button sitting in its right padding stays visible. */
+input.bz-busy:where(:not([type="checkbox"]):not([type="radio"])) {{
+  background-image: url("data:image/svg+xml,{_FIELD_SPINNER}");
+  background-repeat: no-repeat;
+  background-origin: content-box;
+  background-position: right center;
+  background-size: 1em 1em;
+}}
+/* A search field draws its own clear button inside that text area.
+   (``:where`` above keeps the general rule light enough to lose here.) */
+input[type="search"].bz-busy {{ background-position: right 1.5em center; }}
+/* A checkbox, a radio, a switch: the box drawn after the real input pulses. */
+input[type="checkbox"].bz-busy ~ *,
+input[type="radio"].bz-busy ~ * {{
+  animation: bz-busy-pulse 1s ease-in-out infinite;
+}}
+/* Anything else — a link, a select, a zone asked again — dims. */
+.bz-busy:not(button):not(input) {{
+  opacity: .6;
+  transition: opacity .15s ease-out;
+}}
+@media (prefers-reduced-motion: reduce) {{
+  button.bz-busy::after {{ animation-duration: 1.6s; }}
+  input.bz-busy ~ * {{ animation: none; opacity: .6; }}
+}}
+"""
+
 # ───────────────────────────────────────────────────────────────────────────
 # Composer
 # ───────────────────────────────────────────────────────────────────────────
@@ -515,6 +606,8 @@ def generate_theme_css_full(
         _RAIL_SCROLL,
         _NO_SCROLLBAR,
         _DRAG_PREVIEW,
+        _ICON_BOX,
+        _BUSY,
     ]
     if scrollbar is not None:
         # AFTER the two hiding rules: the global block sets a

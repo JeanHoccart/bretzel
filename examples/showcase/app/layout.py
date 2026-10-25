@@ -84,7 +84,7 @@ def shell() -> None:
                 with ui.sidebar_section(label=group):
                     for slug, label, icon in entries:
                         ui.sidebar_item(label, icon=icon, href=f"/{slug}")
-            with ui.sidebar_footer(name="Bretzel", subtitle="v0.1.0a3 · Early alpha"):
+            with ui.sidebar_footer(name="Bretzel", subtitle="v0.1.0a4 · Early alpha"):
                 for value, label, icon in SCHEMES:
                     ui.sidebar_footer_item(label=label, icon_left=icon,
                                            on_click=ColorScheme.set(value))

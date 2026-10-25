@@ -28,12 +28,14 @@ from bretzel.components.base.attrs import (
 from bretzel.components.base.events import (
     HandlerError,
     action_attrs,
+    auto_busy,
     client_event_attr,
     cross_check_events,
 )
 from bretzel.components.base.reactive_prop import (
     MISSING,
     ReactivePropDescriptor,
+    fill_defaults,
     reads_as_client_expr,
 )
 from bretzel.components.base.responsive import reject_stray_breakpoints
@@ -46,6 +48,7 @@ from bretzel.runtime.protocol import (
     BZ_ID_ATTR,
     BZ_MODEL_PREFIX,
     BZ_SHOW_PREFIX,
+    DATA_BZ_BUSY,
 )
 from bretzel.state.scopes.client import ClientBinding, ClientExpression, _to_js
 
@@ -76,7 +79,13 @@ RESERVED_KWARGS: Final[tuple[str, ...]] = (
     "debounce",
     "throttle",
     "outlet",
+    "loading",
 )
+
+#: Universal kwargs a component may ALSO declare as its own prop: the
+#: socle reads them without taking them away. ``loading``: every trigger
+#: has an automatic busy state, and a button draws its own spinner.
+SHARED_RESERVED_KWARGS: Final[tuple[str, ...]] = ("loading",)
 
 # ───────────────────────────────────────────────────────────────────────────
 # Metaclass
@@ -655,6 +664,10 @@ class Component(metaclass=_ComponentMeta):
             if _throttle is not None
             else None
         )
+        # ``loading=False``: no automatic busy state (``events.auto_busy``).
+        _own = "loading" in type(self).__reactive_props__
+        _loading = kwargs.get("loading") if _own else kwargs.pop("loading", None)
+        self._auto_busy: bool = auto_busy(type(self).__name__, _loading, declared=_own)
         # The Tooltip wrapper instance must be built HERE — the render
         # context is live in ``__init__`` (id allocation, parent-stack
         # auto-attach + adopt_slot detach), but may be torn down by the
@@ -880,9 +893,7 @@ class Component(metaclass=_ComponentMeta):
                 self._reactive_values[name] = value
 
         # Fill in defaults for any reactive prop the caller didn't pass.
-        for name, descriptor in cls.__reactive_props__.items():
-            if name not in self._reactive_values:
-                self._reactive_values[name] = descriptor.resolve_default()
+        fill_defaults(self._reactive_values, cls)
 
         # ── Slots / raw attrs ──────────────────────────────────────────
         #
@@ -2061,6 +2072,9 @@ class Component(metaclass=_ComponentMeta):
         context is active (typical in unit tests) or when no override
         exists.
         """
+        own = key is None and shipped is None
+        if own and getattr(self, "_own_theme", None) is not None:
+            return self._own_theme
         from bretzel.render.context import maybe_current_context
 
         name = key if key is not None else self.THEME_KEY
@@ -2109,6 +2123,12 @@ class Component(metaclass=_ComponentMeta):
                     base = slots.get(slot_name, "")
                     slots[slot_name] = f"{base} {addition}".strip() if base else str(addition)
                 resolved = {**resolved, "slots": slots}
+        if own and getattr(self, "_user_slots_validated", False):
+            # Asked ~2.5 times per component (each slot, the size check…),
+            # and it cannot change during the render. Not before the
+            # ``slots=`` keys are validated: until then the instance's own
+            # additions are deliberately left out (cf. just above).
+            self._own_theme = resolved
         return resolved
 
     def _needs_identity(self) -> bool:
@@ -2675,6 +2695,8 @@ def _apply_universal_modifiers(component: Component, node: Node) -> Node:
         return FragmentNode(children=())
 
     _refuse_stray_anchor_attrs(component, node)
+    if not component._auto_busy and isinstance(node, Element):  # ``loading=False``
+        node = Element(node.tag, {**node.attrs, DATA_BZ_BUSY: "off"}, node.children)
 
     # ── The colour BRIDGE: bz-c-<colour> on the true root ─────────────
     # Here and not in ``compose_class`` for the reason that already moved

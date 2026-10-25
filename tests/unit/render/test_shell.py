@@ -338,7 +338,7 @@ class TestAntiFlashStyle:
     def test_envelope_and_patch_tags_display_none(self) -> None:
         out = _shell()
         compact = out.replace(" ", "")
-        assert "bz-envelope,bz-patch{display:none}" in compact
+        assert "bz-envelope,bz-patch,bz-at{display:none}" in compact
 
     def test_anti_flash_rule_before_stylesheets(self) -> None:
         # Same ordering rationale as the FOUC script — must paint

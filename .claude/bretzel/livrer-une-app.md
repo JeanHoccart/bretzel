@@ -74,20 +74,26 @@ zone `@refreshable` ne bougera plus jamais.
 > seul, donc l'écran montrait la contradiction sans la signaler.
 > **Gatable.**
 
-**B3. Une valeur d'état perd sa PROVENANCE dès qu'on la transforme.** Le
-socle ne resynchronise un composant que s'il voit que la valeur vient du
-serveur. Un cast, une f-string, une arithmétique, un `or`, **une
-comparaison** effacent l'estampille.
+**B3. ~~Une valeur d'état perd sa provenance dès qu'on la transforme~~ —
+réglé dans le socle le 2026-10-23.** Un contrôle ne reprenait la valeur du
+serveur que si elle arrivait estampillée (un champ d'état nu) : un cast,
+une f-string, un `or`, une comparaison la rendaient « cliente » pour
+toujours. Depuis, le runtime applique une règle sans estampille : **le
+serveur gagne quand la valeur qu'il rend a changé depuis son dernier
+rendu** (`runtime/_src/03_scope.js`, `resyncScopes`). Ces trois écritures
+se valent donc :
 
 ```python
-ui.stepper(value=int(state.etape))        # ne se resynchronise plus
-ui.drawer(open=carte is not None)         # ne s'ouvrira jamais
-ui.drawer(open=vue.tiroir)                # un CHAMP booléen déclaré
+ui.stepper(value=int(state.etape))
+ui.drawer(open=carte is not None)
+ui.drawer(open=vue.tiroir)
 ```
 
-> *Payé* : le tiroir du kanban se re-rendait avec la bonne carte dedans
-> et restait fermé. **Le cast est gaté** (`state-lost-by-a-cast`), la
-> comparaison ne l'est pas encore — `work/todo.md`.
+> *Payé* : le tiroir du kanban restait fermé avec la bonne carte dedans ;
+> sur le helpdesk du comparatif, « Clear filters » laissait les filtres
+> enfoncés et « Clear selection » les cases cochées. La règle de lint
+> `state-lost-by-a-cast`, qui contournait le défaut, est retirée. Gaté par
+> `tests/runtime_js/test_controls_follow_the_server_and_keep_the_user.py`.
 
 **B4. Une collection se RÉASSIGNE, elle ne se mute pas en place.**
 `state.items[0]["x"] = 1` écrit la valeur et ne change pas l'identité de

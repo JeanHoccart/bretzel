@@ -396,3 +396,24 @@ def icon_payload(path: str, *, allow_download: bool = True) -> bytes | None:
             cached.write_bytes(body)
             return body
     return None
+
+
+def packaged_glyph(icon: str) -> tuple[str, int, int] | None:
+    """``(body, width, height)`` of ``prefix:name`` from a set shipped in
+    the wheel, without touching the network. ``None`` when the set is not
+    shipped, the name unknown, or an alias transforms its parent (rotate,
+    flip) — the component then draws it as before."""
+    prefix, _, name = icon.partition(":")
+    data = _packaged_icon_set(prefix) if name else None
+    if data is None:
+        return None
+    alias = data.get("aliases", {}).get(name)
+    if alias is not None:
+        if set(alias) != {"parent"}:
+            return None
+        name = alias["parent"]
+    glyph = data["icons"].get(name)
+    if glyph is None:
+        return None
+    return (glyph["body"], glyph.get("width", data.get("width", 24)),
+            glyph.get("height", data.get("height", 24)))

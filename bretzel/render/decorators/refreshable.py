@@ -11,7 +11,9 @@ imperatively from anywhere.
 from __future__ import annotations
 
 import inspect
+import json
 from collections.abc import Callable, Iterable, Sequence
+from functools import partial
 from typing import Any, ClassVar
 
 from bretzel.core import hash_segment
@@ -21,6 +23,7 @@ from bretzel.runtime.protocol import (
     DATA_SUBSCRIBE_URL,
     DATA_ZONE,
     ROUTE_REFETCH,
+    SSE_EVENT_ZONE_ROWS,
     WIRE_ID_SEP,
 )
 
@@ -557,16 +560,43 @@ def enqueue_deps(ctx: Any, changed_classes: set[type]) -> None:
     if not changed_classes:
         return
     live = ctx.live_zones
-    queue = ctx.refresh_queue
     for cls in changed_classes:
         for zone in _ZONES_BY_DEP.get(cls, ()):
             if live is not None and zone.id not in live:
                 continue
-            if zone not in queue:
-                queue.append(zone)
+            enqueue(ctx, zone)
 
 
-def _publish_broadcast(ctx: Any, states: Iterable[type]) -> None:
+#: More row keys than this refresh the zone whole: a row patch that large
+#: would cost about as much as the zone.
+MAX_ROWS = 200
+
+
+def row_keys(rows: Iterable[Any]) -> set[str]:
+    """Row keys as the table compares them: strings, at most
+    :data:`MAX_ROWS` (beyond, ``enqueue`` takes the zone whole)."""
+    return {str(key) for key in rows}
+
+
+def enqueue(ctx: Any, zone: RefreshableHandle, *, rows: set[str] | None = None) -> None:
+    """Queue ``zone`` for the drain — whole, or for some rows. The one rule:
+    a whole refresh wins over rows, and rows add up."""
+    queued = zone in ctx.refresh_queue
+    if not queued:
+        ctx.refresh_queue.append(zone)
+    if rows is None or len(rows) > MAX_ROWS:
+        ctx.zone_rows.pop(zone.id, None)
+    elif not queued:
+        ctx.zone_rows[zone.id] = set(rows)
+    elif zone.id in ctx.zone_rows:
+        ctx.zone_rows[zone.id] |= rows
+        if len(ctx.zone_rows[zone.id]) > MAX_ROWS:
+            ctx.zone_rows.pop(zone.id)
+
+
+def _publish_broadcast(
+    ctx: Any, states: Iterable[type], *, rows: tuple[str, list[str]] | None = None
+) -> None:
     """Push an SSE ``state-dirty`` for each state to every subscribed
     connection (tab). No-op when no broker is wired (test rigs bypassing
     the lifecycle).
@@ -602,8 +632,19 @@ def _publish_broadcast(ctx: Any, states: Iterable[type]) -> None:
     session = getattr(ctx, "session_id", "") or ""
     for cls in states:
         scoped = getattr(cls, "__scope__", None) == "session"
-        broker.publish(state_qualname(cls), except_tab=emitter,
-                       only_session=session if scoped else "")
+        qualname = state_qualname(cls)
+        # A ``refresh(zone, rows=…)``: a ``zone-rows`` event naming the
+        # zone and its keys. Passed only then — a broker that predates it
+        # keeps working for every other signal.
+        extra = {"event": SSE_EVENT_ZONE_ROWS, "data": json.dumps(
+            {"state": qualname, "zone": rows[0], "rows": rows[1]})} if rows else {}
+        send = partial(broker.publish, qualname, except_tab=emitter,
+                       only_session=session if scoped else "", **extra)
+        deferred = getattr(ctx, "deferred_broadcasts", None)
+        if deferred is not None:
+            deferred.append(send)  # after the commit (``RenderContext``)
+        else:
+            send()
 
 
 def broadcast_deps(ctx: Any, changed_classes: set[type]) -> None:
@@ -655,8 +696,19 @@ def refreshable(
     return _wrap(fn) if fn is not None else _wrap
 
 
-def refresh(zone_or_name: RefreshableHandle | str) -> None:
+def refresh(
+    zone_or_name: RefreshableHandle | str, *, rows: Iterable[Any] | None = None
+) -> None:
     """Force a refresh of a zone — the single imperative trigger.
+
+    ``rows=[key, …]`` refreshes only those rows of the zone's keyed
+    ``ui.table`` (its ``row_key`` values): the zone runs again, but the
+    table renders and ships those rows alone, and a row no longer in the
+    list is removed. Whatever the framework cannot do row by row — a new
+    row, a new order, a client copy it does not know — ships the zone
+    whole. A whole refresh of the same zone in the same action wins.
+    The contract: a row's render depends on its data, and on what
+    already refreshes the table whole (filters, search, selection).
 
     Accepts the zone **handle** (``refresh(my_zone)`` — type-safe,
     refactor-safe) or its ``name`` **string** (``refresh("my_zone")`` —
@@ -682,10 +734,23 @@ def refresh(zone_or_name: RefreshableHandle | str) -> None:
         # through. A global broker handle for cron-driven broadcast is a
         # deferred follow-up ; no-op here.
         return
-    if zone not in ctx.refresh_queue:
-        ctx.refresh_queue.append(zone)
+    if isinstance(rows, (str, bytes)):
+        raise TypeError(
+            f"refresh({zone.name}, rows=…) takes a list of row keys, not a "
+            f"string: rows=[{rows!r}]."
+        )
+    keys = row_keys(rows) if rows is not None else None
+    if keys is not None and not keys:
+        return
+    # Rows of a zone this page does not show: nothing to render here (the
+    # whole render would be wasted, the client presenting no fingerprint),
+    # only the other tabs to tell — as ``enqueue_deps`` filters its zones.
+    live = ctx.live_zones
+    if keys is None or live is None or zone.id in live:
+        enqueue(ctx, zone, rows=keys)
     # A broadcast zone forced via refresh(x) also fans out to every
     # subscribed tab ; the acting tab additionally gets the local OOB
     # swap enqueued just above.
     if zone.broadcast:
-        _publish_broadcast(ctx, zone.broadcast)
+        _publish_broadcast(ctx, zone.broadcast,
+                           rows=(zone.id, sorted(keys)) if keys else None)

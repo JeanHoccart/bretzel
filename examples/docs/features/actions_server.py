@@ -129,6 +129,29 @@ def actions_server_page() -> None:
                         color="muted", size="sm",
                     )
 
+            # ── Busy state ──────────────────────────────────────────
+            with ui.card(), ui.vstack(gap="sm"):
+                ui.heading('Showing that an action is running', level=2)
+                ui.text(
+                    'Nothing to write: a control whose action is still '
+                    'unanswered after 200 ms shows it — a spinner in a '
+                    'button (its width stays), at the end of a field, a '
+                    'pulse on a checkbox, a dimmed link or zone. A '
+                    'faster answer shows nothing.',
+                    color="muted", size="sm",
+                )
+                ui.code(
+                    'ui.button("Save", on_click=save)        # by itself\n'
+                    'ui.button("Ping", on_click=ping,\n'
+                    '          loading=False)                # never\n'
+                    'with ui.hstack(loading=False):          # nor inside\n'
+                    '    ...\n'
+                    '\n'
+                    '# your own indicator, e.g. a skeleton in a panel:\n'
+                    'ui.skeleton(visible=ui.pending(load_report))\n',
+                    lang="python",
+                )
+
             # ── @idempotent ──────────────────────────────────────────
             with ui.card():
                 with ui.vstack(gap="sm"):

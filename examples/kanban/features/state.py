@@ -57,14 +57,11 @@ class Vue(PageState):
     ``tiroir`` says whether it is open. Two fields for one idea, and it
     is the base layer that imposes it:
 
-    ⚠️ An overlay's ``open=`` only resynchronises from the server if the
-    value passed still carries its PROVENANCE — a state field, not an
-    expression. ``open=vue.ouverte != ""`` returns an ordinary Python
-    ``bool``: the base layer can no longer say where it comes from, does
-    not emit the resynchronisation marker, and the drawer keeps its
-    client state across the morph. Measured: the card did appear in the
-    panel, and the panel stayed closed. It is the same family as
-    ``bretzel check``'s ``state-lost-by-a-cast`` rule.
+A declared boolean, ``tiroir``, rather than ``open=vue.ouverte != ""``
+    at the call site: it says what the drawer shows. (Until 2026-10-23 the
+    expression also broke the drawer — a computed value never resynced
+    from the server; the runtime now re-adopts any value the server
+    changed, cf. ``runtime/_src/03_scope.js``.)
     """
 
     ouverte: str = field(default="")

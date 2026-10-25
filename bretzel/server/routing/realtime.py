@@ -23,6 +23,7 @@ State's wire identifier and the zone's, so the route can :
 
 from __future__ import annotations
 
+import json
 from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
@@ -32,9 +33,11 @@ from starlette.responses import HTMLResponse, Response
 from bretzel.render.context import current_context
 from bretzel.render.decorators.refreshable import (
     RefreshableHandle,
+    enqueue,
+    row_keys,
 )
 from bretzel.render.partials import render_partial
-from bretzel.runtime.protocol import ROUTE_REFETCH
+from bretzel.runtime.protocol import REFETCH_ROWS_PARAM, ROUTE_REFETCH
 from bretzel.server.handlers import HandlerResolutionError, resolve_handler
 from bretzel.state.registry import use_registry
 
@@ -106,6 +109,11 @@ def register_realtime_route(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
             )
 
         ctx = current_context()
+        # ``?rows=[…]`` — a ``zone-rows`` signal: refetch those rows only.
+        # Anything unreadable refetches the zone whole, which is correct.
+        keys = _rows_of(request.query_params.get(REFETCH_ROWS_PARAM))
+        if keys:
+            enqueue(ctx, target, rows=keys)
         # Bind the request's state registry so ``MyState()`` calls
         # inside the zone hit the cache + sync-hydrate path, same as
         # the action dispatch (see ``routing/actions.py``). Without
@@ -121,3 +129,14 @@ def register_realtime_route(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
         with registry_cm:
             result = await render_partial(bretzel_app, target, ctx=ctx)
         return HTMLResponse(content=result.body, status_code=result.status_code)
+
+
+def _rows_of(raw: str | None) -> set[str] | None:
+    """The row keys of a refetch — ``None`` for a whole one."""
+    if not raw:
+        return None
+    try:
+        keys = json.loads(raw)
+    except ValueError:
+        return None
+    return row_keys(keys) or None if isinstance(keys, list) else None

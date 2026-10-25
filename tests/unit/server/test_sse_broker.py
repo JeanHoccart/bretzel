@@ -404,3 +404,44 @@ class TestRedisBrokerFromUrl:
         broker = RedisBroker.from_url("redis://localhost:6379")
         assert isinstance(broker, RedisBroker)
         assert isinstance(broker, SSEBroker)
+
+
+class TestZoneRowsSignal:
+    """``refresh(zone, rows=…)`` on a broadcast zone: a ``zone-rows`` event
+    naming the zone and its keys, on one worker or across Redis."""
+
+    def test_memory_broker_sends_a_zone_rows_event(self) -> None:
+        broker = MemoryBroker()
+
+        async def scenario():
+            broker.subscribe("sess-1", "app::Store")
+            gen = broker.connect("sess-1")
+            await anext(gen)
+            broker.publish("app::Store", event="zone-rows",
+                           data='{"state": "app::Store", "zone": "refresh_x", "rows": ["7"]}')
+            return await asyncio.wait_for(anext(gen), timeout=1.0)
+
+        event = _run(scenario())
+        assert "event: zone-rows" in event
+        assert '"zone": "refresh_x"' in event and '"state": "app::Store"' in event
+
+    def test_the_rows_cross_redis(self) -> None:
+        hub = _FakeHub()
+        worker_a = RedisBroker(_FakeRedis(hub))
+        worker_b = RedisBroker(_FakeRedis(hub))
+
+        async def scenario():
+            await worker_a.start()
+            await worker_b.start()
+            worker_b.subscribe("sess-1", "app::Store")
+            gen = worker_b.connect("sess-1")
+            await anext(gen)
+            worker_a.publish("app::Store", event="zone-rows",
+                           data='{"state": "app::Store", "zone": "refresh_x", "rows": ["7"]}')
+            event = await asyncio.wait_for(anext(gen), timeout=1.0)
+            await worker_a.aclose()
+            await worker_b.aclose()
+            return event
+
+        event = _run(scenario())
+        assert "event: zone-rows" in event and '"rows": ["7"]' in event

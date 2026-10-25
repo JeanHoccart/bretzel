@@ -31,9 +31,11 @@ from bretzel.render.context import (
 )
 from bretzel.render.decorators.page import PageMeta
 from bretzel.render.decorators.refreshable import drain_pending_async_zones
-from bretzel.render.partials import RenderResult
+from bretzel.render.icons import with_glyphs
+from bretzel.render.partials import RenderResult, fingerprinter_for
 from bretzel.render.shell import default_shell
 from bretzel.render.types import BretzelApp
+from bretzel.render.zone_diff import stamp_zones
 from bretzel.runtime.envelope import serialize_envelope
 from bretzel.runtime.protocol import outlet_id_for
 from bretzel.state.registry import use_registry
@@ -88,7 +90,10 @@ async def render_page(
     if ctx.state_registry is not None:
         await ctx.state_registry.commit()
 
-    body_html = "".join(serialize(node) for node in produced)
+    # The zones rendered inline carry their fingerprint, so the first
+    # action can already patch them rather than ship them whole
+    # (``render/zone_diff.py``).
+    produced = stamp_zones(produced, fingerprinter_for(app), getattr(app, "zone_maps", None))
 
     # ── Partial-nav short-circuit ──────────────────────────────────────
     # When ``ctx.is_partial`` was flipped by the route handler (htmx
@@ -116,7 +121,8 @@ async def render_page(
         # ``_render_delta`` helper builds the script tag for us ;
         # ``include_unchanged=True`` widens the filter from dirty-only
         # (action flow) to every-registered (partial-nav flow).
-        body_html = _render_delta(ctx, include_unchanged=True) + body_html
+        body_html = _render_delta(ctx, include_unchanged=True) + "".join(
+            serialize(node) for node in produced)
         return RenderResult(
             body=body_html,
             status_code=200,
@@ -124,6 +130,11 @@ async def render_page(
             new_cookies=dict(ctx.new_cookies),
             deleted_cookies=set(ctx.deleted_cookies),
         )
+
+    # A full page draws its icons while parsing (``render/icons.py``);
+    # a partial nav is swapped by htmx, which would not.
+    produced, preload = with_glyphs(produced)
+    body_html = "".join(serialize(node) for node in produced) + preload
 
     # ── 3. Build the bootstrap envelope from the registry + theme ───────
     envelope_json = _build_envelope_json(app, ctx)

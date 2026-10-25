@@ -43,6 +43,9 @@
     let parent = initialParent;
     const signals = new Map();
     const helpers = new Map();
+    // The last value the SERVER rendered for each signal, as JSON — what
+    // ``resyncScopes`` compares a fresh render against.
+    const seeds = new Map();
     const refs = parent && parent.refs ? Object.create(parent.refs) : {};
 
     const proxy = new Proxy(
@@ -84,6 +87,7 @@
     return {
       signals: signals,
       helpers: helpers,
+      seeds: seeds,
       refs: refs,
       proxy: proxy,
       parentScope() {
@@ -124,7 +128,10 @@
           if (key === "_serverSync") continue; // swap-resync marker, not a signal
           const v = decl[key];
           if (typeof v === "function") helpers.set(key, v);
-          else if (!signals.has(key)) signals.set(key, $bz.signal(v));
+          else if (!signals.has(key)) {
+            signals.set(key, $bz.signal(v));
+            seeds.set(key, seedOf(v));
+          }
         }
       },
     };
@@ -224,18 +231,26 @@
   /* Swap-boundary value adoption. ``absorb`` deliberately SKIPS keys
    * whose signal already exists, so a morph that re-emits bz-data never
    * resets live client state (an open dropdown, a half-typed query).
-   * But a server-bound input (NumberInput / Slider / Select / Combobox
-   * in local mode) seeds its ``value`` signal from the server : when
-   * its @refreshable zone re-renders with a NEW value, the fresh value
-   * rides in the morphed bz-data attribute yet absorb keeps the stale
-   * one. Such components opt the affected keys in via a ``_serverSync``
-   * array ; the bridge calls this ONCE per swap (after the rescan) to
-   * adopt exactly those keys from the freshly-morphed attribute. Keys
-   * NOT listed (isOpen, _query, …) stay client-owned. Binding-mode
+   *
+   * The rule, once per swap (after the rescan): **the server wins when
+   * the value it renders has CHANGED since its last render.** A key the
+   * server keeps rendering the same (``isOpen: false``, ``_query: ''``)
+   * leaves the client's value alone; a key it renders differently is
+   * adopted — the server changed it on purpose. One exception: inside a
+   * component whose text field has the focus, nothing moves under the
+   * user's fingers. ``_serverSync`` keys are adopted on every swap,
+   * whatever the comparison says.
+   *
+   * Until 2026-10-23 only ``_serverSync`` keys were adopted, and only a
+   * value stamped as a state field earned the marker: a value the app
+   * COMPUTED (filters read from the URL, a selection from a list) stayed
+   * client-owned for good. "Clear filters" left the status toggles
+   * pressed, "Clear selection" left the boxes ticked. Binding-mode
    * inputs need nothing here — their value lives in $bz._store, which
    * the patch envelope updates and which never rides a scope signal. */
   function resyncScopes(root) {
     if (!root || root.nodeType !== 1 || !scopes.size) return;
+    const typingIn = textEntryWithFocus();
     const hosts = [];
     if (root.hasAttribute("bz-data")) hosts.push(root);
     for (const el of root.querySelectorAll("[bz-data]")) hosts.push(el);
@@ -250,13 +265,39 @@
       } catch (e) {
         continue;
       }
-      const keys = decl && Array.isArray(decl._serverSync) ? decl._serverSync : null;
-      if (!keys) continue;
-      for (const key of keys) {
+      if (!decl) continue;
+      const forced = Array.isArray(decl._serverSync) ? decl._serverSync : [];
+      const typing = typingIn && el.contains(typingIn);
+      for (const key of Object.keys(decl)) {
+        const v = decl[key];
+        if (key === "_serverSync" || typeof v === "function") continue;
         const sig = scope.signals.get(key);
-        if (sig) sig.set(decl[key]);
+        if (!sig) continue;
+        const fresh = seedOf(v);
+        const moved = scope.seeds.get(key) !== fresh;
+        scope.seeds.set(key, fresh);
+        if (forced.includes(key) || (moved && !typing)) sig.set(v);
       }
     }
+  }
+
+  /* A server value, comparable across renders. */
+  function seedOf(v) {
+    try {
+      return JSON.stringify(v);
+    } catch (e) {
+      return String(v);
+    }
+  }
+
+  /* The text field being typed in, if any: its component keeps what the
+   * user is typing even when the server's value moved meanwhile. */
+  function textEntryWithFocus() {
+    const el = document.activeElement;
+    if (!el || el === document.body) return null;
+    if (el.isContentEditable || el.tagName === "TEXTAREA") return el;
+    if (el.tagName !== "INPUT") return null;
+    return /^(text|search|email|url|tel|password|number|)$/i.test(el.type || "") ? el : null;
   }
 
   $bz._scopes = scopes;

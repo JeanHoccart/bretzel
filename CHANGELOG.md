@@ -7,6 +7,82 @@ change between alpha releases.
 
 ## [Unreleased]
 
+## [0.1.0a4] - 2026-10-25
+
+### Added
+
+- A control whose action is still unanswered after 200 ms shows it is busy,
+  with nothing to write: a button keeps its width and shows a spinner, a text
+  field shows one at its end, a checkbox or a switch pulses, anything else
+  dims — and a zone the runtime asks again (another tab's change) dims while
+  it comes. A faster answer shows nothing. The element carries `aria-busy`.
+  `loading=False` on a component turns it off for it and everything inside;
+  a button with `loading=True` or `loading=ui.pending()` keeps its own
+  spinner.
+- `refresh(zone, rows=[key, …])` refreshes only those rows of the zone's
+  keyed `ui.table`: the table renders and ships them alone, and a row that
+  left the list is removed. The other tabs of a broadcast zone refetch
+  those rows only. A new row, a new order or an unknown client copy ships
+  the zone whole, and a whole refresh in the same action wins.
+- In debug mode, every action or refetch response carries a
+  `Server-Timing` header with each zone's render time, shown by the
+  browser's DevTools next to the request.
+
+### Changed
+
+- A changed element with no `id` is sent alone too, found by its position
+  under its nearest identified ancestor (the runtime checks the shape of
+  each level before morphing, and ships the zone whole if the page moved).
+  One status change on the comparison helpdesk: 8.9 → 3.9 KB gzipped — the
+  ticket panel, with no ids inside, used to go whole.
+- Building a component is cheaper: the bucket of each keyword, the
+  client-expression check of a string, the props' defaults, a theme
+  table's legal steps and a component's resolved theme are computed once
+  instead of for every component. A 50-row table zone renders about 7 %
+  faster.
+- A refreshed zone sends only the elements that changed, each morphed in
+  place by its `id`, instead of the whole zone: one status change on the
+  comparison helpdesk went from 18.6 KB to 6.3 KB gzipped. A fingerprint the
+  server does not know ships the zone whole, as before. An unchanged zone
+  containing a button is also recognised as unchanged again: its render
+  second made it look changed one second later.
+
+### Fixed
+
+- Another tab now sees a change whose action renders slowly: the "this
+  state changed" signal to the other tabs went out before the action had
+  rendered and committed, so a tab that asked again within that time read
+  the old value and stayed on it. The signals now wait for the commit.
+- A client expression on a navigation item's `active=` (`ui.sidebar_item`,
+  `ui.navbar_item`, `ui.bottom_bar_item`) now drives its active state and
+  `aria-current`, as a state binding does. It used to go out as a bare
+  `bz-attr:active` that nothing read: the item never lit up.
+- A control follows a value the server changed, even when the app passes
+  a computed value (filters read from the URL, `int(state.x)`,
+  `state.a or state.b`, a comparison): "Clear filters" left the toggles
+  pressed, "Clear selection" left the boxes ticked. The rule is now
+  explicit — the server wins when the value it renders has changed since
+  its last render; a local choice the server did not touch survives an
+  unrelated refresh, and the field being typed into never moves.
+- An icon no longer pushes its label sideways when it scrolls into view:
+  the icon web component's lazy mode is turned off when the page boots, so
+  every icon — a component's, an app's, raw markup — is drawn at once, and
+  keeps a 1em box until drawn. Off screen, it left icons empty (zero wide),
+  and re-emptied them when scrolled away.
+- A full page draws its icons while it parses, with the text beside them:
+  each icon of the shipped Lucide set carries its glyph in a declarative
+  shadow root, and the component, once its deferred script runs, draws it
+  again from data the page hands over — no request, no empty frame. Before,
+  the first frames showed the text one icon to the left, then the icon
+  pushed it. Until the component registers, an icon also keeps its 1em box
+  (it was an inline element, which ignores a minimum width).
+
+### Removed
+
+- `bretzel check`'s `state-lost-by-a-cast` rule: it worked around the
+  behaviour fixed above, and its warning ("will not re-adopt after a
+  refresh") is no longer true.
+
 ## [0.1.0a3] - 2026-10-23
 
 ### Added
@@ -200,6 +276,8 @@ First public alpha.
 - Tailwind CSS v4 theming, compiled with the standalone binary in production.
 - CLI: `bretzel new`, `bretzel dev`, `bretzel describe` and `bretzel check`.
 
-[Unreleased]: https://github.com/JeanHoccart/bretzel/compare/v0.1.0a2...HEAD
+[Unreleased]: https://github.com/JeanHoccart/bretzel/compare/v0.1.0a4...HEAD
+[0.1.0a4]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a4
+[0.1.0a3]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a3
 [0.1.0a2]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a2
 [0.1.0a1]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a1

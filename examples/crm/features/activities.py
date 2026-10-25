@@ -83,15 +83,10 @@ class ActivitiesUI(PageState):
     #: The month the calendar SHOWS.
     #:
     #: A real field, and **not** `day or period_end` at the call
-    #: site. `a or b` returns the operand AS IT IS: the provenance stamp
-    #: therefore survived when `day` was filled and disappeared when it
-    #: was empty, and the calendar resynchronised one time in two
-    #: depending on the data. Visible consequence: with no day chosen,
-    #: changing the period did not move the calendar.
-    #:
-    #: It is the same trap as the one already written in `save_activity`,
-    #: where an `or` undid the portfolio lock. Guarded by the
-    #: `state-lost-by-a-cast` rule, widened to `BoolOp` on 2026-08-30.
+    #: site: the month shown is a fact of the screen, kept where the
+    #: handlers can move it. (Until 2026-10-23 the `or` also stopped the
+    #: calendar from following the server when `day` was empty; the
+    #: runtime now re-adopts any value the server changed.)
     month: str = field(default=DEFAULT_END.isoformat())
 
     @validator("kind")

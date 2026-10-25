@@ -35,7 +35,7 @@ from bretzel.components.base import Component
 from bretzel.components.base._wiring import bool_attr
 from bretzel.core.tree import Element
 from bretzel.render.context import maybe_current_context
-from bretzel.runtime.protocol import outlet_id_for
+from bretzel.runtime.protocol import BZ_ATTR_PREFIX, outlet_id_for
 
 # The channels through which a click can leave. A disabled item loses
 # them ALL: ``href`` (browser nav), ``hx-*`` (partial swap), and the
@@ -144,10 +144,16 @@ def wire_nav_item(item: Component, slots: dict[str, Any]) -> NavItemWiring:
 
     attrs: dict[str, Any] = item.emit_attrs()
     attrs["class"] = base_class
+    # A client expression on ``active`` is wired like a binding; left to
+    # ``emit_attrs`` it became a bare ``bz-attr:active`` that nothing read.
+    active_expr = item._client_expressions.get("active")
+    if active_expr:
+        attrs.pop(f"{BZ_ATTR_PREFIX}active", None)
 
     apply_active_state(
         attrs,
         active_binding=bindings.get("active"),
+        active_expr=active_expr,
         active_value=values.get("active"),
         href=href,
         base_class=base_class,
@@ -190,10 +196,11 @@ def apply_active_state(
     href: Any,
     base_class: str,
     active_class: str,
+    active_expr: str | None = None,
 ) -> None:
     """Set the active state on ``attrs`` — three sources, in order.
 
-    1. explicit binding → reactive ``bz-attr:data-active``;
+    1. explicit binding or client expression → reactive ``bz-attr:data-active``;
     2. literal boolean → static ``data-active``;
     3. ``None`` (auto) → reactive comparison with ``current_path``, the
        signal the Navbar / Sidebar owns in its ``bz-data``.
@@ -209,10 +216,11 @@ def apply_active_state(
     base classes in it).
     """
     active_js = json.dumps(active_class)
-    if active_binding is not None:
-        expr = active_binding.binding_path()
+    if active_binding is not None or active_expr:
+        expr = active_expr or active_binding.binding_path()
         attrs["bz-attr:data-active"] = bool_attr(expr)
         attrs["bz-class"] = f"({expr}) ? {active_js} : ''"
+        attrs["bz-attr:aria-current"] = f"({expr}) ? 'page' : null"
     elif active_value is True:
         attrs["data-active"] = "true"
         attrs["class"] = f"{base_class} {active_class}".strip()

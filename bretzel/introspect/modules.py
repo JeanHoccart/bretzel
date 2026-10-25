@@ -182,6 +182,11 @@ _RENDER: dict[str, str] = {
     "serialize_html": "render",
     "refresh": "refresh a region",
     "drain_refresh_queue": "refresh a region",
+    # Public for the server layer, which owns one per app (anti-rule 2):
+    # the element fingerprints that let a zone ship only what changed.
+    "ZoneMaps": "refresh a region",
+    # Filed by a keyed ``ui.table`` during ``refresh(zone, rows=[…])``.
+    "RowReport": "refresh a region",
     "RefreshableHandle": "refresh a region",
     "zone_ids_watching": "refresh a region",
     "text": "say a framework word",

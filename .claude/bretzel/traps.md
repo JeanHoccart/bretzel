@@ -71,15 +71,52 @@ multiple devenait son texte d'attente). Les lignes portent `data-bz-row` ;
 au rebind, une ligne qui l'a perdu ou a changé de parent est abandonnée et
 reclonée. Test : `test_a_multi_select_keeps_its_pills_after_its_own_refresh.py`.
 
-### Une case locale garde son état à travers un refresh
+### Une valeur locale ne cède au serveur que s'il l'a changée
 
-`ui.checkbox(checked=<littéral>, on_change=…)` tient sa valeur dans un petit
-scope (`add_local_value_scope`) que le morph conserve : c'est voulu, un
-clic ne doit pas être effacé par un refresh sans rapport. Conséquence : un
-re-rendu serveur avec `checked=False` ne décoche PAS une case que
-l'utilisateur a cochée. Pour remettre des cases à la valeur du serveur
-(« tout désélectionner »), changer leur identité (`id=` qui inclut un
-compteur), ou lier `checked=` à un champ d'état serveur.
+Un contrôle (case, interrupteur, filtres, select, onglets…) garde sa valeur
+dans un scope local que le morph conserve : un clic n'est pas effacé par un
+rafraîchissement sans rapport. Depuis le 2026-10-23, la règle est explicite
+(`resyncScopes`) : **le serveur gagne quand la valeur qu'il rend a changé
+depuis son dernier rendu**, sauf dans le composant où l'on tape. Avant, seule
+une valeur estampillée (un champ d'état nu) revenait au serveur : « tout
+désélectionner » ou « effacer les filtres » ne touchaient pas les contrôles,
+et il fallait changer leur `id`. Conséquence à garder en tête : si le
+serveur renvoie la MÊME valeur qu'avant, le choix local reste — c'est voulu.
+
+### Un `<tr>` seul en tête de réponse n'arrive jamais
+
+L'analyseur HTML jette un élément de tableau hors de sa table : un patch
+hors bande `<tr id=… hx-swap-oob>` placé après un `<span>` dans la réponse
+n'atteint jamais htmx, sans erreur. L'envelopper dans un `<template>`, dont
+le contenu s'analyse dans tout contexte : htmx y lit les éléments hors bande
+(`render/zone_diff.as_patch`).
+
+### Un horodatage par rendu rend tout élément cliquable « changé »
+
+`data-bz-ts` est la seconde du rendu. Toute comparaison de rendus qui le
+compte voit changer chaque élément porteur d'une action une seconde plus
+tard. Le silence des zones inchangées en souffrait depuis son introduction :
+une zone avec un bouton n'était reconnue identique que dans la même seconde.
+Les empreintes l'ignorent (sauf `@idempotent` et `action_max_age`,
+cf. `render/zone_diff.py`).
+
+### Un compteur de révision global dans les `deps` annule `rows=`
+
+`refresh(zone, rows=[…])` cède devant un rafraîchissement entier de la même
+zone dans la même action. Un tableau dont les `deps` portent le compteur que
+chaque écriture incrémente (le « tout a changé » du helpdesk) repart donc
+entier à chaque fois, et `rows=` ne sert à rien, sans erreur. Ses `deps`
+doivent dire ce qui change sa structure, pas qu'on a écrit quelque chose.
+
+### Deux `<span>` voisins ont la même balise
+
+Retrouver un élément par sa position ne se vérifie pas avec sa seule
+balise : un élément inséré avant lui (un script d'app, une extension de
+navigateur) décale les positions, et la cible tombe sur un voisin de même
+balise — le patch s'applique au mauvais endroit, sans erreur. Mesuré en
+écrivant `test_an_unnamed_element_is_patched_by_position.py`. Le runtime
+compare donc, à chaque pas, l'empreinte de la liste des enfants
+(`zone_diff.shape_of`) avec celle que le serveur a rendue.
 
 ### Custom elements et morph
 
@@ -230,6 +267,65 @@ sous un dossier élagué (caché, venv, `build/`, `dist/`, `archive/` racine) ne
 recompile rien. Une racine `@source` nichée sous un dossier élagué — le paquet
 installé dans le `.venv` de l'app — reste une racine à part entière, sinon les
 thèmes du framework sortent de la clé.
+
+### Une icône hors écran est vide
+
+`<iconify-icon>` surveille sa visibilité : hors du viewport, son hôte reste
+vide (0 de large), et il se revide quand on la fait défiler hors de l'écran.
+Le libellé à côté se décalait en défilant. L'attribut `noobserver` n'est lu
+qu'à l'insertion : il aurait fallu le poser sur chaque émetteur, apps et
+balisage brut compris. Le script `icons` du shell rend donc `startObserver`
+inopérant AVANT que `customElements.define` mette la page à niveau, et le
+CSS du thème réserve 1em ; gardé par
+`tests/consistency/test_every_icon_renders_at_once.py` (qui vérifie aussi
+que le composant vendu porte toujours la méthode désactivée).
+
+### Un signal aux autres onglets part APRÈS le commit
+
+`broadcast_deps` et `refresh(…, rows=)` publiaient pendant le handler, avant
+le rendu et le commit de l'action. L'autre onglet redemande après 40 ms
+(`REFETCH_WINDOW_MS`) et lit le store : une action qui rend en plus de
+~40 ms (le helpdesk : 65 à 100) lui laissait l'ancienne valeur, et rien ne
+la corrigeait. Une action tient donc `ctx.deferred_broadcasts` et l'envoie
+après `commit()` ; hors action (`None`), `_publish_broadcast` envoie à
+l'instant. Gardé par
+`tests/runtime_js/test_another_tab_reads_the_committed_change.py`. ⚠️ Un
+test de course doit LIRE puis attendre : attendre puis lire masque la
+course.
+
+### L'état occupé est automatique, et se coupe par `loading=False`
+
+Le runtime pose la classe `bz-busy` + `aria-busy` sur le déclencheur d'une
+requête sans réponse après 200 ms (`05_bridge.js`), y compris une zone
+qu'il redemande ; le CSS global (`theme/css.py`, `_BUSY`) le dessine par
+forme — une classe et pas un attribut, comme `.bz-drag-preview` : aucun
+composant ne la rend, et la gate des sélecteurs CSS refuse un `[attr=…]` que
+personne n'émet. Exclus : navigation (la barre du shell), `hx-trigger` à `every`,
+porteur `hidden`, et tout ce qui est sous un `data-bz-busy="off"` — que
+`loading=False` pose sur la racine du composant. `loading` est un kwarg
+universel PARTAGÉ (`SHARED_RESERVED_KWARGS`) : le bouton le déclare aussi
+et le reçoit (son propre spinner), le socle le lit sans le retirer. Le
+libellé d'un bouton est souvent du texte nu : on le cache par
+`-webkit-text-fill-color`, pas par `> *`, pour que `currentColor` reste au
+spinner.
+
+### Une icône arrive après son texte
+
+Le script d'`iconify-icon` est différé, et son glyphe vient d'une requête de
+plus : avant, l'hôte est un élément INCONNU, donc en ligne, et un élément en
+ligne ignore `min-width` — le 1em réservé ne tenait pas, le texte partait à
+gauche puis sautait (capture du 2026-10-23). Trois pièces :
+`:where(iconify-icon:not(:defined)){display:inline-block}` (poids nul, une
+classe `hidden` gagne toujours) ; une page entière porte le glyphe dans une
+racine d'ombre déclarative (`render/icons.py`, après le tampon des zones,
+donc invisible pour le diff) ; ses données partent dans un bloc JSON
+`#bz-icons` que le script `icons` du shell passe à `addCollection` avant
+l'enregistrement — pas un `<script>` exécutable : la CSP n'admet que les
+scripts en ligne fixes du shell. Le même script rend le premier `_check`
+synchrone, sinon la mise à niveau vide la racine et laisse une image sans
+glyphe. Un fragment htmx n'a pas de racine d'ombre (le parseur de fragment
+ne les crée pas) : il compte sur les données déjà chargées. Gardé par
+`tests/runtime_js/test_an_icon_is_drawn_with_its_label.py`.
 
 ### Les icônes se dimensionnent par `font-size`
 

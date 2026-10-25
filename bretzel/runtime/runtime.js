@@ -213,18 +213,34 @@
   // it, and does not inherit the old one's timer.
   const _refetchPending = new WeakMap();
 
-  function refetchZone(zone, url) {
+  /* ``rows``: the keys of a ``zone-rows`` signal — only those rows are
+   * refetched. Demands pending in the same window merge: their keys add
+   * up, and one demand for the whole zone (``rows`` undefined) wins. */
+  function refetchZone(zone, url, rows) {
     let state = _refetchPending.get(zone);
     if (!state) {
-      state = { timer: null };
+      state = { timer: null, rows: null, whole: false };
       _refetchPending.set(zone, state);
     }
+    if (rows === undefined) state.whole = true;
+    else if (!state.whole) state.rows = (state.rows || []).concat(rows);
     // A more recent demand replaces the one that was waiting: they
     // describe the same final state, and only the last one knows it.
     if (state.timer) clearTimeout(state.timer);
     state.timer = setTimeout(function () {
       state.timer = null;
-      window.htmx.ajax("GET", url, { source: zone, swap: "none" });
+      let target = url;
+      if (!state.whole && state.rows) {
+        const query = new URL(url, window.location.href);
+        query.searchParams.set("rows", JSON.stringify(Array.from(new Set(state.rows))));
+        target = query.pathname + query.search;
+      }
+      state.rows = null;
+      state.whole = false;
+      // The zone's fingerprint rides along, as on an action POST: the
+      // server can then patch the zone instead of shipping it whole.
+      const headers = { "X-Bretzel-Zones": $bz._zoneEntry(zone) };
+      window.htmx.ajax("GET", target, { source: zone, swap: "none", headers: headers });
     }, REFETCH_WINDOW_MS + _refetchJitter);
   }
   $bz._refetchZone = refetchZone;
@@ -247,8 +263,11 @@
   let _sseRetryMs = SSE_RETRY_MIN_MS;
   let _sseWasDown = false;
 
-  function refetchSubscribedZones(qualname) {
+  /* ``rows`` (with ``zoneId``): a ``zone-rows`` signal — only that zone,
+   * only those rows. */
+  function refetchSubscribedZones(qualname, zoneId, rows) {
     for (const zone of document.querySelectorAll("[data-bz-subscribe-state]")) {
+      if (zoneId !== undefined && zone.getAttribute("bz-id") !== zoneId) continue;
       // A broadcast zone lists ALL its deps (space-separated) ; refetch
       // when the dirtied state is one of them.
       if (qualname !== undefined) {
@@ -256,7 +275,7 @@
         if (!states.includes(qualname)) continue;
       }
       const url = zone.getAttribute("data-bz-subscribe-url");
-      if (url && window.htmx) refetchZone(zone, url);
+      if (url && window.htmx) refetchZone(zone, url, rows);
     }
   }
 
@@ -292,6 +311,12 @@
     });
     source.addEventListener("state-dirty", function (event) {
       refetchSubscribedZones(event.data);
+    });
+    // ``refresh(zone, rows=[…])`` elsewhere: refetch that zone, those rows.
+    source.addEventListener("zone-rows", function (event) {
+      let signal;
+      try { signal = JSON.parse(event.data); } catch (err) { return; }
+      refetchSubscribedZones(signal.state, signal.zone, signal.rows);
     });
   }
   $bz._ensureSse = ensureSse;
@@ -1056,6 +1081,9 @@
       if (v && !mounted) {
         mounted = template.cloneNode(true);
         mounted.removeAttribute("bz-if");
+        // Inserted by the runtime, like a bz-for row: a walk by position
+        // (``05_bridge.js``, ``applyPositionPatches``) skips it.
+        mounted.setAttribute(ROW_MARK, "");
         anchor.parentNode.insertBefore(mounted, anchor.nextSibling);
         scan(mounted);
       } else if (!v && mounted) {
@@ -1121,7 +1149,7 @@
   }
 
   // ── Structural : bz-for (on a <template>, single root child) ──────
-  //: Set on every row a bz-for clones. The server's HTML never has it, so
+  //: Set on every row a bz-for clones (and on a bz-if mount). The server's HTML never has it, so
   //: a morph that recycles a row into a server node strips it — which is
   //: how a rebind tells a row from a node that only sits where one was.
   const ROW_MARK = "data-bz-row";
@@ -1419,6 +1447,9 @@
     let parent = initialParent;
     const signals = new Map();
     const helpers = new Map();
+    // The last value the SERVER rendered for each signal, as JSON — what
+    // ``resyncScopes`` compares a fresh render against.
+    const seeds = new Map();
     const refs = parent && parent.refs ? Object.create(parent.refs) : {};
 
     const proxy = new Proxy(
@@ -1460,6 +1491,7 @@
     return {
       signals: signals,
       helpers: helpers,
+      seeds: seeds,
       refs: refs,
       proxy: proxy,
       parentScope() {
@@ -1500,7 +1532,10 @@
           if (key === "_serverSync") continue; // swap-resync marker, not a signal
           const v = decl[key];
           if (typeof v === "function") helpers.set(key, v);
-          else if (!signals.has(key)) signals.set(key, $bz.signal(v));
+          else if (!signals.has(key)) {
+            signals.set(key, $bz.signal(v));
+            seeds.set(key, seedOf(v));
+          }
         }
       },
     };
@@ -1600,18 +1635,26 @@
   /* Swap-boundary value adoption. ``absorb`` deliberately SKIPS keys
    * whose signal already exists, so a morph that re-emits bz-data never
    * resets live client state (an open dropdown, a half-typed query).
-   * But a server-bound input (NumberInput / Slider / Select / Combobox
-   * in local mode) seeds its ``value`` signal from the server : when
-   * its @refreshable zone re-renders with a NEW value, the fresh value
-   * rides in the morphed bz-data attribute yet absorb keeps the stale
-   * one. Such components opt the affected keys in via a ``_serverSync``
-   * array ; the bridge calls this ONCE per swap (after the rescan) to
-   * adopt exactly those keys from the freshly-morphed attribute. Keys
-   * NOT listed (isOpen, _query, …) stay client-owned. Binding-mode
+   *
+   * The rule, once per swap (after the rescan): **the server wins when
+   * the value it renders has CHANGED since its last render.** A key the
+   * server keeps rendering the same (``isOpen: false``, ``_query: ''``)
+   * leaves the client's value alone; a key it renders differently is
+   * adopted — the server changed it on purpose. One exception: inside a
+   * component whose text field has the focus, nothing moves under the
+   * user's fingers. ``_serverSync`` keys are adopted on every swap,
+   * whatever the comparison says.
+   *
+   * Until 2026-10-23 only ``_serverSync`` keys were adopted, and only a
+   * value stamped as a state field earned the marker: a value the app
+   * COMPUTED (filters read from the URL, a selection from a list) stayed
+   * client-owned for good. "Clear filters" left the status toggles
+   * pressed, "Clear selection" left the boxes ticked. Binding-mode
    * inputs need nothing here — their value lives in $bz._store, which
    * the patch envelope updates and which never rides a scope signal. */
   function resyncScopes(root) {
     if (!root || root.nodeType !== 1 || !scopes.size) return;
+    const typingIn = textEntryWithFocus();
     const hosts = [];
     if (root.hasAttribute("bz-data")) hosts.push(root);
     for (const el of root.querySelectorAll("[bz-data]")) hosts.push(el);
@@ -1626,13 +1669,39 @@
       } catch (e) {
         continue;
       }
-      const keys = decl && Array.isArray(decl._serverSync) ? decl._serverSync : null;
-      if (!keys) continue;
-      for (const key of keys) {
+      if (!decl) continue;
+      const forced = Array.isArray(decl._serverSync) ? decl._serverSync : [];
+      const typing = typingIn && el.contains(typingIn);
+      for (const key of Object.keys(decl)) {
+        const v = decl[key];
+        if (key === "_serverSync" || typeof v === "function") continue;
         const sig = scope.signals.get(key);
-        if (sig) sig.set(decl[key]);
+        if (!sig) continue;
+        const fresh = seedOf(v);
+        const moved = scope.seeds.get(key) !== fresh;
+        scope.seeds.set(key, fresh);
+        if (forced.includes(key) || (moved && !typing)) sig.set(v);
       }
     }
+  }
+
+  /* A server value, comparable across renders. */
+  function seedOf(v) {
+    try {
+      return JSON.stringify(v);
+    } catch (e) {
+      return String(v);
+    }
+  }
+
+  /* The text field being typed in, if any: its component keeps what the
+   * user is typing even when the server's value moved meanwhile. */
+  function textEntryWithFocus() {
+    const el = document.activeElement;
+    if (!el || el === document.body) return null;
+    if (el.isContentEditable || el.tagName === "TEXTAREA") return el;
+    if (el.tagName !== "INPUT") return null;
+    return /^(text|search|email|url|tel|password|number|)$/i.test(el.type || "") ? el : null;
   }
 
   $bz._scopes = scopes;
@@ -2071,6 +2140,59 @@
     return slot.sig.get();
   };
 
+  /* The automatic busy state (``loading=`` on the Python side): a
+   * trigger whose request is still unanswered after ``BUSY_AFTER_MS``
+   * shows it on its own — the ``bz-busy`` class for the theme's CSS
+   * (``theme/css.py``, ``_BUSY``) and ``aria-busy`` for assistive tech.
+   * Under the delay, nothing: a fast answer does not flash.
+   *
+   * A zone the runtime asks again (``refetchZone``: another tab's change,
+   * a row refresh) is the source of its own request, so it gets the same
+   * state. Not for a navigation — the shell's bar shows it —, nor for
+   * polling, nor a hidden carrier, nor under ``loading=False``
+   * (``data-bz-busy="off"`` on the element or an ancestor). A counter,
+   * like the witness above: two requests from one element, and the first
+   * answer must not clear the second. */
+  const BUSY_AFTER_MS = 200;
+  const BUSY = new WeakMap();
+
+  function busyTarget(elt, detail) {
+    if (!elt || elt.nodeType !== 1 || elt.hidden) return null;
+    if ((detail && detail.boosted) || elt.getAttribute("hx-push-url") === "true") return null;
+    if (/\bevery\b/.test(elt.getAttribute("hx-trigger") || "")) return null;
+    if (elt.closest('[data-bz-busy="off"]')) return null;
+    return elt;
+  }
+
+  function armBusy(elt) {
+    let state = BUSY.get(elt);
+    if (!state) {
+      state = { count: 0, timer: 0, shown: false };
+      BUSY.set(elt, state);
+    }
+    if (++state.count > 1) return;
+    state.timer = setTimeout(function () {
+      state.timer = 0;
+      if (!elt.isConnected) return;
+      elt.classList.add("bz-busy");
+      elt.setAttribute("aria-busy", "true");
+      state.shown = true;
+    }, BUSY_AFTER_MS);
+  }
+
+  function disarmBusy(elt) {
+    const state = BUSY.get(elt);
+    if (!state || state.count === 0 || --state.count > 0) return;
+    clearTimeout(state.timer);
+    // A morph may already have dropped both (the server never renders
+    // them): only what this state set is taken back.
+    if (state.shown && elt.classList.contains("bz-busy")) {
+      elt.classList.remove("bz-busy");
+      elt.removeAttribute("aria-busy");
+    }
+    BUSY.delete(elt);
+  }
+
   $bz._wireBridge = function () {
     document.body.addEventListener("htmx:configRequest", function (e) {
       // An inert control posts NOTHING. It is inertness's third guard
@@ -2159,9 +2281,7 @@
             // fingerprint comes from IT, it is never computed here — an
             // absent or stale fingerprint can therefore only make the
             // zone be re-sent, never wrongly suppressed.
-            const zid = z.getAttribute("bz-id");
-            const vu = $bz._zoneHashes && $bz._zoneHashes[zid];
-            ids.push(vu ? zid + ":" + vu : zid);
+            ids.push($bz._zoneEntry(z));
           }
           e.detail.headers["X-Bretzel-Zones"] = ids.join(",");
         }
@@ -2199,8 +2319,61 @@
       }
     });
 
+    /* Changes to elements with no ``id`` (``render/zone_diff.at_position``):
+     * ``<bz-at zone anchor path shape>`` holds the new element in a
+     * template. Walk from the anchor by element position, skipping what
+     * the runtime inserted itself (``data-bz-row``: ``bz-for`` rows,
+     * ``bz-if`` mounts), check each level's shape, morph. A walk that
+     * does not land — the DOM moved under us — forgets the zone's
+     * fingerprint (the base check of ``_adoptZoneHashes`` then keeps it
+     * forgotten) and asks a subscribed zone again at once; any other zone
+     * ships whole at the next exchange. */
+    // Mirror of ``zone_diff.shape_of``: djb2 over the children's tags.
+    function shapeOf(kids) {
+      let h = 5381;
+      const text = kids.map((k) => k.localName).join(",");
+      for (let i = 0; i < text.length; i++) h = (((h << 5) + h) + text.charCodeAt(i)) >>> 0;
+      return h.toString(16);
+    }
+    function settle(node) {
+      if (window.htmx) window.htmx.process(node);
+      $bz._scan(node);
+      // Adopt server-authoritative signals (``_serverSync`` keys) from
+      // the freshly-morphed bz-data — runs AFTER the rescan so the
+      // bz-attr effects are live when the value signal changes.
+      $bz._resyncScopes(node);
+    }
+    function applyPositionPatches() {
+      const sink = document.getElementById("bz-sink");
+      if (!sink) return;
+      for (const tag of sink.querySelectorAll("bz-at")) {
+        tag.remove();
+        const template = tag.querySelector("template");
+        const fresh = template && template.content.firstElementChild;
+        let el = document.getElementById(tag.getAttribute("anchor"));
+        const shapes = (tag.getAttribute("shape") || "").split(".");
+        const steps = (tag.getAttribute("path") || "").split(".");
+        for (let i = 0; i < steps.length && el; i++) {
+          const kids = Array.from(el.children).filter((c) => !c.hasAttribute("data-bz-row"));
+          el = shapeOf(kids) === shapes[i] ? kids[Number(steps[i])] : null;
+        }
+        if (!el || !fresh || el.tagName !== fresh.tagName || !window.Idiomorph) {
+          const host = document.querySelector('[data-bz-zone][bz-id="' + tag.getAttribute("zone") + '"]');
+          if (!host) continue;
+          host.removeAttribute("data-bz-h");
+          const url = host.getAttribute("data-bz-subscribe-url");
+          if (url && $bz._refetchZone) $bz._refetchZone(host, url);
+          continue;
+        }
+        const live = window.Idiomorph.morph(el, fresh, { morphStyle: "outerHTML" })
+          .find((n) => n.nodeType === 1);
+        if (live) settle(live);
+      }
+    }
+
     function afterSwap(e) {
       applyPatchTags();
+      applyPositionPatches();
       let target = e.detail && e.detail.target ? e.detail.target : e.target;
       // An OOB swap that CHANGES a refreshable zone's ROOT TAG makes HTMX
       // REPLACE the node instead of morphing it in place — and the event
@@ -2218,9 +2391,6 @@
       }
       if (target && target.nodeType === 1) {
         $bz._scan(target);
-        // Adopt server-authoritative signals (``_serverSync`` keys) from
-        // the freshly-morphed bz-data — runs AFTER the rescan so the
-        // bz-attr effects are live when the value signal changes.
         $bz._resyncScopes(target);
       }
       $bz._sweepScopes();
@@ -2243,9 +2413,47 @@
      * key. */
     document.body.addEventListener("htmx:beforeRequest", function (e) {
       pendingKeys(e.detail.elt, e.detail).forEach(armPending);
+      const busy = busyTarget(e.detail.elt, e.detail);
+      if (busy) armBusy(busy);
     });
+
+    /* The fingerprint of a zone lives ON its element (``data-bz-h``),
+     * stamped by the server whenever it renders the zone whole; a
+     * response that only patched or silenced the zone sends it in
+     * ``X-Bretzel-Zone-Hashes``, with its base in ``X-Bretzel-Zone-Bases``.
+     * Holding another base, we forget the fingerprint: the next exchange
+     * ships the zone whole. Why: ``render/zone_diff.py``, "Crossed
+     * responses". */
+    $bz._zoneEntry = function (zone) {
+      const zid = zone.getAttribute("bz-id");
+      const vu = zone.getAttribute("data-bz-h");
+      return vu ? zid + ":" + vu : zid;
+    };
+    function pairsOf(header) {
+      const out = {};
+      if (!header) return out;
+      for (const morceau of header.split(",")) {
+        const coupe = morceau.indexOf(":");
+        if (coupe > 0) out[morceau.slice(0, coupe)] = morceau.slice(coupe + 1);
+      }
+      return out;
+    }
+    $bz._adoptZoneHashes = function (xhr) {
+      const hashes = pairsOf(xhr.getResponseHeader("X-Bretzel-Zone-Hashes"));
+      const bases = pairsOf(xhr.getResponseHeader("X-Bretzel-Zone-Bases"));
+      for (const zid of Object.keys(hashes)) {
+        const zone = document.querySelector('[data-bz-zone][bz-id="' + zid + '"]');
+        if (!zone) continue;
+        if (zid in bases && zone.getAttribute("data-bz-h") !== bases[zid]) {
+          zone.removeAttribute("data-bz-h");
+        } else {
+          zone.setAttribute("data-bz-h", hashes[zid]);
+        }
+      }
+    };
     document.body.addEventListener("htmx:afterRequest", function (e) {
       pendingKeys(e.detail.elt, e.detail).forEach(disarmPending);
+      if (e.detail.elt && e.detail.elt.nodeType === 1) disarmBusy(e.detail.elt);
 
       /* The fingerprints of the zones this response has just shipped.
        * We KEEP them to present them again at the next request: the
@@ -2268,15 +2476,7 @@
       const pageId = xhr.getResponseHeader("X-Bretzel-Page-ID");
       if (pageId) $bz._pageId = pageId;
 
-      const brut = xhr.getResponseHeader("X-Bretzel-Zone-Hashes");
-      if (!brut) return;
-      $bz._zoneHashes = $bz._zoneHashes || {};
-      for (const morceau of brut.split(",")) {
-        const coupe = morceau.indexOf(":");
-        if (coupe > 0) {
-          $bz._zoneHashes[morceau.slice(0, coupe)] = morceau.slice(coupe + 1);
-        }
-      }
+      $bz._adoptZoneHashes(xhr);
     });
 
     /* A partial response has no <head>: its page title arrives in

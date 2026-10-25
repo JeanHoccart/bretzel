@@ -52,6 +52,13 @@ BZ_TELEPORT_PREFIX: Final[str] = "bz-teleport"  # render at another DOM location
 # HMAC action stamps (read by the bridge, forwarded as headers).
 DATA_BZ_SIG: Final[str] = "data-bz-sig"
 DATA_BZ_TS: Final[str] = "data-bz-ts"      # render timestamp, signed into the HMAC (v2)
+# Busy state: the runtime sets ``BUSY_CLASS`` on a trigger whose request
+# is still unanswered after a short delay — a class, like the drag
+# preview's, since no component renders it. ``DATA_BZ_BUSY="off"``,
+# rendered by ``loading=False``, turns it off for the element and
+# everything inside it.
+BUSY_CLASS: Final[str] = "bz-busy"
+DATA_BZ_BUSY: Final[str] = "data-bz-busy"
 
 # ``bz-data`` scope marker read by the runtime scope engine
 # (``_src/03_scope.js``), not a directive. ``_serverSync`` lists the scope
@@ -112,20 +119,31 @@ SSE_TAB_PARAM: Final[str] = "tab"
 HEADER_ZONES: Final[str] = "X-Bretzel-Zones"
 
 #: **Response → client**: the fingerprint of every zone this response
-#: has just shipped, as comma-separated ``id:fingerprint``. The runtime
-#: keeps it and sends it back in :data:`HEADER_ZONES` on the next
-#: request; the server can then STAY SILENT about a zone whose fresh
-#: render is identical to the one the browser already carries.
+#: has just shipped or patched, as comma-separated ``id:fingerprint``.
+#: The runtime sets it on the zone (:data:`DATA_ZONE_HASH`) and sends it
+#: back in :data:`HEADER_ZONES` on the next request; the server can then
+#: STAY SILENT about a zone whose fresh render is identical, or send only
+#: the elements that changed (``render/zone_diff.py``).
 #:
 #: Measured on ``examples/messagerie``: toggling a read flag shipped
 #: 93 075 bytes for 115 actually changed — two zones out of three came
-#: back byte for byte identical.
+#: back byte for byte identical. On the comparison helpdesk
+#: (2026-10-23), one status change: 18.6 KB gzipped whole, 6.3 KB patched.
 #:
-#: The server STORES nothing: it is the client that carries the
-#: fingerprint of what it displays. A stale or absent fingerprint can
-#: therefore only cause a zone to be re-shipped — never wrongly
-#: silenced.
+#: It is the client that carries the fingerprint of what it displays. The
+#: server only caches the element fingerprints of recent zone versions,
+#: keyed by that fingerprint: one it does not know ships the zone whole.
+#: A stale or absent fingerprint can therefore only cause a re-ship —
+#: never a wrongly silenced zone.
 HEADER_ZONE_HASHES: Final[str] = "X-Bretzel-Zone-Hashes"
+
+#: ``id:base`` for every zone this response PATCHES rather than ships
+#: whole: the fingerprint the server computed the changed elements
+#: against. The runtime adopts the zone's new fingerprint only if it still
+#: holds that base; otherwise two responses crossed, the zone may be a mix
+#: of both, and the runtime forgets its fingerprint so the next exchange
+#: ships the zone whole (``render/zone_diff.py``).
+HEADER_ZONE_BASES: Final[str] = "X-Bretzel-Zone-Bases"
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -246,6 +264,16 @@ WIRE_ID_SEP: Final[str] = "::"
 # ───────────────────────────────────────────────────────────────────────────
 
 SSE_EVENT_STATE_DIRTY: Final[str] = "state-dirty"
+
+#: ``refresh(zone, rows=[…])`` on a broadcast zone: the other tabs refetch
+#: that zone for those rows only. Data: JSON ``{"state", "zone", "rows"}``
+#: — ``state`` is the channel the zone subscribes to, ``zone`` its
+#: ``bz-id``, ``rows`` the keys as strings.
+SSE_EVENT_ZONE_ROWS: Final[str] = "zone-rows"
+
+#: Query parameter of the refetch route: a JSON list of row keys. Absent,
+#: the zone is refetched whole.
+REFETCH_ROWS_PARAM: Final[str] = "rows"
 DATA_SUBSCRIBE_STATE: Final[str] = "data-bz-subscribe-state"
 DATA_SUBSCRIBE_URL: Final[str] = "data-bz-subscribe-url"
 
@@ -256,6 +284,15 @@ DATA_SUBSCRIBE_URL: Final[str] = "data-bz-subscribe-url"
 #: reading it in JS would make a mirror that drifts at the first rename.
 #: Feeds :data:`HEADER_ZONES`.
 DATA_ZONE: Final[str] = "data-bz-zone"
+
+#: The fingerprint of what a zone element carries, set by the server on
+#: the zone's root when it renders the zone whole (page, partial
+#: navigation, zone shipped whole). The runtime presents it back in
+#: :data:`HEADER_ZONES` and replaces it from :data:`HEADER_ZONE_HASHES`
+#: when a response only patched the zone. Living on the element, it goes
+#: away with it: a zone replaced by a navigation cannot keep the
+#: fingerprint of the one it replaced.
+DATA_ZONE_HASH: Final[str] = "data-bz-h"
 
 # Viewport cookie — a client→server wire string, so it lives here (single
 # source, per this module's rule). Written pre-paint by the boot script
@@ -290,12 +327,17 @@ SCREEN_SYNC_FN: Final[str] = "$bzScreenSync"
 
 ENVELOPE_TAG_NAME: Final[str] = "bz-envelope"  # bootstrap (initial page load)
 PATCH_TAG_NAME: Final[str] = "bz-patch"        # delta patches (per response)
+AT_TAG_NAME: Final[str] = "bz-at"              # an element patched by position
 
 # Permanent sink element id — actions target it (``hx-target``) so the
 # non-OOB response body (where <bz-patch> rides) lands in the DOM
 # instead of being discarded by ``hx-swap="none"``. Phase 0 learning ;
 # V2 precedent : ``#bz-script-outbox``.
 SINK_ELEMENT_ID: Final[str] = "bz-sink"
+
+# The JSON block of the glyphs a full page drew on the server
+# (``render/icons.py``), handed to the icon component as it registers.
+ICONS_DATA_ID: Final[str] = "bz-icons"
 
 # RESERVED key of the ``$bz.pending`` registry: "a NAVIGATION is in
 # flight". The bridge arms it in addition to the triggering element when

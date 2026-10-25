@@ -68,9 +68,11 @@ from bretzel.components.feedback.empty_state import EmptyState
 from bretzel.components.meta.iteration.each import each
 from bretzel.core.tree import Element, Node
 from bretzel.core.tree import TextNode as TextNode
-from bretzel.render.context import current_context
+from bretzel.render import RowReport
+from bretzel.render.context import current_context, maybe_current_context
 from bretzel.render.iteration import (
     current_iteration_key,
+    iteration_key_for,
     key_segment,
 )
 
@@ -433,6 +435,17 @@ class Table(Component):
         )
 
         # ── Body rows ───────────────────────────────────────────────
+        # ``refresh(zone, rows=[…])``: render only those rows, and file the
+        # fresh list for the zone's drain (``render/zone_diff.row_patch``).
+        # A table that cannot go row by row files that, and renders whole.
+        rows_only = getattr(maybe_current_context(), "rows_only", None)
+        report: RowReport | None = None
+        if rows_only is not None:
+            report = RowReport(supported=bool(self._rows) and self._has_natural_key()
+                               and bool(self.id), prefix=f"{self.id}__row_")
+            rows_only.reports.append(report)
+            if not report.supported:
+                report = None
         if not self._rows:
             body_rows: list[Node] = [self._empty_row(ncols, slots)]
         else:
@@ -463,7 +476,16 @@ class Table(Component):
             # a menu that opens instead of another and a subtree replaced
             # instead of merged. Guarded by ``test_no_duplicate_bz_id.py``.
             with key_segment(self.id):
+                if report is not None:
+                    report.wanted = {report.prefix + iteration_key_for(key)
+                                     for key in rows_only.keys}
                 for index, row in enumerate(row_iter):
+                    rkey = current_iteration_key()
+                    row_id = f"{self.id}__row_{rkey}" if self.id and rkey is not None else None
+                    if report is not None:
+                        report.order.append(row_id)
+                        if row_id not in report.wanted:
+                            continue
                     cells: list[Node] = []
                     for col in self._columns:
                         cell_value = self._resolve_cell(row, col)
@@ -480,15 +502,16 @@ class Table(Component):
                     row_attrs: dict[str, Any] = {
                         "class": slots.get("row", "")
                     }
-                    rkey = current_iteration_key()
-                    if self.id and rkey is not None:
-                        row_attrs["id"] = f"{self.id}__row_{rkey}"
+                    if row_id is not None:
+                        row_attrs["id"] = row_id
                     if clickable:
                         row_attrs.update(self._row_action_attrs(row, index))
                     body_rows.append(
                         Element(tag="tr", attrs=row_attrs,
                                 children=tuple(cells))
                     )
+                    if report is not None:
+                        report.rendered[row_id] = body_rows[-1]
 
         tbody = Element(
             tag="tbody",

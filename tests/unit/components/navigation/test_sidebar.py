@@ -828,6 +828,19 @@ class TestActiveState:
         assert "bz-attr:data-active=" in out
         assert "$bz.state.UI.default.show_admin" in out
 
+    def test_client_expression_drives_reactive_data_active(self) -> None:
+        """Before, it left as a bare ``bz-attr:active`` nothing read: the
+        item never lit up (the helpdesk's ``/tickets``, 2026-10-24)."""
+        expr = "current_path === '/tickets' || current_path === '/tickets/all'"
+        with render_isolated():
+            out = serialize(
+                SidebarItem("All", href="/tickets/all", active=expr).render()
+            )
+        assert "bz-attr:active=" not in out
+        assert "bz-attr:data-active=" in out
+        assert "bz-attr:aria-current=" in out
+        assert "current_path === &#x27;/tickets&#x27;" in out or "current_path === '/tickets'" in out
+
 
 # ───────────────────────────────────────────────────────────────────────────
 # Integration — full sidebar inside a layout

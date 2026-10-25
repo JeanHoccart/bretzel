@@ -447,7 +447,7 @@ def refuse_a_value_off_the_table(component: Any) -> None:
                 continue
             if theme is None:
                 theme = component._resolved_theme()
-            steps = declared_steps(theme.get(table_key, {}), anchor=anchor)
+            steps = _steps_of(theme.get(table_key, {}), anchor)
         if not steps or value in steps:
             continue
         raise ComponentUsageError(
@@ -459,6 +459,24 @@ def refuse_a_value_off_the_table(component: Any) -> None:
             f"component would lose that step without a word. For styling "
             f"that no step covers, that is `classes=`."
         )
+
+
+#: ``id(table) → (table, anchor, steps)``. Theme tables live as long as
+#: the process (module constants, or ``Theme``'s memoized merges), and a
+#: page reads the same few dozen: measured on the comparison helpdesk
+#: (2026-10-23), recomputing them was a twentieth of a component's
+#: render. The table is kept in the entry so a recycled ``id`` cannot
+#: match.
+_STEPS: dict[int, tuple[Mapping[str, Any], str | None, frozenset[str]]] = {}
+
+
+def _steps_of(table: Mapping[str, Any], anchor: str | None) -> frozenset[str]:
+    known = _STEPS.get(id(table))
+    if known is not None and known[0] is table and known[1] == anchor:
+        return known[2]
+    steps = declared_steps(table, anchor=anchor)
+    _STEPS[id(table)] = (table, anchor, steps)
+    return steps
 
 
 def declared_steps(
