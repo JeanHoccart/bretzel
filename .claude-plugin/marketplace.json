@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "bretzel",
+  "owner": {
+    "name": "Jean Hoccart"
+  },
+  "description": "Claude Code plugin for Bretzel, the server-driven Python web framework.",
+  "plugins": [
+    {
+      "name": "bretzel",
+      "source": "./claude-plugin",
+      "description": "Build Bretzel apps with Claude Code: a real mockup of each screen before the code, the exact API from `bretzel describe`, and `bretzel check` on every file written.",
+      "category": "development"
+    }
+  ]
+}

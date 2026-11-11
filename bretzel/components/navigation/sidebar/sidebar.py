@@ -481,10 +481,18 @@ class Sidebar(Component):
 
         children.extend(title_nodes)
         if middle_nodes:
+            scroll_attrs: dict[str, Any] = {"class": slots.get("scroll", "")}
+            if is_overlay:
+                # The aside is a ``dialog`` in this mode, which takes its
+                # ``navigation`` landmark away: without this one the phone
+                # menu is found by no navigation role (« jump to
+                # navigation », a test reading the landmark). The modal
+                # drawer's usual shape: the dialog, a nav inside it.
+                scroll_attrs.update(role="navigation", **{"aria-label": attrs["aria-label"]})
             children.append(
                 Element(
                     tag="div",
-                    attrs={"class": slots.get("scroll", "")},
+                    attrs=scroll_attrs,
                     children=tuple(middle_nodes),
                 )
             )

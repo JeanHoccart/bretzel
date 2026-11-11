@@ -309,7 +309,7 @@ DESCRIPTION = (
     "A shared Kanban board written in Python only with Bretzel: drag cards, "
     "undo, and watch a second browser window follow — no JavaScript to write."
 )
-SHARE_IMAGE = "https://bretzel-py.dev/assets/bretzel-mark.png"
+SHARE_IMAGE = "https://bretzel-py.dev/assets/share-card.png"
 
 
 @layout
@@ -321,7 +321,7 @@ def shell() -> None:
     ui.meta_tag(property="og:description", content=DESCRIPTION)
     ui.meta_tag(property="og:url", content="https://demo.bretzel-py.dev/")
     ui.meta_tag(property="og:image", content=SHARE_IMAGE)
-    ui.meta_tag(name="twitter:card", content="summary")
+    ui.meta_tag(name="twitter:card", content="summary_large_image")
     ui.meta_tag(name="twitter:image", content=SHARE_IMAGE)
     with ui.viewport(direction="col"):
         with ui.hstack(justify="between", align="center", gap="md",

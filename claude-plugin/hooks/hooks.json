@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "P=$(command -v py || command -v python3 || command -v python) && \"$P\" \"${CLAUDE_PLUGIN_ROOT}/hooks/check_on_edit.py\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

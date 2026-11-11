@@ -1,7 +1,7 @@
 # Bretzel
 
 <p align="center">
-  <img src="assets/brand/bretzel-mark.png" width="160" alt="Bretzel">
+  <img src="https://raw.githubusercontent.com/JeanHoccart/bretzel/main/assets/brand/bretzel-mark.png" width="160" alt="Bretzel">
 </p>
 
 > Server-Driven UI for Python — typed state, zero npm, batteries included.
@@ -14,14 +14,14 @@ production.
 
 <p align="center">
   <a href="https://demo.bretzel-py.dev">
-    <img src="assets/demo/kanban-two-windows.gif" width="900"
+    <img src="https://raw.githubusercontent.com/JeanHoccart/bretzel/main/assets/demo/kanban-two-windows.gif" width="900"
          alt="The Kanban example open in two windows: a card dragged to Done in the left window appears in the right one with its activity line, then Undo in the right window moves it back in both.">
   </a>
   <br>
   <sub>One Python app, two windows: drag on the left, the right follows; undo on the right, both follow. No JavaScript written.</sub>
 </p>
 
-> **Alpha:** the latest public alpha is `0.1.0a5`. APIs may change between
+> **Alpha:** the latest public alpha is `0.1.0a6`. APIs may change between
 > alpha releases; only the latest alpha receives fixes.
 
 See it first: [component gallery](https://ui.bretzel-py.dev) ·
@@ -48,6 +48,22 @@ For an existing application:
 ```bash
 bretzel dev my_package.main:app --port 8010
 ```
+
+## Build it with Claude Code
+
+Bretzel ships a Claude Code plugin. It installs from this repository:
+
+```bash
+claude plugin marketplace add JeanHoccart/bretzel
+claude plugin install bretzel@bretzel
+```
+
+Then ask for a screen in plain words. Claude first builds a real mockup — a
+throwaway Bretzel page on invented data, with the very components and theme
+the app will ship — and shows you its screenshots in light and dark. You
+validate it, and that same code becomes the working screen: nothing is
+redrawn when it is wired. Meanwhile it reads the exact API from
+`bretzel describe`, and `bretzel check` runs on every file it writes.
 
 ## The model
 
@@ -77,8 +93,9 @@ def home() -> None:
 
 A `@refreshable` fragment follows the typed state it reads: when `Counter`
 changes, Bretzel renders and ships only that fragment — there is no list of
-dependencies to keep in sync. `broadcast=` can send the same
-mutation to other open windows without polling or subscription code.
+dependencies to keep in sync. The same redraw reaches the other open
+windows the state's scope allows — a `SessionState` stays in its session, an
+`AppState` reaches everyone — without polling or subscription code.
 
 ## What is included
 
@@ -101,7 +118,7 @@ realtime collaboration, `examples/playground` for the component catalogue and
 
 NiceGUI keeps a live server-side UI object tree, Reflex compiles Python into a
 React application, and FastHTML stays deliberately close to HTML. Bretzel
-instead combines typed state and declared dependencies with targeted
+instead combines typed state, read by each fragment, with targeted
 server-rendered fragments, multi-user updates and 100+ integrated components,
 without a Node or Bun build pipeline. Coming from Streamlit or Dash, you keep
 the Python-first workflow and gain explicit state with partial updates instead

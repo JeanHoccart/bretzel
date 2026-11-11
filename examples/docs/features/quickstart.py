@@ -1,7 +1,6 @@
 """The first complete journey: from zero to a modified Bretzel page."""
 
-from bretzel import page, ui
-
+from bretzel import __version__, page, ui
 from examples.docs.features.shell import shell
 
 PATH = "/quickstart"
@@ -28,7 +27,7 @@ def quickstart_page() -> None:
                 with ui.vstack(gap="sm"):
                     ui.heading("Install the public alpha", level=2, size="lg")
                     ui.text(
-                        "Bretzel 0.1.0a4 is available on PyPI. Use Python 3.12, 3.13 or 3.14; "
+                        f"Bretzel {__version__} is available on PyPI. Use Python 3.12, 3.13 or 3.14; "
                         "the API may change between alpha releases.",
                         size="sm",
                     )

@@ -7,6 +7,33 @@ change between alpha releases.
 
 ## [Unreleased]
 
+## [0.1.0a6] - 2026-11-11
+
+### Added
+
+- A Claude Code plugin, `claude-plugin/`, installed from the repository
+  (`claude plugin marketplace add JeanHoccart/bretzel`, then
+  `claude plugin install bretzel@bretzel`). Asked for a screen, Claude first
+  builds a real mockup — a throwaway Bretzel page on invented data, with the
+  components and theme the app will ship — shows its screenshots in light
+  and dark, and turns the validated mockup into the working screen. A hook
+  runs `bretzel check` on every Python file it writes.
+
+### Changed
+
+- `bretzel check` (`unknown-kwarg`) sees a word the framework retired before
+  the code runs: a name imported from `bretzel…` that does not exist
+  (`from bretzel.state import follow`), a keyword a framework callable does
+  not take (`@refreshable(broadcast=…)`, `Bretzel(texts=…)`), and an unknown
+  keyword to a `ui.*` helper (`ui.notification(variant=…)`). Each used to
+  pass the check and fail at import, or the day the line ran.
+
+### Fixed
+
+- An `overlay` sidebar (the phone menu) keeps a `navigation` landmark: since
+  it became a modal `dialog`, its links were found by no navigation role.
+  The landmark is now inside the dialog, the usual shape of a modal drawer.
+
 ## [0.1.0a5] - 2026-11-11
 
 ### Added
@@ -951,7 +978,8 @@ First public alpha.
 - Tailwind CSS v4 theming, compiled with the standalone binary in production.
 - CLI: `bretzel new`, `bretzel dev`, `bretzel describe` and `bretzel check`.
 
-[Unreleased]: https://github.com/JeanHoccart/bretzel/compare/v0.1.0a5...HEAD
+[Unreleased]: https://github.com/JeanHoccart/bretzel/compare/v0.1.0a6...HEAD
+[0.1.0a6]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a6
 [0.1.0a5]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a5
 [0.1.0a4]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a4
 [0.1.0a3]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a3

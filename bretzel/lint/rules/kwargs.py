@@ -26,6 +26,9 @@ neither corpus nor floor (cf. :mod:`bretzel.lint.corpus`).
 from __future__ import annotations
 
 import ast
+import importlib
+import inspect
+from typing import Any
 
 from bretzel.lint.corpus import Module, catalogue, derived
 from bretzel.lint.report import Finding
@@ -83,9 +86,97 @@ def _accepted_by_name() -> dict[str, frozenset[str] | object]:
         # the component declares no ``FOCUS_TARGET``: said here before run.
         - ({"autofocus"} if info.focus_target is None else set())
         if isinstance(info, ComponentInfo)
-        else _NOT_JUDGED
+        else _helper_arguments(name)
         for name, info in catalogue().items()
     }
+
+
+def _closed_arguments(obj: Any) -> frozenset[str] | object:
+    """The keyword arguments ``obj`` takes, when its signature says them
+    all: a ``**kwargs`` that forwards somewhere is :data:`_NOT_JUDGED`. A
+    ``**retired`` only exists to refuse (``ui.notification(variant=)``
+    says to write ``color=``): it closes the signature, it opens nothing."""
+    try:
+        params = inspect.signature(obj).parameters.values()
+    except (TypeError, ValueError):
+        return _NOT_JUDGED
+    if any(p.kind is p.VAR_KEYWORD and p.name != "retired" for p in params):
+        return _NOT_JUDGED
+    return frozenset(p.name for p in params
+                     if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY))
+
+
+def _helper_arguments(name: str) -> frozenset[str] | object:
+    """A ``ui.*`` helper (``ui.each``, ``ui.notification``…) is judged on
+    its signature. It raises by itself on an unknown kwarg — but only the
+    day the line runs, and a handler or a rare branch may wait weeks."""
+    from bretzel import ui
+
+    return _closed_arguments(getattr(ui, name, None))
+
+
+def _framework_names(module: Module) -> tuple[dict[str, Any], list[Finding]]:
+    """What ``from bretzel… import`` binds in this module, and the names it
+    asks for that do not exist — ``from bretzel.state import follow`` after
+    ``follow`` was retired fails at import, a step this rule runs before."""
+    bound: dict[str, Any] = {}
+    findings: list[Finding] = []
+    for node in module.nodes:
+        if not (isinstance(node, ast.ImportFrom) and node.level == 0 and node.module
+                and (node.module == "bretzel" or node.module.startswith("bretzel."))):
+            continue
+        try:
+            source = importlib.import_module(node.module)
+        except ImportError:
+            findings.append(Finding(
+                rule=RULE, path=module.path, line=node.lineno,
+                message=f"`{node.module}` does not exist.",
+                hint="`bretzel describe` lists the real surface.",
+            ))
+            continue
+        for alias in node.names:
+            if alias.name == "*":
+                continue
+            if hasattr(source, alias.name):
+                bound[alias.asname or alias.name] = getattr(source, alias.name)
+                continue
+            try:
+                importlib.import_module(f"{node.module}.{alias.name}")
+            except ImportError:
+                findings.append(Finding(
+                    rule=RULE, path=module.path, line=node.lineno,
+                    message=f"`{node.module}` has no `{alias.name}`: this import fails.",
+                    hint=f"`bretzel describe {alias.name}` finds what it became, if it moved.",
+                ))
+    return bound, findings
+
+
+def _framework_calls(module: Module, bound: dict[str, Any]) -> list[Finding]:
+    """A keyword no framework callable reads: ``@refreshable(broadcast=…)``,
+    ``Bretzel(texts=…)`` — each a ``TypeError`` at import, said here first."""
+    findings: list[Finding] = []
+    for node in module.nodes:
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id in bound):
+            continue
+        accepted = _closed_arguments(bound[node.func.id])
+        if accepted is _NOT_JUDGED:
+            continue
+        for keyword in node.keywords:
+            if keyword.arg and keyword.arg not in accepted:  # type: ignore[operator]
+                findings.append(Finding(
+                    rule=RULE, path=module.path, line=keyword.lineno,
+                    message=(f"`{node.func.id}({keyword.arg}=…)`: not one of its "
+                             f"arguments — a TypeError when this line runs."),
+                    hint=f"`bretzel describe {node.func.id}` shows what it takes.",
+                ))
+    return findings
+
+
+def _is_component(ui_name: str) -> bool:
+    from bretzel.introspect import ComponentInfo
+
+    return isinstance(catalogue().get(ui_name), ComponentInfo)
 
 
 def _is_raw_attr(name: str) -> bool:
@@ -102,8 +193,10 @@ def _is_raw_attr(name: str) -> bool:
 
 
 def check(module: Module) -> list[Finding]:
-    """The kwargs no component called here reads."""
-    findings: list[Finding] = []
+    """The kwargs no component called here reads, the framework names
+    imported that do not exist, and the keywords its callables refuse."""
+    bound, findings = _framework_names(module)
+    findings.extend(_framework_calls(module, bound))
     for node in module.nodes:
         if not isinstance(node, ast.Call):
             continue
@@ -127,6 +220,18 @@ def check(module: Module) -> list[Finding]:
             )
             continue
         if accepted is _NOT_JUDGED:
+            continue
+        if not _is_component(func.attr):
+            findings.extend(
+                Finding(
+                    rule=RULE, path=module.path, line=keyword.lineno,
+                    message=(f"`ui.{func.attr}({keyword.arg}=…)`: not one of its "
+                             f"arguments — it raises when this line runs."),
+                    hint=f"`bretzel describe {func.attr}` shows what it takes.",
+                )
+                for keyword in node.keywords
+                if keyword.arg and keyword.arg not in accepted  # type: ignore[operator]
+            )
             continue
         for keyword in node.keywords:
             if not keyword.arg or _is_raw_attr(keyword.arg):

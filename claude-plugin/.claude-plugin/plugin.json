@@ -1,0 +1,13 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "bretzel",
+  "version": "0.1.0",
+  "description": "Build Bretzel apps (server-driven Python web framework) with Claude Code: a real mockup of each screen before the code, the exact API from `bretzel describe`, and `bretzel check` run on every file you write.",
+  "author": {
+    "name": "Jean Hoccart"
+  },
+  "homepage": "https://bretzel-py.dev",
+  "repository": "https://github.com/JeanHoccart/bretzel",
+  "license": "MIT",
+  "keywords": ["python", "web-framework", "htmx", "internal-tools", "mockup", "server-driven-ui"]
+}

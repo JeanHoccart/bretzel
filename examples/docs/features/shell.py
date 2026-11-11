@@ -12,10 +12,9 @@ placement de chaque feature — pour l'instant on reste en références de code.
 
 from __future__ import annotations
 
-from bretzel import Screen, layout, ui
+from bretzel import Screen, __version__, layout, ui
 from bretzel.state import ClientState, field
 from bretzel.theme import ColorScheme
-
 
 # Les trois modes, dans l'ordre où on les lit. MÊMES entrées que
 # ``examples/playground/app/layout.py`` — les deux coques se lisent l'une
@@ -40,7 +39,7 @@ class DocsNavigation(ClientState):
 
 # The picture a shared link shows (Slack, LinkedIn, X). Absolute, because
 # a crawler reads it outside any page; served by the landing.
-SHARE_IMAGE = "https://bretzel-py.dev/assets/bretzel-mark.png"
+SHARE_IMAGE = "https://bretzel-py.dev/assets/share-card.png"
 
 # The other public Bretzel sites, for the footer menu: (label, icon, url).
 SITES: tuple[tuple[str, str, str], ...] = (
@@ -149,7 +148,7 @@ def shell() -> None:
         content="Bretzel documentation for server-driven, reactive Python web apps.",
     )
     ui.meta_tag(property="og:image", content=SHARE_IMAGE)
-    ui.meta_tag(name="twitter:card", content="summary")
+    ui.meta_tag(name="twitter:card", content="summary_large_image")
     ui.meta_tag(name="twitter:image", content=SHARE_IMAGE)
     with ui.viewport():
         mobile = Screen().is_mobile
@@ -182,7 +181,7 @@ def shell() -> None:
                         ui.sidebar_item(label, icon=icon, href=path)
             with ui.sidebar_footer(
                 name="Bretzel",
-                subtitle="v0.1.0a4 · Early alpha",
+                subtitle=f"v{__version__} · Early alpha",
             ):
                 for value, label, icon in THEME_ITEMS:
                     ui.sidebar_footer_item(
