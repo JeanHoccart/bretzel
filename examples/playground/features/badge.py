@@ -73,7 +73,7 @@ class BadgeClientEvents(ClientState, persist="memory"):
 def server_changed(state: BadgePlayground) -> None:
     # Typed param → the dispatcher hydrates the changed
     # control's value into ``state`` (coerced + persisted).
-    # deps=[BadgePlayground] re-renders server_panel automatically.
+    # server_panel reads the state, so it re-renders automatically.
     pass
 
 
@@ -138,7 +138,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[BadgeEvents])
+@refreshable
 def events_panel() -> None:
     """Server-side close event log. Each Badge wires
     ``on_close=partial(log_close, label)`` so the server handler
@@ -190,7 +190,7 @@ def events_panel() -> None:
                 color="muted", size="sm")
 
 
-@refreshable(deps=[BadgePlayground])
+@refreshable
 def server_panel() -> None:
     state = BadgePlayground()
 

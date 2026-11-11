@@ -5,9 +5,11 @@ from __future__ import annotations
 from bretzel.core.tree import Element, Node, TextNode
 from bretzel.render.zone_diff import (
     Fingerprinter,
+    Patch,
     ZoneMaps,
     ZonePrint,
-    changed_elements,
+    ZoneVersion,
+    changes,
     stamp_zones,
 )
 from bretzel.runtime.protocol import DATA_BZ_SIG, DATA_BZ_TS, DATA_ZONE, DATA_ZONE_HASH
@@ -25,11 +27,24 @@ def zone(*rows: Element, zone_attrs: dict | None = None) -> Element:
 FP = Fingerprinter()
 
 
+def spelled(where: dict[str, str]) -> str:
+    """An address as ``anchor/0/1``."""
+    return "/".join([where["anchor"], *where["path"].split(".")]) if where["path"] else where["anchor"]
+
+
+def shipped(patch: Patch) -> list[str]:
+    """The morphed elements: by ``id``, or by position spelled ``anchor/0/1``."""
+    return [e.attrs["id"] for e in patch.morphs] + [spelled(w) for w, _ in patch.placed]
+
+
+def found(before: Element, after: Element) -> Patch | None:
+    return changes(FP.zone(after), after, ZoneVersion.of(FP.zone(before)))
+
+
 def diff(before: Element, after: Element) -> list[str] | None:
-    """The shipped elements, by ``id`` — or by position, spelled
-    ``anchor/0/1``."""
-    patch = changed_elements(FP.zone(after), after, FP.zone(before).elements)
-    return None if patch is None else [k.replace("\x1f", "/") for k in patch]
+    """The morphed elements — ``None`` when the zone ships whole."""
+    patch = found(before, after)
+    return None if patch is None else shipped(patch)
 
 
 def digest(tree: Element, fp: Fingerprinter = FP) -> str:
@@ -47,12 +62,12 @@ def test_the_same_render_patches_nothing() -> None:
     assert diff(tree, tree) == []
 
 
-def test_a_new_row_ships_its_parent() -> None:
-    """The skeleton of ``rows`` changed (one more child): the row alone
-    would have nowhere to land."""
-    before = zone(row(1), row(2))
-    after = zone(row(1), row(2), row(3))
-    assert diff(before, after) == ["rows"]
+def test_a_new_row_is_inserted_into_its_parent() -> None:
+    """The list of ``rows`` changed (one more child), nothing else: a list
+    patch, not the parent (cf. the list tests below)."""
+    patch = found(zone(row(1), row(2)), zone(row(1), row(2), row(3)))
+    assert patch is not None and shipped(patch) == []
+    assert [lst.ops for lst in patch.lists] == [["#row-1", "#row-2", "n"]]
 
 
 def test_a_root_change_ships_the_zone_whole() -> None:
@@ -63,7 +78,7 @@ def test_a_root_change_ships_the_zone_whole() -> None:
 
 def test_an_unknown_copy_ships_the_zone_whole() -> None:
     tree = zone(row(1))
-    assert changed_elements(FP.zone(tree), tree, {}) is None
+    assert changes(FP.zone(tree), tree, ZoneVersion({}, {})) is None
 
 
 def test_signature_and_render_second_are_not_content() -> None:
@@ -117,6 +132,30 @@ def test_ids_under_a_template_are_not_targets() -> None:
     assert diff(before, after) == ["holder"]
 
 
+def test_an_id_in_a_teleported_panel_ships_alone() -> None:
+    """A ``bz-teleport`` template's content lives under ``<body>``, where
+    ``getElementById`` finds it: a box ticked in an open popover ships
+    alone, not the popover."""
+    def popover(checked: str) -> Element:
+        box = Element("input", {"id": "box", "type": "checkbox", "data-checked": checked}, ())
+        panel = Element("div", {"role": "dialog"}, (Element("label", {}, (box,)),))
+        template = Element("template", {"bz-teleport": "body"}, (panel,))
+        return zone(Element("div", {"id": "pop"}, (template,)))
+
+    assert diff(popover("true"), popover("false")) == ["box"]
+
+
+def test_a_teleported_panel_is_never_walked_by_position() -> None:
+    """Its children are not the template's children in the DOM: a change
+    with no id around it ships the overlay, never a walk that misses."""
+    def popover(text: str) -> Element:
+        panel = Element("div", {"role": "dialog"}, (Element("p", {}, (TextNode(text),)),))
+        template = Element("template", {"bz-teleport": "body", "id": "tpl"}, (panel,))
+        return zone(Element("div", {"id": "pop"}, (template,)))
+
+    assert diff(popover("a"), popover("b")) == ["tpl"]
+
+
 def test_ids_inside_an_svg_are_not_targets() -> None:
     """Sent alone, an SVG part would parse as HTML: its change ships the
     whole <svg>."""
@@ -153,66 +192,6 @@ def test_the_cache_drops_the_oldest_versions_first() -> None:
     assert maps.get("a") is not None and maps.get("c") is not None
 
 
-# ── refresh(zone, rows=[…]) — the row patch ─────────────────────────────
-
-from bretzel.render.zone_diff import RowReport, ZoneVersion, row_patch  # noqa: E402
-
-
-def held_version(*rows: Element) -> ZoneVersion:
-    return ZoneVersion.of(FP.zone(zone(*rows)))
-
-
-def report(order: list[int], rendered: dict[int, str] | None = None,
-           missing: list[int] = ()) -> RowReport:
-    rendered = rendered or {}
-    return RowReport(
-        supported=True, prefix="row-",
-        wanted={f"row-{i}" for i in (*rendered, *missing)},
-        order=[f"row-{i}" for i in order],
-        rendered={f"row-{i}": row(i, text) for i, text in rendered.items()},
-    )
-
-
-def patch_of(reports: list[RowReport], held: ZoneVersion):
-    return row_patch(reports, held, "base", FP)
-
-
-def test_a_changed_row_is_the_only_patch() -> None:
-    patched = patch_of([report([1, 2, 3], {2: "changed"})], held_version(row(1), row(2), row(3)))
-    assert patched is not None
-    assert [p.attrs["id"] for p in patched.rows] == ["row-2"] and patched.removed == []
-    assert patched.version.elements["row-2"] == FP.zone(row(2, "changed")).elements["row-2"]
-
-
-def test_a_row_that_left_the_list_is_removed() -> None:
-    patched = patch_of([report([1, 3], missing=[2])], held_version(row(1), row(2), row(3)))
-    assert patched is not None
-    assert patched.rows == [] and patched.removed == ["row-2"]
-    assert "row-2" not in patched.version.elements
-    assert patched.version.children["rows"] == ("row-1", "row-3")
-
-
-def test_a_new_row_or_a_new_order_ships_the_zone_whole() -> None:
-    held = held_version(row(1), row(2))
-    assert patch_of([report([1, 2, 3], {3: "new"})], held) is None
-    assert patch_of([report([2, 1], {1: "moved"})], held) is None
-
-
-def test_a_table_without_row_keys_ships_the_zone_whole() -> None:
-    assert patch_of([RowReport(supported=False)], held_version(row(1))) is None
-
-
-def test_the_patched_version_still_diffs_right_against_a_whole_render() -> None:
-    """The ancestors' fingerprints are left stale on purpose: the next
-    whole diff must still find exactly what changed since."""
-    held = held_version(row(1), row(2), row(3))
-    version = patch_of([report([1, 2, 3], {2: "changed"})], held).version
-    fresh = zone(row(1), row(2, "changed"), row(3, "later"))
-    patch = changed_elements(FP.zone(fresh), fresh, version.elements)
-    assert patch == ["row-3"]
-
-
-
 # ── Elements with no id, found by position ─────────────────────────────
 
 
@@ -229,14 +208,16 @@ def test_a_changed_element_without_id_ships_alone_by_position() -> None:
     assert diff(card("T", "one"), card("T", "two")) == ["z/1/0"]
 
 
-def test_a_child_that_changes_tag_ships_its_parent() -> None:
-    """The parent's shape changed: the runtime would not find its way."""
+def test_a_child_that_changes_tag_is_morphed_in_its_list() -> None:
+    """The parent's shape changed, its frame did not: the child is
+    replaced in place, ``m0`` — the parent itself is found by the shapes
+    ABOVE it, which did not move."""
     def tree(tag: str) -> Element:
         inner = Element(tag, {}, (Element("b", {}, (TextNode("x"),)),))
         box = Element("section", {}, (inner,))
         return Element("div", {"id": "z", DATA_ZONE: ""}, (box, Element("hr", {}, ())))
 
-    assert diff(tree("p"), tree("div")) == ["z/0"]
+    assert lists(tree("p"), tree("div")) == ([], [("z/0", 1, ["m0"])])
 
 
 def test_positions_skip_fragments_like_the_dom() -> None:
@@ -276,3 +257,163 @@ def test_an_id_inside_a_custom_element_stays_addressable() -> None:
         return Element("div", {"id": "z", DATA_ZONE: ""}, (widget, Element("hr", {}, ())))
 
     assert diff(tree("x"), tree("y")) == ["named"]
+
+
+# ── A list that changed: patched, not shipped whole (2026-10-26) ──────
+#
+# A layout editor: removing one table out of 30 shipped the whole
+# room, 320 KB. The parent now receives a list patch — keep, morph,
+# insert — in any configuration.
+
+
+def lists(before: Element, after: Element) -> tuple[list[str], list[tuple[str, int, list[str]]]] | None:
+    """``(morphed elements, [(parent, count before, ops)])`` — positions
+    spelled ``anchor/0/1``."""
+    patch = found(before, after)
+    if patch is None:
+        return None
+    return shipped(patch), [(spelled(p.where), p.count, p.ops) for p in patch.lists]
+
+
+def replay(old: list[str], ops: list[str], new: list[str]) -> list[str]:
+    """What the browser holds after the ops: the kept old children and
+    the inserted ones, in order (an inserted or morphed child is taken
+    from ``new`` at its place)."""
+    return [new[i] if op == "n" or op[0] == "m" else op[1:] if op[0] == "#"
+            else old[int(op[1:])] for i, op in enumerate(ops)]
+
+
+def test_a_new_row_is_inserted_not_its_parent_shipped() -> None:
+    assert lists(zone(row(1), row(2)), zone(row(1), row(2), row(3))) == (
+        [], [("rows", 0, ["#row-1", "#row-2", "n"])])
+
+
+def test_a_removed_row_goes_alone() -> None:
+    assert lists(zone(row(1), row(2), row(3)), zone(row(1), row(3))) == (
+        [], [("rows", 0, ["#row-1", "#row-3"])])
+
+
+def test_a_kept_row_that_changed_is_diffed_like_any_element() -> None:
+    assert lists(zone(row(1), row(2)), zone(row(1), row(2, "changed"), row(3))) == (
+        ["row-2"], [("rows", 0, ["#row-1", "#row-2", "n"])])
+
+
+def test_children_without_id_are_matched_by_content() -> None:
+    """Tables addressed by position: the same holds."""
+    def box(*texts: str) -> Element:
+        kids = tuple(Element("div", {}, (TextNode(t),)) for t in texts)
+        return Element("div", {"id": "z", DATA_ZONE: ""}, (Element("div", {"id": "box"}, kids),))
+
+    assert lists(box("a", "b", "c"), box("a", "c")) == ([], [("box", 3, ["k0", "k2"])])
+    assert lists(box("a", "c"), box("a", "b", "c")) == ([], [("box", 2, ["k0", "n", "k1"])])
+
+
+def test_the_root_list_is_patched_too() -> None:
+    def root(*rows: Element) -> Element:
+        return Element("div", {"id": "z", DATA_ZONE: ""}, rows)
+
+    assert lists(root(row(1), row(2)), root(row(2))) == ([], [("z", 0, ["#row-2"])])
+
+
+def test_a_parent_that_changed_itself_still_ships_whole() -> None:
+    before = zone(row(1), row(2))
+    body = Element("div", {"id": "rows", "class": "new"}, (row(1),))
+    after = Element("div", {"id": "z", DATA_ZONE: ""}, (body,))
+    assert lists(before, after) == (["rows"], [])
+
+
+def test_a_template_among_the_children_ships_the_parent() -> None:
+    def tree(*rows: Element) -> Element:
+        body = Element("div", {"id": "rows"}, (Element("template", {}, ()), *rows))
+        return Element("div", {"id": "z", DATA_ZONE: ""}, (body,))
+
+    assert lists(tree(row(1)), tree(row(1), row(2))) == (["rows"], [])
+
+
+def test_any_reshuffle_replays_to_the_new_list() -> None:
+    """Random inserts, removals and moves: replayed in order, the ops
+    always give the new list — the claim the runtime relies on."""
+    import random
+
+    rng = random.Random(2026_10_26)
+    for _ in range(300):
+        old = [f"r{i}" for i in rng.sample(range(30), rng.randint(0, 12))]
+        new = [k for k in old if rng.random() > 0.3]
+        rng.shuffle(new) if rng.random() < 0.3 else None
+        for extra in rng.sample(range(30, 60), rng.randint(0, 4)):
+            new.insert(rng.randint(0, len(new)), f"r{extra}")
+
+        def tree(keys: list[str]) -> Element:
+            body = Element("div", {"id": "rows"}, tuple(
+                Element("div", {"id": k}, (TextNode(k),)) for k in keys))
+            return Element("div", {"id": "z", DATA_ZONE: ""}, (body,))
+
+        found = lists(tree(old), tree(new))
+        assert found is not None
+        _, patches = found
+        if old == new:
+            assert patches == []
+            continue
+        if not patches:   # an empty list either side: the parent may ship
+            continue
+        (_, count, ops), = patches
+        assert count == 0          # every child has an id: no rank
+        assert replay(old, ops, new) == new, (old, new, ops)
+
+
+def test_children_whose_ids_slid_with_their_rank_are_noted() -> None:
+    """Without ``key=``, the ids inside a child follow its rank: remove
+    the first, the others are kept for their content and their ids slide
+    — noted, so ``partials`` can warn when a client state sits there.
+    Children with nothing named by rank inside slide nothing."""
+    def ranked(*texts: str) -> Element:
+        kids = tuple(Element("div", {}, (Element("span", {"id": f"s-{i}"}, (TextNode(t),)),))
+                     for i, t in enumerate(texts))
+        return Element("div", {"id": "z", DATA_ZONE: ""}, (Element("div", {"id": "box"}, kids),))
+
+    patch = found(ranked("a", "b", "c"), ranked("b", "c"))
+    assert patch is not None
+    assert [(spelled(w), e.children[0].attrs["id"]) for w, e in patch.slid] == [
+        ("box", "s-0"), ("box", "s-1")]
+
+    def plain(*texts: str) -> Element:
+        kids = tuple(Element("div", {}, (TextNode(t),)) for t in texts)
+        return Element("div", {"id": "z", DATA_ZONE: ""}, (Element("div", {"id": "box"}, kids),))
+
+    patch = found(plain("a", "b", "c"), plain("b", "c"))
+    assert patch is not None and patch.slid == []
+
+
+def test_each_parent_shape_is_computed_once(monkeypatch) -> None:
+    """A shape is a pass over all of a parent's children: computed again
+    for each element sent below it, 375 changed cells under one grid cost
+    1 500 shapes and 363 ms."""
+    from bretzel.render import zone_diff
+
+    def tree(changed: set[int]) -> Element:
+        cells = tuple(Element("div", {}, (Element("b", {}, (TextNode("x" if i in changed else "."),)),))
+                      for i in range(60))
+        grid = Element("div", {"class": "grid"}, cells)
+        return Element("div", {"id": "z", DATA_ZONE: ""}, (Element("section", {}, (grid,)),))
+
+    calls: list[int] = []
+    real = zone_diff.shape_of
+    monkeypatch.setattr(zone_diff, "shape_of", lambda e: calls.append(1) or real(e))
+    patch = found(tree(set()), tree(set(range(0, 60, 2))))
+    assert patch is not None and len(patch.placed) == 30
+    # One per distinct level: the zone, the section, the grid, and each
+    # changed cell.
+    assert len(calls) == 3 + 30, f"{len(calls)} shapes for 33 levels"
+
+
+def test_an_id_htmx_cannot_select_ships_by_position() -> None:
+    """``id="137"`` is legal HTML, and ``querySelectorAll("#137")`` throws:
+    htmx would drop the whole response. Measured on the component audit,
+    74 of 75 components red (a custom ``id`` cycled to ``"137"``)."""
+    def tree(ident: str, text: str) -> Element:
+        inner = Element("span", {"id": ident}, (TextNode(text),))
+        return Element("div", {"id": "z", DATA_ZONE: ""}, (Element("p", {}, (inner,)),))
+
+    assert diff(tree("137", "one"), tree("137", "two")) == ["z/0/0"]
+    assert diff(tree("a 1", "one"), tree("a 1", "two")) == ["z/0/0"]
+    assert diff(tree("x137", "one"), tree("x137", "two")) == ["x137"]

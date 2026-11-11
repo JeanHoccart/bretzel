@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from bretzel import refreshable, ui
 from bretzel.components import Reference, Series
 from bretzel.render import serialize_html
-from bretzel.state import PageState, field
+from bretzel.state import ClientExpression, ClientState, PageState, field
 
 from examples.playground.features.inspection import emitted_html_block
 
@@ -30,6 +30,10 @@ Y_FORMATS = ["", "abbreviated", "percent", "currency"]
 
 
 SAMPLE = [(i, round(50 + 20 * math.sin(i / 2.0) + i * 1.5, 1))
+          for i in range(20)]
+
+#: Twenty closes from 1 October: the moments' example.
+PRICES = [(date(2026, 10, 1) + timedelta(days=i), round(48 + i * 0.4 + (i % 3) * 0.8, 2))
           for i in range(20)]
 
 NOISY = [(i, round(40 + 30 * math.sin(i / 1.3) + (i * 7) % 11, 1))
@@ -60,6 +64,25 @@ THREE_SERIES = [
 ]
 
 
+class LineChartClientEvents(ClientState, persist="memory"):
+    """The Client events card's log — on the browser side."""
+
+    log: list = field(default_factory=list)
+
+
+class LineChartEvents(PageState):
+    log: list = field(default_factory=list)
+
+
+def log_click(x, y) -> None:
+    state = LineChartEvents()
+    state.log = ([f"click → x={x}, y={y}"] + state.log)[:10]
+
+
+def clear_log() -> None:
+    LineChartEvents().log = []
+
+
 class LineChartPlayground(PageState):
     color:          str  = field(default="primary")
     size:           str  = field(default="md")
@@ -72,6 +95,15 @@ class LineChartPlayground(PageState):
     show_axis:      bool = field(default=True)
     show_gridlines: bool = field(default=True)
     show_legend:    bool = field(default=True)
+    # The base of 2026-10-29: the bounds (empty = none), the axis
+    # titles, the table behind the drawing.
+    y_min:          str  = field(default="")
+    y_max:          str  = field(default="")
+    x_min:          str  = field(default="")
+    x_max:          str  = field(default="")
+    x_label:        str  = field(default="")
+    y_label:        str  = field(default="")
+    show_data:      bool = field(default=False)
     y_format:       str  = field(default="")
     y_unit:         str  = field(default="")
     x_unit:         str  = field(default="")
@@ -167,7 +199,28 @@ def build_preview(state: LineChartPlayground):
         kwargs["tooltip"] = state.tooltip
     if state.visible == "off":
         kwargs["visible"] = False
+    kwargs["show_data"] = state.show_data
+    if bound(state.y_min) is not None:
+        kwargs["y_min"] = bound(state.y_min)
+    if bound(state.y_max) is not None:
+        kwargs["y_max"] = bound(state.y_max)
+    if bound(state.x_min) is not None:
+        kwargs["x_min"] = bound(state.x_min)
+    if bound(state.x_max) is not None:
+        kwargs["x_max"] = bound(state.x_max)
+    if state.x_label:
+        kwargs["x_label"] = state.x_label
+    if state.y_label:
+        kwargs["y_label"] = state.y_label
     return ui.line_chart(dataset(state), **kwargs)
+
+
+def bound(typed: str) -> float | None:
+    """A bound typed in its field: a number, or none."""
+    try:
+        return float(typed)
+    except ValueError:
+        return None
 
 
 def control(label: str):
@@ -177,7 +230,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[LineChartPlayground])
+@refreshable
 def server_panel() -> None:
     state = LineChartPlayground()
 
@@ -239,6 +292,26 @@ def server_panel() -> None:
                       on_change=server_changed)
         with control("multi-series (2 × 15 pts)"):
             ui.switch(checked=state.multi, on_change=server_changed)
+        with control("show_data (« Show the data »)"):
+            ui.switch(checked=state.show_data, on_change=server_changed)
+        with control("y_min (empty = none)"):
+            ui.input(value=state.y_min, placeholder="20",
+                     on_change=server_changed)
+        with control("y_max (empty = none)"):
+            ui.input(value=state.y_max, placeholder="20",
+                     on_change=server_changed)
+        with control("x_min (empty = none)"):
+            ui.input(value=state.x_min, placeholder="20",
+                     on_change=server_changed)
+        with control("x_max (empty = none)"):
+            ui.input(value=state.x_max, placeholder="20",
+                     on_change=server_changed)
+        with control("x_label"):
+            ui.input(value=state.x_label, placeholder="Month",
+                     on_change=server_changed)
+        with control("y_label"):
+            ui.input(value=state.y_label, placeholder="Orders",
+                     on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes,
                      placeholder="border rounded-xl p-4",
@@ -278,6 +351,57 @@ def server_panel() -> None:
     emitted_html_block(
         "Emitted HTML",
         serialize_html(build_preview(state)),
+    )
+
+
+@refreshable
+def events_panel() -> None:
+    state = LineChartEvents()
+    with ui.vstack():
+        ui.text(
+            "Click a point — or Tab to the chart, the arrows, Enter. Each "
+            "point carries its own signed action token, (x, y) bound "
+            "(on_item_click, since 2026-10-29).",
+            color="muted", size="sm",
+        )
+        with ui.flex(justify="center"):
+            ui.line_chart([(1, 12), (2, 18), (3, 9), (4, 15)], on_item_click=log_click, width=480)
+        ui.divider()
+        with ui.hstack(justify="between", align="center"):
+            ui.text("Server log (latest 10)", color="muted", size="xs")
+            ui.button("Clear", variant="ghost", size="xs", on_click=clear_log)
+        if not state.log:
+            ui.text("No clicks yet.", color="muted", size="sm")
+        for entry in state.log:
+            ui.text(entry, size="sm")
+        ui.divider()
+        emitted_html_block(
+            "Emitted HTML (representative — two points)",
+            serialize_html(ui.line_chart([(1, 12), (2, 18)], on_item_click=log_click)),
+        )
+
+
+def client_events_panel() -> None:
+    """The SAME event on a client expression: the log is a ClientState,
+    no request leaves."""
+    events = LineChartClientEvents()
+    ui.text("``on_item_click`` wired to a client expression that pushes onto "
+            "a ClientState. Zero requests.", color="muted", size="sm")
+    clicked = ClientExpression("new Date().toLocaleTimeString() + ' — ' + 'x=' + $event.detail.x + ', y=' + $event.detail.y")
+    ui.line_chart(data=[(1, 12), (2, 18), (3, 9), (4, 15)], on_item_click=events.log.push(clicked), width=480)
+    ui.divider()
+    with ui.hstack(justify="between", align="center"):
+        ui.text("Live log (client-side — no refresh)", color="muted", size="sm")
+        ui.button("Clear", variant="ghost", size="xs", on_click=events.log.clear())
+    log_text = ClientExpression(
+        "($bz.state.LineChartClientEvents.default.log || []).join('\\n') ||"
+        " '(no events yet — click the demo above)'"
+    )
+    ui.text(log_text, color="muted", size="sm", classes="font-mono whitespace-pre")
+    ui.divider()
+    emitted_html_block(
+        "Emitted HTML (click client)",
+        serialize_html(ui.line_chart(data=[(1, 12), (2, 18)], on_item_click=events.log.push(clicked))),
     )
 
 
@@ -386,7 +510,7 @@ def page() -> None:
                     ui.heading("Reference lines (thresholds + goals)",
                                level=3)
                     ui.text(
-                        "``reference_lines=[Reference(value=N, label=\"...\", "
+                        "``y_reference_lines=[Reference(value=N, label=\"...\", "
                         "color=\"...\")]`` (or bare ``(value, label)`` "
                         "/ ``(value, label, color)`` tuples) draws "
                         "dashed thresholds behind the data with a "
@@ -399,7 +523,7 @@ def page() -> None:
                             ui.text("Single goal", color="muted", size="xs")
                             ui.line_chart(
                                 SAMPLE, width=400, size="sm",
-                                reference_lines=[
+                                y_reference_lines=[
                                     Reference(value=75, label="Q3 goal",
                                               color="success"),
                                 ],
@@ -408,10 +532,74 @@ def page() -> None:
                             ui.text("Multi-band", color="muted", size="xs")
                             ui.line_chart(
                                 SAMPLE, width=400, size="sm",
-                                reference_lines=[
+                                y_reference_lines=[
                                     Reference(60, "Floor"),
                                     Reference(80, "Target", "warning"),
                                     Reference(95, "Stretch", "success"),
+                                ],
+                            )
+
+                    ui.heading("Holes and different days", level=3)
+                    ui.text(
+                        "A ``None`` y is a hole : the curve stops and "
+                        "starts again, never drawn at zero. Each series "
+                        "keeps its own x values — a stock and an index "
+                        "with different holidays draw together, and the "
+                        "tooltip says « — » where a series has no point.",
+                        color="muted", size="xs",
+                    )
+                    with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
+                        with ui.vstack(gap="xs"):
+                            ui.text("A measure missing twice", color="muted",
+                                    size="xs")
+                            ui.line_chart(
+                                [(x, None if x in (6, 7, 13) else y)
+                                 for x, y in SAMPLE],
+                                width=400, size="sm", area_fill=True,
+                            )
+                        with ui.vstack(gap="xs"):
+                            ui.text("Two markets, two calendars", color="muted",
+                                    size="xs")
+                            ui.line_chart(
+                                [Series("Action", [p for i, p in enumerate(PRICES)
+                                                   if i % 7 != 3]),
+                                 Series("Indice", [(d, round(v * 0.9 + 4, 2))
+                                                   for i, (d, v) in enumerate(PRICES)
+                                                   if i % 9 != 5])],
+                                width=400, size="sm", y_unit="€",
+                            )
+
+                    ui.heading("Moments (x_reference_lines)", level=3)
+                    ui.text(
+                        "``x_reference_lines=[(x, label), (x, label, "
+                        "color)]`` (or ``Reference``) draws dashed VERTICAL "
+                        "lines at moments — a buy, a sale, a release — "
+                        "with the label at the top. x is a number or a "
+                        "date, like the x values ; the axis widens to "
+                        "show a mark past the data. Two close marks put "
+                        "their labels on two rows.",
+                        color="muted", size="xs",
+                    )
+                    with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
+                        with ui.vstack(gap="xs"):
+                            ui.text("Buy, sale, buy again", color="muted",
+                                    size="xs")
+                            ui.line_chart(
+                                PRICES, width=400, size="sm", y_unit="€",
+                                x_reference_lines=[
+                                    (PRICES[2][0], "achat"),
+                                    (PRICES[12][0], "vente", "error"),
+                                    (PRICES[14][0], "rachat"),
+                                ],
+                            )
+                        with ui.vstack(gap="xs"):
+                            ui.text("Numeric x, a mark past the data",
+                                    color="muted", size="xs")
+                            ui.line_chart(
+                                SAMPLE, width=400, size="sm",
+                                x_reference_lines=[
+                                    Reference(2, "release", "primary"),
+                                    (len(SAMPLE) + 1, "next"),
                                 ],
                             )
 
@@ -627,3 +815,15 @@ def page() -> None:
                         color="muted", size="sm",
                     )
                     server_panel()
+
+            # ── Server events (on_item_click, 2026-10-29) ──────────
+            with ui.card():
+                with ui.vstack():
+                    ui.heading("Server events", level=2)
+                    events_panel()
+
+            # -- Client events --------------------------------------
+            with ui.card():
+                with ui.vstack():
+                    ui.heading("Client events", level=2)
+                    client_events_panel()

@@ -60,7 +60,7 @@ def schedule_post(post: Post) -> None:
     """The new date is already in ``post``; the summary re-renders."""
 
 
-@refreshable(deps=[Post])
+@refreshable
 def schedule_summary() -> None:
     publish_on = Post().publish_on
     if not publish_on:

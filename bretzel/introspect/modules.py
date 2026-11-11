@@ -78,11 +78,11 @@ _TOPLEVEL: dict[str, str] = {
     # It makes the browser ASK FOR the page again — an action on the
     # response, not a zone re-render like ``refresh`` just above.
     "reload": "act from a handler",
-    # The client VERBS (2026-09-01). A need of their own, and naming it
-    # is what the gate requires: they act neither on the response nor on
-    # the tree, they trigger a BROWSER action. Their place on ``bretzel``
-    # rather than on ``ui`` is a user arbitration of the same day — what
-    # DOES something is here, what IS something is on ``ui``.
+    # The client VERBS. A need of their own, and naming it is what the
+    # gate requires: they act neither on the response nor on the tree,
+    # they trigger a BROWSER action. Their place is on ``bretzel`` rather
+    # than on ``ui``: what DOES something is here, what IS something is on
+    # ``ui``.
     "copy": "act in the browser",
     "print_page": "act in the browser",
     "fullscreen": "act in the browser",
@@ -93,20 +93,21 @@ _TOPLEVEL: dict[str, str] = {
     # The resolved language of THIS request — read from a render body,
     # like ``Screen()`` just below.
     "Language": "render",
+    # The app's own sentences in that language — ``t("Create")``, read
+    # while rendering or handling, like ``Language()``.
+    "t": "render",
     "Screen": "render",
     # The third ambient read, with ``Screen`` and ``Language``: they all
     # answer "what do we know about THIS reader?". It lives in ``theme``
     # (base layer) and is re-exported here so the three import from the
-    # same place — until 2026-08-29 one had to know ``bretzel.theme`` to
-    # read the colour mode.
+    # same place.
     "ColorScheme": "render",
     # The fourth and last ambient read. It lives in ``state`` because it
     # is a ``ClientState`` the runtime writes — but it reads like its
     # three sisters, and is therefore imported from here like them.
     "LiveConnection": "render",
-    # The WHOLE identity fits in these two modules since 2026-08-29:
-    # the imperative verbs and the two declarations (``@auth.source`` /
-    # ``@auth.door``), which used to be at top level.
+    # The WHOLE identity fits in these two modules: the imperative verbs
+    # and the two declarations (``@auth.source`` / ``@auth.door``).
     "auth": "identify the current user",
     "oauth": "identify the current user",
     "BretzelError": _ERROR,
@@ -130,6 +131,9 @@ _STATE: dict[str, str] = {
     "computed": "declare a field",
     "validator": "declare a field",
     "form_value": "read state elsewhere",
+    "Topic": "follow data outside state",
+    "reads": "follow data outside state",
+    "writes": "follow data outside state",
     # The algebra: what one composes for a `bz-show` / a `visible=`.
     "ClientBinding": "compose on the client",
     "ClientExpression": "compose on the client",
@@ -182,13 +186,13 @@ _RENDER: dict[str, str] = {
     "serialize_html": "render",
     "refresh": "refresh a region",
     "drain_refresh_queue": "refresh a region",
-    # Public for the server layer, which owns one per app (anti-rule 2):
+    # Public for the server layer, which owns one per app:
     # the element fingerprints that let a zone ship only what changed.
     "ZoneMaps": "refresh a region",
-    # Filed by a keyed ``ui.table`` during ``refresh(zone, rows=[…])``.
-    "RowReport": "refresh a region",
     "RefreshableHandle": "refresh a region",
-    "zone_ids_watching": "refresh a region",
+    # Public for the server layer, which owns one per app.
+    "ZoneRegistry": "refresh a region",
+    "zones_reachable_from": "refresh a region",
     "text": "say a framework word",
     "plural": "say a framework word",
     "template": "say a framework word",
@@ -233,11 +237,13 @@ _RENDER: dict[str, str] = {
 }
 
 _RUNTIME: dict[str, str] = {
-    # The client VERBS (2026-09-01). A need of their own, and naming it
-    # is what the gate requires: they act neither on the response nor on
-    # the tree, they trigger a BROWSER action. Their place on ``bretzel``
-    # rather than on ``ui`` is a user arbitration of the same day — what
-    # DOES something is here, what IS something is on ``ui``.
+    "RUNTIME_MODULES": "the client code and its load order",
+    "RUNTIME_SOURCES": "the client code and its load order",
+    # The client VERBS. A need of their own, and naming it is what the
+    # gate requires: they act neither on the response nor on the tree,
+    # they trigger a BROWSER action. Their place is on ``bretzel`` rather
+    # than on ``ui``: what DOES something is here, what IS something is on
+    # ``ui``.
     "copy": "act in the browser",
     "print_page": "act in the browser",
     "fullscreen": "act in the browser",
@@ -273,7 +279,7 @@ _RUNTIME: dict[str, str] = {
     "HEADER_PAGE_ID": "HTTP header",
     "HEADER_CSRF": "HTTP header",
     # The URLs live here and reach the client through the envelope — the
-    # runtime.js hard-codes none of them (anti-rule 3).
+    # runtime.js hard-codes none of them.
     "ROUTE_PREFIX": "runtime route",
     "ROUTE_RUNTIME_JS": "runtime route",
     "ROUTE_THEME_CSS": "runtime route",
@@ -310,12 +316,9 @@ _RUNTIME: dict[str, str] = {
 _CORE: dict[str, str] = {
     "Node": "render tree",
     "Element": "render tree",
-    # Suffixed ``Node`` on 2026-08-29: ``Text``/``Html``/``Fragment``
-    # were the three ONLY names of the whole public surface designating
-    # two different objects (a tree node here, a component in
-    # ``bretzel.components``). The suffix is not an invention: the five
-    # files that already had to lift the ambiguity all aliased to those
-    # very names.
+    # Suffixed ``Node``: ``Text``/``Html``/``Fragment`` would otherwise
+    # designate two different objects (a tree node here, a component in
+    # ``bretzel.components``).
     "TextNode": "render tree",
     "HtmlNode": "render tree",
     "FragmentNode": "render tree",
@@ -327,6 +330,7 @@ _CORE: dict[str, str] = {
     "escape_js": "escape",
     "IdGenerator": "node identity",
     "hash_segment": "node identity",
+    "key_segment": "node identity",
     # What makes "mutating state re-renders the subtree" possible.
     "DependencyTracker": "track dependencies",
     "Observer": "track dependencies",
@@ -369,6 +373,7 @@ _COMPONENTS: dict[str, str] = {
     "GraphEdge": "describe a diagram",
     "Track": "describe a media track",
     "Move": "handle drag and drop",
+    "Reschedule": "handle drag and drop",
     # Re-exported — their card ALSO lives under
     # ``bretzel.state.datatable``, and ``SymbolDetail.exported_by`` says
     # so on each. The classification is the SAME on both sides: two needs
@@ -396,12 +401,9 @@ _DATATABLE: dict[str, str] = {
 
 #: ``bretzel.probe`` — the layer-7 one that DRIVES the running app.
 #:
-#: ⚠️ **Absent until 2026-09-12, and it is a hole paid for in greps.**
-#: ``describe probe`` answered "is neither in the ``ui.*`` components nor
-#: the modules", honestly adding "it does import, though". The measured
-#: result while mounting ``examples/ecole``: writing a probe required
-#: opening ``_probe.py`` — ``probe()``'s signature (is there a
-#: ``strict=``? no; a ``size=``? yes) and ``Probe.requests``'s.
+#: ⚠️ Without this table, ``describe probe`` would not answer, and writing
+#: a probe would require opening ``_probe.py`` for ``probe()``'s signature
+#: and ``Probe.requests``'s.
 #:
 #: The tooling exclusion's rationale — *"``describe`` is for writing an
 #: app, not for reading itself"* — does not cover this package. One does
@@ -487,8 +489,7 @@ def uncovered_owners() -> MappingProxyType[str, str]:
     """Those of :func:`public_owners` that no section classifies.
 
     What the not-found message must say differently: no card, so we name
-    the import door. Empty today — ``bretzel.components``'s thirteen
-    non-catalogue names have been classified since 2026-09-06 — and kept
+    the import door. Empty while every facade is classified, and kept
     for the next facade, which will arrive without a table.
     """
     return MappingProxyType({
@@ -555,7 +556,7 @@ def _catalogue_names(name: str) -> frozenset[str]:
 
     By identity, never by spelling: ``AccordionItem`` is
     ``ui.accordion_item``, and a string comparison misses everything
-    carrying an underscore — 37 names out of 48, measured.
+    carrying an underscore.
     """
     from bretzel.introspect.components import ui_name_of_class
 

@@ -101,7 +101,7 @@ class TestEnTetes:
         # Le DERNIER segment seulement : un nom qui porterait des barres
         # obliques laisserait chaque navigateur choisir, et ils ne
         # choisissent pas pareil.
-        assert entete["content-disposition"] == 'attachment; filename="clients.csv"'
+        assert entete["content-disposition"].startswith('attachment; filename="clients.csv";')
 
     def test_the_filename_is_overridable(self) -> None:
         @download("/x.csv", filename="rapport-2026.csv")
@@ -145,6 +145,58 @@ class TestEnTetes:
         assert recu.startswith("text/tab-separated-values")
 
 
+class TestLienDansUneCoque:
+    """htmx intercepte le lien : la route lui dit de naviguer pour de vrai."""
+
+    HTMX = {"HX-Request": "true"}
+
+    def test_htmx_is_sent_to_a_real_navigation(self) -> None:
+        @download("/h.csv")
+        def h() -> list[dict]:
+            return [{"a": 1}]
+
+        with TestClient(_app(h)) as client:
+            r = client.get("/h.csv?year=2026", headers=self.HTMX, follow_redirects=False)
+        assert r.status_code == 200
+        assert r.headers["HX-Redirect"] == "/h.csv?year=2026"
+        assert r.content == b""
+
+    def test_the_function_runs_once_for_a_click(self) -> None:
+        appels: list[int] = []
+
+        @download("/once.csv")
+        def once() -> list[dict]:
+            appels.append(1)
+            return [{"a": 1}]
+
+        with TestClient(_app(once)) as client:
+            client.get("/once.csv", headers=self.HTMX)
+            assert appels == [], "la fonction a tourné pour rien sur la requête htmx"
+            client.get("/once.csv")
+        assert appels == [1]
+
+    def test_the_redirect_keeps_the_base_path(self) -> None:
+        @download("/b.csv")
+        def b() -> list[dict]:
+            return [{"a": 1}]
+
+        app = Bretzel(secret_key="x" * 32, mode="dev", base_path="/sub")
+        app.include(b)
+        with TestClient(app) as client:
+            r = client.get("/sub/b.csv", headers=self.HTMX, follow_redirects=False)
+        assert r.headers["HX-Redirect"] == "/sub/b.csv"
+
+    def test_both_answers_vary_on_htmx(self) -> None:
+        """Sinon le cache du navigateur peut servir le fichier à htmx."""
+        @download("/v.csv")
+        def v() -> list[dict]:
+            return [{"a": 1}]
+
+        with TestClient(_app(v)) as client:
+            assert "HX-Request" in client.get("/v.csv").headers["Vary"]
+            assert "HX-Request" in client.get("/v.csv", headers=self.HTMX).headers["Vary"]
+
+
 class TestMarque:
     def test_two_downloads_on_one_function_are_REFUSED(self) -> None:
         """Même refus et même raison que ``@page`` : la marque vit sur
@@ -181,3 +233,49 @@ def test_a_download_is_not_a_page() -> None:
     app = _app(f)
     assert f in app._downloads
     assert f not in app._pages
+
+
+class TestPathParameters:
+    """``@download("/attachments/{aid}")`` used to mount, then call the
+    function with no argument: a 500 at the first click (reported by the
+    comparison's builder, 2026-10-25)."""
+
+    def test_the_path_parameter_reaches_the_function_typed(self) -> None:
+        @download("/attachments/{aid}/{name}")
+        def attachment(aid: int, name: str) -> bytes:
+            assert isinstance(aid, int)
+            return f"{aid}:{name}".encode()
+
+        with TestClient(_app(attachment)) as client:
+            response = client.get("/attachments/42/report.pdf")
+        assert response.status_code == 200
+        assert response.content == b"42:report.pdf"
+
+    def test_a_value_that_does_not_convert_is_a_404(self) -> None:
+        @download("/files/{fid}")
+        def file_(fid: int) -> bytes:
+            return b"x"
+
+        with TestClient(_app(file_)) as client:
+            assert client.get("/files/abc").status_code == 404
+
+    def test_the_filename_can_name_the_parameter(self) -> None:
+        @download("/invoices/{number}", filename="invoice-{number}.txt")
+        def invoice(number: int) -> str:
+            return "total"
+
+        with TestClient(_app(invoice)) as client:
+            disposition = client.get("/invoices/7").headers["content-disposition"]
+        assert disposition.startswith('attachment; filename="invoice-7.txt";')
+
+    def test_a_parameter_the_function_lacks_is_refused_at_import(self) -> None:
+        with pytest.raises(TypeError, match=r"declares \['aid'\]"):
+            @download("/attachments/{aid}")
+            def nothing() -> bytes:
+                return b""
+
+    def test_a_required_parameter_the_path_lacks_is_refused_at_import(self) -> None:
+        with pytest.raises(TypeError, match=r"requires \['aid'\]"):
+            @download("/attachment")
+            def needs(aid: int) -> bytes:
+                return b""

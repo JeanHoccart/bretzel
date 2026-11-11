@@ -27,9 +27,8 @@ Three pieces, all V1-derived but consolidated :
 - **SidebarItem** — the one nav-row primitive. When ``href`` is
   passed AND we're inside an ``@layout`` (the render context
   carries the layout name on ``ctx.layout_stack``), the item
-  auto-injects ``hx-get`` / ``hx-target=#outlet_<layout>`` /
-  ``hx-swap=morph:innerHTML`` / ``hx-push-url=true`` so the click
-  partial-navigates without reloading the layout. The active
+  aims ``hx-target=#outlet_<layout>``, so the page's boost swaps only that
+  outlet. The active
   highlight is driven by a reactive ``bz-attr:data-active`` comparing
   the item's href to the sidebar's ``current_path``.
 """
@@ -37,7 +36,6 @@ Three pieces, all V1-derived but consolidated :
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.actions.icon_button import IconButton
@@ -45,23 +43,23 @@ from bretzel.components.base import (
     Component,
     ComponentUsageError,
     reactive_prop,
-    stamp_display_none,
 )
-from bretzel.components.base._wiring import (
-    TOGGLE_NEAREST_SIDEBAR,
+from bretzel.components.base.arguments import has_content, shown
+from bretzel.components.base.composition import unwrap_transparent
+from bretzel.components.base.overlay_wiring import (
     anchored_dismiss_init,
-    anchored_panel_effect,
-    bool_attr,
+    anchored_panel,
     escape_init,
+    focus_trap_effect,
     imperative_listeners,
     install_open_close_toggle,
     modal_root_effect,
-    server_sync_marker,
     teleport_to_body,
-    unwrap_transparent,
 )
+from bretzel.components.base.page_checks import TOGGLE_NEAREST_SIDEBAR
+from bretzel.components.base.scope_wiring import bool_attr, server_sync_marker
+from bretzel.components.navigation._nav_item import NavItem
 from bretzel.components.navigation._wiring import (
-    capture_layout,
     current_path_resync_init,
     current_path_scope,
     is_external_href,
@@ -81,6 +79,7 @@ from bretzel.core.tree import Element, Node
 from bretzel.core.tree import TextNode as TextNode
 from bretzel.render import text
 from bretzel.render.context import maybe_current_context
+from bretzel.runtime.protocol import BZ_ATTR_PREFIX
 
 
 def _icon_name(icon: Any) -> str | None:
@@ -115,6 +114,13 @@ def _iconify_ref(name: str) -> str:
 # ───────────────────────────────────────────────────────────────────────────
 
 
+_OVERRIDE = (
+    "Override the theme's `root` slot to change that — "
+    'Bretzel(theme=Theme(components={"sidebar": {"slots": {"root": "…"}}}})), or '
+    '`slots={"root": "…"}` on the instance for a one-off.'
+)
+
+
 class Sidebar(Component):
     """Render a collapsible application sidebar."""
 
@@ -141,40 +147,26 @@ class Sidebar(Component):
     #
     # ``overlay`` is the mode you mount on a phone — it is the ONLY one
     # not gated on ``md:``, cf. the theme.
-    collapsible: str = reactive_prop(default="rail", emit_attr=False)
-
-    #: The four legal values, read by the constructor's guard AND by the
+    #: The four legal values, read by the socle's refusal AND by the
     #: theme. One source: a fifth mode is added here.
     COLLAPSE_MODES: ClassVar[tuple[str, ...]] = (
         "rail", "offcanvas", "overlay", "none",
     )
+    collapsible: str = reactive_prop(default="rail", emit_attr=False, steps=COLLAPSE_MODES)
 
-    # Axis shipped then CUT (2026-08-15), on the opinionation rule's
-    # decisive test: "would we have this component in two shapes in the
-    # SAME app?". No — an app has a single side nav, and it is on the
-    # left. No call site in the repository passed ``side="right"``; the
-    # only one was the bench card that demonstrated it.
-    #
-    # Right mode was half dead anyway: the rail's tooltip anchors its X
-    # on ``aside.getBoundingClientRect().right + 8`` (cf.
-    # ``SidebarItem.render``), so in ``side="right"`` the panel went off
-    # screen.
-    #
-    # ⚠️ The guard is not politeness — same reason as
-    # ``bottom_bar._CUT``, of which this is the exact copy: without it,
-    # the base layer absorbs the unknown kwarg into the raw attrs and
-    # ``ui.sidebar(side="right")`` would emit an HTML attribute
-    # ``side="right"`` **in silence**, changing nothing in the render.
-    _CUT: ClassVar[dict[str, str]] = {
+    # No ``side=`` axis, on the opinionation rule's decisive test: "would
+    # we have this component in two shapes in the SAME app?". No — an app
+    # has a single side nav, and it is on the left.
+    REFUSED_PROPS: ClassVar[dict[str, str]] = {
         "side": (
             "a side nav lives on the left — the two sides never coexist "
-            "in the same app, so it is a theme decision"
+            f"in the same app, so it is a theme decision. {_OVERRIDE}"
         ),
         "variant": (
-            "merged into `collapsible=` on 2026-08-15 — it never said "
+            "merged into `collapsible=` — it never said "
             'anything other than "what the collapsed form looks like". '
             'Write `collapsible="rail"` (ex-variant="rail") or '
-            '`collapsible="offcanvas"` (ex-variant="drawer")'
+            f'`collapsible="offcanvas"` (ex-variant="drawer"). {_OVERRIDE}'
         ),
     }
 
@@ -186,8 +178,8 @@ class Sidebar(Component):
         collapsible: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # ``collapsible`` was a BOOL until 2026-08-15. A call left in
-        # the old shape would pass here without a sound — ``True`` is
+        # A boolean ``collapsible`` would otherwise pass here without a
+        # sound — ``True`` is
         # none of the four modes, so the theme would compose no collapse
         # rule and the sidebar would simply stop collapsing, in silence.
         # The message says what to write.
@@ -198,21 +190,6 @@ class Sidebar(Component):
                 f'`collapsible="rail"` (ex-True) or `collapsible="none"` '
                 f"(ex-False)."
             )
-        if collapsible is not None and collapsible not in self.COLLAPSE_MODES:
-            raise ComponentUsageError(
-                f"ui.sidebar(collapsible={collapsible!r}): unknown mode. "
-                f"The four modes are {', '.join(self.COLLAPSE_MODES)}."
-            )
-        for name, why in self._CUT.items():
-            if name in kwargs:
-                raise ComponentUsageError(
-                    f"ui.sidebar has no `{name}=`: {why}. "
-                    f"Override the theme's `root` slot to change that — "
-                    f'Bretzel(theme=Theme(components={{"sidebar": '
-                    f'{{"slots": {{"root": "…"}}}}}})), or '
-                    f'`slots={{"root": "…"}}` on the instance for a '
-                    f"one-off."
-                )
         # Direct forward: the base layer drops reactive ``None`` kwargs
         # (keeps the default) — no more manual guard.
         super().__init__(
@@ -231,11 +208,10 @@ class Sidebar(Component):
         # be answered once the page is built: WHICH bar an argument-less
         # ``ui.sidebar_trigger`` speaks to, and whether that bar has a way
         # of being reopened
-        # (``base/_wiring.check_sidebars_are_reachable``).
+        # (``base/page_checks.check_sidebars_are_reachable``).
         ctx = maybe_current_context()
         if ctx is not None:
             ctx.sidebars.append(self)
-
 
     # ── Render ─────────────────────────────────────────────────────────
 
@@ -280,8 +256,8 @@ class Sidebar(Component):
 
         attrs = self.emit_attrs()
         attrs["class"] = root_class
-        attrs.setdefault("role", "navigation")
-        attrs.setdefault("aria-label", "Sidebar")
+        attrs.setdefault("role", "dialog" if is_overlay else "navigation")
+        attrs.setdefault("aria-label", text("sidebar.label"))
         # Stable marker, read by ``ui.sidebar_trigger`` when it could
         # not resolve an id (a bar built in ANOTHER render than its own —
         # a zone refresh, for instance). Same gesture as shadcn's
@@ -308,13 +284,12 @@ class Sidebar(Component):
         # ``md:group-data-[open=false]/sidebar:``, so on ``data-open``
         # ALONE. Two keys for a single decision.
         #
-        # Consequence measured on 2026-08-15:
-        # ``ui.sidebar(collapsible="none", open=False)`` rendered a
-        # FULL-WIDTH sidebar with collapsed content — centred logo, a
-        # rule in place of the section title, rows reduced to their icon.
-        # 12 child rules fired while no width rule did.
+        # Without the freeze, ``ui.sidebar(collapsible="none", open=False)``
+        # would render a FULL-WIDTH sidebar with collapsed content — centred
+        # logo, a rule in place of the section title, rows reduced to their
+        # icon: the child rules would fire while no width rule does.
         #
-        # Freezing the attribute rather than going and gating the 12
+        # Freezing the attribute rather than going and gating those
         # rules on the mode: the mode says there is no collapsed state,
         # so the collapsed state must simply never be writable.
         # ``.toggle()`` on a ``none`` sidebar becomes a no-op, which is
@@ -328,9 +303,8 @@ class Sidebar(Component):
         # that is carried, and the name follows the prop.
         attrs.setdefault("data-collapse", mode)
         # A CLOSED ``overlay`` is slid off screen and a closed
-        # ``offcanvas`` is zero wide — yet their links stayed in the Tab
-        # order: the keyboard walked into a panel nobody sees (measured
-        # at 390 px in the product's cockpit, links at x = -111 px).
+        # ``offcanvas`` is zero wide — yet their links stay in the Tab
+        # order, and the keyboard would walk into a panel nobody sees.
         # ``inert`` takes the closed panel out of focus, pointer and
         # assistive tech at once, and ``bz-attr`` removes it when the
         # expression is false. ``rail`` keeps its icons usable, and
@@ -346,14 +320,11 @@ class Sidebar(Component):
         #    server round-trip on browser back/fwd.
         #  - ``open`` : present ONLY when no external binding drives
         #    the desktop state, so the chevron can flip something.
-        # ``rail_tip`` / ``rail_tip_x`` / ``rail_tip_y`` feed the rail's
-        # SHARED tooltip panel (cf. the theme's ``rail_tip`` slot). Each
-        # SidebarItem writes its label and its row's rect there on hover;
-        # the panel moves instead of existing in 62 copies. Empty =
-        # nothing hovered, so panel hidden.
-        rail_tip = "rail_tip: '', rail_tip_x: 0, rail_tip_y: 0"
+        # The collapsed rail's labels show in the PAGE's one tooltip panel
+        # (``tip.js``), each entry being its own trigger: the bar keeps
+        # no panel of its own.
         if bound_open:
-            bz_data = current_path_scope(rail_tip)
+            bz_data = current_path_scope()
         else:
             # ``open`` lives in a scope signal, so ``scope.absorb``
             # PRESERVES it across a morph (that is intended: a
@@ -379,7 +350,7 @@ class Sidebar(Component):
             # example in the repository passed one, hence six months of
             # survival.
             bz_data = current_path_scope(
-                f"open: {initial_open},{sync} {rail_tip}"
+                f"open: {initial_open},{sync}".rstrip().rstrip(",")
             )
         attrs.setdefault("bz-data", bz_data)
         # Resync ``current_path`` — shared with Navbar (the detail of
@@ -388,8 +359,7 @@ class Sidebar(Component):
         attrs.setdefault("bz-init", current_path_resync_init())
         # ⚠️ ``bz-init`` is ALREADY set above (resync ``current_path``).
         # Overlay mode wants a second one (Escape): we COMPOSE, we do not
-        # overwrite — it is the "clobbered internal handler" trap,
-        # the one that ate on_focus/on_blur on 2026-07-18.
+        # overwrite — it is the "clobbered internal handler" trap.
         _base_init = attrs["bz-init"]
 
         # ── Imperative API listeners ─────────────────────────────────
@@ -405,11 +375,11 @@ class Sidebar(Component):
             attrs.setdefault(_ev, _handler)
 
         # ── Modal wiring — ``overlay`` mode only ─────────────────────
-        # A phone menu opened above the content must close on Escape and
-        # must not let the page scroll behind it. Both helpers come from
-        # ``base/_wiring`` — the SAME ones as Dialog and Drawer — so
+        # A phone menu opened above the content must close on Escape, keep
+        # the focus in it and not let the page scroll behind it. These
+        # helpers come from ``base/``, the SAME ones as Dialog and Drawer, so
         # nothing is rewritten here and the ``overlay/`` group is not
-        # imported (anti-rule 5).
+        # imported.
         #
         # The in-flow modes (rail / offcanvas) most certainly do not want
         # them: collapsing a rail on desktop must neither steal the
@@ -417,24 +387,18 @@ class Sidebar(Component):
         if is_overlay:
             attrs["bz-init"] = (f"{_base_init}; {escape_init(open_expr)}; "
                                 f"{_follow_closes_init(open_expr)}")
-            attrs["bz-effect"] = modal_root_effect(open_expr)
+            attrs["aria-modal"] = "true"
+            # One directive per element: a comma keeps it one expression.
+            attrs["bz-effect"] = f"{modal_root_effect(open_expr)}, {focus_trap_effect(open_expr)}"
 
         # ── Children layout ──────────────────────────────────────────
         children: list[Any] = []
-        # ⚠️ **The auto floating chevron was REMOVED on 2026-08-21.**
-        # It rendered when the bar had no ``SidebarTitle``, at
-        # ``absolute top-2 right-2`` — that is to say exactly under the
-        # edge, which takes the right-hand 24 px over the full height.
-        # Measured by the gate: the click never reached it any more, a
-        # 30 s timeout on a button that was nevertheless "visible,
-        # enabled and stable". Two commands in the same place, one of
-        # them unreachable.
-        #
-        # Shifting it would have been a bandaid: the edge does the same
-        # job, in both states, over the full height — and without the
-        # component deciding where an app affordance goes, which the
-        # comment below already holds against its teleported
-        # predecessor.
+        # ⚠️ No automatic floating chevron for a bar with no
+        # ``SidebarTitle``: at ``absolute top-2 right-2`` it would sit
+        # exactly under the edge, which takes the right-hand 24 px over
+        # the full height, and the click would never reach it. The edge
+        # does the same job, in both states, over the full height — and
+        # without the component deciding where an app affordance goes.
         # ── The clickable edge ───────────────────────────────────────
         # It lives HERE, on the bar, and not in ``SidebarTitle``: a bar
         # with no title must be able to collapse too, and it is the
@@ -447,46 +411,36 @@ class Sidebar(Component):
         # without hover.
         if mode != "none":
             children.append(_render_rail_edge(slots, open_expr))
-        # ⚠️ There is no longer an auto-rendered reopen button. One
-        # existed for ``variant="drawer"``: collapsed, the sidebar
-        # disappeared along with its chevron, so the component teleported
-        # a hard-coded floating hamburger under ``<body>`` (``top-3
-        # left-3 z-50``). It was the component deciding where an APP
-        # affordance goes — and it would have made a second one if the
-        # app already had its own topbar. The dev places their button
+        # ⚠️ No auto-rendered reopen button. Collapsed, a ``drawer``
+        # sidebar disappears along with its chevron, but where the
+        # reopening control goes is an APP affordance, not the
+        # component's — and a hard-coded one would make a second one if
+        # the app already has its own topbar. The dev places their button
         # where they want and calls ``sb.toggle()``; the imperative API
         # exists for that.
-        # ⚠️ The backdrop is NO LONGER a child of the aside, and above
-        # all it is no longer teleported — it becomes a SIBLING, under a
+        # ⚠️ The backdrop is NOT a child of the aside, and above all it
+        # is not teleported — it is a SIBLING, under a
         # ``display:contents`` root (cf. the end of this ``render``). See
         # the comment down there: it is the only position from which its
         # ``z-40`` can be compared to the aside's ``z-50``.
         backdrop = _render_backdrop(theme, open_expr) if is_overlay else None
 
         # ── User children : pin header + footer, scroll the middle ───
-        # The aside is a rigid ``flex-col h-screen`` frame ; it no longer
-        # carries the scroll itself (it used to — ``overflow-y-auto`` on
-        # the root — which scrolled the FOOTER away with an overflowing
-        # nav list). So we partition the user children by type :
+        # The aside is a rigid ``flex-col h-screen`` frame ; it does not
+        # carry the scroll itself, which would scroll the FOOTER away with
+        # an overflowing nav list. So we partition the user children by
+        # type :
         #   • title   → pinned header (``shrink-0``)
         #   • footer  → pinned footer (``shrink-0``)
         #   • the rest → in the ``flex-1 min-h-0 overflow-y-auto`` box,
         #     the ONLY part that scrolls.
         #
         # ⚠️ **The sorting is done on the RENDERED node, not on the
-        # child's Python type** — and that is the 2026-08-23 correction.
-        # The version that tested ``isinstance(child, SidebarFooter)``
-        # missed every WRAPPED footer: a ``@refreshable`` renders a
+        # child's Python type.** An ``isinstance(child, SidebarFooter)``
+        # would miss every WRAPPED footer: a ``@refreshable`` renders a
         # ``_RefreshableSection``, a ``ui.fragment`` renders a
-        # ``Fragment``. The footer then fell into the middle, so INTO the
-        # scrolling box.
-        #
-        # Measured on `examples/crm`, whose footer is a
-        # ``@refreshable(deps=[ViewerPrefs])`` — it does have to refresh
-        # when you switch account: the account block slid from 656 to
-        # 504 px when you scrolled the nav, while a bare footer did not
-        # move a pixel. The playground never showed the defect because
-        # its footer is not in a zone.
+        # ``Fragment``. The footer would then fall into the middle, so
+        # INTO the scrolling box, and slide when the nav scrolls.
         #
         # A node that carries TWO roles, or a role plus nav content,
         # stays in the middle: one cannot pin half a node, and cutting it
@@ -536,47 +490,6 @@ class Sidebar(Component):
             )
         children.extend(footer_nodes)
 
-        # The rail's SHARED tooltip panel, last child of the aside.
-        # ``aria-hidden``: it is purely decorative — each entry's
-        # accessible name travels on its own ``aria-label`` (cf.
-        # ``SidebarItem.render``), which is the right a11y for an
-        # icon-only rail anyway and does not depend on hover.
-        children.append(
-            Element(
-                tag="div",
-                attrs={
-                    # ``bz-c-text``: the rail's panel is a tooltip, so
-                    # it carries a tooltip's NEUTRAL tint and not the
-                    # bar's colour. Its bridge is set here because it
-                    # diverges from the root's.
-                    "class": f'{slots.get("rail_tip", "")} bz-c-text'.strip(),
-                    "role": "tooltip",
-                    "aria-hidden": "true",
-                    "data-tip": "off",
-                    "bz-attr:data-tip": "rail_tip ? 'on' : 'off'",
-                    "bz-attr:style": (
-                        "'top:' + rail_tip_y + 'px;left:' + rail_tip_x + 'px'"
-                    ),
-                },
-                children=(
-                    # ⚠️ ``bz-text`` writes ``textContent``, which
-                    # ERASES the node's children. It therefore lives on
-                    # an inner ``<span>``, not on the panel — otherwise
-                    # the arrow would be swept away on the first hover.
-                    Element(
-                        tag="span",
-                        attrs={"bz-text": "rail_tip"},
-                        children=(),
-                    ),
-                    Element(
-                        tag="div",
-                        attrs={"class": slots.get("rail_tip_arrow", "")},
-                        children=(),
-                    ),
-                ),
-            )
-        )
-
         aside = Element(tag=self._tag, attrs=attrs, children=tuple(children))
         if backdrop is None:
             return aside
@@ -584,38 +497,35 @@ class Sidebar(Component):
         # ── Overlay mode: the backdrop and the aside must be SIBLINGS ─
         #
         # A ``z-index`` only compares between siblings of a stacking
-        # context — it does not cross a boundary. The backdrop therefore
-        # lived **teleported under ``<body>``** until 2026-08-15, on the
-        # assumption that it would be "a sibling of the sidebar" there.
-        # It only is if the aside is itself a direct child of ``<body>``,
+        # context — it does not cross a boundary. Teleported under
+        # ``<body>``, the backdrop would be "a sibling of the sidebar"
+        # only if the aside were itself a direct child of ``<body>``,
         # which no real shell does: the recommended shell is
         # ``fixed inset-0`` (``traps.md``), and ``position: fixed``
-        # CREATES a context. The aside's ``z-50`` therefore stayed locked
-        # inside it, the real comparison became "shell (``z-auto``)
-        # against backdrop (``z-40``)", and the backdrop covered the
-        # whole app — sidebar included, which it blurred with its
+        # CREATES a context. The aside's ``z-50`` would stay locked
+        # inside it, the real comparison would become "shell (``z-auto``)
+        # against backdrop (``z-40``)", and the backdrop would cover the
+        # whole app — sidebar included, which it would blur with its
         # ``backdrop-filter``.
         #
         # ``display:contents`` (Tailwind ``contents``) is what settles
         # it: the root generates NO box, so no stacking context, and its
         # two children take part in the shell's. ``z-40`` and ``z-50``
-        # finally compare there. It is also the structure of
-        # ``ui.dialog`` / ``ui.drawer``, which never had the defect
-        # because they keep their pair in the same place — three
+        # compare there. It is also the structure of
+        # ``ui.dialog`` / ``ui.drawer``, which keep their pair in the
+        # same place — three
         # components, a single way of doing it (principle 4).
         #
         # The caller's ``classes=`` is copied onto the ASIDE: the
         # universal wrap would set it on this root, where it would be
         # inert (a box that does not exist is not styled).
         # ⚠️ The SCOPE moves up to the root — without that the backdrop
-        # sees nothing any more. The runtime resolves a ``bz-*`` by
-        # walking up to the nearest ancestor carrying ``bz-data``; a
-        # backdrop that has become a SIBLING of the aside therefore no
-        # longer has the scope above it, and its ``bz-attr:data-open``
-        # evaluates into the void. Measured by shipping it: the backdrop
-        # stayed at ``data-open="true"`` with the sidebar closed, so
-        # opaque and blurred over the whole screen — exactly the symptom
-        # being repaired.
+        # sees nothing. The runtime resolves a ``bz-*`` by walking up to
+        # the nearest ancestor carrying ``bz-data``; a backdrop that is a
+        # SIBLING of the aside therefore does not have the scope above
+        # it, and its ``bz-attr:data-open`` would evaluate into the void:
+        # the backdrop would stay at ``data-open="true"`` with the sidebar
+        # closed, so opaque and blurred over the whole screen.
         #
         # The aside keeps seeing it: it descends from this root, so the
         # walk finds it. One scope, two consumers.
@@ -625,11 +535,11 @@ class Sidebar(Component):
         # ⚠️ Do NOT leave the ``id`` on the aside: the base layer stamps
         # ``id`` + ``bz-id`` on any root that carries a ``bz-data`` and
         # does not yet have an ``id`` (``_stamp_scope_id``). The wrapper
-        # therefore got one — the SAME as the aside. Two nodes, one id:
-        # ``document.getElementById`` returns the first, that is to say
-        # the wrapper, and the imperative API dispatched ``bz-toggle`` on
-        # a node with no listener. Measured: the hamburger no longer did
-        # anything, in silence, while the state and the render were
+        # would therefore get one — the SAME as the aside. Two nodes, one
+        # id: ``document.getElementById`` returns the first, that is to
+        # say the wrapper, and the imperative API would dispatch
+        # ``bz-toggle`` on a node with no listener: the hamburger would
+        # do nothing, in silence, while the state and the render are
         # correct.
         #
         # The three ``bz-on:bz-*`` therefore migrate with the ``id`` they
@@ -693,40 +603,30 @@ class SidebarTrigger(Component):
     # have this component in two shapes in the SAME app?". No — an app
     # has one side-bar trigger, and it looks like the rest of its top
     # bar. ``icon=`` survives the same test because the disagreement is
-    # real and measurable: this repository writes ``menu`` in
-    # ``examples/crm`` and ``panel-left`` in ``examples/chat``.
-    #
-    # ⚠️ The guard is not politeness — same reason as
-    # ``bottom_bar._CUT``, of which this is the copy: without it, the
-    # base layer absorbs the unknown kwarg into the raw attrs, and
-    # ``ui.sidebar_trigger(variant="solid")`` would emit an HTML
-    # attribute ``variant="solid"`` **in silence**, changing nothing in
-    # the render.
-    _CUT: ClassVar[dict[str, str]] = {
+    # real and measurable: apps write ``menu`` as often as
+    # ``panel-left``.
+    REFUSED_PROPS: ClassVar[dict[str, str]] = {
         "variant": (
             "the button's look is decided once per app, along with the "
-            "rest of its top bar: it is a theme decision"
+            "rest of its top bar: it is a theme decision."
         ),
         "color": (
             "same — and `classes=` is still there for the one-off. If "
             "you really want a button of your own, the tier-2 escape "
-            "hatch is whole: `ui.icon_button(…, on_click=sb.toggle())`"
+            "hatch is whole: `ui.icon_button(…, on_click=sb.toggle())`."
         ),
     }
 
     def __init__(
         self,
-        sidebar: Any = None,
+        # The bar this button toggles — POINTED AT, not rendered: it stays
+        # where it was placed. Hence ``Sidebar`` and not ``Component``.
+        sidebar: Sidebar | None = None,
         *,
         icon: str | Component | None = None,
         size: str | None = None,
         **kwargs: Any,
     ) -> None:
-        for name, why in self._CUT.items():
-            if name in kwargs:
-                raise ComponentUsageError(
-                    f"ui.sidebar_trigger has no `{name}=`: {why}."
-                )
         super().__init__(icon=icon, size=size, **kwargs)
         self._sidebar: Any = None
         #: The fallback: aim at the stable marker and resolve at CLICK
@@ -735,7 +635,7 @@ class SidebarTrigger(Component):
         if sidebar is not None:
             self.bind_sidebar(sidebar)
         else:
-            # Resolved by ``base/_wiring.wire_sidebar_triggers`` once
+            # Resolved by ``base/page_checks.wire_sidebar_triggers`` once
             # the tree is built — the order of writing must not decide
             # whether the button works.
             ctx = maybe_current_context()
@@ -758,7 +658,9 @@ class SidebarTrigger(Component):
 
     def render(self) -> Element:
         button = IconButton(
-            self._reactive_values.get("icon") or "panel-left",
+            # The binding when there is one: the button follows it live.
+            bound if (bound := self._binding_metadata.get("icon")) is not None
+            else self._reactive_values.get("icon") or "panel-left",
             variant="ghost",
             size=self._reactive_values.get("size") or "md",
             color="muted",
@@ -800,12 +702,11 @@ class SidebarSection(Component):
     # accepted then thrown away in silence. ``()`` makes the refusal
     # explicit.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
-    label: str | None = reactive_prop(default=None, emit_attr=False)
+    label: str | Component | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
         self,
-        *,
-        label: str | None = None,
+        label: str | Component | None = None,
         **kwargs: Any,
     ) -> None:
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
@@ -814,18 +715,20 @@ class SidebarSection(Component):
     def render(self) -> Element:
         theme = self._resolved_theme()
         slots = theme.get("slots", {})
-        label = self._reactive_values.get("label")
+        # ``shown``: a bound label is drawn live; ``has_content`` because
+        # a binding refuses ``if label:``.
+        label = shown(self, "label")
 
         attrs = self.emit_attrs()
         attrs["class"] = slots.get("section", "")
 
         children = list(self._render_children())
-        if label:
+        if has_content(label):
             # Rail divider — the collapsed-rail form of the label. The
             # uppercase caption (``section_label``) hides at md+ collapse ;
             # in its place we drop a real :class:`~bretzel.components.
             # primitives.divider.Divider` (dogfooding — a primitive, so
-            # importable here per anti-rule 5), so the caption visually
+            # importable here), so the caption visually
             # turns into a separator line. Only labelled sections get it :
             # an unlabelled group has no caption to collapse.
             #
@@ -869,11 +772,11 @@ class SidebarTitle(Component):
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
 
-    title: str = reactive_prop(default="", emit_attr=False)
+    title: str | Component = reactive_prop(default="", emit_attr=False)
     #: ⚠️ The default is a GLYPH, not ``None`` — same pattern as
     #: ``ui.datatable(empty_icon="inbox")``. Without it, a title written
-    #: with no ``icon=`` left the rail's head empty, and a collapsed rail
-    #: showed a hole above its items (reported on screen on 2026-09-12).
+    #: with no ``icon=`` would leave the rail's head empty, and a
+    #: collapsed rail would show a hole above its items.
     #: ``home`` and not something else: this link leads to ``href=``,
     #: whose default is ``/``. The glyph therefore describes what the
     #: link DOES.
@@ -883,11 +786,11 @@ class SidebarTitle(Component):
     #: explicit ``None`` is indistinguishable from an absent argument
     #: (checked). The empty string, on the other hand, reaches here.
     icon: str | Component | None = reactive_prop(default="home", emit_attr=False)
-    href: str = reactive_prop(default="/", emit_attr=False, never_code=True)
+    href: str = reactive_prop(default="/", emit_attr=False)
 
     def __init__(
         self,
-        title: str = "",
+        title: str | Component = "",
         *,
         icon: str | Component | None = "home",
         href: str | None = None,
@@ -905,21 +808,25 @@ class SidebarTitle(Component):
         theme = self._resolved_theme()
         slots = theme.get("slots", {})
         # NO ``str(...)``: ``title`` is a textual slot, so it can carry
-        # a Component — coercing it here shipped its Python repr into the
-        # page (``emit_text_slot`` sorts it out downstream).
-        title = self._reactive_values.get("title") or ""
+        # a Component — coercing it here would ship its Python repr into
+        # the page (``emit_text_slot`` sorts it out downstream).
+        # ``shown``: a bound title is drawn
+        # live. Like a Component, it names the rail's link by
+        # ``aria-labelledby`` (an attribute cannot hold a binding, the
+        # referenced span follows it).
+        title = shown(self, "title")
+        if not has_content(title):
+            title = ""
         # ``icon`` accepts a bare name ("zap") OR a built ``ui.icon(...)``.
         # We read its NAME (the title sizes the glyph uniformly) and its
         # COLOUR : a bare string gets the brand ``primary`` ; a passed
         # ``ui.icon(...)`` keeps its OWN colour (default "current" = inherit
         # the brand link) so ``ui.icon("zap", color="warning")`` shows orange.
         icon_arg = self._reactive_values.get("icon")
+        icon_binding = self._binding_metadata.get("icon")
         icon_name = _icon_name(icon_arg)
-        icon_color = (
-            (getattr(icon_arg, "color", None) or "current")
-            if isinstance(icon_arg, Component)
-            else "primary"
-        )
+        mark = icon_arg if isinstance(icon_arg, Component) else None
+        icon_color = (getattr(mark, "color", None) or "current") if mark else "primary"
         # The STEP **plus the icon's bridge**, and both are necessary:
         # the icon's colour can differ from the header's
         # (``ui.icon("zap", color="warning")`` in a ``primary`` bar), so
@@ -934,24 +841,41 @@ class SidebarTitle(Component):
         icon_text_class = f"text-(--bz-text) {bridge_class(icon_color)}"
         href = str(self._reactive_values.get("href") or "/")
 
-        def _glyph(name: str, cls: str) -> Element:
-            return Element(
-                tag="iconify-icon",
-                attrs={"icon": _iconify_ref(name), "class": cls},
-                children=(),
-            )
+        # A passed ``ui.icon(...)`` keeps the classes its author gave it;
+        # any other Component (an image, a monogram) is drawn as it is,
+        # dressed with the slot's classes — rendered once, placed twice.
+        drawn = Component.render_detached(mark) if mark and not icon_name else None
+        has_mark = bool(icon_name) or drawn is not None
+
+        def _glyph(cls: str) -> Node:
+            if drawn is not None:
+                return Component.with_slot_class(drawn, cls)
+            own = mark._user_classes_str() if mark else ""
+            glyph_attrs = {"icon": _iconify_ref(icon_name), "class": f"{cls} {own}".strip()}
+            if icon_binding is not None:
+                # A bound name, followed live — the same resolver as
+                # ``ui.icon`` (R1: ``icon`` is bindable on every slot).
+                glyph_attrs[f"{BZ_ATTR_PREFIX}icon"] = (
+                    f"$bz._resolveIcon({self.path_of(icon_binding)}, 'lucide', null)")
+            return Element(tag="iconify-icon", attrs=glyph_attrs, children=())
 
         # ── In-sidebar header : brand link + collapse chevron ────────
         brand_children: list[Any] = []
-        if icon_name:
+        # A Component title names the rail's link by reference: its text
+        # is read from the span, as the screen reader would read it.
+        title_id = (
+            f"{self.id}-title"
+            if has_content(title) and not isinstance(title, str) else None
+        )
+        if has_mark:
             brand_children.append(
-                _glyph(icon_name, f"{slots.get('title_logo', '')} {icon_text_class}")
+                _glyph(f"{slots.get('title_logo', '')} {icon_text_class}")
             )
-        if title:
+        if has_content(title):
             brand_children.append(
                 Element(
                     tag="span",
-                    attrs={"class": slots.get("title_text", "")},
+                    attrs={"class": slots.get("title_text", ""), "id": title_id},
                     children=(self.emit_text_slot(title),),
                 )
             )
@@ -966,12 +890,6 @@ class SidebarTitle(Component):
         # therefore does not change size on collapse. Bubbling ``bz-toggle`` —
         # caught by the Sidebar root's ``bz-on:bz-toggle``.
         #
-        # ⚠️ This comment claimed "Sized to MATCH the rail toggle
-        # exactly" and pointed at a ``title_rail_toggle`` slot. Neither
-        # the slot nor that second button exists: the auto floating
-        # chevron was removed on 2026-08-21, and the ``toggle`` slot that
-        # dressed it left with it on 2026-08-29 — nobody read it any
-        # more.
         # ``panel-left`` and not a chevron: it is the glyph everybody
         # associates with "side bar" (lucide, shadcn, VS Code), so it
         # says WHAT IT COLLAPSES. A chevron says only a direction, and
@@ -993,24 +911,20 @@ class SidebarTitle(Component):
         toggle_node = toggle.render()
 
         # ── The rail's logo: a LINK, not a collapse button ──────────
-        # It carried the logo and turned into a chevron on hover; the
-        # click collapsed. Two defects at once: on a machine without
-        # hover nothing announced the gesture (the logo stayed a logo),
-        # and the logo changed job depending on the bar's state — link
-        # when expanded, button when collapsed.
+        # A logo that turned into a chevron on hover and collapsed on
+        # click would have two defects: on a machine without hover
+        # nothing would announce the gesture, and the logo would change
+        # job depending on the bar's state.
         #
-        # The collapse now has its EDGE (``Sidebar._render_rail_edge``),
-        # visible in both states, so the logo has only one job left:
+        # The collapse has its EDGE (``Sidebar._render_rail_edge``),
+        # visible in both states, so the logo has only one job:
         # leading to ``href=``.
         # ⚠️ **No rail mark WITHOUT a glyph.** An ``<a>`` with no child
-        # is not "invisible": measured on 2026-09-12 on a collapsed
-        # rail, it occupies **40 × 40 px** at the head of the bar and
-        # takes the FIRST focus — the first tab lands on a link you
-        # cannot see. Same family as the closed overlay that kept its
-        # commands reachable.
+        # is not "invisible": on a collapsed rail, it occupies a square
+        # at the head of the bar and takes the FIRST focus — the first
+        # tab lands on a link you cannot see.
         #
-        # Reported by the user, who saw the hole: "you did not put a
-        # logo, and now we see an empty space". With no glyph, the rail
+        # With no glyph, the rail
         # therefore starts at its items — it fills entirely, which is
         # what it offered — and the reopening affordance stays the EDGE
         # (``_render_rail_edge``), which is visible in both states.
@@ -1025,28 +939,25 @@ class SidebarTitle(Component):
                 # class ``test_icon_only_controls_are_named`` has guarded
                 # since finding 18.
                 #
-                # Only a STRING, as ``ui.icon_button`` does with its
-                # ``tooltip=``: a ``title=ui.text(...)`` is rich content,
-                # and flattening a tree into a label would produce a
-                # sentence nobody wrote.
-                "aria-label": (
+                # A string is the name as written; a ``title=ui.text(...)``
+                # is pointed at rather than flattened by hand, so the name
+                # is exactly the text the expanded title shows.
+                "aria-labelledby": title_id,
+                "aria-label": None if title_id else (
                     title.strip() if isinstance(title, str) and title.strip()
                     else text("sidebar.home")
                 ),
             },
             children=(
-                _glyph(
-                    icon_name,
-                    f"text-2xl {icon_text_class}",
-                ),
-            ) if icon_name else (),
+                _glyph(f"text-2xl {icon_text_class}"),
+            ) if has_mark else (),
         )
 
         attrs = self.emit_attrs()
         attrs["class"] = slots.get("title_root", "")
 
         children: list[Any] = [brand, toggle_node]
-        if icon_name:
+        if has_mark:
             children.append(rail_brand)
 
         return Element(tag=self._tag, attrs=attrs, children=tuple(children))
@@ -1057,59 +968,11 @@ class SidebarTitle(Component):
 # ───────────────────────────────────────────────────────────────────────────
 
 
-class SidebarItem(Component):
+class SidebarItem(NavItem):
     """One nav row : icon + label + optional badge."""
 
     THEME: ClassVar[dict[str, Any]] = SIDEBAR_ITEM_THEME
     THEME_KEY: ClassVar[str] = "sidebar_item"
-    IS_CONTAINER: ClassVar[bool] = False
-    EVENTS: ClassVar[tuple[str, ...]] = ("click",)
-    NAMED_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
-    ICON_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
-    # Curated reactive surface — active state (current_path derived
-    # at runtime, see sidebar __init__) + badge content + disabled.
-    # label and href are design-time (routes don't change live).
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("active", "badge", "disabled")
-
-    label: str = reactive_prop(default="", emit_attr=False)
-    href: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
-    active: Any = reactive_prop(default=None, emit_attr=False)
-    badge: Any = reactive_prop(default=None, emit_attr=False)
-    disabled: bool = reactive_prop(default=False, emit_attr=False)
-    color: str = reactive_prop(default="primary", emit_attr=False)
-
-    def __init__(
-        self,
-        label: str = "",
-        *,
-        icon: Any = None,
-        href: str | None = None,
-        active: Any = None,
-        badge: Any = None,
-        disabled: bool | None = None,
-        color: str | None = None,
-        on_click: Callable[..., Any] | str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
-        super().__init__(
-            label=label,
-            href=href,
-            active=active,
-            badge=badge,
-            disabled=disabled,
-            color=color,
-            icon=icon,
-            on_click=on_click,
-            **kwargs,
-        )
-
-        # Capture the enclosing layout name at construction time —
-        # the ``with @layout(): ...`` block is still active so
-        # ``ctx.layout_stack`` is populated. We need this for the
-        # ``hx-target`` attribute baked at render time.
-        self._captured_layout: str | None = capture_layout()
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
@@ -1143,9 +1006,8 @@ class SidebarItem(Component):
             )
 
         # In the collapsed rail the label is ``hidden`` (icon-only square),
-        # so we bring the name back on hover — via the ONE shared panel the
-        # Sidebar renders (slot ``rail_tip``), which this row moves onto
-        # itself. Disabled rows are skipped : ``pointer-events-none`` /
+        # so we bring the name back on hover — in the PAGE's one tooltip
+        # panel (``tip.js``), this row being its trigger. Disabled rows are skipped : ``pointer-events-none`` /
         # ``tabindex=-1`` already make them unhoverable / unfocusable.
         #
         # ⚠️ ``isinstance(label, str)`` discriminates Component-vs-string,
@@ -1156,8 +1018,7 @@ class SidebarItem(Component):
         #
         # ``label`` is a textual slot, so it accepts a Component. The
         # rail's tooltip, though, has only STRING targets — it goes into
-        # an ``aria-label`` and into the JS literal of ``rail_tip = "…"``,
-        # which ``json.dumps`` refuses. The row keeps its rich content;
+        # an ``aria-label`` and into the ``data-bz-tip`` attribute. The row keeps its rich content;
         # the rail's tooltip keeps quiet, as for an entry with no label.
         show_rail_tip = isinstance(label, str) and bool(label) and not disabled
 
@@ -1170,12 +1031,16 @@ class SidebarItem(Component):
                 icon.render(), slots.get("icon", ""),
             ))
 
-        if label:
+        # The visible text follows a bound label (``shown``); the rail's
+        # ``aria-label`` / ``data-bz-tip`` keep the
+        # resolved string ``label`` — an attribute cannot hold a binding.
+        label_text = shown(self, "label")
+        if has_content(label_text):
             children.append(
                 Element(
                     tag="span",
                     attrs={"class": slots.get("label", "")},
-                    children=(self.emit_text_slot(label),),
+                    children=(self.emit_text_slot(label_text),),
                 )
             )
 
@@ -1194,46 +1059,43 @@ class SidebarItem(Component):
         elif badge_value is not None:
             children.append(render_badge(badge_value, slots.get("badge", "")))
 
-        # ── Rail tooltip: feed the sidebar's SHARED panel ────────────
-        # We no longer instantiate a ``ui.tooltip`` per entry (62
-        # pre-rendered panels = 94 kB, a third of the sidebar, for an
-        # affordance that only ever shows one). The entry merely writes
-        # its label and its position into the aside's scope; the single
-        # panel moves there. The "collapsed rail + desktop" gate is in
-        # CSS on the panel, so there is no longer a ``matchMedia`` nor a
-        # ``closest('aside')`` copied 62 times.
+        # ── Rail tooltip: this row triggers the page's shared panel ──
+        # Not a ``ui.tooltip`` per entry, which would pre-render one panel
+        # per row, and not a panel of the bar's own either, whose look
+        # would be a COPY of the tooltip's. The row says its label and how
+        # the rail wants it: beside the BAR's edge (collapsed, the entry is
+        # a ``w-10`` square inside a 64 px rail, and a panel on the entry's
+        # edge would bite into the rail), at once, on one line,
+        # and only while the bar is collapsed — read at hover time.
         #
         # ``aria-label`` carries the accessible name on the link itself:
         # in the rail the visible label is ``hidden``, and a tooltip on
-        # hover is not a keyboard/screen-reader affordance. So it is both
-        # more correct than before and independent of the panel.
+        # hover is not a keyboard/screen-reader affordance. The shared
+        # panel does not describe a control whose name already says it.
         if show_rail_tip:
-            attrs.setdefault("aria-label", label)
-            # X on the RAIL's edge, not on the entry's: collapsed, the
-            # entry is a ``w-10`` square centred (``mx-auto``) in a 64 px
-            # rail, so its right edge falls 4 px INSIDE the rail and the
-            # panel overlapped it (probe, 2026-07-27).
-            # Y on the entry's centre; the half offset is done in CSS
-            # (``-translate-y-1/2``), not with a guessed height.
-            enter = (
-                f"rail_tip = {json.dumps(label)}; "
-                "rail_tip_x = $el.closest('aside')"
-                ".getBoundingClientRect().right + 8; "
-                "(r => { rail_tip_y = r.top + r.height / 2 })"
-                "($el.getBoundingClientRect())"
-            )
-            # Compose, do not overwrite: a user ``on_mouseenter=`` has
-            # already been set in ``attrs`` by ``emit_attrs``.
-            # Overwriting it is the "clobbered internal handler"
-            # trap (the on_focus/on_blur pass, 2026-07-18).
-            for event, internal in (
-                ("bz-on:mouseenter", enter),
-                ("bz-on:mouseleave", "rail_tip = ''"),
-                ("bz-on:focus", enter),
-                ("bz-on:blur", "rail_tip = ''"),
-            ):
-                existing = attrs.get(event)
-                attrs[event] = f"{existing}; {internal}" if existing else internal
+            # The name says the badge too: an ``aria-label`` replaces the
+            # link's content, so the label alone would hide the badge from
+            # screen readers. A reactive badge keeps the name in step.
+            if "aria-label" not in attrs:
+                if badge_binding is not None:
+                    path = self.path_of(badge_binding)
+                    attrs["bz-attr:aria-label"] = (
+                        f"(v => v == null || v === '' ? {json.dumps(label)} : "
+                        f"{json.dumps(label + ' ')} + v)({path})"
+                    )
+                if isinstance(badge_value, (str, int, float)) and str(badge_value) != "":
+                    attrs["aria-label"] = f"{label} {badge_value}"
+                else:
+                    attrs["aria-label"] = label
+            attrs.update({
+                "data-bz-tip-root": "",
+                "data-bz-tip": label,
+                "data-bz-tip-position": "right",
+                "data-bz-tip-beside": "aside",
+                "data-bz-tip-delay": "0",
+                "data-bz-tip-class": "whitespace-nowrap",
+                "data-bz-tip-off": "$el.closest('aside').dataset.open !== 'false'",
+            })
 
         node = Element(tag=tag, attrs=attrs, children=tuple(children))
 
@@ -1246,8 +1108,8 @@ class SidebarItem(Component):
 
 
 def _footer_initials(name: Any) -> str:
-    """Derive up-to-2-char initials from a display name ("Jean Hoccart"
-    → "JH", "Jean" → "JE"). Falls back to "?" for an empty name.
+    """Derive up-to-2-char initials from a display name ("Alex Martin"
+    → "AM", "Alex" → "AL"). Falls back to "?" for an empty name.
 
     ``name`` is a textual slot, so it also carries a Component — from
     which no initial can be derived (``.split()`` would raise). The
@@ -1266,7 +1128,7 @@ def _footer_initials(name: Any) -> str:
 def _is_image_source(avatar: str) -> bool:
     """True when the footer's ``avatar`` string names an image rather than
     initials: a path or URL (it has a ``/``) or a ``data:`` URI. Initials
-    carry neither — before this, a photo URL was printed in the chip."""
+    carry neither."""
     return "/" in avatar or avatar.startswith("data:")
 
 
@@ -1277,28 +1139,24 @@ class SidebarFooter(Component):
     THEME_KEY: ClassVar[str] = "sidebar_footer"
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
 
-    name: str = reactive_prop(default="", emit_attr=False)
-    subtitle: str | None = reactive_prop(default=None, emit_attr=False)
-    # ``never_code``: the string form may be an image URL — same family as
-    # ``ui.avatar(src=)``, so the same exposure to the false positive.
+    name: str | Component = reactive_prop(default="", emit_attr=False)
+    subtitle: str | Component | None = reactive_prop(default=None, emit_attr=False)
     avatar: str | Component | None = reactive_prop(
-        default=None, emit_attr=False, never_code=True
+        default=None, emit_attr=False
     )
     # Colour axis — tints the avatar chip + focus ring. Set by the
     # ``bz-c-<colour>`` bridge class on the root, which installs the
     # eleven steps on the subtree (cf. ``color_bridge_class``); the theme
-    # writes COMPLETE classes like ``bg-(--bz-bg)``. This comment said
-    # "via ``{bg_color}`` in the theme" until 2026-09-07, that is to say
-    # the mechanism from BEFORE the bridge.
+    # writes COMPLETE classes like ``bg-(--bz-bg)``.
     # Defaults to ``primary`` like every other Bretzel component
     # (Button / Avatar / SidebarItem …).
     color: str = reactive_prop(default="primary", emit_attr=False)
 
     def __init__(
         self,
-        name: str = "",
+        name: str | Component = "",
         *,
-        subtitle: str | None = None,
+        subtitle: str | Component | None = None,
         avatar: str | Component | None = None,
         color: str | None = None,
         **kwargs: Any,
@@ -1313,6 +1171,23 @@ class SidebarFooter(Component):
         )
 
     def _render_avatar(self, avatar: Any, name: Any, avatar_cls: str) -> Element:
+        # A bound avatar follows the client
+        # value: an image source by ``bz-attr:src``, initials by
+        # ``bz-text``. Which of the two is decided on the server value.
+        bound = self._binding_metadata.get("avatar")
+        if bound is not None:
+            live: Node | None = (
+                Element(tag="img", attrs={
+                    "src": avatar, f"{BZ_ATTR_PREFIX}src": self.path_of(bound),
+                    "alt": "", "class": "h-full w-full object-cover",
+                }, children=())
+                if isinstance(avatar, str) and _is_image_source(avatar)
+                else self.emit_text_slot(bound)
+            )
+            return Element(
+                tag="span", attrs={"class": avatar_cls},
+                children=(live,) if live is not None else (),
+            )
         if isinstance(avatar, Component):
             # A passed ``ui.avatar(...)`` carries its OWN size/shape/colour
             # (and is already detached by ``Component.__init__``) — render it
@@ -1343,7 +1218,11 @@ class SidebarFooter(Component):
         slots = theme.get("slots", {})
         # Same as ``title`` above: textual slot, no coercion.
         name = self._reactive_values.get("name") or ""
-        subtitle = self._reactive_values.get("subtitle")
+        # ``shown``: a bound name / subtitle is
+        # drawn live. The initials fallback keeps deriving from the resolved
+        # ``name`` — the server cannot split a value it never sees.
+        name_text = shown(self, "name")
+        subtitle = shown(self, "subtitle")
         avatar = self._reactive_values.get("avatar")
         open_expr = "acct_open"
 
@@ -1358,14 +1237,14 @@ class SidebarFooter(Component):
         # of this file's six slots not guarded by an ``if`` — a
         # ``ui.sidebar_footer()`` with no name is legal, and it rendered
         # an empty span before. We keep that behaviour.
-        name_node = self.emit_text_slot(name)
+        name_node = self.emit_text_slot(name_text)
         meta_children: list[Any] = [
             Element(
                 tag="span", attrs={"class": slots.get("name", "")},
                 children=(name_node,) if name_node is not None else (),
             )
         ]
-        if subtitle:
+        if has_content(subtitle):
             meta_children.append(
                 Element(
                     tag="span", attrs={"class": slots.get("subtitle", "")},
@@ -1409,21 +1288,15 @@ class SidebarFooter(Component):
         # trigger box. ``auto`` = best-fit : the footer sits at the bottom
         # so there's no room below → it opens UPWARD in the expanded
         # sidebar, and adapts on its own in the collapsed rail.
-        panel_attrs: dict[str, Any] = {
-            "class": slots.get("panel", ""),
-            "role": "menu",
-            # ``bzpanel`` ref : the teleport moves the panel out of the
-            # root's subtree, so click-outside checks it as "inside".
-            "bz-ref": "bzpanel",
-            "bz-effect": anchored_panel_effect(open_expr, "auto"),
-            # DropdownItem children dispatch ``bz-dropdown-pick`` on click
-            # → close the menu after the action runs.
-            "bz-on:bz-dropdown-pick": f"{open_expr} = false",
-        }
-        stamp_display_none(panel_attrs)  # hidden until opened (no FOUC)
-        panel = Element(
-            tag="div", attrs=panel_attrs,
+        panel = anchored_panel(
+            css=slots.get("panel", ""),
             children=tuple(self._render_children()),
+            open_expr=open_expr,
+            placement="auto",
+            role="menu",
+            # The items dispatch ``bz-dropdown-pick`` on click: that closes
+            # the menu after the action runs.
+            attrs={"bz-on:bz-dropdown-pick": f"{open_expr} = false"},
         )
 
         # ── Root ─────────────────────────────────────────────────────
@@ -1454,7 +1327,7 @@ class SidebarFooterItem(MenuItem):
     only binds the footer-item theme. On click it dispatches
     ``bz-dropdown-pick``, which the footer popover catches to close ::
 
-        with ui.sidebar_footer(name="Jean", subtitle="jean@acme.com"):
+        with ui.sidebar_footer(name="Alex", subtitle="alex@acme.com"):
             ui.sidebar_footer_item(label="Settings", icon_left="settings",
                                    href="/me")
             ui.sidebar_footer_item(label="Log out", icon_left="log-out",
@@ -1475,8 +1348,8 @@ def _follow_closes_init(open_expr: str) -> str:
 
     The sidebar lives in the layout, so a partial navigation keeps it —
     and its ``open`` — while the page changes behind it: on a phone the
-    menu stayed over the page the user had just asked for (helpdesk of
-    the comparison, 2026-10-23). A plain click on a link inside the aside
+    menu would stay over the page just asked for. A plain click on a link
+    inside the aside
     closes it; a modified click (new tab) leaves it open, the page does
     not change.
     """
@@ -1490,21 +1363,17 @@ def _follow_closes_init(open_expr: str) -> str:
 def _render_backdrop(theme: dict, open_expr: str) -> Element:
     """The dimmed backdrop of ``overlay`` mode — SIBLING of the aside.
 
-    ⚠️ It was **teleported under ``<body>``** until 2026-08-15, on this
-    reasoning written right here: "the aside is itself ``fixed z-50``, so
-    a child would live above it; under ``<body>`` it is a sibling, and
-    its ``z-40`` puts it behind the sidebar". The first half is right,
-    the second is **false**: it is a sibling of the aside only if the
-    aside is itself a direct child of ``<body>``, which no real shell
-    does. A ``z-index`` only compares between siblings of a stacking
-    context, and the recommended shell (``fixed inset-0``) creates one.
-    The backdrop therefore covered the sidebar and blurred it — reported
-    on screen, then measured.
+    ⚠️ It is neither a child of the aside (which is ``fixed z-50``, so a
+    child would live above it) nor **teleported under ``<body>``**: it
+    would be a sibling of the aside there only if the aside were itself a
+    direct child of ``<body>``, which no real shell does. A ``z-index``
+    only compares between siblings of a stacking context, and the
+    recommended shell (``fixed inset-0``) creates one, so the backdrop
+    would cover the sidebar and blur it.
 
-    The way out was neither "child" nor "under body" but a THIRD
-    position: sibling, under a ``display:contents`` root that generates
-    no box hence no context (cf. ``Sidebar.render``). It is the structure
-    of ``ui.dialog`` / ``ui.drawer``, which never had the defect. Gate:
+    It takes a THIRD position: sibling, under a ``display:contents`` root
+    that generates no box hence no context (cf. ``Sidebar.render``). It
+    is the structure of ``ui.dialog`` / ``ui.drawer``. Gate:
     ``tests/runtime_js/test_backdrop_never_covers_its_panel.py``.
 
     It carries ``data-open`` as a mirror (the theme reads
@@ -1533,13 +1402,11 @@ def _render_rail_edge(
 ) -> Element:
     """The bar's right edge, made clickable.
 
-    Why it exists (finding [29], 2026-08-21)
-    ------------------------------------------
-    In the collapsed rail, the collapse button CARRIED THE LOGO and
-    turned into a chevron **on hover**. On a machine without hover — a
-    touch laptop, the user's — there was therefore no signal at all: the
-    logo looked like a logo, and nothing said the bar could be reopened.
-    The gesture existed and nobody could discover it.
+    Why it exists
+    --------------
+    A collapse button that carries the logo and turns into a chevron
+    **on hover** gives no signal at all on a machine without hover: the
+    logo looks like a logo, and nothing says the bar can be reopened.
 
     The edge repairs that without hiding anything: the aside's right
     border is already painted permanently, we simply make it reachable.
@@ -1547,8 +1414,8 @@ def _render_rail_edge(
     at rest — and which ``test_hover_only_controls_reachable`` would
     forbid here.
 
-    It also frees the logo, which becomes a link again: it stops changing
-    job depending on the bar's state.
+    It also frees the logo, which stays a link: it does not change job
+    depending on the bar's state.
     """
     return Element(
         tag="button",
@@ -1562,14 +1429,9 @@ def _render_rail_edge(
             # It is ``absolute`` and a direct child of the aside, so
             # OUTSIDE the scrolling box. The browser scrolls what is
             # under the pointer; under the pointer there is the edge,
-            # which does not scroll. Measured on 2026-08-23, in BOTH
-            # states: 400 px of wheel over the strip left ``scrollTop``
-            # at 0.
-            #
-            # Reported like this: "I cannot scroll because there is the
-            # sidebar offering me to close it". On a 16 px strip running
-            # the full height, it is the bar's whole right-hand column
-            # that becomes dead to the wheel.
+            # which does not scroll. The strip runs the full height, so
+            # without the handler the bar's whole right-hand column would
+            # be dead to the wheel, in BOTH states.
             #
             # ``:scope >`` and not a bare ``querySelector``: a NESTED bar
             # would otherwise see its child's box. ``preventDefault``

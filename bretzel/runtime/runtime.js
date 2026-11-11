@@ -1,8 +1,8 @@
-/* 00_index.js — bootstrap + window.$bz wiring.
+/* index.js — bootstrap + window.$bz wiring.
  *
  * First in concatenation order but everything heavy runs at
  * DOMContentLoaded, after all modules have registered their pieces on
- * window.$bz. Bootstrap sequence (spec 03-runtime.md §00_index.js) :
+ * window.$bz. Bootstrap sequence (spec 03-runtime.md §index.js) :
  *
  *   1. Parse <bz-envelope> (one-shot bootstrap blob).
  *   2. Seed the global signal store from envelope.client_state.
@@ -11,8 +11,6 @@
  *   4. Wire the HTMX bridge listeners.
  *   5. Wire the OS color-scheme listener ($bz._osScheme signal).
  *   6. Scan the document : bz-data scopes + all bz-* directives.
- *      (Steps 5/6 were inverted in this comment until 2026-08-01 — the
- *      OS listener is wired BEFORE the scan.)
  *   7. Wire the SSE EventSource + data-bz-subscribe-* zones.
  *   8. Add .bz-ready on <html> (releases [bz-data]{visibility:hidden}),
  *      dispatch bz:ready.
@@ -39,15 +37,15 @@
 
   // Adopt ONE instance's transport config. Two callers, a single body:
   // the boot (from the ``<bz-envelope>``) and the bridge (from a partial
-  // nav's seed ``<bz-patch>``). Before 2026-08-15 this body only existed
-  // inline in the boot, so a ``ClientState`` discovered during a partial
-  // nav got its fields without its config: ``send_to_server`` ignored,
-  // and ``persist`` with no adapter — so a saved value never read back.
+  // nav's seed ``<bz-patch>``). A ``ClientState`` discovered during a
+  // partial nav needs its config as well as its fields: without it,
+  // ``send_to_server`` is ignored and ``persist`` has no adapter — so a
+  // saved value never reads back.
   //
   // ⚠️ To be called AFTER seeding the instance's fields: ``register``
   // superimposes the already stored snapshot, which must beat the
   // server's defaults ("the user's browser knows better",
-  // 04_persistence.js).
+  // persistence.js).
   function adoptConfig(path, entry) {
     const cfg = {};
     for (const key of CONFIG_KEYS) cfg[key] = entry[key];
@@ -95,14 +93,6 @@
       if (flat.has(path) && flat.get(path).peek() !== undefined) return;
       this.set(path, value);
     },
-    fieldsOf(instancePath) {
-      const prefix = instancePath + ".";
-      const out = {};
-      for (const [path, sig] of flat.entries()) {
-        if (path.startsWith(prefix)) out[path.slice(prefix.length)] = sig.peek();
-      }
-      return out;
-    },
   };
 
   // $bz.state.Class.key.field — 3-level proxy over the flat store.
@@ -149,10 +139,9 @@
      It designates nothing on the server side, does not survive the tab
      closing, and serves one thing only: letting the server NOT
      re-broadcast to whoever has just written what it has just received.
-     Without it, ticking a box on a shared table cost five requests
-     instead of one — the action, then one re-read per subscribed zone,
-     each returning exactly what the first had delivered (measured on
-     `examples/kanban`: 354 kB for 177 kB of use).
+     Without it, an action on a shared table costs one more request per
+     subscribed zone, each returning exactly what the action has just
+     delivered.
 
      `crypto.randomUUID` is not guaranteed outside a secure context — a
      test `http://192.168.x.x` loses it — hence the fallback. The value
@@ -169,24 +158,13 @@
 
   // ── Refetching ONE subscribed zone ────────────────────────────────
   //
-  // ⚠️ This was written, until 2026-09-04:
-  //
-  //     window.htmx.ajax("GET", url, { swap: "none" })
-  //
-  // With no ``source``, htmx attaches the request to ``document.body``
-  // — so a page's N zones share ONE element, and its implicit
-  // ``hx-sync`` makes them cancel each other. Measured on three zones
-  // subscribed to the same state, on a client that receives ONLY the
-  // stream (not the OOB swaps of its own action):
-  //
-  //     round 1   a=5    b=0    c=5     (expected 5 everywhere)
-  //     round 2   a=5    b=0    c=10    (expected 10)
-  //     round 3   a=10   b=0    c=15    (expected 15)
-  //
-  // The MIDDLE zone never refreshes, the first stays a round behind,
-  // only the last is right. It is not slowness, it is WRONG data
-  // displayed indefinitely — and nothing reports it, neither console
-  // nor network: the lost requests were never emitted.
+  // ⚠️ ``htmx.ajax`` needs a ``source`` here. With none, htmx attaches
+  // the request to ``document.body`` — so a page's N zones share ONE
+  // element, and its implicit ``hx-sync`` makes them cancel each other.
+  // Some zones then never refresh and others stay a round behind. It is
+  // not slowness, it is WRONG data displayed indefinitely — and nothing
+  // reports it, neither console nor network: the lost requests are never
+  // emitted.
   //
   // ``source: zone`` gives each zone back its own request cycle.
   //
@@ -213,35 +191,16 @@
   // it, and does not inherit the old one's timer.
   const _refetchPending = new WeakMap();
 
-  /* ``rows``: the keys of a ``zone-rows`` signal — only those rows are
-   * refetched. Demands pending in the same window merge: their keys add
-   * up, and one demand for the whole zone (``rows`` undefined) wins. */
-  function refetchZone(zone, url, rows) {
-    let state = _refetchPending.get(zone);
-    if (!state) {
-      state = { timer: null, rows: null, whole: false };
-      _refetchPending.set(zone, state);
-    }
-    if (rows === undefined) state.whole = true;
-    else if (!state.whole) state.rows = (state.rows || []).concat(rows);
+  function refetchZone(zone, url) {
     // A more recent demand replaces the one that was waiting: they
     // describe the same final state, and only the last one knows it.
-    if (state.timer) clearTimeout(state.timer);
-    state.timer = setTimeout(function () {
-      state.timer = null;
-      let target = url;
-      if (!state.whole && state.rows) {
-        const query = new URL(url, window.location.href);
-        query.searchParams.set("rows", JSON.stringify(Array.from(new Set(state.rows))));
-        target = query.pathname + query.search;
-      }
-      state.rows = null;
-      state.whole = false;
+    clearTimeout(_refetchPending.get(zone));
+    _refetchPending.set(zone, setTimeout(function () {
       // The zone's fingerprint rides along, as on an action POST: the
       // server can then patch the zone instead of shipping it whole.
       const headers = { "X-Bretzel-Zones": $bz._zoneEntry(zone) };
-      window.htmx.ajax("GET", target, { source: zone, swap: "none", headers: headers });
-    }, REFETCH_WINDOW_MS + _refetchJitter);
+      window.htmx.ajax("GET", url, { source: zone, swap: "none", headers: headers });
+    }, REFETCH_WINDOW_MS + _refetchJitter));
   }
   $bz._refetchZone = refetchZone;
 
@@ -249,8 +208,7 @@
    * but a retry answered with anything other than a 200
    * ``text/event-stream`` — the 502 a proxy returns while the app
    * restarts — closes it for good (``readyState === CLOSED``, per the
-   * spec). Measured on 2026-09-26 on the public demo behind Cloudflare:
-   * the container's scheduled restart left every open tab deaf to
+   * spec). Left alone, such a restart leaves every open tab deaf to
    * realtime until a reload. So we reopen it ourselves, doubling the
    * delay from 1 s to 30 s; a successful ``open`` resets it.
    *
@@ -263,19 +221,16 @@
   let _sseRetryMs = SSE_RETRY_MIN_MS;
   let _sseWasDown = false;
 
-  /* ``rows`` (with ``zoneId``): a ``zone-rows`` signal — only that zone,
-   * only those rows. */
-  function refetchSubscribedZones(qualname, zoneId, rows) {
+  function refetchSubscribedZones(qualname) {
     for (const zone of document.querySelectorAll("[data-bz-subscribe-state]")) {
-      if (zoneId !== undefined && zone.getAttribute("bz-id") !== zoneId) continue;
-      // A broadcast zone lists ALL its deps (space-separated) ; refetch
-      // when the dirtied state is one of them.
+      // A zone lists the shared states it read (space-separated);
+      // refetch when the dirtied state is one of them.
       if (qualname !== undefined) {
         const states = zone.getAttribute("data-bz-subscribe-state").split(" ");
         if (!states.includes(qualname)) continue;
       }
       const url = zone.getAttribute("data-bz-subscribe-url");
-      if (url && window.htmx) refetchZone(zone, url, rows);
+      if (url && window.htmx) refetchZone(zone, url);
     }
   }
 
@@ -312,12 +267,6 @@
     source.addEventListener("state-dirty", function (event) {
       refetchSubscribedZones(event.data);
     });
-    // ``refresh(zone, rows=[…])`` elsewhere: refetch that zone, those rows.
-    source.addEventListener("zone-rows", function (event) {
-      let signal;
-      try { signal = JSON.parse(event.data); } catch (err) { return; }
-      refetchSubscribedZones(signal.state, signal.zone, signal.rows);
-    });
   }
   $bz._ensureSse = ensureSse;
 
@@ -350,10 +299,10 @@
       $bz._csrf = config.csrf || null;
       // The page identity, which the bridge sets as a header on every
       // action. Without it, the server forges a new one and the action
-      // leaves with a BLANK ``page`` scope state. Until then it only
-      // arrived through the page container's ``hx-headers``, which a
-      // panel teleported into <body> left — hence a dropdown / dialog /
-      // drawer handler that lost the state in silence.
+      // leaves with a BLANK ``page`` scope state. The page container's
+      // ``hx-headers`` alone is not enough: a panel teleported into <body>
+      // leaves that container, and a dropdown / dialog / drawer handler
+      // would lose the state in silence.
       $bz._pageId = config.page_id || null;
       $bz._endpoints = config.endpoints || {};
 
@@ -413,11 +362,8 @@
     // it on <html>; ``ColorScheme.toggle()`` (Python) calls it to flip
     // against WHAT IS SEEN and not against the stored token.
     //
-    // Without that, starting from ``system`` on a dark OS made the FIRST
-    // click invisible: it wrote ``dark``, already the resolved value.
-    // Measured on both demo apps on 2026-09-04 — the user reported it as
-    // "the button does not work", which is the right reading of a
-    // control that does nothing one time in two.
+    // Without that, starting from ``system`` on a dark OS makes the FIRST
+    // click invisible: it writes ``dark``, already the resolved value.
     //
     // Reads two signals, so called INSIDE the effect it keeps tracking.
     $bz._isDark = function () {
@@ -429,10 +375,10 @@
     };
     // The switch is INSTANT, like every other framework's: many
     // components carry ``transition-colors`` for their hover, and those
-    // transitions also ran on the scheme change, so the page repainted in
-    // a staggered 150 ms wave (found 2026-10-23 next to seven other
-    // frameworks). Transitions are suspended for the one frame of the
-    // switch — the mechanism next-themes calls ``disableTransitionOnChange``.
+    // transitions would also run on the scheme change, so the page would
+    // repaint in a staggered wave. Transitions are suspended for the one
+    // frame of the switch — the mechanism next-themes calls
+    // ``disableTransitionOnChange``.
     $bz.effect(function () {
       const root = document.documentElement;
       const dark = $bz._isDark();
@@ -491,7 +437,7 @@
 })();
 
 
-/* 01_signals.js — reactive primitives : signal / effect / computed.
+/* signals.js — reactive primitives : signal / effect / computed.
  *
  * The signal store is the one thing HTMX does not do at all. Design
  * references : Solid.js fine-grained reactivity, Vue 3 ref/computed.
@@ -514,7 +460,7 @@
  *   computed(fn) → { get, peek, dispose }
  *     memoized derivation, recomputed when a dependency changes.
  *
- * Spec : spec/V3/03-runtime.md §"_src/01_signals.js".
+ * Spec : spec/V3/03-runtime.md §"_src/signals.js".
  */
 (function () {
   "use strict";
@@ -531,9 +477,29 @@
       flushScheduled = false;
       const batch = Array.from(pending);
       pending.clear();
-      for (const eff of batch) eff._run();
+      // One effect that throws reports itself and spares the rest of
+      // the batch: without this, a typo in one expression stops every
+      // effect waiting in the same flush.
+      for (const eff of batch) {
+        try {
+          eff._run();
+        } catch (err) {
+          $bz.reportError("an effect", err);
+        }
+      }
     });
   }
+
+  /* An error the runtime contains is still REPORTED as uncaught
+   * (``reportError``): the page goes on, and whoever listens for page
+   * errors — Playwright's ``pageerror``, ``bretzel.probe``, the load
+   * gates — still hears it. A bare ``console.error`` would have blinded
+   * them. */
+  $bz.reportError = function (what, err) {
+    console.error("bz: " + what + " failed —", err);
+    if (typeof window.reportError === "function") window.reportError(err);
+    else setTimeout(function () { throw err; });
+  };
 
   function signal(initial) {
     let value = initial;
@@ -610,7 +576,7 @@
 })();
 
 
-/* 02_directives.js — the 13 bz-* directives + the binding engine.
+/* directives.js — the 13 bz-* directives + the binding engine.
  *
  *   bz-on:<event>="<expr>"   addEventListener, runs expr in scope
  *   bz-model="<path>"        two-way binding on form inputs only
@@ -629,7 +595,7 @@
  *   bz-ref="<name>"          register el in scope refs
  *   bz-teleport="<selector>" move <template> content to target, scope
  *                            stays bound to the origin location
- *   (bz-data is owned by 03_scope.js)
+ *   (bz-data is owned by scope.js)
  *
  * Engine contract (validated by the Phase 0 spike) :
  *   - scan(root) binds the whole subtree, document order (parents
@@ -645,12 +611,10 @@
  * chain — bare names read/write scope signals, `$bz.state.X.Y.Z`
  * reaches the global typed store.
  *
- * A CSP IS shipped since 2026-09-05 (`Bretzel(csp=True)`, cf.
- * `.claude/bretzel/security.md`) : it carries `'unsafe-eval'` for this
+ * A CSP is shipped (`Bretzel(csp=True)`): it carries `'unsafe-eval'` for this
  * very `new Function`, but NOT `'unsafe-inline'`, so an injected
- * <script> stays inert. Only the `unsafe-eval`-FREE mode is still
- * deferred, and its cost is measured there — 29 % of the expressions
- * this engine receives fall outside any tractable subset.
+ * <script> stays inert. Only the `unsafe-eval`-FREE mode is deferred;
+ * that document says why.
  */
 (function () {
   "use strict";
@@ -663,23 +627,21 @@
    * `role="menuitem"` NEVER are: the `disabled` attribute does not exist
    * on them, it is simply ignored.
    *
-   * Until 2026-08-13 each component got by on its own, and once
-   * measured, two of the three ways used were broken:
-   *   - MenuItem removed its wiring AT CONSTRUCTION — so never when
-   *     `disabled` is driven by a binding, where the value at render is
-   *     `false`. `ui.dropdown_item(disabled=<binding>)` stayed entirely
-   *     clickable while looking active;
-   *   - the three nav items set `pointer-events-none`, which does block
-   *     the click but CANCELS the same element's `cursor-not-allowed`
-   *     (no pointer event ⇒ no cursor painted).
+   * Left to each component, it breaks in two ways:
+   *   - removing the wiring AT CONSTRUCTION misses a `disabled` driven by
+   *     a binding, where the value at render is `false`: the control
+   *     stays entirely clickable;
+   *   - `pointer-events-none` does block the click but CANCELS the same
+   *     element's `cursor-not-allowed` (no pointer event ⇒ no cursor
+   *     painted).
    *
-   * Inertness therefore became a property of the BASE LAYER, derived
+   * Inertness is therefore a property of the BASE LAYER, derived
    * from `aria-disabled="true"` alone — the attribute a11y requires
    * anyway, and that the server knows how to make reactive through
    * `bz-attr:`. Three guards, each at its boundary: the `bz-on:`
    * handlers here, native navigation just below, and the server action
-   * in `05_bridge.js` (measured: `preventDefault` on
-   * `htmx:configRequest` does cancel the request in htmx 2.0.4, cf.
+   * in `bridge.js` (`preventDefault` on `htmx:configRequest` cancels the
+   * request in htmx 2.0.4, cf.
    * `tests/audit/probe_configrequest_is_cancelable.py`).
    *
    * `closest()` and not a direct read: a click lands on the child (the
@@ -713,6 +675,15 @@
     }
   }, true);
 
+  // URLs the browser follows or loads, and the script schemes it must not
+  // be given there: the mirror of ``URL_ATTRS`` / ``is_script_url`` in
+  // core/escape.py (a link a user typed would otherwise run on click).
+  const URL_ATTRS = new Set(["href", "src", "action", "formaction",
+    "xlink:href", "poster", "data", "background", "cite"]);
+  function scriptUrl(value) {
+    return /^(?:javascript|vbscript):/i.test(String(value).replace(/[\u0000- ]/g, ""));
+  }
+
   // ── Expression compiler ────────────────────────────────────────────
   const exprCache = new Map();
   function compile(expr, mode) {
@@ -741,20 +712,19 @@
    * guarded by
    * ``tests/consistency/test_scoped_events_mirror_python.py``.
    *
-   * Why they do not bubble (measured in the browser on 2026-08-19)
-   * ---------------------------------------------------------------
+   * Why they do not bubble
+   * ----------------------
    * ``on_open=`` / ``on_close=`` set their ``hx-trigger`` on the
-   * component's ROOT. With ``bubbles: true``, that root therefore also
-   * caught its descendants' ``open``/``close``:
+   * component's ROOT. With ``bubbles: true``, that root would therefore
+   * also catch its descendants' ``open``/``close``:
    *
    *   - a ``ui.select`` in a ``ui.dialog(on_open=…)`` → opening the
-   *     panel POSTed THE DIALOG's handler, and Escape POSTed TWO
+   *     panel would POST THE DIALOG's handler, and Escape would POST TWO
    *     ``on_close``;
    *   - a ``ui.alert(dismissible=True)`` in a ``ui.dialog(on_close=…)``
-   *     → dismissing the alert POSTed THE DIALOG's ``on_close``.
+   *     → dismissing the alert would POST THE DIALOG's ``on_close``.
    *
-   * Eight components expose these two events and eight emit them: any
-   * emitter nested in any listener leaked. Repro:
+   * Any emitter nested in any listener would leak. Repro:
    * ``tests/probes/probe_overlay_bubble.py``. */
   const SCOPED_EVENTS = new Set(["open", "close"]);
 
@@ -762,12 +732,10 @@
    * with a ``bz-data``, walking teleportations back through their
    * origin.
    *
-   * The same walk as ``findScope`` (``03_scope.js``) — without the
+   * The same walk as ``findScope`` (``scope.js``) — without the
    * ``_bzScopeHost`` jump, a panel projected under ``<body>`` (Tooltip,
    * Popover, Dropdown, SidebarFooter's popover) would look for its root
-   * in the ``<body>`` and find none. No ``open``/``close`` leaves from
-   * there today — measured, only ``bz-dropdown-pick`` lives there — but
-   * a component to come should not have to rediscover this trap. */
+   * in the ``<body>`` and find none. */
   function componentRootOf(el) {
     let node = el;
     while (node) {
@@ -815,6 +783,18 @@
 
   // ── Binding registry ───────────────────────────────────────────────
   const bound = new WeakMap(); // node → array of dispose fns
+  // The same nodes, iterable: a swap that drops a node never disposes it
+  // (idiomorph and htmx remove, they do not tell us), so ``sweepDetached``
+  // walks them after each swap. Otherwise an effect that read the client
+  // state (``$bz.state``, a page-long signal) would stay in that signal's
+  // subscribers with its node — the whole previous page would survive
+  // every boosted navigation. Strong, but swept.
+  const live = new Set();
+
+  function track(node, disposers) {
+    bound.set(node, disposers);
+    live.add(node);
+  }
   // Teleported nodes (panels moved to <body> by bz-teleport) — tracked
   // so a swap that removes the ORIGIN template can sweep the orphan
   // (idiomorph only touches the swapped subtree, never the panel in
@@ -826,12 +806,63 @@
     if (!disposers) return;
     for (const d of disposers) d();
     bound.delete(el);
+    live.delete(el);
   }
 
   function disposeTree(node) {
     if (node.nodeType !== 1) return;
     disposeEl(node);
     for (const child of node.querySelectorAll("*")) disposeEl(child);
+    if (owned.size) {
+      for (const el of Array.from(owned.keys())) {
+        if (node === el || node.contains(el)) releaseOwned(el);
+      }
+    }
+  }
+
+  /* What a ``bz-init`` took OUTSIDE its node — a listener on
+   * ``document`` or ``window`` (``$bz.helpers.escapeKey``,
+   * ``clickOutside``, ``onWindow``). Not given back, each overlay of a
+   * page would leave its listeners on ``document`` at every boosted
+   * navigation, each closure holding the old page's DOM. The
+   * ``isConnected`` guards keep them quiet, not gone.
+   *
+   * The helpers hand their unsubscribe to ``$bz._own``; while a
+   * ``bz-init`` runs, it files it under that node. The node gives it
+   * back when it is disposed (``bz-for`` / ``bz-if`` / teleport) or when
+   * a swap left it out of the document (``sweepDetached``, from the
+   * bridge). Kept OUT of ``bound``: a rebind disposes ``bound`` and a
+   * ``bz-init`` does not run twice, so its listeners must outlive it. A
+   * released node forgets its init: scanned again, it re-subscribes. */
+  const owned = new Map(); // node → [release fns] ; swept, so strong is fine
+  let owner = null; // the node whose bz-init is running
+
+  function own(release) {
+    if (owner && typeof release === "function") {
+      const list = owned.get(owner);
+      if (list) list.push(release);
+      else owned.set(owner, [release]);
+    }
+    return release;
+  }
+
+  function releaseOwned(el) {
+    const list = owned.get(el);
+    if (!list) return;
+    owned.delete(el);
+    delete el._bzInitDone;
+    for (const release of list) release();
+  }
+
+  // After a swap: every node it left out of the document gives back its
+  // effects and listeners, and what its bz-init took outside it.
+  function sweepDetached() {
+    for (const node of Array.from(live)) {
+      if (!node.isConnected) disposeEl(node);
+    }
+    for (const el of Array.from(owned.keys())) {
+      if (!el.isConnected) releaseOwned(el);
+    }
   }
 
   function elEffect(el, fn, disposers) {
@@ -901,6 +932,9 @@
           else if (idlChecked) el.checked = false;
         } else {
           const str = v === true ? "" : String(v);
+          // A script URL is not set where the browser follows or
+          // loads one: the server leaves it out the same way.
+          if (URL_ATTRS.has(name) && scriptUrl(str)) { el.removeAttribute(name); return; }
           el.setAttribute(name, str);
           if (idlValue) { if (el.value !== str) el.value = str; }
           else if (idlChecked) el.checked = !!v;
@@ -919,11 +953,10 @@
       // pill on a Pagination page, the grid-rows-[1fr] on an open
       // Accordion body, a Sidebar's active item…). The bridge then
       // re-scans the swapped subtree, disposing and RE-BINDING us. If the
-      // set lived on the element (`el._bzClassDyn`) it survived the morph,
-      // so the re-bound effect saw prev===next and NEVER re-added the
-      // stripped classes — the styling silently vanished until the next
-      // interaction (reproduced: pagination active page loses its pill,
-      // accordion body flashes back open on close). A fresh per-bind set
+      // set lived on the element (`el._bzClassDyn`) it would survive the morph,
+      // so the re-bound effect would see prev===next and NEVER re-add the
+      // stripped classes — the styling would silently vanish until the next
+      // interaction. A fresh per-bind set
       // starts empty, so the first run after a morph re-adds every class
       // from the real (clobbered) DOM baseline. Within a single bind the
       // closure persists across signal-driven re-runs, so normal
@@ -934,11 +967,9 @@
       // `classList` is a set — a token already present in the SSR
       // `class=` makes the `add` a no-op, but the `remove` deletes it for
       // good. A theme that repeats a token between its static layer and
-      // its dynamic layer therefore saw the static token DESTROYED at the
-      // first toggle (measured: a Pagination button that stopped being an
-      // ellipsis lost `w-10 text-sm flex items-center justify-center` and
-      // collapsed from 40 px to 8 px, `h-10` intact). Hence `base`: the
-      // baseline read at bind time, never removable.
+      // its dynamic layer would therefore see the static token DESTROYED
+      // at the first toggle. Hence `base`: the baseline read at bind time,
+      // never removable.
       let managed = new Set();
       const base = new Set(el.classList);
       elEffect(el, function () {
@@ -971,15 +1002,13 @@
       // if the old effect left its classes in place, they enter the new
       // baseline and become PERMANENTLY unremovable.
       //
-      // Symptom measured on 2026-08-16 on a demo app since removed:
-      // after a partial navigation from `/` to `/stats`, the "Tasks"
-      // entry kept its `bg-primary` background although its
-      // `data-active` had indeed gone back to `false` — an item HALF
-      // active, background painted and text left grey. `bz-attr` has no
-      // baseline, so it stayed right: the two channels of one state
-      // diverged.
+      // Without it, after a partial navigation a sidebar entry keeps its
+      // `bg-primary` background although its `data-active` has gone back
+      // to `false` — an item HALF active, background painted and text
+      // left grey. `bz-attr` has no baseline, so it stays right: the two
+      // channels of one state diverge.
       //
-      // Affects the 9 components that emit `bz-class`, not only the
+      // Affects every component that emits `bz-class`, not only the
       // sidebar. Same family as a class lost after a morph, opposite
       // direction: the class SURVIVES instead of disappearing.
       disposers.push(function () {
@@ -997,7 +1026,10 @@
 
     show(el, expr, scope, disposers) {
       elEffect(el, function () {
-        el.style.display = evaluate(el, expr, scope) ? "" : "none";
+        const on = evaluate(el, expr, scope);
+        const held = !on && el.contains(document.activeElement);
+        el.style.display = on ? "" : "none";
+        if (held) handFocusOn(el);
       }, disposers);
     },
 
@@ -1030,14 +1062,50 @@
     init(el, expr, scope) {
       if (el._bzInitDone) return; // one-shot per NODE (survives rebind)
       el._bzInitDone = true;
-      compile(expr, "run")(
-        scope.proxy, el, scope.refs, null, null, makeDispatch(el), nextTick,
-      );
+      const outer = owner;
+      owner = el;
+      try {
+        compile(expr, "run")(
+          scope.proxy, el, scope.refs, null, null, makeDispatch(el), nextTick,
+        );
+      } finally {
+        owner = outer;
+      }
     },
   };
 
   // Binding order : refs first (siblings may use them in init), init
   // last (element fully wired when it runs).
+  /* The element that had the focus is hidden by its ``bz-show``: hand
+   * the focus to the nearest visible focusable element around it, once
+   * the whole batch is applied (a task, not a microtask): the control
+   * that takes its place is shown in the same flush. Left on the hidden
+   * element, the next Tab would start over from the end of the document. */
+  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), '
+    + 'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  // The ONE list of what takes the focus: ``helpers.js`` reads it
+  // (focus trap, autofocus), so a picker's hidden carrier is left out
+  // there too.
+  $bz._FOCUSABLE = FOCUSABLE;
+  function handFocusOn(hidden) {
+    setTimeout(function () {
+      const now = document.activeElement;
+      if (now && now !== document.body && !hidden.contains(now)) return;
+      const shown = function (c) {
+        return !hidden.contains(c) && c.getClientRects().length > 0;
+      };
+      for (let box = hidden.parentElement; box; box = box.parentElement) {
+        const all = Array.from(box.querySelectorAll(FOCUSABLE)).filter(shown);
+        if (!all.length) continue;
+        const after = all.find(function (c) {
+          return hidden.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING;
+        });
+        (after || all[all.length - 1]).focus({ preventScroll: true });
+        return;
+      }
+    }, 0);
+  }
+
   const ORDER = ["ref", "model", "attr", "class", "text", "show", "on", "effect", "init"];
 
   function bindEl(el) {
@@ -1060,9 +1128,19 @@
       return ORDER.indexOf(a[0]) - ORDER.indexOf(b[0]);
     });
     const disposers = [];
-    bound.set(el, disposers);
+    track(el, disposers);
     const scope = $bz._scopeFor(el);
-    for (const [kind, expr, arg] of todo) HANDLERS[kind](el, expr, scope, disposers, arg);
+    // One directive that throws reports itself — element and expression
+    // named — and spares the element's other directives, the subtree and
+    // the page.
+    for (const [kind, expr, arg] of todo) {
+      try {
+        HANDLERS[kind](el, expr, scope, disposers, arg);
+      } catch (err) {
+        $bz.reportError(kind + (arg ? ":" + arg : "") + '="' + expr + '" on <'
+          + el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + ">", err);
+      }
+    }
   }
 
   // ── Structural : bz-if ─────────────────────────────────────────────
@@ -1082,7 +1160,7 @@
         mounted = template.cloneNode(true);
         mounted.removeAttribute("bz-if");
         // Inserted by the runtime, like a bz-for row: a walk by position
-        // (``05_bridge.js``, ``applyPositionPatches``) skips it.
+        // (``bridge.js``, ``applyPositionPatches``) skips it.
         mounted.setAttribute(ROW_MARK, "");
         anchor.parentNode.insertBefore(mounted, anchor.nextSibling);
         scan(mounted);
@@ -1092,7 +1170,7 @@
         mounted = null;
       }
     });
-    bound.set(anchor, [
+    track(anchor, [
       eff.dispose,
       function () {
         if (mounted) {
@@ -1106,9 +1184,8 @@
 
   // Generic reflow-motion tokens for the ``:flip`` list option — the
   // framework's standard short duration + easing (the same easing the shell
-  // uses across its keyframes). Not slaved to any one component ; a toast's
-  // leave dance happens to share the 200ms so its neighbour's slide reads as
-  // one motion, but nothing here needs to track ``LEAVE_MS``.
+  // uses across its keyframes). Not slaved to any one component: a
+  // dismissed toast goes at once, its neighbours glide into the slot.
   const FLIP_MS = 200;
   const FLIP_EASING = "cubic-bezier(.4,0,.2,1)";
 
@@ -1183,12 +1260,11 @@
       // The server's HTML never carries the rows, so idiomorph matches
       // them by POSITION against what follows the template — and may
       // RECYCLE a row's node into a server sibling (a multi-select's
-      // first pill became its "Priority" placeholder: same node, row
-      // marker gone, hidden by its bz-show). The Map then held a
-      // connected node that was no longer a row, and the pill never
-      // came back (found 2026-10-23 on a filter re-rendered by its own
-      // action). A row that lost its marker, or left the template's
-      // parent, now belongs to the server's HTML: drop its stale
+      // first pill can become its placeholder: same node, row marker
+      // gone, hidden by its bz-show). The Map would then hold a connected
+      // node that is no longer a row, and the pill would never come
+      // back. A row that lost its marker, or left the template's
+      // parent, belongs to the server's HTML: drop its stale
       // bindings (the scan rebinds it as what it has become) and let the
       // effect clone a fresh row.
       for (const [key, row] of Array.from(template._bzForRows.entries())) {
@@ -1217,7 +1293,7 @@
           scope.proxy, template, scope.refs, null, null, function () {}, nextTick,
         ) || [];
       // FLIP "First" : snapshot every connected row's box before we mutate.
-      // Honour prefers-reduced-motion via the shared gate (06_helpers.js) —
+      // Honour prefers-reduced-motion via the shared gate (helpers.js) —
       // read live so an OS toggle mid-session is respected.
       const flip = flipEnabled && !$bz.helpers.prefersReducedMotion();
       const firstRects = flip ? new Map() : null;
@@ -1272,10 +1348,67 @@
       // are freshly inserted — they run their own enter animation, not FLIP.
       if (flip) flipPlay(rows, firstRects);
     });
-    bound.set(template, [eff.dispose]);
+    track(template, [eff.dispose]);
   }
 
   // ── Structural : bz-teleport (on a <template>) ─────────────────────
+  /* What the runtime writes on a projected panel's root, and a morph
+   * from the server's copy must leave alone: ``style`` (``display``, the
+   * floating position) and ``data-side``. */
+  const RUNTIME_OWNED = new Set(["style", "data-side"]);
+
+  /* A refresh rewrote the source of a LIVE panel: morph each copy in
+   * place instead of dropping and re-projecting it. Re-projected, an open
+   * popover would be rebuilt and replay its entrance at every box ticked
+   * inside it. Morphed, the node stays: its position, its open state, its
+   * focus. The same children, tag for tag, or ``false``: the caller then
+   * re-projects. */
+  /* What htmx reads on an ANCESTOR (``hx-boost``, ``hx-target``,
+   * ``hx-swap``, ``hx-headers``...): the page container carries them, and
+   * a panel projected under ``<body>`` has left it. A link in an open
+   * popover would then navigate the whole document instead of swapping
+   * the page. The clone takes, from the
+   * origin's nearest ancestor, each one it does not set itself: htmx's own
+   * inheritance, frozen at projection. */
+  const HTMX_INHERITED = [
+    "hx-boost", "hx-target", "hx-swap", "hx-headers", "hx-vals",
+    "hx-include", "hx-indicator", "hx-sync", "hx-push-url", "hx-select",
+    "hx-params", "hx-encoding", "hx-ext", "hx-disabled-elt",
+  ];
+  function inheritHtmx(template, node) {
+    for (const name of HTMX_INHERITED) {
+      if (node.hasAttribute(name)) continue;
+      const from = template.closest("[" + name + "]");
+      if (from) node.setAttribute(name, from.getAttribute(name));
+    }
+    return node;
+  }
+
+  function morphTeleported(template) {
+    const copies = template._bzTeleported;
+    const fresh = Array.from(template.content.children);
+    if (!window.Idiomorph || copies.length !== fresh.length) return false;
+    for (let i = 0; i < copies.length; i++) {
+      if (!copies[i].isConnected || copies[i].tagName !== fresh[i].tagName) return false;
+    }
+    copies.forEach(function (copy, i) {
+      window.Idiomorph.morph(copy, inheritHtmx(template, fresh[i].cloneNode(true)), {
+        morphStyle: "outerHTML",
+        callbacks: {
+          beforeAttributeUpdated: function (name, node) {
+            return !(node === copy && RUNTIME_OWNED.has(name));
+          },
+        },
+      });
+      scan(copy); // rebinds: ``bindEl`` disposes before it binds
+      // The server's new values reach the copy's scopes (a box ticked
+      // elsewhere): ``absorb`` alone keeps the client's.
+      if ($bz._resyncScopes) $bz._resyncScopes(copy);
+      if (window.htmx) window.htmx.process(copy);
+    });
+    return true;
+  }
+
   function bindTeleport(template) {
     // ``<template>.innerHTML`` serialises the content fragment. idiomorph
     // DOES morph into template content (verified), and the runtime never
@@ -1294,6 +1427,10 @@
       return; // already live AND source unchanged : keep the clone (no
       // flicker, preserves the panel's floating position / open state)
     }
+    if (live && morphTeleported(template)) {
+      template._bzTeleportSig = sig;
+      return;
+    }
     const target = document.querySelector(template.getAttribute("bz-teleport"));
     if (!target) {
       console.error("bz: bz-teleport target not found:", template.getAttribute("bz-teleport"));
@@ -1311,7 +1448,7 @@
     }
     const moved = [];
     for (const child of Array.from(template.content.children)) {
-      const node = child.cloneNode(true);
+      const node = inheritHtmx(template, child.cloneNode(true));
       node._bzScopeHost = template; // scope resolves at the ORIGIN location
       target.appendChild(node);
       moved.push(node);
@@ -1331,7 +1468,7 @@
     }
     template._bzTeleportSig = sig;
     template._bzTeleported = moved;
-    bound.set(template, [
+    track(template, [
       function () {
         for (const node of moved) {
           disposeTree(node);
@@ -1357,6 +1494,23 @@
         teleported.delete(node);
       }
     }
+  }
+
+  /* The fields a form lost to ``bz-teleport``. A popover INSIDE a
+   * ``ui.form`` projects its inputs under ``<body>``: they leave the
+   * form's ``elements``, and htmx — which reads them — submitted the form
+   * without them, in silence. The bridge adds these back (configRequest).
+   * A field of a form the panel carries itself (``el.form``) stays its. */
+  function teleportedFieldsOf(form) {
+    const out = [];
+    for (const node of teleported) {
+      const host = node._bzScopeHost;
+      if (!host || !node.isConnected || !form.contains(host)) continue;
+      const fields = Array.from(node.querySelectorAll("input, select, textarea"));
+      if (node.matches("input, select, textarea")) fields.unshift(node);
+      for (const el of fields) if (el.name && !el.disabled && !el.form) out.push(el);
+    }
+    return out;
   }
 
   // ── Scan ───────────────────────────────────────────────────────────
@@ -1393,16 +1547,29 @@
       }
       bindEl(el);
     }
+    // ``autofocus=``: what just ENTERED the page, by whichever road —
+    // load, boosted navigation, morph, position patch, ``bz-for`` row,
+    // ``bz-if`` mount, teleport. Every one of them ends here.
+    if ($bz.helpers && $bz.helpers.autofocusMounted) $bz.helpers.autofocusMounted(els);
   }
 
   $bz._scan = scan;
   $bz._disposeTree = disposeTree;
+  $bz._own = own;
+  $bz._sweepDetached = sweepDetached;
   $bz._compile = compile;
+  // Evaluate an expression the way a directive would, on demand: the
+  // shared tooltip (``tip.js``) reads a trigger's ``disabled`` at
+  // HOVER time, with ``$el`` = the trigger and its nearest scope.
+  $bz._evaluate = function (el, expr) {
+    return evaluate(el, expr, $bz._scopeFor(el));
+  };
   $bz._sweepTeleports = sweepTeleports;
+  $bz._teleportedFieldsOf = teleportedFieldsOf;
 })();
 
 
-/* 03_scope.js — bz-data component-scoped state, keyed by bz-id.
+/* scope.js — bz-data component-scoped state, keyed by bz-id.
  *
  * The piece Datastar lacked and Alpine implemented in the wrong place
  * (the DOM). Scope state lives in a runtime-side Map keyed by the
@@ -1422,10 +1589,10 @@
  * existing signals, absorb new fields only, refresh helpers, NEVER
  * reset existing values.
  *
- * Nested scopes : a child bz-data reads its parent's vars, cannot
- * write them (throws — settled at the Phase 0 spike, open question #7).
- * bz-for item scopes are different : they're the SAME component scope
- * plus loop vars, so writes fall through to the parent.
+ * Nested scopes : a child bz-data reads its parent's vars, and a write
+ * to a var an ancestor owns lands in that ancestor.
+ * bz-for item scopes are the SAME component scope plus loop vars, so
+ * their writes fall through to the parent.
  *
  * Eviction : _sweepScopes() drops scopes whose bz-id no longer exists
  * in the document — called by the bridge after swaps.
@@ -1476,8 +1643,6 @@
           // via the parent proxy), matching Alpine's nested-x-data
           // semantics — e.g. a nested <bz-calendar>{year,month} whose
           // change handler writes the date picker's parent {open,val}.
-          // (The Phase-0 spike threw here ; real composite components
-          // need the delegation, so the guard was lifted.)
           if (parent && key in parent.proxy) {
             parent.proxy[key] = value;
             return true;
@@ -1501,21 +1666,15 @@
        *
        * A scope is indexed by its ``bz-id`` STRING and therefore
        * survives its node being replaced — that is intended. But its
-       * parent was captured ONCE, at creation, and never looked at
-       * again: a node reappearing under another parent kept the old one
-       * for life.
+       * parent is captured ONCE, at creation: without this call, a node
+       * reappearing under another parent would keep the old one for life.
        *
-       * It bit on an ``hx-boost`` navigation, which does not reload the
-       * runtime: a picker's ``<bz-calendar>`` carried a page-independent
-       * id, so the new page found the old page's scope, whose parent was
-       * the PREVIOUS page's picker. The ``on_change`` wrote its value
-       * into a dead scope — highlighted grid, empty field, and an F5 to
-       * get out of it.
-       *
-       * The ids are now unique per page (``panel_calendar``), so that
-       * path is no longer reached by the pickers. This is the hardening:
-       * it closes the CLASS, so that the next id collision — whatever it
-       * may be — does not become a silent bug again.
+       * An ``hx-boost`` navigation does not reload the runtime: on an id
+       * shared between pages, the new page would find the old page's
+       * scope, whose parent is a node of the PREVIOUS page, and a write
+       * would land in a dead scope, in silence. The pickers' ids are
+       * unique per page (``panel_calendar``); this call closes the CLASS,
+       * whatever the id collision may be.
        *
        * ``refs`` inherits by PROTOTYPE, so re-attaching means moving the
        * prototype too, otherwise the ``$refs`` would go on resolving at
@@ -1645,13 +1804,21 @@
    * user's fingers. ``_serverSync`` keys are adopted on every swap,
    * whatever the comparison says.
    *
-   * Until 2026-10-23 only ``_serverSync`` keys were adopted, and only a
-   * value stamped as a state field earned the marker: a value the app
-   * COMPUTED (filters read from the URL, a selection from a list) stayed
-   * client-owned for good. "Clear filters" left the status toggles
-   * pressed, "Clear selection" left the boxes ticked. Binding-mode
+   * Adopting only ``_serverSync`` keys would not do: only a value stamped
+   * as a state field earns the marker, so a value the app COMPUTES
+   * (filters read from the URL, a selection from a list) would stay
+   * client-owned for good. "Clear filters" would leave the status toggles
+   * pressed, "Clear selection" the boxes ticked. Binding-mode
    * inputs need nothing here — their value lives in $bz._store, which
-   * the patch envelope updates and which never rides a scope signal. */
+   * the patch envelope updates and which never rides a scope signal.
+   *
+   * A value adopted here is the SERVER's, not a choice: ``_serverWriting``
+   * stays up until the effects it wakes have run (they flush in the
+   * microtask queued by the first ``set``; clearing in the next one comes
+   * after), and ``change_emit_effect`` takes it as a new baseline rather
+   * than a ``change``. Without it a select that a morph turns into
+   * another one posts the server's value back, to the old action — a
+   * 403. */
   function resyncScopes(root) {
     if (!root || root.nodeType !== 1 || !scopes.size) return;
     const typingIn = textEntryWithFocus();
@@ -1680,7 +1847,13 @@
         const fresh = seedOf(v);
         const moved = scope.seeds.get(key) !== fresh;
         scope.seeds.set(key, fresh);
-        if (forced.includes(key) || (moved && !typing)) sig.set(v);
+        if (forced.includes(key) || (moved && !typing)) {
+          if (!$bz._serverWriting) {
+            $bz._serverWriting = true;
+            queueMicrotask(() => queueMicrotask(() => { $bz._serverWriting = false; }));
+          }
+          sig.set(v);
+        }
       }
     }
   }
@@ -1713,43 +1886,31 @@
 })();
 
 
-/* 04_persistence.js — storage adapters per ClientState instance.
+/* persistence.js — keeps a ClientState's fields in browser storage.
  *
- * Per envelope.client_state[<Class>.<key>].persist :
+ * ``persist`` (``state/scopes/client.py::PERSISTS``) says how long a value
+ * lasts:
  *
- *   "memory"    → JS memory only, dropped on reload (no adapter). It is
- *                 the DEFAULT on the Python side
- *                 (``ClientState.__persist__``).
+ *   "memory"    → no storage, lost on reload. The default.
  *   "session"   → sessionStorage, key "$bz:<Class>.<key>"
  *   "local"     → localStorage, same key
  *
- * ⚠️ ``"volatile"`` and ``"cross_tab"`` were listed here until
- * 2026-08-01: the Python enum (``state/scopes/client.py::PERSISTS``) can
- * only emit the three above, so those two modes are unreachable — and
- * "memory", the default, was not documented. The ``mode === "volatile"``
- * test in the code below therefore never matches; it falls into the same
- * no-op as "memory" (storageFor → null).
- *
- * Wiring : 00_index.js calls register(path, mode) for each instance
- * AFTER seeding the envelope defaults — register() then overlays any
- * saved snapshot. Every store write is funnelled through
- * $bz._persistence.notify(fullPath) by the store itself ; the adapter
- * saves the instance's full field map. cross_tab adapters additionally
- * publish the change and mirror remote ones into the store (with an
- * echo guard).
- *
- * "page" mode (V2) is gone — page identity is a server concept, not a
- * client persistence target. TTL plumbing is gone too (cf. .claude/bretzel/state.md).
+ * Wiring: index.js calls register(path, mode) for each instance AFTER
+ * seeding the envelope defaults — register() then overlays any saved
+ * snapshot. Every store write goes through notify(fullPath, value), which
+ * saves that one field: tabs sharing localStorage each write only what
+ * they changed, so none erases another's field. A tab sees what another
+ * wrote at its next load.
  */
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  const adapters = new Map(); // instancePath → adapter
+  const storages = new Map(); // instancePath → Storage
 
   function storageFor(mode) {
     if (mode === "session") return window.sessionStorage;
-    if (mode === "local" || mode === "cross_tab") return window.localStorage;
+    if (mode === "local") return window.localStorage;
     return null;
   }
 
@@ -1757,64 +1918,48 @@
     return "$bz:" + path;
   }
 
-  function register(path, mode) {
-    if (mode === "volatile" || adapters.has(path)) return;
-    const storage = storageFor(mode);
-    if (!storage) return;
-
-    const adapter = { mode: mode, storage: storage, channel: null, muted: false };
-    adapters.set(path, adapter);
-
-    // Overlay the saved snapshot (it wins over envelope defaults —
-    // the user's browser knows better than the server's defaults).
+  function readSnapshot(storage, path) {
     try {
-      const raw = storage.getItem(storageKey(path));
-      if (raw) {
-        const saved = JSON.parse(raw);
-        for (const field of Object.keys(saved)) {
-          $bz._store.set(path + "." + field, saved[field]);
-        }
-      }
+      const saved = JSON.parse(storage.getItem(storageKey(path)) || "{}");
+      if (saved && typeof saved === "object") return saved;
+      throw new TypeError("not a field map");
     } catch (e) {
       console.error("bz: corrupt persisted state for", path, e);
       storage.removeItem(storageKey(path));
-    }
-
-    if (mode === "cross_tab" && "BroadcastChannel" in window) {
-      adapter.channel = new BroadcastChannel(storageKey(path));
-      adapter.channel.onmessage = function (msg) {
-        adapter.muted = true; // don't re-publish what we just received
-        try {
-          $bz._store.set(path + "." + msg.data.field, msg.data.value);
-        } finally {
-          adapter.muted = false;
-        }
-      };
+      return {};
     }
   }
 
-  /* Called by the store on every set whose path belongs to a
-   * registered instance. */
+  function register(path, mode) {
+    if (storages.has(path)) return;
+    const storage = storageFor(mode);
+    if (!storage) return;
+    storages.set(path, storage);
+
+    // The saved snapshot wins over envelope defaults — the user's browser
+    // knows better than the server's defaults.
+    const saved = readSnapshot(storage, path);
+    for (const field of Object.keys(saved)) {
+      $bz._store.set(path + "." + field, saved[field]);
+    }
+  }
+
+  /* Called by the store on every set. */
   function notify(fullPath, value) {
     const cut = fullPath.lastIndexOf(".");
     const path = fullPath.slice(0, cut);
-    const field = fullPath.slice(cut + 1);
-    const adapter = adapters.get(path);
-    if (!adapter) return;
-    adapter.storage.setItem(
-      storageKey(path),
-      JSON.stringify($bz._store.fieldsOf(path)),
-    );
-    if (adapter.channel && !adapter.muted) {
-      adapter.channel.postMessage({ field: field, value: value });
-    }
+    const storage = storages.get(path);
+    if (!storage) return;
+    const saved = readSnapshot(storage, path);
+    saved[fullPath.slice(cut + 1)] = value;
+    storage.setItem(storageKey(path), JSON.stringify(saved));
   }
 
   $bz._persistence = { register: register, notify: notify };
 })();
 
 
-/* 05_bridge.js — HTMX glue : signal snapshot out, <bz-patch> in.
+/* bridge.js — HTMX glue : signal snapshot out, <bz-patch> in.
  *
  * The ONLY module that wires HTMX events. No custom action dispatcher :
  * components emit native hx-post, HTMX owns the POST, we only configure
@@ -1954,7 +2099,7 @@
   //
   // A form body only carries strings, and htmx treats an array
   // separately: `formDataFromObject` does `obj[key].forEach(v =>
-  // append(key, v))`. Two consequences, measured on 2026-08-19:
+  // append(key, v))`. Two consequences:
   //
   //   - `["a","b"]` leaves as TWO fields of the same name, and the
   //     server keeps the last — so `["a","b"]` arrives as `"b"`, and
@@ -1966,7 +2111,7 @@
   //     other transport.
   //
   // `JSON.stringify` puts the client store back on the same convention
-  // as the catalogue's seven hidden carriers (`toggle_group`, `select`,
+  // as the catalogue's hidden carriers (`toggle_group`, `select`,
   // `combobox`, `date_range_picker`, `slider`, `resizable`,
   // `accordion`), and it is `_coerce_composite` that undoes it on the
   // Python side — a single wire contract for both paths, instead of two.
@@ -1992,11 +2137,10 @@
     for (const [path, fields] of grouped.entries()) {
       // ``send_to_server: false`` (declared on the Python side on the
       // class) is the ONLY filter here, and it is all-or-nothing. A
-      // "delta" mode lived in this place until 2026-08-14; it was wrong,
-      // not merely useless — the full reason is in ``ClientState``'s
-      // docstring (bretzel/state/scopes/client.py § "There is NO delta
-      // mode"). Do not reintroduce it without reading that paragraph
-      // first.
+      // "delta" mode would be wrong, not merely useless — the full reason
+      // is in ``ClientState``'s docstring (bretzel/state/scopes/client.py
+      // § "There is NO delta mode"). Do not introduce one without reading
+      // that paragraph first.
       const cfg = config[path] || {};
       if (cfg.send_to_server === false) continue;
       for (const field of Object.keys(fields)) {
@@ -2061,19 +2205,27 @@
    * tags. Without that the JS would become a stranger to the wire
    * format again: it would guess it by string splitting, and a route
    * change on the Python side would show up nowhere. */
-  const ACTION_PREFIX = "/_bretzel/action/";
+  /* An app under a ``base_path`` (``core/base_path.py``) says so on
+   * ``<html>``; for one at the root, ``BASE`` is empty and all this is
+   * inert. */
+  const BASE = document.documentElement.getAttribute("data-bz-base") || "";
+  const ACTION_PREFIX = BASE + "/_bretzel/action/";
+
+  /* The address bar's path as the app knows it: what ``current_path`` holds
+   * and what the menu entries are compared with. */
+  $bz._localPath = function () {
+    const p = window.location.pathname;
+    return BASE && (p === BASE || p.startsWith(BASE + "/")) ? p.slice(BASE.length) || "/" : p;
+  };
 
   /* The THIRD key, reserved: "a navigation is in flight". The shell's
    * bar (``render/shell.nav_progress_html``) is only a ``bz-show`` on
    * it, so it has no mechanism of its own — it is the same registry, the
    * same timing, the same disarm.
    *
-   * Two shapes of navigation in this repository, and both are needed:
    * ``detail.boosted`` covers the links boosted by ``hx-boost`` (set at
-   * the document level by the shell), and ``hx-push-url`` covers the
-   * sidebar / navbar's partial nav, which is not boosted but an explicit
-   * ``hx-get`` (``navigation/_wiring.py``). Testing one without the
-   * other would leave half the menus with no bar. */
+   * the document level by the shell), menus included; ``hx-push-url`` an
+   * author's own explicit ``hx-get``. */
   const NAV_KEY = "@nav";
 
   function pendingKeys(elt, detail) {
@@ -2115,6 +2267,44 @@
       slot.sig.set(false);
     });
   }
+
+  /* Whether a link is boosted: the link's own ``hx-boost``, else the
+   * page's. htmx reads ``hx-boost`` by INHERITANCE, so any ancestor that
+   * sets one speaks for the links it holds — and ``ui.form`` sets
+   * ``hx-boost="false"`` for its OWN submit (``Form.render``): its
+   * cancel link and its breadcrumb would reload the whole document,
+   * sidebar included. A link with no
+   * ``hx-boost`` of its own under a page that boosts (``render/shell.py``,
+   * or a teleported panel that ``inheritHtmx`` gave the page's) gets its
+   * own ``hx-boost="true"``, written before htmx reads it
+   * (``beforeProcessNode``). An opt-out stays on the link itself: a
+   * ``<a download>`` gets ``hx-boost="false"`` here. Where the boosted link
+   * goes is ``boostedTarget``'s, below — same rule, the page's.
+   * Registered at the module's LOAD: htmx processes the document at
+   * ``DOMContentLoaded``, before ``boot()`` wires the bridge. Gate:
+   * ``tests/runtime_js/test_a_link_is_boosted_wherever_it_sits.py``. */
+  document.addEventListener("htmx:beforeProcessNode", function (e) {
+    const a = e.target;
+    if (a.tagName !== "A" || a.hasAttribute("hx-boost")) return;
+    // A link to ANOTHER origin — another site, or another port of the same
+    // host — is a document load, never boosted: htmx refuses a request off
+    // its origin (``selfRequestsOnly``) and the click would do NOTHING, in
+    // silence. Gate: same test file, ``test_a_link_to_another_origin``.
+    //
+    // Same thing for a page of this origin OUTSIDE this app's ``base_path``:
+    // a sibling app, whose document cannot go in this app's outlet.
+    //
+    // And a ``<a download>``: htmx would swap the file into the page. A
+    // ``@download`` route needs no attribute, it redirects htmx itself
+    // (``server/routing/downloads.py``); this is for any other file route.
+    const outside = BASE && a.pathname !== BASE && !a.pathname.startsWith(BASE + "/");
+    const leaves = a.getAttribute("href") && (a.origin !== window.location.origin || outside);
+    if (leaves || a.hasAttribute("download")) {
+      a.setAttribute("hx-boost", "false");
+      return;
+    }
+    if (a.closest('[hx-boost="true"]')) a.setAttribute("hx-boost", "true");
+  });
 
   /* Defined at the module's LOAD, not in ``_wireBridge``: a
    * ``bz-show`` can evaluate before the bridge is wired, and a missing
@@ -2193,11 +2383,272 @@
     BUSY.delete(elt);
   }
 
+  //: Attributes the client sets on an element until an answer redraws it
+  //: (``dnd.js``, ``scheduler.js``): the server never renders them,
+  //: so a morph erases them, and their survival says nobody answered. A
+  //: list patch keeps an element WITHOUT morphing it — but it does answer
+  //: for every child it places, so it erases them too (``applyList``).
+  $bz._witnesses = $bz._witnesses || new Set();
+
+  /* ── Where the page is scrolled, across navigations ──────────────────
+   *
+   * The browser's rule, Next.js's and SvelteKit's: a link followed opens
+   * the page at the TOP (at its anchor for ``/page#section``); the
+   * browser's back / forward gives a page back WHERE IT WAS LEFT;
+   * anything that is not a navigation (an action redrawing a zone, a
+   * tab, the sidebar's own scroll) leaves the scroll alone.
+   *
+   * htmx only knows the window, and most apps do not scroll it: the
+   * document is frozen and a ``ui.pane`` scrolls around the outlet
+   * (``ui.viewport``). That pane SURVIVES a navigation — only the outlet
+   * is swapped — so left alone it keeps the page left's ``scrollTop``: a
+   * link followed from the bottom of a page lands at the bottom of the
+   * next, and Back gives the page back at an arbitrary height.
+   *
+   * What scrolls « the page »: the window, and every scroll container
+   * that holds the outlet (``scrollersOf``) — both models, no flag.
+   * Elements INSIDE the page keep their own (a list, a pane of the page).
+   *
+   * Each history entry carries a key in ``history.state``; its positions
+   * live in memory under that key, taken when the entry is LEFT. htmx
+   * rewrites the state to ``{htmx: true}`` before a push
+   * (``saveCurrentPageToHistory``), so the key is written back right
+   * after.
+   *
+   * Back / forward come back LIKE A LINK: the outlet is fetched and
+   * swapped, the shell stays — its sidebar, its scroll — and the
+   * positions are set back once the swap is in. htmx's own restore
+   * would render the whole ``<body>`` again (``historyCacheSize: 0``,
+   * ``render/shell.py``), its ``<script>`` tags included: htmx and this
+   * runtime would boot a SECOND time in the same window at each Back,
+   * every listener doubled. A page with no outlet is reloaded: one boot,
+   * always.
+   *
+   * ``scrollIntoViewOnBoost`` is turned off: htmx scrolls a boosted
+   * link's target into view — the outlet's top, under the pane's
+   * padding, and down a scrolling document — instead of the
+   * page's top. Gate:
+   * ``tests/runtime_js/test_a_navigation_lands_at_the_top.py``. */
+  const SCROLL_KEY = "bzScroll";
+  const SCROLL_KEPT = 50;
+  const scrollPositions = new Map();
+  let scrollEntry = null;
+  //: The navigation swap awaited: its target, and the positions to set
+  //: back (``null``: the top, or the anchor).
+  let scrollPending = null;
+
+  function newScrollKey() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function stampScrollEntry(key) {
+    scrollEntry = key;
+    const state = Object.assign({}, window.history.state);
+    state[SCROLL_KEY] = key;
+    try {
+      window.history.replaceState(state, "");
+    } catch (e) {
+      // A refused state write must not stop a navigation: the page just
+      // will not come back to its position.
+    }
+  }
+
+  /* ``from`` and its ancestors that scroll vertically, outermost first. */
+  function scrollersOf(from) {
+    const out = [];
+    for (let el = from; el && el !== document.body; el = el.parentElement) {
+      if (/(auto|scroll)/.test(getComputedStyle(el).overflowY)) out.unshift(el);
+    }
+    return out;
+  }
+
+  /* The page's scrollers: those of the DEEPEST outlet, which hold the
+   * outer ones' too (nested layouts). */
+  function pageScrollers() {
+    const outlets = document.querySelectorAll("[data-bz-outlet]");
+    return scrollersOf(outlets[outlets.length - 1]);
+  }
+
+  function rememberScroll() {
+    if (!scrollEntry) return;
+    scrollPositions.delete(scrollEntry);
+    scrollPositions.set(scrollEntry, {
+      win: window.scrollY,
+      panes: pageScrollers().map(function (el) { return el.scrollTop; }),
+    });
+    if (scrollPositions.size > SCROLL_KEPT) {
+      scrollPositions.delete(scrollPositions.keys().next().value);
+    }
+  }
+
+  /* Positions given back. The page just swapped may not have its full
+   * height yet (its icons draw a moment later): a position past the end
+   * is cut short — 5 530 px for 5 551 on the playground's /dropdown. So
+   * it is set again at each frame, for half a second at most, until it
+   * holds — and not once the user moves (wheel, touch, key, pointer):
+   * the page is theirs again. */
+  const SCROLL_TRIES = 30;
+  const USER_MOVES = ["wheel", "touchstart", "keydown", "pointerdown"];
+
+  function setScrollBack(pos) {
+    const panes = pageScrollers();
+    let tries = SCROLL_TRIES;
+    let moved = false;
+    function stop() { moved = true; }
+    USER_MOVES.forEach(function (name) {
+      window.addEventListener(name, stop, { capture: true, passive: true, once: true });
+    });
+    function done() {
+      USER_MOVES.forEach(function (name) {
+        window.removeEventListener(name, stop, { capture: true });
+      });
+    }
+    (function apply() {
+      if (moved) return done();
+      window.scrollTo(0, pos.win);
+      let held = Math.abs(window.scrollY - pos.win) < 1;
+      panes.forEach(function (el, i) {
+        el.scrollTop = pos.panes[i] || 0;
+        held = held && Math.abs(el.scrollTop - (pos.panes[i] || 0)) < 1;
+      });
+      if (held || --tries <= 0) return done();
+      requestAnimationFrame(apply);
+    })();
+  }
+
+  /* The outlet a navigation swaps, and how: the target and the swap
+   * declared next to ``hx-boost="true"`` on the page's envelope
+   * (``render/shell.py``) — the only place the framework boosts. */
+  function pageOutlet() {
+    const decl = document.querySelector('[data-bz-page-id][hx-boost="true"]');
+    const sel = decl && decl.getAttribute("hx-target");
+    const target = sel && document.querySelector(sel);
+    return target ? { target: target, swap: decl.getAttribute("hx-swap") } : null;
+  }
+
+  function wireScroll() {
+    if (window.htmx) window.htmx.config.scrollIntoViewOnBoost = false;
+    const state = window.history.state;
+    stampScrollEntry((state && state[SCROLL_KEY]) || newScrollKey());
+
+    // A push: the page left keeps its positions, then its key (htmx has
+    // just rewritten its state). Only a swap INTO an outlet is a
+    // navigation; a zone that pushes its address (a filter) is not.
+    document.body.addEventListener("htmx:beforeHistoryUpdate", function (e) {
+      const history = e.detail && e.detail.history;
+      if (!history || history.type !== "push") return;
+      rememberScroll();
+      stampScrollEntry(scrollEntry);
+      const t = e.detail.target;
+      if (t && t.nodeType === 1 && (t.matches("[data-bz-outlet]")
+          || t.querySelector("[data-bz-outlet]"))) {
+        scrollPending = { target: t, pos: null };
+      }
+    });
+    document.body.addEventListener("htmx:pushedIntoHistory", function () {
+      stampScrollEntry(newScrollKey());
+    });
+
+    // The navigation's swap is in: the positions left there, else the
+    // top — or the anchor (htmx scrolls to it again at settle: same
+    // place).
+    document.body.addEventListener("htmx:afterSwap", function (e) {
+      const pending = scrollPending;
+      if (!pending || e.detail.target !== pending.target) return;
+      scrollPending = null;
+      if (pending.pos) return setScrollBack(pending.pos);
+      window.scrollTo(0, 0);
+      scrollersOf(pending.target).forEach(function (el) { el.scrollTop = 0; });
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      const anchor = id && document.getElementById(id);
+      if (anchor) anchor.scrollIntoView({ block: "start" });
+    });
+
+    // Back / forward. The DOM is still the page left, so its positions
+    // are read here. htmx keeps the entries that are not its own
+    // (``#anchor`` jumps, handled by the browser). htmx sets
+    // ``onpopstate`` at ``DOMContentLoaded`` — AFTER this boot, which
+    // runs as soon as the deferred runtime is evaluated (``index.js``):
+    // taken then (or at ``load``, if this boot came later), never before.
+    let htmxPopstate = null;
+    function takePopstate() {
+      if (window.onpopstate === onPopstate) return;
+      htmxPopstate = window.onpopstate;
+      window.onpopstate = onPopstate;
+    }
+    if (document.readyState === "complete") takePopstate();
+    else {
+      document.addEventListener("DOMContentLoaded", takePopstate);
+      window.addEventListener("load", takePopstate);
+    }
+    function onPopstate(e) {
+      rememberScroll();
+      const key = e.state && e.state[SCROLL_KEY];
+      if (key) scrollEntry = key;
+      else stampScrollEntry(newScrollKey());
+      if (!(e.state && e.state.htmx)) {
+        if (htmxPopstate) htmxPopstate.call(window, e);
+        return;
+      }
+      const outlet = pageOutlet();
+      if (!outlet || !window.htmx) {
+        window.location.reload();
+        return;
+      }
+      scrollPending = { target: outlet.target, pos: scrollPositions.get(scrollEntry) || null };
+      window.htmx.ajax("GET", window.location.pathname + window.location.search, {
+        source: outlet.target,
+        target: outlet.target,
+        swap: outlet.swap || "innerHTML",
+      });
+    }
+  }
+
   $bz._wireBridge = function () {
+    wireScroll();
+
+    /* One field into a request body, as a form submit would write it. */
+    function appendField(data, el) {
+      const type = (el.type || "").toLowerCase();
+      if (/^(submit|button|reset|image)$/.test(type)) return;
+      if ((type === "checkbox" || type === "radio") && !el.checked) return;
+      if (type === "file") {
+        for (const f of el.files) data.append(el.name, f);
+      } else if (el.tagName === "SELECT" && el.multiple) {
+        for (const o of el.selectedOptions) data.append(el.name, o.value);
+      } else {
+        data.append(el.name, el.value);
+      }
+    }
+
+    /* Where a boosted link goes: the page's outlet (``pageOutlet``),
+     * whatever the link's ancestors say. htmx resolves a link's target
+     * by INHERITANCE, and a component carrying an action sets
+     * ``hx-target="#bz-sink"`` on its element (``events.py``): a link
+     * inside it — a card ``on_click``, a dialog's ``on_close`` — would go
+     * to the hidden sink, the address changing and the page not.
+     * ``configRequest`` names the outlet to
+     * the server, ``beforeSwap`` swaps it there: htmx reads the target
+     * back from neither earlier. Gate:
+     * ``tests/runtime_js/test_a_link_is_boosted_wherever_it_sits.py``. */
+    function boostedTarget(detail) {
+      if (!detail.boosted) return null;
+      const outlet = pageOutlet();
+      return outlet && outlet.target !== detail.target ? outlet : null;
+    }
+
+    document.body.addEventListener("htmx:beforeSwap", function (e) {
+      const config = e.detail.requestConfig;
+      const to = config && config._bzBoosted;
+      if (!to || !to.target.isConnected) return;
+      e.detail.target = to.target;
+      if (to.swap) e.detail.swapOverride = to.swap;
+    });
+
     document.body.addEventListener("htmx:configRequest", function (e) {
       // An inert control posts NOTHING. It is inertness's third guard
       // (the other two — `bz-on:` handlers and native navigation — live
-      // in 02_directives.js, which owns the rule) and it is here because
+      // in directives.js, which owns the rule) and it is here because
       // this is the transport boundary: this module is "the ONLY module
       // that wires HTMX events".
       //
@@ -2219,8 +2670,7 @@
       //
       // We resync the cookie and give the navigation back to the
       // browser: a full load re-renders the shell from the fresh cookie.
-      // It is NOT a return of the live resize removed on 2026-07-13 —
-      // nothing fires on a resize, only on a navigation the user asked
+      // Nothing fires on a resize, only on a navigation the user asked
       // for, exactly like an F5.
       //
       // Restricted to `<a>`: the GET of `@refreshable` zones and of the
@@ -2239,6 +2689,11 @@
           e.detail.path || e.detail.elt.getAttribute("href"),
         );
         return;
+      }
+      const boosted = boostedTarget(e.detail);
+      if (boosted) {
+        e.detail._bzBoosted = boosted;
+        e.detail.headers["HX-Target"] = boosted.target.id;
       }
       // The client-state snapshot rides ONLY on action POSTs (it's
       // form-data for the handler). Nav GETs (hx-boost partial-nav) and
@@ -2259,22 +2714,31 @@
       //
       // Without it, it queues EVERY zone declared on a changed state
       // class — including those of other pages — renders them, sends
-      // them, and we throw them away for want of a target. Measured on
-      // examples/mad: 8.4 ms of server render wasted against 9.6 ms
-      // useful, that is to say nearly half the drain.
+      // them, and we throw them away for want of a target.
       //
-      // On action POSTs only: a GET nav (hx-boost) has no drain, and the
-      // header would end up in the pushed URL.
+      // On action POSTs, and on a navigation into an outlet: there, the
+      // zones OUTSIDE it — the shell's — that read a page state are
+      // redrawn for the page arrived at (``_shell_zones`` in
+      // ``render/pipeline.py``). The zones inside the outlet are not listed:
+      // the page brings them. Any other GET — a zone's own refetch, the
+      // SSE one — sends nothing.
       //
       // We read the DOM at the instant of the request, not a list the
       // server would have given us at render: an OOB swap may have
       // introduced a zone since, and a frozen list would condemn it
       // never to refresh again.
-      if (String(e.detail.verb).toLowerCase() === "post") {
+      const verb = String(e.detail.verb).toLowerCase();
+      const into = boosted ? boosted.target : e.detail.target;
+      const outlet =
+        verb === "get" && into && into.nodeType === 1 && into.hasAttribute("data-bz-outlet")
+          ? into
+          : null;
+      if (verb === "post" || outlet) {
         const zones = document.querySelectorAll("[data-bz-zone]");
         if (zones.length) {
           const ids = [];
           for (const z of zones) {
+            if (outlet && outlet.contains(z)) continue;
             // ``id`` alone, or ``id:fingerprint`` when we know what
             // the zone carries: the server uses it to KEEP QUIET about a
             // zone whose fresh render would be identical. The
@@ -2283,8 +2747,21 @@
             // zone be re-sent, never wrongly suppressed.
             ids.push($bz._zoneEntry(z));
           }
-          e.detail.headers["X-Bretzel-Zones"] = ids.join(",");
+          if (ids.length) e.detail.headers["X-Bretzel-Zones"] = ids.join(",");
         }
+      }
+      // A form's fields that ``bz-teleport`` carried out of it (cf.
+      // ``teleportedFieldsOf``): htmx built the body from
+      // ``form.elements`` and never saw them. ``parameters`` is a view
+      // over ``formData``, which htmx reads back after this event.
+      const elt = e.detail.elt;
+      const form =
+        elt && elt.nodeType === 1 &&
+        (elt.tagName === "FORM"
+          ? elt
+          : String(e.detail.verb).toLowerCase() !== "get" && elt.closest("form"));
+      if (form && e.detail.formData && $bz._teleportedFieldsOf) {
+        for (const el of $bz._teleportedFieldsOf(form)) appendField(e.detail.formData, el);
       }
       const carrier = e.detail.elt && e.detail.elt.closest("[data-bz-sig]");
       // An action POST WITH NO signature carrier does not leave.
@@ -2297,14 +2774,11 @@
       // the element was DETACHED between the trigger and now, typically
       // by the morph of a `@refreshable` zone.
       //
-      // Letting it leave costs, and it is measured. The server refuses
+      // Letting it leave costs. The server refuses
       // any invalid signature with an `_error: reload`, which
       // `handleError` executes — so an already obsolete request RELOADS
-      // THE WHOLE PAGE. Reproduced on `/carousel` on 2026-08-27: an
-      // autoplay ticks while a flip re-renders the panel, the node
-      // disappears, the POST leaves bare, 403, reload. The audit saw
-      // "Execution context was destroyed" and counted it as a
-      // concurrency flake; it was deterministic.
+      // THE WHOLE PAGE: an autoplay ticks while a flip re-renders the
+      // panel, the node disappears, the POST leaves bare, 403, reload.
       //
       // Restricted to POST: a boosted nav and an SSE zone's refetch are
       // GETs, they never have a signature and must pass.
@@ -2343,32 +2817,202 @@
       // bz-attr effects are live when the value signal changes.
       $bz._resyncScopes(node);
     }
+    /* A walk that did not land: forget the zone's fingerprint and ask a
+     * subscribed zone again; any other zone ships whole next time. */
+    function lost(tag) {
+      // Said out loud: a patch refused for a node inserted by hand
+      // without ``data-bz-row`` would otherwise fail in silence. The zone
+      // is still redrawn whole.
+      console.warn("bz: a patch of zone " + tag.getAttribute("zone") + " found the page "
+        + "changed under it (a node added outside the server's render? mark it "
+        + "data-bz-row) — redrawing the zone whole");
+      const host = document.querySelector('[data-bz-zone][bz-id="' + tag.getAttribute("zone") + '"]');
+      if (!host) return;
+      host.removeAttribute("data-bz-h");
+      const url = host.getAttribute("data-bz-subscribe-url");
+      if (url && $bz._refetchZone) $bz._refetchZone(host, url);
+    }
+    /* A parent whose list of children changed, nothing else
+     * (``zone_diff.ListPatch``): ``#row-2`` keeps the child with that
+     * id, wherever it is now (a drag and drop moved it already), ``k3``
+     * keeps the old child 3, ``m3`` keeps it and morphs it into the next
+     * template, ``n`` inserts the next template. A rank counts the
+     * children without id only. An id the parent does not hold is taken
+     * where the browser holds it — another list of the zone, or one this
+     * run just removed (``orphans``) — moved here and morphed: a card
+     * dragged to another column keeps its element. The old children not
+     * kept go; the kept ones are MOVED, never rebuilt — their state and
+     * their listeners stay. A rank needs the parent to hold ``count``
+     * children without id first, or nothing is touched. */
+    /* An id a patch may name — the server's rule exactly
+     * (``protocol.ADDRESSABLE_ID``). Any other element, ``id="137"``
+     * included, is ranked by position: counted otherwise, a list holding
+     * one would never match the count the server sent. */
+    const ADDRESSABLE = /^-?[A-Za-z_\u00a0-\uffff][\w\u00a0-\uffff-]*$/;
+    const named = (el) => !!el.id && ADDRESSABLE.test(el.id);
+    function applyList(parent, tag, fresh, orphans) {
+      const kids = counted(parent);
+      const ranked = kids.filter((c) => !named(c));
+      const text = tag.getAttribute("list");
+      const ops = text ? text.split(" ") : [];
+      if (ops.some((op) => op[0] === "k" || op[0] === "m")
+          && ranked.length !== Number(tag.getAttribute("count"))) return false;
+      const byId = (id) => {
+        const el = kids.find((kid) => kid.id === id) || orphans.get(id) || document.getElementById(id);
+        return el && !el.contains(parent) ? el : null;
+      };
+      const next = [];
+      const morphs = [];
+      const added = [];
+      let f = 0;
+      for (const op of ops) {
+        if (op === "n") {
+          const tpl = fresh[f++];
+          const moved = named(tpl) ? byId(tpl.id) : null;
+          if (moved) {
+            morphs.push([moved, tpl]);
+            next.push(moved);
+          } else {
+            const node = document.importNode(tpl, true);
+            next.push(node);
+            added.push(node);
+          }
+          continue;
+        }
+        const old = op[0] === "#" ? byId(op.slice(1)) : ranked[Number(op.slice(1))];
+        if (!old) return false;
+        if (op[0] === "m") morphs.push([old, fresh[f++]]);
+        next.push(old);
+      }
+      const keep = new Set(next);
+      for (const node of next) for (const name of $bz._witnesses) node.removeAttribute(name);
+      for (const kid of kids) {
+        if (keep.has(kid)) continue;
+        kid.remove();
+        if (kid.id) orphans.set(kid.id, kid);
+      }
+      let prev = null;
+      for (const node of next) {
+        const want = prev ? prev.nextSibling : parent.firstChild;
+        if (node !== want) parent.insertBefore(node, want);
+        prev = node;
+      }
+      for (const [old, tpl] of morphs) morphInto(old, tpl);
+      for (const node of added) settle(node);
+      return true;
+    }
+    /* The children the server counts: not what the runtime inserted
+     * itself (``bz-for`` rows, ``bz-if`` mounts carry ``data-bz-row``). */
+    function counted(el) {
+      return Array.from(el.children).filter((c) => !c.hasAttribute("data-bz-row"));
+    }
+    function morphInto(el, tpl) {
+      const live = window.Idiomorph.morph(el, tpl, { morphStyle: "outerHTML" })
+        .find((n) => n.nodeType === 1);
+      if (live) settle(live);
+    }
+    /* Where a ``<bz-at>`` points: its anchor, then each step of its path,
+     * as long as every level has the shape the server saw. An empty path
+     * is the anchor itself (``"".split(".")`` would be one step). */
+    function target(tag) {
+      let el = document.getElementById(tag.getAttribute("anchor"));
+      const shapes = (tag.getAttribute("shape") || "").split(".");
+      const path = tag.getAttribute("path") || "";
+      const steps = path ? path.split(".") : [];
+      for (let i = 0; i < steps.length && el; i++) {
+        const kids = counted(el);
+        el = shapeOf(kids) === shapes[i] ? kids[Number(steps[i])] : null;
+      }
+      return el;
+    }
+    /* Each ``<bz-at>`` of the sink (``zone_diff.ship``): a list patch, or
+     * one element morphed where it is. */
     function applyPositionPatches() {
       const sink = document.getElementById("bz-sink");
       if (!sink) return;
+      const orphans = new Map();   // removed by a list this run: another may take them
       for (const tag of sink.querySelectorAll("bz-at")) {
         tag.remove();
-        const template = tag.querySelector("template");
-        const fresh = template && template.content.firstElementChild;
-        let el = document.getElementById(tag.getAttribute("anchor"));
-        const shapes = (tag.getAttribute("shape") || "").split(".");
-        const steps = (tag.getAttribute("path") || "").split(".");
-        for (let i = 0; i < steps.length && el; i++) {
-          const kids = Array.from(el.children).filter((c) => !c.hasAttribute("data-bz-row"));
-          el = shapeOf(kids) === shapes[i] ? kids[Number(steps[i])] : null;
-        }
-        if (!el || !fresh || el.tagName !== fresh.tagName || !window.Idiomorph) {
-          const host = document.querySelector('[data-bz-zone][bz-id="' + tag.getAttribute("zone") + '"]');
-          if (!host) continue;
-          host.removeAttribute("data-bz-h");
-          const url = host.getAttribute("data-bz-subscribe-url");
-          if (url && $bz._refetchZone) $bz._refetchZone(host, url);
-          continue;
-        }
-        const live = window.Idiomorph.morph(el, fresh, { morphStyle: "outerHTML" })
-          .find((n) => n.nodeType === 1);
-        if (live) settle(live);
+        const el = target(tag);
+        const fresh = Array.from(tag.children)
+          .filter((c) => c.tagName === "TEMPLATE")
+          .map((c) => c.content.firstElementChild);
+        if (!el || !window.Idiomorph) lost(tag);
+        else if (tag.hasAttribute("list")) {
+          if (!applyList(el, tag, fresh, orphans)) lost(tag);
+        } else if (fresh[0] && el.tagName === fresh[0].tagName) morphInto(el, fresh[0]);
+        else lost(tag);
       }
+    }
+
+    /* Replace, do not morph, an element marked data-bz-replace.
+     * idiomorph pairs the children of a node one by one, looking for the
+     * best match among siblings that carry no id — quadratic on a large
+     * blob. A highlighted ``ui.code`` is thousands of ``<span>``: the morph
+     * would freeze the page for seconds. Such a blob holds no client
+     * state, so its content is swapped whole and its attributes synced;
+     * returning ``false`` tells idiomorph to leave the node alone after
+     * that. Hooked on the DEFAULTS, so both paths reach
+     * it: htmx's morph extension and ``applyPositionPatches`` above. */
+    /* A node RECYCLED into an identified element is a new node: no
+     * transition. idiomorph's soft match takes an old element WITHOUT
+     * id for any new element of the same tag, identified or not — a
+     * painted ``hstack`` can become a closed dialog's backdrop, and its
+     * opacity animate from 1 to 0: a black veil over the screen. A node
+     * CREATED has no value before, so it never transitions; one recycled
+     * must not either.
+     * The node and its subtree take their values with ``transition:
+     * none``, then get their transitions back in a microtask, once the
+     * new values are computed. A node morphed into ITSELF (same id) keeps
+     * its transitions: that is how a panel closes, animated.
+     * Gate: tests/runtime_js/test_a_recycled_node_does_not_animate.py. */
+    const rebirths = new WeakSet();
+    const reborn = [];
+    function settleReborn() {
+      // Computing the style now fixes the new values without transition.
+      document.documentElement.getBoundingClientRect();
+      for (const [el, was] of reborn.splice(0)) {
+        if (was) el.style.transition = was;
+        else el.style.removeProperty("transition");
+        if (el.getAttribute("style") === "") el.removeAttribute("style");
+      }
+    }
+
+    if (window.Idiomorph && window.Idiomorph.defaults) {
+      const callbacks = window.Idiomorph.defaults.callbacks;
+      const priorAfter = callbacks.afterNodeMorphed;
+      callbacks.afterNodeMorphed = function (node) {
+        if (rebirths.has(node)) {
+          rebirths.delete(node);
+          if (!reborn.length) queueMicrotask(settleReborn);
+          for (const el of [node, ...node.querySelectorAll("*")]) {
+            if (!el.style) continue;
+            reborn.push([el, el.style.transition]);
+            el.style.transition = "none";
+          }
+        }
+        return priorAfter.apply(this, arguments);
+      };
+      const prior = callbacks.beforeNodeMorphed;
+      callbacks.beforeNodeMorphed = function (old, fresh) {
+        if (old.nodeType === 1 && fresh.nodeType === 1 && fresh.id && !old.id) {
+          rebirths.add(old);
+        }
+        if (old.nodeType === 1 && fresh.nodeType === 1
+            && old.hasAttribute("data-bz-replace")) {
+          if (old.outerHTML !== fresh.outerHTML) {
+            Array.from(old.attributes).forEach(function (a) {
+              if (!fresh.hasAttribute(a.name)) old.removeAttribute(a.name);
+            });
+            Array.from(fresh.attributes).forEach(function (a) {
+              if (old.getAttribute(a.name) !== a.value) old.setAttribute(a.name, a.value);
+            });
+            old.innerHTML = fresh.innerHTML;
+          }
+          return false;
+        }
+        return prior.apply(this, arguments);
+      };
     }
 
     function afterSwap(e) {
@@ -2394,6 +3038,9 @@
         $bz._resyncScopes(target);
       }
       $bz._sweepScopes();
+      // The nodes this swap removed give back their effects, and what
+      // their bz-init took outside them (document / window listeners).
+      if ($bz._sweepDetached) $bz._sweepDetached();
       // Drop teleported panels (tooltip/overlay portals under <body>)
       // whose origin was removed by this swap — else they orphan.
       if ($bz._sweepTeleports) $bz._sweepTeleports();
@@ -2404,6 +3051,22 @@
     for (const eventName of ["htmx:afterSwap", "htmx:oobAfterSwap"]) {
       document.body.addEventListener(eventName, afterSwap);
     }
+
+    /* A ``redirect()`` that keeps the layout answers ``HX-Location``:
+     * htmx fetches the new page into the outlet and returns BEFORE
+     * swapping this response. Its out-of-band zones include the
+     * layout's, which that navigation never redraws — left alone, they
+     * keep their old version while ``_adoptZoneHashes`` takes the
+     * fingerprint of the new one, and the next patch misses. Land them
+     * first (``swapStyle: "none"`` keeps only the out-of-band parts);
+     * the outlet's are replaced by the navigation anyway. */
+    document.body.addEventListener("htmx:beforeOnLoad", function (e) {
+      const xhr = e.detail && e.detail.xhr;
+      if (!xhr || !xhr.getResponseHeader || !xhr.getResponseHeader("HX-Location")) return;
+      if (xhr.responseText && window.htmx) {
+        window.htmx.swap(document.body, xhr.responseText, { swapStyle: "none" });
+      }
+    });
 
     /* The witness's life cycle. ``htmx:afterRequest`` is the ONLY
      * disarm: htmx emits it in every exit case — success, 4xx/5xx,
@@ -2423,10 +3086,17 @@
      * ``X-Bretzel-Zone-Hashes``, with its base in ``X-Bretzel-Zone-Bases``.
      * Holding another base, we forget the fingerprint: the next exchange
      * ships the zone whole. Why: ``render/zone_diff.py``, "Crossed
-     * responses". */
+     * responses".
+     *
+     * What that version READ (``data-bz-r``) rides along as a third part
+     * — ``id:fingerprint:reads`` — so the server redraws the zone only
+     * when a field THIS version read has changed. Absent, the server
+     * falls back on what it learned itself: never wrongly silenced. */
     $bz._zoneEntry = function (zone) {
       const zid = zone.getAttribute("bz-id");
-      const vu = zone.getAttribute("data-bz-h");
+      const vu = zone.getAttribute("data-bz-h") || "";
+      const lu = zone.getAttribute("data-bz-r");
+      if (lu !== null) return zid + ":" + vu + ":" + lu;
       return vu ? zid + ":" + vu : zid;
     };
     function pairsOf(header) {
@@ -2514,7 +3184,7 @@
 })();
 
 
-/* 06_helpers.js — shared helpers for overlay-class components.
+/* helpers.js — shared helpers for overlay-class components.
  *
  * Exposed via window.$bz.helpers, consumed by Dialog / Drawer /
  * Popover / Dropdown / Tooltip component code. Trimmed on purpose —
@@ -2524,7 +3194,11 @@
  *
  *   focusTrap(el)              trap Tab/Shift+Tab inside el ; returns
  *                              dispose (restores the previous focus)
- *   escapeKey(handler)         global Escape listener ; returns unsubscribe
+ *   focusIn(id, sels)          focus a component's FOCUS_TARGET (.focus())
+ *   blurIn(id)                 blur what has the focus inside it (.blur())
+ *   autofocusMounted(els)      autofocus= on entering the page ($bz._scan)
+ *   autofocusOpen(panel)       autofocus= when an anchored overlay opens
+ *   escapeKey(handler, el?)    Escape, the deepest overlay first ; returns unsubscribe
  *   scrollLock()               body scroll lock w/ scrollbar compensation ;
  *                              returns unlock
  *   floating(anchor, el, opts) position el relative to anchor
@@ -2535,19 +3209,21 @@
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  const FOCUSABLE =
-    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
-    'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  // ``directives.js`` owns the list (it loads first).
+  const FOCUSABLE = $bz._FOCUSABLE;
+
+  /* A focusable that is not displayed takes no focus, in silence. */
+  function shownFocusables(el) {
+    return Array.from(el.querySelectorAll(FOCUSABLE)).filter(function (n) {
+      return n.offsetParent !== null;
+    });
+  }
 
   function focusTrap(el) {
     const previous = document.activeElement;
     function onKeydown(e) {
       if (e.key !== "Tab") return;
-      const focusable = Array.from(el.querySelectorAll(FOCUSABLE)).filter(
-        function (n) {
-          return n.offsetParent !== null;
-        },
-      );
+      const focusable = shownFocusables(el);
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -2566,19 +3242,16 @@
      * reactive flush that has just turned ``open`` true, so before the
      * computed style flips. Yet ``focus()`` on an element in
      * ``visibility: hidden`` is a **silent no-op** — no error, no
-     * return, nothing. Observed on ``bench_dialog`` (2026-08-19), the
-     * panel's three buttons: hidden at +1 ms, visible at +16 ms.
+     * return, nothing.
      *
-     * A FIXED delay is not enough, and that is measured too: the
-     * two-frame version passed about one time in three — the boundary
-     * falls right inside the hidden window, and it moves from one run to
-     * the next. So we do not wait for a duration, we wait for the
-     * RESULT: we try, we check the focus landed, and we retry otherwise.
+     * A FIXED delay is not enough: the boundary falls right inside the
+     * hidden window, and it moves from one run to the next. So we do not
+     * wait for a duration, we wait for the RESULT: we try, we check the
+     * focus landed, and we retry otherwise.
      *
-     * Without that, the trap was indeed installed (``$el._bzTrap``
-     * present) and the focus stayed on the trigger. The restored
-     * contract is written in ``dialog.py``: "the first interactive child
-     * receives focus".
+     * Without that, the trap is installed (``$el._bzTrap`` present) and
+     * the focus stays on the trigger. The contract is written in
+     * ``dialog.py``: "the first interactive child receives focus".
      *
      * The DOM is RE-QUERIED at every attempt: between the installation
      * and the frame that succeeds, a morph may have replaced the panel's
@@ -2586,9 +3259,10 @@
     let attempts = 0;
     function focusFirst() {
       if (!el.isConnected) return;
-      const first = el.querySelector(FOCUSABLE);
+      // The field marked ``autofocus=`` first, then the first focusable.
+      const first = autofocusIn(el) || shownFocusables(el)[0];
       if (first) {
-        first.focus();
+        giveFocus(first);
         if (el.contains(document.activeElement)) return;
       }
       // ~20 frames (≈ 1/3 s): beyond that, the panel will not open.
@@ -2601,14 +3275,219 @@
     };
   }
 
-  function escapeKey(handler) {
-    function onKeydown(e) {
-      if (e.key === "Escape") handler(e);
+  /* ── Focus targets: ``autofocus=``, ``.focus()``, ``.blur()`` ──────
+   *
+   * A component declares WHERE it takes the focus once
+   * (``FOCUS_TARGET``, ``components/base/focus.py``): a list of
+   * selectors tried in order, each on the element carrying the id then
+   * inside it; an empty list is that element. The order is a priority
+   * (the checked radio, else the first), which one selector list cannot
+   * say. */
+  const AUTOFOCUS = "data-bz-autofocus";
+
+  function resolveTarget(el, sels) {
+    if (!sels.length) return el;
+    for (const s of sels) {
+      if (el.matches(s)) return el;
+      const hit = el.querySelector(s);
+      if (hit) return hit;
     }
-    document.addEventListener("keydown", onKeydown);
-    return function () {
-      document.removeEventListener("keydown", onKeydown);
-    };
+    return null;
+  }
+
+  function focusTarget(marked) {
+    let sels = [];
+    try {
+      sels = JSON.parse(marked.getAttribute(AUTOFOCUS) || "[]");
+    } catch (e) {
+      /* a hand-written marker that is not JSON: the element itself */
+    }
+    return resolveTarget(marked, sels);
+  }
+
+  function focusIn(id, sels) {
+    const el = document.getElementById(id);
+    const target = el && resolveTarget(el, sels);
+    if (target) target.focus();
+  }
+
+  function blurIn(id) {
+    const el = document.getElementById(id);
+    const active = document.activeElement;
+    if (el && active && el.contains(active)) active.blur();
+  }
+
+  // ``focus()`` on an element that is not rendered, or in
+  // ``visibility: hidden`` (a closed dialog), is a silent no-op.
+  function shown(t) {
+    return t.isConnected && t.getClientRects().length > 0 &&
+      getComputedStyle(t).visibility !== "hidden";
+  }
+
+  /* A focus the PAGE gives (autofocus, a dialog opening), not the person.
+   * A component whose focus has a side effect asks before acting: the
+   * combobox opens its list when someone Tabs or clicks into it, not
+   * when the page puts the cursor there (rule 5: autofocus never opens
+   * a panel). ``focus`` fires synchronously inside ``.focus()``. */
+  let giving = false;
+  function giveFocus(t) {
+    giving = true;
+    try {
+      t.focus();
+    } finally {
+      giving = false;
+    }
+  }
+  function pageGivesFocus() {
+    return giving;
+  }
+
+  // The first marked target inside ``box`` (an overlay's panel).
+  function autofocusIn(box) {
+    const marked = Array.from(box.querySelectorAll("[" + AUTOFOCUS + "]"));
+    if (box.hasAttribute(AUTOFOCUS)) marked.unshift(box);
+    for (const el of marked) {
+      const t = focusTarget(el);
+      if (t) return t;
+    }
+    return null;
+  }
+
+  // The user is typing somewhere: a field that just appeared does not
+  // take the keyboard from them.
+  function typing() {
+    const a = document.activeElement;
+    if (!a || a === document.body || !a.isConnected) return false;
+    if (a.isContentEditable || a.tagName === "TEXTAREA" || a.tagName === "SELECT") return true;
+    return a.tagName === "INPUT" &&
+      !/^(button|submit|reset|checkbox|radio|range|color|file|image)$/i.test(a.type);
+  }
+
+  /* Rule 1 — a field takes the focus when its MARK APPEARS: it enters
+   * the page marked, or a redraw marks it (``autofocus=`` False → True).
+   * ``seen`` holds the nodes marked at the last scan: a morph keeps the
+   * node of a field it merely redraws (paired by id), so a field that
+   * STAYS marked is not focused again; one that loses the mark is
+   * forgotten, and focused anew when it gets it back — ``autofocus=`` on
+   * → off → on, or ``autofocus=(field in error)`` after each refused
+   * submit.
+   *
+   * Every ``$bz._scan`` reports here, and the marks wait in ``pending``
+   * for one frame: a ``bz-for`` scans its rows one by one, and the rule
+   * "the first in the page wins" needs them all at once.
+   *
+   * Rule 3 — hidden at mount (closed overlay, inactive tab, folded
+   * accordion): the frames retry while the page settles (an effect that
+   * shows a panel lands a frame later), then give up. An overlay that
+   * opens LATER focuses its own (``autofocusOpen``, ``focusTrap``); a tab
+   * revealed later does not steal the focus. */
+  const seen = new WeakSet();
+  let pending = [];
+  let tries = 0;
+  let frame = 0;
+
+  function autofocusMounted(els) {
+    for (const el of els) {
+      if (el.nodeType !== 1) continue;
+      if (!el.hasAttribute(AUTOFOCUS)) {
+        seen.delete(el);
+        continue;
+      }
+      if (seen.has(el)) continue;
+      seen.add(el);
+      pending.push(el);
+    }
+    if (pending.length && !frame) {
+      tries = 0;
+      frame = requestAnimationFrame(settleAutofocus);
+    }
+  }
+
+  function settleAutofocus() {
+    frame = 0;
+    pending = pending.filter(function (el) { return el.isConnected; });
+    pending.sort(function (a, b) {
+      return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+    });
+    const targets = [];
+    for (const el of pending) {
+      const t = focusTarget(el);
+      if (t && shown(t)) targets.push(t);
+    }
+    if (!targets.length) {
+      if (pending.length && ++tries < 20) frame = requestAnimationFrame(settleAutofocus);
+      else pending = [];
+      return;
+    }
+    pending = [];
+    if (targets.length > 1) {
+      console.warn("bz: " + targets.length + " fields marked autofocus= entered the page " +
+        "together; the first takes the focus.", targets);
+    }
+    const target = targets[0];
+    // Rule 2 — never under the hands of someone typing elsewhere.
+    if (typing() && document.activeElement !== target) return;
+    giveFocus(target);
+  }
+
+  /* Rule 4 — an anchored overlay (popover, dropdown) that OPENS hands
+   * the focus to the field marked inside it, if any; with none, the
+   * focus stays on the trigger: a popover is not modal. Same retry as
+   * the focus trap: the panel is shown by the very effect calling us. */
+  function autofocusOpen(panel) {
+    let attempts = 0;
+    function attempt() {
+      if (!panel.isConnected) return;
+      const t = autofocusIn(panel);
+      if (!t) return;
+      giveFocus(t);
+      if (document.activeElement === t) return;
+      if (++attempts < 20) requestAnimationFrame(attempt);
+    }
+    requestAnimationFrame(attempt);
+  }
+
+  // A listener outside the caller's node: its unsubscribe goes to the
+  // running ``bz-init`` (``$bz._own``, ``directives.js``), which gives
+  // it back when its node leaves the document.
+  function owned(release) {
+    return $bz._own ? $bz._own(release) : release;
+  }
+
+  // Escape closes ONE layer: the deepest of the overlays that answer.
+  // Every overlay registers at mount, open or not; its handler returns
+  // ``true`` when it closed something. Handed its element, an overlay is
+  // asked before the ones that contain it (then the later in the page
+  // before the earlier), and the first ``true`` ends the round, so a
+  // popover inside a drawer does not take the drawer with it on one
+  // Escape. A handler without an element, or that returns nothing, never
+  // stops the round.
+  const escapes = [];
+
+  function deeperFirst(a, b) {
+    if (!a.el || !b.el) return (a.el ? 0 : 1) - (b.el ? 0 : 1);
+    if (a.el.contains(b.el)) return 1;
+    if (b.el.contains(a.el)) return -1;
+    return a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? 1 : -1;
+  }
+
+  function onEscape(e) {
+    if (e.key !== "Escape") return;
+    const round = escapes.slice().sort(deeperFirst);
+    for (const entry of round) {
+      if (entry.handler(e) === true && entry.el) return;
+    }
+  }
+
+  function escapeKey(handler, el) {
+    const entry = {handler: handler, el: el || null};
+    if (!escapes.length) document.addEventListener("keydown", onEscape);
+    escapes.push(entry);
+    return owned(function () {
+      const at = escapes.indexOf(entry);
+      if (at >= 0) escapes.splice(at, 1);
+      if (!escapes.length) document.removeEventListener("keydown", onEscape);
+    });
   }
 
   /* Listen for a window-level event (V3 replacement for Alpine's
@@ -2618,9 +3497,9 @@
    * ``popstate``, ``htmx:after-request``, ``htmx:before-request``. */
   function onWindow(eventName, handler) {
     window.addEventListener(eventName, handler);
-    return function () {
+    return owned(function () {
       window.removeEventListener(eventName, handler);
-    };
+    });
   }
 
   function scrollLock() {
@@ -2645,33 +3524,51 @@
    * outside and close it immediately. Resolved on each click — the
    * teleported panel's ref registers AFTER this handler is wired, so it
    * can't be captured up front. */
+  /* Is `node` inside `container`, teleportations counted: a panel
+   * projected under <body> is still inside what it was projected FROM
+   * (its `_bzScopeHost`, the origin <template>). A dropdown opened in a
+   * popover's panel is in the popover — at any depth. Excepting only the
+   * container's own panel would let a pick in a menu nested in a popover
+   * close the popover with its menu. */
+  function within(container, node) {
+    while (node) {
+      if (container.contains(node)) return true;
+      let up = node;
+      while (up && !up._bzScopeHost) up = up.parentElement;
+      if (!up) return false;
+      node = up._bzScopeHost;
+    }
+    return false;
+  }
+
   function clickOutside(el, handler, alsoInsideFn) {
     function onClick(e) {
-      if (el.contains(e.target)) return;
+      if (within(el, e.target)) return;
       if (alsoInsideFn) {
         const extra = alsoInsideFn();
-        if (extra && extra.contains(e.target)) return;
+        if (extra && within(extra, e.target)) return;
       }
       handler(e);
     }
     document.addEventListener("click", onClick, true);
-    return function () {
+    return owned(function () {
       document.removeEventListener("click", onClick, true);
-    };
+    });
   }
 
   /* Position `el` (fixed) relative to `anchor`. placement = "<side>"
    * or "<side>-<align>" with side ∈ {auto,top,bottom,left,right}, align
    * ∈ {start,center,end} (default center).
    *
-   * side "auto" = BEST-FIT : pick the first side (preference order
-   * bottom → top → right → left) where the panel fits entirely ; if
-   * none fits, the side with the most leftover room. Predictable (a
-   * preference order, not raw "most room" which would jump around) and
-   * never off-screen (the cross axis is clamped).
+   * ONE rule for every side : try the sides in an order, take the first
+   * where the panel fits entirely ; if none fits, the side with the most
+   * leftover room. side "auto" tries bottom → top → right → left ; an
+   * explicit side tries itself, then its OPPOSITE, then the other two in
+   * that same order. Predictable (an order, not raw "most room" which
+   * would jump around) and never off-screen : both axes are clamped.
    *
-   * An explicit side keeps the old behaviour : flip to the OPPOSITE
-   * side on the main axis when the preferred side lacks room.
+   * An explicit side tries all four because, in a narrow window, the
+   * panel can fit on neither that side nor its opposite.
    *
    * Either way the RESOLVED side is written to `el.dataset.side` so a
    * consumer (e.g. the tooltip arrow) can follow it — no more arrow
@@ -2681,11 +3578,12 @@
   // Best-fit preference order — module constant so the scroll/resize
   // reposition path allocates nothing per tick.
   const SIDE_ORDER = ["bottom", "top", "right", "left"];
+  const OPPOSITE = { bottom: "top", top: "bottom", right: "left", left: "right" };
   // The readability floor of an anchored panel, in px. `matchWidth`
-  // never goes below that width, whatever the anchor: a `ui.select`
-  // placed in a sidebar collapsed to a rail (`w-16`) rendered a ~48 px
-  // panel where the labels wrapped letter by letter, with a horizontal
-  // scrollbar (seen on `examples/crm` on 2026-08-29). 192 px = `12rem`
+  // never goes below that width, whatever the anchor: without it, a
+  // `ui.select` placed in a sidebar collapsed to a rail (`w-16`) renders
+  // a ~48 px panel where the labels wrap letter by letter, with a
+  // horizontal scrollbar. 192 px = `12rem`
   // — the value the repository already gives an anchored panel:
   // `min-w-[12rem]` at `dropdown` and `popover`, `min-w-48` for
   // `combobox`'s `sm` `panel_free`.
@@ -2746,27 +3644,21 @@
       };
       const need = { bottom: h, top: h, right: w, left: w };
 
-      let side;
-      if (wantSide === "auto") {
-        // Best-fit : first side (in preference order) where the panel
-        // fits ; else the side with the most leftover room.
-        side = SIDE_ORDER.find(function (s) {
+      const order =
+        wantSide in OPPOSITE
+          ? [wantSide, OPPOSITE[wantSide]].concat(
+              SIDE_ORDER.filter(function (s) {
+                return s !== wantSide && s !== OPPOSITE[wantSide];
+              })
+            )
+          : SIDE_ORDER;
+      const side =
+        order.find(function (s) {
           return room[s] >= need[s];
+        }) ||
+        order.reduce(function (best, s) {
+          return room[s] - need[s] > room[best] - need[best] ? s : best;
         });
-        if (!side) {
-          side = SIDE_ORDER.reduce(function (best, s) {
-            return room[s] - need[s] > room[best] - need[best] ? s : best;
-          });
-        }
-      } else {
-        // Explicit side : flip to the opposite on the main axis when the
-        // preferred side lacks room (and the opposite has it).
-        side = wantSide;
-        if (side === "bottom" && room.bottom < h && room.top >= h) side = "top";
-        else if (side === "top" && room.top < h && room.bottom >= h) side = "bottom";
-        else if (side === "right" && room.right < w && room.left >= w) side = "left";
-        else if (side === "left" && room.left < w && room.right >= w) side = "right";
-      }
 
       let top, left;
       if (side === "top" || side === "bottom") {
@@ -2774,14 +3666,16 @@
         if (align === "start") left = a.left;
         else if (align === "end") left = a.right - w;
         else left = a.left + (a.width - w) / 2;
-        left = Math.max(4, Math.min(left, vw - w - 4));
       } else {
         left = side === "right" ? a.right + offset : a.left - offset - w;
         if (align === "start") top = a.top;
         else if (align === "end") top = a.bottom - h;
         else top = a.top + (a.height - h) / 2;
-        top = Math.max(4, Math.min(top, vh - h - 4));
       }
+      // Both axes : when no side fits, the panel covers part of its
+      // anchor rather than leaving the screen.
+      left = Math.max(4, Math.min(left, vw - w - 4));
+      top = Math.max(4, Math.min(top, vh - h - 4));
       el.style.top = top + "px";
       el.style.left = left + "px";
       // Publish the resolved side so consumers (tooltip arrow) follow it
@@ -2792,11 +3686,9 @@
       /* …and WHERE the anchor is in the panel, so the arrow aims at it.
          The panel's middle and the trigger's middle coincide as long as
          nothing pushes the panel; the edge reframing just above
-         (`Math.max(4, Math.min(...))`) separates them. The arrow was set
-         at `left-1/2` — so in the middle of the bubble — and pointed
-         beside its button as soon as you approached an edge. Measured on
-         2026-09-09 on `examples/kanban`: trigger centred at 1468 px,
-         arrow at 1443. */
+         (`Math.max(4, Math.min(...))`) separates them. An arrow set at
+         `left-1/2` — so in the middle of the bubble — would point beside
+         its button as soon as the panel approaches an edge. */
       const centre =
         side === "top" || side === "bottom"
           ? a.left + a.width / 2 - left
@@ -2810,6 +3702,15 @@
       el.style.setProperty("--bz-arrow", vise + "px");
     }
 
+    // Opened from inside a modal (a dialog, a drawer: ``aria-modal``), the
+    // panel is painted above it. Anchored panels sit at ``z-40``, under
+    // the house's ``z-50`` modals: without this, a popover in a drawer
+    // opens BEHIND it, and its buttons are out of reach. At ``z-50`` the
+    // tie goes to the panel, projected last in
+    // ``<body>``. A virtual anchor (a chart's point: a bare
+    // ``getBoundingClientRect``) is in no modal.
+    const inModal = typeof anchor.closest === "function" && anchor.closest('[aria-modal="true"]');
+    el.style.zIndex = inModal ? "50" : "";
     position();
     window.addEventListener("scroll", position, true);
     window.addEventListener("resize", position);
@@ -2820,7 +3721,7 @@
   }
 
   // Shared "should we animate ?" gate — the toast leave dance
-  // (09_notification.js) and the bz-for FLIP reflow (02_directives.js) both
+  // (notification.js) and the bz-for FLIP reflow (directives.js) both
   // honour it. The MediaQueryList is created once and memoised ; ``.matches``
   // stays live, so an OS setting change mid-session is respected without
   // re-parsing the query on every call.
@@ -2840,8 +3741,7 @@
    * the scope, the server knows nothing about it, so the ``HX-Push-Url``
    * header can do nothing for it.
    *
-   * ``pushState`` and not ``replaceState`` — the user's decision on
-   * 2026-08-29: "pushState for views". A tab IS a view, so the back
+   * ``pushState`` and not ``replaceState``: a tab IS a view, so the back
    * button must return to it. A display preference (a density, a theme)
    * does not deserve a history entry and has no business here.
    *
@@ -2865,8 +3765,28 @@
     return new URL(window.location.href).searchParams.get(param);
   }
 
+  /* Text made inert for HTML a slab builds as a string (the calendar's
+   * cells, the time picker's buttons): ``&``, ``<``, ``>`` and both
+   * quotes. THE escaper of the runtime: a slab that writes HTML from data
+   * goes through it, and a new HTML sink is declared in
+   * ``tests/consistency/test_runtime_html_sinks_are_declared.py``. */
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   $bz.helpers = {
+    escapeHtml: escapeHtml,
     focusTrap: focusTrap,
+    focusIn: focusIn,
+    blurIn: blurIn,
+    autofocusMounted: autofocusMounted,
+    autofocusOpen: autofocusOpen,
+    pageGivesFocus: pageGivesFocus,
     escapeKey: escapeKey,
     onWindow: onWindow,
     pushUrl: pushUrl,
@@ -2880,19 +3800,26 @@
     // microtask so the DOM write that precedes it has landed before any
     // listener reads the value back.
     //
-    // The event name is the ONLY thing that differed between the two
-    // copies (audit F61) and the difference is deliberate :
+    // The event name is the ONLY thing that differs between the two
+    // components and the difference is deliberate :
     // number_input emits ``bzchange`` (its own, so an ``on_change=``
     // wired by the user can't be confused with the native ``change`` the
     // inner input fires while typing) ; slider emits the native
     // ``change``. Passing it in keeps the microtask rationale in one
-    // place. Distinct from ``base/_wiring.change_emit_effect``, which is
+    // place. Distinct from ``base/field_wiring.change_emit_effect``, which is
     // the effect-context mechanism, not another variant of this.
-    emitChange: function (carrier, eventName) {
+    //
+    // ``detail``: what the gesture tells, the object whose JSON the
+    // carrier holds for the server (a scheduler's ``{event_id, start,
+    // end}``, a dropzone's ``Move``) — the client expression reads it in
+    // ``$event.detail``, as every ``item_click``.
+    emitChange: function (carrier, eventName, detail) {
       if (!carrier) return;
       const name = eventName || "change";
       queueMicrotask(function () {
-        carrier.dispatchEvent(new Event(name, { bubbles: true }));
+        carrier.dispatchEvent(detail === undefined
+          ? new Event(name, { bubbles: true })
+          : new CustomEvent(name, { bubbles: true, detail: detail }));
       });
     },
 
@@ -2911,11 +3838,7 @@
     //     by the OS), and that exception must not break the gesture in
     //     progress.
     //
-    // Extracted on 2026-08-13, at the 3rd and 4th site (slider ×2,
-    // resizable ×2) — the threshold the repository set itself, "twice a
-    // coincidence, three times a pattern". The pointer-drag family's
-    // next component (``signature_pad``) calls this, it does not copy
-    // it.
+    // A pointer-drag component calls this, it does not copy it.
     capturePointer: function (el, e) {
       if (!el || !e || e.pointerId === undefined) return;
       try { el.setPointerCapture(e.pointerId); } catch (err) {}
@@ -2936,11 +3859,42 @@
     if (!name) return "";
     if (String(name).indexOf(":") !== -1) return name; // full form verbatim
     let full = (defaultSet || "lucide") + ":" + name;
-    // Phosphor / Tabler take an optional style suffix (-bold, -fill, …).
-    if (defaultStyle && (defaultSet === "phosphor" || defaultSet === "tabler")) {
+    // Phosphor (``ph``, translated server-side) / Tabler take an
+    // optional style suffix (-bold, -fill, …).
+    if (defaultStyle && (defaultSet === "ph" || defaultSet === "tabler")) {
       full = full + "-" + defaultStyle;
     }
     return full;
+  };
+
+  /* Is ``href`` the active entry of its menu for ``path``? An entry
+   * matches its own path and what lies below it (``/`` only itself),
+   * and the MOST SPECIFIC matching entry of the menu wins: ``/tickets``
+   * stays lit on ``/tickets/42``, not on ``/tickets/mine`` when a
+   * ``/tickets/mine`` entry exists. The menu is the closest
+   * aside / nav / [role=navigation]; its entries carry ``data-bz-nav``.
+   * Decided in the browser and not by the server: entries rendered by a
+   * refreshable zone, or by another one, belong to the same menu. The
+   * winner is computed once per menu and path, not once per entry. */
+  const NAV_WINNERS = new WeakMap();
+  function navMatches(path, href) {
+    return href === "/" ? path === "/" : path === href || path.startsWith(href + "/");
+  }
+  $bz._navActive = function (path, href, el) {
+    if (!navMatches(path, href)) return false;
+    const root = (el && el.closest && el.closest("aside, nav, [role=navigation]")) || document;
+    const entries = root.querySelectorAll("[data-bz-nav]");
+    let memo = NAV_WINNERS.get(root);
+    if (!memo || memo.path !== path || memo.count !== entries.length) {
+      let winner = null;
+      entries.forEach(function (entry) {
+        const h = entry.getAttribute("data-bz-nav");
+        if (navMatches(path, h) && (winner === null || h.length > winner.length)) winner = h;
+      });
+      memo = { path: path, count: entries.length, winner: winner };
+      NAV_WINNERS.set(root, memo);
+    }
+    return memo.winner === null || memo.winner === href;
   };
 
   /* ui.interval — recurring client timer that fires a server action.
@@ -2982,13 +3936,11 @@
    * Only the genuinely divergent methods stay per-scope — Combobox
    * filters ``_selectAll`` by what the query leaves visible, and has
    * ``_highlightFromValue`` on Select's side.
-   * The eight below were identical in both slabs (audit F19), so a
-   * set-semantics fix had to be hand-mirrored or the two components
-   * silently diverged. ``_clearAll`` JOINED them on 2026-08-06 : it was
-   * excluded only because each scope also set ``this.open = false``,
-   * and that closing is exactly what got removed (a panel must survive
-   * its own header commands — ``_selectAll`` never closed). Combobox
-   * still overrides it, but only to ADD its query reset. */
+   * The ones below are common, so a set-semantics fix is made once and
+   * the two components cannot silently diverge. ``_clearAll`` does not
+   * close the panel: a panel must survive its own header commands, as
+   * with ``_selectAll``. Combobox overrides it, but only to ADD its query
+   * reset. */
   $bz.multiSelect = {
     _picked() { const v = this._value(); return Array.isArray(v) ? v.map(String) : []; },
     _isPicked(v) { return this._picked().indexOf(String(v)) >= 0; },
@@ -3022,6 +3974,145 @@
     _clearAll() { this._write([]); },
   };
 
+  /* The parts a page carries ONCE (``render/shared_parts.py``): one
+   * ``<template data-bz-part="<key>">`` per distinct part, cloned into a
+   * host that names it (``data-bz-part``) — a calendar picker's header,
+   * a colour picker's palette — the first time it opens, and again after
+   * a morph took it out (the server never renders it). The clones are
+   * marked ``data-bz-row``: the runtime inserted them, a walk by position
+   * skips them. A zone response appends the parts it rendered to <body>;
+   * one per key is kept, the first — identical by construction. */
+  function partTemplate(key) {
+    return key ? document.querySelector('template[data-bz-part="' + key + '"]') : null;
+  }
+
+  // Clone the host's part in, after its leading hidden inputs; ``true``
+  // when it did. Scanned after insertion: its directives read the host's
+  // scope.
+  function fillPart(host) {
+    const key = host && host.getAttribute("data-bz-part");
+    if (!key || host.querySelector(':scope > [data-bz-part-of]')) return false;
+    const tpl = partTemplate(key);
+    if (!tpl) {
+      console.warn("bz: no shared part " + key + " on the page");
+      return false;
+    }
+    let anchor = host.firstElementChild;
+    while (anchor && anchor.matches('input[type="hidden"]')) anchor = anchor.nextElementSibling;
+    const nodes = Array.from(tpl.content.children).map(function (n) {
+      const copy = n.cloneNode(true);
+      copy.setAttribute("data-bz-part-of", key);
+      copy.setAttribute("data-bz-row", "");
+      return copy;
+    });
+    for (const node of nodes) host.insertBefore(node, anchor);
+    if ($bz._scan) for (const node of nodes) $bz._scan(node);
+    return true;
+  }
+
+  function dropDuplicateParts() {
+    const seen = {};
+    document.querySelectorAll("template[data-bz-part]").forEach(function (t) {
+      const key = t.getAttribute("data-bz-part");
+      if (seen[key]) t.remove();
+      else seen[key] = true;
+    });
+  }
+  document.addEventListener("htmx:afterSwap", dropDuplicateParts);
+  document.addEventListener("htmx:oobAfterSwap", dropDuplicateParts);
+
+  $bz.parts = { template: partTemplate, fill: fillPart };
+
+  /* The pointer gesture's rules, ONCE — for `dnd.js` (moving a node
+   * between zones) and `scheduler.js` (moving a card in time): keep a
+   * dropped card where it was while the server ASKS something (a modal
+   * dialog, no redraw), and swallow the click a browser fires at the end
+   * of a drag. Without them, an `on_move` that asks « move it to Done? »
+   * puts the card back under the question, and a clickable card opens
+   * when it is let go.
+   *
+   *   MOUSE_THRESHOLD_PX / TOUCH_HOLD_MS / TOUCH_TOLERANCE_PX   when a
+   *       press becomes a drag (distance, or time then wander);
+   *   distance(start, e)        how far the pointer went, the same way;
+   *   swallowClick()            the click that ends a drag, for a MOMENT
+   *       (`SWALLOW_MS`) — a browser may fire none, and the next click
+   *       would be the dialog's button;
+   *   whenAnswered(carrier, {untouched, undo, settled})   after the
+   *       carrier's answer (two frames: the swap and the rescan land
+   *       then), `undo()` if `untouched()` — unless a modal dialog is open
+   *       or a request is in flight: then it waits for the dialog's
+   *       `close` or the next answer. `settled()` runs once, after the
+   *       first answer. */
+  const MODAL_SEL = '[role="dialog"][aria-modal="true"][data-open="true"]';
+  const SWALLOW_MS = 400;
+  let swallowUntil = 0;
+  //: Requests in flight, page-wide. From `htmx:beforeSend`, never
+  //: `beforeRequest`: a request cancelled before it leaves fires no
+  //: `afterRequest`, and the count would hold a card for ever.
+  let inFlight = 0;
+  document.addEventListener("htmx:beforeSend", function () { inFlight++; });
+  document.addEventListener("htmx:afterRequest", function () {
+    inFlight = Math.max(0, inFlight - 1);
+  });
+  document.addEventListener("click", function (e) {
+    if (Date.now() > swallowUntil) return;
+    swallowUntil = 0;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+
+  function afterTwoFrames(fn) {
+    requestAnimationFrame(function () { requestAnimationFrame(fn); });
+  }
+
+  function whenAnswered(carrier, how) {
+    let holding = false;
+    function wake() { afterTwoFrames(decide); }
+    function hold() {
+      if (holding) return;
+      holding = true;
+      document.addEventListener("close", wake);
+      document.addEventListener("htmx:afterRequest", wake);
+    }
+    function release() {
+      if (!holding) return;
+      holding = false;
+      document.removeEventListener("close", wake);
+      document.removeEventListener("htmx:afterRequest", wake);
+    }
+    function decide() {
+      if (!how.untouched()) return release();
+      //: A closed dialog stays MOUNTED (its leave animation needs it):
+      //: `data-open` says whether it asks.
+      if (document.querySelector(MODAL_SEL) !== null || inFlight > 0) return hold();
+      release();
+      how.undo();
+    }
+    function settle(e) {
+      if (e.detail && e.detail.elt && e.detail.elt !== carrier) return;
+      document.removeEventListener("htmx:afterRequest", settle);
+      afterTwoFrames(function () {
+        decide();
+        if (how.settled) how.settled();
+      });
+    }
+    document.addEventListener("htmx:afterRequest", settle);
+  }
+
+  $bz.gesture = {
+    MOUSE_THRESHOLD_PX: 5,
+    TOUCH_HOLD_MS: 250,
+    TOUCH_TOLERANCE_PX: 8,
+    SWALLOW_MS: SWALLOW_MS,
+    distance: function (start, e) {
+      return Math.hypot(e.clientX - start.x, e.clientY - start.y);
+    },
+    swallowClick: function () { swallowUntil = Date.now() + SWALLOW_MS; },
+    afterTwoFrames: afterTwoFrames,
+    whenAnswered: whenAnswered,
+    _inFlight: function () { return inFlight; },
+  };
+
   /* Numeric primitives — pure, widget-agnostic. Shared by the
    * number_input + slider slabs (each caches the result locally). */
   $bz.num = {
@@ -3035,8 +4126,6 @@
 
     // The memo wrapper over ``precisionFromStep``, cached on the scope's
     // own ``_precCache`` field. Spread into a scope as ``_precision``.
-    // The primitive was already shared ; the memo around it was not, so
-    // it existed twice (audit F60).
     cachedPrecision: function () {
       if (this._precCache !== undefined) return this._precCache;
       this._precCache = $bz.num.precisionFromStep(this._step);
@@ -3047,37 +4136,32 @@
 })();
 
 
-/* 06_locale.js — month and weekday names, derived from the language.
+/* locale.js — month and weekday names, derived from the language.
  *
- * ⚠️ **The number 06 is an ORDERING CONSTRAINT, not an identity.** This
- * slab was called ``22_locale.js`` until 2026-08-27, so loaded FIFTEEN
- * slabs after its only consumer, ``07_calendar.js``. Yet that one calls
- * ``customElements.define('bz-calendar', …)``, which IMMEDIATELY
- * upgrades every calendar already in the DOM — their constructor then
- * reads ``$bz.locale.weekdayNames()`` on a ``$bz.locale`` that does not
- * exist yet.
+ * ⚠️ **This slab's place in ``runtime/sources.py`` is an ORDERING
+ * CONSTRAINT.** It must load before ``calendar.js``, which calls
+ * ``customElements.define('bz-calendar', …)``: that IMMEDIATELY upgrades
+ * every calendar already in the DOM, and their constructor then reads
+ * ``$bz.locale.weekdayNames()``.
  *
- * Measured: **one exception thrown per calendar**, that is 54 on the
- * playground's ``/calendar`` page, 44 on ``/date_picker``, 45 on
- * ``/date_range_picker``, 35 on ``/month_picker``. The screen recovered
- * — the ``bz-text`` directive comes back later — but the flood of errors
- * stopped ``networkidle`` arriving, and ``pytest -m audit`` HUNG on it.
- * An hour-long suite made unusable by a line of ordering.
+ * Loaded later, it costs **one exception thrown per calendar**. The
+ * screen recovers — the ``bz-text`` directive comes back later — but the
+ * flood of errors stops ``networkidle`` arriving, and a suite waiting
+ * for it hangs.
  *
  * This file depends on nothing (it creates ``window.$bz`` if needed), so
- * it could live anywhere before 07. It is placed JUST before its
- * consumer so that a reader wondering "why here?" finds the answer on
- * the folder's next line.
+ * it could live anywhere before that consumer. It is placed JUST before
+ * it so that a reader wondering "why here?" finds the answer on the
+ * list's next line.
  *
  * Guarded by ``tests/runtime_js/test_no_page_throws_on_load.py``, which
- * loads the 74 component pages and requires ZERO exception. A STATIC
- * gate (forbidding a read of a ``$bz.<ns>`` set later) was ruled out
- * after measurement: 9 cases in the repository, and all 9 are legitimate
- * — DEFERRED reads, in functions called well after load. What sets the
- * defect apart is the MOMENT of the read, and only a browser separates
- * them.
+ * loads the component pages and requires ZERO exception. A STATIC
+ * gate (forbidding a read of a ``$bz.<ns>`` set later) would flag
+ * legitimate cases: DEFERRED reads, in functions called well after load.
+ * What sets the defect apart is the MOMENT of the read, and only a
+ * browser separates them.
  *
- * Exposed as window.$bz.locale, read by 07_calendar.js and by the bz-*
+ * Exposed as window.$bz.locale, read by calendar.js and by the bz-*
  * expressions (``bz-text="$bz.locale.monthName(month)"``).
  *
  * Why here rather than on the server side
@@ -3102,15 +4186,14 @@
  *
  * ⚠️ NARROW, not short: the calendar's column is written in density
  * steps and its text in text steps, and only the first follows
- * ``--spacing``. "Wed" / "mer." overflowed their column at three of the
- * five sizes at the DEFAULT density (measured on 2026-09-29, "LUN.MAR."
- * stuck together) and at all five at 2.4 px a step. One letter fits any
- * step; the full name rides the column's ``title=``.
+ * ``--spacing``. "Wed" / "mer." overflow their column, even at the
+ * DEFAULT density. One letter fits any step; the full name rides the
+ * column's ``title=``.
  *
  * ⚠️ Sunday first, always: it is ``Date.getDay()``'s order, and it is
  * the component that rotates the list according to ``weekstart``. A list
  * written Monday-first — the French reflex — shifts every column by a
- * day (trap [14] of the CRM work).
+ * day.
  */
 (function () {
   "use strict";
@@ -3127,7 +4210,7 @@
   const FALLBACK_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const FALLBACK_NARROW = FALLBACK_WEEKDAYS.map(function (d) { return d[0]; });
 
-  // 2023-01-01 IS a Sunday, and 2023 has twelve months — the two
+  // ``2023-01-01`` IS a Sunday, and 2023 has twelve months — the two
   // anchors we need. Everything is computed in UTC: building these dates
   // in local time would shift by a day west of Greenwich, so the day's
   // name too.
@@ -3196,10 +4279,327 @@
       return names(this.tag()).weekdaysLong;
     },
   };
+
+  /* ── $bz.dates — THE date arithmetic and the ONE reader of a typed date ──
+   *
+   * One place, because copies drift. ``new Date("2026-08-01")`` is UTC
+   * midnight — west of Greenwich, July 31 — so a month computed from it
+   * can land a month off. Every date here is LOCAL and every string ISO.
+   */
+  function iso(d) {
+    return d.getFullYear() + "-" +
+      String(d.getMonth() + 1).padStart(2, "0") + "-" +
+      String(d.getDate()).padStart(2, "0");
+  }
+
+  /* An ISO day as a LOCAL Date (never `new Date(isoStr)`, which is UTC),
+   * or null when it is not one. */
+  function fromIso(isoStr) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(isoStr || ""));
+    return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+  }
+
+  function addDays(isoStr, n) {
+    const p = isoStr.split("-");
+    return iso(new Date(+p[0], +p[1] - 1, +p[2] + n));
+  }
+
+  /* The first day of the month `n` months after the one of `isoStr`. */
+  function addMonths(isoStr, n) {
+    const d = fromIso(isoStr) || new Date();
+    return iso(new Date(d.getFullYear(), d.getMonth() + n, 1));
+  }
+
+  /* The first day of the week that CONTAINS `isoStr`, according to
+   * `weekstart` (0 = Sunday, 1 = Monday…). The modulo is doubled
+   * (`% 7 + 7) % 7`) because JS returns a NEGATIVE remainder for a
+   * negative dividend — without it, any day before `weekstart` in its
+   * week would go back one week. */
+  function weekStartOf(isoStr, weekstart) {
+    const p = isoStr.split("-");
+    const d = new Date(+p[0], +p[1] - 1, +p[2]);
+    const back = (d.getDay() - weekstart + 7) % 7;
+    return iso(new Date(+p[0], +p[1] - 1, +p[2] - back));
+  }
+
+  /* What the person TYPED, as an ISO day — or `""` when it is empty or
+   * names no day (the field then clears). A clean ISO day passes. A
+   * numeric date (`02/07/2027`, `2.7.27`, `2-7-2027`) is read in the order
+   * of `<html lang>`: `new Date()` reads `MM/DD/YYYY` whatever the
+   * language, so in French « 02/07/2027 » would become 7 February. The
+   * order is asked of `Intl.DateTimeFormat` —
+   * the day's place before or after the month's in that language's own
+   * short date — so no table of locales; a day that does not exist
+   * (`31/02/2027`) is refused, not rolled over. Anything else is free-form
+   * (`July 19 2018`) and goes to `new Date()`. */
+  function typed(text) {
+    const s = String(text || "").trim();
+    if (!s) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return fromIso(s) ? s : "";
+    const n = s.match(/^(\d{1,2})[\/.\- ](\d{1,2})[\/.\- ](\d{4}|\d{2})$/);
+    if (n) {
+      const parts = new Intl.DateTimeFormat(document.documentElement.lang || undefined)
+        .formatToParts(new Date(2000, 10, 22));
+      const at = function (k) { return parts.findIndex(function (p) { return p.type === k; }); };
+      const dayFirst = at("day") < at("month");
+      const d = +n[dayFirst ? 1 : 2];
+      const mo = +n[dayFirst ? 2 : 1];
+      let y = +n[3];
+      if (y < 100) y += 2000;
+      const c = new Date(y, mo - 1, d);
+      if (c.getFullYear() !== y || c.getMonth() !== mo - 1 || c.getDate() !== d) return "";
+      return iso(c);
+    }
+    const named = byName(s);
+    if (named) return named.day ? iso(named.date) : "";
+    const c = new Date(s);
+    return isNaN(c.getTime()) ? "" : iso(c);
+  }
+
+  /* A month named in the page's language — « 4 nov. 2026 », « novembre
+   * 2026 », « Nov 4, 2026 », « mer. 4 nov. 2026 » —: the words are
+   * compared, accents and dots aside, to the month names `Intl` gives for
+   * `<html lang>`, short and long; a weekday name matches none (« mar. »
+   * is Tuesday, « mars » March). `null` when no word names a month;
+   * `{date, day}` else, `day` false when no day was written. */
+  /* The ONE form a search compares, twin of Python's ``fold``
+   * (``bretzel/core/text.py``) — the two must give the same string: the
+   * server bakes folded options, the browser folds what is typed. The
+   * twin is held by ``tests/runtime_js/test_one_fold_on_both_sides.py``. */
+  function fold(text) {
+    return String(text == null ? "" : text).toLowerCase().normalize("NFKD")
+      .replace(/\p{M}/gu, "").toLowerCase()
+      .replace(/ß/g, "ss").replace(/ς/g, "σ");
+  }
+  $bz.fold = fold;
+
+  const monthWords = {};
+  function plain(word) {
+    return fold(word).replace(/\./g, "");
+  }
+  function months() {
+    const tag = document.documentElement.lang || "";
+    if (!monthWords[tag]) {
+      const found = {};
+      ["short", "long"].forEach(function (width) {
+        const f = new Intl.DateTimeFormat(tag || undefined, { month: width });
+        for (let m = 0; m < 12; m++) found[plain(f.format(new Date(2000, m, 1)))] = m;
+      });
+      monthWords[tag] = found;
+    }
+    return monthWords[tag];
+  }
+  function byName(text) {
+    const words = months();
+    let month = -1, year = 0, day = 0;
+    String(text).split(/[\s,\u2013\u2014\-]+/).forEach(function (token) {
+      if (!token) return;
+      if (/^\d{4}$/.test(token)) { year = +token; return; }
+      if (/^\d{1,2}$/.test(token)) { if (!day) day = +token; return; }
+      const m = words[plain(token)];
+      if (m !== undefined && month < 0) month = m;
+    });
+    if (month < 0 || !year) return null;
+    const date = new Date(year, month, day || 1);
+    if (day && date.getDate() !== day) return { date: date, day: false };
+    return { date: date, day: !!day };
+  }
+
+  /* A typed month, as ``YYYY-MM`` — or `""`. Digits (`2026-08`,
+   * `08/2026`), or the month's name (« novembre 2026 »). */
+  function typedMonth(text) {
+    const s = String(text || "").trim();
+    if (!s) return "";
+    const m = s.match(/^(\d{1,4})[^\d](\d{1,4})$/);
+    if (m) {
+      const y = m[1].length === 4 ? +m[1] : +m[2];
+      const mo = m[1].length === 4 ? +m[2] : +m[1];
+      if (mo < 1 || mo > 12 || y < 1) return "";
+      return String(y).padStart(4, "0") + "-" + String(mo).padStart(2, "0");
+    }
+    const named = byName(s);
+    return named ? iso(named.date).slice(0, 7) : "";
+  }
+
+  /* What a field SHOWS of its value, in the page's language — the value
+   * itself stays ISO, it is what is posted. A day is shown in the
+   * language's short NUMERIC form — « 16/10/2026 », « 10/16/2026 » in
+   * American English —, the one people write, so what is shown is what
+   * one types. A value that is not one (half typed) is shown as it is. */
+  const formats = {};
+  const NUMERIC = { day: "2-digit", month: "2-digit", year: "numeric" };
+  function format(options) {
+    const tag = document.documentElement.lang || "";
+    const key = tag + JSON.stringify(options);
+    if (!formats[key]) formats[key] = new Intl.DateTimeFormat(tag || undefined, options);
+    return formats[key];
+  }
+  function shown(isoStr) {
+    const d = fromIso(isoStr);
+    return d ? format(NUMERIC).format(d) : String(isoStr || "");
+  }
+  /* A chart's date tick, in the page's language: « 14h30 » / « 2:30 PM »
+   * (`time`), « 02 févr. » / « Feb 02 » (`day`), « févr. 2026 » (`month`),
+   * « 2026 » (`year`). The server wrote it with `strftime`, in English. */
+  const AXIS = {
+    day: { day: "2-digit", month: "short" },
+    month: { month: "short", year: "numeric" },
+    year: { year: "numeric" },
+  };
+  function axis(stamp, style) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(String(stamp || ""));
+    if (!m) return String(stamp || "");
+    if (style === "time") return shownTime((m[4] || "00") + ":" + (m[5] || "00"));
+    const d = new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0));
+    return format(AXIS[style] || AXIS.day).format(d);
+  }
+  /* A day in words, « mardi 3 novembre 2026 » — what a screen reader
+   * says of an event's day (the scheduler's cards). */
+  function shownLong(isoStr) {
+    const d = fromIso(isoStr);
+    return d ? format({ weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(d)
+      : String(isoStr || "");
+  }
+  function shownMonth(ym) {
+    const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ""));
+    return m ? format({ month: "long", year: "numeric" }).format(new Date(+m[1], +m[2] - 1, 1))
+      : String(ym || "");
+  }
+  /* A week by its seven days, from the first one (`weekstart`: 0 =
+   * Sunday, 1 = Monday…), whatever day of it the value names: « 02/11/2026
+   * – 08/11/2026 ». */
+  function shownWeek(isoStr, weekstart) {
+    if (!fromIso(isoStr)) return String(isoStr || "");
+    const d = fromIso(weekStartOf(isoStr, weekstart || 0));
+    const end = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 6);
+    const f = format(NUMERIC);
+    return f.formatRange ? f.formatRange(d, end) : f.format(d) + " – " + f.format(end);
+  }
+
+  /* What a field ASKS for when it is empty: the numeric form one types,
+   * in the page's order and separators — « JJ/MM/AAAA » in French,
+   * « MM/DD/YYYY » in American English, « DD.MM.YYYY » in German —, as the
+   * browser's own date field does. The order comes from the formatter
+   * `shown` uses, so the hint, what is shown and what `typed` reads agree;
+   * the letters are the framework's texts (`date.typed_day`…), baked by
+   * the server. */
+  function letters(options, map) {
+    return format(options).formatToParts(new Date(2000, 10, 22))
+      .map(function (p) { return p.type in map ? map[p.type] : p.value; }).join("");
+  }
+  function pattern(day, month, year) {
+    return letters(NUMERIC, { day: day, month: month, year: year });
+  }
+  function patternMonth(month, year) {
+    return letters({ month: "2-digit", year: "numeric" }, { month: month, year: year });
+  }
+
+  /* ── $bz.times — THE clock: an "HH:MM" as the page's language writes it ──
+   * One rule for every hour the framework shows (the time picker's field,
+   * the scheduler's axis, the hour beside a dragged card): « 14h30 »,
+   * « 8h » in French — the form a French reader writes, which `Intl` does
+   * not give (« 14:30 ») —, otherwise `Intl`'s, « 2:30 PM » in American
+   * English, « 14:30 » in British. The value stays "HH:MM". */
+  function french() {
+    return (document.documentElement.lang || "").split("-")[0].toLowerCase() === "fr";
+  }
+  const CLOCK = { hour: "numeric", minute: "2-digit" };
+  /* `compact`: a whole hour without its minutes, « 9 AM » — the
+   * scheduler's axis, where « 9:00 AM » broke on two lines. French is
+   * already compact (« 9h »). */
+  function shownTime(hhmm, compact) {
+    const m = /^(\d{2}):(\d{2})$/.exec(String(hhmm || ""));
+    if (!m) return String(hhmm || "");
+    const h = +m[1], mi = +m[2];
+    if (french()) return h + "h" + (mi ? m[2] : "");
+    const when = new Date(2000, 0, 1, h, mi);
+    if (compact && !mi) return format({ hour: "numeric" }).format(when);
+    return format(CLOCK).format(when);
+  }
+  /* What is typed, as "HH:MM" — or "". « 14h30 », « 14:30 », « 14.30 »,
+   * « 1430 », « 9 », and a half day in English or in the page's language
+   * (« 2:30 PM », « 2 pm », « 2.30p.m. »). */
+  function periods() {
+    const parts = format(CLOCK).formatToParts(new Date(2000, 0, 1, 15, 0));
+    const pm = parts.find(function (p) { return p.type === "dayPeriod"; });
+    const am = format(CLOCK).formatToParts(new Date(2000, 0, 1, 3, 0))
+      .find(function (p) { return p.type === "dayPeriod"; });
+    return { am: am ? foldPeriod(am.value) : "", pm: pm ? foldPeriod(pm.value) : "" };
+  }
+  function foldPeriod(text) { return String(text).toLowerCase().replace(/[\s.]/g, ""); }
+  function typedTime(text) {
+    let s = foldPeriod(text);
+    if (!s) return "";
+    let half = null;
+    const local = periods();
+    const tail = /(am|pm|a|p)$/.exec(s);
+    if (local.pm && s.endsWith(local.pm)) { half = "pm"; s = s.slice(0, -local.pm.length); }
+    else if (local.am && s.endsWith(local.am)) { half = "am"; s = s.slice(0, -local.am.length); }
+    else if (tail) { half = tail[1][0] === "p" ? "pm" : "am"; s = s.slice(0, -tail[1].length); }
+    const m = s.match(/^(\d{1,2})(?:[^\d]?(\d{2}))?[^\d]?$/);
+    if (!m) return "";
+    let h = +m[1];
+    const mi = +(m[2] || 0);
+    if (half) {
+      if (h < 1 || h > 12) return "";
+      h = (h % 12) + (half === "pm" ? 12 : 0);
+    }
+    if (h > 23 || mi > 59) return "";
+    return String(h).padStart(2, "0") + ":" + String(mi).padStart(2, "0");
+  }
+  /* The empty field's hint, as the browser's own time field writes it:
+   * « --h-- » in French, « --:-- -- » in American English. */
+  function patternTime() {
+    if (french()) return "--h--";
+    return format(CLOCK).formatToParts(new Date(2000, 0, 1, 15, 30))
+      .map(function (p) { return p.type === "literal" ? p.value : "--"; }).join("");
+  }
+  /* Does the page's language count its hours by twelve? Never French
+   * (the clock above); otherwise `Intl`'s hour cycle — American English
+   * yes, British no. The time picker's panel follows it. */
+  function twelve() {
+    if (french()) return false;
+    const cycle = format(CLOCK).resolvedOptions().hourCycle;
+    return cycle === "h11" || cycle === "h12";
+  }
+  /* The two half days as the language names them, « AM » / « PM ». */
+  function halves() {
+    return [3, 15].map(function (h) {
+      const p = format(CLOCK).formatToParts(new Date(2000, 0, 1, h, 0))
+        .find(function (x) { return x.type === "dayPeriod"; });
+      return p ? p.value : (h < 12 ? "AM" : "PM");
+    });
+  }
+  $bz.times = { shown: shownTime, typed: typedTime, pattern: patternTime,
+                twelve: twelve, halves: halves };
+
+  $bz.dates = {
+    iso: iso,
+    fromIso: fromIso,
+    addDays: addDays,
+    addMonths: addMonths,
+    weekStartOf: weekStartOf,
+    typed: typed,
+    typedMonth: typedMonth,
+    shown: shown,
+    shownMonth: shownMonth,
+    shownWeek: shownWeek,
+    shownLong: shownLong,
+    axis: axis,
+    pattern: pattern,
+    patternMonth: patternMonth,
+    /* A typed date, as the first day of its week — the week picker. The
+     * field shows the week as a range (« 02/11/2026 – 08/11/2026 »): its
+     * first day is what is read. */
+    typedWeek: function (text, weekstart) {
+      const day = typed(String(text || "").split(/\s[\u2013\u2014-]\s/)[0]);
+      return day ? weekStartOf(day, weekstart) : "";
+    },
+  };
 })();
 
 
-/* 07_calendar.js — <bz-calendar> custom element (stateful day grid). */
+/* calendar.js — <bz-calendar> custom element (stateful day grid). */
 // ════════════════════════════════════════════════════════════════════════
 // 07 CALENDAR — <bz-calendar> custom element.
 //
@@ -3236,62 +4636,46 @@
     if (typeof customElements === 'undefined') return;
     if (customElements.get('bz-calendar')) return;
 
-    // Derived from ``<html lang>`` by 22_locale.js, not written here: a
-    // hard-coded table rendered "August / MON TUE WED" to every app,
-    // whatever its language, and the only handle was to pass
-    // ``month_names=`` AT EVERY MOUNT (three times on a single CRM
-    // screen). The component's explicit lists always win — they arrive
-    // as attributes and these defaults only serve their absence.
+    // Derived from ``<html lang>`` by locale.js, not written here: a
+    // hard-coded table would render "August / MON TUE WED" to every app,
+    // whatever its language, and the only handle would be to pass
+    // ``month_names=`` AT EVERY MOUNT. The component's explicit lists
+    // always win — they arrive as attributes and these defaults only
+    // serve their absence.
     function DEFAULT_WEEKDAYS() { return window.$bz.locale.weekdayNames(); }
     function DEFAULT_WEEKDAYS_LONG() {
         return window.$bz.locale.weekdayLongNames();
     }
     function DEFAULT_MONTHS() { return window.$bz.locale.monthNames(); }
 
-    function iso(d) {
-        return d.getFullYear() + '-' +
-            String(d.getMonth() + 1).padStart(2, '0') + '-' +
-            String(d.getDate()).padStart(2, '0');
-    }
+    // The date arithmetic lives ONCE, in ``$bz.dates`` (``locale.js``):
+    // the pickers' templates and ``calendar.next_month()`` use the same
+    // functions.
+    var iso = window.$bz.dates.iso;
+    var addDays = window.$bz.dates.addDays;
+    var weekStartOf = window.$bz.dates.weekStartOf;
 
-    /* The ISO day shifted by ``n`` days. Goes through a ``Date`` rather
-     * than through string arithmetic: only it knows about month ends and
-     * leap years. */
-    function addDays(isoStr, n) {
-        var p = isoStr.split('-');
-        return iso(new Date(+p[0], +p[1] - 1, +p[2] + n));
-    }
-
-    /* The first day of the week that CONTAINS ``isoStr``, according to
-     * ``weekstart`` (0 = Sunday, 1 = Monday…).
-     *
-     * It is the ``week`` mode's only rule: clicking any day picks its
-     * week, and the returned value is that first day. The modulo is
-     * doubled (``% 7 + 7) % 7``) because JS returns a NEGATIVE remainder
-     * for a negative dividend — without it, any week whose clicked day
-     * falls before ``weekstart`` would go back one week.
-     */
-    function weekStartOf(isoStr, weekstart) {
-        var p = isoStr.split('-');
-        var d = new Date(+p[0], +p[1] - 1, +p[2]);
-        var back = (d.getDay() - weekstart + 7) % 7;
-        return iso(new Date(+p[0], +p[1] - 1, +p[2] - back));
-    }
+    // The header a picker's calendar SHARES with the page is one of the
+    // page's parts (``$bz.parts``, ``helpers.js``): its template
+    // carries the theme too.
 
     function parseJSON(value, fallback) {
         if (!value) return fallback;
         try { return JSON.parse(value); } catch (e) { return fallback; }
     }
 
+    // The runtime's one escaper (helpers.js), read when a cell is built.
     function escapeAttr(s) {
-        return String(s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
+        return $bz.helpers.escapeHtml(s);
     }
 
     class BzCalendar extends HTMLElement {
+        // ``$event.target.value`` reads the pick, as on every field: the
+        // serialized value the hidden input carries to the form. No
+        // setter: writing the observed ``value`` is a pick, and a pick
+        // goes through ``set()`` (``_syncHiddenAndFireChange``).
+        get value() { return this.getAttribute('value') || ''; }
+
         static get observedAttributes() {
             return [
                 'mode', 'value', 'month', 'weekstart',
@@ -3440,7 +4824,7 @@
 
         /* Repaint AFTER a morph that erased the body rendered here.
          *
-         * The hole, measured on 2026-08-21: the SSR emits an EMPTY grid
+         * The hole: the SSR emits an EMPTY grid
          * container that ``connectedCallback`` fills. When idiomorph
          * morphs the calendar IN PLACE — the refresh of a
          * ``@refreshable`` zone containing it — the children go back to
@@ -3451,8 +4835,7 @@
          *
          * The file's header says the configuration lives in attributes
          * "that idiomorph can morph freely". That is true of the
-         * ATTRIBUTES; it is not true of the CHILDREN, and that is the
-         * counterpart the "custom element" choice had not honoured.
+         * ATTRIBUTES; it is not true of the CHILDREN.
          *
          * Called by the ``bz-effect`` the Python sets on the root, and it
          * is indeed ``bz-effect`` and NOT ``bz-init``: the latter is
@@ -3476,6 +4859,23 @@
          * would repaint the grid and kill the range preview being
          * hovered.
          */
+        // Own theme (an inline calendar) or the shared header's.
+        _themeJSON() {
+            var own = this.getAttribute('data-bz-theme');
+            if (own) return own;
+            var tpl = window.$bz.parts.template(this.getAttribute('data-bz-part'));
+            return tpl ? tpl.getAttribute('data-bz-theme') : null;
+        }
+
+        /* Clone the shared header in, the first time the picker opens —
+         * and again after a morph took it out (``$bz.parts.fill``).
+         * Re-rendered after: a calendar that connected before its
+         * template arrived (a zone response with a new header) drew its
+         * grid without the theme. */
+        ensureChrome() {
+            if (window.$bz.parts.fill(this) && this._initialized) this._render();
+        }
+
         rehydrate() {
             if (!this._initialized) return;   // connectedCallback rendra
             var body = this.querySelector('[data-bz-cal-grid]') ||
@@ -3539,21 +4939,21 @@
         _focusBestCell() {
             var target =
                 this.querySelector(
-                    '[data-day-cell][data-selected="true"]'
+                    '[data-bz-day-cell][data-selected="true"]'
                     + ':not([aria-disabled="true"])'
                 ) ||
                 this.querySelector(
-                    '[data-day-cell][data-today="true"]'
+                    '[data-bz-day-cell][data-today="true"]'
                     + ':not([aria-disabled="true"])'
                 ) ||
                 this.querySelector(
-                    '[data-day-cell]:not([aria-disabled="true"])'
+                    '[data-bz-day-cell]:not([aria-disabled="true"])'
                 );
             if (target) target.focus();
         }
 
         blur() {
-            var focused = this.querySelector('[data-day-cell]:focus');
+            var focused = this.querySelector('[data-bz-day-cell]:focus');
             if (focused) focused.blur();
         }
 
@@ -3606,8 +5006,11 @@
             var hidden = this.querySelector('input[type="hidden"]');
             if (hidden) {
                 hidden.value = serializedAttr;
+                // ``bubbles: false``: the element's own ``change`` below is
+                // THE change. If both bubbled, an ``on_change`` expression
+                // would run twice per pick.
                 hidden.dispatchEvent(
-                    new Event('change', { bubbles: true })
+                    new Event('change', { bubbles: false })
                 );
             }
             // Write back to bound ClientState (``value=binding`` at the
@@ -3679,9 +5082,7 @@
                 monthNames: parseJSON(
                     this.getAttribute('month-names'), DEFAULT_MONTHS()
                 ),
-                theme: parseJSON(
-                    this.getAttribute('data-bz-theme'), {}
-                ),
+                theme: parseJSON(this._themeJSON(), {}),
                 yearMin: parseInt(
                     this.getAttribute('data-bz-year-min') || (thisYear - 10),
                     10,
@@ -3724,9 +5125,9 @@
                     String(m + 1).padStart(2, '0');
                 var dis = (lo && ym < lo) || (hi && ym > hi);
                 html +=
-                    '<button type="button" data-month-cell ' +
+                    '<button type="button" data-bz-month-cell ' +
                     'class="' + cellCls + '" ' +
-                    'data-value="' + ym + '" ' +
+                    'data-bz-value="' + ym + '" ' +
                     'data-selected="' + (ym === selected) + '" ' +
                     'data-current="' + (ym === currentYm) + '" ' +
                     'aria-disabled="' + dis + '" ' +
@@ -3866,10 +5267,10 @@
                           ) + '"'
                         : '';
                     cellsHTML +=
-                        '<button type="button" data-day-cell ' +
+                        '<button type="button" data-bz-day-cell ' +
                         'class="' + escapeAttr(theme.day_cell || '') + '" ' +
-                        'data-date="' + s + '" ' +
-                        'data-mark="' + mark + '"' + markLabel + ' ' +
+                        'data-bz-date="' + s + '" ' +
+                        'data-bz-mark="' + mark + '"' + markLabel + ' ' +
                         'data-outside="' + (!inMonth) + '" ' +
                         'data-today="' + (s === todayStr) + '" ' +
                         'data-selected="' + isSelected(s) + '" ' +
@@ -3972,9 +5373,9 @@
                 lo = rangeStart < effEnd ? rangeStart : effEnd;
                 hi = rangeStart < effEnd ? effEnd : rangeStart;
             }
-            var cells = this.querySelectorAll('[data-day-cell]');
+            var cells = this.querySelectorAll('[data-bz-day-cell]');
             cells.forEach(function (cell) {
-                var s = cell.getAttribute('data-date');
+                var s = cell.getAttribute('data-bz-date');
                 var inRange = !!(lo && s > lo && s < hi);
                 var isStart = !!(lo && s === lo);
                 var isEnd = !!(hi && s === hi && lo !== hi);
@@ -3990,10 +5391,10 @@
             // another nature. Wired BEFORE the day loop because in month
             // mode there is no day cell at all — the loop below runs
             // empty.
-            this.querySelectorAll('[data-month-cell]').forEach(function (c) {
+            this.querySelectorAll('[data-bz-month-cell]').forEach(function (c) {
                 c.onclick = function () {
                     if (c.getAttribute('aria-disabled') === 'true') return;
-                    var ym = c.getAttribute('data-value');
+                    var ym = c.getAttribute('data-bz-value');
                     self.setAttribute('value', ym);
                     self._syncHiddenAndFireChange(ym, ym);
                 };
@@ -4003,7 +5404,7 @@
             // handlers that mutate the wrapper's ``year`` / ``month``
             // scope ; nothing to wire here.
 
-            var cells = this.querySelectorAll('[data-day-cell]');
+            var cells = this.querySelectorAll('[data-bz-day-cell]');
             var mode = this.getAttribute('mode') || 'picker';
             cells.forEach(function (cell) {
                 cell.onclick = function () { self._handleCellClick(cell); };
@@ -4030,7 +5431,7 @@
                         // ``_pendingStart`` — the attribute never carries
                         // a half-open pair any more.
                         if (!self._pendingStart) return;
-                        self._hoverDate = cell.getAttribute('data-date');
+                        self._hoverDate = cell.getAttribute('data-bz-date');
                         self._paintHoverPreview();
                     };
                     cell.onmouseleave = function () {
@@ -4084,7 +5485,7 @@
 
         _handleCellClick(cell) {
             if (cell.getAttribute('aria-disabled') === 'true') return;
-            var s = cell.getAttribute('data-date');
+            var s = cell.getAttribute('data-bz-date');
             var mode = this.getAttribute('mode') || 'picker';
 
             if (mode === 'picker') {
@@ -4143,23 +5544,23 @@
 })();
 
 
-/* 08_file_upload.js — $bz.fileUpload.makeScope factory for ui.file_upload. */
+/* file_upload.js — $bz.fileUpload.makeScope factory for ui.file_upload. */
 // ════════════════════════════════════════════════════════════════════════
 // 08 FILE UPLOAD — bz-data scope factory for <ui.file_upload>.
 //
 // Why a runtime slab
 // ──────────────────
 // The component carries enough JS for the inline-bz-data shape to bloat
-// every instance by ~3 kB. Externalising into one factory means each
-// instance just drops ``bz-data="$bz.fileUpload.makeScope({el: $el, …})"``
-// (~250 chars). The factory owns :
+// every instance. Externalising into one factory means each instance
+// just drops ``bz-data="$bz.fileUpload.makeScope({el: $el, …})"``.
 //
-// V3 notes : (a) the scope captures its root element (``opts.el``,
-// available in the ``bz-data`` expression) — V3 scope methods get no
-// ``$root`` / ``$refs`` / ``$dispatch`` magic. (b) V3 signals compare
+// Notes : (a) the scope captures its root element (``opts.el``,
+// available in the ``bz-data`` expression) — scope methods get no
+// ``$root`` / ``$refs`` / ``$dispatch`` magic. (b) signals compare
 // by identity, so array mutations REASSIGN (``files = [...]``) and
 // per-file updates replace the entry object (keyed by id) so the
 // ``bz-for`` rows re-render.
+//
 // The factory owns :
 //
 //   1. Drag state (``isDragging``).
@@ -4196,10 +5597,16 @@
     if (!window.$bz) window.$bz = {};
     if (window.$bz.fileUpload) return;
 
+    // A size in the page's language: « 1,5 Mo » in French, « 1.5 MB » in
+    // English — ``Intl``'s units.
     function formatSize(bytes) {
-        if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
-        if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
-        return bytes + ' B';
+        const lang = document.documentElement.lang || undefined;
+        const unit = bytes >= 1048576 ? ['megabyte', bytes / 1048576, 1]
+            : bytes >= 1024 ? ['kilobyte', bytes / 1024, 0] : ['byte', bytes, 0];
+        return new Intl.NumberFormat(lang, {
+            style: 'unit', unit: unit[0], unitDisplay: 'short',
+            maximumFractionDigits: unit[2],
+        }).format(unit[1]);
     }
 
     // Compare ``file`` against ``accept`` token (mirror of the HTML
@@ -4283,6 +5690,10 @@
         const multiple = !!opts.multiple;
         const showPreviews = opts.showPreviews !== false;  // default true
         const uploadUrl = opts.uploadUrl || null;
+        // The app's texts (``render/texts.py``), English if absent.
+        const texts = opts.texts || {};
+        const say = (key, english, holes) => String(texts[key] || english)
+            .replace(/\{(\w+)\}/g, (m, k) => (holes && k in holes ? holes[k] : m));
 
         return {
             // Root element captured from the bz-data expression — the
@@ -4304,15 +5715,12 @@
             errors: [],
 
             // ⚠️ No ``destroy()``: the V3 scope engine has NO unmount
-            // hook — the method that lived here came from the Alpine
-            // era, where it was called automatically, and has never run
-            // since (audit F22/F74). The previews' blob URLs are revoked
-            // in the three places that remove a file (single-file
-            // replacement, removeFile, clear); what stays unfreed are
+            // hook, so such a method would never run. The previews' blob
+            // URLs are revoked in the three places that remove a file
+            // (single-file replacement, removeFile, clear). Not handled:
             // the previews of a component removed from the DOM with
-            // files still in it. A known debt, tracked in inventory.md:
-            // reopening it asks for a real unmount hook on the runtime
-            // side, not a method nobody calls.
+            // files still in it, which would take a real unmount hook on
+            // the runtime side.
 
             // ── Validation + add ───────────────────────────────────
             handleFiles(fileList) {
@@ -4323,7 +5731,7 @@
                 let firstReject = '';
 
                 if (!multiple && incoming.length > 1) {
-                    this.errors = this.errors.concat(['Only one file allowed.']);
+                    this.errors = this.errors.concat([say('only_one', 'Only one file allowed.')]);
                     incoming = [incoming[0]];
                 }
                 if (!multiple && this.files.length > 0) {
@@ -4337,13 +5745,13 @@
                     const room = maxFiles - this.files.length;
                     if (room <= 0) {
                         this.errors = this.errors.concat(
-                            ['Maximum ' + maxFiles + ' files reached.']);
+                            [say('max_reached', 'Maximum {max} files reached.', { max: maxFiles })]);
                         return;
                     }
                     if (incoming.length > room) {
                         this.errors = this.errors.concat([
-                            (incoming.length - room) + ' files skipped — limit ' +
-                            maxFiles + ' reached.'
+                            say('over_limit', '{count} files skipped — limit {max} reached.',
+                                { count: incoming.length - room, max: maxFiles })
                         ]);
                         incoming = incoming.slice(0, room);
                     }
@@ -4369,16 +5777,17 @@
                     const rejected = sizeRejected + formatRejected;
                     let msg;
                     if (rejected === 1) {
-                        const reason = sizeRejected
-                            ? 'exceeds ' + maxSizeMB + ' MB'
-                            : 'format not supported';
-                        msg = firstReject + ' — ' + reason;
+                        msg = sizeRejected
+                            ? say('too_large', '{name} — exceeds {size}',
+                                  { name: firstReject, size: formatSize(maxSizeMB * 1048576) })
+                            : say('wrong_format', '{name} — format not supported', { name: firstReject });
                     } else {
-                        let reason = 'invalid';
-                        if (sizeRejected && !formatRejected) reason = 'too large';
-                        else if (formatRejected && !sizeRejected) reason = 'wrong format';
-                        else reason = 'size or format';
-                        msg = rejected + ' files skipped (' + reason + ').';
+                        let reason;
+                        if (sizeRejected && !formatRejected) reason = say('reason_too_large', 'too large');
+                        else if (formatRejected && !sizeRejected) reason = say('reason_wrong_format', 'wrong format');
+                        else reason = say('reason_size_or_format', 'size or format');
+                        msg = say('skipped', '{count} files skipped ({reason}).',
+                                  { count: rejected, reason: reason });
                     }
                     this.errors = this.errors.concat([msg]);
                 }
@@ -4444,6 +5853,18 @@
                     files: this.files.map((e) => e.file),
                     count: this.files.length,
                 });
+            },
+
+            // Every file out at once — ``ui.message_input`` empties its
+            // box once the message has left (message_input.js).
+            clear() {
+                this.files.forEach((e) => {
+                    if (e._preview) URL.revokeObjectURL(e._preview);
+                });
+                this.files = [];
+                this.errors = [];
+                this.syncInput();
+                this.dispatch('change', { files: [], count: 0 });
             },
 
             // ── DataTransfer → native input ────────────────────────
@@ -4533,6 +5954,28 @@
             // carries text is left to the field (``filesOfPaste``).
             // No unmount hook in V3 (cf. above): a root that has left
             // the DOM — a zone redrawn — unsubscribes at its next paste.
+            // The form around the field has sent its files: the list
+            // empties. Otherwise a sent file would keep its pill under the
+            // button, and a second send would ship it again. Only a
+            // SUCCESSFUL send of that form: a refusal
+            // (4xx, 5xx) keeps what was picked. Same unsubscribe as the
+            // paste below, at the next send after the root has left.
+            watchForm() {
+                const self = this;
+                const root = self._el;
+                const form = root && root.closest('form');
+                if (!form) return;
+                function onSent(evt) {
+                    if (!root.isConnected) {
+                        form.removeEventListener('htmx:afterRequest', onSent);
+                        return;
+                    }
+                    const d = evt.detail || {};
+                    if (d.elt === form && d.successful && self.files.length) self.clear();
+                }
+                form.addEventListener('htmx:afterRequest', onSent);
+            },
+
             watchPaste() {
                 const self = this;
                 const root = self._el;
@@ -4594,10 +6037,10 @@
                     }
                 });
                 xhr.addEventListener('error', () => {
-                    this._patchFile(id, { status: 'error', error: 'Network error' });
+                    this._patchFile(id, { status: 'error', error: say('network_error', 'Network error') });
                     this.dispatch('upload-error', {
                         file: file,
-                        error: 'Network error',
+                        error: say('network_error', 'Network error'),
                         status: 0,
                     });
                 });
@@ -4609,7 +6052,7 @@
                 // Without this header, the async upload takes a 403 — so
                 // ``upload_url=`` could work in NO app, the framework
                 // rejecting its own component. Same source and same
-                // header as the bridge (05_bridge.js).
+                // header as the bridge (bridge.js).
                 if ($bz._csrf) {
                     xhr.setRequestHeader('X-Bretzel-CSRF', $bz._csrf);
                 }
@@ -4633,7 +6076,7 @@
 })();
 
 
-/* 09_notification.js — toast stack manager (bz-data scope factory). */
+/* notification.js — toast stack manager (bz-data scope factory). */
 // ════════════════════════════════════════════════════════════════════════
 // 09 NOTIFICATION — toast stack data manager.
 //
@@ -4649,8 +6092,8 @@
 // here builds that scope. Reassignment (not in-place push/splice) so
 // the ``bz-for`` over each bucket re-renders (V3 signals are
 // identity-compared). Enter animation is a CSS keyframe fired on mount ;
-// leave is a two-phase dismiss (flip ``_leaving`` → wait ``LEAVE_MS`` →
-// splice) so the ``bz-toast-leave`` keyframe can play before removal.
+// leave is IMMEDIATE — what disappears does not linger. The neighbours
+// still glide into the freed slot (``:flip``).
 //
 // Variant / icon / position normalisation reads the theme blob the
 // shell injects on ``window.$bz_theme.notification``.
@@ -4661,12 +6104,6 @@
   const $bz = window.$bz;
   if (!$bz) return;
 
-  // Mirrors the ``bz-toast-out`` duration in the shell keyframes
-  // (``_NOTIFICATION_ANIM_STYLE``). Keep them in sync.
-  const LEAVE_MS = 200;
-
-  // Shared with the bz-for FLIP reflow — see 06_helpers.js.
-  const prefersReducedMotion = $bz.helpers.prefersReducedMotion;
 
   function genId() {
     return "bz-toast-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
@@ -4722,35 +6159,10 @@
       },
 
       dismiss(id) {
-        // No animation wanted : drop it now, skip the leave dance.
-        if (prefersReducedMotion()) {
-          this._remove(id);
-          return;
-        }
-        // Phase 1 — mark the toast leaving so the ``bz-toast-leave``
-        // keyframe plays (``bz-class`` reacts to ``_leaving``). Reassign a
-        // fresh object under the same ``id`` so the keyed ``bz-for`` updates
-        // the existing node in place instead of remounting it. Guard against
-        // a double dismiss (manual click + auto-timeout) so we never restart
-        // the animation or schedule a second removal.
-        let found = false;
-        const next = {};
-        for (const p of Object.keys(this.stacks)) {
-          next[p] = this.stacks[p].map(function (t) {
-            if (t.id === id && !t._leaving) {
-              found = true;
-              return Object.assign({}, t, { _leaving: true });
-            }
-            return t;
-          });
-        }
-        if (!found) return;
-        this.stacks = next;
-        // Phase 2 — actually splice once the leave animation has played.
-        const self = this;
-        setTimeout(function () {
-          self._remove(id);
-        }, LEAVE_MS);
+        // At once: a toast that leaves does not linger. A
+        // double dismiss (click + auto-timeout) finds nothing the second
+        // time — ``_remove`` is a no-op on an unknown id.
+        this._remove(id);
       },
 
       _remove(id) {
@@ -4772,7 +6184,7 @@
 })();
 
 
-/* 10_charts.js — shared chart tooltip + legend scope factories. */
+/* charts.js — shared chart tooltip + legend scope factories. */
 // ════════════════════════════════════════════════════════════════════════
 // 10 CHARTS — shared tooltip for bar / line / pie / sparkline.
 //
@@ -4784,9 +6196,10 @@
 // (mouse) or the trigger rect (keyboard focus), neither of which Python
 // can know. So this slab :
 //
-// 1. Lazily mounts a single ``<div class="bz-chart-tooltip">`` on
-//    ``<body>`` the first time a chart needs it (zero cost on a page
-//    with no charts at all).
+// 1. Shows the PAGE's one tooltip panel (``tip.js``, ``#bz-tip``) on
+//    the hovered data point. A panel of its own, with the tooltip's look
+//    copied as classes, would ignore the app's
+//    ``Theme(components={"tooltip": …})``.
 // 2. Exposes ``$bz.charts.tooltipScope()`` — a bz-data scope factory
 //    every chart wrapper drops on its root. Bars / segments / points
 //    handle ``bz-on:mouseenter="show($event)"`` / ``bz-on:mouseleave="hide()"``.
@@ -4805,6 +6218,11 @@
 //                               line-chart hover state + per-series
 //                               ``visible`` toggles.
 //   $bz.charts.scatterScope() → bz-data scope (per-dot tooltip + legend)
+//   $bz.charts.barScope()     → bz-data scope (per-bar tooltip + legend,
+//                               grouped bars only — a stack with a hole lies)
+//
+// Every scope also carries ``key`` / ``unkey``: the chart is ONE tab
+// stop, the arrows walk its points, Enter clicks one, Escape leaves.
 //   $bz.charts.hide()         → force-hide (e.g. on htmx swap)
 // ════════════════════════════════════════════════════════════════════════
 
@@ -4814,59 +6232,26 @@
     var $bz = window.$bz;
     if (!$bz) return;
 
-    var tip = null;
     var hideTimer = null;
-    // Closure that recomputes the visible tooltip's viewport rect from
-    // live geometry (returns null when it can't). Each show path installs
-    // one capturing whatever it needs — a bar's ``.bz-bar-fill``, a
-    // scatter dot, a pie centroid, a line column + fraction. Scroll /
-    // resize replay it so a ``fixed`` panel positioned once stays glued
-    // to its data point instead of drifting as the page scrolls.
-    var activeReposition = null;
+    // Whether the shared panel is showing a CHART's label — the swap
+    // guard and the hide must not close a tooltip someone else opened.
+    var owns = false;
+    var ZERO = { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 };
 
-    // Tailwind classes carry the Bretzel theme tokens (``bg-text`` /
-    // ``text-background`` resolve to the semantic palette set by the
-    // user's ``Theme(...)``). The framework already ships these
-    // classes (line_chart's tooltip slot uses the same recipe) so
-    // they're guaranteed to be in the compiled CSS.
-    var TOOLTIP_CLASSES = (
-        'bz-chart-tooltip fixed z-50 pointer-events-none ' +
-        'px-2.5 py-1.5 rounded-box bg-text/95 text-background ' +
-        'text-xs font-medium leading-relaxed whitespace-pre-line ' +
-        'shadow-md opacity-0 transition-opacity duration-150'
-    );
-
-    function ensureTooltip() {
-        if (tip) return tip;
-        tip = document.createElement('div');
-        tip.className = TOOLTIP_CLASSES;
-        tip.setAttribute('role', 'tooltip');
-        document.body.appendChild(tip);
-        return tip;
-    }
-
-    // Set the panel's left/top for a viewport-space ``rect`` — top-
-    // anchored, flips below when the trigger hugs the top edge. Reads
-    // the panel's own size first (textContent is already set).
-    function placeAt(rect) {
-        var t = ensureTooltip();
-        var tw = t.offsetWidth;
-        var th = t.offsetHeight;
-        var cx = rect.left + rect.width / 2;
-        var aboveY = rect.top - th - 8;
-        var flipped = aboveY < 4;
-        var y = flipped ? (rect.bottom + 8) : aboveY;
-        var x = Math.max(4, Math.min(window.innerWidth - tw - 4, cx - tw / 2));
-        t.style.left = x + 'px';
-        t.style.top = y + 'px';
-    }
-
-    function position(rect) {
-        var t = ensureTooltip();
-        t.style.left = '0px';
-        t.style.top = '0px';
-        placeAt(rect);
-        t.style.opacity = '1';
+    // Open the page's panel on a data point. ``rectFn`` is re-read by
+    // ``floating`` on every scroll / resize, so the panel stays glued to
+    // its point — the job an ``activeReposition`` closure did here by
+    // hand. Above the point, flipped below when it hugs the top edge:
+    // ``floating``'s ``top`` placement. ``whitespace-pre-line``: a label
+    // is pre-formatted server-side, on several lines.
+    function openAt(rectFn, label) {
+        clearTimeout(hideTimer);
+        if (!$bz.tip) return;
+        owns = true;
+        $bz.tip.open(
+            { getBoundingClientRect: function () { return rectFn() || ZERO; } },
+            { text: label, position: 'top', extraClass: 'whitespace-pre-line' }
+        );
     }
 
     // Viewport rect for an anchor element — a pie wedge's ``data-bz-ax/ay``
@@ -4898,99 +6283,130 @@
         return null;
     }
 
-    // Keep the visible panel glued to its anchor across scroll / resize —
-    // recompute geometry and move (no opacity toggle, so no re-fade).
-    function reposition() {
-        if (!tip || tip.style.opacity !== '1' || !activeReposition) return;
-        var rect = activeReposition();
-        if (rect) placeAt(rect);
-    }
-    // Capture phase so scrolls inside any nested scroll container (not
-    // just the window) reach us — scroll events don't bubble.
-    window.addEventListener('scroll', reposition, true);
-    window.addEventListener('resize', reposition);
-
     function hideTooltip() {
-        activeReposition = null;
-        if (!tip) return;
+        if (!owns) return;
         // Tiny grace period so a fast cursor leaving one bar and entering
         // the next doesn't flash the tooltip in/out — the next ``show``
         // cancels the pending hide.
         clearTimeout(hideTimer);
         hideTimer = setTimeout(function () {
-            if (tip) tip.style.opacity = '0';
+            owns = false;
+            if ($bz.tip) $bz.tip.close();
         }, 60);
     }
 
-    // The ``show`` handshake every hover path repeats : resolve the
-    // hovered element, read its pre-formatted label, cancel a pending
-    // hide, make sure the tooltip node exists, and write the text ONLY
-    // when it changed (writing the same string would invalidate layout
-    // before ``offsetWidth`` is read, for nothing).
-    //
-    // Returns the hovered element when a label is on screen, or null
-    // when there was nothing to show — each caller then does its own
-    // anchoring, which is where they genuinely differ (bar-fill lookup,
-    // dot rect, line-column band). Three copies before (audit F59).
-    function showLabel(event) {
+    // The hovered element and its pre-formatted label, or null when there
+    // is nothing to show — each caller then anchors where it genuinely
+    // differs (bar-fill lookup, dot rect, line-column band).
+    function labelled(event) {
         var el = event && event.currentTarget;
         if (!el) return null;
         var label = el.getAttribute('data-bz-display');
-        if (!label) return null;
-        clearTimeout(hideTimer);
-        var t = ensureTooltip();
-        if (t.textContent !== label) t.textContent = label;
-        return el;
+        return label ? { el: el, label: label } : null;
     }
 
     function tooltipScope() {
-        return {
+        return scope({
             show: function (event) {
-                var el = showLabel(event);
-                if (!el) return;
+                var hit = labelled(event);
+                if (!hit) return;
                 // Bar charts widen the hit target to the whole column via
                 // a transparent ``.bz-bar-hit`` overlay that spans the
                 // plot. Anchoring on the overlay itself would float the
                 // tooltip at the top of the column ; anchor on the sibling
                 // ``.bz-bar-fill`` instead so it lands on the data point.
-                var anchor = el;
-                if (el.classList && el.classList.contains('bz-bar-hit')) {
-                    var fill = el.parentNode &&
-                        el.parentNode.querySelector('.bz-bar-fill');
+                var anchor = hit.el;
+                if (anchor.classList && anchor.classList.contains('bz-bar-hit')) {
+                    var fill = anchor.parentNode &&
+                        anchor.parentNode.querySelector('.bz-bar-fill');
                     if (fill) anchor = fill;
                 }
                 // Anchor on the data point : a bar's ``.bz-bar-fill``, a
                 // scatter/line dot, or a pie wedge's ``data-bz-ax/ay``
                 // centroid (a ``<path>`` bbox would float the panel at the
-                // pie's centre). ``rectForAnchor`` resolves all three ;
-                // stash the element so scroll / resize can re-anchor.
-                var rect = rectForAnchor(anchor);
-                if (rect) {
-                    activeReposition = function () {
-                        return rectForAnchor(anchor);
-                    };
-                    position(rect);
+                // pie's centre). ``rectForAnchor`` resolves all three.
+                if (rectForAnchor(anchor)) {
+                    openAt(function () { return rectForAnchor(anchor); }, hit.label);
                 } else {
                     // Last-resort fallback (path with no centroid attrs) —
-                    // pin to the cursor ; nothing to re-anchor on scroll.
-                    activeReposition = null;
-                    position({
+                    // pin to the cursor.
+                    var cursor = {
                         left: event.clientX, right: event.clientX,
                         top: event.clientY, bottom: event.clientY,
                         width: 0, height: 0,
-                    });
+                    };
+                    openAt(function () { return cursor; }, hit.label);
                 }
             },
             hide: function () { hideTooltip(); },
-        };
+        });
     }
 
     // Force-hide on htmx swap so a refresh that replaces the chart
     // doesn't leave the tooltip pointing at thin air.
     document.addEventListener('htmx:before-swap', function () {
-        activeReposition = null;
-        if (tip) tip.style.opacity = '0';
+        if (!owns) return;
+        owns = false;
+        clearTimeout(hideTimer);
+        if ($bz.tip) $bz.tip.close();
     });
+
+    // The keyboard, shared by every chart scope. The chart is ONE tab stop
+    // (21 bars are not 21 tabs, as Highcharts' module does it); the arrows
+    // walk the points that carry a tooltip — those of a hidden series have
+    // no box and are skipped — and each step REPLAYS the hover, so the
+    // tooltip, the line's crosshair and the bar's spotlight follow with no
+    // second code path. Enter replays the click (``on_item_click``),
+    // Escape and leaving the chart close.
+    function keyboard() {
+        return {
+            kbd: -1,
+            key: function (event) {
+                // A legend button inside the chart keeps its own keys.
+                if (event.target !== event.currentTarget) return;
+                var points = Array.prototype.filter.call(
+                    event.currentTarget.querySelectorAll('[data-bz-display]'),
+                    function (el) { return el.getClientRects().length > 0; });
+                if (!points.length) return;
+                var k = event.key, at = this.kbd;
+                if (k === 'ArrowRight' || k === 'ArrowDown') at = Math.min(at + 1, points.length - 1);
+                else if (k === 'ArrowLeft' || k === 'ArrowUp') at = Math.max(at - 1, 0);
+                else if (k === 'Home') at = 0;
+                else if (k === 'End') at = points.length - 1;
+                else if (k === 'Enter' || k === ' ') {
+                    if (points[at]) points[at].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                    if (k === ' ') event.preventDefault();
+                    return;
+                } else if (k === 'Escape') { this.unkey(event); return; }
+                else return;
+                event.preventDefault();
+                if (points[this.kbd]) points[this.kbd].dispatchEvent(new MouseEvent('mouseleave'));
+                this.kbd = at;
+                points[at].dispatchEvent(new MouseEvent('mouseenter'));
+            },
+            unkey: function (event) {
+                var root = event && event.currentTarget;
+                var points = root ? root.querySelectorAll('[data-bz-display]') : [];
+                Array.prototype.forEach.call(points, function (el) {
+                    el.dispatchEvent(new MouseEvent('mouseleave'));
+                });
+                this.kbd = -1;
+                hideTooltip();
+            },
+        };
+    }
+
+    // One scope object out of the pieces: the keyboard is in every one.
+    function scope() {
+        var out = keyboard();
+        for (var i = 0; i < arguments.length; i++) {
+            var part = arguments[i];
+            for (var name in part) {
+                if (Object.prototype.hasOwnProperty.call(part, name)) out[name] = part[name];
+            }
+        }
+        return out;
+    }
 
     function parseJSON(attr, fallback) {
         if (!attr) return fallback;
@@ -5001,11 +6417,11 @@
     // ``visible[i]`` drives ``bz-show`` on the path / dots / markers the
     // server rendered with series index ``i``.
     //
-    // Two load-bearing details lived in two copies (audit F18) : the
-    // "never toggle the last one off" guard (an all-hidden chart reads
-    // as broken — Vercel and Stripe ship the same rule), and the
-    // REASSIGN in toggleSeries (V3 signals are identity-compared, so an
-    // in-place ``visible[i] = …`` would not re-render).
+    // Two load-bearing details live here : the "never toggle the last
+    // one off" guard (an all-hidden chart reads as broken — Vercel and
+    // Stripe ship the same rule), and the REASSIGN in toggleSeries (V3
+    // signals are identity-compared, so an in-place ``visible[i] = …``
+    // would not re-render).
     function seriesVisibility(nSeries) {
         var visible = [];
         for (var i = 0; i < nSeries; i++) visible.push(true);
@@ -5026,7 +6442,7 @@
     function lineScope(opts) {
         var nSeries = (opts && opts.n_series) || 1;
         var vis = seriesVisibility(nSeries);
-        return {
+        return scope({
             active: -1,
             visible: vis.visible,
             isVisible: vis.isVisible,
@@ -5040,13 +6456,11 @@
             // data-x's fraction within the rect, mapped onto that band.
             onHover: function (event, idx) {
                 this.active = idx;
-                var el = showLabel(event);
+                var hit = labelled(event);
                 // Nothing to show (no target, or a column with no
-                // label) → hide. The pre-shared version returned early
-                // without hiding in the no-target case ; a dispatched
-                // mouseenter always has a currentTarget, and hideTooltip
-                // no-ops when no tooltip node exists yet.
-                if (!el) { hideTooltip(); return; }
+                // label) → hide.
+                if (!hit) { hideTooltip(); return; }
+                var el = hit.el;
                 // Zero-size anchor at (column-x, plot-top) → the tooltip
                 // floats above the plot, never over the curve. ``bottom
                 // = r.top`` so the near-top flip lands just inside the
@@ -5062,8 +6476,7 @@
                         width: 0, height: 0,
                     };
                 };
-                activeReposition = lineRect;
-                position(lineRect());
+                openAt(lineRect, hit.label);
             },
             onLeave: function () { this.active = -1; hideTooltip(); },
             // The shared toggle, plus line's own extra : drop the hover
@@ -5074,12 +6487,12 @@
                 vis.toggleSeries.call(this, i);
                 if (!this.visible[i]) this.active = -1;
             },
-        };
+        });
     }
 
     function scatterScope(opts) {
         var vis = seriesVisibility((opts && opts.n_series) || 1);
-        return {
+        return scope({
             visible: vis.visible,
             isVisible: vis.isVisible,
             toggleSeries: vis.toggleSeries,
@@ -5088,32 +6501,42 @@
             // ``getBoundingClientRect()`` is tight (``r × 2`` box)
             // so anchoring above it lands cleanly on the dot.
             show: function (event) {
-                var el = showLabel(event);
-                if (!el) return;
-                activeReposition = function () {
-                    return el.getBoundingClientRect();
-                };
-                position(el.getBoundingClientRect());
+                var hit = labelled(event);
+                if (!hit) return;
+                openAt(function () { return hit.el.getBoundingClientRect(); }, hit.label);
             },
             hide: function () { hideTooltip(); },
-        };
+        });
+    }
+
+    // Grouped bars with a clickable legend: the bar tooltip, plus the
+    // series' visibility (a hidden series leaves its slot empty in each
+    // group — the others keep their place and their height).
+    function barScope(opts) {
+        var vis = seriesVisibility((opts && opts.n_series) || 1);
+        var bars = tooltipScope();
+        return scope(bars, {
+            visible: vis.visible,
+            isVisible: vis.isVisible,
+            toggleSeries: vis.toggleSeries,
+        });
     }
 
     $bz.charts = {
         tooltipScope: tooltipScope,
         lineScope: lineScope,
         scatterScope: scatterScope,
+        barScope: barScope,
         hide: hideTooltip,
     };
 })();
 
 
-/* 11_number_input.js — shared scope for the NumberInput component.
+/* number_input.js — shared scope for the NumberInput component.
  *
  * The full client logic (precision, clamp, snap-to-step, draft-vs-value,
- * nudge, change emission) lived INLINE in every instance's bz-data
- * attribute (~1.5 KB of method bodies repeated per <ui.number_input>).
- * It now lives here ONCE ; each instance emits only its state +
+ * nudge, change emission) lives here ONCE rather than INLINE in every
+ * instance's bz-data attribute ; each instance emits only its state +
  * ``_read``/``_write`` so the same methods serve both modes :
  *
  *   bz-data="{...$bz.numberInput.scope, value: 42,
@@ -5131,6 +6554,20 @@
 (function () {
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
+
+  /* The decimal mark of the page's language — « 2,5 » in French. The
+   * field SHOWS its number with it and reads it back; the value carried
+   * in the form stays « 2.5 ». */
+  const marks = {};
+  function decimalMark() {
+    const tag = document.documentElement.lang || "";
+    if (!(tag in marks)) {
+      const part = new Intl.NumberFormat(tag || undefined).formatToParts(1.5)
+        .find(function (p) { return p.type === "decimal"; });
+      marks[tag] = part ? part.value : ".";
+    }
+    return marks[tag];
+  }
 
   $bz.numberInput = {
     scope: {
@@ -5159,13 +6596,29 @@
         const v = this._read();
         return this._max !== null && v != null && Number(v) >= this._max;
       },
+      // A number as the field shows it: the language's decimal mark.
+      _shown(n) {
+        return String(n).replace(".", decimalMark());
+      },
       _displayValue() {
+        const v = this._read();
+        if (v == null || v === "") return "";
+        return this._shown(this._round(Number(v)));
+      },
+      // The value the form carries, whatever the language: « 2.5 ».
+      _canonical() {
         const v = this._read();
         if (v == null || v === "") return "";
         return String(this._round(Number(v)));
       },
+      // What was typed, as a number's text: the language's mark read as
+      // the point — a comma elsewhere is a thousands mark, dropped.
+      _typed(text) {
+        const s = String(text || "").trim().replace(/\s/g, "");
+        return decimalMark() === "," ? s.replace(/,/g, ".") : s.replace(/,/g, "");
+      },
       _commitDraft(final) {
-        const raw = String(this._draft || "").trim();
+        const raw = this._typed(this._draft);
         if (raw === "" || raw === "-" || raw === ".") {
           if (final) { this._write(null); this._emitChange(); }
           return;
@@ -5178,7 +6631,7 @@
         if (final) {
           const clamped = this._snap(this._clamp(n));
           this._write(clamped);
-          this._draft = String(clamped);
+          this._draft = this._shown(clamped);
           this._emitChange();
         } else {
           this._write(this._round(n));
@@ -5188,7 +6641,7 @@
         const cur = this._read() == null ? 0 : Number(this._read());
         const next = this._snap(this._clamp(cur + delta));
         this._write(next);
-        if (this._focused) this._draft = String(next);
+        if (this._focused) this._draft = this._shown(next);
         this._emitChange();
       },
       _setValue(raw) {
@@ -5201,7 +6654,7 @@
         }
         const next = this._snap(this._clamp(n));
         this._write(next);
-        this._draft = String(next);
+        this._draft = this._shown(next);
         this._emitChange();
       },
       // Dispatch a synthetic ``bzchange`` from the captured <input> so a
@@ -5222,7 +6675,7 @@
 })();
 
 
-/* 12_slider.js — shared scope for the Slider component.
+/* slider.js — shared scope for the Slider component.
  *
  * The drag / keyboard / pointer / clamp / snap logic (~15 methods)
  * lived INLINE in every instance's bz-data. It now lives here ONCE ;
@@ -5346,7 +6799,7 @@
 })();
 
 
-/* 13_select.js — shared scopes for the Select component.
+/* select.js — shared scopes for the Select component.
  *
  * The pick / highlight / multi-membership / bulk-action methods lived
  * INLINE in every instance's bz-data. They live here ONCE, split into
@@ -5378,49 +6831,78 @@
   // value-setting methods below just ``_write`` ; the effect observes the
   // mutation and dispatches (mirror of Combobox).
 
+  // The options the keyboard and « select all » may land on. The
+  // server lists the disabled ones as DATA (``_disabled``); the mouse
+  // cannot pick them — a disabled button dispatches no click — but the
+  // arrows would walk ``_options`` whole, Enter would pick whatever is
+  // highlighted and « select all » would copy the list.
+  const usable = {
+    _usable(v) { return !(this._disabled || []).includes(String(v)); },
+    _firstUsable() {
+      const i = this._options.findIndex((v) => this._usable(v));
+      return i < 0 ? 0 : i;
+    },
+    // Move the highlight to the next usable option in ``dir`` (±1); it
+    // stays put at the end of the list.
+    _step(dir) {
+      for (let i = this._highlight + dir; i >= 0 && i < this._options.length; i += dir) {
+        if (this._usable(this._options[i])) { this._highlight = i; return; }
+      }
+    },
+  };
+
   $bz.select = {
     single: {
+      ...usable,
       // A value's label. Select KEEPS its ``_labels`` map (its
       // ``_options`` carries only values, so it is not redundant
-      // there); what disappeared on 2026-08-28 is the map RE-INLINED
-      // in each pill template's ``bz-text`` — a third copy of the
-      // same table. The shared template
-      // (``_picker.build_pills_template``) now calls this method,
-      // which Combobox defines its own way.
+      // there). The shared pill template
+      // (``_picker.build_pills_template``) calls this method rather
+      // than inline the map, and Combobox defines it its own way.
       _labelOf(v) { return this._labels[String(v)] || ""; },
       _pick(v) { this._write(v); this.open = false; },
+      _enterPick() {
+        const v = this._options[this._highlight];
+        if (v !== undefined && this._usable(v)) this._pick(v);
+      },
       _isPicked(v) { return String(this._read() || "") === String(v); },
       _highlightFromValue() {
-        this._highlight = Math.max(0, this._options.indexOf(String(this._read())));
+        const i = this._options.indexOf(String(this._read()));
+        this._highlight = i >= 0 && this._usable(this._options[i]) ? i : this._firstUsable();
       },
     },
     multi: {
       ...$bz.multiSelect,
+      ...usable,
+      _enterPick() {
+        const v = this._options[this._highlight];
+        if (v !== undefined && this._usable(v)) this._togglePick(v);
+      },
       // A value's label. Select KEEPS its ``_labels`` map (its
       // ``_options`` carries only values, so it is not redundant
-      // there); what disappeared on 2026-08-28 is the map RE-INLINED
-      // in each pill template's ``bz-text`` — a third copy of the
-      // same table. The shared template
-      // (``_picker.build_pills_template``) now calls this method,
-      // which Combobox defines its own way.
+      // there). The shared pill template
+      // (``_picker.build_pills_template``) calls this method rather
+      // than inline the map, and Combobox defines it its own way.
       _labelOf(v) { return this._labels[String(v)] || ""; },
       _value() { const v = this._read(); return v == null ? [] : v; },
       // Select-specific : every option is always visible (no query).
-      // ``_clearAll`` is NOT redeclared — the mixin's does exactly that,
-      // and repeating it here is how the two pickers diverged (audit
-      // F19).
-      _selectAll() { this._write(this._options.slice()); },
+      // ``_clearAll`` is NOT redeclared — the mixin's does exactly that.
+      // Every USABLE option — a disabled one already picked (by the
+      // server) stays picked, it is not added otherwise.
+      _selectAll() {
+        this._write(this._options.filter((v) => this._usable(v) || this._isPicked(v)));
+      },
       _highlightFromValue() {
-        const picks = this._picked();
-        if (picks.length) this._highlight = Math.max(0, this._options.indexOf(picks[0]));
-        else this._highlight = 0;
+        const picks = this._picked().filter((v) => this._usable(v));
+        const i = picks.length ? this._options.indexOf(picks[0]) : -1;
+        this._highlight = i >= 0 ? i : this._firstUsable();
       },
     },
   };
 })();
 
 
-/* 14_combobox.js — shared scopes for the Combobox component.
+/* combobox.js — shared scopes for the Combobox component.
  *
  * The biggest inline scope (~30 methods : normalise/filter/nav +
  * pick/multi-membership/bulk) lived in every instance's bz-data. It now
@@ -5434,13 +6916,11 @@
  *
  * ``_options`` (option objects w/ haystack) stays per instance.
  *
- * ⚠️ There was also a ``_labels: {value: label}``, removed on
- * 2026-08-28: each ``_options`` entry ALREADY carries its ``label``, so
- * the map repeated half the list — 501 bytes of 22,586 for twenty
- * options. Its only reader (the label shown in the closed field, in
- * single mode) goes through ``_labelOf`` below. ``Select``, for its
- * part, KEEPS it: its ``_options`` carries only values, so the map is
- * not redundant there.
+ * ⚠️ No ``_labels: {value: label}`` map here: each ``_options`` entry
+ * ALREADY carries its ``label``, so the map would repeat half the list.
+ * The label shown in the closed field, in single mode, goes through
+ * ``_labelOf`` below. ``Select``, for its part, KEEPS the map: its
+ * ``_options`` carries only values, so the map is not redundant there.
  *
  * Value access goes through ``this._read()`` / ``this._write(v)``
  * (local: a ``value`` field ; binding: ``$bz.state.<path>``, read raw +
@@ -5463,14 +6943,11 @@
   $bz.combobox = {
     /* ── The options, painted by the PANEL ───────────────────────────
      *
-     * Before 2026-09-02, each option carried five directives:
-     * ``bz-class``, ``bz-attr:aria-selected``, ``bz-show`` and two
-     * ``bz-on:``. Measured: 461 bytes per option, of which 177 for
-     * those directives alone, repeated identically N times.
-     *
-     * Three of them become ONE effect and TWO delegated listeners, on
-     * the panel. ``bz-show`` stays per option: it is the search filter,
-     * and the runtime has its own hiding machinery.
+     * ``bz-class``, ``bz-attr:aria-selected`` and the two ``bz-on:`` would
+     * be repeated identically on every option, so they live ONCE on the
+     * panel, as ONE effect and TWO delegated listeners. ``bz-show`` stays
+     * per option: it is the search filter, and the runtime has its own
+     * hiding machinery.
      *
      * ⚠️ Why the options stay rendered by the SERVER — and why that is
      * not half a job. The repository's rule ("who writes the ``for``?",
@@ -5479,11 +6956,9 @@
      * collection on the SERVER side is entitled to a ``render=``
      * callback, a component whose client creates the nodes is NOT — a
      * Python callback does not run in the browser. Painting the options
-     * here would therefore lose the combobox its ``render=``, added on
-     * 2026-08-18 precisely because the layout thesis had counted it
-     * among the four collections with NO way out for the author. The
-     * gain in bytes is not worth a content escape hatch in a framework
-     * that has nine for 498 style slots.
+     * here would therefore lose the combobox its ``render=``, the author's
+     * only way into an option's markup. The gain in bytes is not worth a
+     * content escape hatch.
      */
     optionOf(ev) {
       const o = ev.target.closest('[role="option"]');
@@ -5513,7 +6988,7 @@
       const options = el.querySelectorAll('[role="option"]');
       for (let i = 0; i < options.length; i++) {
         const o = options[i];
-        const choisi = !!isPicked(o.getAttribute("data-value"));
+        const choisi = !!isPicked(o.getAttribute("data-bz-value"));
         o.setAttribute("aria-selected", choisi ? "true" : "false");
         for (const c of actif) {
           if (c) o.classList.toggle(c, i === highlight);
@@ -5525,9 +7000,9 @@
     },
 
     common: {
-      // JS mirror of the Python text normaliser (lowercase + strip
-      // diacritics). Constant across instances.
-      _norm: (s) => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, ""),
+      // The search form, ``$bz.fold`` — twin of the Python ``fold`` that
+      // baked the options' haystacks.
+      _norm: (s) => $bz.fold(s),
       _value() { return this._read(); },
       // A value's label, read in ``_options`` — which already carries
       // it. Replaces the ``_labels`` map each instance emitted in
@@ -5540,8 +7015,31 @@
         const s = String(v == null ? "" : v);
         if (!s) return "";
         const hit = this._options.find((o) => String(o.value) === s);
-        return hit ? hit.label : "";
+        // ``creatable``: a value typed by the reader is in no option —
+        // it shows as itself. Not otherwise: an unknown id is not a
+        // label (``42`` must not show up in the field).
+        return hit ? hit.label : (this._creatable ? s : "");
       },
+      /* ``creatable=True`` — what « Create « … » » would create: the
+       * typed text, trimmed; ``""`` when nothing would be created —
+       * nothing typed, or an option already says it (label or value,
+       * folded: « musee » does not create a second « Musée »), or, in
+       * multi mode, it is already picked. */
+      _createText() {
+        if (!this._creatable) return "";
+        const raw = String(this.query || "").trim();
+        if (!raw) return "";
+        const q = this._norm(raw);
+        for (const o of this._options) {
+          if (this._norm(o.label) === q || this._norm(o.value) === q) return "";
+        }
+        for (const v of this._picked()) if (this._norm(v) === q) return "";
+        return raw;
+      },
+      // The « Create » row's place in the keyboard path: after the
+      // options, at index ``_options.length`` (the row is the last
+      // ``[role=option]`` of the panel, so ``paintOptions`` lights it).
+      _createIndex() { return this._createText() ? this._options.length : -1; },
       _tokens() {
         const q = this._norm(this.query || "");
         return q ? q.split(/\s+/).filter(Boolean) : [];
@@ -5561,8 +7059,13 @@
         return out;
       },
       _visibleCount() { return this._visibleIndices().length; },
-      _moveHighlight(delta) {
+      _navIndices() {
         const vis = this._visibleIndices();
+        const c = this._createIndex();
+        return c < 0 ? vis : vis.concat([c]);
+      },
+      _moveHighlight(delta) {
+        const vis = this._navIndices();
         if (!vis.length) { this._highlight = -1; return; }
         let pos = vis.indexOf(this._highlight);
         if (pos === -1) pos = delta > 0 ? -1 : vis.length;
@@ -5573,11 +7076,18 @@
     single: {
       _pickHighlighted() {
         if (!this.open) { this.open = true; return; }
-        const vis = this._visibleIndices();
+        const nav = this._navIndices();
         let idx = this._highlight;
-        if (idx < 0 || !vis.includes(idx)) idx = vis[0];
+        // No highlight: the first visible option — or « Create » when
+        // none is left.
+        if (idx < 0 || !nav.includes(idx)) idx = nav[0];
         if (idx == null) return;
+        if (idx === this._createIndex()) { this._create(); return; }
         this._pick(this._options[idx].value);
+      },
+      _create() {
+        const v = this._createText();
+        if (v) this._pick(v);
       },
       _picked() { const v = this._value(); return v == null || v === "" ? [] : [String(v)]; },
       _isPicked(v) { return String(this._value() || "") === String(v); },
@@ -5603,11 +7113,20 @@
       ...$bz.multiSelect,
       _pickHighlighted() {
         if (!this.open) { this.open = true; return; }
-        const vis = this._visibleIndices();
+        const nav = this._navIndices();
         let idx = this._highlight;
-        if (idx < 0 || !vis.includes(idx)) idx = vis[0];
+        if (idx < 0 || !nav.includes(idx)) idx = nav[0];
         if (idx == null) return;
+        if (idx === this._createIndex()) { this._create(); return; }
         this._togglePick(this._options[idx].value);
+        this.query = ""; this._highlight = -1;
+      },
+      // A created value joins the picks as a pill; the field empties so
+      // the next one can be typed.
+      _create() {
+        const v = this._createText();
+        if (!v) return;
+        this._togglePick(v);
         this.query = ""; this._highlight = -1;
       },
       _removeLast() {
@@ -5626,7 +7145,7 @@
 })();
 
 
-/* 15_pagination.js — the Pagination component's shared scope.
+/* pagination.js — the Pagination component's shared scope.
  *
  * The whole ``range()`` algorithm — computing the visible page numbers
  * with their ellipses — lived INLINE in every instance's ``bz-data``:
@@ -5643,7 +7162,7 @@
  * states.
  *
  * The switch is therefore "config as data", the prerequisite
- * NumberInput had already applied (cf. 11_number_input.js):
+ * NumberInput had already applied (cf. number_input.js):
  *
  *   bz-data="{...$bz.pagination.scope, value: 1, _total: 10,
  *             _maxVisible: 7, _disabled: false,
@@ -5677,14 +7196,14 @@
       },
       // A constant by default, overridden from the builder when the
       // lock is real (a literal or a binding) — the same mechanics as
-      // the Slider's ``_disabledState`` (12_slider.js:28).
+      // the Slider's ``_disabledState`` (slider.js:28).
       //
       // ⚠️ It is NOT data. A ``_disabled: <store path>`` field in the
       // bz-data would be evaluated ONCE, outside any effect: ``absorb``
       // wraps the snapshot in a new signal decoupled from the cell, and
-      // nothing rewrites it any more. The lock therefore stayed frozen
-      // at its mount value (measured: the switch flips, the pagination
-      // stays clickable). A bound expression must live in a METHOD BODY,
+      // nothing rewrites it. The lock would therefore stay frozen at its
+      // mount value: the switch flips, the pagination stays clickable.
+      // A bound expression must live in a METHOD BODY,
       // the only place re-read at every call hence tracked by the
       // calling effect. Cf. traps.md § "Une valeur de scope calculée
       // doit rester calculable".
@@ -5697,7 +7216,7 @@
       // that turns the mutation into a bubbling ``change``.
       //
       // The lock and the bound live HERE, in the single mutator, because
-      // the callers are no longer equivalent: the rail's buttons are
+      // the callers are not equivalent: the rail's buttons are
       // already guarded by their ``bz-attr:disabled`` and only pass
       // values coming from ``range()``, but the imperative API
       // (``p.next()`` on a button elsewhere in the page) has neither of
@@ -5763,21 +7282,21 @@
 })();
 
 
-/* 16_accordion.js — the shared scopes of Accordion, Tree, Tabs, Stepper
- * and Tooltip. (The file's name dates from the first arrival.)
+/* accordion.js — the shared scopes of Accordion, Tree, Tabs and
+ * Stepper.
  *
- * Both components serialised all their method bodies into every
- * instance's ``bz-data`` — Accordion 622 bytes, Tree 293 — and Accordion
- * additionally baked its configuration INTO the code:
+ * The method bodies live here rather than in every instance's
+ * ``bz-data``, and an accordion's configuration is DATA. Baked into the
+ * code, as in
  *
  *     toggle(v) { … if (cur === target) { if (true) { … } } … }
  *                                            ^^^^ collapsible
  *     expandAll() { const ids = ["a","b","c"]; … }
  *
- * Two accordions with different configurations therefore produced two
- * different CODES, not two different states — that is what made
- * factoring impossible. The switch is "config as data", the same
- * prerequisite as NumberInput (11) and Pagination (15).
+ * two accordions with different configurations would be two different
+ * CODES, not two different states, and nothing could be factored.
+ * "Config as data" is the same prerequisite as NumberInput and
+ * Pagination.
  *
  *   bz-data="{...$bz.accordion.single, value: "a", _read(){…}, _write(v){…},
  *             _collapsible: true, _allIds: ["a","b"]}"
@@ -5894,8 +7413,7 @@
 
   // ── Tabs ──────────────────────────────────────────────────────────
   // A setter with a change guard — the same shape as
-  // ``$bz.pagination.setActive``. Serialised per instance until
-  // 2026-07-29.
+  // ``$bz.pagination.setActive``.
   //
   // ``_url`` — the URL parameter's name, when the caller wrote
   // ``ui.tabs(url="tab")``. Absent by default, so everything that
@@ -5935,7 +7453,7 @@
         else to = (Math.max(from, 0) + step + tabs.length) % tabs.length;
         e.preventDefault();
         tabs[to].focus();
-        this.setTab(tabs[to].dataset.tab);
+        this.setTab(tabs[to].dataset.bzTab);
       },
 
       // The BACK button. Without it, the browser's arrow would change
@@ -5949,7 +7467,7 @@
       // anyway — it is a signal toggle, instant, where htmx would redo
       // the whole page to change tab.
       //
-      // Set by ``bz-init``, the route ``06_helpers.js`` documents for an
+      // Set by ``bz-init``, the route ``helpers.js`` documents for an
       // event that only exists on ``window``.
       _urlInit() {
         if (!this._url) return;
@@ -6016,50 +7534,10 @@
       },
     },
   };
-
-  // ── Tooltip ───────────────────────────────────────────────────────
-  // The clearest case of "config baked into the code" after Pagination:
-  // the serialised body contained ``if (!(true)) return;`` — the
-  // activation flag hard-coded — and the opening delay as a literal. Two
-  // tooltips with different delays produced two different CODES.
-  //
-  // ``_delay`` becomes data — it is a server-side literal, so REAL data.
-  // ``_enabled`` does not: it accepts a ClientBinding or a live JS
-  // expression, and a bz-data field is evaluated only once, outside any
-  // effect (``absorb`` decouples its snapshot from the store). Switching
-  // it to a field had therefore frozen it at mount although the
-  // builder's docstring promised the opposite — "the condition is
-  // evaluated at hover time". It becomes a METHOD again: a constant by
-  // default here, overridden by the builder when the condition is
-  // real.
-  $bz.tooltip = {
-    scope: {
-      _enabled() {
-        return true;
-      },
-      _show(root) {
-        if (!this._enabled()) return;
-        // A tooltip on a popup trigger must not cover the opened panel.
-        // Select, combobox, dropdown and other triggers expose this state
-        // through aria-expanded. Check again after the delay: the popup
-        // may open between focusin/mouseenter and the timer firing.
-        if (root && root.querySelector('[aria-expanded="true"]')) return;
-        clearTimeout(this._t);
-        this._t = setTimeout(() => {
-          if (root && root.querySelector('[aria-expanded="true"]')) return;
-          this.open = true;
-        }, this._delay);
-      },
-      _hide() {
-        clearTimeout(this._t);
-        this.open = false;
-      },
-    },
-  };
 })();
 
 
-/* 17_carousel.js — the Carousel component's shared scope.
+/* carousel.js — the Carousel component's shared scope.
  *
  * The scrolling is **CSS scroll-snap**, not a translateX driven from
  * here: the track is an `overflow-x-auto snap-x snap-mandatory`
@@ -6121,12 +7599,12 @@
         // REGISTERS the reactive dependency of everything that
         // measures. A DOM measurement is not a signal — without that
         // link, a ``bz-attr:disabled="_atEnd()"`` evaluates once at scan
-        // time, with that instant's layout, and is never re-read. Paid
-        // for real: hydrated before the Tailwind sheet applies, the
-        // track is not yet ``flex``, so ``scrollWidth === clientWidth``,
-        // so the bound is 0, so BOTH arrows are disabled — and
-        // ``disabled:opacity-0`` erases them. No arrow at the first
-        // visit, all of them on refresh. Cf. ``_observeGeom`` for what
+        // time, with that instant's layout, and is never re-read.
+        // Hydrated before the Tailwind sheet applies, the track is not
+        // yet ``flex``, so ``scrollWidth === clientWidth``, so the bound
+        // is 0, so BOTH arrows are disabled — and ``disabled:opacity-0``
+        // erases them: no arrow at the first visit, all of them on
+        // refresh. Cf. ``_observeGeom`` for what
         // moves this signal.
         void this._geom;
         // ``_step()`` already returns 0 with no track, so this test
@@ -6185,7 +7663,7 @@
         // Filing it there ALSO avoids a loop: this method runs in an
         // effect, and a scope field written from an effect that reads it
         // would call itself endlessly (an undeclared field becomes a
-        // signal at the first write — cf. ``03_scope.js``). A node
+        // signal at the first write — cf. ``scope.js``). A node
         // property is not reactive, so nothing relaunches.
         if (t._bzGeomRo) t._bzGeomRo.disconnect();
         const self = this;
@@ -6292,7 +7770,7 @@
 })();
 
 
-/* 18_time_picker.js — the TimePicker component's shared scope.
+/* time_picker.js — the TimePicker component's shared scope.
  *
  * The value is an ``"HH:MM"`` STRING — the same shape as the date
  * pickers' ISO: sortable, comparable, serialisable as is in a form data,
@@ -6304,15 +7782,14 @@
  * ⚠️ ``_read`` / ``_write`` are NOT an elegance: a bound expression must
  * live in a METHOD BODY. A ``bz-data`` field is evaluated ONCE, outside
  * any effect — ``absorb`` wraps its snapshot in a new signal decoupled
- * from the store cell, which nothing rewrites any more (a regression
- * measured on Pagination and Tooltip, cf. traps.md § "Une valeur de scope
- * calculée doit rester calculable").
+ * from the store cell, which nothing rewrites (cf. traps.md § "Une
+ * valeur de scope calculée doit rester calculable").
  *
  * Why a shared scope rather than inline expressions: a panel with 24
  * hours and 4 minutes is 28 buttons. Writing the pick and the selection
  * test out in full on each would serialise the same algorithm 28 times
  * PER INSTANCE — exactly what Pagination's and Accordion's "config as
- * data" switches removed.
+ * data" switches avoid.
  */
 (function () {
   "use strict";
@@ -6321,6 +7798,26 @@
   //: The index of the two parts in the tuple ``_parts`` returns.
   const HOUR = 0;
   const MINUTE = 1;
+  //: The half day's column — built here, only in twelve hours.
+  const PERIOD = 2;
+
+  /* The AM / PM column: a sibling of the minutes', same classes, its
+   * own name (``data-bz-period-label``, a framework text). */
+  function addPeriodColumn(el) {
+    const minutes = el.querySelector('[data-bz-part="' + MINUTE + '"]');
+    if (!minutes) return;
+    const col = minutes.cloneNode(false);
+    col.setAttribute("data-bz-part", String(PERIOD));
+    col.setAttribute("data-bz-values", "AM,PM");
+    col.setAttribute("data-bz-off", "");
+    const name = el.getAttribute("data-bz-period-label") || "";
+    col.setAttribute("aria-label", name);
+    col.setAttribute("data-bz-cell-label", name);
+    const head = minutes.firstElementChild && !minutes.firstElementChild.hasAttribute("data-bz-v")
+      ? minutes.firstElementChild.cloneNode(false) : null;
+    if (head) { head.innerHTML = "&nbsp;"; col.appendChild(head); }
+    minutes.parentNode.appendChild(col);
+  }
 
   $bz.time = {
     scope: {
@@ -6362,13 +7859,12 @@
 
     /* Paint the two columns' cells, then mark the selection.
      *
-     * Why the cells are no longer rendered by Python
-     * -----------------------------------------------
-     * They each carried the theme's class string — 452 characters — and
-     * two directives (``bz-attr:data-selected`` + ``bz-on:click``). At
-     * ``step=1`` that is 84 cells: 49 kB of the 54 the component
-     * weighed, 38 of them for the single class repeated identically.
-     * Measured on 2026-09-01.
+     * Why Python does not render the cells
+     * -------------------------------------
+     * Each would carry the theme's class string and two directives
+     * (``bz-attr:data-selected`` + ``bz-on:click``), and at ``step=1``
+     * there are 84 cells: nearly all of the component's weight would be
+     * that one class and those directives, repeated identically.
      *
      * It is the same remedy as ``<bz-calendar>``, which leaves its grid
      * EMPTY in SSR and fills it here — but WITHOUT a custom element: its
@@ -6395,27 +7891,56 @@
     fill(el, parts, pick) {
       const cellCls = el.getAttribute("data-bz-cell-class") || "";
       const off = el.hasAttribute("data-bz-cells-disabled");
+      // ── Twelve hours, when the page's language counts so ─────────
+      // The column counts as the field does (« 2:30 PM »). The VALUE
+      // stays "HH:MM": only the cells change — the
+      // hours become 12, 1…11, a third column carries the half day, and
+      // a click is turned back into 24 hours before it is picked.
+      const twelve = $bz.times.twelve();
+      if (twelve && !el.querySelector('[data-bz-part="' + PERIOD + '"]')) {
+        addPeriodColumn(el);
+      }
       const cols = el.querySelectorAll("[data-bz-part]");
+      const h24 = parts[HOUR] === "" ? null : Number(parts[HOUR]);
+      const pm = h24 !== null && h24 >= 12;
+      const pad = function (n) { return String(n).padStart(2, "0"); };
+      // What a cell of the twelve-hour panel stands for, in 24 hours.
+      const as24 = function (h12, isPm) { return pad((Number(h12) % 12) + (isPm ? 12 : 0)); };
+      const chosen = function (part, v) {
+        if (!twelve) return pick(part, v);
+        if (part === HOUR) return pick(HOUR, as24(v, pm));
+        if (part === PERIOD) {
+          const toPm = v === "PM";
+          return pick(HOUR, h24 === null ? (toPm ? "12" : "00") : as24(h24 % 12, toPm));
+        }
+        return pick(part, v);
+      };
 
       for (let i = 0; i < cols.length; i++) {
         const col = cols[i];
         const part = Number(col.getAttribute("data-bz-part"));
-        const label = col.getAttribute("data-bz-cell-label") || "";
+        // Escaped: the label is the app's words (``hour_label=``, a
+        // translation) and the cells are built as HTML.
+        const esc = $bz.helpers.escapeHtml;
+        const label = esc(col.getAttribute("data-bz-cell-label") || "");
 
         if (!col.querySelector("[data-bz-v]")) {
-          const values = (col.getAttribute("data-bz-values") || "")
-            .split(",").filter(Boolean);
+          const values = twelve && part === HOUR
+            ? ["12", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]
+            : (col.getAttribute("data-bz-values") || "").split(",").filter(Boolean);
+          const shown = part === PERIOD ? $bz.times.halves() : null;
           const barred = (col.getAttribute("data-bz-off") || "")
             .split(",").filter(Boolean);
           let html = "";
           for (let j = 0; j < values.length; j++) {
             const v = values[j];
             const dead = off || barred.indexOf(v) !== -1;
+            const said = esc(shown ? shown[j] : v);
             html +=
-              '<button type="button" data-bz-v="' + v + '"' +
-              ' class="' + cellCls + '"' +
-              ' aria-label="' + label + " " + v + '"' +
-              (dead ? " disabled" : "") + ">" + v + "</button>";
+              '<button type="button" data-bz-v="' + esc(v) + '"' +
+              ' class="' + esc(cellCls) + '"' +
+              ' aria-label="' + label + " " + said + '"' +
+              (dead ? " disabled" : "") + ">" + said + "</button>";
           }
           col.insertAdjacentHTML("beforeend", html);
         }
@@ -6431,15 +7956,24 @@
           col.addEventListener("click", function (ev) {
             const cell = ev.target.closest("[data-bz-v]");
             if (!cell || cell.disabled) return;
-            pick(part, cell.getAttribute("data-bz-v"));
+            col._bzTimePick(part, cell.getAttribute("data-bz-v"));
           });
         }
+        // Re-pointed at every pass: the half day it converts with is
+        // the CURRENT value's.
+        col._bzTimePick = chosen;
 
         // The selection, at every pass of the effect.
-        const courant = parts[part];
+        const courant = !twelve || part === MINUTE ? parts[part]
+          : h24 === null ? "" : part === HOUR ? String(h24 % 12 || 12) : (pm ? "PM" : "AM");
+        const barred = twelve && part === HOUR
+          ? (col.getAttribute("data-bz-off") || "").split(",").filter(Boolean) : null;
         const cells = col.querySelectorAll("[data-bz-v]");
         for (let j = 0; j < cells.length; j++) {
           const c = cells[j];
+          // min / max are in 24 hours: a twelve-hour cell is out of
+          // range in the CURRENT half day, so it is judged at each pass.
+          if (barred) c.disabled = off || barred.indexOf(as24(c.getAttribute("data-bz-v"), pm)) !== -1;
           if (c.getAttribute("data-bz-v") === courant) {
             c.setAttribute("data-selected", "true");
           } else {
@@ -6452,13 +7986,13 @@
 })();
 
 
-/* 19_dnd.js — the node-DnD gesture shared by `dropzone` / `draggable`.
+/* dnd.js — the node-DnD gesture shared by `dropzone` / `draggable`.
  *
  * ⚠️ **Distinct from the "drag" of the repository's two other
  * families**, and §6 of the roadmap insists because confusing them
  * costs:
- *   - `12_slider.js`      = pointer-drag (pointer → continuous value);
- *   - `08_file_upload.js` = native HTML5 DnD (OS files, DataTransfer).
+ *   - `slider.js`      = pointer-drag (pointer → continuous value);
+ *   - `file_upload.js` = native HTML5 DnD (OS files, DataTransfer).
  * This is the third: **moving a node** from one position to another.
  *
  * ── Why Pointer Events and not the HTML5 `draggable` API ─────────────
@@ -6470,8 +8004,7 @@
  * `bz-init` that runs again double-binds (the bridge's rescan disposes
  * and re-binds the directives). A single listener on the document,
  * which finds its target through `closest()`, is **insensitive to the
- * morph** and keeps no state on the nodes — the constraint a `bz-class`
- * lost after a morph made non-negotiable.
+ * morph** and keeps no state on the nodes.
  *
  * ── Why we move the REAL node, with no clone ─────────────────────────
  * The reordering is applied to the DOM during the gesture. So:
@@ -6482,22 +8015,14 @@
  *      about what leaves for the server;
  *   3. it is already the optimistic path. The server re-renders,
  *      idiomorph re-pairs by `bz-id` and the moved node is REUSED, not
- *      recreated — measured, and gated by
+ *      recreated — gated by
  *      `tests/runtime_js/test_morph_preserves_reordered_nodes.py`.
  *
- * ── A refusal's snap-back needs code, contrary to what was written
- *    here ──────────────────────────────────────────────────────────────
- * This line long said "a server refusal = no mutation = the morph puts
- * the item back. No dedicated code here." That was FALSE, and the gate
- * claiming to prove it was vacuous: the playground's handler increments
- * a refusal counter, so its state changed, so the zone re-rendered —
- * the snap-back did not come from the refusal but from the counter. A
- * handler that refuses by mutating NOTHING — the case `Move` documents
- * as THE way to refuse, and `examples/crm`'s — makes no zone re-render:
- * the server answers zero bytes and the card stays where the finger let
- * it go. Measured on 2026-09-09 on `examples/kanban`: a
- * work-in-progress limit refused on the server, and the screen showed
- * four cards in a column that accepts three.
+ * ── A refusal's snap-back needs code ──────────────────────────────────
+ * A handler that refuses by mutating NOTHING — the case `Move` documents
+ * as THE way to refuse — makes no zone re-render: the server answers
+ * zero bytes and the card would stay where the finger let it go, so the
+ * morph cannot be what puts it back.
  *
  * Hence the WITNESS below. It costs the normal case nothing and asks
  * nothing of the app's author: the attribute is set on the item at drop
@@ -6521,16 +8046,15 @@
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
-  //: Mouse/stylus: the distance before the gesture becomes a drag. It is
-  //: this threshold that PRESERVES THE CLICK — without it, every click
-  //: on a card would start a move.
-  const MOUSE_THRESHOLD_PX = 5;
-  //: Touch: how long you press before grabbing.
-  const TOUCH_HOLD_MS = 250;
-  //: …and the distance beyond which we give up before the delay ends.
-  //: It is what PRESERVES THE SCROLL: a finger running down a list must
-  //: not carry off the card it brushed.
-  const TOUCH_TOLERANCE_PX = 8;
+  //: The gesture's rules live ONCE, in `$bz.gesture` (`helpers.js`),
+  //: shared with the scheduler. The mouse threshold PRESERVES THE CLICK
+  //: (without it every click on a card would start a move); the touch
+  //: hold and its tolerance PRESERVE THE SCROLL (a finger running down a
+  //: list must not carry off the card it brushed).
+  const G = $bz.gesture;
+  const MOUSE_THRESHOLD_PX = G.MOUSE_THRESHOLD_PX;
+  const TOUCH_HOLD_MS = G.TOUCH_HOLD_MS;
+  const TOUCH_TOLERANCE_PX = G.TOUCH_TOLERANCE_PX;
 
   //: The witness of a drop awaiting an answer. Set on the item, erased
   //: by the morph — the server never renders this attribute, so
@@ -6538,6 +8062,7 @@
   //: measurement possible from the client of "did the answer touch this
   //: item", and it asks for no new protocol.
   const PENDING_ATTR = "data-bz-drop-pending";
+  ($bz._witnesses = $bz._witnesses || new Set()).add(PENDING_ATTR);
 
   const ZONE_SEL = "[data-bz-dropzone]";
   const ITEM_SEL = "[data-bz-draggable]";
@@ -6583,19 +8108,18 @@
   function itemsContainer(zone) {
     const first = itemsOf(zone)[0];
     if (first) return first.parentNode;
-    /* An EMPTY zone. Falling back on the zone itself was a bug, and the
-       comment that lived here said why it went unnoticed: "the next
-       server render will put the card back in the stack". It does not.
+    /* An EMPTY zone. The zone itself is not a valid fallback: the next
+       server render does not put the card back in the stack.
        The moved node keeps its `bz-id`, which encodes its path in the
        tree; that path has changed, so idiomorph does not re-pair it and
        the card STAYS where it was dropped — that is to say a direct
        child of the zone, OUTSIDE the container the app rendered.
 
-       Reproduced on 2026-09-13 on `/dnd`, by a drag that HESITATES: you
-       take the item out of its zone, change your mind, come back. The
-       original zone is then empty, the item is re-appended at its root,
-       and it shows beside its box instead of inside it. A hesitant
-       gesture is the ordinary gesture.
+       It happens on a drag that HESITATES: you take the item out of its
+       zone, change your mind, come back. The original zone is then empty,
+       the item would be re-appended at its root, and it would show beside
+       its box instead of inside it. A hesitant gesture is the ordinary
+       gesture.
 
        What we do instead: the app rendered its items in a container of
        its own (a `vstack`, a grid) — it is still there, empty. We walk
@@ -6643,18 +8167,17 @@
      zone with no declaration receives **only its own items**: two
      independent lists on the same page must not swap cards because
      nobody declared anything. It is Sortable.js's default (an anonymous
-     group is unique per instance there), and the playground's bench
-     proved it necessary — without it, grabbing a kanban card lit up the
-     page's five unrelated zones.
+     group is unique per instance there): without it, grabbing a card
+     lights up every unrelated zone on the page.
      Receiving from elsewhere is therefore an OPT-IN, not a default. */
   function accepts(zone, group, originZone) {
     //: ⚠️ `accepts` governs ENTRY FROM ELSEWHERE, not internal
     //: reordering. Reordering within its own zone is not entering it:
     //: the item is already there, and nobody declared anything about
-    //: that. Consulting `accepts` here froze a whole list as soon as the
-    //: items' `group=` did not answer its `accepts=` — measured:
-    //: `accepts=["card"]` on items with no group made the zone totally
-    //: inert, in silence. Sortable.js separates `put` (receive) from
+    //: that. Consulting `accepts` here would freeze a whole list as soon
+    //: as the items' `group=` does not answer its `accepts=`:
+    //: `accepts=["card"]` on items with no group would make the zone
+    //: totally inert, in silence. Sortable.js separates `put` (receive) from
     //: `sort` (reorder) for the same reason.
     if (zone === originZone) return true;
     const raw = (zone.getAttribute("data-bz-accepts") || "").trim();
@@ -6686,13 +8209,12 @@
      only read it. Fallback to the vertical axis (the common case) when
      there are not two items to compare. */
   function axisOf(zone) {
-    //: The dragged item is NOT excluded, and that is the 2026-08-10
-    //: correction: we move the real node, so it is still in the flow and
-    //: its box is as valid as any other's. Excluding it left a list of
-    //: TWO items with a single reference point, so a fallback to the
-    //: vertical axis — measured: a horizontal row of two cards was
-    //: impossible to reorder, the comparison being made on a Y both
-    //: share.
+    //: The dragged item is NOT excluded: we move the real node, so it is
+    //: still in the flow and its box is as valid as any other's. Excluding
+    //: it would leave a list of TWO items with a single reference point,
+    //: so a fallback to the vertical axis: a horizontal row of two cards
+    //: would be impossible to reorder, the comparison being made on a Y
+    //: both share.
     const items = itemsOf(zone);
     if (items.length >= 2) {
       const a = items[0].getBoundingClientRect();
@@ -6889,16 +8411,15 @@
 
   function onPointerMove(e) {
     if (armed && e.pointerId === armed.pointerId) {
-      const dx = Math.abs(e.clientX - armed.x);
-      const dy = Math.abs(e.clientY - armed.y);
+      const far = G.distance(armed, e);
       if (armed.touch) {
         //: The finger ran off before the delay ended: it was a scroll.
-        if (Math.max(dx, dy) > TOUCH_TOLERANCE_PX) disarm();
-      } else if (Math.max(dx, dy) > MOUSE_THRESHOLD_PX) {
+        if (far > TOUCH_TOLERANCE_PX) disarm();
+      } else if (far >= MOUSE_THRESHOLD_PX) {
         begin();
-        //: Follow THIS move too: a quick flick (or an automation tool's
-        //: single move) used to start the drag here and drop it in the
-        //: origin zone on the next `pointerup`, saving nothing.
+        //: Follow THIS move too: otherwise a quick flick (or an automation
+        //: tool's single move) would start the drag here and drop it in
+        //: the origin zone on the next `pointerup`, saving nothing.
         if (active && e.pointerId === active.pointerId) {
           movePreview(e.clientX, e.clientY);
           hoverTo(e.clientX, e.clientY);
@@ -6918,35 +8439,62 @@
     hoverTo(e.clientX, e.clientY);
   }
 
+  //: Hide the node while it is leaving the board (a terminal zone
+  //: hovered), and show it again — inline style, put back as it was. A
+  //: morph that redraws the node drops the inline style by itself.
+  function leave(a) {
+    if (a.leaving) return;
+    a.leaving = true;
+    a.shownDisplay = a.item.style.display;
+    a.item.style.display = "none";
+  }
+
+  function stay(a) {
+    if (!a.leaving) return;
+    a.leaving = false;
+    a.item.style.display = a.shownDisplay;
+  }
+
+  function notTerminal() {
+    active.terminalZone = null;
+    stay(active);
+  }
+
   /* The core: put the node where the pointer says it is going. */
   function hoverTo(x, y) {
     const under = document.elementFromPoint(x, y);
     if (!under) {
-      active.terminalZone = null;
+      notTerminal();
       clearReplace();
       return;
     }
     const overZone = zoneOf(under);
     if (!overZone) {
-      active.terminalZone = null;
+      notTerminal();
       clearReplace();
       return;
     }
     if (!canEnter(overZone, active.group, active.originZone)) {
-      active.terminalZone = null;
+      notTerminal();
       clearReplace();
       return;
     }
 
-    //: Archive/delete targets receive a Move, but never the real node.
-    //: Inserting into a clipped, fixed-height target made the card vanish
-    //: while its box still occupied space. Leave its layout untouched.
+    //: Archive/delete targets receive a Move, but never the real node:
+    //: inserting into a clipped, fixed-height target made the card vanish
+    //: while its box still occupied space. Over such a zone the card
+    //: LEAVES the board instead — back to where it came from (dropped in
+    //: the last column crossed, the zone diff never touched it, cf.
+    //: `finish`) and hidden there: only the floating preview remains,
+    //: what a drop will do.
     if (overZone.hasAttribute("data-bz-terminal")) {
       clearReplace();
       active.terminalZone = overZone;
+      backToOrigin(active);
+      leave(active);
       return;
     }
-    active.terminalZone = null;
+    notTerminal();
 
     /* ⚠️ OVERWRITE. A zone that holds only one element and already
        carries one must receive NOTHING during the gesture: sliding the
@@ -6963,8 +8511,14 @@
     }
     clearReplace();
 
-    const overItem = under.closest(ITEM_SEL);
-    if (overItem && overItem !== active.item && zoneOf(overItem) === overZone) {
+    //: Only an item OF the zone hovered is aimed at. Over a zone nested
+    //: in an item — a chapter holding its lessons — `closest` finds the
+    //: enclosing item first, which belongs to the outer zone: taken for
+    //: the target, it stopped the append below, and an empty inner zone
+    //: could never be filled.
+    let overItem = under.closest(ITEM_SEL);
+    if (overItem && zoneOf(overItem) !== overZone) overItem = null;
+    if (overItem && overItem !== active.item) {
       const rect = overItem.getBoundingClientRect();
       const axis = axisOf(overZone);
       const after = isPastMiddle(rect, x, y, axis);
@@ -7019,44 +8573,39 @@
      goes through the morph (cf. this file's header). */
   function cancel() {
     if (!active) return;
+    stay(active);
     active.originParent.insertBefore(active.item, active.originNext);
     cleanup();
   }
 
-  /* Undo the drop if the answer did not confirm it.
-     ⚠️ Two frames of waiting, not one: `htmx:afterRequest` is the only
-     reliable disarm (htmx emits it on 4xx, network errors and aborts
-     too), but the swap and the rescan around it land on the following
-     frames. Checking straight away would read the witness before the
-     morph had a chance to erase it, and EVERY drop would be undone. */
-  function armSnapBack(item, parent, next, carrier) {
+  /* Undo the drop if the answer did not confirm it — after the answer's
+     swap and rescan (`whenAnswered` waits two frames: checking straight
+     away would read the witness before the morph erased it, and EVERY
+     drop would be undone). While the server ASKS — a modal dialog open,
+     the board not redrawn — the item stays where it was dropped, and
+     goes back only if the question ends without an answer that touched
+     it. */
+  function armSnapBack(item, parent, next, carrier, show) {
     const itemKey = item.getAttribute("data-bz-key") || "";
     const destination = zoneOf(item);
     const destinationName = destination
       ? destination.getAttribute("data-bz-dropzone") || ""
       : "";
     item.setAttribute(PENDING_ATTR, "");
-    function settle(e) {
-      if (e.detail && e.detail.elt && e.detail.elt !== carrier) return;
-      document.body.removeEventListener("htmx:afterRequest", settle);
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          if (!item.hasAttribute(PENDING_ATTR)) return;
-          item.removeAttribute(PENDING_ATTR);
-          //: The server may have removed the item (archiving): there
-          //: is then nothing to put back, and its old parent may itself
-          //: have disappeared.
-          if (!item.isConnected || !parent.isConnected) return;
-          parent.insertBefore(
-            item, next && next.parentNode === parent ? next : null
-          );
-        });
-        requestAnimationFrame(function () {
-          restoreSequentialFocus(itemKey, destinationName);
-        });
-      });
-    }
-    document.body.addEventListener("htmx:afterRequest", settle);
+    G.whenAnswered(carrier, {
+      untouched: function () { return item.hasAttribute(PENDING_ATTR); },
+      undo: function () {
+        item.removeAttribute(PENDING_ATTR);
+        //: A card that left the board for a terminal zone comes back.
+        if (show) show();
+        //: The server may have removed the item (archiving): there is
+        //: then nothing to put back, and its old parent may itself have
+        //: disappeared.
+        if (!item.isConnected || !parent.isConnected) return;
+        parent.insertBefore(item, next && next.parentNode === parent ? next : null);
+      },
+      settled: function () { restoreSequentialFocus(itemKey, destinationName); },
+    });
   }
 
   /* Put the starting point of sequential navigation back after the
@@ -7090,6 +8639,15 @@
     }
   }
 
+  //: The node where the gesture took it from — for a drop that will not
+  //: place it (a terminal zone, an overwrite). A no-op when it is there.
+  function backToOrigin(a) {
+    const next = a.originNext && a.originNext.parentNode === a.originParent
+      ? a.originNext : null;
+    if (a.item.parentNode === a.originParent && a.item.nextSibling === next) return;
+    a.originParent.insertBefore(a.item, next);
+  }
+
   function finish() {
     const a = active;
     //: An overwrite did NOT move the node: the target zone is read from
@@ -7101,12 +8659,26 @@
     const toIndex = terminal || remplace ? 0 : indexOf(a.item);
     const origin = {parent: a.originParent, next: a.originNext, item: a.item};
     cleanup();
-    if (!toZone) return;
+    //: The click the browser fires on the card it just let go would
+    //: open it (a card with `on_click`).
+    G.swallowClick();
+    //: A terminal or an overwrite drop never PLACED the node: it stayed
+    //: where the pointer last crossed an in-flow zone. Put it back where
+    //: it came from, so the page matches the server's last render — the
+    //: answer then removes or moves it like any other change. Left
+    //: behind, it would sit in a column the server never changed: the zone
+    //: diff (which ships only what the server changed) would never touch
+    //: it, its witness would survive, and the drop would be "undone".
+    if (terminal || remplace) backToOrigin(a);
+    //: Dropped on a terminal zone, the card stays hidden until the answer
+    //: removes it — or shows it again if nothing leaves.
+    const show = function () { stay(a); };
+    if (!toZone) return show();
 
     //: Nothing moved → no server round trip. A drag that puts the item
     //: back where it was must not produce a `Move`.
     if (!remplace && toZone === a.originZone && toIndex === a.originIndex) {
-      return;
+      return show();
     }
 
     //: It is the RECEIVING zone that decides — its `on_move` is the
@@ -7119,20 +8691,21 @@
       toZone.querySelectorAll(CARRIER_SEL),
       function (el) { return zoneOf(el) === toZone; }
     );
-    if (!carrier) return;
+    if (!carrier) return show();
 
-    carrier.value = JSON.stringify({
+    const told = {
       item_key: a.item.getAttribute("data-bz-key") || "",
       from_zone: a.originZone.getAttribute("data-bz-dropzone") || "",
       to_zone: toZone.getAttribute("data-bz-dropzone") || "",
       from_index: a.originIndex,
       to_index: toIndex,
-    });
+    };
+    carrier.value = JSON.stringify(told);
     //: The home-made transport — the JS writes, dispatches, and it is
     //: the carrier's hx-post that leaves. No `fetch` here: the transport
     //: boundary belongs to the bridge (charter, principle 2).
-    armSnapBack(origin.item, origin.parent, origin.next, carrier);
-    $bz.helpers.emitChange(carrier, "move");
+    armSnapBack(origin.item, origin.parent, origin.next, carrier, show);
+    $bz.helpers.emitChange(carrier, "move", told);
   }
 
   //: Once the gesture is GRABBED, the finger is ours: it is this
@@ -7141,11 +8714,9 @@
   //:
   //: It does NOT duplicate `onPointerMove`'s. A `preventDefault` on a
   //: `pointermove` does not cancel a touch scroll — only the
-  //: `touchmove` can, and only in a NON-PASSIVE listener. As long as the
-  //: CSS set `touch-action: none` the question did not arise: the
-  //: browser never scrolled. Since the item leaves `pan-x pan-y`
-  //: (finding [27]: without it the finger could no longer scroll a
-  //: column of cards), the gesture has to be taken over at the moment
+  //: `touchmove` can, and only in a NON-PASSIVE listener. The item
+  //: leaves `pan-x pan-y` (without it the finger could not scroll a
+  //: column of cards), so the gesture has to be taken over at the moment
   //: the long press succeeds — and at that precise instant the finger
   //: has not moved, so no scroll is in progress and the takeover is
   //: clean.
@@ -7182,17 +8753,17 @@
 })();
 
 
-/* 20_resizable.js — the shared scope of the Resizable component (split panes).
+/* resizable.js — the shared scope of the Resizable component (split panes).
  *
  * ⚠️ **The repository's third "drag" family, and confusing it costs**:
- *   - `12_slider.js`      = pointer → a VALUE on a scale;
- *   - `19_dnd.js`         = moving a NODE from one position to another;
+ *   - `slider.js`      = pointer → a VALUE on a scale;
+ *   - `dnd.js`         = moving a NODE from one position to another;
  *   - here                = pointer → a DIMENSION. Nothing moves,
  *                           nothing changes parent: two neighbours
  *                           re-share the room they already occupy.
  * It is the slider's family (pointer-drag, continuous delta), not the
  * node-DnD's — the roadmap has said so since framing #6, and this file
- * therefore has NO dependency on `19_dnd.js`.
+ * therefore has NO dependency on `dnd.js`.
  *
  *   bz-data="{...$bz.resizable.scope, sizes: [30,70], _mins: [10,10],
  *             _vertical: false, _group: null,
@@ -7302,16 +8873,15 @@
       // data) would otherwise get ``undefined``: it falls back to an
       // equal share rather than disappearing.
       //
-      // ⚠️ **The normalisation is not cosmetic, and forgetting it here
-      // made the component inert.** ``_mins`` travels in PERCENTAGE
-      // POINTS; if the weights stay raw, the two scales no longer talk
-      // to each other. Measured: ``sizes=[1, 3]`` (a documented writing
-      // — it is the RATIO that counts) with ``min_size=15`` gives
-      // ``pair = 4``, ``lo = 15``, so ``hi < lo`` at every frame, so a
-      // handle that NEVER moves — with no error, nothing in the console.
-      // In local mode the defect was invisible because the ``bz-data``
-      // seeded by the server is already normalised; it only showed in
-      // binding mode, the very one the component puts forward for
+      // ⚠️ **The normalisation is not cosmetic: without it the component
+      // is inert.** ``_mins`` travels in PERCENTAGE POINTS; if the weights
+      // stay raw, the two scales do not talk to each other:
+      // ``sizes=[1, 3]`` (a documented writing — it is the RATIO that
+      // counts) with ``min_size=15`` gives ``pair = 4``, ``lo = 15``, so
+      // ``hi < lo`` at every frame, so a handle that NEVER moves — with no
+      // error, nothing in the console. In local mode the ``bz-data``
+      // seeded by the server is already normalised; only binding mode
+      // shows the defect, the very one the component puts forward for
       // ``persist="local"``.
       //
       // An EXACT MIRROR of ``normalize_weights`` (``resizable.py``),
@@ -7347,8 +8917,7 @@
 
       // The CEILING, in percentage points. ``100`` is the neutral value
       // and not a sentinel: a panel that can take all the room is not
-      // bounded. Added on 2026-08-23 — ``_min`` lived alone, which was
-      // an asymmetry and not a decision.
+      // bounded.
       _max(i) {
         const m = Array.isArray(this._maxs) ? Number(this._maxs[i]) : 100;
         return isFinite(m) && m > 0 && m <= 100 ? m : 100;
@@ -7573,20 +9142,19 @@
 })();
 
 
-/* 21_signature_pad.js — the SignaturePad component's shared scope.
+/* signature_pad.js — the SignaturePad component's shared scope.
  *
- * **The repository's first and only `<canvas>`** (checked: zero other
- * occurrence, the charts are SVG). Everything that follows comes from
- * two properties of the canvas the rest of the framework never had to
- * deal with: it has no intrinsic size, and **resizing it clears it**.
+ * **The framework's only `<canvas>`** (the charts are SVG). Everything
+ * that follows comes from two properties of the canvas the rest of the
+ * framework never had to deal with: it has no intrinsic size, and
+ * **resizing it clears it**.
  *
  * ── The third member of the pointer-drag family ───────────────────────
- *   - `12_slider.js`      = pointer → a VALUE on a scale;
- *   - `20_resizable.js`   = pointer → a DIMENSION;
+ *   - `slider.js`      = pointer → a VALUE on a scale;
+ *   - `resizable.js`   = pointer → a DIMENSION;
  *   - here                = pointer → a STROKE.
- * Nothing to do with `19_dnd.js`'s node-DnD. The pointer capture goes
- * through `$bz.helpers.capturePointer`, extracted on 2026-08-13 while
- * shipping `resizable` — this file is its first new caller.
+ * Nothing to do with `dnd.js`'s node-DnD. The pointer capture goes
+ * through `$bz.helpers.capturePointer`.
  *
  *   bz-data="{...$bz.signaturePad.scope, value: '', _canvas: null,
  *             _strokes: [], _drawing: null, _base: null,
@@ -7612,7 +9180,7 @@
 
   //: The stroke's thickness, in CSS pixels. A constant and not a prop:
   //: a signature has only one weight that works, and making it settable
-  //: would add no power (memory `project_api_opinionation_thesis`).
+  //: would add no power.
   const LINE_WIDTH = 2;
 
   $bz.signaturePad = {
@@ -7684,6 +9252,7 @@
         if (!c || c._bzHydrated) return;
         c._bzHydrated = true;
         const src = this._read();
+        c._bzShown = src || "";
         if (!src) return;
         const img = new Image();
         const self = this;
@@ -7797,7 +9366,45 @@
         // then submitted without being touched must not ERASE the
         // signature it carried.
         const inked = this._strokes.length || this._base;
-        this._write(inked ? this._canvas.toDataURL("image/png") : "");
+        const value = inked ? this._canvas.toDataURL("image/png") : "";
+        // What the canvas shows is what it wrote: ``_follow`` must not
+        // read its own publication back as an outside change.
+        this._canvas._bzShown = value;
+        this._write(value);
+      },
+
+      // ── A value written from OUTSIDE ─────────────────────────────
+      // ``value`` is two-way after the boot too: a server action
+      // resetting ``doc.signature`` to "" (a morph keeps the hydrated
+      // canvas), or a ``ClientState`` written by another control, must
+      // not leave the old ink on screen. A
+      // reactive effect re-reading the value would reload at every
+      // stroke (``_publish`` writes the same state) — so the canvas
+      // remembers what it last SHOWED or PUBLISHED (``_bzShown``), and
+      // only a different value repaints: an empty frame for "", the
+      // image as the background layer otherwise.
+      _follow() {
+        const value = this._read() || "";
+        const c = this._canvas;
+        if (!c || !c._bzHydrated || value === c._bzShown) return;
+        c._bzShown = value;
+        this._strokes.length = 0;
+        this._drawing = null;
+        this._base = null;
+        if (!value) {
+          this._redraw();
+          this._empty(true);
+          return;
+        }
+        const img = new Image();
+        const self = this;
+        img.onload = function () {
+          if (c._bzShown !== value) return;
+          self._base = img;
+          self._redraw();
+          self._empty(false);
+        };
+        img.src = value;
       },
 
       // The marker the theme reads to show / hide the prompt. An
@@ -7837,7 +9444,7 @@
 })();
 
 
-/* 22_verbs.js — the CLIENT half of `bretzel.runtime.verbs`.
+/* verbs.js — the CLIENT half of `bretzel.runtime.verbs`.
  *
  * A verb is a BROWSER action triggered from an `on_*=`:
  *
@@ -7905,8 +9512,7 @@
   $bz.verbs = {
     /* Share — the native sheet, or the clipboard.
      *
-     * ⚠️ `navigator.share` is **undefined** on desktop Chromium
-     * (measured on 2026-09-02: `typeof navigator.share === "undefined"`).
+     * ⚠️ `navigator.share` is **undefined** on desktop Chromium.
      * Its absence is therefore not an edge case, it is the NORMAL case
      * on the machine where Bretzel's users develop.
      *
@@ -7919,7 +9525,11 @@
      */
     share(data) {
       const charge = data || {};
-      if (!charge.url) charge.url = window.location.href;
+      // A RELATIVE address (« /partage/x ») is resolved against the
+      // page: copied as is, it would be a dead link for whoever receives
+      // it, and a page has no public way to know its own origin.
+      charge.url = charge.url ? new URL(String(charge.url), window.location.href).href
+        : window.location.href;
       if (navigator.share) {
         // A refusal by the user (they close the sheet) rejects the
         // promise. It is not an app error: we do NOT fall back on the
@@ -7935,9 +9545,9 @@
       });
     },
 
-    /* Vibrate. `navigator.vibrate` EXISTS everywhere (measured:
-     * `function` on desktop Chromium) and does nothing with no hardware
-     * — so there is no absence to handle, unlike `share`.
+    /* Vibrate. `navigator.vibrate` does nothing with no hardware, and a
+     * browser without it gives `false` — so there is nothing to fall back
+     * on, unlike `share`.
      */
     vibrate(motif) {
       return navigator.vibrate ? navigator.vibrate(motif) : false;
@@ -7965,7 +9575,7 @@
 })();
 
 
-/* 23_diagram.js — the highlighting of neighbours, in `ui.diagram`.
+/* diagram.js — the highlighting of neighbours, in `ui.diagram`.
  *
  * The graph is LAID OUT on the server: positions, layers, paths, it all
  * arrives computed. This file lays out nothing. It does one thing, and
@@ -7986,7 +9596,7 @@
  *
  * Why a slab rather than an expression per node
  * ----------------------------------------------
- * Same reason as 16_accordion: serialising these method bodies into
+ * Same reason as accordion: serialising these method bodies into
  * every node's `bz-data` would be 120 bytes × N. Here only the ADJACENCY
  * travels — an array of keys per node, the only thing that really
  * differs from one node to the next.
@@ -8034,12 +9644,11 @@
 
       /* Must this node stay in the foreground?
        *
-       * DERIVED from the selection, never stored. The first version kept
-       * a `lit` array that `light()` filled — and that array did not
-       * move when the selection changed from OUTSIDE (a `select` bound
-       * to the same `ClientState`, a `state.node.set(...)`). The store
-       * followed, the screen did not: measured at `dim = 0` where a
-       * click gave 3.
+       * DERIVED from the selection, never stored. A `lit` array filled by
+       * `light()` would not move when the selection changes from OUTSIDE
+       * (a `select` bound to the same `ClientState`, a
+       * `state.node.set(...)`): the store would follow, the screen would
+       * not.
        *
        * `adj` is the node's adjacency, baked by the server into its
        * `bz-class`. So we test "is the selected one MY neighbour" rather
@@ -8095,4 +9704,1093 @@
       },
     },
   };
+})();
+
+
+/* scheduler.js — dragging a `ui.scheduler` card to another time,
+ * pulling its bottom edge to change its end, and tracing a new event on
+ * the empty grid (`on_create`).
+ *
+ * ── Why not `dnd.js` ───────────────────────────────────────────────
+ * The node-DnD moves a node from one LIST to another and reports an
+ * index. A scheduler drop is a POSITION in a grid — "Thursday at 8h05" —
+ * and the length of an event is pulled, not reordered. What is shared is
+ * the transport, kept identical on purpose: a hidden carrier holds the
+ * `hx-post`, the gesture writes a JSON blob into it and fires its event,
+ * and a WITNESS on the card says whether the answer touched it.
+ *
+ * ── The traps it carries once for all ─────────────────────────────────
+ *   1. A ghost left by an earlier gesture never survives into the next:
+ *      every ghost is removed when a gesture begins and when it ends.
+ *   2. A refusal puts the card back — the server answered without
+ *      redrawing it (zero bytes, an error status, an exception).
+ *   3. A QUESTION keeps the card where it was dropped. The server that
+ *      asks "this one or all of them?" opens a modal dialog and does not
+ *      redraw the scheduler; snapping back at that moment would put the
+ *      card back under the question. So while a modal dialog is open, the
+ *      card waits; when none is open any more and no request is in flight,
+ *      an untouched card goes back — cancelled.
+ *   4. The click a browser fires at the end of a drag is swallowed for a
+ *      MOMENT, not "until the next click": a browser may fire none, and
+ *      the next one would be the dialog's button.
+ *
+ * ── Why delegation to the document ───────────────────────────────────
+ * The scheduler is redrawn by morphs; a listener on a card would die
+ * with it. One listener per event type, on the document, which finds its
+ * target with `closest()` and keeps no state on the nodes.
+ *
+ * DOM contract expected from Python (`components/data/scheduler`):
+ *   root    [data-bz-scheduler] data-bz-grid-start, data-bz-grid-end (minutes),
+ *           data-bz-px (pixels per minute), data-bz-snap (minutes), data-bz-gap (px)
+ *   column  [data-bz-day="YYYY-MM-DD"]
+ *   card    [data-bz-event] data-bz-start, data-bz-duration (minutes),
+ *           [data-bz-movable] when it can be dragged
+ *   edge    [data-bz-resize] inside a card, when it can be pulled
+ *   carrier [data-bz-scheduler-carrier="move"|"resize"|"create"], a root child
+ *   tag     [data-bz-scheduler-tag], a root child — the label of the time
+ *   draft   [data-bz-scheduler-draft], a root child — the theme's picture of
+ *           a new event, copied under a trace
+ *
+ * ── The trace (`on_create`) ──────────────────────────────────────────
+ * A press on a column, NOT on a card, that moves past the threshold
+ * draws a draft (on the root, over the column) from the pressed minute
+ * to the pointer, snapped. At the
+ * release the draft STAYS until the answer — the app redraws with its
+ * own provisional item, or answers nothing — then goes. A press that does
+ * not move creates nothing: a click on the grid often closes a panel.
+ */
+(function () {
+  "use strict";
+  const $bz = (window.$bz = window.$bz || {});
+
+  //: The gesture's rules live ONCE, in `$bz.gesture` (`helpers.js`),
+  //: shared with `dnd.js`: the threshold keeps the CLICK
+  //: (`on_item_click=`), the touch hold and its tolerance keep the week
+  //: SCROLLABLE, the end-of-drag click is swallowed for a moment, and a
+  //: dropped card waits while a question is open.
+  const G = $bz.gesture;
+  const THRESHOLD_PX = G.MOUSE_THRESHOLD_PX;
+  const TOUCH_HOLD_MS = G.TOUCH_HOLD_MS;
+  const TOUCH_TOLERANCE_PX = G.TOUCH_TOLERANCE_PX;
+
+  //: Set on a dropped card until an answer redraws it. The server never
+  //: renders it, so the morph erases it; its survival says nobody did.
+  const PENDING_ATTR = "data-bz-reschedule-pending";
+  ($bz._witnesses = $bz._witnesses || new Set()).add(PENDING_ATTR);
+  const ROOT_SEL = "[data-bz-scheduler]";
+  const COLUMN_SEL = "[data-bz-day]";
+  let armed = null;
+  let active = null;
+
+  // ── Reading the contract ─────────────────────────────────────────────
+
+  function grid(root) {
+    return {
+      start: +root.getAttribute("data-bz-grid-start"),
+      end: +root.getAttribute("data-bz-grid-end"),
+      px: +root.getAttribute("data-bz-px"),
+      snap: +root.getAttribute("data-bz-snap") || 5,
+      gap: +root.getAttribute("data-bz-gap") || 0,
+    };
+  }
+
+  function child(root, selector) {
+    return root.querySelector(":scope > " + selector);
+  }
+
+  function carrierOf(root, mode) {
+    return child(root, '[data-bz-scheduler-carrier="' + mode + '"]');
+  }
+
+  /* The geometry is read ONCE per gesture (and again on a scroll), not
+     on every pointermove: a layout read right after the ghost's write
+     forced a reflow per move. */
+  function measure(a) {
+    a.rootBox = a.root.getBoundingClientRect();
+    a.columns = Array.prototype.filter.call(
+      a.root.querySelectorAll(COLUMN_SEL),
+      function (c) { return c.closest(ROOT_SEL) === a.root; }
+    ).map(function (c) { return {el: c, box: c.getBoundingClientRect()}; });
+    a.tagHeight = a.tag ? a.tag.offsetHeight : 0;
+  }
+
+  /* A day column spans the grid's height, so x alone finds it — even
+     when the pointer strays above the grid. A month cell needs y too. */
+  function columnAt(a, x, y) {
+    const hit = a.columns.find(function (c) {
+      return x >= c.box.left && x < c.box.right
+        && (!a.month || (y >= c.box.top && y < c.box.bottom));
+    });
+    return hit || null;
+  }
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  /* The hour beside a dragged card, by THE clock (``$bz.times.shown``):
+   * « 8h05 » in French, « 8:05 AM » in American English. */
+  function label(minutes) {
+    const pad = function (n) { return String(n).padStart(2, "0"); };
+    return $bz.times.shown(pad(Math.floor(minutes / 60)) + ":" + pad(minutes % 60));
+  }
+
+  /* "2026-11-10" + 485 → "2026-11-10T08:05", in the page's local time.
+     Built on a Date so that 24:00 becomes the next day's 00:00. */
+  function iso(day, minutes) {
+    const d = new Date(day + "T00:00:00");
+    d.setMinutes(minutes);
+    const pad = function (n) { return String(n).padStart(2, "0"); };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate())
+      + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function listOf(cell) {
+    return cell.querySelector("[data-bz-month-list]") || cell;
+  }
+
+  function removeGhosts() {
+    document.querySelectorAll("[data-bz-ghost]").forEach(function (g) { g.remove(); });
+  }
+
+  function removeDrafts() {
+    document.querySelectorAll("[data-bz-draft]").forEach(function (d) { d.remove(); });
+  }
+
+  // ── The gesture ──────────────────────────────────────────────────────
+
+  function onPointerDown(e) {
+    if (active || armed) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (!e.target.closest) return;
+    const edge = e.target.closest("[data-bz-resize]");
+    const card = edge ? edge.closest("[data-bz-event]") : e.target.closest("[data-bz-movable]");
+    if (!card && !e.target.closest("[data-bz-event]")) return armCreate(e);
+    if (!card || card.hasAttribute(PENDING_ATTR)) return;
+    const root = card.closest(ROOT_SEL);
+    const column = card.closest(COLUMN_SEL);
+    const mode = edge ? "resize" : "move";
+    if (!root || !column || !carrierOf(root, mode)) return;
+    armed = {
+      card: card, root: root, column: column, mode: mode,
+      pointerId: e.pointerId, touch: e.pointerType === "touch",
+      x: e.clientX, y: e.clientY, timer: null,
+    };
+    if (armed.touch) {
+      armed.timer = setTimeout(function () { if (armed) begin(armed.x, armed.y); },
+                               TOUCH_HOLD_MS);
+    }
+  }
+
+  /* A press on the empty grid of a scheduler that creates. */
+  function armCreate(e) {
+    const column = e.target.closest(COLUMN_SEL);
+    const root = column && column.closest(ROOT_SEL);
+    if (!root || root.getAttribute("data-bz-view") === "month" || !carrierOf(root, "create")) {
+      return;
+    }
+    armed = {
+      card: null, root: root, column: column, mode: "create",
+      pointerId: e.pointerId, touch: e.pointerType === "touch",
+      x: e.clientX, y: e.clientY, timer: null,
+    };
+    if (armed.touch) {
+      armed.timer = setTimeout(function () { if (armed) begin(armed.x, armed.y); },
+                               TOUCH_HOLD_MS);
+    }
+  }
+
+  function disarm() {
+    if (armed && armed.timer) clearTimeout(armed.timer);
+    armed = null;
+  }
+
+  function begin(x, y) {
+    const a = armed;
+    disarm();
+    removeGhosts();
+    removeDrafts();
+    if (a.mode === "create") return beginCreate(a, x, y);
+    const card = a.card;
+    const box = card.getBoundingClientRect();
+    const ghost = card.cloneNode(true);
+    //: The copy carries no identity and no wiring: it is a picture.
+    [ghost].concat(Array.prototype.slice.call(ghost.querySelectorAll("*"))).forEach(function (el) {
+      Array.prototype.slice.call(el.attributes).forEach(function (attr) {
+        const n = attr.name;
+        if (n === "id" || n === "tabindex" || n === "role" || n === "aria-label"
+            || n.indexOf("hx-") === 0 || n.indexOf("bz-") === 0 || n === "data-bz-sig"
+            || n === "data-bz-movable" || n === "data-bz-event") {
+          el.removeAttribute(n);
+        }
+      });
+    });
+    ghost.setAttribute("data-bz-ghost", "");
+    ghost.setAttribute("aria-hidden", "true");
+    card.setAttribute("data-bz-dragging", "");
+    const tag = child(a.root, "[data-bz-scheduler-tag]");
+    if (tag) tag.hidden = false;
+    active = {
+      card: card, root: a.root, mode: a.mode, pointerId: a.pointerId,
+      grid: grid(a.root), ghost: ghost, tag: tag,
+      grab: a.y - box.top,
+      origin: {
+        column: a.column,
+        parent: card.parentNode,
+        next: card.nextSibling,
+        style: card.getAttribute("style") || "",
+        start: +card.getAttribute("data-bz-start"),
+        duration: +card.getAttribute("data-bz-duration"),
+      },
+      column: a.column, start: 0, end: 0, x: x, y: y,
+      //: A month has no hours: the chip changes day, keeps its time, and
+      //: sits in the cell's list rather than at a height.
+      month: a.root.getAttribute("data-bz-view") === "month",
+    };
+    if (active.month && tag) tag.hidden = true;
+    measure(active);
+    update(x, y);
+  }
+
+  function beginCreate(a, x, y) {
+    const template = child(a.root, "[data-bz-scheduler-draft]");
+    if (!template) return;
+    const draft = template.cloneNode(true);
+    draft.removeAttribute("data-bz-scheduler-draft");
+    draft.removeAttribute("hidden");
+    draft.setAttribute("data-bz-draft", "");
+    //: ``data-bz-row``: what the runtime inserted itself, which the
+    //: bridge's position patches skip when they check a level's shape
+    //: (``bridge.js``, ``applyPositionPatches``). Without it the answer
+    //: that redraws the scheduler is refused, and the new event never
+    //: shows.
+    draft.setAttribute("data-bz-row", "");
+    const tag = child(a.root, "[data-bz-scheduler-tag]");
+    if (tag) tag.hidden = false;
+    active = {
+      card: null, root: a.root, mode: "create", pointerId: a.pointerId,
+      grid: grid(a.root), ghost: draft, tag: tag,
+      column: a.column, start: 0, end: 0, x: x, y: y, month: false,
+      origin: {column: a.column, start: 0, duration: 0},
+    };
+    measure(active);
+    const g = active.grid;
+    const here = active.columns.find(function (c) { return c.el === a.column; });
+    //: The pressed minute, floored to the snap: the trace's anchor.
+    active.origin.start = clamp(
+      Math.floor((g.start + (a.y - here.box.top) / g.px) / g.snap) * g.snap,
+      g.start, g.end - g.snap);
+    //: On the root, over the column: the draft outlives the gesture, and
+    //: the answer redraws the column under it.
+    a.root.appendChild(draft);
+    update(x, y);
+  }
+
+  function showTag(a, here, start, end) {
+    if (!a.tag) return;
+    const g = a.grid;
+    //: Placed from the computed top, never read back from the ghost.
+    a.tag.textContent = label(start) + " – " + label(end);
+    a.tag.style.left = (here.box.left - a.rootBox.left + g.gap) + "px";
+    a.tag.style.top = (here.box.top - a.rootBox.top + (start - g.start) * g.px
+                       - a.tagHeight - 4) + "px";
+  }
+
+  function update(x, y) {
+    const a = active;
+    const g = a.grid;
+    const snap = function (m) { return Math.round(m / g.snap) * g.snap; };
+    a.x = x;
+    a.y = y;
+    if (a.mode === "create") {
+      //: The trace stays in its column; it runs from the anchor to the
+      //: pointer, downwards or upwards, one snap at least.
+      const col = a.columns.find(function (c) { return c.el === a.column; });
+      const at = clamp(g.start + (y - col.box.top) / g.px, g.start, g.end);
+      const anchor = a.origin.start;
+      let start = anchor;
+      let end = Math.max(anchor + g.snap, Math.ceil(at / g.snap) * g.snap);
+      if (at < anchor) {
+        start = Math.floor(at / g.snap) * g.snap;
+        end = anchor + g.snap;
+      }
+      a.start = clamp(start, g.start, g.end - g.snap);
+      a.end = clamp(end, a.start + g.snap, g.end);
+      const d = a.ghost.style;
+      d.left = (col.box.left - a.rootBox.left + g.gap) + "px";
+      d.width = (col.box.width - 2 * g.gap) + "px";
+      d.top = Math.round(col.box.top - a.rootBox.top + (a.start - g.start) * g.px + g.gap / 2) + "px";
+      d.height = Math.round((a.end - a.start) * g.px - g.gap) + "px";
+      showTag(a, col, a.start, a.end);
+      return;
+    }
+    const here = (a.mode === "move" && columnAt(a, x, y))
+      || a.columns.find(function (c) { return c.el === a.column; });
+    if (a.month) {
+      a.column = here.el;
+      a.start = a.origin.start;
+      a.end = a.origin.start + a.origin.duration;
+      const list = listOf(here.el);
+      if (a.ghost.parentNode !== list) list.appendChild(a.ghost);
+      return;
+    }
+    let start = a.origin.start;
+    let end = start + a.origin.duration;
+    if (a.mode === "move") {
+      const top = y - here.box.top - a.grab;
+      start = clamp(snap(g.start + top / g.px), g.start, g.end - a.origin.duration);
+      end = start + a.origin.duration;
+    } else {
+      end = clamp(snap(g.start + (y - here.box.top) / g.px), start + g.snap, g.end);
+    }
+    a.column = here.el;
+    a.start = start;
+    a.end = end;
+    if (a.ghost.parentNode !== here.el) here.el.appendChild(a.ghost);
+    place(a.ghost, a, start, end, a.mode === "move");
+    showTag(a, here, start, end);
+  }
+
+  /* Pose a card at [start, end). A moved card loses its lane: until the
+     server places it, it takes the column's whole width. */
+  function place(el, a, start, end, wholeWidth) {
+    const g = a.grid;
+    el.style.top = Math.round((start - g.start) * g.px + g.gap / 2) + "px";
+    el.style.height = Math.round((end - start) * g.px - g.gap) + "px";
+    if (wholeWidth) {
+      el.style.insetInlineStart = g.gap + "px";
+      el.style.width = "calc(100% - " + 2 * g.gap + "px)";
+    }
+  }
+
+  function cleanup() {
+    removeGhosts();
+    if (active) {
+      if (active.card) active.card.removeAttribute("data-bz-dragging");
+      if (active.tag) active.tag.hidden = true;
+    }
+    active = null;
+  }
+
+  function finish() {
+    const a = active;
+    cleanup();
+    G.swallowClick();
+    if (a.mode === "create") return finishCreate(a);
+    const day = a.column.getAttribute("data-bz-day");
+    const unchanged = a.column === a.origin.column && a.start === a.origin.start
+      && a.end === a.origin.start + a.origin.duration;
+    if (unchanged) return;
+    const carrier = carrierOf(a.root, a.mode);
+    if (!carrier) return;
+
+    //: Optimistic: the card goes where it was dropped, at once.
+    const card = a.card;
+    const host = a.month ? listOf(a.column) : a.column;
+    if (card.parentNode !== host) host.appendChild(card);
+    if (!a.month) place(card, a, a.start, a.end, a.mode === "move");
+    card.setAttribute("data-bz-start", String(a.start));
+    card.setAttribute("data-bz-duration", String(a.end - a.start));
+
+    const told = {
+      event_id: card.getAttribute("data-bz-event") || "",
+      start: iso(day, a.start),
+      end: iso(day, a.end),
+    };
+    carrier.value = JSON.stringify(told);
+    //: A client expression only: no request, so no answer will ever place
+    //: the card — it goes back once the expression has run.
+    const server = carrier.hasAttribute("hx-post");
+    if (server) armSnapBack(card, a.origin, carrier);
+    //: The carrier's `hx-post` leaves — no `fetch` here: the transport
+    //: belongs to the bridge (charter, principle 2).
+    $bz.helpers.emitChange(carrier, a.mode, told);
+    if (!server) afterTwoFrames(function () { restore(card, a.origin); });
+  }
+
+  /* The traced slot leaves; the draft waits for the answer, then goes —
+     an app that keeps the slot has drawn its own item by then. */
+  function finishCreate(a) {
+    const draft = a.ghost;
+    const carrier = carrierOf(a.root, "create");
+    if (!carrier) { draft.remove(); return; }
+    const day = a.column.getAttribute("data-bz-day");
+    const told = {event_id: "", start: iso(day, a.start), end: iso(day, a.end)};
+    carrier.value = JSON.stringify(told);
+    const server = carrier.hasAttribute("hx-post");
+    function settle(e) {
+      if (e.detail && e.detail.elt && e.detail.elt !== carrier) return;
+      document.removeEventListener("htmx:afterRequest", settle);
+      afterTwoFrames(function () { draft.remove(); });
+    }
+    if (server) document.addEventListener("htmx:afterRequest", settle);
+    $bz.helpers.emitChange(carrier, "create", told);
+    if (!server) afterTwoFrames(function () { draft.remove(); });
+  }
+
+  // ── The answer ───────────────────────────────────────────────────────
+
+  function restore(card, origin) {
+    card.removeAttribute(PENDING_ATTR);
+    if (!card.isConnected || !origin.parent.isConnected) return;
+    origin.parent.insertBefore(
+      card, origin.next && origin.next.parentNode === origin.parent ? origin.next : null
+    );
+    card.setAttribute("style", origin.style);
+    card.setAttribute("data-bz-start", String(origin.start));
+    card.setAttribute("data-bz-duration", String(origin.duration));
+  }
+
+  //: Two frames after an answer: the swap and the rescan land on the
+  //: frames that follow `htmx:afterRequest`.
+  const afterTwoFrames = G.afterTwoFrames;
+
+  //: While a question is open the card waits for what can end it: the
+  //: dialog's own `close` (bubbled from `show_attrs`' `$dispatch`), or an
+  //: answer that may redraw the scheduler (`$bz.gesture.whenAnswered`).
+  function armSnapBack(card, origin, carrier) {
+    card.setAttribute(PENDING_ATTR, "");
+    G.whenAnswered(carrier, {
+      untouched: function () {
+        return card.hasAttribute(PENDING_ATTR) && card.isConnected;
+      },
+      undo: function () { restore(card, origin); },
+    });
+  }
+
+  // ── Listeners ────────────────────────────────────────────────────────
+
+  function onPointerMove(e) {
+    if (armed && e.pointerId === armed.pointerId) {
+      const far = G.distance(armed, e);
+      if (armed.touch) {
+        if (far > TOUCH_TOLERANCE_PX) disarm();
+      } else if (far >= THRESHOLD_PX) {
+        begin(e.clientX, e.clientY);
+      }
+      return;
+    }
+    if (!active || e.pointerId !== active.pointerId) return;
+    e.preventDefault();
+    update(e.clientX, e.clientY);
+  }
+
+  function onPointerUp(e) {
+    if (armed && e.pointerId === armed.pointerId) return disarm();
+    if (active && e.pointerId === active.pointerId) finish();
+  }
+
+  function onPointerCancel(e) {
+    if (armed && e.pointerId === armed.pointerId) return disarm();
+    if (active && e.pointerId === active.pointerId) cleanup();
+  }
+
+  function onKeyDown(e) {
+    if (e.key !== "Escape") return;
+    if (armed) disarm();
+    else if (active) cleanup();
+  }
+
+  //: A wheel scroll during a drag moves the columns under the pointer.
+  function onScroll() {
+    if (!active) return;
+    measure(active);
+    update(active.x, active.y);
+  }
+
+  //: Once grabbed, the finger is ours: only a non-passive `touchmove`
+  //: can stop the browser scrolling under the card.
+  function onTouchMove(e) {
+    if (active && e.cancelable) e.preventDefault();
+  }
+
+  document.addEventListener("pointerdown", onPointerDown, true);
+  document.addEventListener("pointermove", onPointerMove, { passive: false });
+  document.addEventListener("touchmove", onTouchMove, { passive: false });
+  document.addEventListener("pointerup", onPointerUp, true);
+  document.addEventListener("pointercancel", onPointerCancel, true);
+  document.addEventListener("keydown", onKeyDown, true);
+  document.addEventListener("scroll", onScroll, true);
+
+  //: Exposed for the tests. The public contract stays the data attributes.
+  $bz.scheduler = {
+    THRESHOLD_PX: THRESHOLD_PX,
+    SWALLOW_MS: G.SWALLOW_MS,
+    _state: function () { return { armed: armed, active: active, inFlight: G._inFlight() }; },
+    _iso: iso,
+  };
+})();
+
+
+/* tip.js — the ONE tooltip panel of the page, and the service that shows it.
+ *
+ * A client scope, four listeners and a teleported panel with its arrow
+ * for every `ui.tooltip` — and every universal `tooltip="…"`, which builds
+ * one — would weigh far more than what the tooltip says. So the server
+ * renders ONE panel per page (`#bz-tip`, with the app's merged tooltip
+ * theme — `bretzel/components/overlay/tooltip`), and a trigger only
+ * carries what it says:
+ *
+ *   data-bz-tip-root           the wrapper the pointer and the focus enter
+ *   data-bz-tip="…"            its text (`bz-attr:` keeps a binding live)
+ *   <template data-bz-tip-content>   rich content, cloned in at show time
+ *   data-bz-tip-position / -color / -delay / -class   when not the default
+ *   data-bz-tip-off="expr"     `disabled=`, evaluated at HOVER time with
+ *                              `$el` = the trigger (never frozen at mount)
+ *   data-bz-tip-beside="sel"   place the panel beside that ANCESTOR's edge,
+ *                              centred on the trigger (the sidebar rail: a
+ *                              collapsed entry is a square inside the rail)
+ *
+ * The rules are the ones the per-instance scope applied: the reveal delay;
+ * no tooltip over a popup its trigger opened (`aria-expanded="true"`,
+ * checked again after the delay); hidden on click and when an anchored
+ * descendant dispatches `open`. Two are new: the focusable control is
+ * described by the panel while it shows (`aria-describedby`) — unless its
+ * accessible name already says the same words, as an icon-only button
+ * named after its tooltip does — and a swap that removes the trigger hides
+ * the panel instead of leaving it pointing at nothing.
+ *
+ * `$bz.tip.open(anchor, opts)` / `$bz.tip.close()` are the same panel for
+ * code that positions it itself — the sidebar rail, the charts.
+ */
+(function () {
+  "use strict";
+  const $bz = (window.$bz = window.$bz || {});
+  const ROOT = "[data-bz-tip-root]";
+  const BRIDGE = "bz-c-";
+
+  let current = null; // the root shown, or waiting for its delay
+  let timer = null;
+  let detach = null; // floating's cleanup
+  let watcher = null; // follows a live text while shown
+  let described = null; // [element, previous aria-describedby]
+  let extra = []; // per-instance panel classes applied on this show
+
+  function panel() {
+    return document.getElementById("bz-tip");
+  }
+
+  function bodyOf(p) {
+    return p.querySelector("[data-bz-tip-body]");
+  }
+
+  function popupOpen(root) {
+    return !!root.querySelector('[aria-expanded="true"]');
+  }
+
+  function switchedOff(root) {
+    const expr = root.getAttribute("data-bz-tip-off");
+    if (!expr) return false;
+    try {
+      return !!$bz._evaluate(root, expr);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function anchorOf(root) {
+    // Same probe as the anchored panels: a `display:contents` wrapper has
+    // no box, its first child is the trigger's.
+    return getComputedStyle(root).display === "contents"
+      ? root.firstElementChild || root
+      : root;
+  }
+
+  const FOCUSABLE = "a[href],button,input,select,textarea,[tabindex]";
+
+  function controlOf(root) {
+    return root.matches(FOCUSABLE) ? root : root.querySelector(FOCUSABLE) || root;
+  }
+
+  function nameOf(el) {
+    return (el.getAttribute("aria-label") || el.textContent || "").trim();
+  }
+
+  // The extra gap that puts the panel beside an ancestor's edge rather
+  // than the anchor's own.
+  function besideGap(anchor, ancestor, placement) {
+    const a = anchor.getBoundingClientRect();
+    const b = ancestor.getBoundingClientRect();
+    const side = placement.split("-")[0];
+    if (side === "right") return b.right - a.right;
+    if (side === "left") return a.left - b.left;
+    if (side === "bottom") return b.bottom - a.bottom;
+    if (side === "top") return a.top - b.top;
+    return 0;
+  }
+
+  function delayOf(root) {
+    const own = root.getAttribute("data-bz-tip-delay");
+    const p = panel();
+    return Number(own || (p && p.getAttribute("data-bz-tip-delay")) || 0);
+  }
+
+  function clearBody(p) {
+    const body = bodyOf(p);
+    if (!body) return null;
+    for (const child of Array.from(body.children)) {
+      if ($bz._disposeTree) $bz._disposeTree(child);
+    }
+    body.textContent = "";
+    return body;
+  }
+
+  function paint(p, opts) {
+    // The colour bridge: the panel carries exactly one.
+    for (const cls of Array.from(p.classList)) {
+      if (cls.indexOf(BRIDGE) === 0) p.classList.remove(cls);
+    }
+    p.classList.add(BRIDGE + (opts.color || "text"));
+    for (const cls of extra) p.classList.remove(cls);
+    extra = (opts.extraClass || "").split(/\s+/).filter(Boolean);
+    for (const cls of extra) p.classList.add(cls);
+  }
+
+  function open(anchor, opts) {
+    const p = panel();
+    if (!p || !anchor) return;
+    opts = opts || {};
+    const body = clearBody(p);
+    if (body) {
+      if (opts.content) {
+        body.appendChild(opts.content);
+        if ($bz._scan) $bz._scan(body);
+      } else {
+        body.textContent = opts.text || "";
+      }
+    }
+    paint(p, opts);
+    const placement = opts.position || "auto";
+    p.setAttribute("data-side", placement === "auto" ? "bottom" : placement);
+    if (detach) detach();
+    // Last in <body>: at the top rung (``z-50``) the tie goes to the last
+    // painted, so the panel shows above an open dialog or picker.
+    if (p.parentNode !== document.body || p.nextElementSibling) {
+      document.body.appendChild(p);
+    }
+    p.style.display = "";
+    const floatOpts = { placement: placement };
+    if (opts.beside) floatOpts.offset = 6 + besideGap(anchor, opts.beside, placement);
+    detach = $bz.helpers.floating(anchor, p, floatOpts);
+    const control = opts.describes;
+    if (control && nameOf(control) !== (opts.text || "").trim()) {
+      described = [control, control.getAttribute("aria-describedby")];
+      control.setAttribute("aria-describedby", "bz-tip");
+    }
+  }
+
+  function close() {
+    clearTimeout(timer);
+    timer = null;
+    if (watcher) watcher.disconnect();
+    watcher = null;
+    if (described) {
+      const [el, previous] = described;
+      if (previous === null) el.removeAttribute("aria-describedby");
+      else el.setAttribute("aria-describedby", previous);
+      described = null;
+    }
+    // The body is NOT emptied here. Emptying buys nothing; the next
+    // `open` clears it.
+    const p = panel();
+    if (p) p.style.display = "none";
+    if (detach) detach();
+    detach = null;
+    current = null;
+  }
+
+  function optionsOf(root) {
+    const tpl = root.querySelector(":scope > template[data-bz-tip-content]");
+    const beside = root.getAttribute("data-bz-tip-beside");
+    return {
+      beside: beside ? root.closest(beside) : null,
+      describes: controlOf(root),
+      text: root.getAttribute("data-bz-tip") || "",
+      content: tpl ? tpl.content.cloneNode(true) : null,
+      position: root.getAttribute("data-bz-tip-position") || "auto",
+      color: root.getAttribute("data-bz-tip-color") || "text",
+      extraClass: root.getAttribute("data-bz-tip-class") || "",
+    };
+  }
+
+  function showRoot(root) {
+    if (current !== root || !root.isConnected) return;
+    if (popupOpen(root) || switchedOff(root)) return;
+    open(anchorOf(root), optionsOf(root));
+    // A bound text keeps changing while the panel shows.
+    watcher = new MutationObserver(function () {
+      const p = panel();
+      const body = p && bodyOf(p);
+      if (body && !root.querySelector(":scope > template[data-bz-tip-content]")) {
+        body.textContent = root.getAttribute("data-bz-tip") || "";
+      }
+    });
+    watcher.observe(root, { attributes: true, attributeFilter: ["data-bz-tip"] });
+  }
+
+  function enter(root) {
+    if (root === current) return;
+    close();
+    if (popupOpen(root) || switchedOff(root)) return;
+    current = root;
+    timer = setTimeout(function () {
+      showRoot(root);
+    }, delayOf(root));
+  }
+
+  function rootOf(node) {
+    return node && node.closest ? node.closest(ROOT) : null;
+  }
+
+  // A click hides the panel until the pointer MOVES. A click often redraws
+  // what is under a pointer that has not moved — a button swapped for its
+  // pressed twin, a row morphed — and the browser then sends `mouseover`
+  // for the new element: the tooltip came back over what was just clicked.
+  let clickedAt = null; // [x, y] of the click that closed the panel
+
+  document.addEventListener("mouseover", function (e) {
+    const root = rootOf(e.target);
+    if (!root || root === current) return;
+    if (e.relatedTarget && root.contains(e.relatedTarget)) return;
+    if (clickedAt && e.clientX === clickedAt[0] && e.clientY === clickedAt[1]) return;
+    clickedAt = null;
+    enter(root);
+  });
+  document.addEventListener("mousemove", function (e) {
+    if (!clickedAt || (e.clientX === clickedAt[0] && e.clientY === clickedAt[1])) return;
+    clickedAt = null;
+    const root = rootOf(e.target);
+    if (root) enter(root);
+  });
+  document.addEventListener("mouseout", function (e) {
+    if (!current || rootOf(e.target) !== current) return;
+    if (e.relatedTarget && current.contains(e.relatedTarget)) return;
+    close();
+  });
+  document.addEventListener("focusin", function (e) {
+    const root = rootOf(e.target);
+    // After a click, until the pointer moves, a focus that is not
+    // ``:focus-visible`` was put there by a script — the clicked button
+    // disappears and the runtime hands its focus to the neighbour, its
+    // pressed twin, and the tooltip would come back over it. A Tab IS
+    // focus-visible: the keyboard still opens it.
+    if (clickedAt && !e.target.matches(":focus-visible")) return;
+    if (root) enter(root);
+  });
+  document.addEventListener("focusout", function (e) {
+    if (!current || !current.contains(e.target)) return;
+    if (e.relatedTarget && current.contains(e.relatedTarget)) return;
+    close();
+  });
+  document.addEventListener(
+    "click",
+    function (e) {
+      if (!current || !current.contains(e.target)) return;
+      close();
+      clickedAt = [e.clientX, e.clientY];
+    },
+    true,
+  );
+  // An anchored descendant (a dropdown in the trigger) announces its panel.
+  document.addEventListener(
+    "open",
+    function (e) {
+      if (current && current.contains(e.target)) close();
+    },
+    true,
+  );
+  // A swap that removed the trigger must not leave the panel behind.
+  for (const name of ["htmx:afterSwap", "htmx:oobAfterSwap"]) {
+    document.addEventListener(name, function () {
+      if (current && !current.isConnected) close();
+    });
+  }
+
+  $bz.tip = { open: open, close: close };
+})();
+
+
+/* message_input.js — what ``ui.message_input`` does in the browser.
+ *
+ * Document-level listeners, not a scope per box: a box swapped in by a
+ * morph needs nothing re-wired. Every listener looks for the box it
+ * concerns (``[data-bz-message-input]``, a ``<form>``) and does nothing
+ * elsewhere. The behaviours follow those of chat libraries and their
+ * tests (assistant-ui, Vercel AI Elements, Ant Design X, Streamlit,
+ * Gradio, chatscope, Stream):
+ *
+ * - **Enter sends, Shift+Enter breaks the line** — never during an IME
+ *   composition, nor on the Enter that ends one (Safari fires it after
+ *   ``compositionend``, as keyCode 229). On a touch screen Enter breaks the
+ *   line (the round button sends), as assistant-ui does. Sending is the
+ *   form's own ``requestSubmit``: no request is built here.
+ * - **Never empty, never twice.** A submit with neither text nor file, one
+ *   while an answer is written (the round button hidden or absent), or one
+ *   while the box's request is still in flight, is stopped before htmx
+ *   sees it (capture phase). A box with no server action never leaves
+ *   natively either — the browser would reload the page.
+ * - **Emptied at once, given back on failure.** As the request leaves
+ *   (``htmx:beforeSend``: the values are already taken), the text and the
+ *   files go — what is typed while the server answers is kept — and come
+ *   back if the request fails, unless something new was typed meanwhile.
+ * - **Focus** returns to the text after a send by the round button.
+ * - **Escape stops** the answer being written (the « Arrêter » button).
+ * - **Backspace on an empty text** removes the last file joined.
+ * - **The counter** of ``max_length`` follows what is typed.
+ * - **The microphone** — the browser's dictation (Web Speech API), in the
+ *   page's language, appended to what is written; ``data-listening`` while
+ *   it listens. The page says the browser can dictate
+ *   (``html[data-bz-can-dictate]``), so a morph re-rendering it changes
+ *   nothing.
+ * - **Files dropped on the box** join, as the clip's picker would; a box
+ *   switched off, or taking no file, lets nothing through — and never lets
+ *   the browser open the dropped file instead of the page.
+ */
+(function () {
+  "use strict";
+  const $bz = (window.$bz = window.$bz || {});
+  const BOX = "[data-bz-message-input]";
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const touch = window.matchMedia("(pointer: coarse)");
+  const drafts = new WeakMap(); // form → {text, files} while its request is out
+  let listening = null; // {rec, button}
+
+  if (Recognition) document.documentElement.setAttribute("data-bz-can-dictate", "");
+
+  function field(form) { return form.querySelector("[data-bz-message-field]"); }
+  // The file picker's scope — its ``clear()``, ``handleFiles()``, ``files``.
+  function uploader(form) {
+    const el = form.querySelector(".bz-file-upload");
+    return el && $bz._scopeFor ? $bz._scopeFor(el).proxy : null;
+  }
+  function off(form) { return form.matches("[data-disabled]"); }
+
+  function busy(form) {
+    const send = form.querySelector("[data-bz-message-send]");
+    return !send || send.disabled || send.offsetParent === null;
+  }
+
+  function empty(form) {
+    const text = field(form);
+    const files = form.querySelector("input[type=file]");
+    return !(text && text.value.trim()) && !(files && files.files && files.files.length);
+  }
+
+  function write(text, value) {
+    text.value = value;
+    text.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function count(form) {
+    const text = field(form);
+    const counter = form.querySelector("[data-bz-message-count]");
+    if (text && counter) counter.textContent = text.value.length + " / " + text.maxLength;
+  }
+
+  function stopListening() {
+    if (listening) listening.rec.stop();
+  }
+
+  document.addEventListener("keydown", function (e) {
+    const text = e.target;
+    if (!text.matches || !text.matches("[data-bz-message-field]")) return;
+    const form = text.closest(BOX);
+    if (!form) return;
+    if (e.key === "Escape") {
+      const stop = form.querySelector("[data-bz-message-stop]");
+      if (stop && stop.offsetParent !== null && !e.isComposing) { e.preventDefault(); stop.click(); }
+      return;
+    }
+    if (e.key === "Backspace" && !text.value) {
+      const files = uploader(form);
+      if (files && files.files && files.files.length) {
+        e.preventDefault();
+        files.removeFile(files.files[files.files.length - 1]);
+      }
+      return;
+    }
+    if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229) return;
+    if (touch.matches) return; // the line breaks; the round button sends
+    e.preventDefault();
+    if (!busy(form) && !empty(form)) {
+      form.requestSubmit(form.querySelector("[data-bz-message-send]"));
+    }
+  });
+
+  document.addEventListener("input", function (e) {
+    const form = e.target.closest && e.target.closest(BOX);
+    if (form && e.target.matches("[data-bz-message-field]")) count(form);
+  });
+
+  document.addEventListener("submit", function (e) {
+    const form = e.target;
+    if (!form.matches || !form.matches(BOX)) return;
+    if (busy(form) || empty(form) || drafts.has(form) || form.classList.contains("htmx-request")) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+    if (!form.hasAttribute("hx-post")) e.preventDefault();
+  }, true);
+
+  document.addEventListener("htmx:beforeSend", function (e) {
+    const form = e.detail && e.detail.elt;
+    if (!form || !form.matches || !form.matches(BOX)) return;
+    stopListening();
+    const text = field(form);
+    const files = uploader(form);
+    drafts.set(form, { text: text ? text.value : "",
+                       files: files && files.files ? files.files.map(function (f) { return f.file; }) : [] });
+    if (text) write(text, "");
+    if (files && files.clear) files.clear();
+    if (text && document.activeElement && form.contains(document.activeElement)) text.focus();
+  });
+
+  document.addEventListener("htmx:afterRequest", function (e) {
+    const form = e.detail && e.detail.elt;
+    if (!form || !form.matches || !form.matches(BOX)) return;
+    const draft = drafts.get(form);
+    drafts.delete(form);
+    if (!draft || e.detail.successful) return;
+    const text = field(form);
+    if (text && !text.value) write(text, draft.text);
+    const files = uploader(form);
+    if (files && draft.files.length && !(files.files && files.files.length)) {
+      files.handleFiles(draft.files);
+    }
+  });
+
+  document.addEventListener("click", function (e) {
+    const button = e.target.closest && e.target.closest("[data-bz-voice]");
+    if (!button || !Recognition) return;
+    const form = button.closest(BOX);
+    const text = form && field(form);
+    if (!text) return;
+    if (listening) { stopListening(); return; }
+    const rec = new Recognition();
+    rec.lang = document.documentElement.lang || navigator.language;
+    rec.continuous = true;
+    rec.interimResults = true;
+    const before = text.value.replace(/\s+$/, "");
+    rec.onresult = function (event) {
+      let heard = "";
+      for (let i = 0; i < event.results.length; i++) heard += event.results[i][0].transcript;
+      heard = heard.trim();
+      write(text, before && heard ? before + " " + heard : before || heard);
+    };
+    rec.onend = function () {
+      button.removeAttribute("data-listening");
+      button.setAttribute("aria-pressed", "false");
+      listening = null;
+    };
+    listening = { rec: rec, button: button };
+    button.setAttribute("data-listening", "true");
+    button.setAttribute("aria-pressed", "true");
+    rec.start();
+  });
+
+  document.addEventListener("dragover", function (e) {
+    const form = e.target.closest && e.target.closest(BOX);
+    if (form) e.preventDefault(); // a file dropped here never replaces the page
+  });
+
+  document.addEventListener("drop", function (e) {
+    const form = e.target.closest && e.target.closest(BOX);
+    if (!form) return;
+    e.preventDefault();
+    const files = uploader(form);
+    if (!files || off(form) || !e.dataTransfer || !e.dataTransfer.files.length) return;
+    files.handleFiles(e.dataTransfer.files);
+  });
+})();
+
+
+/* message_list.js — ``ui.message_list`` follows its newest message.
+ *
+ * The behaviour that chat libraries (assistant-ui, Vercel AI Elements,
+ * Ant Design X, Gradio, chatscope) share, and test:
+ *
+ * - **at the bottom, it stays there** — a new message, an answer that
+ *   grows word by word, a refresh of the thread: the list scrolls with it;
+ * - **scrolled up, it stops following** — the reader is reading; nothing
+ *   pulls them down, and « back to the latest message » appears
+ *   (``data-away`` on the list, which its theme reads);
+ * - **back at the bottom** — by hand or by that button — it follows again.
+ *
+ * What grows is watched by a ResizeObserver on the thread (a new node, a
+ * longer text, an image that loads: all change its height). The state is
+ * kept by the list's id (it always has one): a refresh that morphs it
+ * strips ``data-away`` — the server never renders it —, one that replaces
+ * the element loses its scroll; both are put back after each settle,
+ * where the reader was. A list met for the first time starts at its
+ * bottom.
+ */
+(function () {
+  "use strict";
+  const LIST = "[data-bz-message-list]";
+  const NEAR = 48; // px from the bottom that still count as « at the bottom »
+  // By the list's id, not its element: a refresh may replace the element,
+  // and what the reader did (scrolled up, to where) must survive it.
+  const states = new Map(); // id → {stuck, top}
+  const watched = new WeakSet(); // elements already observed
+
+  function smooth() {
+    return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function toBottom(list, animated) {
+    list.scrollTo({ top: list.scrollHeight, behavior: animated && smooth() ? "smooth" : "auto" });
+  }
+
+  function stateOf(list) {
+    let state = states.get(list.id);
+    if (!state) { state = { stuck: true, top: 0 }; states.set(list.id, state); }
+    return state;
+  }
+
+  function mark(list) {
+    list.toggleAttribute("data-away", !stateOf(list).stuck);
+  }
+
+  function adopt(list) {
+    const known = states.has(list.id);
+    const state = stateOf(list);
+    if (!watched.has(list)) {
+      watched.add(list);
+      const thread = list.firstElementChild;
+      if (thread && window.ResizeObserver) {
+        new ResizeObserver(function () {
+          if (stateOf(list).stuck) toBottom(list, false);
+        }).observe(thread);
+      }
+      list.addEventListener("scroll", function () {
+        const s = stateOf(list);
+        s.stuck = list.scrollHeight - list.scrollTop - list.clientHeight < NEAR;
+        s.top = list.scrollTop;
+        mark(list);
+      }, { passive: true });
+      // A new element of a list met before: back where the reader was.
+      if (known && !state.stuck) list.scrollTop = state.top;
+    }
+    if (state.stuck) toBottom(list, false);
+    mark(list);
+  }
+
+  function scan(root) {
+    (root && root.querySelectorAll ? root : document).querySelectorAll(LIST).forEach(adopt);
+    if (root && root.matches && root.matches(LIST)) adopt(root);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () { scan(document); });
+  document.addEventListener("htmx:load", function (e) { scan(e.target); });
+  document.addEventListener("htmx:afterSettle", function () {
+    document.querySelectorAll(LIST).forEach(adopt);
+  });
+
+  document.addEventListener("click", function (e) {
+    const button = e.target.closest && e.target.closest("[data-bz-message-list-bottom]");
+    const list = button && button.closest(LIST);
+    if (!list) return;
+    stateOf(list).stuck = true;
+    toBottom(list, true);
+    mark(list);
+  });
 })();

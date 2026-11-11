@@ -79,15 +79,24 @@ def find_lightning_binary() -> Path:
 
 
 def _find_wheel_binary() -> Path | None:
-    """Look for a ``tailwindcss`` / ``tailwindcss.exe`` in the active venv's
-    Scripts/bin dir."""
-    import sys
+    """The ``tailwindcss`` script the ``tailwindcss-bin`` wheel installed,
+    found by the wheel's own file list: wherever pip put it.
 
-    venv_root = Path(sys.executable).parent
-    for name in ("tailwindcss", "tailwindcss.exe"):
-        candidate = venv_root / name
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return candidate
+    Not next to ``sys.executable``: that is right in a venv, wrong for a
+    system Python on Windows, whose scripts live in ``Scripts\\`` beside
+    ``python.exe``: the wheel installed there would go unnoticed and the
+    app would get the browser compiler."""
+    from importlib.metadata import PackageNotFoundError, distribution
+
+    try:
+        wheel = distribution("tailwindcss-bin")
+    except PackageNotFoundError:
+        return None
+    for file in wheel.files or ():
+        if file.name in ("tailwindcss", "tailwindcss.exe"):
+            candidate = Path(str(wheel.locate_file(file))).resolve()
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return candidate
     return None
 
 
@@ -182,8 +191,8 @@ def start_lightning_watch(
 ) -> subprocess.Popen[bytes]:
     """Spawn the binary in ``--watch`` mode and return the live process.
 
-    ⚠️ **No production caller** (verified 2026-08-01: the repository's
-    only call is in ``tests/unit/theme/test_compiler.py``). That is
+    ⚠️ **No production caller**: the repository's only call is in
+    ``tests/unit/theme/test_compiler.py``. That is
     normal — ``bretzel dev`` does not start it: by default the dev CSS
     pipeline compiles Tailwind in the browser, and ``css="build"``
     compiles once at startup through :func:`compile_with_lightning`. This

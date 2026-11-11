@@ -40,7 +40,7 @@ class TestToggleJs:
             scheme = ColorScheme()
             js = scheme.toggle()
         # The toggle must ASSIGN the canonical binding path so the
-        # runtime effect (00_index.js boot) picks up the mutation.
+        # runtime effect (index.js boot) picks up the mutation.
         assert js.startswith("$bz.state.ColorScheme.default.mode = ")
         # Both ends of the conditional must be present — a stray
         # truthy/falsy flip would leave us in non-canonical modes.

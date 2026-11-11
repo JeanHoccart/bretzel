@@ -1,43 +1,25 @@
 """What the component themes know and the Tailwind scanner does not.
 
-Two collections, a single reason to be: a class that appears literally
-in no source file never reaches the compiled ``style.css``. A colour
-template is only filled at render; a graded class (``md:gap-6``) is only
-prefixed at render. In both cases the production compiler cannot guess,
-and in both cases the bug shows **only in production**.
+A class that appears literally in no source file never reaches the
+compiled ``style.css``. A graded class (``md:gap-6``) is only prefixed at
+render, so the production compiler cannot guess it, and the bug shows
+**only in production**.
 
 Why this module exists
 ----------------------
 
-⚠️ **The COLOUR half of this module no longer exists since phase 3 of
-the tokens work (2026-08-30).** No theme writes a hole any more: they
-read STEPS (``ring-(--bz-focus)``), which are complete classes the
-compiler sees. ``dynamic_color_shapes()`` was removed with them, and its
-last remnant — the ``_walk`` collector, left alone referencing an
-already-gone ``SHAPE_TOKEN_RE`` — followed it on 2026-09-07. The file's
-name is therefore wider than its contents: only the GRADED half remains
-(``dynamic_responsive_classes``), which does still serve.
-
-What it did, and why it existed: the themes wrote their classes with a
-hole — half a class name, filled at render against the component's
-resolved colour (cf. ``resolve_slot``, since removed). Consequence: the
-final class appeared **in no source file**, so the compiler could not
-generate it, so its CLOSURE had to be computed — each shape × each
-colour. 3,791 classes, 80 % of the compiled sheet.
+⚠️ The file's name is wider than its contents: colours need nothing here,
+since the themes read STEPS (``ring-(--bz-focus)``), which are complete
+classes the compiler sees. Only the GRADED half exists
+(``dynamic_responsive_classes``).
 
 In dev it does not show — ``@tailwindcss/browser`` scans the live DOM,
 so it sees the already-resolved classes. In prod the Tailwind binary
-only scans the sources: with no help, it generates none of those rules
-and the design system's whole interactive state (focus rings, hover
-tints, checked / selected states) leaves the compiled CSS.
+only scans the sources: with no help, it generates none of those rules.
 
 The help is the ``@source inline(...)`` directive produced by
-:func:`bretzel.theme.tailwind.generate_safelist_comment`. It was
-maintained **by hand** — 5 templates + 7 opacities — while the themes
-used 57. Hence 49 shapes absent from production's ``style.css``.
-
-This module removes the class of bug: the safelist is now *derived* from
-the themes themselves, so it can no longer diverge from them. The gate
+:func:`bretzel.theme.tailwind.generate_safelist_comment`. The safelist
+is *derived* from the themes themselves, so it cannot diverge from them. The gate
 ``tests/consistency/test_no_colour_class_is_assembled_by_hand.py`` covers
 the residual risk (a shape built in render code rather than in a
 ``THEME`` dict, which introspection would not see).
@@ -67,11 +49,10 @@ def _component_classes() -> set[type]:
     ``components/__init__`` imports the framework's catalogue in one go,
     so coverage there is complete (the gate checks it). A user component
     defined after startup — in a function body, in a module imported
-    lazily at the first render — arrives too late: its colours will not
-    land in the safelist.
+    lazily at the first render — arrives too late and is not swept.
 
-    No global registry (anti-rule 2): we read the live classes at call
-    time, after the imports have happened.
+    No global registry: we read the live classes at call time, after the
+    imports have happened.
     """
     found: set[type] = set()
     stack: list[type] = list(Component.__subclasses__())

@@ -26,7 +26,7 @@ def room_bookings() -> None:
                 for day, count in ((1, 2), (3, 5), (8, 1), (10, 7),
                                    (14, 3), (17, 4), (21, 6), (24, 2))}
     with ui.vstack(gap="xs", align="center"):
-        ui.calendar(marks=bookings, weekstart=0, color="secondary")
+        ui.calendar(marks=bookings, week_start=0, color="secondary")
         ui.text("Meeting room A · a dot on every booked day", color="muted",
                 size="sm")
 
@@ -61,7 +61,7 @@ APPOINTMENTS = [
 ]
 
 
-@refreshable(deps=[Agenda])
+@refreshable
 def day_schedule() -> None:
     day = date.fromisoformat(Agenda().day)
     with ui.vstack(gap="sm", classes="min-w-64"):
@@ -91,7 +91,7 @@ def page() -> None:
                  "second the check-out. min= forbids the past.")
     example("Busy days", room_bookings,
             note="marks= takes a mapping of date to count (or a list of "
-                 "dates). weekstart=0 starts the week on Sunday.")
+                 "dates). week_start=0 starts the week on Sunday.")
     example("Closed days", closed_days,
             note="A two-month booking window opened on next month, with every "
                  "Sunday disabled.")

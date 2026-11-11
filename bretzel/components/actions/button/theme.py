@@ -1,6 +1,6 @@
 """Default :class:`Button` theme.
 
-- ``transition-all duration-200 ease-out`` + ``not-disabled:active:scale`` for
+- ``transition duration-200 ease-out`` + ``not-disabled:active:scale`` for
   tactile click feedback.
 - Solid : brightness + shadow hover lift ; outline / ghost / soft :
   opacity-driven hover (``/10`` → ``/20``).
@@ -19,7 +19,7 @@ BUTTON_THEME: dict[str, Any] = {
             # Shape
             "rounded-field font-medium "
             # Motion + tactile feedback
-            "transition-all duration-200 ease-out "
+            "transition duration-200 ease-out "
             "not-disabled:active:scale-[0.95] "
             # Focus ring
             "focus-visible:outline-none focus-visible:ring-2 "
@@ -81,15 +81,13 @@ BUTTON_THEME: dict[str, Any] = {
         #
         # For a discreet standalone control: ``soft`` (washed box) or
         # ``outline`` (bordered box). Giving ``ghost`` a box at rest
-        # would melt it into ``soft`` and remove its reason to be — it is
-        # the doctrine that was missing, not the CSS.
+        # would melt it into ``soft`` and remove its reason to be.
         #
-        # ⚠️ Not gated, and it is measured: forbidding "a box only under
-        # hover" in the themes gives 24 occurrences of which 22
-        # legitimate (sidebar, dropdown, calendar, pagination — a
-        # ``hover:`` that enriches a row in a bounded list is the
-        # dominant AND correct pattern). The drift here is "which variant
-        # at this call site, given what surrounds it", and that cannot be
+        # ⚠️ Not gated: forbidding "a box only under hover" in the themes
+        # would mostly catch legitimate uses (sidebar, dropdown, calendar,
+        # pagination — a ``hover:`` that enriches a row in a bounded list
+        # is the dominant AND correct pattern). The drift here is "which
+        # variant at this call site, given what surrounds it", and that cannot be
         # decided statically: you cannot see in the source whether the
         # parent draws a box. Hence doctrine, and not a test.
         "ghost": ("text-(--bz-text) not-disabled:hover:bg-(--bz-bg)"),

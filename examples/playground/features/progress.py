@@ -104,7 +104,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[ProgressPlayground])
+@refreshable
 def server_panel() -> None:
     state = ProgressPlayground()
 

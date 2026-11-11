@@ -4,12 +4,27 @@ Data shape :
 
 - ``list[number]``           — single series, x = index.
 - ``list[(x, y)]``           — single series with explicit numeric x.
-- ``list[Series]``           — N series. **All series must share the
-  same x values in the same order** (v1 — mismatch raises so the data
-  shape gets fixed instead of producing misaligned crosshair markers).
+- ``list[Series]``           — N series, each on its OWN x values : a
+  stock and an index with different holidays draw side by side. The
+  hover reads every series on the union of the x values ; a series
+  that has no point at a column shows no dot there.
+
+A ``None`` y is a HOLE : the curve stops and starts again after it
+(an absent measure, a closed market) — never drawn as zero, never
+bridged. A point alone between two holes is drawn as a dot.
 
 Categorical x (string labels) is **not supported** — that's
 ``ui.bar_chart``'s territory.
+
+Reference lines, two ways :
+
+- ``y_reference_lines=`` — horizontal, at a VALUE (a target, a threshold,
+  a price paid) : ``[(1000, "Objectif")]``.
+- ``x_reference_lines=`` — vertical, at a MOMENT (a buy, a sale, a
+  release) : ``[(date(2026, 10, 13), "achat"), (date(2026, 11, 2),
+  "vente", "error")]``. An x is a number or a date, like the x values ;
+  the domain widens to show it. For instance a company's price, with
+  each buy and sale marked where it happened.
 
 Interactivity — column hover, one path for single and multi :
 
@@ -22,7 +37,7 @@ Interactivity — column hover, one path for single and multi :
   ``bz-attr:cy`` from arrays baked into the V3 expression, and a
   vertical crosshair connects them into a readable slice.
 - The value itself rides the **shared floating tooltip** from
-  ``10_charts.js`` — the same singleton bar / pie / scatter use, so
+  ``charts.js`` — the same singleton bar / pie / scatter use, so
   the family reads identically. It anchors **above the plot** (a
   zero-width anchor at the column's screen-x, y = plot top) so it
   never covers the curve. The dots on the curves are the "you are
@@ -31,7 +46,7 @@ Interactivity — column hover, one path for single and multi :
   newline-separated ``x = N`` + one row per series.
 
 Implementation rides ``$bz.charts.lineScope()`` (runtime slab
-``10_charts.js``) — tracks ``active`` plus the per-series ``visible``
+``charts.js``) — tracks ``active`` plus the per-series ``visible``
 toggle array driven by the legend. All rendering is server-side SVG
 wired with V3 ``bz-*`` directives.
 
@@ -41,7 +56,6 @@ wired with V3 ``bz-*`` directives.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import date, datetime
 from typing import Any, ClassVar
 
 from bretzel.components.base import (
@@ -49,13 +63,20 @@ from bretzel.components.base import (
     reactive_prop,
     stamp_display_none,
 )
-from bretzel.components.base._wiring import bool_attr, theme_context
+from bretzel.components.base.attrs import ComponentUsageError
+from bretzel.components.base.events import item_action_attrs
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.charts._layers import (
     apply_fixed_width,
+    data_table,
+    keyboard_attrs,
     plot_svg,
     reject_empty_text_component,
-    render_axis_layer,
     render_empty_state,
+    render_line_axis_layer,
+    render_toggle_legend,
+    render_x_axis_labels,
+    titled,
 )
 from bretzel.components.charts._svg import (
     PLOT_SPAN,
@@ -65,21 +86,38 @@ from bretzel.components.charts._svg import (
     axis_margin,
     compute_ticks,
     format_value,
+    joined,
     line_path,
     linear_scale,
+    localized_attr,
     nice_domain,
     smooth_path,
+    whole,
+    widen,
 )
 from bretzel.components.charts.line_chart.theme import LINE_CHART_THEME
-from bretzel.components.charts.reference import Reference
+from bretzel.components.charts.reference import (
+    coerce_references,
+    coerce_x_references,
+    render_reference_labels,
+    render_reference_lines,
+    render_x_reference_labels,
+    render_x_reference_lines,
+)
 from bretzel.components.charts.series import (
     Series,
     coerce_xy_series,
     coloured_slot,
+    has_points,
+    resolve_date_axis_format,
+    runs_between_holes,
+    x_back,
+    x_bound,
 )
 from bretzel.core.tree import Element
 from bretzel.core.tree import TextNode as TextNode
 from bretzel.render import text
+from bretzel.render.context import current_context
 
 # The left margin is at least this, and grows with the widest y label
 # (``axis_margin``). The right one is ``_layers.PLOT_MARGIN_RIGHT``.
@@ -94,6 +132,10 @@ class LineChart(Component):
 
     THEME: ClassVar[dict[str, Any]] = LINE_CHART_THEME
     THEME_KEY: ClassVar[str] = "line_chart"
+    #: A click on an element of the collection — a point, here — as on
+    #: the bars and the slices: ``on_item_click(x, y)``, routed per
+    #: element by ``item_action_attrs`` (cf. ``BarChart.EVENTS``).
+    EVENTS: ClassVar[tuple[str, ...]] = ("item_click",)
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -102,8 +144,9 @@ class LineChart(Component):
     # container. Cf. ``_layers.plot_svg``.
     width: int | None = reactive_prop(default=None, emit_attr=False)
     # Smooth is the modern default — sharp polylines read as legacy
-    # spreadsheet output ; the Catmull-Rom curve looks closer to what
-    # users now expect from analytics dashboards. Pass ``smooth=False``
+    # spreadsheet output ; the monotone curve (``_svg.smooth_path``)
+    # looks closer to what users now expect from analytics dashboards,
+    # and never passes above or under the data. Pass ``smooth=False``
     # for the raw polyline shape (still useful for step-like data).
     smooth: bool = reactive_prop(default=True, emit_attr=False)
     area_fill: bool = reactive_prop(default=False, emit_attr=False)
@@ -111,7 +154,13 @@ class LineChart(Component):
     show_axis: bool = reactive_prop(default=True, emit_attr=False)
     show_gridlines: bool = reactive_prop(default=True, emit_attr=False)
     show_legend: bool = reactive_prop(default=True, emit_attr=False)
-    empty_text: str = reactive_prop(default="No data", emit_attr=False)
+    # « Voir les données » under the chart: the table behind the
+    # drawing, folded (``data_table``). Without it, the table is
+    # still there for a screen reader, invisible.
+    show_data: bool = reactive_prop(default=False, emit_attr=False)
+    # ``None``: the table's « No data », in the page's language — a
+    # literal default would freeze it in English.
+    empty_text: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
         self,
@@ -126,14 +175,23 @@ class LineChart(Component):
         show_axis: bool | None = None,
         show_gridlines: bool | None = None,
         show_legend: bool | None = None,
+        show_data: bool | None = None,
         y_format: Any = None,
         x_format: Any = None,
         y_unit: str | None = None,
         x_unit: str | None = None,
-        reference_lines: Any = None,
+        y_min: float | None = None,
+        y_max: float | None = None,
+        x_min: Any = None,
+        x_max: Any = None,
+        x_label: str | None = None,
+        y_label: str | None = None,
+        y_reference_lines: Any = None,
+        x_reference_lines: Any = None,
+        on_item_click: Any = None,
         empty_text: str | None = None,
-        empty_icon: str | None = "line-chart",
-        empty_description: str | None = None,
+        empty_icon: str | Component | None = "line-chart",
+        empty_description: str | Component | None = None,
         empty: Callable[[], Any] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -146,14 +204,24 @@ class LineChart(Component):
         self._x_format = x_format
         self._y_unit = y_unit
         self._x_unit = x_unit
-        self._reference_lines = _coerce_references(reference_lines)
+        # The bounds an app asks for: the axis covers them at least.
+        # ``x_min`` / ``x_max`` may be dates, like the x values.
+        self._y_min, self._y_max = y_min, y_max
+        self._x_min = x_bound(type(self).__name__, "x_min", x_min)
+        self._x_max = x_bound(type(self).__name__, "x_max", x_max)
+        self._x_label, self._y_label = x_label, y_label
+        self._on_item_click = on_item_click
+        self._reference_lines = coerce_references(
+            type(self).__name__, y_reference_lines)
+        self._x_reference_lines = coerce_x_references(
+            type(self).__name__, x_reference_lines)
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             color=color, size=size, width=width,
             smooth=smooth, area_fill=area_fill,
             show_dots=show_dots, show_axis=show_axis,
             show_gridlines=show_gridlines,
-            show_legend=show_legend, empty_text=empty_text,
+            show_legend=show_legend, show_data=show_data, empty_text=empty_text,
             **kwargs,
         )
 
@@ -170,15 +238,16 @@ class LineChart(Component):
         show_axis = bool(self._reactive_values.get("show_axis"))
         show_gridlines = bool(self._reactive_values.get("show_gridlines"))
         show_legend = bool(self._reactive_values.get("show_legend"))
+        show_data = bool(self._reactive_values.get("show_data"))
         empty_text = self._reactive_values.get("empty_text") or text("chart.empty")
 
         size_spec = sizes.get(size_name) or sizes.get("md") or {
-            "h": 280, "stroke": 1.5, "dot": 3.0, "axis": 12,
+            "h": 280, "stroke": 1.5, "dot_radius": 3.0, "axis_font": 12,
         }
         height = int(size_spec["h"])
         stroke_w = float(size_spec["stroke"])
-        dot_r = float(size_spec["dot"])
-        axis_font = int(size_spec["axis"])
+        dot_r = float(size_spec["dot_radius"])
+        axis_font = int(size_spec["axis_font"])
 
         series = _coerce_series(self._data, palette, default_color=color)
 
@@ -187,7 +256,7 @@ class LineChart(Component):
         # span-aware strftime callable (HH:MM for sub-day, "Mon DD"
         # for sub-year, "Mon YYYY" / "YYYY" beyond). Explicit
         # ``x_format=`` always wins so the caller can override.
-        x_format_effective, _ = resolve_date_axis_format(
+        x_format_effective, date_axis = resolve_date_axis_format(
             self._data, series, self._x_format,
         )
 
@@ -216,11 +285,11 @@ class LineChart(Component):
             f"$bz.charts.lineScope({{n_series: {len(series) or 1}}})",
         )
 
-        if not series or not series[0].data:
+        if not has_points(series):
             return Element(
                 tag=self._tag, attrs=wrapper_attrs,
                 children=(render_empty_state(
-                    self, width=width or 0, height=height,
+                    height=height,
                     kind=text("chart.line"),
                     message=empty_text, icon=self._empty_icon,
                     description=self._empty_description,
@@ -228,12 +297,21 @@ class LineChart(Component):
                 ),),
             )
 
-        xmin, xmax = _x_domain(series)
-        raw_ymin, raw_ymax = _y_domain(series)
+        xmin, xmax = widen(_x_domain(series), (x for s in series for x, _ in s.data),
+                           self._x_min, self._x_max)
+        # A moment marked off the data's span still shows : the axis
+        # reaches it, as it reaches an ``x_min``.
+        if self._x_reference_lines:
+            marks = [float(r.value) for r in self._x_reference_lines]
+            xmin, xmax = min(xmin, *marks), max(xmax, *marks)
+        raw_ymin, raw_ymax = widen(_y_domain(series), _known_ys(series),
+                                   self._y_min, self._y_max)
         # Snap the y-domain to the nice tick bracket so the axis line
         # always lands on round numbers AND fully spans the data (no
         # "gridline starts at 60 with data going to 45" surprises).
-        y_ticks = compute_ticks(raw_ymin, raw_ymax, target_count=5)
+        # Counts (every y whole) get whole ticks: no « 0,5 » absence.
+        y_ticks = compute_ticks(raw_ymin, raw_ymax, target_count=5,
+                                whole=whole(_known_ys(series)))
         ymin = y_ticks[0] if y_ticks else raw_ymin
         ymax = y_ticks[-1] if y_ticks else raw_ymax
 
@@ -250,12 +328,14 @@ class LineChart(Component):
         x_scale = linear_scale(xmin, xmax, 0.0, PLOT_SPAN)
         y_scale = linear_scale(ymin, ymax, plot_bottom, plot_top)
 
-        # Per-index SVG coords + tooltip displays for the hover scope.
-        # All series share x values (validated in _coerce_series).
-        ref_xs = [float(x) for x, _ in series[0].data]
+        # Per-column SVG coords + tooltip displays for the hover scope :
+        # the columns are the UNION of the series' x values, and each
+        # series is read on them (``None`` where it has no point there,
+        # or a hole).
+        ref_xs, aligned = _align(series)
         x_svgs = [x_scale(x) for x in ref_xs]
         displays = _build_displays(
-            series, ref_xs, x_format_effective, self._y_format,
+            series, ref_xs, aligned, x_format_effective, self._y_format,
             self._x_unit, self._y_unit,
         )
 
@@ -302,7 +382,7 @@ class LineChart(Component):
             ))
 
         if show_gridlines or show_axis:
-            children.append(_render_axis_layer(
+            children.append(render_line_axis_layer(
                 slot, y_ticks, y_scale,
                 axis_font, show_axis, show_gridlines,
                 self._y_format, self._y_unit,
@@ -311,10 +391,14 @@ class LineChart(Component):
         # Reference LINES sit behind the data (rendered before the
         # series paths) so the data line / area paints over them. Their
         # LABELS are painted after the data — cf.
-        # ``_render_reference_labels``.
+        # ``render_reference_labels``.
         if self._reference_lines:
-            children.append(_render_reference_lines(
+            children.append(render_reference_lines(
                 slot, self._reference_lines, y_scale,
+            ))
+        if self._x_reference_lines:
+            children.append(render_x_reference_lines(
+                slot, self._x_reference_lines, x_scale, plot_top, plot_bottom,
             ))
 
         # Per-series paths : area (optional, behind) → line → dots.
@@ -323,11 +407,15 @@ class LineChart(Component):
         # group on the client without a server round-trip. All series
         # start visible (init truthy) so no ``display:none`` pre-stamp
         # is needed alongside the ``bz-show``.
-        per_series_ys: list[list[float]] = []
+        per_series_ys: list[list[float | None]] = [
+            [None if y is None else y_scale(y) for y in ys] for ys in aligned]
         for s_idx2, s in enumerate(series):
             s_color = s.color or None
-            scaled = [(x_scale(float(x)), y_scale(float(y))) for x, y in s.data]
-            per_series_ys.append([y for _, y in scaled])
+            # One run per stretch between two holes : each is its own
+            # sub-path, so the curve stops at a hole instead of bridging it.
+            runs = [[(x_scale(float(x)), y_scale(float(y))) for x, y in run]
+                    for run in runs_between_holes(s.data)]
+            scaled = [pt for run in runs for pt in run]
             visibility_attrs = (
                 {"bz-show": f"isVisible({s_idx2})"}
                 if len(series) > 1 else {}
@@ -337,11 +425,13 @@ class LineChart(Component):
                 paths.append(Element(tag="path", attrs={
                     "class": slot("area", s_color),
                     "fill": f"url(#{gradient_ids[s_idx2]})",
-                    "d": area_path(scaled, baseline_y=plot_bottom, smooth=smooth),
+                    "d": "".join(area_path(run, baseline_y=plot_bottom, smooth=smooth)
+                                 for run in runs if len(run) > 1),
                 }, children=()))
             paths.append(Element(tag="path", attrs={
                 "class": slot("line", s_color),
-                "d": smooth_path(scaled) if smooth else line_path(scaled),
+                "d": "".join(smooth_path(run) if smooth else line_path(run)
+                             for run in runs if len(run) > 1),
                 "stroke-width": str(stroke_w),
                 "stroke-linecap": "round",
                 "stroke-linejoin": "round",
@@ -351,27 +441,35 @@ class LineChart(Component):
                 "vector-effect": "non-scaling-stroke",
             }, children=()))
             children.append(_stretched_frame(height, paths, visibility_attrs))
-            if show_dots:
-                for cx, cy in scaled:
-                    children.append(Element(tag="circle", attrs={
-                        "class": slot("dot", s_color),
-                        "cx": _pct(cx), "cy": _fmt(cy), "r": str(dot_r),
-                        **visibility_attrs,
-                    }, children=()))
+            # A point alone between two holes has no segment to draw :
+            # it is a dot, or it would not show at all.
+            alone = [run[0] for run in runs if len(run) == 1]
+            for cx, cy in scaled if show_dots else alone:
+                children.append(Element(tag="circle", attrs={
+                    "class": slot("dot", s_color),
+                    "cx": _pct(cx), "cy": _fmt(cy), "r": str(dot_r),
+                    **visibility_attrs,
+                }, children=()))
 
         # Reference labels AFTER the data: a label is text to be read,
         # and under a curve (or, on a bar chart, under a bar) it was not.
         # Before the hit layer, which stays on top for the hover.
         if self._reference_lines:
-            children.append(_render_reference_labels(
+            children.append(render_reference_labels(
                 slot, self._reference_lines, y_scale, axis_font,
                 self._y_format, self._y_unit,
             ))
+        if self._x_reference_lines:
+            children.append(render_x_reference_labels(
+                slot, self._x_reference_lines, x_scale, plot_top, axis_font,
+                x_format_effective, self._x_unit,
+            ))
 
         # X-axis labels (numeric ticks across the domain).
-        children.append(_render_x_axis_labels(
+        children.append(render_x_axis_labels(
             slot, xmin, xmax, x_scale, plot_bottom,
             axis_font, x_format_effective, self._x_unit,
+            whole_x=whole(x for s in series for x, _ in s.data), time_axis=date_axis,
         ))
 
         # Crosshair + active-point markers ride the ``lineScope``
@@ -403,13 +501,17 @@ class LineChart(Component):
 
         for s_idx, s_ys in enumerate(per_series_ys):
             s_color = series[s_idx].color or None
-            ys_literal = "[" + ",".join(_fmt(y) for y in s_ys) + "]"
+            ys_literal = "[" + ",".join(
+                "null" if y is None else _fmt(y) for y in s_ys) + "]"
             # Visibility on the active dot too — the legend toggle hides
             # the dot when its series is hidden. Single-series skips the
             # ``isVisible`` guard (no legend to toggle it).
+            # A column where the series has no point (a hole, another
+            # series' date) shows no dot.
+            has = f"{ys_literal}[active] !== null"
             show_expr = (
-                f"active >= 0 && isVisible({s_idx})"
-                if not single else "active >= 0"
+                f"active >= 0 && {has} && isVisible({s_idx})"
+                if not single else f"active >= 0 && {has}"
             )
             dot_attrs: dict[str, Any] = {
                 "class": slot("dot_active", s_color),
@@ -426,8 +528,24 @@ class LineChart(Component):
         # multi). Each rect snaps to the nearest x and carries its
         # display string + the data-x anchor fraction the floating
         # tooltip reads to land above the real data column.
+        # A click names ONE point: a column of several series holds one
+        # per series — which one would it be? Refused, not guessed.
+        if self._on_item_click and len(series) > 1:
+            raise ComponentUsageError(
+                "LineChart: on_item_click on several series — a column holds "
+                "one point per series, the click could not say which. Give "
+                "one series, or draw the points with ui.scatter_chart.")
+        clicks = None
+        if self._on_item_click:
+            back, ctx = x_back(self._data), current_context()
+            clicks = [{} if y is None else item_action_attrs(
+                self._on_item_click, event="item_click", dom_event="click",
+                modifier=self._trigger_modifier,
+                payload={"x": back(x), "y": y},
+                owner_id=self.id, ctx=ctx,
+            ) for x, y in zip(ref_xs, aligned[0], strict=True)]
         children.append(_render_hit_layer(
-            slot, x_svgs, plot_top, plot_bottom, displays,
+            slot, x_svgs, plot_top, plot_bottom, displays, clicks,
         ))
 
         svg = plot_svg(
@@ -435,10 +553,21 @@ class LineChart(Component):
             aria_label=_aria_summary(series),
         )
 
-        wrapper_children: list[Element] = [svg]
+        wrapper_children = titled(slot, svg, top=self._y_label, bottom=self._x_label)
         if show_legend and len(series) > 1:
-            wrapper_children.append(_render_legend(slot, series))
+            wrapper_children.append(render_toggle_legend(slot, series))
 
+        wrapper_children.append(data_table(
+            slot,
+            [self._x_label or "x",
+             *(s.name or self._y_label or text("chart.value") for s in series)],
+            [[format_value(x, x_format_effective, self._x_unit),
+              *(_NO_VALUE if ys[i] is None
+                else format_value(float(ys[i]), self._y_format, self._y_unit)
+                for ys in aligned)] for i, x in enumerate(ref_xs)],
+            shown=show_data,
+        ))
+        keyboard_attrs(wrapper_attrs)
         return Element(
             tag=self._tag, attrs=wrapper_attrs,
             children=tuple(wrapper_children),
@@ -450,147 +579,15 @@ class LineChart(Component):
 # ───────────────────────────────────────────────────────────────────────
 
 
-def _coerce_references(refs: Any) -> list[Reference]:
-    """Normalise ``reference_lines=`` into a list of ``Reference``.
-
-    Accepts ``Reference`` instances, ``(value, label)`` 2-tuples, and
-    ``(value, label, color)`` 3-tuples. ``None`` / empty → no refs.
-    """
-    if not refs:
-        return []
-    out: list[Reference] = []
-    for r in refs:
-        if isinstance(r, Reference):
-            out.append(r)
-            continue
-        if isinstance(r, (tuple, list)):
-            if len(r) >= 3:
-                out.append(Reference(value=float(r[0]),
-                                     label=str(r[1]),
-                                     color=str(r[2]) if r[2] else None))
-            elif len(r) >= 2:
-                out.append(Reference(value=float(r[0]),
-                                     label=str(r[1])))
-            elif len(r) == 1:
-                out.append(Reference(value=float(r[0])))
-    return out
-
-
-def _is_date_like(x: Any) -> bool:
-    """``True`` if ``x`` is a ``date`` / ``datetime`` instance.
-
-    Heuristic for the auto-detect path : if the first x value of the
-    first series is date-shaped, every x is converted to its POSIX
-    timestamp before scaling, and the axis formatter falls back to a
-    locale-friendly date strftime when the caller didn't pass
-    ``x_format=`` explicitly.
-    """
-    return isinstance(x, (date, datetime))
-
-
-
-
-def _auto_date_format(span_seconds: float):
-    """Pick an x-axis tick formatter based on the visible time span.
-
-    Same rules every dashboard ships : seconds-precision on tight
-    windows, day on multi-day, month on multi-year. Returns a
-    callable suitable for ``format_value(..., fmt=callable, unit)``.
-    """
-    if span_seconds < 60 * 60 * 24:           # < 1 day → "HH:MM"
-        fmt = "%H:%M"
-    elif span_seconds < 60 * 60 * 24 * 365:   # < 1 an → "Mon DD"
-        fmt = "%b %d"
-    elif span_seconds < 60 * 60 * 24 * 365 * 5:   # < 5 years → "Mon YYYY"
-        fmt = "%b %Y"
-    else:                                          # multi-year → "YYYY"
-        fmt = "%Y"
-
-    def _fmt_date(moment: datetime) -> str:
-        return moment.strftime(fmt)
-    return _fmt_date
-
-
-def as_date_formatter(fn):
-    """Make a time-axis formatter receive a ``datetime``.
-
-    On a date axis, the x values are converted to POSIX timestamps
-    before being scaled, so ``x_format=`` received a **float** — the only
-    handle on the axis's language, and it forced the caller to redo
-    ``datetime.fromtimestamp`` themselves before being able to format
-    anything (finding [11] of the CRM work). The component knows it is a
-    date: it is its job to return it.
-
-    Applies ONLY when the axis is detected as temporal. On a numeric
-    axis, ``x_format=`` still receives the number.
-    """
-    def _wrapped(ts: float) -> str:
-        return str(fn(datetime.fromtimestamp(ts)))
-    return _wrapped
-
-
-def resolve_date_axis_format(data: Any, series: list[Series], x_format: Any):
-    """The effective x-axis formatter, and whether the axis is temporal.
-
-    Shared by LineChart and ScatterChart, which each had a copy of it
-    word for word — and that copy had to be edited on both sides in the
-    same commit, which is the signal.
-
-    Three rules, in that order:
-
-    1. a non-temporal axis → we touch nothing, ``x_format=`` receives the
-       number as always;
-    2. nothing supplied → the automatic formatter, chosen on the visible
-       SPAN (HH:MM under a day, "Mon DD" under a year…);
-    3. a *callable* — theirs or ours — receives a ``datetime`` and not
-       the scaling's POSIX timestamp.
-
-    ⚠️ The point that cost a defect: ``x_format=`` ALSO accepts the
-    string shortcuts (``"abbreviated"``, ``"percent"``, ``"currency"``).
-    A first version only kept the caller's value if it was callable — so
-    a string was **thrown away in silence** on a date axis, and the ticks
-    came out identical to the default's. A string does not make much
-    sense on a temporal axis, but ignoring it without a word is worse
-    than honouring it.
-    """
-    if not _detect_date_axis(data):
-        return x_format, False
-    if x_format is None:
-        xs_all = [x for s in series for x, _ in s.data]
-        x_format = _auto_date_format((max(xs_all) - min(xs_all)) if xs_all else 0.0)
-    if callable(x_format):
-        x_format = as_date_formatter(x_format)
-    return x_format, True
-
-
 def _coerce_series(
     data: Any, palette: tuple, *, default_color: str,
 ) -> list[Series]:
-    """LineChart's coerce — the shared one : one shared x axis (so the
-    series must agree on x), and a bare ``list[number]`` means x=index."""
+    """LineChart's coerce — the shared one : a bare ``list[number]``
+    means x=index, and a ``None`` y is a hole."""
     return coerce_xy_series(
         data, palette, default_color=default_color, owner="LineChart",
-        validate_shared_x=True, allow_index=True,
+        allow_index=True, allow_gaps=True,
     )
-
-
-def _detect_date_axis(data: Any) -> bool:
-    """Did the caller pass ``date`` / ``datetime`` x values ?
-
-    Peek at the first sample without coercing it — the actual coerce
-    happens in ``_coerce_series``. Single-pass detection on the raw
-    input so the auto-format pick can land before scales are built.
-    """
-    if not data:
-        return False
-    first = data[0]
-    if isinstance(first, Series):
-        if not first.data:
-            return False
-        return _is_date_like(first.data[0][0])
-    if isinstance(first, (tuple, list)) and len(first) >= 2:
-        return _is_date_like(first[0])
-    return False
 
 
 def _x_domain(series: list[Series]) -> tuple[float, float]:
@@ -602,12 +599,35 @@ def _x_domain(series: list[Series]) -> tuple[float, float]:
 
 
 def _y_domain(series: list[Series]) -> tuple[float, float]:
-    ys = [y for s in series for _, y in s.data]
-    return nice_domain(ys)
+    return nice_domain(_known_ys(series))
+
+
+#: What a column says for a series that has no point there.
+_NO_VALUE = "—"
+
+
+def _known_ys(series: list[Series]) -> list[float]:
+    """Every y that is a value — the holes left out."""
+    return [y for s in series for _, y in s.data if y is not None]
+
+
+def _align(series: list[Series]) -> tuple[list[float], list[list[float | None]]]:
+    """The columns — the union of the series' x values, sorted — and
+    each series read on them : its y, or ``None`` (a hole, or a column
+    where it has no point)."""
+    xs = sorted({float(x) for s in series for x, _ in s.data})
+    at = {x: i for i, x in enumerate(xs)}
+    aligned: list[list[float | None]] = []
+    for s in series:
+        ys: list[float | None] = [None] * len(xs)
+        for x, y in s.data:
+            ys[at[float(x)]] = y
+        aligned.append(ys)
+    return xs, aligned
 
 
 def _aria_summary(series: list[Series]) -> str:
-    what = text("chart.points", n=sum(len(s.data) for s in series))
+    what = text("chart.points", n=len(_known_ys(series)))
     if len(series) <= 1:
         return text("chart.summary", kind=text("chart.line"), what=what)
     names = ", ".join(s.name for s in series if s.name) or text(
@@ -617,8 +637,8 @@ def _aria_summary(series: list[Series]) -> str:
 
 
 def _build_displays(
-    series: list[Series], ref_xs: list[float], x_format, y_format,
-    x_unit: str | None = None, y_unit: str | None = None,
+    series: list[Series], ref_xs: list[float], aligned: list[list[float | None]],
+    x_format, y_format, x_unit: str | None = None, y_unit: str | None = None,
 ) -> list[str]:
     """One tooltip string per x index. Single series : compact
     ``"x: y"``. Multi-series : newline-separated ``x = X`` header +
@@ -629,29 +649,18 @@ def _build_displays(
     for idx, x in enumerate(ref_xs):
         x_label = format_value(x, x_format, x_unit)
         if single:
-            y = series[0].data[idx][1]
-            out.append(f"{x_label}: {format_value(y, y_format, y_unit)}")
+            y = aligned[0][idx]
+            said = _NO_VALUE if y is None else format_value(y, y_format, y_unit)
+            out.append(joined(x_label, f": {said}"))
             continue
-        parts = [f"x = {x_label}"]
-        for s in series:
-            y = s.data[idx][1]
-            tag = s.name or "Series"
-            parts.append(f"{tag}: {format_value(y, y_format, y_unit)}")
-        out.append("\n".join(parts))
+        rows = []
+        for s, ys in zip(series, aligned, strict=True):
+            y = ys[idx]
+            tag = s.name or text("chart.series")
+            said = _NO_VALUE if y is None else format_value(y, y_format, y_unit)
+            rows.append(f"\n{tag}: {said}")
+        out.append(joined("x = ", x_label, *rows))
     return out
-
-def _render_axis_layer(
-    slot, ticks: list[float], y_scale,
-    axis_font: int, show_axis: bool, show_gridlines: bool, y_format,
-    y_unit: str | None = None,
-) -> Element:
-    """LineChart's vertical axis — the shared layer, with this chart's
-    structural group class."""
-    return render_axis_layer(
-        slot, ticks, y_scale, axis_font,
-        show_axis, show_gridlines, y_format, y_unit,
-        group_class="bz-line-axes",
-    )
 
 
 def _stretched_frame(
@@ -666,14 +675,14 @@ def _stretched_frame(
     elsewhere: the dots are ``<circle>`` with a percentage ``cx``, in
     the outer svg, so they stay round; the stroke carries
     ``vector-effect: non-scaling-stroke``. The curve itself survives the
-    stretch unchanged: a Catmull-Rom control point is an affine
-    combination of the data points, and a stretch is affine.
+    stretch unchanged: a control point of the monotone curve is an
+    affine function of the data points, and a stretch is affine.
 
-    ⚠️ That is why the line no longer draws itself with a dash
-    (``pathLength="1"`` + ``stroke-dasharray: 1``): measured in
+    ⚠️ That is why the line does not draw itself with a dash
+    (``pathLength="1"`` + ``stroke-dasharray: 1``): in
     Chromium, the dash is computed on the UNSTRETCHED length while the
     non-scaling stroke is drawn on the stretched one, so the finished
-    line came out dashed. It reveals by clipping, like the area.
+    line would come out dashed. It reveals by clipping, like the area.
     """
     return Element(tag="svg", attrs={
         "width": "100%",
@@ -685,38 +694,9 @@ def _stretched_frame(
     }, children=tuple(paths))
 
 
-def _render_x_axis_labels(
-    slot, xmin: float, xmax: float, x_scale, plot_bottom: float,
-    axis_font: int, x_format, x_unit: str | None = None,
-) -> Element:
-    """Numeric ticks across the X domain — Heckbert ~5 ticks.
-
-    ``compute_ticks`` rounds outward to the next nice number, so for a
-    raw domain like ``(0, 11)`` it returns ``[0, 5, 10, 15]`` — the
-    ``15`` would land past the plot's right edge and dangle off the chart.
-    Filter to the in-domain ticks so the axis stops cleanly at the
-    data. Same logic applies on the date axis : timestamps past xmax
-    would render past the chart.
-    """
-    ticks = [t for t in compute_ticks(xmin, xmax, target_count=5)
-             if xmin <= t <= xmax]
-    label_cls = slot("axis_label")
-    children: list[Element] = []
-    for tick in ticks:
-        children.append(Element(tag="text", attrs={
-            "class": label_cls,
-            "x": _pct(x_scale(tick)),
-            "y": _fmt(plot_bottom + axis_font + 8),
-            "font-size": str(axis_font),
-            "text-anchor": "middle",
-        }, children=(TextNode(format_value(tick, x_format, x_unit)),)))
-    return Element(tag="g", attrs={"class": "bz-line-x-labels"},
-                   children=tuple(children))
-
-
 def _render_hit_layer(
     slot, x_svgs: list[float], plot_top: float, plot_bottom: float,
-    displays: list[str],
+    displays: list[str], clicks: list[dict] | None = None,
 ) -> Element:
     """Invisible per-index rects driving the crosshair scope.
 
@@ -734,7 +714,7 @@ def _render_hit_layer(
     scatter dots use, but the anchor is the column top so a fat hit
     rect still lands the tooltip on the point's x.
     """
-    hit_cls = slot("hit")
+    hit_cls = slot("hit") + (" cursor-pointer" if clicks else "")
     children: list[Element] = []
     height = plot_bottom - plot_top
     n = len(x_svgs)
@@ -750,106 +730,13 @@ def _render_hit_layer(
             "width": _pct(max(0.0, span)),
             "height": _fmt(height),
             "data-bz-display": displays[i],
+            **localized_attr(displays[i], "data-bz-display"),
             "data-bz-anchor-x": _fmt(frac),
             "bz-on:mouseenter": f"onHover($event, {i})",
             "bz-on:mouseleave": "onLeave()",
+            **(clicks[i] if clicks else {}),
         }, children=()))
     return Element(tag="g", attrs={"class": "bz-line-hits"},
                    children=tuple(children))
 
 
-def _reference_text(r: Reference, y_format, y_unit: str | None) -> str:
-    """A reference's label: its name, then its value in parens — the
-    value keeps the eye anchored on the threshold. Formatted like the
-    ticks, so it reads as the same scale."""
-    value_str = format_value(float(r.value), y_format, y_unit)
-    return f"{r.label} ({value_str})" if r.label else value_str
-
-
-def _render_reference_lines(
-    slot, refs: list[Reference], y_scale,
-) -> Element:
-    """Horizontal dashed lines for threshold annotations.
-
-    ``color=None`` on a ref falls back to ``"muted"`` so a reference
-    line without an explicit colour doesn't compete with the series
-    palette.
-
-    The LINES only: they are painted behind the data, their labels in
-    front (:func:`_render_reference_labels`). The two lived in one
-    group, so the label shared the line's depth — and on a bar chart it
-    passed under the bars.
-    """
-    children: list[Element] = []
-    for r in refs:
-        ty = y_scale(float(r.value))
-        children.append(Element(tag="line", attrs={
-            "class": slot("reference_line", r.color or "muted"),
-            "x1": "0", "x2": "100%",
-            "y1": _fmt(ty), "y2": _fmt(ty),
-            "stroke-dasharray": "4 4",
-        }, children=()))
-    return Element(
-        tag="g", attrs={"class": "bz-line-refs"},
-        children=tuple(children),
-    )
-
-
-def _render_reference_labels(
-    slot, refs: list[Reference], y_scale, axis_font: int,
-    y_format, y_unit: str | None,
-) -> Element:
-    """The references' labels, just above each line at the plot's right
-    edge — painted AFTER the data, so nothing covers them."""
-    children: list[Element] = []
-    for r in refs:
-        children.append(Element(tag="text", attrs={
-            "class": slot("reference_label", r.color or "muted"),
-            "x": "100%", "dx": "-4",
-            "y": _fmt(y_scale(float(r.value)) - 4),
-            "text-anchor": "end",
-            "font-size": str(axis_font),
-        }, children=(TextNode(_reference_text(r, y_format, y_unit)),)))
-    return Element(
-        tag="g", attrs={"class": "bz-line-ref-labels"},
-        children=tuple(children),
-    )
-
-
-def _render_legend(slot, series: list[Series]) -> Element:
-    legend_attrs = {"class": slot("legend")}
-    label_cls = slot("legend_label")
-    item_cls = slot("legend_item")
-    children: list[Element] = []
-    for s_idx, s in enumerate(series):
-        dot_cls = slot("legend_dot", s.color or None)
-        # ``bz-on:click`` flips the visibility boolean. V3 has no
-        # ``.prevent`` modifier so ``preventDefault`` is inlined ; the
-        # button is ``type="button"`` so this is just belt-and-braces.
-        # ``bz-class`` MERGES the dim utility onto the static
-        # ``legend_item`` classes (never ``bz-attr:class``, which would
-        # clobber them) — the item dims to 40 % opacity when off so the
-        # user sees which series are hidden at a glance ; the dot keeps
-        # full opacity so the colour swatch stays readable as a legend
-        # key. All series start visible so ``opacity-100`` is the SSR
-        # snapshot — no pre-stamp needed.
-        children.append(Element(tag="button", attrs={
-            "type": "button",
-            "class": item_cls,
-            "bz-on:click": (
-                f"$event.preventDefault(); toggleSeries({s_idx})"
-            ),
-            "bz-class": (
-                f"isVisible({s_idx}) ? 'opacity-100' : 'opacity-40'"
-            ),
-            "aria-pressed": "true",
-            # Stringify — a raw boolean makes ``bz-attr`` write an empty
-            # attr (true) / remove it (false) instead of the "true" /
-            # "false" string aria-pressed needs (data-attr trap).
-            "bz-attr:aria-pressed": bool_attr(f"isVisible({s_idx})"),
-        }, children=(
-            Element(tag="span", attrs={"class": dot_cls}, children=()),
-            Element(tag="span", attrs={"class": label_cls},
-                    children=(TextNode(s.name or text("chart.series")),)),
-        )))
-    return Element(tag="div", attrs=legend_attrs, children=tuple(children))

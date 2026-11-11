@@ -39,19 +39,18 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
+from bretzel.components.base.commands import IndexCommands
+from bretzel.components.base.field_wiring import (
     coerce_index,
     hidden_carrier_attrs,
-    scope_literal,
-    theme_context,
+    relocate_handlers,
 )
-from bretzel.components.base._wiring import (
-    pop_change_handler as _pop_change_handler,
-)
+from bretzel.components.base.scope_wiring import scope_literal
 from bretzel.components.navigation.pagination.theme import PAGINATION_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element, TextNode
 from bretzel.render import text
+from bretzel.render.texts import template
 
 # ───────────────────────────────────────────────────────────────────────────
 # Pure range computation — exposed for tests, SSR, custom pickers
@@ -102,7 +101,7 @@ def compute_range(
 # ───────────────────────────────────────────────────────────────────────────
 
 
-class Pagination(Component):
+class Pagination(IndexCommands, Component):
     """Page navigation : *Prev* — N page buttons — *Next*."""
 
     THEME: ClassVar[dict[str, Any]] = PAGINATION_THEME
@@ -113,8 +112,7 @@ class Pagination(Component):
     # drives ``value`` by clicking ; ``disabled`` gates from client state.
     # ``total_pages`` only changes when the server's result count changes
     # → ``@refreshable`` re-renders it, no client driver, so it stays
-    # static per the bindable-surface rule (cf.
-    # ``.claude/bretzel/client-reactive-surface.md`` § The rule).
+    # static per the bindable-surface rule.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
     # Same cut as Stepper and Carousel — a bounded index is driven by
     # ``set`` + the two directions. No ``first`` / ``last``: ``set(1)``
@@ -164,37 +162,17 @@ class Pagination(Component):
             **kwargs,
         )
 
-    # ── Imperative API ─────────────────────────────────────────────────
-    #
-    # Ordinary CLASS methods: none of these three names shadows a
-    # ``reactive_prop``, and the ``test_imperative_classvar_is_complete``
-    # gate only reads a ClassDef's public methods — attributes assigned
-    # in ``__init__`` would be invisible to it (cf. the same note in
-    # ``stepper.py``).
-
+    # ``set`` differs from ``IndexCommands``: pages count from 1.
     def set(self, page: int) -> str:
         """Go to page ``page``. Write-through if there is a binding."""
         return self._value_command(coerce_index(page, default=1))
 
-    def next(self) -> str:
-        # Always the dispatch, binding or not: "the next page" is
-        # computed from the LIVE value and bounded by ``totalPages()``.
-        # The server knows neither at render — a write-through would have
-        # to bake ``page + 1`` and would overrun.
-        return self._dispatch_command("bz-next")
-
-    def prev(self) -> str:
-        return self._dispatch_command("bz-prev")
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        _theme, _slots, sizes, size_key, _color = theme_context(self)
-        size_map = sizes.get(size_key, sizes.get("md", {}))
 
         # ── Resolve each prop to (alpine_expr, raw_initial) ──────────
         value_binding = self._binding_metadata.get("value")
-        total_pages_binding = self._binding_metadata.get("total_pages")
         disabled_binding = self._binding_metadata.get("disabled")
 
         # Initial values for SSR fallback + local bz-data field.
@@ -219,15 +197,12 @@ class Pagination(Component):
         # literal otherwise. The values leave as DATA (``_total`` /
         # ``_maxVisible``); the algorithm (``range`` / ``current`` /
         # ``setActive``…) lives once in ``$bz.pagination.scope``
-        # (``15_pagination.js``) and reads ``this._total``.
+        # (``pagination.js``) and reads ``this._total``.
         value_binding_path = (
             self.path_of(value_binding) if value_binding is not None else None
         )
-        total_pages_expr = (
-            self.path_of(total_pages_binding)
-            if total_pages_binding is not None
-            else str(initial_total)
-        )
+        # ``total_pages`` is not in BINDABLE_PROPS either: the server owns it.
+        total_pages_expr = str(initial_total)
         # ``max_visible`` is NOT in BINDABLE_PROPS — the constructor
         # rejects any binding on it, so ``max_visible_binding`` is always
         # None (no reactive branch).
@@ -270,47 +245,12 @@ class Pagination(Component):
         )
 
         # ── Static class composition ─────────────────────────────────
-        item_class = " ".join(
-            p
-            for p in (
-                self.compose_class(
-                    "item",
-                    apply_variant_size_modifiers=False,
-                ),
-                size_map.get("item", ""),
-            )
-            if p
-        )
+        item_class = self.compose_class("item")
         nav_class = " ".join(
-            p
-            for p in (
-                self.compose_class(
-                    "item",
-                    apply_variant_size_modifiers=False,
-                ),
-                size_map.get("item", ""),
-                self.compose_class(
-                    "nav",
-                    apply_variant_size_modifiers=False,
-                ),
-                size_map.get("nav", ""),
-            )
-            if p
+            p for p in (item_class, self.compose_class("nav")) if p
         )
-        active_class = self.compose_class(
-            "active", apply_variant_size_modifiers=False
-        )
-        ellipsis_class = " ".join(
-            p
-            for p in (
-                self.compose_class(
-                    "ellipsis",
-                    apply_variant_size_modifiers=False,
-                ),
-                size_map.get("ellipsis", ""),
-            )
-            if p
-        )
+        active_class = self.compose_class("active")
+        ellipsis_class = self.compose_class("ellipsis")
 
         # ── Prev / Next chevron buttons ──────────────────────────────
         # ``current()`` / ``isDisabled()`` / ``totalPages()`` are V3
@@ -368,24 +308,24 @@ class Pagination(Component):
         ellipsis_js = json.dumps(ellipsis_class)
 
         # The server KNOWS the window — it has ``compute_range``,
-        # tested and mirror-tested against the JS port. It did not use
-        # it: the slots left EMPTY and the numbers only appeared once the
-        # JS had run (measured: ``['', '', '', '', '', '', '']``). Hence
-        # a blank first paint, and nothing at all without JS, on the
-        # repository's only component whose JS decides which controls
-        # exist.
+        # tested and mirror-tested against the JS port. Without it, the
+        # slots would leave EMPTY and the numbers would only appear once
+        # the JS has run: a blank first paint, and nothing at all without
+        # JS, on a component whose JS decides which controls exist.
         #
         # So we seed the TEXT on the server side. The text only:
         # ``bz-text`` overwrites the content entirely, so seeding and
         # recomputing give the same result. The ``active`` / ``ellipsis``
         # classes, for their part, stay exclusively dynamic —
-        # ``bz-class`` can no longer remove a token present in the static
+        # ``bz-class`` cannot remove a token present in the static
         # ``class=`` (a protected baseline), so an active chip seeded in
         # SSR would stay stuck on its page.
         ssr_range = compute_range(
             initial_value, initial_total, initial_max_visible
         )
 
+        more_js = json.dumps(text("pagination.more"))
+        page_js = json.dumps(template("pagination.page"))
         for i in range(n_slots):
             p = f"range()[{i}]"
             slot = ssr_range[i] if i < len(ssr_range) else None
@@ -410,9 +350,11 @@ class Pagination(Component):
                         "bz-attr:aria-current": (
                             f"{p} === current() ? 'page' : null"
                         ),
+                        # The marker ``'ellipsis'`` is the code's word, and
+                        # a screen reader would read it aloud as is.
                         "bz-attr:aria-label": (
-                            f"{p} === 'ellipsis' "
-                            "? 'ellipsis' : 'Page ' + " + p
+                            f"{p} === 'ellipsis' ? {more_js} : "
+                            f"{page_js}.replace('{{n}}', {p})"
                         ),
                         "bz-text": (
                             f"{p} === 'ellipsis' ? '…' : {p}"
@@ -429,15 +371,16 @@ class Pagination(Component):
         # ``value`` via ``bz-attr:value`` (cf. ``traps.md``).
         root_attrs = self.emit_attrs()
         root_attrs.setdefault("role", "navigation")
-        root_attrs.setdefault("aria-label", "Pagination")
+        root_attrs.setdefault("aria-label", text("pagination.label"))
 
         # Relocate the change handler from the root <nav> down onto the
         # hidden input. ``emit_attrs`` stamps either the native HTMX
         # action set (callable ``on_change`` → ``hx-post`` +
         # ``hx-trigger`` + …) or ``bz-on:change`` (string ``on_change``).
-        # ``_pop_change_handler`` lifts whichever keys are present so the
+        # ``relocate_handlers`` moves whichever shape is present so the
         # populated ``name`` + ``value`` of the input back the FormData.
-        relocated_change = _pop_change_handler(root_attrs)
+        relocated_change: dict[str, Any] = {}
+        relocate_handlers(root_attrs, {"change": relocated_change})
 
         name = self._reactive_values.get("name") or self._derive_field_name()
 

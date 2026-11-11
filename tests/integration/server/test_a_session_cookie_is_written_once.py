@@ -64,9 +64,10 @@ def build_app() -> Bretzel:
 
 
 def session_cookies(response: object) -> list[str]:
-    """Les valeurs de session posées par cette réponse, dans l'ordre."""
+    """Les sessions posées par cette réponse, dans l'ordre — l'identifiant,
+    sans la signature que le cookie porte depuis le 2026-11-06."""
     return [
-        header.split(";", 1)[0].split("=", 1)[1]
+        header.split(";", 1)[0].split("=", 1)[1].split(".", 1)[0]
         for header in response.headers.get_list("set-cookie")  # type: ignore[attr-defined]
         if header.startswith(f"{COOKIE_SESSION}=")
     ]

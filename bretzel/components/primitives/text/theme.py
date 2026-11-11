@@ -1,12 +1,11 @@
 """Default :class:`Text` theme.
 
 A separate file so an aggregator can import the dict without dragging the
-component class. No such aggregator exists today, and the reason is worth
+component class. No such aggregator exists, and the reason is worth
 keeping : the shipped scale is a DEFAULT (``DEFAULT_SPACING`` /
 ``DEFAULT_TEXT`` in ``bretzel/theme/tokens.py``), not a preset. A preset
-package was tried on 2026-09-13 and removed the same day — one that
-matches the default is a trap, and one that differs is a second way to say
-the same thing. Component code MUST NOT
+that matches the default is a trap, and one that differs is a second way
+to say the same thing. Component code MUST NOT
 import this dict directly — it should always read merged values
 through ``self._resolved_theme()`` (which deep-merges the user's
 ``Theme(components=…)`` override onto ``cls.THEME``, memoized) so

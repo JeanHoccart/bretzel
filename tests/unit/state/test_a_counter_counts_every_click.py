@@ -142,6 +142,27 @@ def test_several_mutations_collapse_into_one_delta() -> None:
     assert ecrits == [{"vues": 3}]
 
 
+def test_a_counter_counts_on_from_a_stored_total() -> None:
+    """L'écart est calculé depuis ce qui était STOCKÉ, pas depuis zéro.
+
+    Les autres tests de ce fichier partent tous d'un compteur à 0, où
+    ``valeur - stockée`` et ``valeur + stockée`` donnent le même écart.
+    Trouvé le 2026-10-27 par un test de mutation : le signe du calcul
+    pouvait s'inverser sans qu'un seul test du fichier ne bronche.
+    """
+    backend = MemoryBackend()
+    for _ in range(3):
+        requete = _ouvrir(backend)
+        with use_registry(requete):
+            Stats().vues += 5
+        run(requete.commit())
+    with use_registry(_ouvrir(backend)):
+        assert Stats().vues == 15, (
+            "à partir d'un total déjà stocké, le commit n'a pas envoyé le bon "
+            "écart."
+        )
+
+
 def test_a_decrement_is_just_a_negative_delta() -> None:
     backend = MemoryBackend()
     requete = _ouvrir(backend)

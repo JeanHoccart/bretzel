@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from bretzel.render.decorators.refreshable import ZoneRegistry
+
 from collections.abc import Callable
 from typing import Any
 
@@ -24,6 +26,7 @@ from bretzel.render.decorators import (
 
 
 class _StubApp:
+    zones = ZoneRegistry()
     def __init__(self) -> None:
         self._pages: list[Callable[..., Any]] = []
         self._error_handlers: dict[int, Callable[..., Any]] = {}
@@ -191,8 +194,10 @@ class TestRefreshable:
         def f() -> None: ...
 
         h = refreshable(f)
-        # Outside any RenderContext — must not raise.
-        refresh(h)
+        # Outside any RenderContext — must not raise, but must say it
+        # reached no screen (2026-11-03).
+        with pytest.warns(RuntimeWarning, match="outside a request"):
+            refresh(h)
 
     def test_refresh_inside_context_queues(self) -> None:
         from bretzel.render.context import RenderContext, use_context

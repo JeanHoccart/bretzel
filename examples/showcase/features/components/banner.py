@@ -1,7 +1,6 @@
 """``/banner`` — the strip that speaks to the whole page."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A full-width strip for news that concerns the whole page: "
@@ -53,31 +52,9 @@ def above_the_app() -> None:
             ui.progress(78, label="Paid this quarter · 78%", show_label=True)
 
 
-class Notice(PageState):
-    closed: bool = field(default=False)
-
-
-def close_notice() -> None:
-    Notice().closed = True
-
-
-def bring_back() -> None:
-    Notice().closed = False
-
-
-@refreshable(deps=[Notice])
-def cookie_notice() -> None:
-    if Notice().closed:
-        ui.button("Bring the notice back", icon_left="rotate-ccw",
-                  variant="ghost", on_click=bring_back, classes="self-center")
-    else:
-        ui.banner("We only use cookies that keep you signed in.",
-                  title="Privacy", color="muted", icon="cookie",
-                  dismissible=True, on_close=close_notice)
-
-
 def dismissible() -> None:
-    cookie_notice()
+    ui.banner("We only use cookies that keep you signed in.",
+              title="Privacy", color="muted", icon="cookie", dismissible=True)
 
 
 def page() -> None:
@@ -91,7 +68,7 @@ def page() -> None:
     example("Above an application", above_the_app, full=True,
             note="Edge to edge at the top of a screen, where a status "
                  "belongs to everything below it.")
-    example("Closed on the server", dismissible, full=True,
-            uses=[Notice, close_notice, bring_back, cookie_notice],
-            note="on_close runs a Python function — the place to remember "
-                 "that this user has already seen it.")
+    example("Dismissible", dismissible, full=True,
+            note="The × closes the banner in the browser. Give on_close a "
+                 "Python function when the server must remember that this "
+                 "user has already seen it.")

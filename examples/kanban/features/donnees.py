@@ -20,8 +20,8 @@ the list. Dropping between two cards takes the midpoint of their two
 ranks, so a single card is rewritten — and that is what makes
 ``annuler`` trivial: restoring one card is enough, no neighbour has
 moved. The price is written down: after thirty-odd drops at the same
-spot, the floats have no midpoint left to offer. A real app renumbers
-(``examples/crm`` does); a demo board has no time for that.
+spot, the floats have no midpoint left to offer. A real app renumbers;
+a demo board has no time for that.
 """
 
 from __future__ import annotations
@@ -30,9 +30,8 @@ import time
 from datetime import date, timedelta
 from typing import Any
 
-from bretzel import Feature
+from bretzel import Feature, t
 from bretzel.state import SessionState, field
-from examples.kanban.core.i18n import tr
 
 #: The columns, in board order, with their **work-in-progress limit**.
 #: ``None`` = no limit. The limit is a rule of the board, not a
@@ -63,10 +62,10 @@ STATUTS: dict[str, tuple[str, str]] = {
 def colonnes() -> tuple[tuple[str, str, int | None], ...]:
     """``(key, label, limit)`` per column, in board order."""
     return (
-        ("a_faire", tr("To do", "À faire"), None),
-        ("en_cours", tr("In progress", "En cours"), 3),
-        ("en_revue", tr("In review", "En revue"), 2),
-        ("fini", tr("Done", "Terminé"), None),
+        ("a_faire", t("To do"), None),
+        ("en_cours", t("In progress"), 3),
+        ("en_revue", t("In review"), 2),
+        ("fini", t("Done"), None),
     )
 
 
@@ -172,203 +171,150 @@ def graine() -> tuple[dict[str, Any], ...]:
     return (
         tache(
             "c01", "a_faire",
-            tr("Sign-in screen: forgotten password",
-               "Écran de connexion : mot de passe oublié"),
+            t("Sign-in screen: forgotten password"),
             "sam", ("ux",), dans(9), 3,
-            tr("The link exists but returns a 404 since the routing was "
+            t("The link exists but returns a 404 since the routing was "
                "reworked. To be rewired onto the new single-use token "
-               "flow.",
-               "Le lien existe mais renvoie une 404 depuis la refonte du "
-               "routage. À rebrancher sur le nouveau flux de jetons à "
-               "usage unique."),
-            ((tr("Rewire the route", "Rebrancher la route"), False),
-             (tr("Email template", "Gabarit de courriel"), False),
-             (tr("30-minute expiry", "Expiration à 30 min"), False)),
+               "flow."),
+            ((t("Rewire the route"), False),
+             (t("Email template"), False),
+             (t("30-minute expiry"), False)),
         ),
         tache(
             "c02", "a_faire",
-            tr("Audit log exportable as CSV",
-               "Journal d\'audit exportable en CSV"),
+            t("Audit log exportable as CSV"),
             "noa", ("infra", "doc"), dans(14), 5,
-            tr("The large accounts ask for it for their internal audits. "
-               "One row per action, the export runs as a background task.",
-               "Les clients grands comptes le demandent pour leurs audits "
-               "internes. Une ligne par action, l\'export tourne en tâche "
-               "de fond."),
-            ((tr("Paginated query", "Requête paginée"), False),
-             (tr("Writing the file", "Écriture du fichier"), False),
-             (tr("Button and notification", "Bouton et notification"), False),
-             (tr("Document the format", "Documenter le format"), False)),
+            t("The large accounts ask for it for their internal audits. "
+               "One row per action, the export runs as a background task."),
+            ((t("Paginated query"), False),
+             (t("Writing the file"), False),
+             (t("Button and notification"), False),
+             (t("Document the format"), False)),
         ),
         tache(
             "c03", "a_faire",
-            tr("Fix the VAT computation on credit notes",
-               "Corriger le calcul de TVA sur les avoirs"),
+            t("Fix the VAT computation on credit notes"),
             "lea", ("bug",), dans(2), 2,
-            tr("A credit note issued after a rate change applies the day\'s "
-               "rate, not the original invoice\'s.",
-               "Un avoir émis après un changement de taux applique le taux "
-               "du jour, pas celui de la facture d\'origine."),
-            ((tr("Reproduce on real data", "Reproduire sur un jeu réel"),
+            t("A credit note issued after a rate change applies the day\'s "
+               "rate, not the original invoice\'s."),
+            ((t("Reproduce on real data"),
               True),
-             (tr("Fix", "Corriger"), False)),
-            (("cam", tr("Reported by two clients this week, to be "
-                        "prioritised.",
-                        "Signalé par deux clients cette semaine, à "
-                        "prioriser.")),),
+             (t("Fix"), False)),
+            (("cam", t("Reported by two clients this week, to be "
+                        "prioritised.")),),
         ),
         tache(
             "c04", "a_faire",
-            tr("Rework the pricing page", "Refonte de la page de tarifs"),
+            t("Rework the pricing page"),
             "cam", ("ux",), "", 8,
-            tr("Three plans instead of five, and the comparison goes below "
-               "the fold. Mock-ups approved, the integration is left.",
-               "Trois plans au lieu de cinq, et le comparatif passe sous le "
-               "pli. Maquettes validées, reste l\'intégration."),
+            t("Three plans instead of five, and the comparison goes below "
+               "the fold. Mock-ups approved, the integration is left."),
         ),
         tache(
             "c05", "a_faire",
-            tr("Drop the moment.js dependency",
-               "Retirer la dépendance à moment.js"),
+            t("Drop the moment.js dependency"),
             "noa", ("perf",), "", 3,
-            tr("68 kB to format three dates. Native formatting is enough "
-               "now that the old browsers are no longer supported.",
-               "68 Ko pour formater trois dates. Le formatage natif suffit "
-               "depuis qu\'on ne supporte plus les vieux navigateurs."),
+            t("68 kB to format three dates. Native formatting is enough "
+               "now that the old browsers are no longer supported."),
         ),
         tache(
             "c06", "a_faire",
-            tr("A ten-minute getting-started guide",
-               "Guide de démarrage en dix minutes"),
+            t("A ten-minute getting-started guide"),
             "sam", ("doc",), dans(21), 5,
-            tr("The sign-up drop-off rate is decided in the first five "
-               "minutes. A written walkthrough, tested on three people.",
-               "Le taux d\'abandon à l\'inscription se joue dans les cinq "
-               "premières minutes. Un parcours écrit, testé sur trois "
-               "personnes."),
+            t("The sign-up drop-off rate is decided in the first five "
+               "minutes. A written walkthrough, tested on three people."),
         ),
         tache(
             "c07", "en_cours",
-            tr("Merge duplicate accounts", "Fusion des comptes en double"),
+            t("Merge duplicate accounts"),
             "lea", ("bug", "infra"), dans(1), 8,
-            tr("Two accounts created with the same address in upper and in "
+            t("Two accounts created with the same address in upper and in "
                "lower case. They must be merged without losing the "
-               "history.",
-               "Deux comptes créés avec la même adresse en majuscules et en "
-               "minuscules. Il faut fusionner sans perdre l\'historique."),
-            ((tr("Duplicate detection", "Détection des doublons"), True),
-             (tr("Merge screen", "Écran de fusion"), True),
-             (tr("Replaying the history", "Rejeu de l\'historique"), False)),
-            (("noa", tr("The detection runs, 412 pairs found in the "
-                        "database.",
-                        "La détection tourne, 412 paires trouvées en "
-                        "base.")),
-             ("lea", tr("I am taking the merge screen, ready tomorrow.",
-                        "Je prends l\'écran de fusion, dispo demain."))),
+               "history."),
+            ((t("Duplicate detection"), True),
+             (t("Merge screen"), True),
+             (t("Replaying the history"), False)),
+            (("noa", t("The detection runs, 412 pairs found in the "
+                        "database.")),
+             ("lea", t("I am taking the merge screen, ready tomorrow."))),
         ),
         tache(
             "c08", "en_cours",
-            tr("Dashboard caching", "Cache des tableaux de bord"),
+            t("Dashboard caching"),
             "noa", ("perf",), dans(-1), 5,
-            tr("The dashboard recomputes twelve aggregates at every load. A "
-               "five-minute cache is enough, invalidated on write.",
-               "Le tableau de bord recalcule douze agrégats à chaque "
-               "chargement. Un cache de cinq minutes suffit, invalidé à "
-               "l\'écriture."),
-            ((tr("Choosing the cache key", "Choisir la clé de cache"), True),
-             (tr("Invalidation", "Invalidation"), False)),
+            t("The dashboard recomputes twelve aggregates at every load. A "
+               "five-minute cache is enough, invalidated on write."),
+            ((t("Choosing the cache key"), True),
+             (t("Invalidation"), False)),
         ),
         tache(
             "c09", "en_cours",
-            tr("Date picker accessibility",
-               "Accessibilité du sélecteur de dates"),
+            t("Date picker accessibility"),
             "cam", ("ux", "bug"), dans(4), 3,
-            tr("The calendar cannot be reached from the keyboard, and the "
+            t("The calendar cannot be reached from the keyboard, and the "
                "screen reader announces \"button\" without saying which "
-               "date.",
-               "Impossible d\'atteindre le calendrier au clavier, et le "
-               "lecteur d\'écran annonce « bouton » sans dire quelle date."),
-            ((tr("Tab order", "Ordre de tabulation"), True),
-             (tr("ARIA labels", "Étiquettes ARIA"), False),
-             (tr("Screen-reader test", "Test au lecteur d\'écran"), False)),
+               "date."),
+            ((t("Tab order"), True),
+             (t("ARIA labels"), False),
+             (t("Screen-reader test"), False)),
         ),
         tache(
             "c10", "en_revue",
-            tr("Rate limiting on the public API",
-               "Limitation de débit sur l\'API publique"),
+            t("Rate limiting on the public API"),
             "sam", ("infra",), dans(0), 5,
-            tr("A hundred requests per minute per token, with the standard "
-               "headers so the clients know where they stand.",
-               "Cent requêtes par minute et par jeton, avec les en-têtes "
-               "standard pour que les clients sachent où ils en sont."),
-            ((tr("In-memory counter", "Compteur en mémoire"), True),
-             (tr("Quota headers", "En-têtes de quota"), True),
-             (tr("Documentation", "Documentation"), True)),
-            (("cam", tr("Reviewed, only the expired-token case is missing.",
-                        "Relu, il manque juste le cas du jeton expiré.")),),
+            t("A hundred requests per minute per token, with the standard "
+               "headers so the clients know where they stand."),
+            ((t("In-memory counter"), True),
+             (t("Quota headers"), True),
+             (t("Documentation"), True)),
+            (("cam", t("Reviewed, only the expired-token case is missing.")),),
         ),
         tache(
             "c11", "en_revue",
-            tr("Spanish translation of the interface",
-               "Traduction espagnole de l\'interface"),
+            t("Spanish translation of the interface"),
             "lea", ("doc", "ux"), "", 8,
-            tr("1 240 strings reviewed by a native translator. The "
-               "overflows on long labels are left to check.",
-               "1 240 chaînes relues par une traductrice native. Reste à "
-               "vérifier les débordements sur les libellés longs."),
-            ((tr("Extracting the strings", "Extraction des chaînes"), True),
-             (tr("Review", "Relecture"), True),
-             (tr("Check the overflows", "Vérifier les débordements"), False)),
+            t("1 240 strings reviewed by a native translator. The "
+               "overflows on long labels are left to check."),
+            ((t("Extracting the strings"), True),
+             (t("Review"), True),
+             (t("Check the overflows"), False)),
         ),
         tache(
             "c12", "fini",
-            tr("Migration to the new billing engine",
-               "Migration vers le nouveau moteur de facturation"),
+            t("Migration to the new billing engine"),
             "noa", ("infra",), "", 13,
-            tr("Switched over on a Sunday morning, no visible outage. The "
-               "old engine stays readable read-only until December.",
-               "Bascule faite un dimanche matin, aucune interruption "
-               "visible. L\'ancien moteur reste lisible en lecture seule "
-               "jusqu\'en décembre."),
-            ((tr("Dual writing", "Double écriture"), True),
-             (tr("Switch over", "Bascule"), True),
-             (tr("Clean-up", "Nettoyage"), True)),
+            t("Switched over on a Sunday morning, no visible outage. The "
+               "old engine stays readable read-only until December."),
+            ((t("Dual writing"), True),
+             (t("Switch over"), True),
+             (t("Clean-up"), True)),
         ),
         tache(
             "c13", "fini",
-            tr("Sign in with Google and Microsoft",
-               "Connexion par Google et Microsoft"),
+            t("Sign in with Google and Microsoft"),
             "cam", ("infra", "ux"), "", 8,
-            tr("Both providers wired, the existing account is attached by "
-               "the verified address.",
-               "Les deux fournisseurs branchés, le compte existant est "
-               "rattaché par l\'adresse vérifiée."),
-            ((tr("Google", "Google"), True),
-             (tr("Microsoft", "Microsoft"), True),
-             (tr("Attaching", "Rattachement"), True)),
+            t("Both providers wired, the existing account is attached by "
+               "the verified address."),
+            ((t("Google"), True),
+             (t("Microsoft"), True),
+             (t("Attaching"), True)),
         ),
         tache(
             "c14", "fini",
-            tr("Fix the PDF export truncated beyond 40 pages",
-               "Corriger l\'export PDF tronqué au-delà de 40 pages"),
+            t("Fix the PDF export truncated beyond 40 pages"),
             "sam", ("bug",), "", 3,
-            tr("The generator cut off at the fortieth page without a word. "
-               "The buffer was flushed too early.",
-               "Le générateur coupait à la quarantième page sans rien dire. "
-               "Le tampon était vidé trop tôt."),
-            ((tr("Reproduce", "Reproduire"), True),
-             (tr("Fix", "Corriger"), True),
-             (tr("Regression test", "Test de non-régression"), True)),
+            t("The generator cut off at the fortieth page without a word. "
+               "The buffer was flushed too early."),
+            ((t("Reproduce"), True),
+             (t("Fix"), True),
+             (t("Regression test"), True)),
         ),
         tache(
             "c15", "fini",
-            tr("Cookie consent banner",
-               "Bandeau de consentement aux cookies"),
+            t("Cookie consent banner"),
             "lea", ("doc",), "", 2,
-            tr("Refused by default, no tracker before the click. Approved "
-               "by the firm.",
-               "Refus par défaut, aucun traceur avant le clic. Validé par "
-               "le cabinet."),
+            t("Refused by default, no tracker before the click. Approved "
+               "by the firm."),
         ),
     )
 
@@ -509,18 +455,19 @@ def depuis(instant: float) -> str:
         return ""
     ecart = max(0, int(time.time() - instant))
     if ecart < 60:
-        return tr(f"{ecart} s ago", f"il y a {ecart} s")
+        return t("{ecart} s ago", ecart=ecart)
     if ecart < 3600:
-        return tr(f"{ecart // 60} min ago", f"il y a {ecart // 60} min")
+        return t("{n} min ago", n=ecart // 60)
     if ecart < 86400:
-        return tr(f"{ecart // 3600} h ago", f"il y a {ecart // 3600} h")
-    return tr(f"{ecart // 86400} d ago", f"il y a {ecart // 86400} j")
+        return t("{n} h ago", n=ecart // 3600)
+    return t("{n} d ago", n=ecart // 86400)
 
 
-MOIS_EN: tuple[str, ...] = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-MOIS_FR: tuple[str, ...] = ("janv.", "févr.", "mars", "avr.", "mai", "juin",
-                            "juil.", "août", "sept.", "oct.", "nov.", "déc.")
+def mois() -> tuple[str, ...]:
+    """The months, short, in the request's language: a function, ``t()``
+    reads the request."""
+    return (t("Jan"), t("Feb"), t("Mar"), t("Apr"), t("May"), t("Jun"),
+            t("Jul"), t("Aug"), t("Sep"), t("Oct"), t("Nov"), t("Dec"))
 
 
 def echeance(carte: dict[str, Any]) -> tuple[str, str]:
@@ -538,14 +485,14 @@ def echeance(carte: dict[str, Any]) -> tuple[str, str]:
         return "", "muted"
     ecart = (jour - date.today()).days
     if ecart == 0:
-        libelle = tr("Today", "Aujourd'hui")
+        libelle = t("Today")
     elif ecart == 1:
-        libelle = tr("Tomorrow", "Demain")
+        libelle = t("Tomorrow")
     elif ecart == -1:
-        libelle = tr("Yesterday", "Hier")
+        libelle = t("Yesterday")
     else:
-        libelle = tr(f"{MOIS_EN[jour.month - 1]} {jour.day}",
-                     f"{jour.day} {MOIS_FR[jour.month - 1]}")
+        # The order is the language's: « Nov 3 », « 3 nov. ».
+        libelle = t("{month} {day}", month=mois()[jour.month - 1], day=jour.day)
     if carte["colonne"] == "fini" or ecart > 2:
         return libelle, "muted"
     return libelle, "error" if ecart < 0 else "warning"
@@ -556,5 +503,7 @@ feature = Feature(
     provides=[Tableau, colonnes, libelles, MEMBRES, ETIQUETTES, STATUTS,
               semer, copie,
               carte_par_id, colonne_de, occupation, pleine, correspond,
-              avancement, entre, depuis, echeance],
+              avancement, entre, depuis, echeance,
+              CLES, COULEURS, COUL_ETIQUETTE, INITIALES, LIB_ETIQUETTE, LIMITES, NOMS,
+              rang_en_tete],
 )

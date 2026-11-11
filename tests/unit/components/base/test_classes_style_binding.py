@@ -14,6 +14,11 @@ sous-chaîne ``:style="`` — que ``bz-attr:style="`` contient.
 
 from __future__ import annotations
 
+import re
+
+import pytest
+
+from bretzel import ui
 from bretzel.components.actions.button import Button
 from bretzel.components.base.testing import render_isolated
 from bretzel.core.serialize import serialize
@@ -72,3 +77,18 @@ class TestStyleBinding:
         )
         # No leftover static style attr.
         assert 'style="opacity:' not in out
+
+    @pytest.mark.parametrize("build", [ui.checkbox, ui.switch, ui.radio])
+    def test_a_bound_style_lands_on_the_true_root_like_a_literal(self, build) -> None:
+        args = ("a",) if build is ui.radio else ()
+        with render_isolated(), rendering_scope():
+            state = _ExtrasState()
+            bound = build(*args, style=state.extra_style)
+            literal = build(*args, style="opacity: 0.5")
+            bound_html = serialize(bound.render())
+            literal_html = serialize(literal.render())
+        root_tag = re.match(r"<([\w-]+)", literal_html).group(1)
+        assert root_tag != "input"
+        assert re.match(rf'<{root_tag}[^>]*style="opacity: 0.5"', literal_html)
+        assert re.match(rf'<{root_tag}[^>]*bz-attr:style=', bound_html), bound_html[:300]
+        assert not re.search(r'<input[^>]*bz-attr:style=', bound_html)

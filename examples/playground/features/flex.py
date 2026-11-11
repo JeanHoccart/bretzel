@@ -71,7 +71,7 @@ class FlexPlayground(PageState):
 def server_changed(state: FlexPlayground) -> None:
     # Typed param → the dispatcher hydrates the changed
     # control's value into ``state`` (coerced + persisted).
-    # deps=[FlexPlayground] re-renders server_panel automatically.
+    # server_panel reads the state, so it re-renders automatically.
     pass
 
 
@@ -122,7 +122,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[FlexPlayground])
+@refreshable
 def server_panel() -> None:
     state = FlexPlayground()
 

@@ -93,9 +93,9 @@ def runtime_page() -> None:
 
             with section(
                 'What the runtime weighs',
-                'The bundle is concatenated from `_src/*.js`, with no '
+                'The bundle is concatenated from `_src/` and the `.js` beside each component, with no '
                 'bundler and no minifier — the file served is the one you '
-                'debug. The numeric prefix IS the load order.',
+                'debug. The load order is declared in `runtime/sources.py`.',
             ):
                 runtime_modules_mirror()
 

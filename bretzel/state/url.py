@@ -31,20 +31,19 @@ framework has not named therefore cannot be lit — that is how ``filters``
 stays out of the URL by construction, and not by instruction.
 
 **1. Opt-in, never automatic.** The bridge has already met the automatic
-version and treated it — rightly — as a leak: ``05_bridge.js`` strips the
+version and treated it — rightly — as a leak: ``bridge.js`` strips the
 client store from navigation GETs so as not to produce
 ``?ColorScheme.default.mode=dark&HubFilter...``. The fault was not
 putting state in the URL, it was putting **everything** in it. A declared
 field is a **PUBLIC** field: it goes into the browser history, into the
 server logs, and into the ``Referer`` header of the next request. That is
-why ``filters`` is addressable in none of the framework's defaults
-(decision of 2026-08-29): it is the field most likely to carry sensitive
-data.
+why ``filters`` is addressable in none of the framework's defaults: it is
+the field most likely to carry sensitive data.
 
 ⚠️ If a filter must **survive** without being published, the URL is not
 what you need, the SCOPE is: ``class Issues(DatatableState,
 scope="session")`` and it crosses navigations, server-side, exposing
-nothing. Measured. No new mechanism, no browser memory to fiddle with.
+nothing. No new mechanism, no browser memory to fiddle with.
 
 **2. The URL name is WRITTEN, not derived from the Python name.** Three
 reasons: a URL is a public API, so renaming a field would break bookmarks
@@ -187,7 +186,7 @@ def _validated(cls: Any, declared: dict[str, str]) -> dict[str, str]:
     diverge: an unknown field, an empty name, an internal collision or a
     non-serialisable structure are refused on both sides.
 
-    ⚠️ Its messages no longer say "``X.URL`` declares": since it also
+    ⚠️ Its messages do not say "``X.URL`` declares": since it also
     serves :func:`would_publish`, the fault may come from a
     ``field(url=…)`` and pointing at the ``URL`` dict would send the
     reader looking for a line that does not exist.
@@ -304,7 +303,7 @@ def collect_url_params(instances: list[Any]) -> dict[str, str]:
 
     Raises when two states on the SAME page claim the same parameter. The
     check is here — so per request — and not in a module-level table of
-    reserved names: a mutable global registry is forbidden (anti-rule 2),
+    reserved names: a mutable global registry is forbidden,
     and above all the collision is only a fault if the two states
     REALLY meet.
     """

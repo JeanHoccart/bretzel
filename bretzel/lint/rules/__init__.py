@@ -17,6 +17,11 @@ from collections.abc import Callable
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 from bretzel.lint.rules import (
+    badge_by_hand,
+    breadcrumb_by_hand,
+    dialog_flag,
+    forced_classes,
+    handler_script,
     handlers,
     injection,
     kwargs,
@@ -31,9 +36,10 @@ from bretzel.lint.rules import (
     specificity,
     tailwind,
     theme,
+    theme_colors,
+    topics,
     transport,
     variant,
-    zone_deps,
 )
 
 Rule = Callable[[Module], list[Finding]]
@@ -52,7 +58,7 @@ Rule = Callable[[Module], list[Finding]]
 #: see, no class to look for, the render is the shipped theme's); a value
 #: outside the table removes a class and leaves the component on screen,
 #: bare — and a theme override that keeps the name while changing the
-#: SHAPE does exactly that, measured: the step loses all its tokens and
+#: SHAPE does exactly that: the step loses all its tokens and
 #: the component renders at its content's size (its other meaning does
 #: raise at render time, which places it just after); a cast on a state
 #: value removes nothing either and leaves the component displaying the
@@ -68,7 +74,11 @@ Rule = Callable[[Module], list[Finding]]
 STATIC: dict[str, Rule] = {
     loop_state.RULE: loop_state.check,
     shared_counter.RULE: shared_counter.check,
+    topics.RULE: topics.check,
     tailwind.RULE: tailwind.check,
+    # A colour no theme has (`border-base-300`): no rule in dev nor in
+    # production, the property falls back to the text.
+    theme_colors.RULE: theme_colors.check,
     theme.RULE: theme.check,
     variant.RULE: variant.check,
     shape.RULE: shape.check,
@@ -77,11 +87,19 @@ STATIC: dict[str, Rule] = {
     specificity.RULE: specificity.check,
     partial_sizes.RULE: partial_sizes.check,
     sizes.RULE: sizes.check,
-    zone_deps.RULE: zone_deps.check,
     nested_link.RULE: nested_link.check,
+    # The app idioms: nothing breaks, the app drifts
+    # from the framework — a window opened by a round trip, a pill, a
+    # forced component, a breadcrumb drawn by hand.
+    dialog_flag.RULE: dialog_flag.check,
+    badge_by_hand.RULE: badge_by_hand.check,
+    forced_classes.RULE: forced_classes.check,
+    breadcrumb_by_hand.RULE: breadcrumb_by_hand.check,
     kwargs.RULE: kwargs.check,
     transport.RULE: transport.check,
     injection.RULE: injection.check,
+    # A value pasted into a JavaScript on_* handler.
+    handler_script.RULE: handler_script.check,
     handlers.RULE: handlers.check,
 }
 

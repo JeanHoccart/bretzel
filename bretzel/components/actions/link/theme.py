@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from bretzel.components.primitives.text.theme import TEXT_THEME
+
 LINK_THEME: dict[str, Any] = {
     "slots": {
         "root": (
@@ -63,4 +65,7 @@ LINK_THEME: dict[str, Any] = {
             "aria-disabled:hover:opacity-50"
         ),
     },
+    # A link lives in text: the SAME steps as ``ui.text`` (one table, not
+    # a copy). Without ``size=`` it takes its parent's size.
+    "sizes": TEXT_THEME["sizes"],
 }

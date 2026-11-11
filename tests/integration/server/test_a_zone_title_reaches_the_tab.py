@@ -10,7 +10,7 @@ vide : le rendu partiel ne le transmettait pas, et l'onglet gardait
 l'ancien jusqu'à la prochaine navigation. Le playground affirmait
 l'inverse (``examples/playground/features/meta.py``).
 
-Le runtime écoute déjà ``bretzel:title`` (``05_bridge.js``) : il manquait
+Le runtime écoute déjà ``bretzel:title`` (``bridge.js``) : il manquait
 seulement l'en-tête sur la réponse d'action.
 
 Le versant licite : une action dont les zones n'appellent pas
@@ -29,6 +29,7 @@ from bretzel.render.context import current_context
 from bretzel.runtime.protocol import TITLE_EVENT
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.state import SessionState, field
+from tests._session import session_of
 
 _SECRET = "t" * 32
 
@@ -45,13 +46,13 @@ class Compteur(SessionState):
     n: int = field(default=0)
 
 
-@refreshable(deps=[Titre])
+@refreshable
 def zone_titree() -> None:
     ui.title(Titre().texte)
     ui.text(f"TITRE={Titre().texte}")
 
 
-@refreshable(deps=[Compteur])
+@refreshable
 def zone_muette() -> None:
     ui.text(f"N={Compteur().n}")
 
@@ -83,7 +84,7 @@ def _monter(zone) -> Bretzel:
 
 def _agir(client: TestClient, app: Bretzel, handler):
     action_id = encode_action_id(handler)
-    sig = sign_action(app.config._action_key, action_id, "")
+    sig = sign_action(app.config._action_key, action_id, "", session_id=session_of(client))
     return client.post(
         f"/_bretzel/action/{action_id}",
         headers={"X-Bz-Sig": sig},

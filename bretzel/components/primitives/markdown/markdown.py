@@ -41,8 +41,11 @@ from bretzel.components.base import (
     reject_component,
 )
 from bretzel.components.primitives.code import CODE_THEME, highlight_code
+from bretzel.components.primitives.heading.heading import heading_classes
+from bretzel.components.primitives.heading.theme import HEADING_THEME
 from bretzel.components.primitives.markdown.theme import MARKDOWN_THEME
 from bretzel.core.tree import Element, HtmlNode
+from bretzel.runtime.protocol import DATA_BZ_REPLACE
 from bretzel.state.scopes.client import ClientBinding
 
 
@@ -212,10 +215,20 @@ class Markdown(Component):
         # Code's theme resolved TOO: an override of ``code`` must reach
         # markdown's fenced blocks as it reaches ``ui.code``.
         code_slots = self._resolved_theme("code", CODE_THEME).get("slots", {})
+        # And a ``##`` is a level-2 title: ``ui.heading``'s scale, resolved
+        # the same way, the markdown theme only spacing it.
+        heading = self._resolved_theme("heading", HEADING_THEME)
+        slots = {**slots, **{
+            f"h{level}": " ".join([*heading_classes(heading, level), slots.get(f"h{level}", "")]).strip()
+            for level in range(1, 7)
+        }}
         renderer = _BretzelMarkdownRenderer(slots, code_slots.get("root", ""))
         md = mistune.create_markdown(
             renderer=renderer,
             plugins=["table", "strikethrough"],
         )
         html = md(self._text)
+        # A document is a blob with no ids: replaced whole by a swap,
+        # never morphed node by node — cf. ``DATA_BZ_REPLACE``.
+        attrs = {**attrs, DATA_BZ_REPLACE: ""}
         return Element(tag=self._tag, attrs=attrs, children=(HtmlNode(html),))

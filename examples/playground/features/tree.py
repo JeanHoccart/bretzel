@@ -66,7 +66,7 @@ class TreeClient(ClientState, persist="memory"):
 def open_file(state: FileOpen) -> None:
     # Typed handler : the tree relocates its ``hx-post`` onto a hidden
     # input named ``picked``, so ``state.picked`` is hydrated from the
-    # clicked node. ``picked_panel(deps=[FileOpen])`` re-renders. Empty
+    # clicked node. ``picked_panel``, which reads it, re-renders. Empty
     # body — the mutation is the hydration itself.
     pass
 
@@ -151,7 +151,7 @@ def build_preview(state: TreePlayground) -> dict:
     return kwargs
 
 
-@refreshable(deps=[TreePlayground])
+@refreshable
 def server_panel() -> None:
     state = TreePlayground()
 
@@ -228,7 +228,7 @@ def project_nodes() -> None:
     ui.tree_node("pyproject", label="pyproject.toml", icon="settings")
 
 
-@refreshable(deps=[FileOpen])
+@refreshable
 def picked_panel() -> None:
     picked = FileOpen().picked
     if picked:
@@ -241,7 +241,7 @@ def picked_panel() -> None:
                 color="muted", size="sm")
 
 
-@refreshable(deps=[TreeEvents])
+@refreshable
 def events_panel() -> None:
     state = TreeEvents()
 
@@ -277,7 +277,8 @@ def events_panel() -> None:
 
     ui.divider()
 
-    representative = ui.tree(value="app.py", on_change=log_change)
+    # A literal value: ``name=`` gives the server handler its field.
+    representative = ui.tree(value="app.py", name="file", on_change=log_change)
     with representative:
         ui.tree_node("app.py", label="app.py", icon="file")
     emitted_html_block(
@@ -495,6 +496,19 @@ def page() -> None:
                         "component with zero server hit.",
                         color="muted", size="sm",
                     )
+                    # The EXTERNAL control, bound to the same field: the
+                    # select picks a file and the tree highlights it; a
+                    # click in the tree moves the select — both ways, zero
+                    # round trip (playground-pattern.md § 8).
+                    with ui.hstack(align="center", gap="sm"):
+                        ui.text("External control :", color="muted", size="sm")
+                        ui.select(value=TreeClient().node,
+                                  options=[("app.py", "app.py"),
+                                           ("button.py", "button.py"),
+                                           ("tree.py", "tree.py"),
+                                           ("test_tree.py", "test_tree.py"),
+                                           ("README", "README.md")],
+                                  classes="max-w-48")
                     with ui.tree(value=TreeClient().node,
                                  expanded=["src", "components"]):
                         project_nodes()

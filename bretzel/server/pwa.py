@@ -11,14 +11,11 @@ TWO TIERS, and the first is the one you write
 exists for the 20 %: per-size DRAWING — a simplified icon at 48 px, a
 detailed one at 512.
 
-⚠️ **The first version of this API had only tier 2**, and the user found
-it "unnatural" to read. They were right, and the fault is identifiable:
-it MIRRORED the spec, which asks for a list of icons with their sizes.
-Mirroring a spec 1:1 gives a spec API — one wrote ``192`` twice (in the
-file name AND in the argument), ``"192x192"`` was a string meaning a
-square, and ``maskable`` a piece of jargon. Cf. the
-``two_tier_api_philosophy`` memory: the magic default for the 80 %, the
-escape hatch for the 20 %.
+⚠️ **Tier 2 alone would MIRROR the spec**, which asks for a list of icons
+with their sizes. Mirroring a spec 1:1 gives a spec API — one writes
+``192`` twice (in the file name AND in the argument), ``"192x192"`` is a
+string meaning a square, and ``maskable`` a piece of jargon. Hence the
+magic default for the 80 %, the escape hatch for the 20 %.
 
 It mounts ``GET /manifest.webmanifest`` and sets its ``<link>`` in the
 document head, plus the ``<meta name="theme-color">`` that colours the
@@ -40,12 +37,13 @@ machine), and it is a place where one silently breaks an app in
 production while believing one is improving it. The ``cache="shell"``
 the thesis sketched therefore awaits a slice of its own.
 
-⚠️ **And one must VERIFY, not assume, whether the install prompt appears
-without a service worker.** Chrome long required both (manifest +
-service worker with a ``fetch`` handler) to offer "Install". That
-requirement has moved across versions, and this comment has not been
-measured — so it promises nothing. What IS measured: the manifest is
-served, valid, correctly typed and linked.
+**The install prompt appears without a service worker**: an app served
+over HTTPS with this manifest only (192 and 512 PNG icons, one of them
+``maskable``) installs from Chrome on Android with "Install app" — a
+real app in the system's list, opening standalone. Chrome does not
+require a service worker with a ``fetch`` handler on top.
+``tests/probes/probe_pwa.py`` checks that the manifest is served,
+valid, correctly typed and linked.
 """
 
 from __future__ import annotations
@@ -54,10 +52,13 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from bretzel.core.base_path import with_base
+from bretzel.runtime.protocol import ROUTE_MANIFEST
+
 #: The manifest's path. Root and not ``/_bretzel/``: its SCOPE is the
 #: folder containing it, and a manifest served under ``/_bretzel/`` would
 #: describe an app whose root was ``/_bretzel/``.
-MANIFEST_ROUTE = "/manifest.webmanifest"
+MANIFEST_ROUTE = ROUTE_MANIFEST
 
 
 #: ``sizes="any"`` says "this image is valid at every size". That is
@@ -77,9 +78,9 @@ class PWAIcon:
     purpose: str | None = None
 
     def as_dict(self) -> dict[str, str]:
-        # An integer is a SQUARE. It is the shape of 99 % of app
-        # icons, and writing it ``"192x192"`` forced one to repeat the
-        # number already present in the file name.
+        # An integer is a SQUARE, the usual shape of an app icon:
+        # writing it ``"192x192"`` would repeat the number already
+        # present in the file name.
         size = (f"{self.sizes}x{self.sizes}"
                   if isinstance(self.sizes, int) else self.sizes)
         out = {"src": self.src, "sizes": size}
@@ -119,6 +120,10 @@ class PWA:
     #: point, ``fullscreen`` is for kiosks.
     display: str = "standalone"
     start_url: str = "/"
+    #: What the installed app covers, as a path of the origin — left alone
+    #: by ``base_path``. ``None``: the browser's default, the folder of
+    #: ``start_url``. ``"/"`` for an app that opens its sibling apps in place.
+    scope: str | None = None
     #: The colour of the system bar once installed. ``None`` → nothing
     #: is emitted, and the system chooses.
     theme_color: str | None = None
@@ -147,14 +152,16 @@ class PWA:
                 f"manifest's location and open a page nobody chose."
             )
 
-    def as_manifest(self) -> dict[str, Any]:
+    def as_manifest(self, base: str = "") -> dict[str, Any]:
         """Return the web application manifest as a serializable dictionary."""
         out: dict[str, Any] = {
             "name": self.name,
             "short_name": self.short_name or self.name,
             "display": self.display,
-            "start_url": self.start_url,
+            "start_url": with_base(self.start_url, base),
         }
+        if self.scope:
+            out["scope"] = self.scope
         if self.description:
             out["description"] = self.description
         if self.theme_color:
@@ -170,9 +177,11 @@ class PWA:
             out["icons"] = [unique.as_dict()]
         elif self.icons:
             out["icons"] = [icon.as_dict() for icon in self.icons]
+        for icon in out.get("icons", ()):
+            icon["src"] = with_base(icon["src"], base)
         return out
 
-    def as_json(self) -> str:
+    def as_json(self, base: str = "") -> str:
         # ``ensure_ascii=False``: an accented app name must arrive
         # as-is, the manifest being served as UTF-8.
-        return json.dumps(self.as_manifest(), ensure_ascii=False)
+        return json.dumps(self.as_manifest(base), ensure_ascii=False)

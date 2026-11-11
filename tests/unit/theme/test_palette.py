@@ -173,10 +173,10 @@ class TestModeResolution:
         assert bg == DEFAULT_SEMANTIC_DARK["background"]
 
     def test_dark_falls_through_when_unspecified(self) -> None:
-        # primary isn't overridden in dark → resolves to light value.
+        # success isn't overridden in dark → resolves to light value.
         p = Palette(_full_semantic(), DEFAULT_SEMANTIC_DARK)
-        bg_dark = p.resolve("primary", "dark").bg_hex
-        bg_light = p.resolve("primary", "light").bg_hex
+        bg_dark = p.resolve("success", "dark").bg_hex
+        bg_light = p.resolve("success", "light").bg_hex
         assert bg_dark == bg_light
 
 

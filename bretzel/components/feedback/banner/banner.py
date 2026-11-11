@@ -42,16 +42,18 @@ from bretzel.components.base import (
     Component,
     reactive_prop,
 )
-from bretzel.components.base._wiring import (
+from bretzel.components.base.dismiss import (
     close_handler_wired,
     dismiss_button,
     dismiss_local_scope,
-    theme_context,
+    split_icon_flag,
 )
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.feedback.banner.theme import BANNER_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element, Node
 from bretzel.render import text
+from bretzel.state.scopes.client import ClientBinding
 
 
 class Banner(Component):
@@ -59,8 +61,8 @@ class Banner(Component):
 
     THEME: ClassVar[dict[str, Any]] = BANNER_THEME
     THEME_KEY: ClassVar[str] = "banner"
-    # design-time. Cf. .claude/bretzel/client-reactive-surface.md.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("title", "message")
+    # design-time.
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     EVENTS: ClassVar[tuple[str, ...]] = ("close",)
 
     color: str = reactive_prop(default="info", emit_attr=False)
@@ -69,10 +71,10 @@ class Banner(Component):
 
     def __init__(
         self,
-        message: Any = None,
+        message: str | Component | None = None,
         *,
-        title: Any = None,
-        icon: str | Component | None = None,
+        title: str | Component | None = None,
+        icon: str | Component | bool | None = None,
         color: str | None = None,
         size: str | None = None,
         dismissible: bool | None = None,
@@ -86,19 +88,14 @@ class Banner(Component):
             on_close=on_close,
             **kwargs,
         )
-        # ``adopt_slot`` detaches a Component passed as a slot (otherwise
-        # it renders twice); a string / a ClientBinding pass through
-        # intact. Cf. traps.md § "Slot Component stocké sans `adopt_slot`".
-        self._title = Component.adopt_slot(title)
-        self._message = Component.adopt_slot(message)
-        # Explicit icon wins over the auto-pick. ``adopt_slot`` detaches a
-        # Component NOW, at construction (a string flows through so render()
-        # owns the ``Icon`` wrap) — detaching in render() is too late, the
-        # parent would already have rendered it as a double-render sibling.
-        self._user_icon = Component.adopt_slot(icon)
+        self._title = title
+        self._message = message
+        # Explicit icon wins over the auto-pick (a string flows through:
+        # render() owns the ``Icon`` wrap); ``icon=False`` suppresses it.
+        self._user_icon, self._suppress_auto_icon = split_icon_flag(icon)
 
     def render(self) -> Element:
-        theme, slots, sizes, size_key, color = theme_context(self, color_default="info")
+        theme, slots, _sizes, _size_key, color = theme_context(self, color_default="info")
         variants = theme.get("variants", {})
 
         dismissible_lit = bool(self._reactive_values.get("dismissible"))
@@ -115,23 +112,23 @@ class Banner(Component):
         show_close = dismissible_lit or close_wired
 
         variant_cfg = variants.get(color, {})
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
-
-        def _resolve(template: str) -> str:
-            return template
 
         children: list[Node] = []
 
         # ── Icon (explicit > auto-pick > none) ──────────────────────
         icon_render: Element | None = None
         if self._user_icon is not None:
-            if isinstance(self._user_icon, str):
+            # A name, or a binding ``Icon`` follows live (R1: ``icon`` is
+            # bindable on every icon slot).
+            if isinstance(self._user_icon, str | ClientBinding):
                 icon_obj = Icon(self._user_icon, size="md")
             else:
                 icon_obj = self._user_icon
             Component._detach_from_parent(icon_obj)
             icon_render = icon_obj.render()
-        elif icon_name := theme.get("color_icons", {}).get(color):
+        elif not self._suppress_auto_icon and (
+            icon_name := theme.get("color_icons", {}).get(color)
+        ):
             icon_obj = Icon(icon_name, size="md")
             Component._detach_from_parent(icon_obj)
             icon_render = icon_obj.render()
@@ -150,10 +147,7 @@ class Banner(Component):
 
         title_node = self.emit_text_slot(self._title)
         if title_node is not None:
-            title_class = " ".join(p for p in (
-                slots.get("title", ""),
-                size_cfg.get("title", ""),
-            ) if p)
+            title_class = self.compose_class("title")
             content_kids.append(
                 Element(
                     tag="span",
@@ -202,16 +196,18 @@ class Banner(Component):
             # the root's ``bz-show="open"`` unmounts the banner. Emission
             # + detach + gating single-sourced in ``dismiss_button``.
             children.append(dismiss_button(
-                button_class=_resolve(slots.get("close", "")),
+                button_class=slots.get("close", ""),
                 aria_label=text("banner.dismiss"),
                 icon_size="sm",
             ))
 
         # ── Root ────────────────────────────────────────────────────
+        # The slot and its size through the base composer; the tint is
+        # keyed by ``color=`` (one row per semantic colour), not by a
+        # ``variant=``, so it is added here.
         root_class = " ".join(p for p in (
-            _resolve(slots.get("root", "")),
-            _resolve(variant_cfg.get("root", "")),
-            size_cfg.get("root", ""),
+            self.compose_class("root"),
+            variant_cfg.get("root", ""),
         ) if p)
         root_attrs["class"] = root_class
         root_attrs.setdefault("role", "status")

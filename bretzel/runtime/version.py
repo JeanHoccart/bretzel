@@ -54,5 +54,5 @@ def check_compat(client_version: str) -> bool:
         return False
 
 
-# Funnel canonical name (.claude/bretzel/runtime.md §version.py). Same check.
+# Canonical name. Same check.
 check_protocol_compat = check_compat

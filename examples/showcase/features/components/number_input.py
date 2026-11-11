@@ -1,7 +1,7 @@
 """``/number-input`` — a number with its own stepper."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A number field with ± steppers, bounds and a step — arrow keys "
@@ -10,29 +10,19 @@ SUMMARY = ("A number field with ± steppers, bounds and a step — arrow keys "
 SEAT_PRICE = 12.0
 
 
-class SeatOrder(PageState):
+class SeatOrder(ClientState):
     seats: int = field(default=5)
 
 
-def seats_changed(order: SeatOrder) -> None:
-    """The typed parameter receives the new count; the total follows."""
-
-
-@refreshable(deps=[SeatOrder])
-def order_total() -> None:
-    seats = SeatOrder().seats
-    with ui.hstack(justify="between"):
-        ui.text(f"{seats} × €{SEAT_PRICE:.0f} / month", color="muted")
-        ui.heading(f"€{seats * SEAT_PRICE:,.2f}", level=3, size="xl")
-
-
 def seat_calculator() -> None:
+    seats = SeatOrder().seats
     with ui.card(padding="md", classes="w-full max-w-sm"), ui.vstack(gap="md"):
         with ui.form_field(label="Seats", hint="From 1 to 50 on the Team plan."):
-            ui.number_input(value=SeatOrder().seats, min=1, max=50,
-                            on_change=seats_changed)
+            ui.number_input(value=seats, min=1, max=50)
         ui.divider()
-        order_total()
+        with ui.hstack(justify="between"):
+            ui.text(seats + f" × €{SEAT_PRICE:.0f} / month", color="muted")
+            ui.heading("€" + (seats * SEAT_PRICE).to_fixed(2), level=3, size="xl")
 
 
 def bounds_and_steps() -> None:
@@ -66,9 +56,9 @@ def booking() -> None:
 def page() -> None:
     page_header("number_input", "Number input", SUMMARY)
     example("A seat calculator", seat_calculator,
-            uses=[SeatOrder, seats_changed, order_total],
-            note="on_change sends the count to Python; only the total "
-                 "re-renders.")
+            uses=[SeatOrder],
+            note="The count lives in a ClientState: the total is computed in "
+                 "the browser as you step.")
     example("Bounds and steps", bounds_and_steps,
             note="min and max clamp every change, step sets the increment — "
                  "decimals included.")

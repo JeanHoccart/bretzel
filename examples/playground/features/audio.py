@@ -91,7 +91,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[AudioPlayground])
+@refreshable
 def server_panel() -> None:
     state = AudioPlayground()
 
@@ -325,8 +325,7 @@ def page() -> None:
                             'no <track kind="captions"> can get in. An '
                             '<audio> on its own is inaccessible to anyone who'
                             ' cannot hear — the transcript goes BESIDE it, as'
-                            ' real text. It is a declared limit, recorded in '
-                            '.claude/work/todo.md.',
+                            ' real text. It is a declared limit.',
                         color="muted", size="xs",
                     )
                     with ui.vstack(gap="sm", classes="max-w-sm"):

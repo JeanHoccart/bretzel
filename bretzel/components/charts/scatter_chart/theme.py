@@ -3,7 +3,7 @@
 Slot inventory :
 
 - ``wrapper``    : outer ``<div>``, ``relative`` so the fixed-corner
-  panel pattern carries over if a chart wants it (scatter v1 ships
+  panel pattern carries over if a chart wants it (scatter ships
   the floating tooltip, not the panel).
 - ``svg``        : the chart SVG.
 - ``dot``        : a single data point. Its ``fill`` is at ``70 %`` so
@@ -30,26 +30,24 @@ SCATTER_CHART_THEME: dict[str, Any] = {
     "slots": {
         # Fills its container: the plot is drawn in percentages of it
         # (``_svg.PLOT_SPAN``) — same reason as LineChart's wrapper.
-        "wrapper":      "relative flex flex-col gap-3 w-full min-w-0",
+        # The focus ring: the chart is one tab stop (``keyboard_attrs``).
+        "wrapper":      "relative flex flex-col gap-3 w-full min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-text/30",
         "svg":          "block overflow-visible",
         # ``cursor-pointer`` because every dot is a hover target ; the
         # hover makes the point SOLID, and that is the only way to do it
         # here.
         #
-        # ⚠️ This block carried ``transition-opacity`` +
-        # ``hover:!opacity-100`` from 2026-06-?? to 2026-09-01, with a
-        # comment announcing a "hover-pop effect". There was none: the
+        # ⚠️ No ``transition-opacity`` or ``hover:!opacity-100`` here: the
         # point's translucency is on the ``fill`` (``/70``), not on
-        # ``opacity``, and a point at rest renders ``opacity: 1``
-        # (measured in the browser). ``hover:!opacity-100`` therefore put
-        # back to 1 a value already at 1, and ``transition-opacity``
-        # animated a property that never moves. Two classes that
-        # described an intent instead of producing it.
+        # ``opacity``, and a point at rest renders ``opacity: 1``.
+        # ``hover:!opacity-100`` would put back to 1 a value already at 1,
+        # and ``transition-opacity`` would animate a property that never
+        # moves.
         #
         # ``transition-colors`` and not ``transition-[fill]``: v4's list
         # covers ``fill`` and ``stroke``, so it is a STANDARD utility
         # where the bracketed form is an arbitrary variant — invisible in
-        # dev, cf. the memory ``tailwind_browser_breaks_transitions``.
+        # dev.
         "dot": (
             "fill-(--bz-solid)/70 cursor-pointer "
             "transition-colors duration-150 ease-out "
@@ -57,12 +55,16 @@ SCATTER_CHART_THEME: dict[str, Any] = {
         ),
         "axis":         "stroke-text/30",
         "axis_label":   "fill-text/60",
+        # The axis titles, level: the vertical axis's above the plot at
+        # its left, the horizontal axis's below it at its right.
+        "title_top":    "self-start text-text/60",
+        "title_bottom": "self-end text-text/60",
         "gridline":     "stroke-text/10",
-        "reference_line":  "stroke-(--bz-solid)/60",
+        "reference_line":  "stroke-(--bz-border-hover)",
         # Painted OVER the dots: a halo in the page colour keeps it
         # readable, and it gives the hover back to the dots beneath.
         "reference_label": (
-            "fill-(--bz-solid)/80 font-medium pointer-events-none "
+            "fill-(--bz-text) font-medium pointer-events-none "
             "stroke-background stroke-3 [paint-order:stroke]"
         ),
         "legend":       "flex flex-wrap items-center justify-center gap-x-4 gap-y-1",
@@ -74,15 +76,25 @@ SCATTER_CHART_THEME: dict[str, Any] = {
         ),
         "legend_dot":   "size-3 rounded-selector shrink-0 bg-(--bz-solid)",
         "legend_label": "text-xs text-text/70",
+        # « Voir les données »: the ``<details>`` and its summary
+        # (``data_table``); the table inside is a ``ui.table``.
+        "data":         "group w-full",
+        "data_toggle":  (
+            "w-fit cursor-pointer select-none text-text/60 "
+            "hover:text-text rounded outline-none "
+            "focus-visible:ring-2 focus-visible:ring-text/30"
+        ),
         "empty":        "fill-text/40 text-sm",
     },
     "sizes": {
         # name → {height, dot_radius, axis_font}
-        "xs": {"h": 140, "dot": 3.0, "axis": 10},
-        "sm": {"h": 200, "dot": 3.5, "axis": 11},
-        "md": {"h": 280, "dot": 4.0, "axis": 12},
-        "lg": {"h": 360, "dot": 4.5, "axis": 13},
-        "xl": {"h": 440, "dot": 5.0, "axis": 14},
+        # + the font of the HTML around the plot — axis titles, « Voir les
+        # données » — on the axis labels' step (``titled``, ``data_table``).
+        "xs": {"h": 140, "dot_radius": 3.0, "axis_font": 10, "title_top": "text-xs", "title_bottom": "text-xs", "data_toggle": "text-xs"},
+        "sm": {"h": 200, "dot_radius": 3.5, "axis_font": 11, "title_top": "text-xs", "title_bottom": "text-xs", "data_toggle": "text-xs"},
+        "md": {"h": 280, "dot_radius": 4.0, "axis_font": 12, "title_top": "text-xs", "title_bottom": "text-xs", "data_toggle": "text-xs"},
+        "lg": {"h": 360, "dot_radius": 4.5, "axis_font": 13, "title_top": "text-sm", "title_bottom": "text-sm", "data_toggle": "text-sm"},
+        "xl": {"h": 440, "dot_radius": 5.0, "axis_font": 14, "title_top": "text-sm", "title_bottom": "text-sm", "data_toggle": "text-sm"},
     },
     # The auto-cycle when a series carries no ``color=``. BRAND colours
     # first, then status colours, ``error`` last. The identity's author

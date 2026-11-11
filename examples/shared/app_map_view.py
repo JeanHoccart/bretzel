@@ -1,5 +1,5 @@
-"""Shared renderer of the app map — v4, on the agreed model
-(``.claude/bretzel/app-map-model.md``). Reused by flat, mad, …
+"""Shared renderer of the app map — v4, on the agreed model.
+Reused by flat, mad, …
 
 Three roles, each with ITS representation:
 
@@ -87,7 +87,7 @@ def focus_node(key: str) -> None:
     state.key = "" if state.key == key else key
 
 
-@refreshable(deps=[MapFocus])
+@refreshable
 def dependency_graph() -> None:
     """The map's DEPENDENCY axis — the one the tree does not show.
 

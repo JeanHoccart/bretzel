@@ -76,7 +76,7 @@ class TestColorAndIcon:
             out = serialize(a.render())
         assert "bg-(--bz-bg)" in out
         assert "bz-c-success" in out
-        assert "border-(--bz-solid)/20" in out
+        assert "border-(--bz-border)" in out
         assert "{bg_color}" not in out
 
     def test_arbitrary_theme_color_flows_through(self) -> None:
@@ -87,7 +87,7 @@ class TestColorAndIcon:
             out = serialize(a.render())
         assert "bg-(--bz-bg)" in out
         assert "bz-c-primary" in out
-        assert "border-(--bz-solid)/20" in out
+        assert "border-(--bz-border)" in out
 
     def test_explicit_icon_string_overrides_default(self) -> None:
         with render_isolated():
@@ -123,3 +123,20 @@ class TestDismissible:
         assert 'aria-label="Dismiss alert"' in out
         # The dismiss button writes ``open = false`` on click.
         assert "open = false" in out or "open = false" in out
+
+
+def test_an_icon_flag_read_from_a_page_state_is_judged_by_its_value() -> None:
+    """``icon=prefs.show_icon``: a boolean read from a ``PageState`` arrives
+    STAMPED (``_BoundBool``), not as the ``False`` object. ``icon is False``
+    let it through to ``.render()`` and the alert crashed — found on
+    2026-11-06 by the server-backed probe of the bz-data gate."""
+    from bretzel import ui
+    from bretzel.components.base.testing import render_isolated
+    from bretzel.core.serialize import serialize
+    from bretzel.state.scopes.server import _stamp
+
+    with render_isolated():
+        shown = serialize(ui.alert("x", color="info", icon=_stamp(True, "flag")).render())
+        hidden = serialize(ui.alert("x", color="info", icon=_stamp(False, "flag")).render())
+    assert "iconify-icon" in shown
+    assert "iconify-icon" not in hidden

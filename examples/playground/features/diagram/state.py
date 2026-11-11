@@ -61,7 +61,7 @@ class DiagramPlayground(PageState):
     direction:    str  = field(default="right")
     size:         str  = field(default="md")
     color:        str  = field(default="primary")
-    empty_text:   str  = field(default="No graph.")
+    empty_text:   str  = field(default="")
     empty_icon:   str  = field(default="workflow")
     empty_desc:   str  = field(default="")
     empty:        bool = field(default=False)

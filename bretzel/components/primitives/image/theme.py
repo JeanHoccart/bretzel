@@ -24,8 +24,7 @@ composing ``aspect-[{w}/{h}]`` would produce a class the Tailwind
 compiler never sees — it would work in dev (browser compiler) and
 disappear in prod, with identical HTML on both sides. A ratio outside
 the table is asked for on the app side as ``classes="aspect-[5/2]"``,
-where Tailwind scans it. Cf. the memory
-``assembled_tailwind_class_dev_only``.
+where Tailwind scans it.
 """
 
 from __future__ import annotations

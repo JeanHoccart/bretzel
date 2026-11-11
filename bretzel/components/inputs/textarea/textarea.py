@@ -18,6 +18,8 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop, reject_component
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.focus import FocusCommands
 from bretzel.components.inputs._wiring import (
     add_local_value_scope,
     value_command_listeners,
@@ -27,7 +29,7 @@ from bretzel.core.tree import Element
 from bretzel.core.tree import TextNode as TextNode
 
 
-class Textarea(Component):
+class Textarea(ValueCommands, FocusCommands, Component):
     """Multi-line text input."""
 
     THEME: ClassVar[dict[str, Any]] = TEXTAREA_THEME
@@ -39,6 +41,8 @@ class Textarea(Component):
         "value", "disabled", "readonly",
     )
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "clear", "focus", "blur")
+    # Where ``autofocus=`` / ``.focus()`` land: the ``<textarea>`` itself.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ()
     EVENTS: ClassVar[tuple[str, ...]] = (
         "change", "input", "focus", "blur", "keydown", "keyup",
     )
@@ -107,27 +111,6 @@ class Textarea(Component):
             on_keyup=on_keyup,
             **kwargs,
         )
-
-    # ── Imperative write-only API ─────────────────────────────────────
-    #
-    # Methods returning client JS for ``on_click=`` (or any ``on_*``).
-    # ``.set`` write-throughs the binding if any, else DOM dispatch ;
-    # ``.focus`` / ``.blur`` are direct DOM commands. Cf. `imperative-api.md`.
-
-    def set(self, value: Any) -> str:
-        return self._value_command(value)
-
-    def clear(self) -> str:
-        # ``.clear()`` is sugar for ``.set("")`` — empty string covers
-        # the text-input case.
-        return self.set("")
-
-    def focus(self) -> str:
-        return f"document.getElementById('{self.id}').focus()"
-
-    def blur(self) -> str:
-        return f"document.getElementById('{self.id}').blur()"
-
 
     def render(self) -> Element:
         cls_string = self.compose_class("root")

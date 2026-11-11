@@ -46,7 +46,7 @@ class ScreenPlayground(PageState):
 
 def server_changed(state: ScreenPlayground) -> None:
     # The dispatcher hydrates the changed control's value into
-    # ``state``; ``deps=[ScreenPlayground]`` re-renders the panel.
+    # ``state``; the panel reads it, so it re-renders.
     pass
 
 
@@ -65,7 +65,7 @@ def filler(count: int, prefix: str = "Ligne") -> None:
             ui.text(f"{prefix} {i + 1}", size="sm", color="muted")
 
 
-@refreshable(deps=[ScreenPlayground])
+@refreshable
 def pane_panel() -> None:
     state = ScreenPlayground()
 
@@ -105,7 +105,7 @@ def pane_panel() -> None:
                        serialize_html(preview))
 
 
-@refreshable(deps=[ScreenPlayground])
+@refreshable
 def viewport_panel() -> None:
     state = ScreenPlayground()
 

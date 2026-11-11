@@ -2,8 +2,8 @@
 follows.
 
 None touches the DOM, none returns HTML: they write into a state, and the
-``@refreshable`` zones depending on it re-render — at the author of the
-gesture through ``deps=``, at the others through ``broadcast=``.
+``@refreshable`` zones reading it re-render — at the author of the
+gesture in the action's response, in the other windows by an SSE signal.
 
 **Every write goes through :func:`journaliser`.** A card is never
 modified in place: we take its snapshot before, build the one after, and
@@ -23,9 +23,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from bretzel import Feature, ui
+from bretzel import Feature, t, ui
 from bretzel.components import Move
-from examples.kanban.core.i18n import tr
 from examples.kanban.features.donnees import (
     CLES,
     LIB_ETIQUETTE,
@@ -175,14 +174,9 @@ def deposer(m: Move) -> None:
     transfert = m.to_zone != carte["colonne"]
     if transfert and pleine(m.to_zone):
         ui.notification(
-            tr(f"“{libelles()[m.to_zone]}” is at its limit of "
-               f"{LIMITES[m.to_zone]} cards. One has to come out before "
-               f"another is accepted.",
-               f"« {libelles()[m.to_zone]} » est à sa limite de "
-               f"{LIMITES[m.to_zone]} cartes. Il faut en sortir une avant "
-               f"d'en accepter une autre."),
-            variant="warning", duration_ms=4000,
-            title=tr("Drop refused", "Dépôt refusé"),
+            t("“{column}” is at its limit of {limit} cards. One has to come out before another is accepted.", column=libelles()[m.to_zone], limit=LIMITES[m.to_zone]),
+            color="warning", duration_ms=4000,
+            title=t("Drop refused"),
         )
         return
 
@@ -198,11 +192,9 @@ def deposer(m: Move) -> None:
         voisins[place]["rang"] if place < len(voisins) else None,
     )
     verbe = (
-        tr(f"moved “{carte['titre']}” to {libelles()[m.to_zone]}",
-           f"a déplacé « {carte['titre']} » vers {libelles()[m.to_zone]}")
+        t("moved “{title}” to {column}", title=carte['titre'], column=libelles()[m.to_zone])
         if transfert else
-        tr(f"reordered “{carte['titre']}”",
-           f"a réordonné « {carte['titre']} »")
+        t("reordered “{title}”", title=carte['titre'])
     )
     modifier(carte, verbe, colonne=m.to_zone, rang=rang)
 
@@ -212,8 +204,7 @@ def sortir(carte: dict[str, Any]) -> None:
     if Vue().ouverte == carte["id"]:
         fermer()
     journaliser(carte["id"], copie(carte), None,
-                tr(f"archived “{carte['titre']}”",
-                   f"a archivé « {carte['titre']} »"))
+                t("archived “{title}”", title=carte['titre']))
 
 
 def archiver(m: Move) -> None:
@@ -243,7 +234,7 @@ def charger(carte: dict[str, Any]) -> None:
     """Copy the card into the editing draft.
 
     The server writes a ``ClientState``: the value comes back down in the
-    response's patch, like composing a reply in ``examples/messagerie``.
+    response's patch.
     That is what lets the draft be seeded by the server AND survive a
     re-render coming from elsewhere.
     """
@@ -303,8 +294,7 @@ def enregistrer() -> None:
         return
     qui = str(brouillon.qui)
     modifier(
-        carte, tr(f"edited “{carte['titre']}”",
-                  f"a modifié « {carte['titre']} »"),
+        carte, t("edited “{title}”", title=carte['titre']),
         titre=titre,
         description=str(brouillon.description).strip()[:800],
         qui=qui if qui in NOMS else carte["qui"],
@@ -321,15 +311,12 @@ def basculer_etiquette(cle: str) -> None:
     posees = list(carte["etiquettes"])
     if cle in posees:
         posees.remove(cle)
-        verbe = tr(f"removed the {LIB_ETIQUETTE[cle]} label",
-                   f"a retiré l'étiquette {LIB_ETIQUETTE[cle]}")
+        verbe = t("removed the {label} label", label=LIB_ETIQUETTE[cle])
     else:
         posees.append(cle)
-        verbe = tr(f"set the {LIB_ETIQUETTE[cle]} label",
-                   f"a posé l'étiquette {LIB_ETIQUETTE[cle]}")
+        verbe = t("set the {label} label", label=LIB_ETIQUETTE[cle])
     modifier(carte,
-             tr(f"{verbe} on “{carte['titre']}”",
-                f"{verbe} sur « {carte['titre']} »"),
+             t("{verbe} on “{title}”", verbe=verbe, title=carte['titre']),
              etiquettes=posees)
 
 
@@ -344,8 +331,7 @@ def ajouter_sous_tache() -> None:
     if carte is None or not texte:
         return
     modifier(carte,
-             tr(f"added “{texte}” to “{carte['titre']}”",
-                f"a ajouté « {texte} » à « {carte['titre']} »"),
+             t("added “{texte}” to “{title}”", texte=texte, title=carte['titre']),
              sous_taches=[*[dict(s) for s in carte["sous_taches"]],
                           {"texte": texte, "fait": False}])
     brouillon.sous_tache = ""
@@ -359,11 +345,9 @@ def basculer_sous_tache(rang: int) -> None:
     sous = [dict(s) for s in carte["sous_taches"]]
     sous[rang]["fait"] = not sous[rang]["fait"]
     fait = sous[rang]["fait"]
-    etat = tr("done" if fait else "to do again",
-              "faite" if fait else "à refaire")
+    etat = t("done") if fait else t("to do again")
     modifier(carte,
-             tr(f"marked “{sous[rang]['texte']}” {etat}",
-                f"a marqué « {sous[rang]['texte']} » {etat}"),
+             t("marked “{subtask}” {etat}", subtask=sous[rang]['texte'], etat=etat),
              sous_taches=sous)
 
 
@@ -374,8 +358,7 @@ def retirer_sous_tache(rang: int) -> None:
         return
     sous = [dict(s) for i, s in enumerate(carte["sous_taches"]) if i != rang]
     modifier(carte,
-             tr(f"removed a subtask from “{carte['titre']}”",
-                f"a retiré une sous-tâche de « {carte['titre']} »"),
+             t("removed a subtask from “{title}”", title=carte['titre']),
              sous_taches=sous)
 
 
@@ -387,8 +370,7 @@ def commenter() -> None:
     if carte is None or not texte:
         return
     modifier(carte,
-             tr(f"commented on “{carte['titre']}”",
-                f"a commenté « {carte['titre']} »"),
+             t("commented on “{title}”", title=carte['titre']),
              commentaires=[*[dict(c) for c in carte["commentaires"]],
                            {"qui": Moi().membre, "texte": texte,
                             "t": time.time()}])
@@ -419,16 +401,13 @@ def creer(nouvelle: Nouvelle) -> None:
         return
     if pleine(colonne):
         ui.notification(
-            tr(f"“{libelles()[colonne]}” is at its limit of "
-               f"{LIMITES[colonne]} cards.",
-               f"« {libelles()[colonne]} » est à sa limite de "
-               f"{LIMITES[colonne]} cartes."),
-            variant="warning", duration_ms=4000,
-            title=tr("Creation refused", "Création refusée"),
+            t("“{column}” is at its limit of {limit} cards.", column=libelles()[colonne], limit=LIMITES[colonne]),
+            color="warning", duration_ms=4000,
+            title=t("Creation refused"),
         )
         return
     ident = ajouter(titre, colonne,
-                    tr(f"created “{titre}”", f"a créé « {titre} »"))
+                    t("created “{titre}”", titre=titre))
     nouvelle.titre = ""
     ouvrir(ident)
 
@@ -452,7 +431,7 @@ def ajouter(titre: str, colonne: str, texte: str) -> str:
 
 
 def filtrer(filtres: Filtres) -> None:
-    """Nothing to do: the control's value is hydrated, ``deps=`` follows.
+    """Nothing to do: the control's value is hydrated, its readers follow.
 
     ⚠️ **The typed parameter is not decorative — it is what HYDRATES.**
     Written ``def filtrer()`` with no parameter, the handler fires, does
@@ -467,7 +446,7 @@ def devenir(membre: str) -> None:
     """Change who I am — a row of the banner's avatar menu.
 
     No authentication here, and it is written down: this example stages
-    the board, not identity — ``examples/auth`` does the other one.
+    the board, not identity.
     :class:`Moi`'s validator pulls any unknown value back, so this
     handler has nothing to check.
     """
@@ -480,6 +459,7 @@ feature = Feature(
               deposer, sortir, archiver, archiver_ouverte, charger, ouvrir,
               fermer, enregistrer, basculer_etiquette, ajouter_sous_tache,
               basculer_sous_tache, retirer_sous_tache, commenter,
-              identifiant_libre, creer, ajouter, filtrer, devenir],
+              identifiant_libre, creer, ajouter, filtrer, devenir,
+              GROUPE, ZONE_ARCHIVE],
     uses=["donnees", "state"],
 )

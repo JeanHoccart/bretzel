@@ -53,33 +53,33 @@ class Cart(SessionState):
         return raw * (1 - self.discount)
 
 
-class Etat(enum.Enum):
+class Status(enum.Enum):
     """An app enum — the store files it by its VALUE."""
 
-    BROUILLON = "brouillon"
-    ENVOYEE = "envoyee"
+    DRAFT = "draft"
+    SENT = "sent"
 
 
-class Facture(SessionState):
+class Invoice(SessionState):
     """BUSINESS types filed as they are — not strings to re-parse."""
 
-    emise: datetime.date = field(default_factory=datetime.date.today)
-    montant: decimal.Decimal = field(default_factory=lambda: decimal.Decimal("0"))
+    issued: datetime.date = field(default_factory=datetime.date.today)
+    amount: decimal.Decimal = field(default_factory=lambda: decimal.Decimal("0"))
     reference: uuid.UUID = field(default_factory=uuid.uuid4)
-    etat: Etat = field(default=Etat.BROUILLON)
+    status: Status = field(default=Status.DRAFT)
 
 
-class Visites(AppState):
+class Visits(AppState):
     """A total SHARED by the whole process — hence `merge="add"`."""
 
-    vues: int = field(default=0, merge="add")
+    views: int = field(default=0, merge="add")
 
 
-class Ventes(PageState, addressable=True):
+class Sales(PageState, addressable=True):
     """State in the ADDRESS — two fields published, one that is not."""
 
     region: str = field(default="all", url="region")
-    mini: int = field(default=0, url="mini")
+    minimum: int = field(default=0, url="min")
     #: No ``url=``: so this field cannot be published, even with
     #: ``addressable=True``. It is the guarantee, not a guideline.
     notes: str = field(default="")
@@ -93,7 +93,7 @@ def decr() -> None:
     SrvCounter().n -= 1
 
 
-@refreshable(deps=[SrvCounter])
+@refreshable
 def counter_demo() -> None:
     c = SrvCounter()
     with ui.hstack(align="center", gap="md"):
@@ -102,8 +102,8 @@ def counter_demo() -> None:
                    classes="font-mono w-12 text-center")
         ui.button("+1", on_click=bump)
     ui.text(
-        'Click → the handler mutates `SrvCounter().n` → the '
-        '`deps=[SrvCounter]` zone re-renders. One server round trip.',
+        'Click → the handler mutates `SrvCounter().n` → the zone, '
+        'which read `SrvCounter`, re-renders. One server round trip.',
         color="muted", size="sm",
     )
 
@@ -162,7 +162,7 @@ def state_server_page() -> None:
                     ui.heading("Mutate → re-render", level=2)
                     ui.text(
                         'A handler mutates the state; every '
-                        '`@refreshable(deps=[…])` zone that reads that '
+                        '`@refreshable` zone that reads that '
                         'state is re-rendered automatically. The detail '
                         '(controlling what re-renders, realtime) is in '
                         '“Server reactivity”.',
@@ -195,7 +195,7 @@ def state_server_page() -> None:
                         '`dict[str, Decimal]`.',
                         color="muted", size="sm",
                     )
-                    source_block(Facture)
+                    source_block(Invoice)
                     ui.text(
                         'For a type of your own, `register_type(MyType, '
                         'encode=…, decode=…)` once at startup. It is the '
@@ -217,7 +217,7 @@ def state_server_page() -> None:
                         ' only a second user reveals it.',
                         color="muted", size="sm",
                     )
-                    source_block(Visites)
+                    source_block(Visits)
                     ui.text(
                         '`merge="add"` declares the field ADDITIVE: the '
                         'store combines the two increments instead of '
@@ -264,7 +264,7 @@ def state_server_page() -> None:
                         'again.',
                         color="muted", size="sm",
                     )
-                    source_block(Ventes)
+                    source_block(Sales)
                     ui.text(
                         '`field(url=…)` NAMES, `addressable=True` TURNS ON'
                         ' — and the two are separate because a published '
@@ -287,6 +287,6 @@ def state_server_page() -> None:
                         'time from the code.',
                         color="muted", size="sm",
                     )
-                    for cls in (SrvCounter, Cart, Facture, Visites, Ventes):
+                    for cls in (SrvCounter, Cart, Invoice, Visits, Sales):
                         with ui.card():
                             state_mirror(cls)

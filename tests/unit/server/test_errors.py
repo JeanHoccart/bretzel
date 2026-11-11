@@ -74,6 +74,13 @@ class TestAbort:
 
 
 class TestDefaultErrorPage:
+    def test_the_message_is_text_not_markup(self) -> None:
+        # ``abort(404, f"No customer {cid}")`` with a hostile ``cid``
+        # (2026-11-06): the detail reached the page raw and ran.
+        page = default_error_page(404, title="<b>T</b>", message="<img src=x onerror=alert(1)>")
+        assert "<img" not in page and "<b>" not in page
+        assert "&lt;img src=x onerror=alert(1)&gt;" in page
+
     def test_status_in_title(self) -> None:
         page = default_error_page(404)
         assert "<title>404" in page

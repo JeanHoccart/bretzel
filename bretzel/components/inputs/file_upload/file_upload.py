@@ -23,7 +23,7 @@ Two trigger variants share the same file-management plumbing :
   control.
 
 State + behaviour live in a single runtime scope factory at
-``bretzel/runtime/_src/08_file_upload.js`` ::
+``bretzel/components/inputs/file_upload/file_upload.js`` ::
 
     bz-data="$bz.fileUpload.makeScope({el: $el, ...opts})"
 
@@ -106,16 +106,19 @@ from bretzel.components.base import (
     reject_component,
     stamp_display_none,
 )
-from bretzel.components.base._wiring import (
-    SERVER_ACTION_ATTRS,
+from bretzel.components.base.dismiss import dismiss_button
+from bretzel.components.base.field_wiring import (
     activate_keydown,
-    dismiss_button,
-    trigger_event,
+    keep_own_name,
+    relocate_aria,
+    relocate_handlers,
 )
+from bretzel.components.base.focus import FocusCommands
 from bretzel.components.inputs.file_upload.theme import FILE_UPLOAD_THEME
 from bretzel.core.tree import Element, Node
 from bretzel.core.tree import TextNode as _TextNode
-from bretzel.render import text
+from bretzel.render import template, text
+from bretzel.render.context import maybe_current_context
 
 # Python event names use underscores ; the slab dispatches kebab-case
 # DOM events. ``change`` / ``focus`` / ``blur`` are already kebab-safe ;
@@ -128,7 +131,7 @@ _KEBAB_EVENTS = {
 }
 
 # Enter / Space open the picker. The guard (three key names + the
-# target) lives in ``_wiring.activate_keydown`` — this file was the only
+# target) lives in ``base/field_wiring.activate_keydown`` — this file was the only
 # one of the three sites to handle the legacy ``Spacebar``, and the only
 # one NOT to guard the target.
 _ACTIVATE_KEYDOWN = activate_keydown("openPicker();")
@@ -139,9 +142,8 @@ _ACTIVATE_KEYDOWN = activate_keydown("openPicker();")
 #: tile is a column with a thumbnail and a × as a corner badge
 #: (``absolute -top-2 -right-2``); the chip is a row with no thumbnail,
 #: whose × is **inline**. No ``slots=`` override takes you from one to
-#: the other — measured on 2026-08-17: +78 px after rewriting five
-#: slots, and the × was still floating. It is the thesis "the theme
-#: RESTYLES, it does not RESTRUCTURE".
+#: the other. It is the thesis "the theme RESTYLES, it does not
+#: RESTRUCTURE".
 #:
 #: Why two shipped presentations rather than an escape hatch: the list
 #: is populated by the JS (``<template bz-for>`` cloned when a file is
@@ -154,16 +156,14 @@ LIST_PRESENTATIONS: tuple[str, ...] = ("tiles", "chips")
 #: builtin in the body of ``__init__``. Sequence types are therefore
 #: read through this constant — otherwise ``isinstance(accept, (list,
 #: tuple))`` raises ``arg 2 must be a type`` on the string ``"tiles"``,
-#: three hundred lines from the offending name. (Measured while writing
-#: the prop.)
+#: three hundred lines from the offending name.
 _SEQUENCE_TYPES: tuple[type, ...] = (list, tuple)
 
 #: The slots the "chips" presentation substitutes for the tiles'. A
 #: finite and literal table on BOTH sides — never an assembled name: a
 #: Tailwind class nothing writes out in full does not reach the compiled
-#: CSS (memory ``assembled_tailwind_class_dev_only``). Here it is the
-#: SLOT NAME that is chosen, not the class, and both sets of classes are
-#: written out in full in the theme.
+#: CSS. Here it is the SLOT NAME that is chosen, not the class, and both
+#: sets of classes are written out in full in the theme.
 _CHIP_SLOTS: dict[str, str] = {
     "file_list": "chip_list",
     "file_item": "chip_item",
@@ -176,7 +176,13 @@ _CHIP_SLOTS: dict[str, str] = {
 }
 
 
-class FileUpload(Component):
+#: The texts ``file_upload.js`` shows when it refuses a file.
+_RUNTIME_TEXTS = ("too_large", "wrong_format", "skipped", "reason_too_large",
+                  "reason_wrong_format", "reason_size_or_format", "only_one",
+                  "max_reached", "over_limit", "network_error")
+
+
+class FileUpload(FocusCommands, Component):
     """Dropzone or compact-button file picker."""
 
     THEME: ClassVar[dict[str, Any]] = FILE_UPLOAD_THEME
@@ -200,21 +206,16 @@ class FileUpload(Component):
     # re-render (@refreshable), so they stay static per the
     # bindable-surface rule (cf. ``client-reactive-surface.md``).
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("disabled",)
-    # The bindable ``disabled`` lives on the native ``<input type="file">``
-    # (the wrapper ``<div>`` is just layout). The base walks the rendered
-    # tree post-render and forwards the binding onto the element carrying
-    # ``bz-ref="nativeInput"`` — no manual ``forward_binding`` needed.
-    # Cf. ``traps.md`` § "Un champ de formulaire lié possède un carrier
-    # réel". Every carrier key MUST sit
-    # in ``BINDABLE_PROPS`` (gate ``test_bindable_carriers_are_bindable_props``).
-    BINDABLE_CARRIERS: ClassVar[dict[str, str]] = {
-        "disabled": "nativeInput",
-    }
+    # What a carrier (a second server handler) listens to.
+    DOM_EVENTS: ClassVar[dict[str, str]] = _KEBAB_EVENTS
     EVENTS: ClassVar[tuple[str, ...]] = (
         "change",
         "upload_start", "upload_complete", "upload_error",
         "focus", "blur",
     )
+    IMPERATIVE: ClassVar[tuple[str, ...]] = ("focus", "blur")
+    # Where ``autofocus=`` / ``.focus()`` land: the focusable drop zone, not the hidden file input.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("[role=button][tabindex]",)
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
     multiple: bool = reactive_prop(default=False, emit_attr=False)
@@ -226,10 +227,10 @@ class FileUpload(Component):
 
     def __init__(
         self,
+        label: str | None = None,
         *,
         variant: str = "dropzone",
         list: str = "tiles",
-        label: str | None = None,
         multiple: bool | None = None,
         accept: str | list[str] | None = None,
         max_size_mb: float | None = None,
@@ -251,14 +252,14 @@ class FileUpload(Component):
         **kwargs: Any,
     ) -> None:
         if variant not in ("dropzone", "button"):
-            from bretzel.components.base import ComponentDefinitionError
-            raise ComponentDefinitionError(
+            from bretzel.components.base import ComponentUsageError
+            raise ComponentUsageError(
                 f"FileUpload variant must be 'dropzone' or 'button', "
                 f"got {variant!r}."
             )
         if list not in LIST_PRESENTATIONS:
-            from bretzel.components.base import ComponentDefinitionError
-            raise ComponentDefinitionError(
+            from bretzel.components.base import ComponentUsageError
+            raise ComponentUsageError(
                 f"FileUpload list must be one of "
                 f"{' / '.join(map(repr, LIST_PRESENTATIONS))}, got {list!r}."
             )
@@ -325,28 +326,19 @@ class FileUpload(Component):
     # ── Render ────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        # ``compose_class(slot)`` resolves ``{bg_color}`` / ``{fg_color}``
-        # tokens from the theme — use it for every slot read so the
-        # palette substitution lands. Falls back to the raw slot when
-        # there's no token to substitute.
+        # Every slot through the base composer: the slots that name an
+        # entry of the size row (``dropzone_title``, ``dropzone_subtitle``,
+        # ``remove_btn``) take it there.
         def s(slot: str) -> str:
-            return self.compose_class(
-                slot, apply_variant_size_modifiers=False,
-            )
+            return self.compose_class(slot)
 
-        # Per-size lookup into ``THEME["sizes"]`` — same pattern as
-        # other inputs that need different padding / font / icon
-        # weights per palier (Input, NumberInput, …).
+        # The row's other entries: the paddings, margins and glyph sizes
+        # that depend on the state (files or not) or on the presentation.
         theme = self._resolved_theme()
-        size_map = theme.get("sizes", {})
-        size_key = self._reactive_values.get("size") or "md"
+        size_row = self._size_row() or {}
 
-        def sz(group: str) -> str:
-            """Return the class string for ``size_key`` in the
-            ``sizes`` map's ``group`` (falls back to ``md`` then ``""``).
-            """
-            row = size_map.get(group, {})
-            return row.get(size_key) or row.get("md") or ""
+        def sz(key: str) -> str:
+            return size_row.get(key, "")
 
         multiple = bool(self._reactive_values.get("multiple") or False)
         accept = self._reactive_values.get("accept")
@@ -367,6 +359,9 @@ class FileUpload(Component):
             opts["maxFiles"] = self._max_files
         if self._upload_url:
             opts["uploadUrl"] = self._upload_url
+        # The refusal messages, in the app's language: templates the
+        # runtime fills (``{name}``, ``{size}``…), as the calendar does.
+        opts["texts"] = {key: template(f"file_upload.{key}") for key in _RUNTIME_TEXTS}
 
         # ── Root attrs ─────────────────────────────────────────────
         root_attrs = self.emit_attrs()
@@ -383,10 +378,10 @@ class FileUpload(Component):
         # never ``"{}"``.
         scope_arg = "{el: $el, " + json.dumps(opts)[1:]
         root_attrs["bz-data"] = f"$bz.fileUpload.makeScope({scope_arg})"
-        if self._paste:
-            # On the ROOT, which carries the scope: the dropzone's wrapper
-            # has its own ``bz-init``, the button shape has none.
-            root_attrs["bz-init"] = "watchPaste()"
+        # On the ROOT, which carries the scope: the dropzone's wrapper
+        # has its own ``bz-init``, the button shape has none. ``watchForm``:
+        # the list empties once the form around it has sent it.
+        root_attrs["bz-init"] = "watchForm()" + ("; watchPaste()" if self._paste else "")
 
         # ── Event relocation / normalisation ───────────────────────
         # The slab dispatches kebab-case events on the root and they
@@ -396,36 +391,15 @@ class FileUpload(Component):
         #      the ``bz-on:`` string form and the ``hx-trigger`` form) ;
         #   2. ``focus`` / ``blur`` relocate onto the focusable wrapper
         #      (the only element that fires them) — IN BOTH SHAPES.
-        for under, kebab in _KEBAB_EVENTS.items():
-            bz_key = f"bz-on:{under}"
-            if bz_key in root_attrs:
-                root_attrs[f"bz-on:{kebab}"] = root_attrs.pop(bz_key)
-        if root_attrs.get("hx-trigger") in _KEBAB_EVENTS:
-            root_attrs["hx-trigger"] = _KEBAB_EVENTS[root_attrs["hx-trigger"]]
         relocated_to_wrapper: dict[str, Any] = {}
-        # CALLABLE shape: the HTMX bundle is routed by the event it
-        # REALLY listens to. ``focus`` / ``blur`` do NOT BUBBLE (only
-        # ``focusin`` / ``focusout`` do) and the root is a ``<div>`` with
-        # no ``tabindex`` — so an ``hx-trigger="focus"`` set there can
-        # never fire, in silence. The ``role="button" tabindex="0"``
-        # wrapper is the only focus host. ``select.py`` had already fixed
-        # exactly that in its own file; the lesson had not travelled
-        # here. The ``change`` / ``upload-*`` events stay on the root:
-        # it is the slab that dispatches them there.
-        # The EVENT, not the string: a ``debounce=`` made this test
-        # fail, the bundle stayed on the root — a ``<div>`` with no
-        # ``tabindex``, which never receives ``focus``. Dead handler.
-        if "hx-post" in root_attrs and trigger_event(root_attrs) in (
-            "focus", "blur",
-        ):
-            relocated_to_wrapper.update({
-                attr: root_attrs.pop(attr)
-                for attr in SERVER_ACTION_ATTRS
-                if attr in root_attrs
-            })
-        for ev_attr in ("bz-on:focus", "bz-on:blur"):
-            if ev_attr in root_attrs:
-                relocated_to_wrapper[ev_attr] = root_attrs.pop(ev_attr)
+        relocate_handlers(root_attrs, {
+            **{event: (root_attrs, kebab) for event, kebab in _KEBAB_EVENTS.items()},
+            "focus": relocated_to_wrapper,
+            "blur": relocated_to_wrapper,
+        })
+        # The field's label comes first, the action the button names next.
+        relocate_aria(root_attrs, relocated_to_wrapper, takes_required=False)
+        keep_own_name(relocated_to_wrapper, f"{self.id}_trigger")
 
         # ── Form-data name (autoname-style for explicit name=) ────
         explicit_name = self._reactive_values.get("name")
@@ -438,13 +412,9 @@ class FileUpload(Component):
         # native input — two stops + a scroll jolt when the browser
         # tries to scroll the off-screen input into view. The wrapper
         # is the canonical focus host ; the native input is a pure
-        # form-data carrier. ``bz-ref="nativeInput"`` is the carrier
-        # marker the base ``BINDABLE_CARRIERS`` walk forwards bindings
-        # onto (and the slab queries ``input[type=file]`` directly, so
-        # the ref is purely for binding forwarding).
+        # form-data carrier.
         input_attrs: dict[str, Any] = {
             "type": "file",
-            "bz-ref": "nativeInput",
             "class": s("input_native"),
             "name": str(input_name),
             "tabindex": "-1",
@@ -468,15 +438,23 @@ class FileUpload(Component):
             input_attrs["disabled"] = True
         if required:
             input_attrs["required"] = True
-        # A ``disabled`` binding is auto-forwarded by the base post-render
-        # walk onto the carrier with ``bz-ref="nativeInput"`` (driven by
-        # ``BINDABLE_CARRIERS`` above). The wrapper ``<div>`` is just
-        # layout ; without this forwarding the runtime would burn an
-        # effect writing a no-op attribute onto the wrapper (cf.
-        # ``traps.md`` § "Un champ de formulaire lié possède un carrier réel").
+        # ``disabled`` only acts on the native input, the wrapper ``<div>``
+        # is just layout (``traps.md`` § "Un champ de formulaire lié
+        # possède un carrier réel").
+        self.forward_binding("disabled", input_attrs)
         native_input = Element(
             tag="input", attrs=input_attrs, children=(),
         )
+        # What the server holds the submission to: the form around signs
+        # it into its token (``server/handlers.check_uploads``).
+        ctx = maybe_current_context()
+        if ctx is not None:
+            limits: dict[str, Any] = {"accept": str(accept or ""), "multiple": multiple}
+            if self._max_size_mb is not None:
+                limits["max_bytes"] = int(self._max_size_mb * 1024 * 1024)
+            if self._max_files is not None:
+                limits["max_files"] = self._max_files
+            ctx.upload_limits[id(native_input)] = (native_input, limits)
 
         # ── Trigger (variant-dependent) ────────────────────────────
         if self._variant == "dropzone":
@@ -558,10 +536,7 @@ class FileUpload(Component):
             Element(
                 tag="span",
                 attrs={
-                    "class": " ".join(filter(None, [
-                        s("dropzone_title"),
-                        sz("dropzone_title"),
-                    ])),
+                    "class": s("dropzone_title"),
                 },
                 children=(_TextNode(label),),
             ),
@@ -570,21 +545,20 @@ class FileUpload(Component):
             full_children.append(Element(
                 tag="span",
                 attrs={
-                    "class": " ".join(filter(None, [
-                        s("dropzone_subtitle"),
-                        sz("dropzone_subtitle"),
-                    ])),
+                    "class": s("dropzone_subtitle"),
                 },
                 children=(_TextNode(text("file_upload.accepted", types=accept)),),
             ))
         if self._max_size_mb is not None:
+            # The size is written by the browser, in the page's language
+            # (« 1,5 Mo »); the server's « 1.5 MB » is the fallback.
+            ceiling = int(self._max_size_mb * 1024 * 1024)
             full_children.append(Element(
                 tag="span",
                 attrs={
-                    "class": " ".join(filter(None, [
-                        s("dropzone_subtitle"),
-                        sz("dropzone_subtitle"),
-                    ])),
+                    "class": s("dropzone_subtitle"),
+                    "bz-text": (f"{json.dumps(template('file_upload.max_size'))}"
+                                f".replace('{{size}}', $bz.fileUpload.formatSize({ceiling}))"),
                 },
                 children=(_TextNode(text(
                     "file_upload.max_size",
@@ -603,10 +577,7 @@ class FileUpload(Component):
             full_children.append(Element(
                 tag="span",
                 attrs={
-                    "class": " ".join(filter(None, [
-                        s("dropzone_subtitle"),
-                        sz("dropzone_subtitle"),
-                    ])),
+                    "class": s("dropzone_subtitle"),
                 },
                 children=(_TextNode(hint),),
             ))
@@ -652,10 +623,7 @@ class FileUpload(Component):
                 Element(
                     tag="span",
                     attrs={
-                        "class": " ".join(filter(None, [
-                            s("dropzone_subtitle"),
-                            sz("dropzone_subtitle"),
-                        ])),
+                        "class": s("dropzone_subtitle"),
                     },
                     children=(_TextNode(compact_label),),
                 ),
@@ -671,9 +639,8 @@ class FileUpload(Component):
         # ⚠️ The padding is split by AXIS (cf. the theme): the
         # horizontal one is static, the vertical one is EXCLUSIVELY in
         # the ``bz-class``. Setting ``py-8`` statically and ``py-3``
-        # dynamically did not work — same specificity, the Tailwind sheet
-        # decides, and the compact state never applied (measured: 32 px
-        # instead of 12).
+        # dynamically would not work — same specificity, the Tailwind
+        # sheet decides, and the compact state would never apply.
         pad_x = sz("dropzone_padding_x")
         pad_empty = sz("dropzone_padding_y")
         pad_compact = sz("dropzone_padding_with_files")
@@ -888,16 +855,20 @@ class FileUpload(Component):
             ),
         )
 
-        # Single-sourced emission in ``_wiring.dismiss_button`` (the
+        # Single-sourced emission in ``base/dismiss.dismiss_button`` (the
         # same × as Alert / Badge / Banner). It brings the DETACHED
         # ``Icon`` — so the theme's icon set and the FOUC treatment —
         # where this file wrote an ``<iconify-icon icon="lucide:x">`` by
         # hand. Only the gesture differs: here we remove ONE entry, not
         # the component.
         # ``.stop`` inlined (``bz-on`` has no modifiers).
+        # The chips' × (``chip_remove_btn``) takes the tiles' step on
+        # purpose: one × size per step, whatever the presentation.
         remove_btn = dismiss_button(
             button_class=" ".join(
-                p for p in (slot("remove_btn"), sz("remove_btn")) if p
+                p for p in (
+                    slot("remove_btn"), sz("remove_btn") if chips else "",
+                ) if p
             ),
             aria_label=text("file_upload.remove"),
             icon_size=sz("remove_btn_icon_size") or "xs",

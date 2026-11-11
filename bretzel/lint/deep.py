@@ -11,39 +11,29 @@ the fact that it will never be the default.
 than inventing a syntax spares having to learn one, and it is already in
 the fingers of whoever starts the server.
 
-Both lints have existed since 2026-07-05 in :mod:`bretzel.server` and ran
-**only at startup**, as WARN on stdout. Nothing allowed running them cold,
-nor turning them into an exit code. That is all this module adds: an
-entry point and a translation into
+Both lints live in :mod:`bretzel.server`, where they run at startup, as
+WARN on stdout. Running them cold and turning them into an exit code is
+all this module adds: an entry point and a translation into
 :class:`~bretzel.lint.report.Finding`.
 """
 
 from __future__ import annotations
 
-import importlib
 from pathlib import Path
 
+from bretzel.introspect._target import TARGET_SYNTAX, load_target
 from bretzel.lint.report import Finding, Report
 
 RULE_UNDECLARED = "routable-non-declare"
 RULE_DRIFT = "contrat-derive"
 
-#: What we accept as a target. Aligned with the ASGI runners.
-TARGET_SYNTAX = "module:attribut  (ex. `examples.mad.main:app`)"
 
+def run_deep(target: str) -> Report:
+    """The map lints on the app designated by ``module:attribute``.
 
-def load_app(target: str) -> tuple[object, Path]:
-    """Import ``module:attribute`` and return the object.
-
-    Returns ``(object, the module's file)`` — the file serves to anchor
-    the findings on something openable. A map finding has no line (it is
-    about a contract, not an expression), but it has at least a file, and
-    "``<app>``" opens nothing.
-
-    It calls nothing: a Bretzel app's ``include()`` run at the module's
-    import, so the ``Feature`` and the routables are already collected
-    when the object exists. We do NOT start the server — the lifespan
-    would do far more than read.
+    The app is imported, never started: a Bretzel app's ``include()``
+    runs at the module's import, so the features and the routables are
+    already collected — the lifespan would do far more than read.
     """
     if ":" not in target:
         raise ValueError(
@@ -52,21 +42,7 @@ def load_app(target: str) -> tuple[object, Path]:
             f"questions it asks (\"is this routable covered?\") have no "
             f"answer in an isolated file."
         )
-    module_name, _, attribute = target.partition(":")
-    module = importlib.import_module(module_name)
-    origin = Path(getattr(module, "__file__", "") or f"<{module_name}>")
-    try:
-        return getattr(module, attribute), origin
-    except AttributeError:
-        exported = [n for n in vars(module) if not n.startswith("_")]
-        raise ValueError(
-            f"`{module_name}` does not expose `{attribute}`. Available: {sorted(exported)[:10]}."
-        ) from None
-
-
-def run_deep(target: str) -> Report:
-    """The map lints on the app designated by ``module:attribute``."""
-    app, origin = load_app(target)
+    app, origin = load_target(target)
     return lint_app(app, origin=origin, label=target)
 
 
@@ -115,7 +91,7 @@ def lint_app(app: object, *, origin: Path, label: str = "l'app") -> Report:
                     path=module_path,
                     line=0,
                     message=(
-                        f"la feature `{drift.feature}` importe "
+                        f"feature `{drift.feature}` imports "
                         f"{list(drift.missing)} without declaring them."
                     ),
                     hint="Add them to its `uses` / `reads`.",

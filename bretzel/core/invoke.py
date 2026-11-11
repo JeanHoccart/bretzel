@@ -3,11 +3,9 @@
 An action handler, a page body, the body of a ``@refreshable`` zone, the
 ``rows=`` of an export, the function behind a ``@download``, the callback
 of an ``@auth.door`` gate, a lifecycle hook — all of it is written by the
-app author, and the framework calls it. Charter principle 7 says
-"async-only", but the product's real idiom is the opposite: measured on
-2026-09-04, ``examples/`` holds **1 659 ``def`` against 16 ``async def``**
-— because ``state.counter += 1`` has nothing to wait for, and demanding an
-``async`` for that would be empty ceremony.
+app author, and the framework calls it. The idiom is ``def``, not
+``async def``: ``state.counter += 1`` has nothing to wait for, and
+demanding an ``async`` for that would be empty ceremony.
 
 A ``def`` called as-is from a coroutine runs **in the loop thread**. As
 long as it only does arithmetic on state, that is the right choice. The
@@ -23,9 +21,8 @@ route. The developer declares nothing, so there is nothing to FORGET to
 declare — that is the point: the failure mode being replaced is invisible
 until production.
 
-**What it costs**, measured in-process A/B alternation on 2026-09-04: the
-thread hop is worth **0.19 ms** (p95 0.78) against 0.003 ms for the direct
-call, on a minimal action round-trip that weighs **2.90** (p95 5.02). A
+**What it costs**: one thread hop, far more than a direct call but small
+next to a minimal action round-trip. A
 page render pays one per body — every layout in the chain, the page, then
 flattening the tree — so three for a single-layout page; the
 ``@refreshable`` zones the body calls are free: they run in their caller's
@@ -47,17 +44,14 @@ restored by a balanced context manager, and the state that must outlive
 the call lives on OBJECTS (``RenderContext``, ``StateRegistry``)
 which the thread mutates for good.
 
-⚠️ **What it changes for CONCURRENCY, and this has to be read.** A ``def``
-used to be serialised by construction: the loop being single-threaded, two
-handlers could not run at the same time. They can now, up to 40 abreast.
+⚠️ **What it changes for CONCURRENCY, and this has to be read.** In the
+pool, two ``def`` handlers can run at the same time, up to 40 abreast,
+where the single-threaded loop alone would serialise them.
 The ``state.counter += 1`` used as an example above is a read then a
 write: on a shared :class:`~bretzel.state.AppState`, two simultaneous
-requests can now lose an increment **inside a single worker**, where it
-previously took two workers for that. This is not a regression of the
-offload — the same loss already existed between two processes, and the
-missing optimistic lock at commit time is tracked separately in
-``.claude/work/todo.md`` — but the offload makes it reachable locally, and
-therefore reproducible.
+requests can lose an increment **inside a single worker**. The same loss
+exists between two processes, for want of an optimistic lock at commit
+time; the offload makes it reachable locally, and therefore reproducible.
 
 **The ceiling becomes the pool**, 40 threads by default in ``anyio``: 41
 simultaneous blocking handlers make the 41st wait. That is the standard

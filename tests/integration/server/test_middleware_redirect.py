@@ -37,6 +37,7 @@ from bretzel import Bretzel, page, ui
 from bretzel.core.errors import BretzelError
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.server.navigation import redirect, redirect_response
+from tests._session import session_of
 
 _SECRET = "m" * 32
 _PUBLIC = {"/login"}
@@ -115,7 +116,7 @@ class TestHtmxRequest:
 
     def test_action_post_gets_200_plus_header(self, client: TestClient) -> None:
         action_id = encode_action_id(touch_nothing)
-        sig = sign_action(_app.config._action_key, action_id, "")
+        sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
         response = client.post(
             f"/_bretzel/action/{action_id}",
             headers={"X-Bz-Sig": sig, "HX-Request": "true"},
@@ -132,7 +133,7 @@ class TestHtmxRequest:
     def test_the_body_is_empty(self, client: TestClient) -> None:
         """htmx lit l'en-tête et navigue — il ne doit rien avoir à swapper."""
         action_id = encode_action_id(touch_nothing)
-        sig = sign_action(_app.config._action_key, action_id, "")
+        sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
         response = client.post(
             f"/_bretzel/action/{action_id}",
             headers={"X-Bz-Sig": sig, "HX-Request": "true"},
@@ -144,7 +145,7 @@ class TestHtmxRequest:
     def test_the_handler_never_ran(self, client: TestClient) -> None:
         """La garde est en amont : le handler protégé ne s'exécute pas."""
         action_id = encode_action_id(touch_nothing)
-        sig = sign_action(_app.config._action_key, action_id, "")
+        sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
         client.post(
             f"/_bretzel/action/{action_id}",
             headers={"X-Bz-Sig": sig, "HX-Request": "true"},

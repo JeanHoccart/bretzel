@@ -5,8 +5,6 @@ since it was resolved, INCLUDING in-place list/dict ops that
 ``Field.__set__`` never sees (it only fires on reassignment). It is
 value-based (compares ``_field_values`` snapshots), so it catches every
 mutation form and has net-change semantics. This locks that behaviour in.
-
-Cf. ``.claude/bretzel/reactivity-refactor-plan.md`` § Phase 1.
 """
 
 from __future__ import annotations

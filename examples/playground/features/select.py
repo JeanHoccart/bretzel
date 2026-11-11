@@ -169,7 +169,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[SelectPlayground])
+@refreshable
 def server_panel() -> None:
     state = SelectPlayground()
 
@@ -252,7 +252,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[SelectEvents])
+@refreshable
 def events_panel() -> None:
     state = SelectEvents()
 
@@ -324,7 +324,7 @@ def page() -> None:
 
                     ui.heading("render= — the option's body", level=3)
                     with ui.vstack():
-                        ui.text('The component keeps the wrapper: data-value, the'
+                        ui.text('The component keeps the wrapper: data-bz-value, the'
                             ' click, aria-selected. The callback fills the '
                             'inside.',
                                 color="muted", size="xs")
@@ -842,7 +842,7 @@ def page() -> None:
 
                     emitted_html_block(
                         "Emitted HTML (representative — the "
-                        "'change' select). @change relocated onto "
+                        "'change' select). The ``change`` handler relocated onto "
                         "the hidden input ; the client expression "
                         "pushes the picked value.",
                         serialize_html(

@@ -72,12 +72,8 @@ class Flex(Component):
     #: classes can come out prefixed (``md:flex-row``, ``md:gap-6``),
     #: which the safelist must cover.
     #:
-    #: DERIVED since 2026-08-25. It was written by hand, with the reason
-    #: that "the prop → table correspondence lives in
-    #: ``_compose_classes``'s tuple, which is not readable from the
-    #: safelist" — that tuple no longer exists, it is ``THEME_TABLES``,
-    #: and it is readable. Sorted so the order does not depend on a
-    #: ``frozenset``'s.
+    #: Derived from ``THEME_TABLES``, and sorted so the order does not
+    #: depend on a ``frozenset``'s.
     #: ⚠️ ``map`` and not a generator: in a CLASS BODY, a comprehension
     #: opens its own scope and does not see the class's names there —
     #: ``THEME_TABLES`` would raise a ``NameError``. ``map``'s arguments,
@@ -102,26 +98,21 @@ class Flex(Component):
     #: the height in a column. ``None`` by default, and it is
     #: load-bearing: a stack that asks for nothing emits no extra class.
     #:
-    #: The gap it closes (finding [30]): every control's root carries
+    #: The gap it closes: every control's root carries
     #: ``w-full``, and it is the right convention — a field fills its
     #: column. But in a ``wrap=True``, an item whose basis is 100 % can
-    #: **never** share its line, so the bar becomes a STACK. Measured in
-    #: Chromium on 2026-08-25, two fields in 860 px: 860 px each and a
-    #: 148 px bar, against 422 px each and 66 px with ``grow="16rem"``.
-    #: Three apps carried the same patch at the call site
-    #: (``BAR_FIELD = "basis-64 grow"``).
+    #: **never** share its line, so the bar becomes a STACK.
     #:
     #: It is the PARENT that distributes, through the ``*:`` variant
-    #: ("direct children"): none of the 99 components needs to know it is
-    #: inside one, so it works with the 46 that declare no width.
+    #: ("direct children"): no component needs to know it is inside one,
+    #: so it also works with those that declare no width.
     #:
     #: ``*:`` and not the bracketed form ``ui.pane`` writes
-    #: (``[&>*]:shrink-0``): both say the same thing, but this one
-    #: escapes in the HTML (``[&amp;&gt;*]:``), so 18 characters on the
-    #: wire instead of 10 — and it is a NAMED Tailwind variant, not an
-    #: arbitrary one, so the simplest case for the scanner. The pane
-    #: keeps the other spelling for now: it is cited by a documentation
-    #: gate and by three benches (cf. ``work/todo.md``).
+    #: (``[&>*]:shrink-0``): both say the same thing, but the bracketed
+    #: one escapes in the HTML (``[&amp;&gt;*]:``) and weighs more on the
+    #: wire, whereas ``*:`` is a NAMED Tailwind variant, not an arbitrary
+    #: one, so the simplest case for the scanner. The pane keeps the
+    #: other spelling: a documentation gate cites it.
     grow: Any = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
@@ -136,11 +127,10 @@ class Flex(Component):
         **kwargs: Any,
     ) -> None:
         # Direct forward: the base layer drops reactive ``None`` kwargs
-        # (keeps the descriptor's default). Load-bearing case preserved:
+        # (keeps the descriptor's default). Load-bearing case:
         # VStack/HStack do NOT pass ``direction`` → it arrives ``None``
         # here → the base layer drops it → their CLASS default (``col`` /
-        # ``row``) wins, exactly what the old ``if direction is not
-        # None`` guard protected.
+        # ``row``) wins.
         super().__init__(
             direction=direction,
             align=align,
@@ -171,21 +161,11 @@ class Flex(Component):
             # fail.
             self._grow_class(resolved, self._grow_table())
 
-        # ⚠️ ``grow``'s FIVE SISTERS, aligned on 2026-08-29.
-        #
-        # They did ``table.get(value, "")``: ``align="stretchy"``
-        # rendered an EMPTY class, with no error, no warning, and
-        # perfectly valid HTML. That is the dead kwarg, this
-        # repository's dominant failure mode — and ``grow`` already
-        # refused, which left TWO mechanisms for one class of error in a
-        # single method (charter principle 4).
-        #
-        # Preliminary sweep, 2026-08-29: **2,366 literal passes** in
-        # `bretzel/`, `examples/` and `tests/`, and **2 out-of-table
-        # values**, both the ``gap="2xs"`` of
-        # `examples/playground/features/dnd.py` — a step that never
-        # existed, so two stacks with no gutter since day one. Fixed in
-        # the same commit. The behaviour change breaks nothing else.
+        # ⚠️ These props refuse an out-of-table value, as ``grow`` does:
+        # one mechanism for one class of error. With a
+        # ``table.get(value, "")``, ``align="stretchy"`` would render an
+        # EMPTY class, with no error, no warning, and perfectly valid
+        # HTML: the dead kwarg.
         for prop in ("direction", "align", "justify", "gap"):
             value = self._reactive_values.get(prop)
             if value:

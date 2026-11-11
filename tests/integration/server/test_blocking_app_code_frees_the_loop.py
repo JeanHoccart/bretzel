@@ -51,6 +51,7 @@ from bretzel import Bretzel, page, refreshable, ui
 from bretzel.runtime import DATA_SUBSCRIBE_URL
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.state import AppState, field
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -83,7 +84,7 @@ def blocking_page() -> None:
     ui.text("lourde")
 
 
-@refreshable(deps=[Ticker], broadcast=[Ticker])
+@refreshable
 def blocking_zone() -> None:
     time.sleep(_BLOCK)
     ui.text(f"n={Ticker().n}")
@@ -151,13 +152,14 @@ def _assert_loop_stayed_free(witness: float, slow: float, first: bool) -> None:
     )
 
 
-def _signed_action(handler: Any) -> tuple[str, str]:
+def _signed_action(handler: Any, client: TestClient) -> tuple[str, str]:
     action_id = encode_action_id(handler)
-    return action_id, sign_action(_app.config._action_key, action_id, "")
+    return action_id, sign_action(_app.config._action_key, action_id, "",
+                                  session_id=session_of(client))
 
 
 def _post_blocking_action(client: TestClient):
-    action_id, sig = _signed_action(blocking_action)
+    action_id, sig = _signed_action(blocking_action, client)
 
     def go() -> None:
         response = client.post(

@@ -108,7 +108,7 @@ register_type(uuid.UUID, encode=str, decode=uuid.UUID)
 # ``Enum`` is a FAMILY: it is the only one of the six whose declared type
 # is an HEIR of the registered one (``hue: Colour``, codec on ``Enum``).
 # It therefore goes through ``subclasses=True``, exactly as an app's base
-# class would — and is no longer a special case.
+# class would — and is not a special case.
 register_type(
     Enum,
     encode=lambda member: member.value,
@@ -153,11 +153,8 @@ def encode_value(value: Any) -> Any:
     refuse it, with the message that names the field.
     """
     # Fast exit on what ``json`` already writes, and that covers nearly
-    # every field. Without it, each value paid an MRO walk before even
-    # looking at the table. Measured on 2026-09-06: 381 ns → 168 ns per
-    # scalar, and 387 µs → 137 µs on a list of 1 000 strings, where the
-    # encoder "that does nothing" cost 6.7 times ``json.dumps`` of the
-    # same list.
+    # every field. Without it, each value would pay an MRO walk before
+    # even looking at the table.
     if type(value) in _JSON_SCALAR:
         return value
     # ⚠️ Inheritance IS walked here WITHOUT requiring ``subclasses``: at
@@ -277,10 +274,9 @@ def is_storable(type_: Any) -> bool:
     ``Literal`` of constants — or ``Any``, the acknowledged escape hatch,
     where the store arbitrates.
 
-    There is no exception left to remember: ``list[date]``,
+    There is no exception to remember: ``list[date]``,
     ``dict[str, Decimal]``, ``tuple[date, date]`` and ``set[UUID]`` all
-    pass, because encoding and decoding both descend into containers
-    since 2026-09-06.
+    pass, because encoding and decoding both descend into containers.
     """
     if type_ is None or type_ is Any:
         return True

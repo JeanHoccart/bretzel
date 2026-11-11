@@ -1,7 +1,7 @@
 """``Video`` — a dressed ``<video>``, not a player.
 
-Scope settled at framing time (2026-08-14): **the controls stay the
-browser's**. This component draws no progress bar, no volume and no
+Scope: **the controls stay the browser's**. This component draws no
+progress bar, no volume and no
 speed — the day that becomes a need, it is ANOTHER component, not one
 more prop here.
 
@@ -21,7 +21,7 @@ rather than leaving it to ``ui.html``:
   as it plays — never what one wants in an application. A setting whose
   right value is always the same is not a choice to expose.
 - **``poster=``** avoids the black rectangle before playback.
-- **``tracks=``** carries the subtitles, shipped on 2026-08-31 ::
+- **``tracks=``** carries the subtitles ::
 
       ui.video(
           "demo.mp4",
@@ -75,8 +75,8 @@ class Video(Component):
     # No bindable surface, same reason as ``image``: a media source
     # changes when the server's data changes (a ``@refreshable``
     # re-render), never under a client driver.
-    src: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
-    poster: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
+    src: str | None = reactive_prop(default=None, emit_attr=False)
+    poster: str | None = reactive_prop(default=None, emit_attr=False)
     ratio: str | None = reactive_prop(default=None, emit_attr=False)
     fit: str = reactive_prop(default="contain", emit_attr=False)
     controls: bool = reactive_prop(default=True, emit_attr=False)
@@ -146,7 +146,7 @@ class Video(Component):
         # attribute is resolved against the document's URL, so the
         # browser downloads THE CURRENT PAGE as media — one useless
         # request per element, invisible unless you read the server's
-        # logs. That is exactly how we found it.
+        # logs.
         if values.get("src"):
             attrs["src"] = values["src"]
         if values.get("poster"):

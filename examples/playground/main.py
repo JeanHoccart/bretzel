@@ -12,8 +12,7 @@ app = Bretzel(
     # in report-only: a policy one only observes proves nothing. Bretzel
     # already computes what it owes (the digests of its inline scripts,
     # ``'unsafe-eval'``, the icon hosts, its assets' origins); what
-    # follows is what the APP loads, and nothing else. Cf.
-    # ``.claude/bretzel/security.md``.
+    # follows is what the APP loads, and nothing else.
     csp=True,
     csp_sources={
         "img-src": [
@@ -42,11 +41,10 @@ app = Bretzel(
     # Android's masking asks for, and declaring it would cut into it.
     #
     # To try it: open the playground on ``localhost`` (a secure
-    # context), then the address bar's install icon. ⚠️ Chrome long
-    # required a service worker ON TOP to offer it, and Bretzel ships
-    # none — if the prompt does not appear, that is why, not the
-    # manifest: that one is validated by Chromium
-    # (``tests/probes/probe_pwa.py``).
+    # context), then the address bar's install icon. No service worker
+    # is needed for it: an app installed from Chrome on Android with the
+    # manifest alone on 2026-11-07 (``bretzel/server/pwa.py``). The
+    # manifest itself is validated by Chromium (``tests/probes/probe_pwa.py``).
     pwa=PWA(
         name="Bretzel Playground",
         short_name="Bretzel",

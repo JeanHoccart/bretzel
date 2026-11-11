@@ -1,17 +1,12 @@
 """Wait for the STATE, never for a duration.
 
-Promoted from ``tests/audit/interaction.py`` on 2026-09-10, with its
-measurement: this helper replaced an unconditional ``setTimeout(1500)``
-on 2026-08-31, which weighed **88 to 92 % of the whole visual audit's
-time** — 46 s out of 52 for ``button``. The suite cost 52 minutes, so it
-never ran, and during that silence two anchor selectors died for 24 h
-without anyone seeing.
+An unconditional ``setTimeout`` would weigh most of a visual audit's
+time, and a suite that slow does not get run.
 
 ⚠️ **This is not ``networkidle``, and it cannot be.** A page carrying a
-``@refreshable(broadcast=[…])`` zone opens an ``EventSource``, hence an
+zone showing a shared state opens an ``EventSource``, hence an
 HTTP connection that never closes: network idleness therefore NEVER
-happens and the wait expires after 30 s (measured on 2026-08-15 while
-mounting ``examples/chat``). So we watch the ACTION requests — the
+happens and the wait expires. So we watch the ACTION requests — the
 ``.htmx-request`` marker the bridge sets for the duration of a round trip
 — and the DOM's silence.
 
@@ -67,11 +62,9 @@ def settle_page(page: Any, *, timeout: float, floor: int = FLOOR_MS) -> str:
     """Return ``SETTLED``, ``NOTHING_MOVED``, ``NAVIGATED`` or ``TIMEOUT``.
 
     ``floor=0`` for a wait that FOLLOWS NO GESTURE — a resize, a theme
-    change, a navigation that has already awaited ``load``. Measured on
-    2026-09-10 in A/B alternation on the same page: **463 ms with the
-    floor, 136 ms without**. The floor only pays behind a control that
-    can debounce before posting; elsewhere it is pure sleep, exactly what
-    this module exists for having removed.
+    change, a navigation that has already awaited ``load``. The floor
+    only pays behind a control that can debounce before posting; elsewhere
+    it is pure sleep, exactly what this module exists to remove.
 
     ``NOTHING_MOVED`` is not a fault: many gestures change nothing on
     screen, and that is sometimes exactly what is being measured (a
@@ -84,10 +77,9 @@ def settle_page(page: Any, *, timeout: float, floor: int = FLOOR_MS) -> str:
         if "Execution context was destroyed" not in str(exc):
             raise
         # A NAVIGATION took the document away from under the wait. That
-        # is a calm, not a failure: the click did what it was asked. Found
-        # on 2026-09-10 while mounting the first scenario with a sign-in
-        # — a form POST that redirects. No app probe can avoid this case,
-        # so the harness must hold it.
+        # is a calm, not a failure: the click did what it was asked — a
+        # form POST that redirects, typically. No app probe can avoid this
+        # case, so the harness must hold it.
         page.wait_for_load_state("load")
         # Floor at zero: the new document has just loaded, there is no
         # debounce in progress to cover.

@@ -23,7 +23,6 @@ import pytest
 from starlette.testclient import TestClient
 
 from bretzel import Bretzel, page, refreshable, ui
-from bretzel.render.decorators.refreshable import state_qualname
 from bretzel.runtime.protocol import (
     DATA_ZONE_HASH,
     HEADER_ZONE_BASES,
@@ -31,7 +30,10 @@ from bretzel.runtime.protocol import (
     HEADER_ZONES,
 )
 from bretzel.server.handlers import encode_action_id, sign_action
+from tests._carriers import zone_stamp
 from bretzel.state import AppState, field
+from tests._session import session_of
+from tests.integration.server._refetch import refetch_url
 
 _SECRET = "x" * 32
 _app = Bretzel(secret_key=_SECRET, mode="dev")
@@ -57,7 +59,7 @@ def touch() -> None:
     Board().touched += 1
 
 
-@refreshable(deps=[Board], broadcast=[Board])
+@refreshable
 def board() -> None:
     with ui.vstack(id="rows"):
         for i, label in enumerate(Board().labels):
@@ -82,16 +84,13 @@ def client():
 
 
 def stamp_of(html: str) -> str:
-    found = re.search(rf'bz-id="{board.id}"[^>]*?{DATA_ZONE_HASH}="([0-9a-f]+)"', html) or \
-        re.search(rf'{DATA_ZONE_HASH}="([0-9a-f]+)"[^>]*?bz-id="{board.id}"', html)
-    assert found, "the page does not stamp its zone with a fingerprint"
-    return found.group(1)
+    return zone_stamp(html, board.id)
 
 
 def act(client: TestClient, fn, held: str | None):
     action_id = encode_action_id(fn)
     ts = str(int(time.time()))
-    sig = sign_action(_app.config._action_key, action_id, "", ts=ts)
+    sig = sign_action(_app.config._action_key, action_id, "", ts=ts, session_id=session_of(client))
     response = client.post(
         f"/_bretzel/action/{action_id}",
         headers={"X-Bz-Sig": sig, "X-Bz-Ts": ts,
@@ -124,10 +123,15 @@ def test_an_unknown_fingerprint_ships_the_zone_whole(client) -> None:
     assert DATA_ZONE_HASH in response.text, "a zone shipped whole must carry its fingerprint"
 
 
-def test_a_new_row_ships_its_list(client) -> None:
+def test_a_new_row_is_inserted_alone(client) -> None:
+    """Before 2026-10-26 the whole list shipped (``rows`` and its rows):
+    one more child changed the parent. Now the parent gets a list patch —
+    the new row inserted, the others kept where they are."""
     held = stamp_of(client.get("/").text)
     response = act(client, add_row, held)
-    assert 'id="rows"' in response.text and 'id="row-0"' in response.text
+    assert 'list="' in response.text
+    assert response.text.count('id="row-') == 1, "the kept rows were shipped again"
+    assert 'id="rows"' not in response.text, "the list itself was shipped again"
 
 
 def test_an_unchanged_zone_stays_silent_a_second_later(client) -> None:
@@ -147,7 +151,7 @@ def test_a_refetch_patches_and_announces_its_fingerprint(client) -> None:
     held = stamp_of(client.get("/").text)
     act(client, rename_third, None)
     response = client.get(
-        f"/_bretzel/refetch/{state_qualname(Board)}/{board.zone_qualname}",
+        refetch_url(_app, client, board.zone_qualname),
         headers={HEADER_ZONES: f"{board.id}:{held}"},
     )
     assert response.status_code == 200

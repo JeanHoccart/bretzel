@@ -29,8 +29,7 @@ offload it onto a thread, where ``MyState()`` works as-is.
 It reads **one** module and follows the LEXICON, not the calls. A
 construction tucked into a synchronous helper called from the ``async
 def`` escapes it entirely — and that is the real case that motivated the
-rule: ``examples/crm/features/import_screen.py`` does
-``judge(rows, visible_owner())`` in an ``async`` handler, and it is
+rule: an ``async`` handler calls ``judge(rows, visible_owner())``, and it is
 ``visible_owner()``, in ANOTHER file, that builds the state. Following
 that would require an inter-module call graph, which
 ``bretzel.lint``'s corpus does not build (a rule sees one

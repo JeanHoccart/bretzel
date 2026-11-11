@@ -18,6 +18,7 @@ SSR alone cannot show it.
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from contextlib import contextmanager
 
 import pytest
@@ -58,7 +59,7 @@ COLUMNS = [
 PLAIN = [column("name", label="Name"), column("score", label="Score")]
 
 
-@refreshable(deps=[Issues, OtherQuery])
+@refreshable
 def _zone(**kwargs):
     """A real refresh zone watching both test states.
 
@@ -395,11 +396,14 @@ class TestAllAndNoneCommands:
     téléportés portent le même libellé), donc son contrat est épinglé ici.
     """
 
-    def test_none_keeps_the_column_but_empties_it(self) -> None:
+    def test_none_is_no_filter(self) -> None:
         with _shared_state():
             st = Issues()
+            st.filters = {"s": ["a"]}
             st.set_filter("s", [], ["a", "b", "c"])
-            assert st.filters == {"s": []}, "un ensemble vide EST un filtre"
+            assert st.filters == {}, (
+                "rien de coché = tout visible : la clé disparaît"
+            )
 
     def test_all_removes_the_filter_rather_than_storing_the_domain(self) -> None:
         with _shared_state():
@@ -471,7 +475,7 @@ class TestFilterPanel:
         html = self._tagged(3)
         assert html.count("role=&quot;option&quot;") or 'role="option"' in html
         for value in ("v0", "v1", "v2"):
-            assert f'data-value="{value}"' in html
+            assert f'data-bz-value="{value}"' in html
 
     def test_the_trigger_is_the_column_button_not_a_search_field(self) -> None:
         """Le slot ``trigger=`` : un bouton, et la recherche DANS le
@@ -556,8 +560,85 @@ class TestFilterPanel:
         assert "w-fit" in root and "w-full" not in root
 
 
-class TestToggleAllFilter:
-    def test_ticking_all_stores_nothing(self) -> None:
+class TestTicksSayWhatToShow:
+    """Le panneau coche ce qu'on veut VOIR, et rien de coché = tout.
+
+    C'est la lecture de toutes les listes à cocher de filtre (Linear,
+    Notion, GitHub). L'ancienne — tout pré-coché, on décoche pour
+    exclure — vient d'Excel, où l'on exclut parmi des centaines de
+    valeurs ; sur cinq, elle imposait un « Tout sélectionner » qui ne
+    sert à rien.
+    """
+
+    ROWS = [{"id": i, "tag": t} for i, t in enumerate("aaabbc")]
+
+    def _render(self, **filters) -> str:
+        with _shared_state():
+            st = Issues()
+            st.filters = filters
+            return _html(
+                state=Issues,
+                columns=[column("id"), column("tag", label="Tag", filter=True)],
+                rows=self.ROWS, search=False,
+            )
+
+    def test_an_unfiltered_panel_opens_with_nothing_ticked(self) -> None:
+        html = self._render()
+        assert 'aria-selected="true"' not in html
+        assert "$event.stopPropagation(); _selectAll()" not in html, (
+            "tout cocher et ne rien cocher sont la même vue"
+        )
+
+    def test_a_filtered_panel_ticks_what_it_shows(self) -> None:
+        html = self._render(tag=["b"])
+        assert html.count('aria-selected="true"') == 1
+        assert 'data-bz-value="b"' in html
+
+    def test_the_button_names_one_or_two_picks_then_counts(self) -> None:
+        assert ">Tag · b<" in self._render(tag=["b"])
+        assert ">Tag · a, c<" in self._render(tag=["a", "c"])
+        assert ">Tag · 3<" in self._render(tag=["a", "b", "c"])
+        assert ">Tag<" in self._render()
+
+    def test_each_value_shows_how_many_rows_carry_it(self) -> None:
+        html = self._render()
+        for value, count in (("a", 3), ("b", 2), ("c", 1)):
+            option = html[html.index(f'data-bz-value="{value}"'):]
+            option = option[:option.index("</button>")]
+            assert f">{count}</span>" in option
+
+    def test_closing_with_nothing_ticked_drops_the_filter(self, monkeypatch) -> None:
+        from bretzel.components.data.datatable import datatable as module
+        from bretzel.render import state_qualname
+
+        monkeypatch.setattr(module, "form_value", lambda _name: "[]")
+        with _shared_state():
+            st = Issues()
+            st.filters = {"tag": ["b"]}
+            module.apply_filter(state_qualname(Issues), "tag", ["a", "b", "c"])
+            assert Issues().filters == {}, (
+                "aucune case cochée = aucun filtre, pas « rien à montrer »"
+            )
+
+
+class TestToggleFilter:
+    """Une coche à la fois, même lecture que le panneau : on coche ce
+    qu'on veut voir."""
+
+    def test_the_first_tick_shows_that_value_alone(self) -> None:
+        with _shared_state():
+            state = Issues()
+            state.toggle_filter("tag", "b", ["a", "b", "c"])
+        assert state.filters == {"tag": ["b"]}
+
+    def test_unticking_the_last_value_drops_the_filter(self) -> None:
+        with _shared_state():
+            state = Issues()
+            state.filters = {"tag": ["b"]}
+            state.toggle_filter("tag", "b", ["a", "b", "c"])
+        assert "tag" not in state.filters
+
+    def test_ticking_every_value_drops_the_filter(self) -> None:
         """« Tout coché » est l'ABSENCE de clé, pas la liste complète.
 
         Une colonne dont le domaine grandit ensuite (une ligne ajoutée
@@ -567,12 +648,23 @@ class TestToggleAllFilter:
         with _shared_state():
             state = Issues()
             state.filters = {"tag": ["a"]}
-            state.toggle_all_filter("tag", ["a", "b"])
+            state.toggle_filter("tag", "b", ["a", "b"])
         assert "tag" not in state.filters
 
-    def test_unticking_all_stores_an_empty_list(self) -> None:
-        """« Rien de coché » est un état CHOISI, donc bien réel."""
+    def test_kept_values_follow_the_domain_order(self) -> None:
         with _shared_state():
             state = Issues()
-            state.toggle_all_filter("tag", ["a", "b"])
-        assert state.filters["tag"] == []
+            state.filters = {"tag": ["c"]}
+            state.toggle_filter("tag", "a", ["a", "b", "c"])
+        assert state.filters["tag"] == ["a", "c"]
+
+    def test_an_empty_list_filters_nothing_and_never_leaves(self) -> None:
+        """Posée à la main, une liste vide ne vide pas la table, et elle
+        n'atteint pas un callable — son ``.in_([])`` ne rendrait rien."""
+        with _shared_state():
+            state = Issues()
+            state.filters = {"name": []}
+            query = state.to_query()
+        assert query.filters == {}
+        _rows, total = apply_query(ROWS, COLUMNS, replace(query, filters={"name": []}))
+        assert total == len(ROWS)

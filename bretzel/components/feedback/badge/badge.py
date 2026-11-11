@@ -35,11 +35,7 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
-    close_handler_wired,
-    dismiss_button,
-    dismiss_local_scope,
-)
+from bretzel.components.base.dismiss import close_handler_wired, dismiss_button, dismiss_local_scope
 from bretzel.components.feedback.badge.theme import BADGE_THEME
 from bretzel.core.tree import Element, Node
 from bretzel.render import text
@@ -55,8 +51,7 @@ class Badge(Component):
     IS_CONTAINER: ClassVar[bool] = False
     # Only ``label`` carries live text (bz-text). variant / size / color /
     # icons / dismissible are design-time.
-    # Cf. .claude/bretzel/client-reactive-surface.md.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("label",)
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     EVENTS: ClassVar[tuple[str, ...]] = ("close",)
 
     variant: str = reactive_prop(default="soft", emit_attr=False)
@@ -66,7 +61,7 @@ class Badge(Component):
 
     def __init__(
         self,
-        label: str | ClientBinding | None = None,
+        label: str | Component | ClientBinding | None = None,
         *,
         variant: str | None = None,
         size: str | None = None,
@@ -84,11 +79,7 @@ class Badge(Component):
             on_close=on_close,
             **kwargs,
         )
-        # ``adopt_slot`` detaches a Component slot (already
-        # auto-registered with the parent) otherwise it renders twice;
-        # string / ClientBinding pass through intact. Cf. traps.md §
-        # "Slot Component stocké sans `adopt_slot`".
-        self._label = Component.adopt_slot(label)
+        self._label = label
 
         # Icons scale with the badge size : resolve the matching
         # ``icon_size`` HERE and let ``adopt_slot`` build the shortcut
@@ -109,19 +100,11 @@ class Badge(Component):
         )
 
     def render(self) -> Element:
-        theme = self._resolved_theme()
-        slots = theme.get("slots", {})
-        variants = theme.get("variants", {})
-        sizes = theme.get("sizes", {})
-
-        size_key = self._reactive_values.get("size") or "sm"
-        size_map = sizes.get(size_key, sizes.get("sm", {}))
-        variant_key = self._reactive_values.get("variant") or "soft"
-        variant_cfg = variants.get(variant_key, variants.get("soft", {}))
+        slots = self._resolved_theme().get("slots", {})
+        # The row's settings (``close_icon_size``); its classes reach
+        # the slots through ``compose_class``.
+        size_map = self._size_row() or {}
         dismissible_lit = bool(self._reactive_values.get("dismissible"))
-
-        def _resolve(template: str) -> str:
-            return template
 
         # ── Peek at the wired close handler on the root ─────────────
         # Resolve ``emit_attrs`` early to peek at the listeners. The
@@ -137,19 +120,13 @@ class Badge(Component):
         # right-hand slot (``icon_right`` is then dropped). Otherwise no
         # ×, and ``icon_right`` renders normally.
         #
-        # ⚠️ There was a 3rd "reactive" mode for a
-        # ``dismissible=<ClientBinding>`` — ~20 lines that could NOT run:
-        # the constructor has refused that binding since the 2026-07-16
-        # cut (``dismissible`` is not in ``BINDABLE_PROPS``). Removed
-        # (audit F06).
+        # ⚠️ ``dismissible=<ClientBinding>`` is not a third, reactive
+        # shape: the constructor refuses that binding (``dismissible`` is
+        # not in ``BINDABLE_PROPS``).
         show_close = dismissible_lit or close_wired
 
         # ── Root classes : slot base + variant.root + size.root ─────
-        root_class = " ".join(p for p in (
-            _resolve(slots.get("root", "")),
-            _resolve(variant_cfg.get("root", "")),
-            size_map.get("root", ""),
-        ) if p)
+        root_class = self.compose_class("root")
 
         # ── Children ─────────────────────────────────────────────────
         children: list[Node] = []
@@ -184,10 +161,7 @@ class Badge(Component):
         # ``$dispatch('close')`` fires AFTER the visual close and bubbles
         # to the root listener.
         if show_close:
-            close_class = " ".join(p for p in (
-                _resolve(slots.get("close", "")),
-                size_map.get("close", ""),
-            ) if p)
+            close_class = self.compose_class("close")
             # Emission + detach single-sourced in ``dismiss_button``.
             children.append(dismiss_button(
                 button_class=close_class,

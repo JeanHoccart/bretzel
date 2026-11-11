@@ -2,9 +2,9 @@
 
 **``name=`` is the recommended way of calling this component**: it
 derives the initials AND the image's ``alt`` from it, so the caller has
-nothing to forget. ``ui.avatar(name="Jean Hoccart", src="/photo.png")``
-renders ``<img alt="Jean Hoccart">``; with no ``src``, the chip shows
-``JH``.
+nothing to forget. ``ui.avatar(name="Alex Martin", src="/photo.png")``
+renders ``<img alt="Alex Martin">``; with no ``src``, the chip shows
+``AM``.
 
 Three render modes:
 
@@ -31,13 +31,14 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop, stamp_display_none
-from bretzel.components.base._wiring import theme_context
+from bretzel.components.base.arguments import shown
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.feedback.avatar.theme import AVATAR_THEME
 from bretzel.core.tree import Element, Node
 
 
 def initials_of(name: str) -> str:
-    """A name's initials — ``"Jean Hoccart"`` → ``"JH"``.
+    """A name's initials — ``"Alex Martin"`` → ``"AM"``.
 
     First letter of the first word, first of the LAST: it is what the
     repository's four examples each copied on their own, to the letter.
@@ -65,10 +66,9 @@ class Avatar(Component):
     # client driver (SSE / polling) via ``bz-attr:class`` + ``bz-show``.
     # ``src`` / ``initials`` change only on a server re-render (new user
     # data → ``@refreshable``), so they stay design-time.
-    # Cf. .claude/bretzel/client-reactive-surface.md.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("status",)
 
-    src: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
+    src: str | None = reactive_prop(default=None, emit_attr=False)
     alt: str = reactive_prop(default="", emit_attr=False)
     #: The person's name. **The recommended way of calling this
     #: component**: it derives the initials AND the image's ``alt`` from
@@ -86,7 +86,7 @@ class Avatar(Component):
     #: has nothing to know, so nothing to forget. And the call sites gain
     #: — they all computed their initials by hand.
     name: str | None = reactive_prop(default=None, emit_attr=False)
-    initials: str | None = reactive_prop(default=None, emit_attr=False)
+    initials: str | Component | None = reactive_prop(default=None, emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
     variant: str = reactive_prop(default="soft", emit_attr=False)
     shape: str = reactive_prop(default="circle", emit_attr=False)
@@ -99,7 +99,7 @@ class Avatar(Component):
         src: str | None = None,
         alt: str | None = None,
         name: str | None = None,
-        initials: str | None = None,
+        initials: str | Component | None = None,
         size: str | None = None,
         variant: str | None = None,
         shape: str | None = None,
@@ -116,7 +116,7 @@ class Avatar(Component):
         )
 
     def render(self) -> Element:
-        theme, slots, sizes, size_key, _color = theme_context(self)
+        theme, slots, _sizes, _size_key, _color = theme_context(self)
         shapes = theme.get("shapes", {})
         statuses = theme.get("statuses", {})
 
@@ -132,7 +132,6 @@ class Avatar(Component):
             initials_of(str(person)) or None if person else None
         )
         status = self._reactive_values.get("status")
-        size_map = sizes.get(size_key, sizes.get("md", {}))
 
         children: list[Node] = []
 
@@ -162,16 +161,16 @@ class Avatar(Component):
                 Element(tag="img", attrs=img_attrs, children=())
             )
         else:
-            # ``initials`` is design-time: ``BINDABLE_PROPS = ("status",)``,
-            # so the base layer RAISES on a ClientBinding before reaching
-            # here. The ``_binding_metadata.get("initials")`` branch that
-            # lived here was unreachable — removed on 2026-08-01. If
-            # reactive initials become a need, the prop must first be
-            # added to ``BINDABLE_PROPS``.
             # Truncated to 3 characters: an avatar is sized for 1-3
             # letters by convention.
             if isinstance(initials, str) and len(initials) > 3:
                 initials = initials[:3]
+            # Bound initials (a displayed content) follow the client
+            # value through ``bz-text``;
+            # the 3-letter cut cannot apply to a value the server never
+            # sees, so it stays the caller's job there.
+            if self._binding_metadata.get("initials") is not None:
+                initials = shown(self, "initials")
             initials_node = self.emit_text_slot(initials)
             if initials_node is not None:
                 children.append(
@@ -189,14 +188,7 @@ class Avatar(Component):
         # The class = slot (positioning + ring) + colour entry (bg-…) +
         # per-size dimensions ; only the colour is reactive.
         status_binding = self._binding_metadata.get("status")
-        status_base_class = " ".join(
-            p
-            for p in (
-                slots.get("status", ""),
-                size_map.get("status", ""),
-            )
-            if p
-        )
+        status_base_class = self.compose_class("status")
         if status_binding is not None:
             # Reactive : ``bz-attr:class`` is the single writer that
             # rebuilds the class ; the static ``class`` carries the SSR
@@ -260,11 +252,9 @@ class Avatar(Component):
         attrs["class"] = " ".join(
             p
             for p in (
-                # The variant comes with the slot; the size is a
-                # per-slot dict, so it is read by hand below.
+                # The variant and the size come with the slot.
                 self.compose_class("root"),
                 shapes.get(shape, shapes.get("circle", "")),
-                size_map.get("root", ""),
             )
             if p
         )

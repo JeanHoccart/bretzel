@@ -40,12 +40,12 @@ class Lease(PageState):
 
 def sign_lease(lease: Lease) -> None:
     if not lease.signature:
-        ui.notification("Please sign before submitting.", variant="warning")
+        ui.notification("Please sign before submitting.", color="warning")
         return
     lease.signed_at = datetime.now().strftime("%B %d, %Y at %H:%M")
 
 
-@refreshable(deps=[Lease])
+@refreshable
 def lease_status() -> None:
     lease = Lease()
     if lease.signed_at:

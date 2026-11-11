@@ -73,14 +73,16 @@ def idempotent_ttl(fn: Callable[..., Any]) -> int | None:
 
 
 def idempotency_key(
-    user_id: str | None, action_id: str, args_blob: str, ts: str
+    user_id: str | None, action_id: str, args_blob: str, ts: str,
+    *, session_id: str,
 ) -> str:
     """Compact, injection-safe dedup key for one signed request + user.
 
     Reuses ``action_hmac_payload`` (the exact signed identity) so the
     dedup key can't drift from what the signature covers.
     """
-    raw = f"{user_id or ''}|{action_hmac_payload(action_id, args_blob, ts)}"
+    signed = action_hmac_payload(action_id, args_blob, ts, session_id)
+    raw = f"{user_id or ''}|{signed}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -120,7 +122,9 @@ class RedisIdempotencyStore:
 
     @classmethod
     def from_url(cls, url: str) -> RedisIdempotencyStore:
-        import redis.asyncio as redis  # lazy — redis is an optional-ish dep
+        from bretzel.state.persistence.redis import require_redis
+
+        redis = require_redis().asyncio  # an extra: bretzel[redis]
 
         return cls(redis.from_url(url))
 

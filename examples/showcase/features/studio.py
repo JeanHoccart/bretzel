@@ -27,7 +27,9 @@ SHAPES: list[tuple[str, str, float, float, float]] = [
     ("Controls radius (rem)", "field_", 0.0, 2.0, 0.125),
     ("Marks radius (rem)", "selector", 0.0, 1.0, 0.0625),
     ("Stroke (px)", "stroke", 0.0, 3.0, 0.5),
-    ("Density (rem per step)", "spacing", 0.15, 0.3, 0.005),
+    ("Controls spacing (rem per step)", "spacing", 0.15, 0.3, 0.005),
+    ("Inside containers (rem per step)", "space_box", 0.1, 0.375, 0.005),
+    ("Between blocks (rem per step)", "space_gap", 0.1, 0.375, 0.005),
 ]
 
 
@@ -51,8 +53,11 @@ def colors_panel(settings: Studio) -> None:
                     ui.text(name, size="sm", weight="medium")
                     ui.text(role, size="xs", color="muted", truncate=True)
                 with ui.grid(cols=2, gap="xs"):
-                    ui.color_picker(getattr(settings, name), size="sm")
-                    ui.color_picker(getattr(settings, f"d_{name}"), size="sm")
+                    # A theme colour is never empty: no clear cross.
+                    ui.color_picker(value=getattr(settings, name), size="sm",
+                                    clearable=False)
+                    ui.color_picker(value=getattr(settings, f"d_{name}"), size="sm",
+                                    clearable=False)
 
 
 def shapes_panel(settings: Studio) -> None:

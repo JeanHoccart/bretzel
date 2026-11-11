@@ -46,9 +46,10 @@ import pytest
 from starlette.testclient import TestClient
 
 from bretzel import Bretzel, page, ui
-from bretzel.server.handlers import encode_action_id, sign_action
+from bretzel.server.handlers import encode_action_id, encode_args, sign_action
 from bretzel.state import AppState, MemoryBackend, field
 from bretzel.state.registry import StateRegistry
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -182,12 +183,15 @@ def async_only_store():
 
 
 def _post(client: TestClient, handler: Any, **data: str):
+    """Comme un contrôle nommé par ``data`` : ses noms sont signés dans le
+    blob, sans quoi l'hydratation n'en écrirait aucun."""
     action_id = encode_action_id(handler)
-    sig = sign_action(_app.config._action_key, action_id, "")
+    blob = encode_args(handler, tuple(data))
+    sig = sign_action(_app.config._action_key, action_id, blob, session_id=session_of(client))
     return client.post(
         f"/_bretzel/action/{action_id}",
         headers={"X-Bz-Sig": sig},
-        data={"_args": "", **data},
+        data={"_args": blob, **data},
     )
 
 

@@ -16,6 +16,7 @@ import json
 
 import pytest
 
+from bretzel.components.base import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.feedback.notification import (
     notification,
@@ -29,11 +30,11 @@ class TestNotificationHelper:
         # Spec : out-of-context calls degrade gracefully (mirrors how
         # the free ``refresh()`` behaves).
         assert maybe_current_context() is None
-        notification("orphan", variant="info")
+        notification("orphan", color="info")
 
     def test_appends_to_context_queue(self) -> None:
         with render_isolated():
-            notification("hello", variant="success")
+            notification("hello", color="success")
             ctx = current_context()
             assert len(ctx.notifications) == 1
             assert ctx.notifications[0]["message"] == "hello"
@@ -54,7 +55,7 @@ class TestNotificationHelper:
         with render_isolated():
             notification(
                 "full",
-                variant="warning",
+                color="warning",
                 title="Heads up",
                 duration_ms=8000,
                 position="bottom-left",
@@ -69,20 +70,20 @@ class TestNotificationHelper:
         assert opts["icon"] == "bell"
 
     def test_unknown_variant_raises(self) -> None:
-        # API is strict — only the 4 semantic variants defined in
+        # API is strict — only the 4 semantic colours defined in
         # notification/theme.py are accepted. A typo surfaces
         # immediately rather than silently rendering a neutral toast.
         with render_isolated(), pytest.raises(
-            ValueError, match="Unknown notification variant"
+            ComponentUsageError, match="color"
         ):
-            notification("oops", variant="primary")
+            notification("oops", color="primary")
 
     def test_icon_false_opts_out(self) -> None:
         # ``icon=False`` is the explicit opt-out — the runtime
         # serialises it as an empty string so ``normalise`` on the
         # client side picks the "no icon" branch.
         with render_isolated():
-            notification("clean", variant="info", icon=False)
+            notification("clean", color="info", icon=False)
             opts = current_context().notifications[0]
         assert opts["icon"] == ""
 
@@ -149,3 +150,23 @@ class TestShellInjection:
         assert '"success"' in body
         assert '"warning"' in body
         assert '"error"' in body
+
+
+def test_the_cross_speaks_the_language_of_the_page() -> None:
+    from starlette.testclient import TestClient
+
+    from bretzel import Bretzel
+    from bretzel.render import page
+
+    app = Bretzel(secret_key="v" * 32, mode="dev", lang="fr")
+
+    @page("/")
+    def home() -> None:
+        pass
+
+    app.include(home)
+    with TestClient(app) as client:
+        html = client.get("/").text
+    assert 'aria-label="Fermer la notification"' in html
+    assert 'bz-on:click="dismiss(t.id)"' in html
+    assert "Dismiss notification" not in html

@@ -104,7 +104,7 @@ class TestPane:
         assert "flex-col" in _classes(lambda: ui.pane())
 
     def test_padding_is_a_token(self) -> None:
-        assert {"p-6", "sm:p-8"} <= _classes(lambda: ui.pane(padding="lg"))
+        assert {"p-(--bz-pad-6)", "sm:p-(--bz-pad-8)"} <= _classes(lambda: ui.pane(padding="lg"))
 
     def test_no_padding_by_default(self) -> None:
         """La moitié des sites n'en veut pas : une coque met sa respiration
@@ -112,7 +112,7 @@ class TestPane:
         assert not {c for c in _classes(lambda: ui.pane()) if c.startswith("p-")}
 
     def test_gap_reaches_the_theme(self) -> None:
-        assert "gap-1" in _classes(lambda: ui.pane(gap="xs"))
+        assert "gap-(--bz-gap-1)" in _classes(lambda: ui.pane(gap="xs"))
 
     def test_it_refuses_to_wrap(self) -> None:
         """``wrap`` est SCELLÉ, pas ignoré.

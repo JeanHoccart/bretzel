@@ -59,14 +59,14 @@ def parse_extra_attrs(blob: str) -> dict:
 
 def build_preview(state: DateRangePickerPlayground):
     kwargs: dict = {
-        "placeholder_start": state.placeholder_start or "Start",
-        "placeholder_end": state.placeholder_end or "End",
+        "placeholder_start": state.placeholder_start or None,
+        "placeholder_end": state.placeholder_end or None,
         "separator": state.separator or "→",
         "color": state.color,
         "size": state.size,
-        "weekstart": state.weekstart,
+        "week_start": state.week_start,
         "clearable": state.clearable == "on",
-        "close_on_close": state.close_on_close == "on",
+        "close_on_pick": state.close_on_pick == "on",
     }
     if state.min:
         kwargs["min"] = state.min
@@ -116,7 +116,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[DateRangePickerPlayground])
+@refreshable
 def server_panel() -> None:
     state = DateRangePickerPlayground()
     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
@@ -136,11 +136,11 @@ def server_panel() -> None:
                      on_change=server_changed)
         with control("placeholder_start"):
             ui.input(value=state.placeholder_start,
-                     placeholder="Start",
+                     placeholder="the typed form, in the page's order",
                      on_change=server_changed)
         with control("placeholder_end"):
             ui.input(value=state.placeholder_end,
-                     placeholder="End",
+                     placeholder="the typed form, in the page's order",
                      on_change=server_changed)
         with control("separator (between the two fields)"):
             ui.input(value=state.separator,
@@ -154,15 +154,15 @@ def server_panel() -> None:
             ui.select(value=state.size,
                       options=[(s, s) for s in SIZES],
                       on_change=server_changed)
-        with control("weekstart (0=Sun, 1=Mon)"):
-            # ``state.weekstart`` WITHOUT ``str()``: the value carries a
+        with control("week_start (0=Sun, 1=Mon)"):
+            # ``state.week_start`` WITHOUT ``str()``: the value carries a
             # stamp (the field's name) and it is the only thing attesting
             # "the server is authoritative". ``str()`` unwraps it → no
             # ``_serverSync`` → the control stays frozen on its old value
             # after a panel refresh. Select already normalises to a string
             # to match the option keys (measured: the field is "1" with or
             # without the ``str()``), so it protected nothing.
-            ui.select(value=state.weekstart,
+            ui.select(value=state.week_start,
                       options=[("0", "0 (Sunday)"),
                                ("1", "1 (Monday)")],
                       on_change=server_changed)
@@ -175,8 +175,8 @@ def server_panel() -> None:
             ui.select(value=state.clearable,
                       options=[("on", "on (default)"), ("off", "off")],
                       on_change=server_changed)
-        with control("close_on_close (only fires when range closes)"):
-            ui.select(value=state.close_on_close,
+        with control("close_on_pick (only fires when the range closes)"):
+            ui.select(value=state.close_on_pick,
                       options=[("on", "on (default)"), ("off", "off")],
                       on_change=server_changed)
         with control("disabled"):
@@ -228,7 +228,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[DateRangePickerPlayground])
+@refreshable
 def events_panel() -> None:
     state = DateRangePickerPlayground()
     with ui.vstack(gap="sm"):
@@ -276,7 +276,7 @@ def page() -> None:
                     ui.heading("Pre-selected range", level=3)
                     with ui.flex(justify="start"):
                         ui.date_range_picker(
-                            (TODAY + dt.timedelta(days=2),
+                            value=(TODAY + dt.timedelta(days=2),
                              TODAY + dt.timedelta(days=10)),
                         )
 
@@ -306,7 +306,7 @@ def page() -> None:
                             with ui.vstack(gap="xs", align="center"):
                                 ui.text(c, color="muted", size="xs")
                                 ui.date_range_picker(
-                                    (TODAY + dt.timedelta(days=1),
+                                    value=(TODAY + dt.timedelta(days=1),
                                      TODAY + dt.timedelta(days=5)),
                                     color=c, size="sm",
                                 )
@@ -317,21 +317,21 @@ def page() -> None:
                             with ui.vstack(gap="xs", align="center"):
                                 ui.text(s, color="muted", size="xs")
                                 ui.date_range_picker(
-                                    (TODAY + dt.timedelta(days=1),
+                                    value=(TODAY + dt.timedelta(days=1),
                                      TODAY + dt.timedelta(days=5)),
                                     size=s,
                                 )
 
-                    ui.heading("weekstart (0=Sun, 1=Mon)", level=3)
+                    ui.heading("week_start (0=Sun, 1=Mon)", level=3)
                     with ui.flex(wrap=True, gap="md", align="start"):
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("0 (Sunday-first)",
                                     color="muted", size="xs")
-                            ui.date_range_picker(weekstart=0)
+                            ui.date_range_picker(week_start=0)
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("1 (Monday-first, default)",
                                     color="muted", size="xs")
-                            ui.date_range_picker(weekstart=1)
+                            ui.date_range_picker(week_start=1)
 
                     ui.heading("min + max bounds", level=3)
                     ui.text("Calendar days outside [today, today+60] "
@@ -368,7 +368,7 @@ def page() -> None:
                     ui.heading("disabled (whole picker)", level=3)
                     with ui.flex(justify="start"):
                         ui.date_range_picker(
-                            (TODAY, TODAY + dt.timedelta(days=5)),
+                            value=(TODAY, TODAY + dt.timedelta(days=5)),
                             disabled=True,
                         )
 
@@ -376,19 +376,19 @@ def page() -> None:
                     with ui.flex(justify="start"):
                         ui.date_range_picker(required=True)
 
-                    ui.heading("close_on_close=False (keep popover open)",
+                    ui.heading("close_on_pick=False (keep popover open)",
                                level=3)
                     ui.text("Useful for multi-range comparisons — pick, "
                             "see the bounds materialise, then pick "
                             "again without re-opening.",
                             color="muted", size="xs")
                     with ui.flex(justify="start"):
-                        ui.date_range_picker(close_on_close=False)
+                        ui.date_range_picker(close_on_pick=False)
 
                     ui.heading("clearable=False", level=3)
                     with ui.flex(justify="start"):
                         ui.date_range_picker(
-                            (TODAY, TODAY + dt.timedelta(days=5)),
+                            value=(TODAY, TODAY + dt.timedelta(days=5)),
                             clearable=False,
                         )
 
@@ -446,7 +446,7 @@ def page() -> None:
                             "user clicks the same day twice.",
                             color="muted", size="xs")
                     with ui.flex(justify="start"):
-                        ui.date_range_picker((TODAY, TODAY))
+                        ui.date_range_picker(value=(TODAY, TODAY))
 
                     ui.heading("Pre-selected range outside [min, max]",
                                level=3)
@@ -456,7 +456,7 @@ def page() -> None:
                             color="muted", size="xs")
                     with ui.flex(justify="start"):
                         ui.date_range_picker(
-                            (TODAY + dt.timedelta(days=20),
+                            value=(TODAY + dt.timedelta(days=20),
                              TODAY + dt.timedelta(days=30)),
                             min=TODAY,
                             max=TODAY + dt.timedelta(days=10),
@@ -549,10 +549,11 @@ def page() -> None:
                     ui.heading("A11y", level=2)
                     ui.text(
                         "Each editable field carries its own "
-                        "``aria-label`` (defaults to the placeholder — "
-                        "``\"Start\"`` / ``\"End\"`` by default ; "
-                        "customise via ``placeholder_start=`` / "
-                        "``placeholder_end=``). The separator is a "
+                        "``aria-label`` (« Start date » / « End date », "
+                        "in the page's language) ; both hints are the "
+                        "form the fields read (« MM/DD/YYYY »), unless "
+                        "``placeholder_start=`` / ``placeholder_end=`` "
+                        "say otherwise. The separator is a "
                         "presentational ``<span>`` (``select-none``) "
                         "that screen readers skip. The trigger button "
                         "has ``aria-label=\"Open date range picker\"`` "
@@ -564,7 +565,7 @@ def page() -> None:
                     )
                     with ui.flex(justify="start"):
                         ui.date_range_picker(
-                            (TODAY + dt.timedelta(days=2),
+                            value=(TODAY + dt.timedelta(days=2),
                              TODAY + dt.timedelta(days=10)),
                         )
 
@@ -621,7 +622,7 @@ def page() -> None:
                     )
                     client = DateRangePickerClient()
                     with ui.vstack(gap="md", align="center"):
-                        ui.date_range_picker(client.picked_range)
+                        ui.date_range_picker(value=client.picked_range)
                         with ui.hstack(gap="sm", align="center"):
                             ui.text("Range:", color="muted",
                                     size="sm")
@@ -633,6 +634,17 @@ def page() -> None:
                                 ),
                                 size="sm", weight="medium",
                             )
+                        # The EXTERNAL control: the buttons write the same
+                        # pair, the picker follows (playground-pattern.md § 8).
+                        with ui.hstack(gap="sm", wrap=True, justify="center"):
+                            ui.button("Christmas week", variant="outline", size="sm",
+                                      on_click=client.picked_range.set(
+                                          ["2026-12-21", "2026-12-27"]))
+                            ui.button("January", variant="outline", size="sm",
+                                      on_click=client.picked_range.set(
+                                          ["2027-01-01", "2027-01-31"]))
+                            ui.button("Clear", variant="ghost", size="sm",
+                                      on_click=client.picked_range.set([]))
                     ui.divider()
                     emitted_html_block(
                         "Emitted HTML — the wrapper's ``bz-data`` "
@@ -641,7 +653,7 @@ def page() -> None:
                         ".picked_range``, and its ``bz-effect`` writes "
                         "the pair back : two-way, without a watcher.",
                         serialize_html(
-                            ui.date_range_picker(client.picked_range),
+                            ui.date_range_picker(value=client.picked_range),
                         ),
                     )
 
@@ -685,7 +697,7 @@ def page() -> None:
                                           on_click=m1.close())
                                 ui.button("Basculer", variant="outline",
                                           on_click=m1.toggle())
-                                ui.button("Set 2026-09-01", on_click=m1.set("2026-09-01"))
+                                ui.button("Set September", on_click=m1.set(("2026-09-01", "2026-09-30")))
                                 ui.button("Clear", variant="ghost",
                                           on_click=m1.clear())
                                 ui.button("Focus", variant="ghost",
@@ -732,8 +744,8 @@ def page() -> None:
                             m3 = ui.date_range_picker(value=deux.picked_range)
                             with ui.hstack(gap="sm", wrap=True, align="center"):
                                 ui.button("Ouvrir", size="xs", on_click=m3.open())
-                                ui.button("Set 2026-09-01", size="xs",
-                                          on_click=m3.set("2026-09-01"))
+                                ui.button("Set September", size="xs",
+                                          on_click=m3.set(("2026-09-01", "2026-09-30")))
                                 ui.button("Clear", size="xs", variant="ghost",
                                           on_click=m3.clear())
                                 ui.text(
@@ -778,7 +790,7 @@ def page() -> None:
                     ui.divider()
                     emitted_html_block(
                         "Emitted HTML — pure client-side "
-                        "``@change=\"...client_log.push(...)\"``, "
+                        "``bz-on:change=\"...client_log.push(...)\"``, "
                         "no ``hx-post``.",
                         serialize_html(ui.date_range_picker(
                             on_change=cevents.client_log.push("change"),

@@ -33,6 +33,7 @@ from bretzel import Bretzel, page, ui
 from bretzel.core.errors import AuthRequiredError
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.state import UserState, field
+from tests._session import session_of
 
 _SECRET = "a" * 32
 
@@ -87,7 +88,7 @@ class TestPagePath:
 
 def _post(client: TestClient, action) -> object:
     action_id = encode_action_id(action)
-    sig = sign_action(_app.config._action_key, action_id, "")
+    sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
     return client.post(
         f"/_bretzel/action/{action_id}",
         headers={"X-Bz-Sig": sig, "HX-Request": "true"},

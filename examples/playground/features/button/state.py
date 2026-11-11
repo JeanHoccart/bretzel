@@ -80,14 +80,17 @@ class ButtonEvents(PageState):
 
 class ButtonClient(ClientState, persist="memory"):
     """Client-side state for the Client playground card. Mirror of
-    Button's ``BINDABLE_PROPS = ("label", "disabled", "loading")`` —
-    the curated reactive surface. Visual configuration (variant /
-    size / color) is design-time on Button ; if you need it to react
-    to state, conditional render server-side covers it."""
+    Button's bindable surface — disabled, loading, and its displayed
+    contents, label and icons (bindable on every component since
+    2026-11-06: every parameter typed ``str | Component``). Visual
+    configuration (variant / size / color) is design-time on Button ; if
+    you need it to react to state, conditional render server-side covers
+    it."""
 
     label:    str  = field(default="Click me")
     disabled: bool = field(default=False)
     loading:  bool = field(default=False)
+    glyph:    str  = field(default="play")
 
 
 class ButtonClientEvents(ClientState, persist="memory"):

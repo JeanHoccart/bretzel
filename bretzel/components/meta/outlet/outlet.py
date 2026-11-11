@@ -38,17 +38,14 @@ take ``flex-1`` without the ``flex flex-col``.
 **The failure mode is silent**, and that is what makes it expensive:
 without these classes, the internal zone grows with its content instead
 of overflowing, the ``overflow-y-auto`` never has anything to do, and
-the excess is simply clipped by an ancestor. Measured on 2026-08-15 by
-mounting ``examples/chat``: ``<main>`` at 1,888 px in an 855 px parent,
-no scrollbar, no error. Gate:
+the excess is simply clipped by an ancestor, with no scrollbar and no
+error. Gate:
 ``tests/runtime_js/test_full_height_layout_scrolls.py``.
 
 Why it is not fixed in the component: baking these classes in would
 change every existing layout, and ``display:contents`` — which would
 make the slot really transparent — risks dropping the ``<main>``'s ARIA
-landmark depending on the browser. To settle when the shell is
-redesigned; the work is in ``.claude/work/todo.md``.
-
+landmark depending on the browser.
 """
 
 from __future__ import annotations
@@ -114,8 +111,7 @@ class Outlet(Component):
         an ``hx-boost`` does not empty — gives the second the first's
         state.
 
-        Measured on 2026-08-13: 13 collisions over the playground's 68
-        pages. Cf. ``RenderContext.page_scope``.
+        Cf. ``RenderContext.page_scope``.
         """
         ctx = maybe_current_context()
         return f"{self.id}{ctx.child_scope_root}" if ctx else self.id

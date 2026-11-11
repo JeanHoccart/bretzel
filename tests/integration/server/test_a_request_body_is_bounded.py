@@ -49,6 +49,7 @@ from starlette.testclient import TestClient
 from bretzel import Bretzel, page, ui
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.server.middleware import render_context as rc
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -85,7 +86,7 @@ def trace_vierge():
 
 def _poster(client: TestClient, *, headers: dict[str, str] | None = None, **kwargs: Any):
     action_id = encode_action_id(enregistrer)
-    sig = sign_action(_app.config._action_key, action_id, "")
+    sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
     return client.post(
         f"/_bretzel/action/{action_id}",
         headers={"X-Bz-Sig": sig, **(headers or {})},
@@ -153,6 +154,28 @@ def test_an_unreadable_form_refuses_the_action(client) -> None:
     assert reponse.status_code == 500
     assert "was not executed" in reponse.text
     assert RECU == []
+
+
+def test_a_urlencoded_form_is_held_to_a_field_count(client) -> None:
+    """Un POST anonyme de ``a&a&…`` sous le plafond d'octets : 16 millions
+    de paires, parsées sur la boucle avant toute vérification — 25 s de
+    worker gelé (2026-11-06). Le plafond de champs est celui que Starlette
+    pose déjà sur un multipart, et il se compte avant le parse."""
+    import time
+
+    assert rc._MAX_FORM_FIELDS == 1000
+    debut = time.monotonic()
+    reponse = _poster(
+        client,
+        content=b"&".join([b"a"] * 2_000_000),
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+    duree = time.monotonic() - debut
+    assert reponse.status_code == 500 and "was not executed" in reponse.text
+    assert RECU == []
+    assert duree < 2.0, f"{duree:.1f} s : le corps a été parsé avant d'être compté"
+    lawful = _poster(client, data={"_args": "", **{f"f{i}": "x" for i in range(900)}})
+    assert lawful.status_code in (200, 204)
 
 
 # ───────────────────────────────────────────────────────────────────────────

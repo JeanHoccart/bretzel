@@ -120,7 +120,7 @@ def render_row(it: dict) -> None:
         )
 
 
-@refreshable(deps=[TodoStore])
+@refreshable
 def todo_list() -> None:
     items = TodoStore().items
     if not items:
@@ -131,7 +131,7 @@ def todo_list() -> None:
             render_row(it)
 
 
-@refreshable(deps=[TodoStore])
+@refreshable
 def remaining() -> None:
     active = sum(1 for it in TodoStore().items if not it["done"])
     word = "task" if active == 1 else "tasks"

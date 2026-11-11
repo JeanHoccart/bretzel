@@ -119,7 +119,7 @@ def clear_clicks() -> None:
     TableClicks().log = []
 
 
-@refreshable(deps=[TableClicks])
+@refreshable
 def events_panel() -> None:
     state = TableClicks()
 
@@ -169,7 +169,7 @@ class TablePlayground(PageState):
     # Data state — flips the preview to the empty branch so the
     # auto EmptyState (and its knobs) can be exercised.
     data:        str  = field(default="populated")
-    empty_text:  str  = field(default="No data.")
+    empty_text:  str  = field(default="")
     empty_icon:  str  = field(default="inbox")
     empty_description: str = field(default="")
     # Escape hatches.
@@ -185,7 +185,7 @@ class TablePlayground(PageState):
 
 def server_changed(state: TablePlayground) -> None:
     # Typed param → the dispatcher hydrates the changed control's value
-    # into ``state`` (coerced + persisted) ; deps= re-renders the zone.
+    # into ``state`` (coerced + persisted) ; the zone reading it re-renders.
     pass
 
 
@@ -212,7 +212,7 @@ def build_preview(state: TablePlayground):
         kwargs: dict = {
             "columns": PLAIN_COLUMNS,
             "rows": [],
-            "empty_text": state.empty_text or "No data.",
+            "empty_text": state.empty_text or None,
             "empty_icon": state.empty_icon or "inbox",
         }
         if state.empty_description:
@@ -239,7 +239,7 @@ def build_preview(state: TablePlayground):
     return ui.table(**kwargs)
 
 
-@refreshable(deps=[TablePlayground])
+@refreshable
 def server_panel() -> None:
     state = TablePlayground()
 
@@ -325,7 +325,7 @@ def client_events_panel() -> None:
             'a ClientState. Zero requests.',
         color="muted", size="sm",
     )
-    clicked = ClientExpression("String($event.detail ?? 'item_click')")
+    clicked = ClientExpression("new Date().toLocaleTimeString() + ' — ' + 'row ' + $event.detail.key")
     ui.table(columns=[ui.column("name", label="Name")],
              rows=[{"id": 1, "name": "Ada"}, {"id": 2, "name": "Linus"}],
              on_item_click=events.log.push(clicked))

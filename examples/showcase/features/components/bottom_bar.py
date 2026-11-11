@@ -1,7 +1,7 @@
 """``/bottom-bar`` — the tab bar of a phone app."""
 
-from bretzel import refreshable, ui
-from bretzel.state import ClientState, PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("The tab bar of a phone app: four destinations, a badge on what "
@@ -86,33 +86,20 @@ def tab_colours() -> None:
                            on_click=fit.tab.set("heart"))
 
 
-class Alerts(PageState):
+class Inbox(ClientState):
     unread: int = field(default=4)
 
 
-def new_alert() -> None:
-    Alerts().unread += 1
-
-
-def read_alerts() -> None:
-    Alerts().unread = 0
-
-
-@refreshable(deps=[Alerts])
-def alerts_bar() -> None:
-    unread = Alerts().unread
+def live_badge() -> None:
+    inbox = Inbox()
     with ui.vstack(gap="none", classes="w-full max-w-sm overflow-hidden "
                                        "rounded-box border border-text/10"), ui.bottom_bar():
         ui.bottom_bar_item("Feed", icon="newspaper", active=True)
-        ui.bottom_bar_item("Alerts", icon="bell", badge=unread or None,
-                           on_click=read_alerts)
+        ui.bottom_bar_item("Alerts", icon="bell", badge=inbox.unread,
+                           on_click=inbox.unread.set(0))
         ui.bottom_bar_item("Account", icon="circle-user")
     ui.button("Simulate an alert", icon_left="plus", variant="soft", size="sm",
-              on_click=new_alert)
-
-
-def server_badge() -> None:
-    alerts_bar()
+              on_click=inbox.unread.increment())
 
 
 def page() -> None:
@@ -127,7 +114,6 @@ def page() -> None:
                  "that is not available yet.")
     example("A colour per tab", tab_colours, uses=[Fitness],
             note="color= paints the tab while it is active — try each one.")
-    example("A badge counted on the server", server_badge,
-            uses=[Alerts, new_alert, read_alerts, alerts_bar],
-            note="The count lives in Python. Open Alerts to mark them read; "
-                 "the zone re-renders and the badge goes away.")
+    example("A live badge", live_badge, uses=[Inbox],
+            note="badge= follows a ClientState field and folds away at zero. "
+                 "Open Alerts to mark them read.")

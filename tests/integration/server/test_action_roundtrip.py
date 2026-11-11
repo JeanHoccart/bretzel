@@ -40,6 +40,7 @@ from fastapi.testclient import TestClient
 from bretzel import Bretzel, idempotent, page, refreshable, ui
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.state import AppState, field
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -51,7 +52,7 @@ class AppCounter(AppState):
 _app = Bretzel(secret_key=_SECRET, mode="dev")
 
 
-@refreshable(deps=[AppCounter])
+@refreshable
 def counter_zone() -> None:
     # Distinctive marker so the body assertion can't false-match a stray
     # digit elsewhere in the document.
@@ -177,9 +178,10 @@ def _reset_counter():
         asyncio.new_event_loop().run_until_complete(_wipe())
 
 
-def _sign(action, args_blob: str = ""):
+def _sign(action, client: TestClient, args_blob: str = ""):
     action_id = encode_action_id(action)
-    return action_id, sign_action(_app.config._action_key, action_id, args_blob)
+    return action_id, sign_action(_app.config._action_key, action_id, args_blob,
+                                  session_id=session_of(client))
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -189,9 +191,9 @@ def _sign(action, args_blob: str = ""):
 
 class TestMutationRoundTrip:
     def test_action_rerenders_zone_with_new_value(self) -> None:
-        action_id, sig = _sign(counter_bump)
         with TestClient(_app) as client:
             client.get("/")  # render the zone → establish session + bz-id
+            action_id, sig = _sign(counter_bump, client)
             response = client.post(
                 f"/_bretzel/action/{action_id}",
                 headers={"X-Bz-Sig": sig},
@@ -206,9 +208,9 @@ class TestMutationRoundTrip:
 
     def test_no_mutation_returns_204(self) -> None:
         # A handler that touches no dep queues no refresh → empty envelope.
-        action_id, sig = _sign(_noop)
         with TestClient(_app) as client:
             client.get("/")
+            action_id, sig = _sign(_noop, client)
             response = client.post(
                 f"/_bretzel/action/{action_id}",
                 headers={"X-Bz-Sig": sig},
@@ -236,14 +238,14 @@ class TestReplayCharacterization:
         # of the opt-in ``@idempotent`` decorator (C), which dedups on the
         # signed (action_id|args|ts) key. counter_bump is not @idempotent, so
         # the replay still runs — hence 0→1→2.
-        action_id, sig = _sign(counter_bump)
-        payload = {
-            "url": f"/_bretzel/action/{action_id}",
-            "headers": {"X-Bz-Sig": sig},
-            "data": {"_args": ""},
-        }
         with TestClient(_app) as client:
             client.get("/")
+            action_id, sig = _sign(counter_bump, client)
+            payload = {
+                "url": f"/_bretzel/action/{action_id}",
+                "headers": {"X-Bz-Sig": sig},
+                "data": {"_args": ""},
+            }
             first = client.post(**payload)
             second = client.post(**payload)
         assert first.status_code == 200
@@ -268,9 +270,9 @@ class TestUnsignedBodyCharacterization:
         # time (the client has no key), so it can't cover request-time form
         # fields — and needn't, since those are the user's own session values
         # (no privilege escalation). So this stays accepted.
-        action_id, sig = _sign(counter_bump)  # signed over _args=""
         with TestClient(_app) as client:
             client.get("/")
+            action_id, sig = _sign(counter_bump, client)  # signed over _args=""
             response = client.post(
                 f"/_bretzel/action/{action_id}",
                 headers={"X-Bz-Sig": sig},
@@ -445,11 +447,10 @@ class TestActionMaxAgeWindow:
         aid = encode_action_id(click_action)
         key = app.config._action_key
         old_ts = str(int(time.time()) - 3600)
-        fresh_ts = str(int(time.time()))
-        old_sig = sign_action(key, aid, "", ts=old_ts)
-        fresh_sig = sign_action(key, aid, "", ts=fresh_ts)
         _click_log.clear()
         with TestClient(app) as client:
+            sid = session_of(client)
+            old_sig = sign_action(key, aid, "", ts=old_ts, session_id=sid)
             stale = client.post(
                 f"/_bretzel/action/{aid}",
                 headers={"X-Bz-Sig": old_sig, "X-Bz-Ts": old_ts},
@@ -457,6 +458,9 @@ class TestActionMaxAgeWindow:
             )
             assert stale.status_code == 403
             assert _click_log == []
+            # Stamped here: the window is one second, starting the app is not.
+            fresh_ts = str(int(time.time()))
+            fresh_sig = sign_action(key, aid, "", ts=fresh_ts, session_id=sid)
             fresh = client.post(
                 f"/_bretzel/action/{aid}",
                 headers={"X-Bz-Sig": fresh_sig, "X-Bz-Ts": fresh_ts},
@@ -493,7 +497,7 @@ class TestIdempotent:
             client.post(f"/_bretzel/action/{aid}",
                         headers={"X-Bz-Sig": sig, "X-Bz-Ts": ts}, data={"_args": ""})
             ts2 = str(int(ts) + 5)
-            sig2 = sign_action(_app.config._action_key, aid, "", ts=ts2)
+            sig2 = sign_action(_app.config._action_key, aid, "", ts=ts2, session_id=session_of(client))
             client.post(f"/_bretzel/action/{aid}",
                         headers={"X-Bz-Sig": sig2, "X-Bz-Ts": ts2}, data={"_args": ""})
         assert _idem_log == ["x", "x"]  # both ran — distinct render timestamps

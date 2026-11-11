@@ -79,7 +79,7 @@ class Customers(DatatableState):
     sort_dir: str = field(default="desc")
 
 
-@refreshable(deps=[Customers])
+@refreshable
 def customer_list() -> None:
     ui.datatable(
         state=Customers,
@@ -116,7 +116,7 @@ class Payments(DatatableState):
     per_page: int = field(default=30)
 
 
-@refreshable(deps=[Payments])
+@refreshable
 def payment_log() -> None:
     ui.datatable(
         state=Payments,
@@ -150,7 +150,7 @@ def select_customer(customer_id: int) -> None:
     Selected().customer = customer_id
 
 
-@refreshable(deps=[Team])
+@refreshable
 def picker_table() -> None:
     ui.datatable(
         state=Team,
@@ -167,7 +167,7 @@ def picker_table() -> None:
     )
 
 
-@refreshable(deps=[Selected])
+@refreshable
 def selected_customer() -> None:
     row = next(r for r in customers() if r["id"] == Selected().customer)
     with ui.card(padding="md"), ui.hstack(gap="md", justify="between", wrap=True):

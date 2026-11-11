@@ -65,6 +65,13 @@ class BarChartPlayground(PageState):
     show_axis:      bool = field(default=True)
     show_gridlines: bool = field(default=True)
     show_legend:    bool = field(default=True)
+    # The base of 2026-10-29: the bounds (empty = none), the axis
+    # titles, the table behind the drawing.
+    y_min:          str  = field(default="")
+    y_max:          str  = field(default="")
+    x_label:        str  = field(default="")
+    y_label:        str  = field(default="")
+    show_data:      bool = field(default=False)
     y_format:       str  = field(default="")
     y_unit:         str  = field(default="")
     empty_text:     str  = field(default="")
@@ -169,7 +176,24 @@ def build_preview(state: BarChartPlayground):
         kwargs["tooltip"] = state.tooltip
     if state.visible == "off":
         kwargs["visible"] = False
+    kwargs["show_data"] = state.show_data
+    if bound(state.y_min) is not None:
+        kwargs["y_min"] = bound(state.y_min)
+    if bound(state.y_max) is not None:
+        kwargs["y_max"] = bound(state.y_max)
+    if state.x_label:
+        kwargs["x_label"] = state.x_label
+    if state.y_label:
+        kwargs["y_label"] = state.y_label
     return ui.bar_chart(dataset(state), **kwargs)
+
+
+def bound(typed: str) -> float | None:
+    """A bound typed in its field: a number, or none."""
+    try:
+        return float(typed)
+    except ValueError:
+        return None
 
 
 def control(label: str):
@@ -179,7 +203,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[BarChartPlayground])
+@refreshable
 def server_panel() -> None:
     state = BarChartPlayground()
 
@@ -232,6 +256,20 @@ def server_panel() -> None:
                       on_change=server_changed)
         with control("multi-series (3 × 4 cats)"):
             ui.switch(checked=state.multi, on_change=server_changed)
+        with control("show_data (« Show the data »)"):
+            ui.switch(checked=state.show_data, on_change=server_changed)
+        with control("y_min (empty = none)"):
+            ui.input(value=state.y_min, placeholder="20",
+                     on_change=server_changed)
+        with control("y_max (empty = none)"):
+            ui.input(value=state.y_max, placeholder="20",
+                     on_change=server_changed)
+        with control("x_label"):
+            ui.input(value=state.x_label, placeholder="Month",
+                     on_change=server_changed)
+        with control("y_label"):
+            ui.input(value=state.y_label, placeholder="Orders",
+                     on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes,
                      placeholder="border rounded-xl p-4",
@@ -274,7 +312,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[BarChartEvents])
+@refreshable
 def events_panel() -> None:
     state = BarChartEvents()
 
@@ -326,7 +364,7 @@ def client_events_panel() -> None:
             'a ClientState. Zero requests.',
         color="muted", size="sm",
     )
-    clicked = ClientExpression("String($event.detail ?? 'click')")
+    clicked = ClientExpression("new Date().toLocaleTimeString() + ' — ' + $event.detail.label + ' = ' + $event.detail.value")
     ui.bar_chart(data=[("Q1", 12), ("Q2", 18), ("Q3", 9)],
                  on_item_click=events.log.push(clicked))
 
@@ -467,7 +505,7 @@ def page() -> None:
                     ui.heading("Reference lines (thresholds + goals)",
                                level=3)
                     ui.text(
-                        "Same ``reference_lines=`` kwarg as LineChart "
+                        "Same ``y_reference_lines=`` kwarg as LineChart "
                         "— pass ``Reference(value=..., label=..., "
                         "color=...)`` or bare tuples. The line sits "
                         "behind the bars at ``y_scale(value)`` ; the "
@@ -482,7 +520,7 @@ def page() -> None:
                             ui.bar_chart(
                                 SAMPLE, width=400, size="sm",
                                 show_values=True,
-                                reference_lines=[
+                                y_reference_lines=[
                                     Reference(value=15, label="Goal",
                                               color="success"),
                                 ],
@@ -492,7 +530,7 @@ def page() -> None:
                                     size="xs")
                             ui.bar_chart(
                                 SAMPLE, width=400, size="sm",
-                                reference_lines=[
+                                y_reference_lines=[
                                     Reference(10, "Floor"),
                                     Reference(20, "Stretch", "warning"),
                                 ],

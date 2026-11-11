@@ -64,7 +64,7 @@ def grouped() -> None:
             ui.badge("Target met 2 weeks of 6", color="info", variant="soft",
                      size="sm")
         ui.bar_chart(data=orders_vs_last_year(), color="secondary",
-                     reference_lines=[Reference(1400, "Weekly target")])
+                     y_reference_lines=[Reference(1400, "Weekly target")])
 
 
 def top_pages() -> list[tuple[str, float]]:
@@ -99,6 +99,18 @@ def composition() -> None:
         ui.bar_chart(data=ticket_sentiment(), variant="stacked_100", size="sm")
 
 
+def team_scores() -> list[tuple[str, float]]:
+    return [("Support", 8.6), ("Sales", 7.9), ("Product", 7.1),
+            ("Finance", 6.4), ("Operations", 5.8)]
+
+
+def fixed_scale() -> None:
+    with ui.card(padding="md"), ui.vstack(gap="sm"):
+        ui.text("Team satisfaction survey", size="sm", color="muted")
+        ui.bar_chart(data=team_scores(), y_max=10, x_label="Team",
+                     y_label="Score out of 10", show_data=True, size="sm")
+
+
 def region_facts(region: str) -> tuple[str, str, str]:
     return {
         "North America": ("$182.4k", "2,140 accounts",
@@ -118,7 +130,7 @@ def pick_region(label: str, value: float) -> None:
     Drilldown().region = label
 
 
-@refreshable(deps=[Drilldown])
+@refreshable
 def region_detail() -> None:
     region = Drilldown().region
     revenue, accounts, remark = region_facts(region)
@@ -150,7 +162,11 @@ def page() -> None:
             full=True,
             note="One Series per group. Pin a colour on the baseline so the "
                  "current period stands out, and draw the goal as a "
-                 "reference line.")
+                 "reference line. A click on the legend hides a series.")
+    example("On its own scale", fixed_scale, uses=[team_scores], full=True,
+            note="y_max keeps a score out of 10 on a 0–10 axis, x_label and "
+                 "y_label name the axes, and show_data folds the numbers "
+                 "under the chart.")
     example("Stacked", stacked, uses=[plan_mix], full=True,
             note="Stacking shows the total and what it is made of.")
     example("Share of 100%", composition, uses=[ticket_sentiment], full=True,
@@ -161,4 +177,5 @@ def page() -> None:
     example("A click that runs Python", drilldown,
             uses=[dollars, region_facts, Drilldown, pick_region, region_detail], full=True,
             note="on_item_click receives the bar's label and value. The "
-                 "state changes on the server and the detail card follows.")
+                 "state changes on the server and the detail card follows. "
+                 "From the keyboard: Tab to the chart, the arrows, Enter.")

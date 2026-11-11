@@ -44,6 +44,9 @@ class IconButton(Component):
     EVENTS: ClassVar[tuple[str, ...]] = (
         "click", "focus", "blur", "mouseenter", "mouseleave",
     )
+    # ``autofocus=`` only: ``.focus()`` would put an id on every
+    # button of every page (cf. ``components/base/focus.py``).
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ()
     # Same shape as Button — disabled / loading change during async ;
     # icon is design-time. (No ``label``-equivalent — IconButton's icon
     # IS the content, and icon changes via conditional render.)
@@ -52,10 +55,10 @@ class IconButton(Component):
     variant: str = reactive_prop(default="ghost", emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
-    type: str = reactive_prop(default="button")
+    type: str = reactive_prop(default="button", steps=("button", "submit", "reset"))
     disabled: bool = reactive_prop(default=False)
     loading: bool = reactive_prop(default=False, emit_attr=False)
-    href: str | None = reactive_prop(default=None, never_code=True)
+    href: str | None = reactive_prop(default=None)
 
     def __init__(
         self,
@@ -122,12 +125,6 @@ class IconButton(Component):
         # button is for — it wraps the component in a :class:`Tooltip`,
         # which is a hover, not a label. So we copy it into
         # ``aria-label`` when the caller has not set one.
-        #
-        # Measured on 2026-08-19: the CRM's hamburger carried a
-        # ``tooltip`` and stayed anonymous. The framework's datatable,
-        # for its part, writes both by hand (``tooltip=`` AND
-        # ``aria_label=`` on its "Clear filters") — the knowledge
-        # existed, it was not shared.
         #
         # Only a string: a ``tooltip=ui.text(...)`` is rich content, and
         # flattening a tree into a label would produce a sentence nobody

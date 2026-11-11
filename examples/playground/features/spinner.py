@@ -86,7 +86,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[SpinnerPlayground])
+@refreshable
 def server_panel() -> None:
     state = SpinnerPlayground()
 

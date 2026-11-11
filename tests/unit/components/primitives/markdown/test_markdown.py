@@ -192,8 +192,8 @@ class TestTablePlugin:
         assert "w-full border-collapse" in html
         assert "font-semibold" in html  # th class
         # ``border-b`` appears in both ``th`` and ``td`` theme entries.
-        assert "border-b-(length:--bz-stroke) border-text/20" in html
-        assert "border-b-(length:--bz-stroke) border-text/10" in html
+        assert "border-b-(length:--bz-stroke) border-current/25" in html
+        assert "border-b-(length:--bz-stroke) border-current/[0.125]" in html
 
     def test_table_alignment_emitted(self) -> None:
         text = "| a | b |\n|:--|--:|\n| 1 | 2 |"

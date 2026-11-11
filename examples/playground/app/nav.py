@@ -42,6 +42,9 @@ NAV = [
         ("Input",        "/input",        "text-cursor-input"),
         ("Number input", "/number_input", "hash"),
         ("Textarea",     "/textarea",     "align-left"),
+        ("Message input", "/message_input", "message-square-plus"),
+        ("Message",      "/message",      "messages-square"),
+        ("Message list", "/message_list", "message-square-text"),
         ("Select",   "/select",   "list"),
         ("Combobox", "/combobox", "search"),
         ("Slider",   "/slider",   "sliders-horizontal"),
@@ -83,6 +86,7 @@ NAV = [
         ("Datatable", "/datatable", "table-properties"),
         ("Accordion", "/accordion", "chevrons-up-down"),
         ("Diagram",   "/diagram",   "workflow"),
+        ("Scheduler", "/scheduler", "calendar-clock"),
     ]),
     ("NAVIGATION", [
         ("Pagination", "/pagination", "ellipsis"),
@@ -95,11 +99,14 @@ NAV = [
         ("Tree",       "/tree",       "list-tree"),
     ]),
     ("DATA-VIZ", [
+        ("Charts tour",   "/charts-tour",   "compass"),
         ("Sparkline",     "/sparkline",     "activity"),
         ("Bar chart",     "/bar_chart",     "bar-chart-3"),
+        ("Histogram",     "/histogram",     "chart-column"),
         ("Line chart",    "/line_chart",    "line-chart"),
         ("Pie chart",     "/pie_chart",     "pie-chart"),
         ("Scatter chart", "/scatter_chart", "scatter-chart"),
+        ("Stat",          "/stat",          "gauge"),
     ]),
     ("META", [
         ("Title / MetaTag / Fragment", "/meta", "tags"),

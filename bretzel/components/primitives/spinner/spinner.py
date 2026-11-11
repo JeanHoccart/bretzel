@@ -14,9 +14,10 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import theme_context
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.primitives.spinner.theme import SPINNER_THEME
 from bretzel.core.tree import Element
+from bretzel.render import text
 
 
 class Spinner(Component):
@@ -54,7 +55,7 @@ class Spinner(Component):
 
         attrs = self.emit_attrs()
         attrs.setdefault("role", "status")
-        attrs.setdefault("aria-label", "Loading")
+        attrs.setdefault("aria-label", text("spinner.label"))
 
         # Single element : root (layout + colour + ring recipe) + size
         # (box + border width). The ring's border width lives in the

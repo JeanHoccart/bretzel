@@ -332,7 +332,7 @@ class TestDeleteTooltip:
     # test adds ONE item then hovers, landing on the empty->1 swap where the
     # first tooltip's ``bz-teleport`` used to not project (role=tooltip stuck
     # at 0 until a later swap). Fixed at the swap boundary — see the mechanism
-    # note in ``runtime/_src/05_bridge.js`` afterSwap.
+    # note in ``runtime/_src/bridge.js`` afterSwap.
     def test_hover_delete_button_reveals_tooltip(
         self, page: Page, todo_url: str
     ) -> None:

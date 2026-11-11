@@ -6,10 +6,8 @@ In an app the sidebar fills the screen's height (the theme's root is
 Tailwind's ``!`` is the override that wins over ``h-screen``.
 """
 
-from functools import partial
-
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("Sections, badges and an account menu at the foot — a column "
@@ -52,27 +50,25 @@ def app_navigation() -> None:
                     ui.heading("14", level=4, size="2xl")
 
 
-def messages_in(folder: str) -> list[tuple[str, str]]:
-    return {
-        "inbox": [("Lumen Studio", "Brand guidelines, v3"),
-                  ("Atlas Freight", "Your shipment left Rotterdam"),
-                  ("Kinfolk & Co", "Invoice INV-2038 is paid")],
-        "starred": [("Northwind Traders", "Renewal: the numbers you asked for")],
-        "sent": [("Grace Hopper", "Re: onboarding checklist"),
-                 ("Alan Turing", "Slides for Thursday")],
-    }[folder]
+MESSAGES = {
+    "inbox": [("Lumen Studio", "Brand guidelines, v3"),
+              ("Atlas Freight", "Your shipment left Rotterdam"),
+              ("Kinfolk & Co", "Invoice INV-2038 is paid")],
+    "starred": [("Northwind Traders", "Renewal: the numbers you asked for")],
+    "sent": [("Grace Hopper", "Re: onboarding checklist"),
+             ("Alan Turing", "Slides for Thursday")],
+}
+
+# key, label, icon, badge
+FOLDERS = [("inbox", "Inbox", "inbox", 3), ("starred", "Starred", "star", None),
+           ("sent", "Sent", "send", None)]
 
 
-class Mailbox(PageState):
+class Mailbox(ClientState):
     folder: str = field(default="inbox")
 
 
-def open_folder(folder: str) -> None:
-    Mailbox().folder = folder
-
-
-@refreshable(deps=[Mailbox])
-def mail_app() -> None:
+def client_selection() -> None:
     folder = Mailbox().folder
     with ui.hstack(gap="none", align="stretch",
                    classes="h-[22rem] w-full [contain:inline-size] overflow-hidden "
@@ -81,27 +77,20 @@ def mail_app() -> None:
             ui.sidebar(collapsible="none", width="sm", slots={"root": "h-full!"}),
             ui.sidebar_section(label="Mail"),
         ):
-            ui.sidebar_item("Inbox", icon="inbox", badge=3,
-                            active=folder == "inbox",
-                            on_click=partial(open_folder, "inbox"))
-            ui.sidebar_item("Starred", icon="star",
-                            active=folder == "starred",
-                            on_click=partial(open_folder, "starred"))
-            ui.sidebar_item("Sent", icon="send",
-                            active=folder == "sent",
-                            on_click=partial(open_folder, "sent"))
+            for key, label, icon, badge in FOLDERS:
+                ui.sidebar_item(label, icon=icon, badge=badge,
+                                active=folder == key, on_click=folder.set(key))
         with ui.pane(padding="md", gap="sm"):
-            ui.heading(folder.capitalize(), level=3, size="lg")
-            for sender, subject in messages_in(folder):
-                with ui.card(padding="sm"), ui.hstack(gap="sm"):
-                    ui.avatar(name=sender, size="sm", color="secondary")
-                    with ui.vstack(gap="none", classes="min-w-0"):
-                        ui.text(sender, weight="medium", size="sm")
-                        ui.text(subject, color="muted", size="sm", truncate=True)
-
-
-def server_selection() -> None:
-    mail_app()
+            for key, label, _icon, _badge in FOLDERS:
+                with ui.vstack(gap="sm", visible=folder == key):
+                    ui.heading(label, level=3, size="lg")
+                    for sender, subject in MESSAGES[key]:
+                        with ui.card(padding="sm"), ui.hstack(gap="sm"):
+                            ui.avatar(name=sender, size="sm", color="secondary")
+                            with ui.vstack(gap="none", classes="min-w-0"):
+                                ui.text(sender, weight="medium", size="sm")
+                                ui.text(subject, color="muted", size="sm",
+                                        truncate=True)
 
 
 def slide_away() -> None:
@@ -153,10 +142,12 @@ def page() -> None:
                  'this one, slots={"root": "h-full!"} makes it fill the box. '
                  "It is desktop navigation: on a phone, branch on "
                  "Screen().is_mobile and show a ui.bottom_bar instead.")
-    example("A click that runs Python", server_selection,
-            uses=[messages_in, Mailbox, open_folder, mail_app], full=True,
-            note="Each item's on_click opens a folder on the server; the zone "
-                 "re-renders with the new active row and its messages.")
+    example("Switch folders without a round trip", client_selection,
+            uses=[Mailbox], full=True,
+            note="active= and on_click= are tied to a ClientState: the active "
+                 "row and the folder's messages change in the browser. In an "
+                 "app, give each item an href= and the active row follows "
+                 "the URL.")
     example("Slides out of the way", slide_away, full=True,
             note='collapsible="offcanvas" hides the whole column. '
                  "ui.sidebar_trigger is the button that brings it back — "

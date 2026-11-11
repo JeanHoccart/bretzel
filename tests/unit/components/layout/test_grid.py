@@ -18,7 +18,7 @@ class TestDefaults:
         out = serialize(g.render())
         # Root carries the ``grid`` class + the default gap (md).
         assert "grid" in out
-        assert "gap-4" in out
+        assert "gap-(--bz-gap-4)" in out
         # No cols= → no grid-cols-* class is emitted.
         assert "grid-cols-" not in out
         assert out.startswith("<div")
@@ -87,11 +87,11 @@ class TestGap:
         ("gap", "expected"),
         [
             ("none", "gap-0"),
-            ("xs",   "gap-1"),
-            ("sm",   "gap-2"),
-            ("md",   "gap-4"),
-            ("lg",   "gap-6"),
-            ("xl",   "gap-8"),
+            ("xs",   "gap-(--bz-gap-1)"),
+            ("sm",   "gap-(--bz-gap-2)"),
+            ("md",   "gap-(--bz-gap-4)"),
+            ("lg",   "gap-(--bz-gap-6)"),
+            ("xl",   "gap-(--bz-gap-8)"),
         ],
     )
     def test_gap(self, gap: str, expected: str) -> None:
@@ -133,14 +133,14 @@ class TestGapResponsive:
         with render_isolated():
             g = Grid(gap={"base": "sm", "md": "lg"})
         out = serialize(g.render())
-        assert "gap-2" in out
-        assert "md:gap-6" in out
+        assert "gap-(--bz-gap-2)" in out
+        assert "md:gap-(--bz-gap-6)" in out
 
     def test_cols_and_gap_dicts_together(self) -> None:
         with render_isolated():
             g = Grid(cols={"base": 1, "md": 3}, gap={"base": "sm", "md": "lg"})
         out = serialize(g.render())
-        for expected in ("grid-cols-1", "md:grid-cols-3", "gap-2", "md:gap-6"):
+        for expected in ("grid-cols-1", "md:grid-cols-3", "gap-(--bz-gap-2)", "md:gap-(--bz-gap-6)"):
             assert expected in out
 
     def test_scalar_gap_still_works(self) -> None:
@@ -148,7 +148,7 @@ class TestGapResponsive:
             g = Grid(cols=4, gap="lg")
         out = serialize(g.render())
         assert "grid-cols-4" in out
-        assert "gap-6" in out
+        assert "gap-(--bz-gap-6)" in out
 
     def test_unknown_breakpoint_is_refused(self) -> None:
         with render_isolated():

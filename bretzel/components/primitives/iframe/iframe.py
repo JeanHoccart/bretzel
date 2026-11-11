@@ -72,7 +72,7 @@ class Iframe(Component):
     # No bindable surface: an embed URL changes on a server re-render.
     # And letting a client driver rewrite a sandboxed frame's ``src``
     # would be a convenient way of pointing it elsewhere.
-    src: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
+    src: str | None = reactive_prop(default=None, emit_attr=False)
     title: str = reactive_prop(default="", emit_attr=False)
     ratio: str | None = reactive_prop(default=None, emit_attr=False)
 

@@ -68,6 +68,12 @@ class TestNiceDomain:
 
 
 class TestComputeTicks:
+    def test_whole_ticks_for_counts(self) -> None:
+        # Pupils per mark, at most one each: the axis read « 0.5, 1.5 ».
+        assert compute_ticks(0, 1.05) == [0.0, 0.5, 1.0, 1.5]
+        assert compute_ticks(0, 1.05, whole=True) == [0.0, 1.0, 2.0]
+        assert compute_ticks(0, 14.7, whole=True) == [0.0, 5.0, 10.0, 15.0]
+
     def test_returns_round_numbers(self) -> None:
         ticks = compute_ticks(0, 100, target_count=5)
         # Contract : brackets the domain with target_count ± 2 ticks,
@@ -106,7 +112,7 @@ class TestLinePath:
 
 class TestSmoothPath:
     def test_two_points_falls_back_to_straight_line(self) -> None:
-        # Catmull-Rom needs 3+ points ; two-point case mirrors line_path.
+        # A curve needs 3+ points ; two-point case mirrors line_path.
         assert smooth_path([(0, 0), (10, 10)]) == line_path([(0, 0), (10, 10)])
 
     def test_three_points_emits_bezier(self) -> None:
@@ -151,6 +157,24 @@ class TestFormatValue:
 
     def test_currency(self) -> None:
         assert format_value(1234.5, "currency") == "$1,234.50"
+
+    def test_decimal_mark_is_the_language_s(self) -> None:
+        # A French app read « 13.2 » above its bars, « 13,2 » everywhere
+        # else on the page.
+        from bretzel.components.base.testing import render_isolated
+        from bretzel.render.languages.fr import TEXTS
+        from bretzel.render.texts import DEFAULT_TEXTS
+
+        assert format_value(13.2, None) == "13.2"
+        with render_isolated() as ctx:
+            ctx.texts = {**DEFAULT_TEXTS, **TEXTS}
+            assert format_value(13.2, None) == "13,2"
+            assert format_value(91.3, None, unit="ms") == "91,3 ms"
+            assert format_value(1500, "abbreviated") == "1,5k"
+            assert format_value(12, None) == "12"
+            # The share and the amount too: « 42 % », « 1 234,50 € ».
+            assert format_value(0.42, "percent") == "42 %"
+            assert format_value(1234.5, "currency") == "1 234,50 €"
 
     def test_callable_wins(self) -> None:
         assert format_value(7, lambda v: f"#{v}") == "#7"

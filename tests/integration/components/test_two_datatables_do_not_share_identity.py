@@ -51,6 +51,7 @@ from bretzel.state import field
 from bretzel.components import DatatableState
 from bretzel.runtime import HEADER_PAGE_ID
 from bretzel.server.handlers import sign_action
+from tests._session import session_of
 
 _SECRET = "y" * 32
 
@@ -77,12 +78,12 @@ class SecondQuery(DatatableState):
 _app = Bretzel(secret_key=_SECRET, mode="dev")
 
 
-@refreshable(deps=[FirstQuery])
+@refreshable
 def first_zone() -> None:
     ui.datatable(state=FirstQuery, columns=COLUMNS, rows=ROWS)
 
 
-@refreshable(deps=[SecondQuery])
+@refreshable
 def second_zone() -> None:
     ui.datatable(state=SecondQuery, columns=COLUMNS, rows=ROWS)
 
@@ -106,12 +107,12 @@ def _ids(html: str) -> list[str]:
 
 
 def _page_id(html: str) -> str:
-    # ``data-bretzel-page-id`` et pas le JSON d'``hx-headers`` : les
+    # ``data-bz-page-id`` et pas le JSON d'``hx-headers`` : les
     # deux portent la MÊME valeur, mais l'attribut nu est stable
     # tandis que le JSON dépend de son échappement — quatre copies de
     # cette ligne ont rougi le 2026-08-28 quand ``hx-headers`` est
     # passé en doubles quotes, sans qu'aucun comportement ne change.
-    match = re.search(r'data-bretzel-page-id="([^"]+)"', html)
+    match = re.search(r'data-bz-page-id="([^"]+)"', html)
     assert match, "le shell doit publier l'id de page"
     return match.group(1)
 
@@ -147,7 +148,7 @@ def _post(client: TestClient, url: str, args: str, page_id: str, form: dict):
     return client.post(
         url,
         headers={
-            "X-Bz-Sig": sign_action(_app.config._action_key, action_id, args),
+            "X-Bz-Sig": sign_action(_app.config._action_key, action_id, args, session_id=session_of(client)),
             HEADER_PAGE_ID: page_id,
         },
         data={"_args": args, **form},
@@ -215,7 +216,10 @@ def test_the_two_zones_share_no_id_at_all() -> None:
     """
     with TestClient(_app) as client:
         html = client.get("/").text
-    zones = re.split(r'bz-id="(?=refresh_)', html)
+    # Une zone par élément qui porte ``data-bz-zone`` : ce que la table
+    # construit est nommé sous sa zone (``refresh_…_datatable_0_…``), un
+    # découpage sur ``bz-id="refresh_`` couperait aussi à chacun.
+    zones = re.split(r'<[^>]*\sdata-bz-zone[=\s>]', html)
     assert len(zones) >= 3, "les deux zones doivent être repérables"
     first, second = set(_ids(zones[1])), set(_ids(zones[2]))
     assert first and second

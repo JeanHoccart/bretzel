@@ -1,7 +1,7 @@
 """``/progress`` — how far along, at a glance."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A bar for how much is done: any maximum, a label of your own, "
@@ -45,34 +45,20 @@ def indeterminate() -> None:
                 size="sm")
 
 
-class Import(PageState):
+class ContactImport(ClientState):
     done: int = field(default=1)
 
 
-def import_next() -> None:
-    state = Import()
-    state.done = min(state.done + 1, 4)
-
-
-def restart_import() -> None:
-    Import().done = 0
-
-
-@refreshable(deps=[Import])
-def import_progress() -> None:
-    done = Import().done
+def live_import() -> None:
+    done = ContactImport().done
     with ui.vstack(gap="md", classes="w-full max-w-md"):
-        ui.progress(done, max=4, label=f"{done * 250} of 1,000 contacts",
-                    show_label=True, color="success" if done == 4 else "primary")
+        ui.progress(done, max=4, label=done * 250 + " of 1,000 contacts",
+                    show_label=True)
         with ui.hstack(gap="sm", justify="end"):
             ui.button("Start over", variant="ghost", size="sm",
-                      on_click=restart_import)
+                      on_click=done.set(0))
             ui.button("Import next batch", size="sm", icon_left="upload",
-                      disabled=done == 4, on_click=import_next)
-
-
-def live_import() -> None:
-    import_progress()
+                      disabled=done == 4, on_click=done.increment())
 
 
 def page() -> None:
@@ -85,7 +71,7 @@ def page() -> None:
     example("Sizes", sizes)
     example("Indeterminate", indeterminate,
             note="When the end is unknown, the bar moves instead of filling.")
-    example("Driven by the server", live_import,
-            uses=[Import, import_next, restart_import, import_progress],
-            note="Each click runs Python, and the zone that reads the state "
-                 "re-renders with the new value.")
+    example("Driven by a state", live_import, uses=[ContactImport],
+            note="value= and label= follow a ClientState field, so each click "
+                 "moves the bar without a round trip. The same bar fed by a "
+                 "server state moves when its zone re-renders.")

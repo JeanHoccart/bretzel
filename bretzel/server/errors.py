@@ -22,6 +22,7 @@ from starlette.exceptions import HTTPException
 # handling share the same classes without violating the import DAG
 # (``core < state < server``). This module re-exports the server-facing names.
 from bretzel.core.errors import AuthRequiredError, BretzelError
+from bretzel.core.escape import escape_html
 
 #: The module's explicit surface, two of them intentional re-exports.
 __all__ = [
@@ -60,8 +61,12 @@ def default_error_page(
     No Tailwind / JS dependencies — the page must work even if the
     framework's own assets fail to load.
     """
-    final_title = title or _default_title_for(status_code)
-    final_message = message or _default_message_for(status_code)
+    # Escaped: the message is ``abort(code, detail)``'s ``detail``, and a
+    # detail is routinely built from the request (``f"No customer {cid}"``)
+    # — pasted raw, ``/customers/<img src=x onerror=…>`` would run its
+    # script. Plain text in, plain text out.
+    final_title = escape_html(title or _default_title_for(status_code))
+    final_message = escape_html(message or _default_message_for(status_code))
     return (
         "<!doctype html>\n"
         '<html lang="en">\n'

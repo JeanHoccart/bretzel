@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from bretzel.render.decorators.refreshable import ZoneRegistry
+
 import asyncio
 from collections.abc import Callable
 from typing import Any
@@ -21,6 +23,7 @@ from bretzel.render.context import (
 
 
 class _StubApp:
+    zones = ZoneRegistry()
     def __init__(self) -> None:
         self._pages: list[Callable[..., Any]] = []
         self._realtime: dict[str, Callable[..., Any]] = {}

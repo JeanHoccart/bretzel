@@ -32,14 +32,14 @@ The DAG allows it without bending anything: ``runtime`` sits above
 ``state`` (``envelope.py`` already imports ``ClientState``), and a verb
 needs nothing else.
 
-⚠️ The name, settled on 2026-09-01
------------------------------------
+⚠️ The name
+-----------
 The ``test_handler_helpers_have_one_home`` gate sets a **mechanical**
 criterion: ``ui.*`` is called from a render body, ``bretzel.*`` from a
 handler. A verb is written in a render body, so that criterion alone
 would place it on ``ui``.
 
-**The user settled on ``bretzel.*``**, and the arbitration holds: ``ui``
+**A verb lives on ``bretzel.*``**: ``ui``
 names what takes part in the TREE — components, descriptors
 (``ui.column``, ``ui.track``), iteration keys, a reactive source a prop
 consumes (``ui.pending``). A verb takes part in no tree: it triggers an
@@ -55,21 +55,9 @@ vocabulary consistency — not a trade one makes without asking.
 
 What is NOT here, and why
 -------------------------
-- ⚠️ **``share`` and ``vibrate`` were deferred here "to the touch
-  slice". Shipped on 2026-09-02 — the deferral held for one and not for
-  the other.** ``navigator.vibrate`` EXISTS everywhere (measured:
-  ``function`` on desktop Chromium) and does nothing without hardware,
-  so there was no absence decision to take: the "mobile axis" argument
-  did not hold. ``navigator.share``, on the other hand, is ``undefined``
-  on that same Chromium — the deferral was therefore justified, but not
-  for the written reason: the absence is not an edge case, it is the
-  NORMAL case on the machine one develops on.
-- **Visual feedback on copy** — user decision of 2026-09-01: nothing by
-  default. The verb copies, the app wires whatever feedback it wants. A
-  ``ui.copy_button`` toggling for two seconds stays the obvious form the
-  day the need comes up.
-
-Cf. ``.claude/work/these-portee-2026-08-19.md`` § 6.a.
+- **Visual feedback on copy**: nothing by default. The verb copies, the
+  app wires whatever feedback it wants. A ``ui.copy_button`` toggling for
+  two seconds stays the obvious form the day the need comes up.
 """
 
 from __future__ import annotations
@@ -108,7 +96,12 @@ def _as_client_source(value: Any) -> str:
 
 
 def copy(value: Any) -> str:
-    """Copy ``value`` to the clipboard when the action runs."""
+    """Copy ``value`` to the clipboard when the action runs.
+
+    The TEXT as is — « /etc/hosts » stays « /etc/hosts ». For a link to a
+    page of the app, use :func:`share`: it resolves a relative address
+    against the page, and copies it where no native share sheet exists.
+    """
     return f"$bz.verbs.copy({_as_client_source(value)})"
 
 
@@ -143,7 +136,11 @@ def fullscreen(target: Any = None) -> str:
 def share(
     url: Any = None, *, title: Any = None, text: Any = None
 ) -> str:
-    """Open the native share sheet, or copy the URL when sharing is unavailable."""
+    """Open the native share sheet, or copy the URL when sharing is unavailable.
+
+    A relative ``url`` (``"/partage/x"``) is resolved against the page in
+    the browser: what is shared or copied is a full address.
+    """
     charge: dict[str, Any] = {}
     for key, value in (("url", url), ("title", title), ("text", text)):
         if value is not None:

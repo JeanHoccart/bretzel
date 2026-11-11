@@ -27,6 +27,7 @@ CATALOG: list[tuple[str, list[tuple[str, str, str]]]] = [
         ("color-picker", "Color picker", "pipette"),
         ("file-upload", "File upload", "upload"),
         ("signature-pad", "Signature pad", "pen-line"),
+        ("message", "Message", "messages-square"),
     ]),
     ("Dates & time", [
         ("calendar", "Calendar", "calendar"),
@@ -80,14 +81,17 @@ CATALOG: list[tuple[str, list[tuple[str, str, str]]]] = [
         ("tree", "Tree", "list-tree"),
         ("accordion", "Accordion", "list-collapse"),
         ("diagram", "Diagram", "workflow"),
+        ("scheduler", "Scheduler", "calendar-clock"),
         ("lists", "Lists", "list"),
     ]),
     ("Charts", [
         ("bar-chart", "Bar chart", "chart-column"),
+        ("histogram", "Histogram", "chart-no-axes-column"),
         ("line-chart", "Line chart", "chart-line"),
         ("pie-chart", "Pie chart", "chart-pie"),
         ("scatter-chart", "Scatter chart", "chart-scatter"),
         ("sparkline", "Sparkline", "activity"),
+        ("stat", "Stat", "gauge"),
     ]),
     ("Content", [
         ("text", "Text", "type"),

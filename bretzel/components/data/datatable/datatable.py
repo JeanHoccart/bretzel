@@ -13,7 +13,7 @@ Usage ::
                   render=lambda v, row: ui.badge(v, color="success")),
     ]
 
-    @refreshable(deps=[Issues, IssueStore])
+    @refreshable
     def issues_table() -> None:
         ui.datatable(state=Issues, columns=COLUMNS, rows=IssueStore().items)
 
@@ -29,11 +29,10 @@ table renderer, no second pager, no client-side engine.
 browser-side table cannot offer, and it is the reason the CSV export can
 replay the exact view the reader is looking at.
 
-**It must sit inside a ``@refreshable``** whose ``deps`` include the state
-class. No component owns a refresh zone in Bretzel — clicking a header
-mutates the state, and it is the enclosing zone's ``deps=`` that turns
-that mutation into a re-render. Two lines, and no new framework
-mechanism.
+**It must sit inside a ``@refreshable``.** No component owns a refresh
+zone in Bretzel — clicking a header mutates the state, and the enclosing
+zone, which reads that state while the table renders, turns the mutation
+into a re-render. One line, and no new framework mechanism.
 
 **The scope is closed** : sort, pagination, global search, per-column
 filters, the callable tier and CSV export. Row selection, bulk actions,
@@ -51,7 +50,7 @@ import functools
 import inspect
 import json
 import math
-import unicodedata
+from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import replace
 from typing import Any, ClassVar
@@ -64,7 +63,8 @@ from bretzel.components.data.table import Column, Table, read_cell
 from bretzel.components.inputs.combobox import Combobox
 from bretzel.components.inputs.input import Input
 from bretzel.components.navigation.pagination import Pagination
-from bretzel.core.tree import Element, Node
+from bretzel.core.text import fold
+from bretzel.core.tree import Element, FragmentNode, Node
 from bretzel.core.tree import TextNode as TextNode
 from bretzel.render import plural, state_qualname, text
 from bretzel.render.context import current_context
@@ -72,28 +72,18 @@ from bretzel.render.iteration import key_segment
 from bretzel.state import form_value
 from bretzel.state.datatable import DatatableState, Query
 
-# Form field names for the two controls whose value rides back with the
-# action, assembled by :func:`_field`.
 # A tick-list past this many values stops being a filter and becomes a
-# scrolling wall. That is the whole reason now : the quadratic payload
-# that first motivated the cap (every checkbox carrying the whole domain
-# in its own signed action — 40 values → 29 KB, 200 → 800 KB, 70% of the
-# response) died when the ticks went client-side and the domain started
-# riding ONCE on the close action. The wall did not. ``filter=True`` on a
-# free-text column (a name, a title) hits it instantly, one distinct
-# value per row. Refused rather than shipped, per the same argument as
-# the export guard.
+# scrolling wall. ``filter=True`` on a free-text column (a name, a title)
+# hits it instantly, one distinct value per row. Refused rather than
+# shipped, per the same argument as the export guard.
 _MAX_FILTER_VALUES = 50
 
 #: The field name of the filter carrier — suffixed by the column key.
 #: Carried by the combobox's hidden input, read by :func:`apply_filter`.
 _FILTER_FIELD = "bz_dt_filter"
 
-#: The prompt of the search field INSIDE a filter panel. Distinct from
-#: ``search_placeholder=``, which describes the global search: passing
-#: "Search issues…" to the table copied it into every panel, where it
-#: names the wrong list — there you search column VALUES, not rows.
-
+# Form field names for the two controls whose value rides back with the
+# action, assembled by :func:`_field`.
 _PAGE_FIELD = "bz_dt_page"
 _SEARCH_FIELD = "bz_dt_search"
 
@@ -108,27 +98,27 @@ def _rows_ref(rows_source: Any) -> str:
     return encode_handler_id(rows_source)
 
 
-def _encode_export(query: Query, rows_ref: str, columns: list,
-                   filename: str) -> str:
+def _encode_export(query: Query, rows_ref: str, rows_args: str,
+                   columns: list, filename: str) -> str:
     """Pack what the download endpoint needs into one signed parameter.
 
     **The QUERY travels, not the state reference.** An export link is a
     plain browser navigation : no ``X-Bretzel-Page-ID`` header, so the
     server cannot resolve the reader's page-scoped state and would read
     a pristine one — exporting the default view while the screen shows a
-    filtered one. Measured, not feared : that is exactly what the first
-    version did, and the export test caught it.
+    filtered one.
 
     Baking the query in is also free, because the link is re-rendered by
     the same zone refresh that changed the query. It cannot go stale.
 
     The rest is what the endpoint cannot rediscover : the callable to
-    re-run, and the ``(key, label)`` pairs, since there is no component
-    left to ask. Signed, so a hand-edited ``rows_ref`` cannot point the
-    endpoint at an arbitrary function.
+    re-run with the arguments a ``partial`` bound to it — the month on
+    screen, the account being read —, and the ``(key, label)`` pairs,
+    since there is no component left to ask. Signed, so a hand-edited
+    ``rows_ref`` cannot point the endpoint at an arbitrary function.
     """
     blob = json.dumps({"q": dataclasses.asdict(query), "r": rows_ref,
-                       "c": columns, "f": filename},
+                       "a": rows_args, "c": columns, "f": filename},
                       separators=(",", ":"))
     return base64.urlsafe_b64encode(blob.encode()).decode()
 
@@ -219,10 +209,14 @@ def apply_filter(state_ref: str, key: str, domain: list) -> None:
     The reader ticks freely with no round-trip ; this runs once, on the
     way out. The picks arrive as the combobox's hidden input (a JSON
     array) rather than as bound args, because they are chosen client-side
-    long after the action was signed. ``domain`` DOES ride in the bound
-    args : ``set_filter`` needs it to tell "everything ticked" (no
-    filter) from a partial selection, and the server cannot re-derive it
-    in the callable tier, where it holds no rows.
+    long after the action was signed.
+
+    The panel ticks what to SHOW : nothing ticked is no filter at all,
+    the way every tick-list filter reads (a fresh panel opens empty, not
+    with every value pre-ticked) — ``set_filter``'s rule. ``domain``
+    rides in the bound args : ``set_filter`` keeps the picks in domain
+    order and drops the filter when they cover it all, and the server
+    cannot re-derive it in the callable tier, where it holds no rows.
     """
     state = _resolve_state(state_ref)
     raw = form_value(f"{_field(_FILTER_FIELD, type(state))}__{key}")
@@ -247,23 +241,9 @@ def clear_filters(state_ref: str) -> None:
 # ───────────────────────────────────────────────────────────────────────────
 
 
-def _fold(text: str) -> str:
-    """Case- and accent-insensitive form of ``text``, for comparison only.
-
-    NFKD splits an accented letter into base + combining mark ; dropping
-    the marks leaves the base. Never shown to anyone — the rendered cell
-    keeps its accents.
-    """
-    folded = text.casefold()
-    if folded.isascii():
-        # NFKD is the identity on ASCII and ASCII carries no combining
-        # marks, so the branch cannot change a result — it only skips the
-        # walk. Checked AFTER casefold on purpose : ``ẞ`` folds INTO
-        # ASCII ("ss") and takes the fast path correctly. Measured on a
-        # sorted 10k-row ASCII column : 52 ms -> 17 ms.
-        return folded
-    decomposed = unicodedata.normalize("NFKD", folded)
-    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+#: The search form — the framework's one ``fold`` (``bretzel/core/text.py``),
+#: the same a combobox and ``filter_each`` compare.
+_fold = fold
 
 
 def _sort_bucket(value: Any) -> tuple[int, float, str]:
@@ -291,23 +271,29 @@ def _sort_bucket(value: Any) -> tuple[int, float, str]:
     return (1, 0.0, _fold(str(value)))
 
 
-def column_domain(rows: Sequence[Any], key: str) -> list[str]:
-    """Every distinct value column ``key`` takes across ``rows``, sorted.
+def _column_counts(rows: Sequence[Any],
+                   keys: Sequence[str]) -> dict[str, Counter[str]]:
+    """How many rows of ``rows`` take each value, for every column of ``keys``.
 
-    The tick-list a filter popover offers. Derived from the FULL source,
-    never from the current page or the current filter — a value you just
-    unticked has to stay in the list, or you could not tick it back.
+    The number a filter panel shows next to each value. Counted on the
+    FULL source, never on the current page or the current filter — a
+    value you just unticked has to stay in the list with its weight, or
+    you could not tell what ticking it back would bring.
+
+    ONE pass over the rows for all the columns : this walks EVERY row of
+    the source on every render.
     """
-    if rows and isinstance(rows[0], dict):
-        # Dict branch hoisted out of the comprehension : ``read_cell``'s
-        # isinstance + call per cell was ~50% of this pass, and this walks
-        # EVERY row of the source, per filterable column, on every render.
-        seen = {str(row.get(key)) for row in rows}
-    else:
-        seen = {str(read_cell(row, key)) for row in rows}
-    # Folded sort, so the tick-list doesn't dump every accented value
-    # after Z — the same complaint the row sort exists to answer.
-    return sorted((v for v in seen if v not in ("", "None")), key=_fold)
+    counts = {key: Counter[str]() for key in keys}
+    if not counts:
+        return counts
+    # Dict branch hoisted out of the loop : ``read_cell``'s isinstance +
+    # call would otherwise run per cell.
+    read = ((lambda row, key: row.get(key)) if rows and isinstance(rows[0], dict)
+            else read_cell)
+    for row in rows:
+        for key, counter in counts.items():
+            counter[str(read(row, key))] += 1
+    return counts
 
 
 def apply_query(
@@ -329,9 +315,8 @@ def apply_query(
     """
     keys = [c.key for c in columns if c.key]
     # NOT ``list(rows)`` : nothing below mutates in place (filter, sort
-    # and slice each build a new list), so the defensive copy was a full
-    # extra pass over the source on every render — measured at 88% of
-    # this function's cost in the common no-search-no-sort path.
+    # and slice each build a new list), so a defensive copy would be a
+    # full extra pass over the source on every render.
     result = rows
 
     if query.filters:
@@ -355,10 +340,9 @@ def apply_query(
 
     # Hoisted out of both loops on purpose : ``sort_key`` is a State
     # Field DESCRIPTOR, not an attribute — every read goes through
-    # dependency tracking (~590 ns inside a render, vs 16 ns for a
-    # local). Read per row per pass it cost 2N+1 tracked reads, and the
-    # first one already registers the dependency, so the rest were pure
-    # overhead. Measured at 10k rows : 23.0 ms -> 5.6 ms.
+    # dependency tracking. Read per row per pass it would cost 2N+1
+    # tracked reads, and the first one already registers the dependency,
+    # so the rest would be pure overhead.
     sort_key = query.sort_key
     if sort_key:
         # Empty cells sort to the END in both directions — a column of
@@ -404,10 +388,9 @@ class Datatable(Component):
     #: shapes of an ``on_*`` therefore work here as there — a server
     #: callable, a client expression string, or a list of both.
     #:
-    #: ⚠️ It was the last of the four to accept a click without declaring
-    #: it (2026-09-07). NOT declaring it made nothing inert, it made the
+    #: ⚠️ NOT declaring it would make nothing inert, it would make the
     #: introspected surface WRONG: ``bretzel describe datatable`` reads
-    #: ``EVENTS``, and said "no event" of a component that accepts one.
+    #: ``EVENTS``, and would say "no event" of a component that accepts one.
     #: The base layer, for its part, never sees this handler go by — it
     #: is a named parameter of the ``__init__``, not a ``**kwargs`` — so
     #: the declaration re-wires nothing on the root.
@@ -427,7 +410,7 @@ class Datatable(Component):
         columns: Iterable[Column] = (),
         rows: Iterable[Any] | Callable[[Query], tuple[Any, int]] = (),
         search: bool = True,
-        search_placeholder: str = "Search…",
+        search_placeholder: str | None = None,
         exportable: bool = False,
         export_filename: str = "export.csv",
         max_height: str | None = None,
@@ -435,9 +418,9 @@ class Datatable(Component):
         on_item_click: Callable[..., Any] | None = None,
         size: str | None = None,
         color: str | None = None,
-        empty_text: str = "No data.",
-        empty_icon: str | None = "inbox",
-        empty_description: str | None = None,
+        empty_text: str | Component | None = None,
+        empty_icon: str | Component | None = "inbox",
+        empty_description: str | Component | None = None,
         empty: Callable[[], Any] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -459,6 +442,13 @@ class Datatable(Component):
         # ``head_render`` says ``filter=False`` — the same trap
         # ``_sortable_keys`` exists for, and it cost a silently empty
         # popover before the export test caught it.
+        # The rows per value, shown in each panel. Only the list tier
+        # can count : a callable hands back one page, not the source.
+        self._filter_counts: dict[str, Counter[str]] = (
+            {} if self._rows_source is not None else _column_counts(
+                self._rows, [c.key for c in self._columns if c.filter and c.key],
+            )
+        )
         self._filter_domains = {
             c.key: self._domain_of(c) for c in self._columns
             if c.filter and c.key
@@ -493,7 +483,12 @@ class Datatable(Component):
                 "cannot discover which values exist. State them: "
                 f'ui.column("{col.key}", filter=["a", "b"]).'
             )
-        return _check_domain(col, column_domain(self._rows, col.key))
+        # Folded sort, so the tick-list doesn't dump every accented value
+        # after Z — the same complaint the row sort exists to answer.
+        return _check_domain(col, sorted(
+            (v for v in self._filter_counts[col.key] if v not in ("", "None")),
+            key=_fold,
+        ))
 
     # ── Construction-time guards ───────────────────────────────────────
 
@@ -525,55 +520,50 @@ class Datatable(Component):
         This is THE failure mode of a server-driven table : the header
         posts, ``cycle_sort`` runs, the state changes — and the page
         stays exactly as it was, because no ``@refreshable`` zone
-        declared the state in its ``deps``. Nothing errors, nothing
-        logs ; the reader just clicks a header that does nothing.
+        encloses the table. Nothing errors, nothing logs ; the reader
+        just clicks a header that does nothing.
 
         So the check runs at construction, while the enclosing zone is
         still on the parent stack, and names both the state and the fix.
+        Inside a zone, the zone follows the state by itself: the table
+        reads it while it renders.
         """
         if not self._is_interactive():
             return
 
-        from bretzel.render import maybe_current_context, zone_ids_watching
+        from bretzel.render import maybe_current_context
 
         ctx = maybe_current_context()
         if ctx is None:  # test rig with no context — nothing to check
             return
-        enclosing = {
-            getattr(parent, "_refresh_id", None) for parent in ctx.parent_stack
-        }
-        if enclosing & zone_ids_watching(self._state_cls):
+        if self._zone is not None:
             return
 
         name = self._state_cls.__name__
         raise ComponentUsageError(
-            f"ui.datatable(state={name}) is not inside a @refreshable zone "
-            f"that watches {name}. Sorting, paging and searching all work "
-            f"by mutating {name} — with no zone declaring it in deps=, the "
-            "controls would post and the page would never change. Wrap it :\n"
-            f"    @refreshable(deps=[{name}])\n"
+            f"ui.datatable(state={name}) is not inside a @refreshable zone. "
+            f"Sorting, paging and searching all work by mutating {name} — "
+            "with no zone around the table, the controls would post and the "
+            "page would never change. Wrap it :\n"
+            "    @refreshable\n"
             "    def my_table() -> None:\n"
             f"        ui.datatable(state={name}, ...)"
         )
 
     def _size_map(self) -> dict[str, str]:
-        """The composed children's size tokens for this table's ``size``."""
-        sizes = self._resolved_theme().get("sizes", {})
-        size = self._reactive_values.get("size") or "md"
-        return sizes.get(size, sizes.get("md", {}))
+        """The composed children's size tokens for this table's ``size``
+        (its slot classes reach the slots through ``compose_class``)."""
+        return self._size_row() or {}
 
     # ── Header ─────────────────────────────────────────────────────────
 
     def _head_title(self, col: Column) -> Any:
         """Build one header : the sort control, or a plain label.
 
-        Filters used to live here too, behind a ``⋮`` per column, which
-        is why this used to sit behind a ``_head_cell`` assembler. They
-        moved to the toolbar : a header is for reading the column name
-        and ordering by it, and hanging a second control off it made
-        every filterable column wider and the free-text one narrower.
-        With nothing left to assemble, the assembler is gone and this IS
-        the ``head_render=`` seam.
+        Filters live in the toolbar : a header is for reading the column
+        name and ordering by it, and hanging a second control off it would
+        make every filterable column wider and the free-text one narrower.
+        This IS the ``head_render=`` seam.
         """
         theme = self._resolved_theme()
         slots = theme.get("slots", {})
@@ -605,14 +595,14 @@ class Datatable(Component):
             # ``_column_filter``.
             variant="ghost",
             # ``current`` at rest so a sortable header is the SAME colour as
-            # the plain header beside it, and skipping it is what made one
+            # the plain header beside it; skipping it makes one
             # header row read half accent-blue, half muted grey, with the
             # split following nothing the eye can interpret. The accent is
             # spent on the ACTIVE column only, where it means something.
             # ⚠️ It is NOT the "colour of an embedded subcomponent"
-            # convention this comment cited until 2026-08-07: that one
-            # speaks of a subordinate component inheriting its parent's
-            # ink, and it precisely files Button among the exceptions.
+            # convention: that one speaks of a subordinate component
+            # inheriting its parent's ink, and it precisely files Button
+            # among the exceptions.
             # The rule applied here is ``components.md`` § "the accent
             # marks the ACTIVE peer".
             color=(self._reactive_values.get("color") or "primary")
@@ -637,6 +627,7 @@ class Datatable(Component):
         )
 
     def _column_filter(self, col: Column, *, colour: str,
+                     slots: dict[str, str],
                      sizes: dict[str, str]) -> Component:
         """One toolbar filter : the column's label, its count, its panel.
 
@@ -662,13 +653,20 @@ class Datatable(Component):
         and the table does not jump under the reader mid-decision ; ONE
         action fires on ``close``, reading the final selection off the
         hidden input the combobox already renders.
+
+        **The ticks say what to show, and none means all.** The panel
+        opens empty on an unfiltered column — no "Select all" to offer,
+        since ticking everything and ticking nothing are the same view.
+        The combobox's filter shape does the rest : checkboxes, Clear
+        once something is ticked, a search field only on a long list.
         """
         state = self._state_cls()
         ref = state_qualname(self._state_cls)
         domain = self._filter_domains.get(col.key, [])
         kept = state.filters.get(col.key)
         narrowed = kept is not None
-        picked = list(kept) if narrowed else list(domain)
+        picked = list(kept or ())
+        counts = self._filter_counts.get(col.key)
         # Stable per (table, column) : the combobox scopes its own
         # ``hx-include`` by this id (so the close action carries the
         # picks), and idiomorph keeps matching the same node across
@@ -676,18 +674,32 @@ class Datatable(Component):
         box_id = f"bzf_{self._state_cls.__name__}_{col.key}"
 
         label = col.label or col.key
+        if not narrowed:
+            caption = label
+        elif len(picked) <= 2:
+            # Two names still fit a toolbar button ; past that, a count.
+            caption = f"{label} · {', '.join(picked)}"
+        else:
+            caption = f"{label} · {len(picked)}"
         return Combobox(
             domain,
             id=box_id,
             value=picked,
             multiple=True,
-            bulk_actions=True,
+            render=(
+                None if counts is None
+                else functools.partial(_value_with_count, counts,
+                                       slots.get("filter_count", ""))
+            ),
             name=_field(_FILTER_FIELD, self._state_cls) + f"__{col.key}",
+            # Distinct from ``search_placeholder=``, which describes the global
+            # search: in a panel it would name the wrong list — there you
+            # search column VALUES, not rows.
             placeholder=text("datatable.filter_placeholder"),
             color=colour,
-            size=sizes.get("toolbar", "sm"),
+            size=sizes.get("toolbar_size", "sm"),
             trigger=Button(
-                f"{label} · {len(picked)}/{len(domain)}" if narrowed else label,
+                caption,
                 # ``soft`` IN BOTH STATES, and it is the COLOUR that
                 # says which.
                 #
@@ -711,7 +723,7 @@ class Datatable(Component):
                 # The "the accent marks the ACTIVE peer" convention —
                 # cf. ``components.md`` § of the same name.
                 color=colour if narrowed else "current",
-                size=sizes.get("toolbar", "sm"),
+                size=sizes.get("toolbar_size", "sm"),
                 icon_left="list-filter",
             ),
             on_close=functools.partial(apply_filter, ref, col.key, domain),
@@ -723,18 +735,21 @@ class Datatable(Component):
 
         A download cannot ride the action pipeline : the response has to
         be the file, and HTMX would try to swap it into the page. So it
-        is a plain signed GET that the bridge leaves alone
-        (``hx-boost="false"``).
+        is a plain signed GET, and its ``download`` attribute keeps htmx
+        off it.
         """
-        from bretzel.server.handlers import sign_action
+        from bretzel.server.handlers import encode_args, sign_action
 
         columns = [[c.key, c.label] for c in self._columns if c.key]
         payload = _encode_export(
             self._state_cls().to_query(for_export=True),
-            _rows_ref(self._rows_source), columns, self._export_filename,
+            _rows_ref(self._rows_source), encode_args(self._rows_source),
+            columns, self._export_filename,
         )
         context = current_context()
         key = getattr(getattr(context.app, "config", None), "_action_key", b"")
+        sig = sign_action(key, EXPORT_ROUTE, payload,
+                          session_id=context.session_id) if key else ""
         # A composed ``ui.button`` retagged as an anchor, NOT a ``ui.link``.
         # The control sits next to "Clear filters" in the same toolbar, so
         # it has to be the same object — a link rendered as a link reads
@@ -745,17 +760,15 @@ class Datatable(Component):
         # ``type`` is set to the MIME type it means on an anchor — Button
         # stamps ``type="button"``, which is meaningless there.
         button = Button(
-            "Export CSV",
+            text("datatable.export_csv"),
             tag="a",
             classes=slots.get("export", ""),
             variant="surface",
-            size=sizes.get("toolbar", "sm"),
+            size=sizes.get("toolbar_size", "sm"),
             color="current",
             icon_left="download",
-            href=f"{EXPORT_ROUTE}?q={payload}"
-                 f"&sig={sign_action(key, EXPORT_ROUTE, payload) if key else ''}",
+            href=f"{EXPORT_ROUTE}?q={payload}&sig={sig}",
             attrs={
-                "hx-boost": "false",
                 "download": self._export_filename,
                 "type": "text/csv",
             },
@@ -787,107 +800,6 @@ class Datatable(Component):
         rows, total = result
         return list(rows), int(total)
 
-    # ── What the toolbar DISPLAYS, column by column ───────────────────
-    #
-    # It is what decides ``_toolbar_blind_to()``, so what we are allowed
-    # to preserve:
-    #
-    # - the search renders ``state.search``;
-    # - the "Clear filters" button only exists if ``state.filters``;
-    # - each column filter ticks from ``state.filters``;
-    # - the export — IF THERE IS ONE — serialises
-    #   ``to_query(for_export=True)``, which normalises ``page`` to 1 but
-    #   keeps the sort, the page size, the search and the filters.
-    #
-    # Nothing else. And with no export button, the last line disappears
-    # with it: that is the whole difference between the two sets.
-
-    #: The six fields of :class:`DatatableState`. A field added by an app
-    #: subclass is not in it, and that is intended: the bar can assert
-    #: nothing about what it does not know, so an unknown field that
-    #: moves makes the bar render.
-    _STATE_FIELDS: ClassVar[frozenset[str]] = frozenset(
-        {"sort_key", "sort_dir", "page", "per_page", "search", "filters"}
-    )
-    #: What the bar PAINTS: the search field's value, and the "N/total"
-    #: labels of the filters (plus the "clear" button, which only appears
-    #: if a filter is set).
-    _TOOLBAR_READS: ClassVar[frozenset[str]] = frozenset({"search", "filters"})
-    #: What the CSV button's SIGNED URL carries in addition. ``page`` is
-    #: not in it: ``to_query(for_export=True)`` normalises it to 1 — and
-    #: that is precisely what made the bar preservable on a page change
-    #: (cf. the comment in ``state.py``).
-    _EXPORT_READS: ClassVar[frozenset[str]] = frozenset(
-        {"sort_key", "sort_dir", "per_page", "search", "filters"}
-    )
-
-    def _toolbar_blind_to(self) -> frozenset[str]:
-        """The fields whose change leaves the bar byte-identical.
-
-        It used to be a constant — ``{"page"}`` — and it was right for an
-        EXPORTABLE table only. With no CSV button, the bar reads neither
-        the sort nor the page size: it left whole on every header click,
-        12 kB of the 28 of a four-column table, for rigorously identical
-        bytes. And ``exportable`` is ``False`` by default, so that was
-        the common case.
-
-        The constant shape could not say that: the answer depends on what
-        THIS table renders. Hence a set derived from what the bar really
-        reads — and a gate that mutates each field and compares the
-        bytes, rather than a list kept up to date by hand.
-        """
-        reads = self._TOOLBAR_READS
-        if self._exportable:
-            reads = reads | self._EXPORT_READS
-        return self._STATE_FIELDS - reads
-
-    def _toolbar_can_be_preserved(self) -> bool:
-        """Is the bar demonstrably unchanged by this request?
-
-        It weighs **44 %** of the zone (35 kB of 79, measured on a
-        datatable of 5 rows with three filters) and re-rendered on every
-        pagination click although none of its bytes move.
-
-        Three conditions, all necessary:
-
-        1. **Partial render.** On a full page the bar is not yet in the
-           DOM: preserving it would make it disappear.
-        2. **We KNOW what changed.** An empty ``ctx.changed_fields``
-           means "we do not know" (full page, SSE refetch), not
-           "nothing" — so we render everything.
-        3. **The change concerns this state, and only fields the bar is
-           blind to** — ``_toolbar_blind_to()``, which is wider when the
-           table does not export. Another table that moves, an app state
-           that moves: we conclude nothing and render everything.
-
-        Plus a safety guard: a preserved bar keeps the **original
-        signature** of its actions, timestamp included. Under
-        ``action_max_age``, it would eventually expire without ever being
-        refreshed — the user paginates for an hour, clicks a filter, and
-        takes a 403. The default is ``None`` (valid indefinitely), so
-        this guard costs nobody anything today; it stops the anti-replay
-        and this optimisation from discovering they are incompatible
-        months later, in production, at somebody else's.
-        """
-        ctx = current_context()
-        if not getattr(ctx, "is_partial", False):
-            return False
-        config = getattr(getattr(ctx, "app", None), "config", None)
-        if getattr(config, "action_max_age", None) is not None:
-            return False
-        changed = getattr(ctx, "changed_fields", None) or {}
-        if not changed:
-            return False
-        mine = changed.get(self._state_cls)
-        if not mine:
-            return False
-        # ANOTHER state moved in the same request: its handler may have
-        # written into ours by a path we cannot see. We do not
-        # speculate.
-        if set(changed) != {self._state_cls}:
-            return False
-        return mine <= self._toolbar_blind_to()
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
@@ -901,17 +813,16 @@ class Datatable(Component):
         table returns ``root_pagination_0``, that is to say the FIRST
         one's id.
 
-        Measured on 2026-08-07, two tables on one page ::
+        Without the key, on two tables of one page ::
 
             before the click: ['root_pagination_0', 'root_pagination_1']
             click page 5 on B
             after the click:  ['root_pagination_0', 'root_pagination_0']
 
-        And the symptom that produces is exactly the one reported:
         ``bz-id`` being idiomorph's pairing key AND ``scope.absorb``'s,
-        B's pager adopts A's scope — so its ``_total`` — and shows 7
-        pages instead of 5; then A's hidden input sees its value change
-        and POSTs in its turn. **One click, two requests**, and the wrong
+        B's pager then adopts A's scope — so its ``_total`` — and shows
+        A's page count; then A's hidden input sees its value change and
+        POSTs in its turn. **One click, two requests**, and the wrong
         table navigating.
 
         The key is the state class's name, not ``self.id``: the table's
@@ -944,38 +855,17 @@ class Datatable(Component):
         children: list[Node] = []
 
         # ── Toolbar ─────────────────────────────────────────────────
-        # ``hx-preserve``: HTMX keeps the node ALIVE and ignores the one
-        # that arrives. So we send an empty shell when the bar cannot
-        # have changed — and the 35 kB of filters do not go back over the
-        # wire on every pagination click. Checked in the browser: the
-        # preserved subtree survives an OOB zone morph.
-        # ``_has_toolbar`` guards BOTH branches, and it is the only
-        # correct shape: an ``hx-preserve`` shell only makes sense if
-        # there is a node of the same ``id`` to preserve. Emitted for a
-        # table with no control at all, it would insert a dead div
-        # carrying the bar's id — and the day somebody adds a filter to
-        # that table, they would never see it appear: the fresh bar would
-        # be preserved in its empty state. Both branches must therefore
-        # answer the SAME question, hence a shared predicate rather than
-        # two conditions to keep in agreement.
+        # Rendered whole, always, never as an empty ``hx-preserve`` shell.
+        # The zone diff (``render/zone_diff.py``) makes such a shell
+        # useless — an unchanged bar is byte-identical, so it is not
+        # shipped — and harmful: the diff would ship the SHELL alone, as
+        # its own out-of-band morph, and htmx honours ``hx-preserve``
+        # inside a swapped fragment, not on the element it morphs. The bar
+        # would become an empty div at the first sort, and the diff,
+        # believing the client holds that shell, would never send it back.
+        # Gate: tests/runtime_js/test_a_datatable_keeps_its_toolbar.py.
         toolbar_id = f"bzdt_{self._state_cls.__name__}_toolbar"
-        if not self._has_toolbar(state):
-            pass
-        elif self._toolbar_can_be_preserved():
-            # The shell: same ``id``, ``hx-preserve``, no children.
-            # HTMX keeps the live node and throws this one away — so the
-            # 35 kB of filters do not go back over the wire.
-            #
-            # A DRY exit, rather than a ``preserve`` flag re-tested in
-            # front of each of the four controls (one of them INSIDE the
-            # loop over the columns): four guards all saying the same
-            # thing, to build a list we then throw away.
-            children.append(Element(
-                tag="div",
-                attrs={"id": toolbar_id, "hx-preserve": "true"},
-                children=(),
-            ))
-        else:
+        if self._has_toolbar(state):
             children.append(self._toolbar_node(
                 toolbar_id=toolbar_id, state=state, ref=ref,
                 color=color, slots=slots, sizes=sizes,
@@ -1008,15 +898,12 @@ class Datatable(Component):
         # instance; the raw milliseconds, for their part, have been
         # consumed. So we forward the modifier, not the kwarg — otherwise
         # the delay is accepted then lost, which
-        # `test_trigger_modifiers_survive` measured on 2026-09-07.
+        # `test_trigger_modifiers_survive` checks.
         table._trigger_modifier = self._trigger_modifier
         children.append(Component.render_detached(table))
 
         # ── Footer ──────────────────────────────────────────────────
-        info_class = " ".join(
-            p for p in (slots.get("footer_info", ""), sizes.get("info", ""))
-            if p
-        )
+        info_class = self.compose_class("footer_info")
         # Always rendered when there is anything to count : the result
         # total is the only feedback that a search actually narrowed
         # something, and it must not vanish when the pager does.
@@ -1056,13 +943,8 @@ class Datatable(Component):
     def _has_toolbar(self, state: DatatableState) -> bool:
         """Does this table have a toolbar at all?
 
-        The structural counterpart of :meth:`_toolbar_can_be_preserved` —
-        which answers "could the bar have changed?", a question that only
-        makes sense if there is a bar. The four terms are exactly those
-        :meth:`_toolbar_node` knows how to render, and it is for that
-        reason that they live here rather than copied in two places: the
-        two must answer alike or the ``shell ⇔ live node`` invariant
-        breaks.
+        The four terms are exactly those :meth:`_toolbar_node` knows how
+        to render: no control, no bar — not even an empty ``<div>``.
 
         ``state.filters`` is one of them because the "Clear filters"
         button only exists when something filters — a table with no other
@@ -1081,26 +963,23 @@ class Datatable(Component):
     ) -> Node:
         """The full toolbar.
 
-        Called only when :meth:`_has_toolbar` is true and the bar can NOT
-        be preserved — so it has neither of those two cases to
-        recognise.
+        Called only when :meth:`_has_toolbar` is true.
         """
         tools: list[Node] = []
         if self._search:
             tools.append(Component.render_detached(Input(
                 value=state.search,
                 name=_field(_SEARCH_FIELD, self._state_cls),
-                placeholder=self._search_placeholder,
+                placeholder=(text("datatable.search") if self._search_placeholder is None
+                             else self._search_placeholder),
                 icon_left="search",
                 # Clearing the search from the keyboard asks for a
                 # select-all followed by a delete; the cross does it in
                 # one gesture and leaves with the `change`, so the server
                 # drops the search without anything to re-wire here.
                 clearable=True,
-                size=sizes.get("toolbar", "sm"),
-                classes=" ".join(p for p in (
-                    slots.get("search", ""), sizes.get("search", ""),
-                ) if p),
+                size=sizes.get("toolbar_size", "sm"),
+                classes=self.compose_class("search"),
                 on_change=functools.partial(search_for, ref),
             )))
         # Only offered once something IS filtered : a permanently visible
@@ -1118,12 +997,12 @@ class Datatable(Component):
                 # control that UNDOES something, and an icon has no text
                 # to say it in its place. Same intent as the filter
                 # panel's "Clear", whose theme turns to error
-                # (`header_btn_muted`). Not `primary`: the accent is
+                # (`footer_btn_muted`). Not `primary`: the accent is
                 # reserved for the ACTIVE filter (cf. `components.md`
                 # § "the accent marks the ACTIVE peer"), and a reset is
                 # not a state to signal.
                 variant="surface", color="error",
-                size=sizes.get("toolbar", "sm"),
+                size=sizes.get("toolbar_size", "sm"),
                 tooltip=text("datatable.clear_filters"),
                 aria_label=text("datatable.clear_filters"),
                 on_click=functools.partial(clear_filters, ref),
@@ -1135,22 +1014,17 @@ class Datatable(Component):
         for col in self._columns:
             if col.key in self._filter_domains:
                 tools.append(Component.render_detached(
-                    self._column_filter(col, colour=color, sizes=sizes)
+                    self._column_filter(col, colour=color, slots=slots,
+                                        sizes=sizes)
                 ))
         if self._exportable:
             tools.append(self._export_link(slots=slots, sizes=sizes))
         return Element(
             tag="div",
             attrs={
-                # ``id`` YES — it is the target the shell aims at.
-                # ``hx-preserve`` NO, and it is the very opposite of a
-                # detail: HTMX reads the attribute on the node THAT
-                # ARRIVES and, if it finds it, keeps the OLD one.
-                # Carrying it here would make the fresh bar be ignored —
-                # the "Clear filters" button would never appear and the
-                # active filter would not colour. Seen in the browser: 27
-                # results displayed, and no button to undo the filter
-                # that had produced them.
+                # The zone diff's target: an addressed node is diffed and
+                # shipped on its own, so an unchanged bar stays out of the
+                # response.
                 "id": toolbar_id,
                 "class": slots.get("toolbar", ""),
             },
@@ -1181,19 +1055,36 @@ def _check_exportable(exportable: bool, rows_source: Any) -> bool:
             "The CSV must hold every matching row, so the server has to "
             "re-run your query outside the render that produced the page "
             "— and a plain list is gone by then. Pass a module-level "
-            "function instead:\n"
+            "function instead; apply_query keeps the sort, search, "
+            "filters and paging a list had:\n"
+            "    from bretzel.components import Query, apply_query\n"
             "    def load_rows(q: Query) -> tuple[list, int]:\n"
-            "        rows, total = ..., ...\n"
-            "        return rows, total\n"
-            "    ui.datatable(rows=load_rows, exportable=True, ...)"
+            "        return apply_query(my_rows(), COLUMNS, q)\n"
+            "    ui.datatable(rows=load_rows, exportable=True, ...)\n"
+            "What the page knows (a month, an id) rides a partial: "
+            "rows=functools.partial(load_rows, month), with "
+            "load_rows(month, q)."
         )
     return exportable
+
+
+def _value_with_count(counts: Counter[str], count_class: str,
+                      value: Any, label: Any) -> Node:
+    """A filter option's body : the value, then how many rows carry it.
+
+    A fragment, so the two halves are items of the option's own flex row.
+    """
+    return FragmentNode(children=(
+        TextNode(str(label)),
+        Element(tag="span", attrs={"class": count_class},
+                children=(TextNode(str(counts.get(str(value), 0))),)),
+    ))
 
 
 def _check_domain(col: Column, domain: list[str]) -> list[str]:
     """Refuse a filter tick-list too large to be one.
 
-    See ``_MAX_FILTER_VALUES`` for the measured cost. The message names
+    See ``_MAX_FILTER_VALUES`` for why. The message names
     the column and the count, because the usual cause is ``filter=True``
     landing on a free-text field where every row is its own value — and
     from the call site that mistake is invisible.

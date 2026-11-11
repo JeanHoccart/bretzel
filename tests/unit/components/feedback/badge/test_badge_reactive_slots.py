@@ -162,9 +162,10 @@ class TestDismissible:
 class TestBindableSurface:
     def test_dismissible_not_bindable(self) -> None:
         """``dismissible`` n'est plus bindable (règle « driver client,
-        sinon serveur » figée 2026-07-16 : ∅). Seul ``label`` l'est."""
+        sinon serveur » figée 2026-07-16 : ∅). ``label`` l'est, et ses
+        icônes depuis le 2026-11-06 (toutes les icônes du catalogue)."""
         assert "dismissible" not in Badge.BINDABLE_PROPS
-        assert Badge.BINDABLE_PROPS == ("label",)
+        assert Badge.BINDABLE_PROPS == ("label", "icon_left", "icon_right")
 
     def test_close_event_declared(self) -> None:
         assert Badge.EVENTS == ("close",)

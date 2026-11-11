@@ -13,9 +13,9 @@ registry. Out-of-context ``schedule`` raises
 :class:`BackgroundContextError`, pointing at the direct-await escape for
 contexts with no live request (cron, startup hooks, external workers).
 
-What this is **not** (``.claude/bretzel/handlers.md`` § *background*) : not a job
+What this is **not**: not a job
 queue with retries / persistence, not scheduled / periodic by itself,
-not a substitute for ``@refreshable(..., broadcast=[State])``. It is best-effort
+not a way to reach the other open tabs (a state they show does). It is best-effort
 after-response work (emails, analytics, cache warmup, a one-shot SSE
 animation loop). A raising task is logged by Starlette but never crashes
 the worker — the response already shipped.

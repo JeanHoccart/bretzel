@@ -29,15 +29,15 @@ class DateRangePickerPlayground(PageState):
     max:               str = field(default="")
     disabled_dates:    str = field(default="")  # comma-separated ISO dates
     marks:             str = field(default="")  # comma-separated ISO dates
-    placeholder_start: str = field(default="Start")
-    placeholder_end:   str = field(default="End")
+    placeholder_start: str = field(default="")
+    placeholder_end:   str = field(default="")
     separator:         str = field(default="→")
     color:             str = field(default="primary")
     size:              str = field(default="md")
-    weekstart:         int = field(default=1)
+    week_start:         int = field(default=1)
     locale:            str = field(default="en")
     clearable:         str = field(default="on")
-    close_on_close:    str = field(default="on")
+    close_on_pick:    str = field(default="on")
     disabled:          str = field(default="off")
     required:          str = field(default="off")
 

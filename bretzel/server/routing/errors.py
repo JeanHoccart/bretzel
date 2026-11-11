@@ -22,9 +22,6 @@ through the standard :func:`render_page` pipeline. If lookup fails
 — or the user page itself raises during render — we fall back to
 the self-contained :func:`default_error_page` HTML (no Tailwind /
 runtime dependencies, works even if the theme is broken).
-
-Spec ref : ``.claude/bretzel/handlers.md`` § *server/errors.py*,
-``.claude/bretzel/render.md`` § *@error*.
 """
 
 from __future__ import annotations

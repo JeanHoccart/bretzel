@@ -1,6 +1,6 @@
 """L'onglet qui écrit ne se rediffuse pas à lui-même.
 
-Une zone ``@refreshable(broadcast=[Etat])`` reçoit son HTML DANS la
+Une zone ``@refreshable`` reçoit son HTML DANS la
 réponse de l'action qui a muté ``Etat``. Le signal temps réel part
 ensuite vers les autres clients — et partait aussi vers celui qui venait
 d'écrire, qui redemandait donc chacune de ses zones pour obtenir

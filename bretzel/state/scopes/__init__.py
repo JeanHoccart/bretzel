@@ -14,11 +14,12 @@ from bretzel.state.scopes.client import (
     ReactivityError,
     rendering_scope,
 )
-from bretzel.state.scopes.server import SCOPES, ServerScope, ServerState
+from bretzel.state.scopes.server import SCOPES, SHARED_SCOPES, ServerScope, ServerState
 
 __all__ = [
     "PERSISTS",
     "SCOPES",
+    "SHARED_SCOPES",
     "ClientBinding",
     "ClientExpression",
     "ClientPersist",

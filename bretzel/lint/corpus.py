@@ -109,7 +109,7 @@ def modules(paths: list[Path] | tuple[Path, ...]) -> list[Module]:
 # the rule would condemn the documented escape hatch for deviating from
 # the shipped theme, that is to say precisely the form we recommend.
 #
-# ``contextvars`` and not a module variable: the charter's anti-rule 2
+# ``contextvars`` and not a module variable: the framework
 # forbids mutable global state and explicitly allows registries scoped to
 # a call. Unbound = an empty tuple, so a rule called outside ``run`` (a
 # unit test) degrades cleanly instead of breaking.
@@ -122,15 +122,12 @@ _CORPUS: ContextVar[tuple[Module, ...]] = ContextVar("bretzel_lint_corpus", defa
 #
 # A rule reports on one module, but those reading ``current()`` compute
 # the same thing for each of them. Without memoisation, ``run`` becomes
-# quadratic: measured on 2026-08-27, ``value-outside-table`` re-walked the
-# AST of ``examples/``'s 322 files for each of those 322 files, so
-# **56 s** — on its own two thirds of the lint baseline, and ~110 s of a
-# bare ``pytest``'s 230 s (it is paid twice: the rule alone, then the
-# baseline).
+# quadratic: ``value-outside-table`` would re-walk the AST of every file
+# of the corpus for each of those files.
 #
 # The memo lives in the BINDING, not in a global cache: its lifetime is
 # exactly the pass's, so two ``run`` over two corpora cannot contaminate
-# each other, and the charter's anti-rule 2 holds. Outside ``run`` (a rule
+# each other. Outside ``run`` (a rule
 # called on its own in a unit test), there is no binding: we build without
 # memoising rather than write into a default shared by every caller.
 _DERIVED: ContextVar[dict[str, Any] | None] = ContextVar(

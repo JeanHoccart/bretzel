@@ -59,8 +59,8 @@ def row(step: str) -> None:
                          attrs={"data-ladder": "input"})
             with ui.toggle_group(value="list", size=step,
                                  attrs={"data-ladder": "toggle_group"}):
-                ui.toggle_button("list", "List")
-                ui.toggle_button("board", "Board")
+                ui.toggle_button("list", label="List")
+                ui.toggle_button("board", label="Board")
             ui.button("Save", color="primary", size=step,
                       attrs={"data-ladder": "button"})
             ui.button("Cancel", variant="soft", size=step,
@@ -89,8 +89,7 @@ def page() -> None:
         with ui.vstack(gap="xs"):
             ui.heading("Size ladder", level=1, size="2xl")
             ui.text("Every control at each step, on one row: one height and "
-                    "one text size per row. The page is measured by "
-                    "tests/probes/probe_ladder.py.", color="muted")
+                    "one text size per row.", color="muted")
         with ui.card(padding="md"):
             with ui.vstack(gap="lg"):
                 for step in SIZES:

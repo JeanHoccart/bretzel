@@ -56,8 +56,9 @@ class Query:
     #: against whatever columns make sense for your source.
     search: str = ""
     #: ``{column_key: [selected values]}`` — only columns the reader
-    #: actually narrowed appear. An absent key means "no filter", which
-    #: is NOT the same as an empty list (that one matches nothing).
+    #: actually narrowed appear, each with at least one value. An absent
+    #: key means "no filter" ; so does an empty list, which the state
+    #: never hands out.
     filters: dict[str, list[str]] = field(default_factory=dict)
     #: ``True`` on the CSV path. Ignore it and you export one page.
     for_export: bool = False
@@ -80,9 +81,7 @@ class Query:
         comparison the component applies (stringified equality against
         the selected values), rather than guess at it.
         """
-        for key, selected in self.filters.items():
-            if not selected:
-                return False
-            if str(read(key)) not in selected:
-                return False
-        return True
+        return all(
+            str(read(key)) in selected
+            for key, selected in self.filters.items() if selected
+        )

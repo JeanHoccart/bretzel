@@ -73,7 +73,7 @@ class TestStructure:
         # alors que le comportement était inchangé sur un booléen. Un test
         # qui fige une chaîne rend un refactor correct indistinguable d'une
         # régression.
-        from bretzel.components.base._wiring import bool_attr
+        from bretzel.components.base.scope_wiring import bool_attr
 
         assert wrapper.attrs.get("bz-attr:aria-expanded") == bool_attr("open")
 
@@ -280,9 +280,9 @@ class TestImperativeAPI:
         with render_isolated():
             p = Popover()
             el = p.render()
-        assert el.attrs.get("bz-on:bz-open") == "open = true"
-        assert el.attrs.get("bz-on:bz-close") == "open = false"
-        assert el.attrs.get("bz-on:bz-toggle") == "open = !open"
+        assert el.attrs.get("bz-on:bz-open") == "$event.stopPropagation(); open = true"
+        assert el.attrs.get("bz-on:bz-close") == "$event.stopPropagation(); open = false"
+        assert el.attrs.get("bz-on:bz-toggle") == "$event.stopPropagation(); open = !open"
 
     def test_bz_listeners_present_on_root_bound(self) -> None:
         # Bound case : listeners flip the binding path directly. Both
@@ -299,9 +299,9 @@ class TestImperativeAPI:
             p = Popover(open=ui_state.flag)
             el = p.render()
         path = "$bz.state.UI.default.flag"
-        assert el.attrs.get("bz-on:bz-open") == f"{path} = true"
-        assert el.attrs.get("bz-on:bz-close") == f"{path} = false"
-        assert el.attrs.get("bz-on:bz-toggle") == f"{path} = !{path}"
+        assert el.attrs.get("bz-on:bz-open") == f"$event.stopPropagation(); {path} = true"
+        assert el.attrs.get("bz-on:bz-close") == f"$event.stopPropagation(); {path} = false"
+        assert el.attrs.get("bz-on:bz-toggle") == f"$event.stopPropagation(); {path} = !{path}"
 
     def test_methods_return_str_consumable_by_on_click(self) -> None:
         # Sanity : the returned values are plain strings (same shape as

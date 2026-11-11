@@ -140,6 +140,7 @@ class TestWidths:
             ("md",   "max-w-md"),
             ("lg",   "max-w-lg"),
             ("xl",   "max-w-xl"),
+            ("2xl",  "max-w-5xl"),
             ("full", "max-w-none"),
         ],
     )
@@ -428,9 +429,9 @@ class TestImperativeAPI:
         with render_isolated():
             d = Dialog(title="X")
             el = d.render()
-        assert el.attrs.get("bz-on:bz-open") == "open = true"
-        assert el.attrs.get("bz-on:bz-close") == "open = false"
-        assert el.attrs.get("bz-on:bz-toggle") == "open = !open"
+        assert el.attrs.get("bz-on:bz-open") == "$event.stopPropagation(); open = true"
+        assert el.attrs.get("bz-on:bz-close") == "$event.stopPropagation(); open = false"
+        assert el.attrs.get("bz-on:bz-toggle") == "$event.stopPropagation(); open = !open"
 
     def test_bz_listeners_present_on_root_bound(self) -> None:
         # Bound case : listeners flip the binding path directly. Both
@@ -448,9 +449,9 @@ class TestImperativeAPI:
                 d = Dialog(title="X", open=ui_state.flag)
                 el = d.render()
         path = "$bz.state.UI.default.flag"
-        assert el.attrs.get("bz-on:bz-open") == f"{path} = true"
-        assert el.attrs.get("bz-on:bz-close") == f"{path} = false"
-        assert el.attrs.get("bz-on:bz-toggle") == f"{path} = !{path}"
+        assert el.attrs.get("bz-on:bz-open") == f"$event.stopPropagation(); {path} = true"
+        assert el.attrs.get("bz-on:bz-close") == f"$event.stopPropagation(); {path} = false"
+        assert el.attrs.get("bz-on:bz-toggle") == f"$event.stopPropagation(); {path} = !{path}"
 
     def test_methods_return_str_consumable_by_on_click(self) -> None:
         # Sanity : the returned values are plain strings (same shape as

@@ -48,21 +48,28 @@ import json
 from collections.abc import Callable
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component, reactive_prop, reject_component
-from bretzel.components.base._wiring import (
+from bretzel.components.base import (
+    Component,
+    reactive_prop,
+    reject_component,
+)
+from bretzel.components.base.arguments import reject_attribute_component
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.overlay_wiring import (
     anchored_dismiss_init,
+    anchored_panel,
     imperative_listeners,
     install_open_close_toggle,
-    install_value_commands,
-    scope_literal,
 )
+from bretzel.components.base.scope_wiring import scope_literal
 from bretzel.components.inputs._picker_field import (
-    anchored_panel,
     clear_button,
     detach_wrapper_carriers,
     hidden_carrier,
     relocate_field_events,
     trigger_button,
+    typed_field_attrs,
     value_expr,
 )
 from bretzel.components.inputs.time_picker.theme import TIME_PICKER_THEME
@@ -87,7 +94,7 @@ def time_to_hhmm(value: Any, *, owner: str = "TimePicker") -> str:
     Same contract as ``inputs/_wiring.date_to_iso`` for the date family —
     deliberately, the two families read alike.
     """
-    from bretzel.components.base.attrs import ComponentDefinitionError
+    from bretzel.components.base.attrs import ComponentUsageError
 
     if value is None:
         return ""
@@ -95,28 +102,18 @@ def time_to_hhmm(value: Any, *, owner: str = "TimePicker") -> str:
         return f"{value.hour:02d}:{value.minute:02d}"
     if isinstance(value, str):
         return value
-    raise ComponentDefinitionError(
+    raise ComponentUsageError(
         f"{owner} value must be time / None / str, "
         f"got {type(value).__name__}: {value!r}"
     )
 
 
-#: Blur normalisation: free input becomes ``HH:MM``, or empties. Templated
-#: on ``{V}`` (the value expression) so that bound mode
-#: (``$bz.state.X.y``) and literal mode (``value``) share the SAME parser
-#: — exactly like ``NORMALISE_TO_ISO_TEMPLATE`` at DatePicker.
-NORMALISE_TO_HHMM_TEMPLATE = (
-    "(() => {{ const raw = String({V} || '').trim(); "
-    "if (!raw) {{ {V} = ''; return; }} "
-    # ``9h30`` / ``9:30`` / ``9.30`` / ``930`` / ``9`` — a single
-    # pattern covers the five ways people type a time.
-    "const m = raw.match(/^(\\d{{1,2}})[^\\d]?(\\d{{2}})?$/); "
-    "if (!m) {{ {V} = ''; return; }} "
-    "const h = Number(m[1]), mi = Number(m[2] || 0); "
-    "if (h > 23 || mi > 59) {{ {V} = ''; return; }} "
-    "const pad = n => String(n).padStart(2, '0'); "
-    "{V} = pad(h) + ':' + pad(mi); }})()"
-)
+#: Blur normalisation: free input becomes ``HH:MM``, or empties. The
+#: reader is ``$bz.times.typed`` (``locale.js``), the ONE reader of a
+#: typed hour — « 14h30 », « 1430 », « 2:30 PM ». Templated on ``{V}``
+#: (the value expression) so that bound and literal modes share it,
+#: exactly like ``NORMALISE_TO_ISO_TEMPLATE``.
+NORMALISE_TO_HHMM_TEMPLATE = "{V} = $bz.times.typed({V})"
 
 
 def normalise_to_hhmm_js(value_expr: str) -> str:
@@ -136,7 +133,7 @@ def _in_bounds(candidate: str, low: str, high: str) -> bool:
     return not (high and candidate > high)
 
 
-class TimePicker(Component):
+class TimePicker(ValueCommands, FocusCommands, Component):
     """Render a time field with hour and minute panels."""
 
     THEME: ClassVar[dict[str, Any]] = TIME_PICKER_THEME
@@ -153,6 +150,10 @@ class TimePicker(Component):
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
+    # Where ``autofocus=`` / ``.focus()`` land. NOT ``"input"``: the first
+    # ``<input>`` is the HIDDEN carrier, where ``.focus()`` does nothing.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("input:not([type=hidden])",)
+    _command_value = staticmethod(time_to_hhmm)
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
@@ -172,9 +173,9 @@ class TimePicker(Component):
 
     def __init__(
         self,
-        value: Any = None,
         *,
-        placeholder: str = "HH:MM",
+        value: Any = None,
+        placeholder: str | None = None,
         step: int = 15,
         min: Any = None,
         max: Any = None,
@@ -184,14 +185,15 @@ class TimePicker(Component):
         required: bool | None = None,
         clearable: bool = True,
         close_on_pick: bool = True,
-        hour_label: str = "H",
-        minute_label: str = "M",
+        hour_label: str | None = None,
+        minute_label: str | None = None,
         name: str | None = None,
         on_change: Callable[..., Any] | str | None = None,
         on_focus: Callable[..., Any] | str | None = None,
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
+        reject_attribute_component(placeholder, owner="TimePicker", prop="placeholder")
         if not 1 <= int(step) <= 60:
             from bretzel.components.base.attrs import ComponentUsageError
 
@@ -238,21 +240,11 @@ class TimePicker(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # AFTER `super().__init__`: both installers read
+        # AFTER `super().__init__`: the installer reads
         # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
-        # carrier (`hidden_carrier`), which does not take focus.
-        # Measured — `.focus()` did nothing on all six.
-        install_value_commands(
-            self, focus_selector="input:not([type=hidden])"
-        )
 
     def render(self) -> Element:
-        theme = self._resolved_theme()
-        sizes = theme.get("sizes", {})
-        size_key = self._reactive_values.get("size") or "md"
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
         disabled = bool(self._reactive_values.get("disabled"))
         required = bool(self._reactive_values.get("required"))
 
@@ -303,8 +295,8 @@ class TimePicker(Component):
         # there. It is the exact mirror of a scope METHOD body, where
         # only `this.value` resolves (`scope_literal` writes that one),
         # and it only shows in LITERAL mode: in bound mode both render
-        # the same store path. Measured — `.set()` set nothing on the
-        # time_picker, and on it alone.
+        # the same store path. With `this.value` here, `.set()` would set
+        # nothing on the time_picker.
         root_attrs.setdefault(
             "bz-on:bz-set", f"{value_expr(self)} = $event.detail.value"
         )
@@ -324,15 +316,20 @@ class TimePicker(Component):
         # ── Editable field ───────────────────────────────────────────
         field_attrs: dict[str, Any] = {
             "type": "text",
-            "placeholder": self._placeholder,
-            "class": self.slot_class("input_field", size_cfg.get("input_field", "")),
+            # The author's hint, or the browser's own: « --h-- » in
+            # French, « --:-- -- » in American English.
+            **({"placeholder": self._placeholder} if self._placeholder is not None
+               else {"bz-attr:placeholder": "$bz.times.pattern()"}),
+            "class": self.compose_class("input_field"),
             "value": initial,
-            "bz-model": val,
-            "bz-on:blur": normalise_to_hhmm_js(val),
+            # Shows the hour as the page's language writes it (« 14h30 »,
+            # « 2:30 PM »), writes it once normalised into HH:MM.
+            **typed_field_attrs(val, normalise_to_hhmm_js,
+                                lambda v: f"$bz.times.shown({v})"),
             "autocomplete": "off",
             "inputmode": "numeric",
             "spellcheck": "false",
-            "aria-label": self._placeholder,
+            "aria-label": text("time_picker.label"),
         }
         if disabled:
             field_attrs["disabled"] = True
@@ -355,8 +352,8 @@ class TimePicker(Component):
 
         if self._clearable:
             cross = clear_button(
-                css=self.slot_class("clear_button", size_cfg.get("clear_button", "")),
-                icon_css=self.slot_class("button_icon", size_cfg.get("button_icon", "")),
+                css=self.compose_class("clear_button"),
+                icon_css=self.compose_class("button_icon"),
                 aria_label=text("time_picker.clear"),
                 clear_js=f"{val} = ''",
                 show_when=val,
@@ -368,8 +365,8 @@ class TimePicker(Component):
 
         opener = trigger_button(
             icon="clock",
-            css=self.slot_class("trigger_button", size_cfg.get("trigger_button", "")),
-            icon_css=self.slot_class("button_icon", size_cfg.get("button_icon", "")),
+            css=self.compose_class("trigger_button"),
+            icon_css=self.compose_class("button_icon"),
             aria_label=text("time_picker.open"),
             disabled=disabled,
         )
@@ -383,25 +380,15 @@ class TimePicker(Component):
             # The step's height is on the FRAME, which carries the
             # border (cf. the theme's note) — otherwise 2 px too many.
             attrs={
-                "class": self.slot_class(
-                    "input_frame", size_cfg.get("input_frame", "")),
+                "class": self.compose_class("input_frame"),
                 "bz-ref": "bztrigger",
             },
             children=tuple(frame_children),
         )
 
-        # A cell's class travels ONCE, on the container. Before
-        # 2026-09-01 it was copied onto each of the 28 or 84 cells: 452
-        # characters × 84 = 38 kB of a single identical string, in a page
-        # that weighed 54.
-        cell_base = " ".join(
-            p
-            for p in (
-                self.compose_class("cell", apply_variant_size_modifiers=False),
-                size_cfg.get("cell", ""),
-            )
-            if p
-        )
+        # A cell's class travels ONCE, on the container, instead of being
+        # copied as a single identical string onto each cell.
+        cell_base = self.compose_class("cell")
 
         # ── Panel: two snapping columns ──────────────────────────────
         panel = anchored_panel(
@@ -410,7 +397,7 @@ class TimePicker(Component):
             # 24 hours, opening at 14:00 while showing 00-06 would force
             # you to search. It is an ACTION triggered by the ``open``
             # signal, not a computed value — so immune to the "a
-            # measurement is not a signal" trap that bit the Carousel.
+            # measurement is not a signal" trap.
             extra_effect=(
                 "if (open) $el.querySelectorAll('[data-selected=true]')"
                 ".forEach(c => c.scrollIntoView({block: 'center'}))"
@@ -431,36 +418,40 @@ class TimePicker(Component):
                         # The effect does TWO things, and the second is
                         # the one that justifies its being an effect:
                         # paint the cells once, then re-mark the
-                        # selection at EVERY change of the value. That
-                        # is what replaces the former 84
-                        # ``bz-attr:data-selected`` — one effect per
-                        # instance instead of one per cell.
+                        # selection at EVERY change of the value: one
+                        # effect per instance instead of one
+                        # ``bz-attr:data-selected`` per cell.
                         # ``_parts()`` is READ here, and that is what
                         # subscribes the effect: without that read it
                         # would never run again and the selection would
                         # stay the first paint's. The ``pick`` travels
                         # as an arrow — a method passed by its name
                         # would lose its ``this``, and the scope is NOT
-                        # ``this`` in a directive expression (measured:
-                        # "scope._parts is not a function", the runtime
-                        # no longer started at all).
+                        # ``this`` in a directive expression:
+                        # "scope._parts is not a function", and the
+                        # runtime would not start at all.
                         "bz-effect": (
                             "$bz.time.fill($el, _parts(), (p, v) => pick(p, v))"
                         ),
                         "data-bz-cell-class": cell_base,
+                        # The half day's column, built by the runtime
+                        # when the page counts its hours by twelve.
+                        "data-bz-period-label": text("time_picker.period"),
                         **({"data-bz-cells-disabled": "true"}
                            if disabled else {}),
                     },
                     children=(
                         self._column(
-                            HOUR, self._hour_label,
+                            HOUR, self._hour_label or text("time_picker.hour"),
+                            self._hour_label or text("time_picker.hours"),
                             [f"{h:02d}" for h in range(24)],
-                            low, high, size_cfg, disabled, part_is_hour=True,
+                            low, high, disabled, part_is_hour=True,
                         ),
                         self._column(
-                            MINUTE, self._minute_label,
+                            MINUTE, self._minute_label or text("time_picker.minute"),
+                            self._minute_label or text("time_picker.minutes"),
                             [f"{m:02d}" for m in range(0, 60, self._step)],
-                            low, high, size_cfg, disabled, part_is_hour=False,
+                            low, high, disabled, part_is_hour=False,
                         ),
                     ),
                 ),
@@ -479,33 +470,14 @@ class TimePicker(Component):
 
     # ── Piece factory ───────────────────────────────────────────────
 
-    def _icon(self, name: str, size_cfg: dict[str, Any]) -> Element:
-        return Element(
-            tag="iconify-icon",
-            attrs={
-                "icon": f"lucide:{name}",
-                "class": " ".join(
-                    p
-                    for p in (
-                        self.compose_class(
-                            "button_icon", apply_variant_size_modifiers=False
-                        ),
-                        size_cfg.get("button_icon", ""),
-                    )
-                    if p
-                ),
-            },
-            children=(),
-        )
-
     def _column(
         self,
         part: int,
         label: str,
+        name: str,
         values: list[str],
         low: str,
         high: str,
-        size_cfg: dict[str, Any],
         disabled: bool,
         *,
         part_is_hour: bool,
@@ -536,34 +508,18 @@ class TimePicker(Component):
         header = Element(
             tag="div",
             attrs={
-                "class": " ".join(
-                    p
-                    for p in (
-                        self.compose_class(
-                            "column_label", apply_variant_size_modifiers=False
-                        ),
-                        size_cfg.get("column_label", ""),
-                    )
-                    if p
-                )
+                "class": self.compose_class("column_label")
             },
             children=(TextNode(label),),
         )
         return Element(
             tag="div",
             attrs={
-                "class": " ".join(
-                    p
-                    for p in (
-                        self.compose_class(
-                            "column", apply_variant_size_modifiers=False
-                        ),
-                        size_cfg.get("column", ""),
-                    )
-                    if p
-                ),
+                "class": self.compose_class("column"),
                 "role": "listbox",
-                "aria-label": label,
+                # The header is short (« h »), the name is a word: without
+                # it, a screen reader would say « H 14 ».
+                "aria-label": name,
                 # ── The column DESCRIBES itself, it does not write
                 # itself ────────────────────────────────────────────
                 # Its cells are painted by ``$bz.time.fill``. What
@@ -573,7 +529,7 @@ class TimePicker(Component):
                 "data-bz-part": str(part),
                 "data-bz-values": ",".join(values),
                 "data-bz-off": ",".join(off),
-                "data-bz-cell-label": label,
+                "data-bz-cell-label": name,
             },
             children=(header,),
         )

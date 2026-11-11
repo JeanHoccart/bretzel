@@ -48,7 +48,7 @@ def task_card(task: dict) -> None:
             ui.avatar(name=task["owner"], size="xs", color="secondary")
 
 
-@refreshable(deps=[Board])
+@refreshable
 def kanban() -> None:
     columns = Board().columns
     with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
@@ -89,7 +89,7 @@ def is_pinned(item: str) -> bool:
     return item.startswith("Security")
 
 
-@refreshable(deps=[Priorities])
+@refreshable
 def priority_list() -> None:
     with ui.dropzone(on_move=reorder, classes="w-full max-w-md"), ui.vstack(gap="xs"):
         for rank, item in enumerate(
@@ -120,7 +120,7 @@ def archive_file(m: Move) -> None:
     state.archived += 1
 
 
-@refreshable(deps=[Downloads])
+@refreshable
 def downloads() -> None:
     state = Downloads()
     with ui.grid(cols={"base": 1, "sm": 2}, gap="md", classes="w-full max-w-xl"):
@@ -162,7 +162,7 @@ def assign(m: Move) -> None:
         review.approver = m.item_key
 
 
-@refreshable(deps=[Review])
+@refreshable
 def review_roles() -> None:
     review = Review()
     with ui.vstack(gap="md", classes="w-full max-w-xl"):

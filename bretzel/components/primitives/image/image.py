@@ -47,7 +47,7 @@ class Image(Component):
     # ``@refreshable``'s re-render), not under a client driver. No
     # binding is justified here — the bindable rule asks for a
     # client-side driver, there is none.
-    src: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
+    src: str | None = reactive_prop(default=None, emit_attr=False)
     alt: str = reactive_prop(default="", emit_attr=False)
     ratio: str | None = reactive_prop(default=None, emit_attr=False)
     fit: str = reactive_prop(default="cover", emit_attr=False)
@@ -72,10 +72,8 @@ class Image(Component):
 
         # ``slot_class`` composes the root slot and discards the empty
         # ones — it is the charter's route, the one ``markdown`` /
-        # ``code`` already take. It costs 1.6 µs more than the hand-made
-        # join (measured, alternating A/B): 0.05 ms on a gallery of 30
-        # images, against three different dialects among five sibling
-        # components.
+        # ``code`` already take, rather than one more dialect among the
+        # sibling components.
         # ``classes=`` is set by the metaclass wrap — not here (duplicate).
         root_class = self.slot_class(
             "root",

@@ -30,7 +30,7 @@ NUMBER_INPUT_THEME: dict[str, Any] = {
         "shell": (
             "flex items-stretch w-full rounded-field border-(length:--bz-stroke) "
             "border-text/10 bg-interface text-text "
-            "transition-all duration-200 "
+            "transition duration-200 "
             "focus-within:border-(--bz-solid) "
             "focus-within:ring-2 focus-within:ring-(--bz-focus-soft) "
             "focus-within:ring-offset-2 "
@@ -59,18 +59,19 @@ NUMBER_INPUT_THEME: dict[str, Any] = {
         # One stepper button. Compact (half the input height each)
         # so they stack to match the input. ``cursor-pointer`` +
         # hover bg for affordance.
-        # ``min-h-0``: the two halves SHARE the shell's inner height. At
-        # ``xs`` that is 19 px, and a flex item's automatic minimum (its
-        # 11 px glyph box) made the pair 23 — the ▼ was cut by the
-        # shell's ``overflow-hidden``. Squeezed, only the empty margin of
-        # the 1em box overflows: a chevron is a quarter of its viewBox.
+        # ``min-h-0``: the two halves SHARE the shell's inner height.
+        # Without it, at ``xs``, a flex item's automatic minimum (its
+        # glyph box) would make the pair taller than the shell, and the
+        # shell's ``overflow-hidden`` would cut the ▼. Squeezed, only the
+        # empty margin of the 1em box overflows: a chevron is a quarter of
+        # its viewBox.
         "stepper": (
             "flex items-center justify-center "
             "flex-1 min-h-0 px-2 "
             "text-muted not-disabled:hover:text-(--bz-text) "
             "not-disabled:hover:bg-(--bz-bg) "
             "cursor-pointer outline-none "
-            "transition-colors duration-100 "
+            "transition-colors duration-150 "
             "disabled:opacity-50 disabled:cursor-not-allowed"
         ),
         # Chevron sizing handled by the size scale below ; this

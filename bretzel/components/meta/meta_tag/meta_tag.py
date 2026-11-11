@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component
+from bretzel.components.base import Component, ComponentUsageError
 from bretzel.core.tree import Element
 from bretzel.core.tree import FragmentNode as FragmentNode
 from bretzel.render.context import maybe_current_context
@@ -52,7 +52,7 @@ class MetaTag(Component):
         **kwargs: Any,
     ) -> None:
         if kwargs:
-            raise TypeError(
+            raise ComponentUsageError(
                 f"MetaTag accepts only ``name=`` / ``property=`` / "
                 f"``http_equiv=`` / ``content=`` — got extras : "
                 f"{sorted(kwargs)}."
@@ -65,14 +65,14 @@ class MetaTag(Component):
             ) if val is not None
         ]
         if not provided:
-            raise TypeError(
+            raise ComponentUsageError(
                 "MetaTag needs exactly one of name= / property= / "
                 "http_equiv= — none provided. A <meta> tag without "
                 "an identifier is invalid HTML."
             )
         if len(provided) > 1:
             keys = ", ".join(k for k, _ in provided)
-            raise TypeError(
+            raise ComponentUsageError(
                 f"MetaTag accepts only ONE identifier kwarg — got "
                 f"multiple : {keys}. Pick the one that matches the "
                 f"semantics : ``name=`` (description / robots / "
@@ -80,7 +80,7 @@ class MetaTag(Component):
                 f"``http_equiv=`` (refresh / X-UA-Compatible)."
             )
         if not isinstance(content, str):
-            raise TypeError(
+            raise ComponentUsageError(
                 f"MetaTag content must be a str — got "
                 f"{type(content).__name__}."
             )
@@ -96,7 +96,7 @@ class MetaTag(Component):
         """
         ctx = maybe_current_context()
         if ctx is None:
-            raise RuntimeError(
+            raise ComponentUsageError(
                 "ui.meta_tag(...) must be called inside a render scope "
                 "(a @page or @layout handler). It writes to "
                 "the request's RenderContext, which doesn't exist "

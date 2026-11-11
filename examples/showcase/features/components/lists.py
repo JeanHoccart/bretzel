@@ -34,7 +34,7 @@ def restore() -> None:
     Invites().pending = invitations()
 
 
-@refreshable(deps=[Invites])
+@refreshable
 def pending_invites() -> None:
     pending = Invites().pending
     if not pending:

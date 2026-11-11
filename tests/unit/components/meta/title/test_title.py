@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from bretzel.components.base import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.meta.title.title import Title
 from bretzel.core.serialize import serialize
@@ -72,7 +73,7 @@ class TestTitleOutsideRenderScope:
         with render_isolated():
             t = Title("Foo")
         # ``render_isolated`` exited — no context is active anymore.
-        with pytest.raises(RuntimeError, match="render scope"):
+        with pytest.raises(ComponentUsageError, match="render scope"):
             t.render()
 
 

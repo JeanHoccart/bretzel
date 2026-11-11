@@ -25,7 +25,7 @@ from examples.playground.features.inspection import emitted_html_block
 PATH = "/dialog"
 
 
-WIDTHS = ["sm", "md", "lg", "xl", "full"]
+WIDTHS = ["sm", "md", "lg", "xl", "2xl", "full"]
 
 
 # ── Per-row imperative demo state ──────────────────────────────────────
@@ -34,7 +34,7 @@ WIDTHS = ["sm", "md", "lg", "xl", "full"]
 # ClientState declaration (the dialog instance owns its open flag in
 # client scope). Each row's Delete button calls ``dlg.open()`` and the
 # dialog body calls ``dlg.close()`` — single-source DOM events under
-# the hood. Cf. `.claude/bretzel/imperative-api.md`.
+# the hood.
 
 class DeletedRows(PageState):
     """Server-side log of which rows have been 'deleted'."""
@@ -152,7 +152,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[DialogPlayground])
+@refreshable
 def server_panel() -> None:
     state = DialogPlayground()
 
@@ -222,7 +222,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[DialogEvents])
+@refreshable
 def events_panel() -> None:
     state = DialogEvents()
 
@@ -279,7 +279,7 @@ def events_panel() -> None:
     )
 
 
-@refreshable(deps=[DeletedRows])
+@refreshable
 def imperative_per_row() -> None:
     """Per-row confirm pattern using the imperative `.open()` /
     `.close()` API — zero ClientState declaration for the dialogs
@@ -601,13 +601,35 @@ def page() -> None:
                             color="muted",
                         )
                         with ui.hstack(justify="end", gap="sm"):
+                            # ``autofocus=``: the focus opens on the
+                            # harmless answer — an Enter does not delete.
                             ui.button("Cancel", variant="ghost",
-                                      on_click=destroy_dlg.close())
+                                      on_click=destroy_dlg.close(),
+                                      autofocus=True)
                             ui.button("Delete forever", color="error",
                                       on_click=destroy_dlg.close())
                     ui.button("Delete account", variant="outline",
                               color="error", icon_left="trash-2",
                               on_click=destroy_dlg.open())
+
+                    ui.heading("autofocus= on the second field", level=3)
+                    ui.text(
+                        "Without a mark, a dialog focuses its first "
+                        "focusable (here the ×). Marked, the field the "
+                        "reader came for takes the cursor.",
+                        color="muted", size="sm",
+                    )
+                    with ui.dialog(title="Rename") as rename_dlg:
+                        with ui.vstack():
+                            with ui.form_field(label="Folder"):
+                                ui.input(value="Projects/2026", readonly=True)
+                            with ui.form_field(label="New name"):
+                                ui.input(value="Quarterly report", autofocus=True)
+                        with ui.hstack(justify="end"):
+                            ui.button("Rename", color="primary",
+                                      on_click=rename_dlg.close())
+                    ui.button("Rename…", icon_left="pencil",
+                              on_click=rename_dlg.open())
 
                     ui.heading("Image preview (full-width)", level=3)
                     with ui.dialog(

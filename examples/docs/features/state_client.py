@@ -75,7 +75,8 @@ def state_client_page() -> None:
                              "survie": 'survives a reload, lost on close',
                              'for': 'a filter, a wizard step'},
                             {"persist": "\"local\"",
-                             "survie": 'survives everything',
+                             "survie": 'survives everything; another open '
+                                       'tab sees it on its next load',
                              'for': 'a real preference (theme, sort)'},
                         ],
                         size="sm",

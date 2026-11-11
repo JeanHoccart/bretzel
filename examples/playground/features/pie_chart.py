@@ -56,6 +56,7 @@ class PieChartPlayground(PageState):
     variant:      str  = field(default="pie")
     show_labels:  bool = field(default=False)
     show_legend:  bool = field(default=True)
+    show_data:      bool = field(default=False)
     center_text:  str  = field(default="")
     dataset:      str  = field(default="sample")
     value_format: str  = field(default="")
@@ -156,6 +157,7 @@ def build_preview(state: PieChartPlayground):
         kwargs["tooltip"] = state.tooltip
     if state.visible == "off":
         kwargs["visible"] = False
+    kwargs["show_data"] = state.show_data
     return ui.pie_chart(dataset(state), **kwargs)
 
 
@@ -166,7 +168,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[PieChartPlayground])
+@refreshable
 def server_panel() -> None:
     state = PieChartPlayground()
 
@@ -216,6 +218,8 @@ def server_panel() -> None:
                                ("long_tail", "long tail 6 slices"),
                                ("empty",     "empty (0 slices)")],
                       on_change=server_changed)
+        with control("show_data (« Show the data »)"):
+            ui.switch(checked=state.show_data, on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes,
                      placeholder="border rounded-xl p-4",
@@ -258,7 +262,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[PieChartEvents])
+@refreshable
 def events_panel() -> None:
     state = PieChartEvents()
     with ui.vstack():
@@ -310,7 +314,7 @@ def client_events_panel() -> None:
             'a ClientState. Zero requests.',
         color="muted", size="sm",
     )
-    clicked = ClientExpression("String($event.detail ?? 'click')")
+    clicked = ClientExpression("new Date().toLocaleTimeString() + ' — ' + $event.detail.label + ' = ' + $event.detail.value")
     ui.pie_chart(data=[("Chrome", 62), ("Safari", 21)],
                  on_item_click=events.log.push(clicked))
 

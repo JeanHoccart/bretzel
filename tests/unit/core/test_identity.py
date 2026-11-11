@@ -81,6 +81,23 @@ class TestKeyed:
 
 
 class TestReset:
+    def test_a_key_outside_the_selector_alphabet_still_gives_a_selectable_id(self) -> None:
+        # ``key="slot-10:2026-11-16"`` made an id that
+        # htmx could not select — the zone stopped redrawing.
+        import re
+
+        g = IdGenerator()
+        for key in ("slot-10:2026-11-16", "a.b", "alex@example.fr", "deux mots", "é"):
+            assert re.fullmatch(r"[A-Za-z0-9_-]+", g.next("root", "row", key=key)), key
+
+    def test_cleaning_a_key_never_merges_two_keys(self) -> None:
+        def one(key: str) -> str:
+            return IdGenerator().next("root", "row", key=key)
+
+        assert one("a:b") != one("a-b")
+        assert one("a:b") != one("a.b")
+        assert one("a:b") == one("a:b")
+
     def test_reset_returns_to_zero(self) -> None:
         g = IdGenerator()
         g.next("root", "btn")

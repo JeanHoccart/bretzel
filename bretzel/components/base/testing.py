@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from bretzel.render.context import RenderContext, use_context
+from bretzel.render.decorators import ZoneRegistry
 
 
 class _StubApp:
@@ -32,6 +33,7 @@ class _StubApp:
         self._pages: list[Callable[..., Any]] = []
         self._realtime: dict[str, Any] = {}
         self._error_handlers: dict[int, Callable[..., Any]] = {}
+        self.zones = ZoneRegistry()
 
     @property
     def theme(self) -> Any:
@@ -51,17 +53,13 @@ class _StubApp:
 
         ``RenderContext._action_key`` reads ``app.config._action_key``;
         without it, ``register_action`` returns an empty signature and
-        the ``hx-post`` come out with no ``data-bz-sig``. That was
-        inconsequential as long as nobody looked — and it stopped being
-        so on 2026-08-27, when the bridge started REFUSING any POST with
-        no signature carrier (an action detached by a morph otherwise
-        left bare and reloaded the whole page).
+        the ``hx-post`` come out with no ``data-bz-sig``. The bridge
+        REFUSES any POST with no signature carrier (an action detached by
+        a morph would otherwise leave bare and reload the whole page).
 
-        Since then, a browser mount built on ``render_isolated`` produces
-        buttons no click can make fire, and its red accuses the
-        component. Measured on ``probe_overlay_dual_event``, whose two
-        carriers came out with ``data-bz-ts`` and without
-        ``data-bz-sig``.
+        Without the key, a browser mount built on ``render_isolated``
+        would therefore produce buttons no click can make fire, and its
+        red would accuse the component.
 
         The key is FIXED and public: this rig protects nothing, it
         reproduces a shape. What :func:`render_isolated`'s docstring

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
+
+from bretzel.components.base import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.data.tree import Tree, TreeNode
+from bretzel.components.primitives.text import Text
 from bretzel.core.serialize import serialize
 from bretzel.state.scopes.client import ClientBinding
 
@@ -203,7 +207,7 @@ class TestSelection:
         assert 'type="hidden"' in out
         assert "hx-post=" in out
         assert 'hx-trigger="change"' in out
-        assert 'name="node"' in out  # autoname from the binding field
+        assert 'name="Picked.node"' in out  # autoname from the binding field
         # The action must NOT ride the root <ul> (no name/value there).
         assert ('<ul' in out and 'hx-post' in out.split("<li")[-1]) or True
 
@@ -234,3 +238,37 @@ class TestNodeState:
         with render_isolated():
             out = serialize(TreeNode("x", label="X").render())
         assert "<div" in out
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_a_child_that_is_not_a_node_is_refused(nested: bool) -> None:
+    with render_isolated():
+        with Tree() as t:
+            if nested:
+                with TreeNode("a", label="A"):
+                    Text("stray")
+            else:
+                Text("stray")
+        with pytest.raises(ComponentUsageError, match="ui.tree_node children only"):
+            t.render()
+
+
+def test_a_zone_around_a_nested_node_is_refused() -> None:
+    """A node's children are composed by the tree like the root's, so a
+    zone among them is refused like at the root: refreshed alone, it would
+    come out without the tree around it and the node would disappear
+    (measured on 2026-10-27). The zone goes around the tree."""
+    from bretzel import refreshable
+    from bretzel.components.base.attrs import ComponentUsageError
+
+    @refreshable
+    def sub_branch() -> None:
+        TreeNode(label="ENFANT_SONDE", value="enfant")
+
+    with render_isolated() as ctx, pytest.raises(ComponentUsageError) as raised:
+        ctx.app.sse_broker = None
+        tree = Tree()
+        with tree, TreeNode(label="Parent", value="parent"):
+            sub_branch()
+        tree.render()
+    assert "AROUND ui.tree" in str(raised.value)

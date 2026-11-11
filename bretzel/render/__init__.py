@@ -14,6 +14,7 @@ from bretzel.render.decorators import (
     LayoutMeta,
     PageMeta,
     RefreshableHandle,
+    ZoneRegistry,
     download,
     error_page,
     layout,
@@ -21,7 +22,7 @@ from bretzel.render.decorators import (
     refresh,
     refreshable,
     state_qualname,
-    zone_ids_watching,
+    zones_reachable_from,
 )
 from bretzel.render.fusion import FusionConflict, fuse_or_wrap
 from bretzel.render.iteration import current_iteration_key
@@ -64,7 +65,7 @@ from bretzel.render.vendor import (
     vendored_is_available,
     vendored_local_path,
 )
-from bretzel.render.zone_diff import RowReport, ZoneMaps
+from bretzel.render.zone_diff import ZoneMaps
 
 __all__ = [
     # Context
@@ -78,7 +79,6 @@ __all__ = [
     "drain_refresh_queue",
     "RenderResult",
     "ZoneMaps",
-    "RowReport",
     # Document assembly
     "default_shell",
     "shell_sources",
@@ -121,8 +121,9 @@ __all__ = [
     "LayoutMeta",
     "refresh",
     "refreshable",
-    "zone_ids_watching",
     "RefreshableHandle",
+    "ZoneRegistry",
+    "zones_reachable_from",
     "state_qualname",
     "error_page",
     "ErrorMeta",

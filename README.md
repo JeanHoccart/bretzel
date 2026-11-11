@@ -21,7 +21,7 @@ production.
   <sub>One Python app, two windows: drag on the left, the right follows; undo on the right, both follow. No JavaScript written.</sub>
 </p>
 
-> **Alpha:** the latest public alpha is `0.1.0a4`. APIs may change between
+> **Alpha:** the latest public alpha is `0.1.0a5`. APIs may change between
 > alpha releases; only the latest alpha receives fixes.
 
 See it first: [component gallery](https://ui.bretzel-py.dev) ·
@@ -64,7 +64,7 @@ def increment() -> None:
     Counter().value += 1
 
 
-@refreshable(deps=[Counter])
+@refreshable
 def count() -> None:
     ui.heading(str(Counter().value))
 
@@ -75,8 +75,9 @@ def home() -> None:
     ui.button("+1", on_click=increment)
 ```
 
-`deps=` names the typed state read by a fragment. When that state changes,
-Bretzel renders and ships only that fragment. `broadcast=` can send the same
+A `@refreshable` fragment follows the typed state it reads: when `Counter`
+changes, Bretzel renders and ships only that fragment — there is no list of
+dependencies to keep in sync. `broadcast=` can send the same
 mutation to other open windows without polling or subscription code.
 
 ## What is included
@@ -112,23 +113,11 @@ of reruns or callback wiring. The detailed comparison, with sources:
 ```text
 bretzel/             framework source
 examples/            complete demonstration applications
-tests/               unit, integration, consistency and browser suites
-.claude/bretzel/     detailed framework reference checked against the code
+tests/               unit, integration and end-to-end suites
 ```
 
-A bare `pytest` runs the fast unit, integration and consistency suites. Heavy
-suites are explicit:
-
-```bash
-pytest -m e2e
-pytest -m browser
-pytest -m probes
-pytest -m audit
-```
-
-The public repository contains 262 consistency-test modules. They pin API,
-rendering, accessibility and architecture invariants so that fixes cannot
-silently drift back.
+A bare `pytest` runs the unit and integration suites; `pytest -m e2e` runs the
+end-to-end one.
 
 ## Production
 

@@ -9,10 +9,10 @@ repository's six call sites import them on the same line.
 :class:`~bretzel.state.datatable.DatatableState` comes out here too, and
 it is deliberate: writing a table asks for the component, its state,
 ``Query`` and ``apply_query``, and it is ONE task. The FILE, for its
-part, moved down into ``bretzel/state/datatable/`` on 2026-08-29 — it
-depended on nothing of this layer — but moving a file is not moving a
-door. It came out of ``from bretzel import DatatableState``, on the top
-floor, where it was the only component state.
+part, lives in ``bretzel/state/datatable/`` — it depends on nothing of
+this layer — but where a file lives is not where its door is. The
+top-level ``bretzel`` package does not export it: it would be the only
+component state there.
 """
 
 from bretzel.components.data.datatable.datatable import Datatable, apply_query

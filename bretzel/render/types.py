@@ -11,14 +11,6 @@ satisfies it structurally, and ``tests/unit/render/test_types.py``
 checks that at RUNTIME — the protocol is ``runtime_checkable``, so the
 test asserts ``isinstance`` both ways (a complete fake passes, an
 incomplete one fails).
-
-⚠️ This paragraph used to promise something else : that ``mypy
---strict`` validated the conformance « through an explicit
-``BretzelApp = Bretzel`` assignment in ``tests/integration/
-conformance.py`` ». Neither the file nor the assignment has ever
-existed anywhere in the repo — it announced a static guarantee nobody
-had.
-
 """
 
 from __future__ import annotations

@@ -123,6 +123,8 @@ def build_preview(state: InputPlayground):
         kwargs["tooltip"] = state.tooltip
     if state.visible == "off":
         kwargs["visible"] = False
+    if state.autofocus:
+        kwargs["autofocus"] = True
 
     if state.on_change_mode == "server":
         kwargs["on_change"] = playground_change_handler
@@ -134,7 +136,7 @@ def build_preview(state: InputPlayground):
     return ui.input(**kwargs)
 
 
-@refreshable(deps=[InputPlayground])
+@refreshable
 def server_panel() -> None:
     state = InputPlayground()
 
@@ -212,6 +214,8 @@ def server_panel() -> None:
             ui.input(value=state.tooltip,
                      placeholder="Enter your email address",
                      on_change=server_changed)
+        with control("autofocus — switch it on: the preview takes the cursor"):
+            ui.switch(checked=state.autofocus, on_change=server_changed)
         with control("visible"):
             ui.select(value=state.visible,
                       options=[("on", "True (default)"),
@@ -238,7 +242,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[InputEvents])
+@refreshable
 def events_panel() -> None:
     state = InputEvents()
 

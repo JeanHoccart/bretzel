@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 
-from bretzel.render.iteration import _KEY_STACK, _extract_key
+from bretzel.render.iteration import _extract_key, key_segment
 
 
 def each(
@@ -33,11 +33,5 @@ def each(
     debug = bool(ctx and getattr(ctx.app, "debug", False))
 
     for index, item in enumerate(items):
-        item_key = _extract_key(item, key, index, debug=debug)
-
-        previous = _KEY_STACK.get()
-        token = _KEY_STACK.set((*previous, item_key))
-        try:
+        with key_segment(_extract_key(item, key, index, debug=debug)):
             yield item
-        finally:
-            _KEY_STACK.reset(token)

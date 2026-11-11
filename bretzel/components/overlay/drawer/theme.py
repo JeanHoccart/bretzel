@@ -1,7 +1,7 @@
 """Default :class:`Drawer` theme.
 
 Side-anchored panel : full-height (or full-width for top/bottom)
-slides in from one edge. Same surface identity as Dialog (interface
+slides in from one edge. Same surface identity as Dialog (``surface``
 bg + soft border) so they sit in the same visual family ; only the
 positioning + transition differ.
 
@@ -22,13 +22,13 @@ from typing import Any
 
 DRAWER_THEME: dict[str, Any] = {
     "slots": {
-        # CSS-only enter/leave on ``data-open`` (set by the runtime ;
-        # element stays mounted). ``visibility`` rides the transition so
-        # it holds ``visible`` through the slide-out then flips ``hidden``
-        # (a closed drawer is inert : invisible + no pointer events).
+        # CSS-only enter on ``data-open`` (set by the runtime; element
+        # stays mounted; a closed drawer is inert). The transition lives
+        # on the OPEN state: it slides in, and closes at once (the why:
+        # ``overlay/dialog/theme.py``).
         "backdrop": (
             "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm "
-            "transition-[opacity,visibility] duration-200 "
+            "data-[open=true]:transition-[opacity,visibility] data-[open=true]:duration-200 "
             "data-[open=false]:opacity-0 data-[open=false]:invisible "
             "data-[open=false]:pointer-events-none"
         ),
@@ -36,7 +36,7 @@ DRAWER_THEME: dict[str, Any] = {
         # (full height on left/right, full width on top/bottom).
         "container": (
             "fixed inset-0 z-50 flex pointer-events-none "
-            "transition-[visibility] duration-300 data-[open=false]:invisible"
+            "data-[open=true]:transition-[visibility] data-[open=true]:duration-200 data-[open=false]:invisible"
         ),
         # Common panel surface — sides add the per-edge border + the
         # closed-state translate (``data-[open=false]:…``, applied in
@@ -46,31 +46,36 @@ DRAWER_THEME: dict[str, Any] = {
         # ``max-w-full max-h-full`` is the CONTAINMENT cap : whatever
         # ``widths`` asks for, the panel never leaves the viewport. It
         # clamps against the ``fixed inset-0`` container — i.e. the
-        # viewport — and covers the two ways this used to break :
+        # viewport — and covers the two ways it would otherwise break :
         #   - HEIGHT (the loud one). ``lg``/``xl`` top/bottom drawers are
-        #     384/512px tall and simply ran off a 375px-tall phone in
+        #     384/512px tall and would run off a 375px-tall phone in
         #     landscape. Height is the cross axis here, so flex-shrink
-        #     never applied. A ``bottom`` one put its header — and its
-        #     close button — 137px ABOVE the top edge : unclosable.
+        #     does not apply. A ``bottom`` one would put its header — and
+        #     its close button — ABOVE the top edge : unclosable.
         #   - WIDTH (the quiet one). Left/right panels look safe because
         #     flex-shrink pulls ``w-96`` down to the viewport… until the
         #     content has a min-content width of its own. One unbreakable
-        #     token (UUID, URL, path) and the panel snapped back to 384px
+        #     token (UUID, URL, path) and the panel snaps back to 384px
         #     on a 375px screen — silently, since a ``fixed`` subtree
         #     grows no document scrollbar to signal it.
-        # Two classes, both load-bearing, and NOTHING else is needed —
-        # verified by mutation (``tests/probes/probe_mobile_overflow.py``,
-        # 10 failures with them off). ``min-w-0``/``min-h-0`` would be
+        # Two classes, both load-bearing, and NOTHING else is needed
+        # (``tests/probes/probe_mobile_overflow.py``).
+        # ``min-w-0``/``min-h-0`` would be
         # redundant : ``body``'s ``overflow-y-auto`` already makes this a
         # scroll container, which drops the flexbox ``min-*: auto`` floor
-        # and clips the overflowing token. Dialog never had the bug at all
+        # and clips the overflowing token. Dialog does not have the bug
         # because it DERIVES its width from the container (``w-full
         # max-w-*``) instead of declaring a hard one.
+        # ``bg-surface``, not ``bg-interface``: a panel that HOLDS fields
+        # must not wear the fields' own fill — inside a dialog (and so a drawer) at
+        # ``interface`` the inputs would vanish into it.
+        # Three levels: ``background`` the page, ``surface`` a panel,
+        # ``interface`` a control.
         "panel": (
-            "pointer-events-auto bg-interface text-text "
+            "pointer-events-auto bg-surface text-text "
             "border-text/10 shadow-xl flex flex-col "
             "max-w-full max-h-full "
-            "transition-[translate,visibility] duration-300 ease-out "
+            "data-[open=true]:transition-[translate,visibility] data-[open=true]:duration-200 data-[open=true]:ease-out "
             "data-[open=false]:invisible data-[open=false]:pointer-events-none"
         ),
         "header": (
@@ -88,16 +93,15 @@ DRAWER_THEME: dict[str, Any] = {
     #
     # ⚠️ It carries the WHOLE variant, ``data-[open=false]:`` included,
     # and that is not a redundancy. The production Tailwind compiler
-    # scans the SOURCE files: it only knows literal strings. As long as
-    # this table carried only ``translate-x-full`` and the component
-    # wrote ``f"data-[open=false]:{closed}"``, the complete class existed
-    # **in no file** — so not in ``style.css`` either.
+    # scans the SOURCE files: it only knows literal strings. If this
+    # table carried only ``translate-x-full`` and the component
+    # wrote ``f"data-[open=false]:{closed}"``, the complete class would
+    # exist **in no file** — so not in ``style.css`` either.
     #
     # In dev, ``@tailwindcss/browser`` scans the live DOM and generates
-    # it: the drawer slid. In prod, no translate at all, so no animation
-    # — the panel appeared all at once. Reported on 2026-08-07, invisible
-    # to every suite: the emitted HTML is identical on both sides, only
-    # the compiled sheet differs. Gated by
+    # it: the drawer would slide. In prod, no translate at all, so no
+    # animation — the panel would appear all at once. The emitted HTML is
+    # identical on both sides, only the compiled sheet differs. Gated by
     # ``tests/consistency/test_emitted_classes_exist_in_source.py``.
     "sides": {
         "left":   {"container": "justify-start", "panel": "h-full border-r-(length:--bz-stroke)", "closed": "data-[open=false]:-translate-x-full"},
@@ -110,7 +114,7 @@ DRAWER_THEME: dict[str, Any] = {
     # the height. The component picks the right axis from ``side`` at
     # render time.
     # In ``rem``, like ``lg`` and ``xl``: a spacing step follows the
-    # density, and ``sm``/``md`` rendered 25 % narrower than their names.
+    # density, and would render ``sm``/``md`` narrower than their names.
     "widths": {
         "horizontal": {  # left / right
             "sm":   "w-[18rem]",

@@ -3,7 +3,7 @@
 Components accept a wild kwargs surface: reactive props, named slots,
 event handlers, raw HTML attrs (including ``aria_*`` / ``data_*`` /
 ``role`` / …), raw pass-through attrs (**``hx-`` only** — ``:`` / ``@`` /
-``x-`` RAISE since 2026-07-30, cf. ``reject_dead_alpine_attr``), and
+``x-`` RAISE, cf. ``reject_dead_alpine_attr``), and
 a few reserved framework keywords (``classes``, ``slots``, ``key``…).
 
 This module is the dispatcher: :func:`split_kwargs` carves a single
@@ -33,51 +33,33 @@ EVENT_PATTERN: re.Pattern[str] = re.compile(r"^on_[a-z][a-z0-9_]*$")
 # radio, table.
 _PASSTHROUGH_PREFIXES: tuple[str, ...] = ("hx-",)
 
-# ── The Alpine prefixes, dead since V3 ───────────────────────────────────
-# This tuple used to be ``(":", "@", "x-", "hx-")``. Commit 10e34c2e
-# (2026-07-03) renamed ``_RAW_ALPINE_PREFIXES`` → ``_PASSTHROUGH_PREFIXES``
-# announcing "Pure behaviour-neutral rename […] no logic touched": the NAME
-# was de-Alpined, the VALUE was not.
+# ── The dead Alpine prefixes ─────────────────────────────────────────────
+# The directive engine only scans ``bz-attr:`` and ``bz-on:``
+# (``directives.js``, ``startsWith``). A ``ui.card(**{"@click": "alert(1)",
+# "x-show": "open"})`` would go out into the DOM, valid, and NOBODY would
+# ever look at it: zero errors, zero warnings, zero effect.
 #
-# Measured on 2026-07-29: the directive engine only scans ``bz-attr:`` and
-# ``bz-on:`` (``02_directives.js``, ``startsWith`` — zero occurrences of
-# ``x-`` / ``@`` / ``:`` as an attribute prefix). A ``ui.card(**{"@click":
-# "alert(1)", "x-show": "open"})`` therefore went out into the DOM, valid,
-# and NOBODY ever looked at it: zero errors, zero warnings, zero effect.
-#
-# ⚠️ Removing the prefix from the list is NOT enough to close the failure
-# mode: ``normalize_attr_name`` returns as-is any name containing
-# ``-``/``:``/``@``, so the ``raw_html`` catch-all would emit exactly the
-# same attribute. It is the LOUD REFUSAL below that is the fix; the tuple
-# is only vocabulary.
+# ⚠️ Keeping these prefixes off the pass-through list is NOT enough to close
+# the failure mode: ``normalize_attr_name`` returns as-is any name
+# containing ``-``/``:``/``@``, so a raw attribute would carry exactly the
+# same name. It is the LOUD REFUSAL below that is the fix; the tuple is
+# only vocabulary.
 _DEAD_ALPINE_PREFIXES: tuple[str, ...] = (":", "@", "x-")
 
-# ── The raw HTML escape hatch, now DECLARED ──────────────────────────────
+# ── The raw HTML escape hatch, DECLARED ──────────────────────────────────
 #
-# Until 2026-08-16, bucket 5 was a mute catch-all: **every** unknown kwarg
-# went out into the DOM as an inert attribute. It was the only one of the
-# five buckets to refuse nothing — an unknown event raises, an unknown slot
-# raises, an Alpine directive raises. The guard existed, it had simply
-# never been set here.
+# Bucket 5 refuses, like the other four: an unknown event raises, an
+# unknown slot raises, an Alpine directive raises. As a mute catch-all it
+# would send every unknown kwarg into the DOM as an inert attribute:
+# ``ui.input(label=…)`` would render ``<input label="…">`` — no label
+# displayed, no error, nothing to see in the HTML.
 #
-# What it cost: 44 dead kwargs measured over ``examples/`` on 2026-08-01,
-# including ``ui.input(label=…)`` on 22 sites rendering
-# ``<input label="…">`` — no label displayed, no error, nothing to see in
-# the HTML.
-#
-# ⚠️ **The refusal is NOT "refuse the unknown".** Measured at runtime over
-# the 14 685 tests (bucket 5 instrumented): 17 distinct kwargs went
-# through it, and the overwhelming majority were LEGITIMATE —
-#
-#   34 ``aria_label``, 6 ``class_``, 6 ``bz-*`` directives, 4 ``data_*``,
-#   1 ``role``… and five genuinely dead ones (``clearable``, ``options``,
-#   ``href``, ``value``, ``foo``), all in ``tests/``.
-#
-# Refusing outright would have broken 51 correct uses to catch 5 faults.
-# The fix is therefore to make the escape hatch **explicit**: those
-# families pass, everything else raises. An AST scan would not have seen
-# it — it missed ``class_`` and the ``bz-*``, which arrive through
-# helpers.
+# ⚠️ **The refusal is NOT "refuse the unknown".** Most of what reaches this
+# bucket is LEGITIMATE: ``aria_label``, ``class_``, ``bz-*`` directives,
+# ``data_*``, ``role``. Refusing outright would break those correct uses.
+# The escape hatch is therefore **explicit**: those families pass,
+# everything else raises. An AST scan cannot establish the list — it
+# misses ``class_`` and the ``bz-*``, which arrive through helpers.
 _RAW_HTML_PREFIXES: tuple[str, ...] = (
     "aria_",
     "aria-",
@@ -121,9 +103,9 @@ _RAW_HTML_NAMES: frozenset[str] = frozenset(
         #
         # Their validity depends on the RENDERED TAG, which
         # ``split_kwargs`` does not know (``tag=`` is removed before) —
-        # so the check lives at render, cf. :data:`ANCHOR_ATTRS`. Until
-        # 2026-09-29 nothing checked: ``ui.icon_button(href=…)`` rendered
-        # ``<button href=…>`` and the showcase's GitHub icon led nowhere.
+        # so the check lives at render, cf. :data:`ANCHOR_ATTRS`. Without
+        # it, ``ui.icon_button(href=…)`` would render ``<button href=…>``,
+        # which leads nowhere.
         *ANCHOR_ATTRS,
     }
 )
@@ -140,9 +122,14 @@ class ComponentDefinitionError(TypeError):
     parameter in ``__init__``)."""
 
 
-class ComponentUsageError(TypeError):
-    """Raised at instantiation time when the user mis-uses a component
-    (unknown slot, event handler for an event that isn't supported)."""
+class ComponentUsageError(TypeError, ValueError):
+    """The one exception for a component the CALLER mis-uses: a value off
+    its table, an unknown slot, an event it does not support, a call it
+    cannot honour. It says what to write.
+
+    A ``TypeError`` and a ``ValueError`` both, because it covers both
+    faults and an ``except`` written for either still catches it.
+    :class:`ComponentDefinitionError` stays for a malformed class."""
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -179,8 +166,7 @@ def is_passthrough_attr(python_name: str) -> bool:
     """``True`` when the kwarg is a raw HTMX attribute that should pass
     through to the rendered element verbatim."""
     # ``startswith`` accepts a tuple and loops in C. The equivalent
-    # generator cost 5 Python iterations per attribute: profiled on a
-    # render of /tabs, 9 951 calls produced 49 755 iterations there.
+    # generator would run Python iterations for every attribute of every render.
     return python_name.startswith(_PASSTHROUGH_PREFIXES)
 
 
@@ -259,7 +245,22 @@ def split_kwargs(
     raw_html: dict[str, Any] = {}
 
     buckets = {"p": passthrough, "r": reactive, "s": slots, "e": events}
+    renamed: dict[str, str] = getattr(cls, "RENAMED_PROPS", {}) or {}
+    refused: dict[str, str] = getattr(cls, "REFUSED_PROPS", {}) or {}
     for key, value in kwargs.items():
+        # A name the API RULES retired (``components.md`` § *Les six
+        # règles*, R6): the refusal gives the new one. Checked first, so
+        # an old event name (``on_select``) is caught before the event
+        # check speaks of an undeclared event.
+        if key in renamed:
+            raise ComponentUsageError(
+                f"{cls.__name__}({key}=…) was renamed: {renamed[key]}"
+            )
+        # A name this component deliberately does not take. Without the
+        # refusal it would fall through to the raw attrs and render as a
+        # dead HTML attribute, in silence.
+        if key in refused:
+            raise ComponentUsageError(f"{cls.__name__} has no `{key}=`: {refused[key]}")
         known = _known_bucket(cls, key)
         if known is not None:
             buckets[known][key] = value
@@ -338,9 +339,8 @@ def _known_bucket(cls: type[Component], key: str) -> str | None:
     for the rest (raw attributes and errors), which take the full path.
 
     It depends on the class and the name only, both fixed after import,
-    and a page builds ~1 000 components with the same few dozen names:
-    measured on the comparison helpdesk (2026-10-23), the per-key checks
-    were a tenth of a component's construction.
+    and a page builds many components with the same few dozen names, so
+    the per-key checks are cached.
     """
     if key.startswith(_DEAD_ALPINE_PREFIXES):
         return None

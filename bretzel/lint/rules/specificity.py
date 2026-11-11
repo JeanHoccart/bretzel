@@ -14,9 +14,8 @@ therefore puts **two** ``justify-*`` on the same element ::
 
 Both selectors have the same specificity, so it is the Tailwind
 **sheet**'s order that settles them — not the order of the ``class``
-attribute, which everyone reads first. Measured on 2026-09-06 on
-``examples/playground/features/diagram/ui.py``: ``justify-start`` won,
-the content stayed stuck at the top although the code said "centre".
+attribute, which everyone reads first. ``justify-start`` can win, and the
+content stays stuck at the top although the code says "centre".
 
 It is the repository's favourite failure mode: nothing raises, nothing is
 missing from the HTML, and **re-reading the classes shows nothing** —
@@ -55,11 +54,8 @@ the flex family (``flex``, ``vstack``, ``hstack``, ``pane``,
 ``viewport``). The others write the prop → group correspondence in their
 ``render``, where no static read goes looking for it; ``ui.grid(gap=…)``
 and ``ui.carousel(gap=…)`` are therefore out of scope until they declare
-it. Written rather than guessed: measured on 2026-09-06, neither
-``grid``, nor ``carousel``, nor ``resizable`` has a single ``classes=``
-of this family in the repository — the blind spot costs nothing today,
-and the day it costs, it is ``THEME_TABLES`` that must be set, not a
-table here.
+it. The day that blind spot costs, it is ``THEME_TABLES`` that must be
+set, not a table here.
 
 What it does NOT report, and that is the heart of the tuning
 ------------------------------------------------------------
@@ -71,14 +67,13 @@ followed by one of its **keys** (that is how ``justify-center`` belongs,
 although the theme renders ``[justify-content:safe_center]`` — a ``safe``
 centring).
 
-Three measured consequences:
+Three consequences:
 
 - ``justify-normal`` / ``items-normal``: outside the table, no prop value
   renders them → **never reported**, that is escape-hatch territory;
 - ``flex-1`` on a ``ui.flex``: ``direction``'s family is exactly
   ``flex-row|flex-col|flex-row-reverse|flex-col-reverse``, not
-  ``flex-*`` → spared (the prefix alone would have made four false
-  positives per app);
+  ``flex-*`` → spared (the prefix alone would make false positives);
 - ``md:justify-center``, ``justify-center!``, ``[justify-content:…]``:
   **deliberate** departures in specificity or scope, which win for good →
   never reported.
@@ -87,15 +82,7 @@ Accepted blind spot: ``gap-3`` (a step outside the table) really does
 fight with the default's ``gap-4``, and is not reported — it exists as no
 prop's value, so reporting it would amount to refusing the escape hatch.
 
-Measurement before shipping
----------------------------
-
-2026-09-06: **21 findings** over ``examples/``, **0** over
-``tests/e2e/apps``, **0** in ``bretzel/``. All 21 were the same pattern —
-a ``justify-*`` from ``classes=`` against the default's
-``justify-start``, including seven "centred" error pages that were not.
-All fixed by moving to the prop; ``examples/`` is at zero and frozen by
-``test_lint_baseline_on_examples``.
+``examples/`` is at zero, frozen by ``test_lint_baseline_on_examples``.
 """
 
 from __future__ import annotations
@@ -252,7 +239,7 @@ def _finding(
     if not value:
         return None
 
-    posed = family.emits.get(value, f"la classe de `{family.prop}={value!r}`")
+    posed = family.emits.get(value, f"the class of `{family.prop}={value!r}`")
     origin = "passed here" if passed else "its default"
     wanted = family.members[token]
 

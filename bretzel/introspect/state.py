@@ -5,12 +5,12 @@ validators, the computed ones. It is the anti-rust mirror of the living
 documentation's State chapter: adding a field, wiring a validator or
 changing a default is reflected on the next render, with no edit here.
 
-⚠️ This module describes **a given class**. Describing the
-``bretzel.state`` *module* itself — the four server scopes, ``field`` /
-``computed`` / ``validator``, and which persistence backend serves which
-scope — is not derived anywhere yet (an open item of
-``.claude/work/todo.md``) and is **not** here. Do not read the absence
-of those sections as "this is not introspectable".
+⚠️ This module describes **a given class**. The ``bretzel.state``
+*module* itself — the four server scopes, ``field`` / ``computed`` /
+``validator`` — is classified by :mod:`bretzel.introspect.modules`, and
+which persistence backend serves which scope is not derived anywhere.
+Neither is **here**. Do not read the absence of those sections as "this
+is not introspectable".
 """
 
 from __future__ import annotations

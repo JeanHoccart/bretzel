@@ -11,22 +11,22 @@ SUMMARY = ("Call ui.notification() in any handler and a toast appears in "
 
 
 def saved() -> None:
-    ui.notification("Your changes have been saved.", variant="success")
+    ui.notification("Your changes have been saved.", color="success")
 
 
 def synced() -> None:
     ui.notification("12 new contacts were imported from HubSpot.",
-                    variant="info")
+                    color="info")
 
 
 def quota() -> None:
     ui.notification("You have used 90% of this month's email sends.",
-                    variant="warning")
+                    color="warning")
 
 
 def failed() -> None:
     ui.notification("The payment provider did not answer. Try again in a "
-                    "minute.", variant="error")
+                    "minute.", color="error")
 
 
 def variants() -> None:
@@ -41,7 +41,7 @@ def variants() -> None:
 
 def invoice_sent() -> None:
     ui.notification("Northwind Traders will receive INV-2042 in a minute.",
-                    title="Invoice sent", variant="success", icon="send")
+                    title="Invoice sent", color="success", icon="send")
 
 
 def with_title() -> None:
@@ -50,7 +50,7 @@ def with_title() -> None:
 
 def show_at(position: str) -> None:
     ui.notification(f"Anchored {position.replace('-', ' ')}.",
-                    variant="info", position=position, duration_ms=2500)
+                    color="info", position=position, duration_ms=2500)
 
 
 def positions() -> None:
@@ -70,11 +70,11 @@ def send_invite(form: Invite) -> None:
     email = form.email.strip()
     if "@" not in email:
         ui.notification("Enter an email address to send the invitation.",
-                        variant="warning", duration_ms=3000)
+                        color="warning", duration_ms=3000)
         return
     form.email = ""
     ui.notification(f"{email} can now join the Design workspace.",
-                    title="Invitation sent", variant="success")
+                    title="Invitation sent", color="success")
 
 
 def after_a_form() -> None:
@@ -89,7 +89,7 @@ def after_a_form() -> None:
 
 def maintenance() -> None:
     ui.notification("A new version is deployed. Reload the page to get it.",
-                    title="Update ready", variant="info", icon="rocket",
+                    title="Update ready", color="info", icon="rocket",
                     duration_ms=0)
 
 

@@ -1,13 +1,9 @@
 """The browser — one Chromium per process, one context per window.
 
-Promoted from ``tests/audit/harness.py`` on 2026-09-10, with its
-measurements.
-
 ⚠️ **One single ``sync_playwright()`` per process.** Playwright's sync
 API is not thread-safe and two instances in the same thread tread on
-each other: measured on 2026-08-27, ``-m browser`` went from 286 greens
-to "1 failure + 75 errors" as soon as one file opened its own — and it
-still passed when run ALONE, which is the worst of symptoms. That is why
+each other: one test file opening its own breaks the rest of the run —
+and still passes when run ALONE, which is the worst of symptoms. That is why
 this module carries the singleton, and why ``tests/audit/harness.py``
 delegates to it instead of keeping a second one.
 
@@ -16,10 +12,8 @@ delegates to it instead of keeping a second one.
 ``-m e2e`` has its own slot — but the guarantee only holds for the
 suites that come through here.
 
-The browser is SHARED, the context is FRESH. Measured in in-process A/B
-alternation (a sequential before/after is worth nothing on this machine,
-which drifts by a factor of 2): fresh browser **633 ms** median, fresh
-context on a shared browser **408 ms**.
+The browser is SHARED, the context is FRESH: a fresh context on a shared
+browser starts faster than a fresh browser.
 
 Isolation does not change: cookies, storage, cache and permissions are
 per CONTEXT, that is Playwright's guarantee. What is shared is the

@@ -121,7 +121,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[DrawerPlayground])
+@refreshable
 def server_panel() -> None:
     state = DrawerPlayground()
 
@@ -195,7 +195,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[DrawerEvents])
+@refreshable
 def events_panel() -> None:
     state = DrawerEvents()
 

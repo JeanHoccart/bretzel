@@ -2,7 +2,7 @@
 
 Standalone primitive used directly OR wrapped by
 ``ui.date_picker`` / ``ui.date_range_picker``. Renders as a
-**`<bz-calendar>` custom element** (cf. ``bretzel/runtime/_src/07_calendar.js``)
+**`<bz-calendar>` custom element** (cf. ``bretzel/components/inputs/calendar/calendar.js``)
 which owns its internal day-grid state ; configuration lives in
 observed HTML attributes that idiomorph can morph freely on every
 server refresh. Each attribute change triggers
@@ -70,23 +70,21 @@ from typing import Any, ClassVar
 
 from bretzel.components.base import (
     Component,
-    ComponentDefinitionError,
+    ComponentUsageError,
     reactive_prop,
     stamp_display_none,
 )
-from bretzel.components.base._wiring import (
-    SERVER_ACTION_ATTRS,
-    anchored_dismiss_init,
-    bool_attr,
-    retrigger,
-    server_sync_marker,
-    theme_context,
-    trigger_event,
-)
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.field_wiring import relocate_handlers
+from bretzel.components.base.overlay_wiring import anchored_dismiss_init
+from bretzel.components.base.scope_wiring import bool_attr, server_sync_marker
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.inputs._wiring import date_to_iso
 from bretzel.components.inputs.calendar.theme import CALENDAR_THEME
+from bretzel.core.escape import escape_html
 from bretzel.core.tree import Element, HtmlNode, Node
 from bretzel.render import template, text
+from bretzel.render.shared_parts import PART_ATTR, share_part
 
 # ───────────────────────────────────────────────────────────────────────────
 # Public defaults — English month/weekday names (Sunday-canonical order)
@@ -98,7 +96,7 @@ DEFAULT_WEEKDAY_NAMES_SUN_FIRST: tuple[str, ...] = (
 )
 """Weekday names indexed by ``Date.getDay()`` (0 = Sunday, … 6 = Saturday).
 
-``weekstart=`` rotates this tuple at render time. Override per call site
+``week_start=`` rotates this tuple at render time. Override per call site
 via ``weekday_names=`` (still in Sunday-first order, the rotation is the
 component's job)."""
 
@@ -165,8 +163,7 @@ def rotate_weekday_names(
 
 def _date_to_iso(value: Any) -> str:
     """``Calendar``'s date coercion — the shared one, bound to this
-    component's name for the error message (audit F50: the three
-    components of the date family each carried an identical copy)."""
+    component's name for the error message."""
     return date_to_iso(value, owner="Calendar")
 
 
@@ -183,9 +180,8 @@ def normalise_marks(marks: Any) -> dict[str, int]:
     - an ITERABLE of dates — "those days have something";
     - a DICTIONARY date → integer — "that day has three".
 
-    The integer covers the boolean, so a single prop is enough: that is
-    the decision taken with the user on 2026-08-25. It is not drawn (a
-    dot stays a dot, at a 24 px cell one more digit would be
+    The integer covers the boolean, so a single prop is enough. It is
+    not drawn (a dot stays a dot, at a 24 px cell one more digit would be
     illegible) but it is ANNOUNCED — the cell's accessible name carries
     it, and a hover shows it.
 
@@ -207,7 +203,7 @@ def normalise_marks(marks: Any) -> dict[str, int]:
         # the key ends up in a dictionary indexed by date: a free string
         # would match no cell there, in silence. So we check the SHAPE.
         if not _ISO_DAY.fullmatch(iso or ""):
-            raise ComponentDefinitionError(
+            raise ComponentUsageError(
                 f"marks: {day!r} is not a date. Expected a "
                 f"``datetime.date`` or an ISO ``YYYY-MM-DD`` string."
             )
@@ -215,13 +211,13 @@ def normalise_marks(marks: Any) -> dict[str, int]:
             # ``bool`` is an ``int`` in Python, and ``{day: True}`` is a
             # credible typo for ``[day]``. Letting it through would put
             # "1" on screen without anybody wanting it.
-            raise ComponentDefinitionError(
+            raise ComponentUsageError(
                 f"marks[{day!r}] must be an integer, got {count!r}. "
                 f"For a plain \"something happens here\", pass a list of "
                 f"dates rather than a dictionary."
             )
         if count < 0:
-            raise ComponentDefinitionError(
+            raise ComponentUsageError(
                 f"marks[{day!r}] = {count}: a negative count has no "
                 f"possible render."
             )
@@ -265,31 +261,28 @@ MAX_YEARS_IN_DROPDOWN = 200
 
 _VALID_MODES = ("picker", "range", "week", "month")
 
-# Native HTMX action attrs a server-callable ``on_change`` lands on the
-# root via ``emit_attrs`` ; relocated wholesale onto the hidden input
-# that carries name+value (the dispatcher reads form-data from there).
-# The custom element fires a bubbling synthetic ``change`` on the hidden
-# input whenever the value mutates, so ``hx-trigger="change"`` fires.
-_ACTION_ATTRS = SERVER_ACTION_ATTRS
 
-
-class Calendar(Component):
+class Calendar(ValueCommands, Component):
     """Month-grid date picker, single or range. Web Component-backed."""
 
     THEME: ClassVar[dict[str, Any]] = CALENDAR_THEME
     THEME_KEY: ClassVar[str] = "calendar"
+    #: Retired names, refused with the new one (``attrs.split_kwargs``).
+    RENAMED_PROPS: ClassVar[dict[str, str]] = {"weekstart": "write ``week_start=``."}
     DEFAULT_TAG: ClassVar[str] = "bz-calendar"
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = (
         "value", "month", "min", "max", "disabled",
     )
-    # ``next_month`` / ``prev_month`` were shipped and wired but not
-    # declared — so absent from the documentation's ``ui.*`` catalogue,
-    # which enumerates this ClassVar (audit F20/F21). Same idiom as
-    # NumberInput's ``increment`` / ``decrement``.
+    EMPTY_VALUE: ClassVar[None] = None
+    # ``next_month`` / ``prev_month`` are declared here because the
+    # documentation's ``ui.*`` catalogue enumerates this ClassVar. Same
+    # idiom as NumberInput's ``increment`` / ``decrement``.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "set", "clear", "focus", "blur", "next_month", "prev_month",
     )
+    # What a carrier (a second server handler) listens to.
+    DOM_EVENTS: ClassVar[dict[str, str]] = {"month_change": "month-change"}
     EVENTS: ClassVar[tuple[str, ...]] = (
         "change", "month_change", "focus", "blur",
     )
@@ -311,23 +304,29 @@ class Calendar(Component):
     # (color/size — encoded in the data-bz-theme blob) or carried
     # via dedicated attributes set explicitly in ``render()``
     # (mode/weekstart/required which never bind).
-    mode: str = reactive_prop(default="picker", emit_attr=False)
-    weekstart: int = reactive_prop(default=1, emit_attr=False)
+    mode: str = reactive_prop(default="picker", emit_attr=False, steps=_VALID_MODES)
+    week_start: int = reactive_prop(default=1, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
 
+    #: Set by a picker on the calendar of its panel: the expression that
+    #: says the panel is open. Such a calendar shares its header with the
+    #: page (``render/shared_parts.py``) and clones it when that turns true.
+    #: Not a prop: an inline ``ui.calendar`` is always visible.
+    _shared_chrome_when: str | None = None
+
     def __init__(
         self,
-        value: Any = None,
         *,
+        value: Any = None,
         mode: str | None = None,
         min: Any = None,
         max: Any = None,
         disabled_dates: list[_dt.date] | None = None,
         marks: Any = None,
         month: Any = None,
-        weekstart: int | None = None,
+        week_start: int | None = None,
         weekday_names: list[str] | None = None,
         month_names: list[str] | None = None,
         color: str | None = None,
@@ -341,25 +340,21 @@ class Calendar(Component):
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        if mode is not None and mode not in _VALID_MODES:
-            raise ComponentDefinitionError(
-                f"Calendar mode={mode!r} not in {_VALID_MODES}"
-            )
         # ``None`` when the caller said nothing — and most certainly
-        # NOT the English table. That default rendered "August / MON TUE
-        # WED" to every app whatever its language, and the only handle
-        # was to pass the 19 strings AT EVERY MOUNT (three times on a
-        # single CRM screen). With no explicit list, it is the browser
-        # that names, from ``<html lang>`` — cf. ``06_locale.js``.
+        # NOT the English table, which would render "August / MON TUE
+        # WED" to every app whatever its language, and leave passing the
+        # 19 strings AT EVERY MOUNT as the only handle. With no explicit
+        # list, it is the browser that names, from ``<html lang>`` — cf.
+        # ``locale.js``.
         self._weekday_names = list(weekday_names) if weekday_names else None
         self._month_names = list(month_names) if month_names else None
         if self._weekday_names is not None and len(self._weekday_names) != 7:
-            raise ComponentDefinitionError(
+            raise ComponentUsageError(
                 f"weekday_names must have 7 entries, got "
                 f"{len(self._weekday_names)}"
             )
         if self._month_names is not None and len(self._month_names) != 12:
-            raise ComponentDefinitionError(
+            raise ComponentUsageError(
                 f"month_names must have 12 entries, got "
                 f"{len(self._month_names)}"
             )
@@ -370,7 +365,7 @@ class Calendar(Component):
         super().__init__(
             name=name, value=value, month=month,
             mode=mode, min=min, max=max,
-            weekstart=weekstart,
+            week_start=week_start,
             color=color, size=size,
             disabled=disabled, required=required,
             on_change=on_change,
@@ -392,9 +387,6 @@ class Calendar(Component):
             ]
         return self._value_command(value)
 
-    def clear(self) -> str:
-        return self.set(None)
-
     def focus(self) -> str:
         return f"document.getElementById('{self.id}').focus()"
 
@@ -405,14 +397,11 @@ class Calendar(Component):
         binding = self._binding_metadata.get("month")
         if binding is not None:
             return (
-                f"(() => {{"
-                f"const d = new Date({binding.binding_path()} || new Date());"
-                f"d.setMonth(d.getMonth() + 1);"
-                f"d.setDate(1);"
-                f"{binding.binding_path()} = "
-                f"d.getFullYear() + '-' + "
-                f"String(d.getMonth() + 1).padStart(2, '0') + '-01';"
-                f"}})()"
+                # ``$bz.dates.addMonths`` and not ``new Date(iso)``: an ISO
+                # string is read as UTC midnight, which is the PREVIOUS day
+                # west of Greenwich — the month could land one off.
+                f"{binding.binding_path()} = $bz.dates.addMonths("
+                f"{binding.binding_path()}, 1)"
             )
         return self._dispatch_command("bz-next-month")
 
@@ -420,27 +409,27 @@ class Calendar(Component):
         binding = self._binding_metadata.get("month")
         if binding is not None:
             return (
-                f"(() => {{"
-                f"const d = new Date({binding.binding_path()} || new Date());"
-                f"d.setMonth(d.getMonth() - 1);"
-                f"d.setDate(1);"
-                f"{binding.binding_path()} = "
-                f"d.getFullYear() + '-' + "
-                f"String(d.getMonth() + 1).padStart(2, '0') + '-01';"
-                f"}})()"
+                # ``$bz.dates.addMonths`` and not ``new Date(iso)``: an ISO
+                # string is read as UTC midnight, which is the PREVIOUS day
+                # west of Greenwich — the month could land one off.
+                f"{binding.binding_path()} = $bz.dates.addMonths("
+                f"{binding.binding_path()}, -1)"
             )
         return self._dispatch_command("bz-prev-month")
-
 
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        _theme, slots, sizes, size_key, color = theme_context(self)
-        size_map = sizes.get(size_key, sizes.get("md", {}))
+        _theme, slots, _sizes, size_key, color = theme_context(self)
+        # The row's settings (``chevron``) and the two steps reused on
+        # purpose elsewhere (``nav_button`` on the prev/next buttons,
+        # ``month_label`` on the month-mode trigger). Its slot classes
+        # reach the slots through ``compose_class``.
+        size_map = self._size_row() or {}
         mode = self._reactive_values.get("mode") or "picker"
         is_range = mode == "range"
         is_month_mode = mode == "month"
-        ws_raw = self._reactive_values.get("weekstart")
+        ws_raw = self._reactive_values.get("week_start")
         weekstart = (
             int(ws_raw) if ws_raw not in (None, "") else 1
         ) % 7
@@ -471,30 +460,12 @@ class Calendar(Component):
         else:
             _header_disable_attrs = {}
 
-        def _resolve(template: str) -> str:
-            return template
-
         # ── Compose theme classes once ────────────────────────────
-        cell_class = " ".join(p for p in (
-            _resolve(slots.get("day_cell", "")),
-            size_map.get("day_cell", ""),
-        ) if p)
-        mark_class = " ".join(p for p in (
-            _resolve(slots.get("day_mark", "")),
-            size_map.get("day_mark", ""),
-        ) if p)
-        nav_class = " ".join(p for p in (
-            slots.get("nav_button", ""),
-            size_map.get("nav_button", ""),
-        ) if p)
-        label_class = " ".join(p for p in (
-            slots.get("month_label", ""),
-            size_map.get("month_label", ""),
-        ) if p)
-        weekday_class = " ".join(p for p in (
-            slots.get("weekday", ""),
-            size_map.get("weekday", ""),
-        ) if p)
+        cell_class = self.compose_class("day_cell")
+        mark_class = self.compose_class("day_mark")
+        nav_class = self.compose_class("nav_button")
+        label_class = self.compose_class("month_label")
+        weekday_class = self.compose_class("weekday")
         chevron_class = (
             "inline-flex shrink-0 justify-center items-center "
             f"align-middle text-current {size_map.get('chevron', 'text-sm')}"
@@ -517,10 +488,7 @@ class Calendar(Component):
             # others — Python composes, JS executes — so that the same
             # source of truth serves both kinds of grid.
             "month_grid": slots.get("month_grid", ""),
-            "month_cell": " ".join(p for p in (
-                _resolve(slots.get("month_cell", "")),
-                size_map.get("month_cell", ""),
-            ) if p),
+            "month_cell": self.compose_class("month_cell"),
         }
 
         # ── Determine initial displayed month ─────────────────────
@@ -612,34 +580,13 @@ class Calendar(Component):
         # from the ``<bz-calendar>`` root so the name lives in one place.
         self.release_root_attr("name", root_attrs)
         relocated_to_hidden: dict[str, Any] = {}
-        # Server-callable bundle — route by the event it fires on. The
-        # base emits ONE ``hx-post`` keyed to its event's ``hx-trigger`` :
-        #   ``change``       → the hidden input (the value carrier, which
-        #                      dispatches a synthetic ``change``) ;
-        #   ``month_change`` → stays on the <bz-calendar> root, renamed to
-        #                      the kebab ``month-change`` CustomEvent ;
-        #   ``focus`` / ``blur`` → stay on the root with their native
-        #                      trigger.
-        # The EVENT, not the string: ``hx-trigger`` carries the modifiers
-        # of a ``debounce=`` / ``throttle=``. Both named branches below
-        # used to overwrite them by rewriting the whole trigger.
-        server_trigger = root_attrs.get("hx-trigger", "")
-        server_event = trigger_event(root_attrs)
-        if "hx-post" in root_attrs:
-            bundle = {a: root_attrs.pop(a)
-                      for a in _ACTION_ATTRS if a in root_attrs}
-            if server_event == "change":
-                relocated_to_hidden.update(bundle)
-            elif server_event == "month_change":
-                bundle["hx-trigger"] = retrigger(server_trigger, "month-change")
-                root_attrs.update(bundle)
-            else:
-                # focus / blur — keep the base's native trigger on the root.
-                root_attrs.update(bundle)
-        # ``month_change`` STRING form (``bz-on:month_change``) → kebab.
-        for ev_attr in list(root_attrs.keys()):
-            if ev_attr == "bz-on:month_change":
-                root_attrs["bz-on:month-change"] = root_attrs.pop(ev_attr)
+        # ``client_stays``: a string handler needs no hidden input, which
+        # only exists for a name or a server handler.
+        relocate_handlers(
+            root_attrs,
+            {"change": relocated_to_hidden, "month_change": (root_attrs, "month-change")},
+            client_stays=("change",),
+        )
 
         # ── Form-data name (autoname) ─────────────────────────────
         fallback = "value" if relocated_to_hidden else None
@@ -666,15 +613,14 @@ class Calendar(Component):
         # fills them on ``connectedCallback`` via the same code path
         # as subsequent ``attributeChangedCallback`` re-renders.
         # Single render path (JS) means : no drift between SSR layout
-        # and runtime layout, smaller HTML payload (1700 cells × ~700
-        # chars on the playground = ~1 MB saved), and the Tailwind
+        # and runtime layout, smaller HTML payload, and the Tailwind
         # safelist already covers the day-cell classes from the
         # Reference card's color/size demos. Visual : the calendar
-        # outline paints immediately, the grid cells appear ~50 ms later
-        # when the runtime script runs.
+        # outline paints immediately, the grid cells appear when the
+        # runtime script runs.
         #
-        # ⚠️ The WEEKDAY row changed sides on 2026-08-24: with no
-        # explicit ``weekday_names=``, it leaves as seven EMPTY ``<div>``
+        # ⚠️ With no explicit ``weekday_names=``, the WEEKDAY row leaves
+        # as seven EMPTY ``<div>``
         # carrying a ``bz-text`` — their names come from ``Intl``, which
         # only the browser has. It therefore appears with the grid, not
         # before. That is the price of a calendar that speaks the app's
@@ -725,21 +671,14 @@ class Calendar(Component):
         #
         # The menu below renders one ``<button>`` per year, hard in the
         # DOM. With no ceiling, the span comes as is from ``min`` /
-        # ``max`` — and ``int("137".split("-")[0])`` is the year 137.
-        #
-        # Measured on 2026-08-27:
-        #
-        #     ui.date_picker(min="2026-01-01")  ->  17,622 B,    29 <button>
-        #     ui.date_picker(min="137")         -> 463,581 B, 1,918 <button>
-        #
-        # The server render stays instant (0.01 s) — it is the BROWSER
-        # that takes ~114 s to swallow the result, which made
-        # ``pytest -m audit`` hang on this component.
+        # ``max`` — and ``int("137".split("-")[0])`` is the year 137. The
+        # server render stays instant; it is the BROWSER that chokes on
+        # the result.
         #
         # ⚠️ Bounding changes NOTHING about the constraint: ``min`` /
         # ``max`` still decide which dates are selectable. This menu is a
-        # JUMP affordance, and a jump is not chosen from a list of 1,900
-        # buttons — beyond that, you type the date.
+        # JUMP affordance, and a jump is not chosen from a list that long
+        # — beyond that, you type the date.
         #
         # The window is CENTRED on the displayed year, not truncated at
         # one end: truncating the end would make the menu useless for
@@ -759,12 +698,18 @@ class Calendar(Component):
         # In ``month`` mode the grid shows a whole YEAR, so the arrows
         # move by a year — otherwise they would change nothing visible,
         # the grid not depending on the displayed month.
-        prev_step = "year -= 1" if is_month_mode else (
+        # Every gesture that changes the displayed month says so, as the
+        # element's own navigation does (``_dispatchMonthChange``):
+        # otherwise the header's arrows and pickers would move the month
+        # in the signals and emit nothing, and ``on_month_change`` would
+        # never fire.
+        said = "; $dispatch('month-change', {year: year, month: month + 1})"
+        prev_step = ("year -= 1" if is_month_mode else (
             "month === 0 ? (year -= 1, month = 11) : (month -= 1)"
-        )
-        next_step = "year += 1" if is_month_mode else (
+        )) + said
+        next_step = ("year += 1" if is_month_mode else (
             "month === 11 ? (year += 1, month = 0) : (month += 1)"
-        )
+        )) + said
         prev_btn = _IconButton(
             "chevron-left",
             variant="ghost",
@@ -772,23 +717,19 @@ class Calendar(Component):
             color=color,
             disabled=disabled_prop,
             # ``shrink-0``: without it the arrow SHRINKS when the
-            # month's label is long — measured on 2026-08-25, 40 px on
-            # "août" against 31.6 px on "septembre". Its right edge is
-            # fixed, so it was its LEFT edge that moved by 8.4 px: you
-            # click, the target slips away. It is the label that must
-            # give, never the command.
+            # month's label is long. Its right edge is fixed, so its LEFT
+            # edge moves: you click, the target slips away. It is the
+            # label that must give, never the command.
             # The size comes from the CALENDAR's theme, not from
             # IconButton's: its ``md`` step is 40 px where this theme
-            # declares 32 (``nav_button: w-8``). The token was therefore
-            # honoured by the JS render and ignored by the Python one,
-            # and those 2 × 8 px too many made the header overflow — the
-            # 16.8 px measured. The ``!`` are necessary: at equal
+            # declares 32 (``nav_button: w-8``), and the difference would
+            # make the header overflow. The ``!`` are necessary: at equal
             # specificity, Tailwind decides by its sheet's order, so
             # without them the winner is unpredictable.
             # ``min-w-fit min-h-fit``: the box is in density steps, the
             # chevron in text steps — at 2.4 px a step the ``xl`` glyph
-            # (32 px) stuck out of its 28.8 px box. The steps stay the
-            # size; the glyph is the floor.
+            # (32 px) would stick out of its 28.8 px box. The steps stay
+            # the size; the glyph is the floor.
             classes="shrink-0 min-w-fit min-h-fit " + size_map.get("nav_button", ""),
             **{
                 "bz-on:click": prev_step,
@@ -806,23 +747,19 @@ class Calendar(Component):
             color=color,
             disabled=disabled_prop,
             # ``shrink-0``: without it the arrow SHRINKS when the
-            # month's label is long — measured on 2026-08-25, 40 px on
-            # "août" against 31.6 px on "septembre". Its right edge is
-            # fixed, so it was its LEFT edge that moved by 8.4 px: you
-            # click, the target slips away. It is the label that must
-            # give, never the command.
+            # month's label is long. Its right edge is fixed, so its LEFT
+            # edge moves: you click, the target slips away. It is the
+            # label that must give, never the command.
             # The size comes from the CALENDAR's theme, not from
             # IconButton's: its ``md`` step is 40 px where this theme
-            # declares 32 (``nav_button: w-8``). The token was therefore
-            # honoured by the JS render and ignored by the Python one,
-            # and those 2 × 8 px too many made the header overflow — the
-            # 16.8 px measured. The ``!`` are necessary: at equal
+            # declares 32 (``nav_button: w-8``), and the difference would
+            # make the header overflow. The ``!`` are necessary: at equal
             # specificity, Tailwind decides by its sheet's order, so
             # without them the winner is unpredictable.
             # ``min-w-fit min-h-fit``: the box is in density steps, the
             # chevron in text steps — at 2.4 px a step the ``xl`` glyph
-            # (32 px) stuck out of its 28.8 px box. The steps stay the
-            # size; the glyph is the floor.
+            # (32 px) would stick out of its 28.8 px box. The steps stay
+            # the size; the glyph is the floor.
             classes="shrink-0 min-w-fit min-h-fit " + size_map.get("nav_button", ""),
             **{
                 "bz-on:click": next_step,
@@ -835,15 +772,14 @@ class Calendar(Component):
         Component._detach_from_parent(next_btn)
 
         # Trigger button classes : ghost button look, small label,
-        # gap before the chevron, focus ring. ``{bg_color}`` so the ring
-        # follows ``color=`` (resolved via the local ``_resolve`` closure,
-        # like the other slots), matching the prev/next IconButtons and
-        # the wrapping date_picker's frame.
+        # gap before the chevron, focus ring. The ring reads the colour
+        # bridge (``--bz-focus``), like the other slots, matching the
+        # prev/next IconButtons and the wrapping date_picker's frame.
         # The label's size comes from the size table (``month_label``),
         # like every other step of this component — it was a fixed
         # ``text-sm`` whatever ``size=`` said. ``tabular-nums``: every
         # year is then the same width.
-        trigger_cls = _resolve(
+        trigger_cls = (
             "inline-flex items-center gap-1 px-2 py-1 whitespace-nowrap "
             "rounded-selector font-medium text-text tabular-nums "
             f"{size_map.get('month_label', 'text-sm')} "
@@ -854,27 +790,21 @@ class Calendar(Component):
         )
         # Panel : absolute under the trigger, scrollable.
         #
-        # ⚠️ This comment announced "with a transition on open/close"
-        # and there was NONE — not even the dead class the six other
-        # panels carried. Corrected by setting it for real on
-        # 2026-09-04.
-        #
         # FIELD cadence (75 ms): these two menus open INSIDE an already
         # open panel, so at the menu cadence (150) they would look
-        # heavier than the surface carrying them.
-        # Mechanism of the three classes: a single copy, in
-        # ``overlay/dropdown/theme.py``.
+        # heavier than the surface carrying them. The fade in, the close
+        # at once: ``overlay/dropdown/theme.py``. No ``py-1``: a hovered
+        # row fills the panel to its edge, as the dropdown's.
         panel_cls = (
             "absolute top-full left-0 mt-1 z-10 min-w-[120px] "
             "max-h-64 overflow-y-auto "
-            "rounded-box border border-text/10 bg-interface shadow-lg "
-            "py-1 "
-            "transition-[opacity,display] transition-discrete duration-75 starting:opacity-0"
+            "rounded-box border border-text/10 bg-surface shadow-lg "
+            "transition-opacity duration-75 starting:opacity-0"
         )
         item_cls = (
             "flex items-center w-full px-3 py-1.5 text-sm cursor-pointer "
-            "text-text not-disabled:hover:bg-text/5 transition-colors "
-            "outline-none focus-visible:bg-text/5"
+            "text-text not-disabled:hover:bg-interface "  # no fade: a row
+            "outline-none focus-visible:bg-interface"
         )
         chevron_dropdown_cls = (
             "inline-flex shrink-0 text-current text-xs"
@@ -905,7 +835,7 @@ class Calendar(Component):
             hidden``), so the trigger is as wide as the widest one
             whatever is displayed. That is what lets the root size itself
             on its content (``min-w-max``) without the month deciding the
-            width — the 14.8 px arrow jump of 2026-08-25.
+            width, which would make the arrows jump.
             """
             label: Node = Element(
                 tag="span",
@@ -946,11 +876,10 @@ class Calendar(Component):
                 tag="button",
                 attrs={
                     "type": "button",
-                    # No ``min-w-0`` here nor on the wrapper any more:
-                    # the header used to SHRINK its triggers to fit a
-                    # width written in steps, and a label that could not
-                    # truncate overflowed onto the year ("septembre2026").
-                    # The root now takes its content's width instead.
+                    # No ``min-w-0`` here nor on the wrapper: the root takes
+                    # its content's width, so a trigger never has to shrink,
+                    # and a label that could not truncate would overflow
+                    # onto the year ("septembre2026").
                     "class": trigger_cls,
                     "aria-label": aria_label,
                     "bz-on:click": "$event.stopPropagation(); open = !open",
@@ -998,14 +927,11 @@ class Calendar(Component):
                 # otherwise ``$refs.bzpanel`` walks up the scope's
                 # prototype chain and resolves an ANCESTOR's panel.
                 #
-                # Bug reproduced in the browser on 2026-07-29: these
-                # dropdowns live in a ``<bz-calendar>`` which itself
+                # These dropdowns live in a ``<bz-calendar>`` which itself
                 # lives in a ``date_picker``'s panel. Without this ref,
-                # the month dropdown's ``clickOutside`` considered THE
-                # PICKER's panel as "inside" → a click on the calendar's
-                # header did not close it. Control: a click on
-                # ``<body>``, on an ``<h1>`` or Escape did close it — so
-                # the dismiss was wired, it aimed at the wrong target.
+                # the month dropdown's ``clickOutside`` would consider THE
+                # PICKER's panel as "inside", and a click on the calendar's
+                # header would not close it.
                 "bz-ref": "bzpanel",
             }
             # FOUC pre-stamp : the dropdown starts closed at SSR.
@@ -1041,7 +967,7 @@ class Calendar(Component):
         month_drop_el = _build_dropdown(
             label_expr=month_expr,
             items=[
-                (label, f"month = {mi}")
+                (label, f"month = {mi}{said}")
                 for mi, label in enumerate(month_labels)
             ],
             aria_label=text("calendar.month"),
@@ -1051,7 +977,7 @@ class Calendar(Component):
         year_drop_el = _build_dropdown(
             label_expr="year",
             items=[
-                (str(y), f"year = {y}")
+                (str(y), f"year = {y}{said}")
                 for y in range(year_min_hd, year_max_hd + 1)
             ],
             aria_label=text("calendar.year"),
@@ -1093,7 +1019,9 @@ class Calendar(Component):
             ]
         else:
             weekday_html_parts = [
-                f'<div class="{weekday_class}">{n}</div>'
+                # ``escape_html``: the names are the app's words (a
+                # translation, a setting) — pasted raw they were markup.
+                f'<div class="{weekday_class}">{escape_html(str(n))}</div>'
                 for n in rotate_weekday_names(self._weekday_names, weekstart)
             ]
         weekdays_html = (
@@ -1129,10 +1057,12 @@ class Calendar(Component):
         # — the collision ``traps.md`` § "L'ordre dans `class=` ne tranche
         # pas un conflit Tailwind" describes, whose outcome Tailwind
         # decides by its sheet's order.
-        root_attrs["class"] = " ".join(filter(None, (
-            slots.get("root", ""),
-            size_map.get("root", ""),
-        )))
+        root_attrs["class"] = self.compose_class("root")
+        # The focusable elements are the day cells, redrawn by the custom
+        # element: the root is what a label can name, once it is a group.
+        if "aria-labelledby" in root_attrs:
+            root_attrs.setdefault("role", "group")
+            root_attrs.pop("aria-required", None)
         # The root's whole-grid fade + cursor ride ``aria-disabled`` (the
         # ``disabled`` attr does nothing on a custom element — ``:disabled``
         # only matches real form controls). ``emit_attrs`` already put a
@@ -1158,11 +1088,14 @@ class Calendar(Component):
         #
         # What it catches up: a refresh of the zone containing the
         # calendar puts its children back to the server version — that
-        # is to say the EMPTY grid (measured on 2026-08-21: 42 cells at
-        # the first render, 0 after a refresh, and for good).
+        # is to say the EMPTY grid, for good.
         # ``rehydrate()`` only repaints if the body was really wiped, so
         # an unrelated swap costs only a ``querySelector``.
         root_attrs["bz-effect"] = "$el.rehydrate && $el.rehydrate()"
+        if self._shared_chrome_when:
+            root_attrs["bz-effect"] += (
+                f"; if ({self._shared_chrome_when}) $el.ensureChrome()"
+            )
         root_attrs["mode"] = mode
         root_attrs["weekstart"] = str(weekstart)
         root_attrs["month"] = initial_displayed.isoformat()
@@ -1190,7 +1123,25 @@ class Calendar(Component):
             root_attrs["weekday-names"] = json.dumps(self._weekday_names)
         if self._month_names is not None:
             root_attrs["month-names"] = json.dumps(self._month_names)
-        root_attrs["data-bz-theme"] = json.dumps(theme_blob)
+        theme_json = json.dumps(theme_blob)
+        # A picker's calendar SHARES its header with every other one of
+        # the page: repeating the arrows and the month / year menus in
+        # each picker would weigh the page down for menus nobody opens.
+        # The page carries ONE ``<template>`` per distinct header (with
+        # its theme), the calendar names it, and clones it the first time
+        # its picker opens (``render/shared_parts.py``,
+        # ``ensureChrome`` in ``calendar.js``). The weekday row stays:
+        # the zone diff walks the children by position, and the cloned
+        # header is marked as the runtime's. An inline ``ui.calendar`` is
+        # visible from the start: it keeps its own.
+        key = (
+            share_part((header_el,), template_attrs={"data-bz-theme": theme_json})
+            if self._shared_chrome_when else None
+        )
+        if key is not None:
+            root_attrs[PART_ATTR] = key
+        else:
+            root_attrs["data-bz-theme"] = theme_json
         # bz-data for the Python-rendered header. ``year`` and
         # ``month`` (0-indexed) drive the dropdown trigger labels and
         # the prev/next handlers. ``bz-attr:month`` (reactive attribute
@@ -1255,7 +1206,7 @@ class Calendar(Component):
         # Without these the Client playground / Client events stay
         # silent — the framework's ``bz-attr:<attr>`` only flows state →
         # attribute, this closes the round-trip.
-        # ⚠️ Both paths are ASSIGNABLE: ``07_calendar.js::_writeBinding``
+        # ⚠️ Both paths are ASSIGNABLE: ``calendar.js::_writeBinding``
         # splits them on ``.`` then walks to the leaf to write there. A
         # ClientExpression is structurally invalid there (it is not a
         # dotted path) — hence ``value``/``month`` in ``TWO_WAY_PROPS``,
@@ -1266,8 +1217,9 @@ class Calendar(Component):
         if month_binding is not None:
             root_attrs["data-bz-month-path"] = self.path_of(month_binding)
 
+        own_header = () if PART_ATTR in root_attrs else (header_el,)
         return Element(
             tag=self._tag,
             attrs=root_attrs,
-            children=(*hidden_nodes, header_el, ssr_html),
+            children=(*hidden_nodes, *own_header, ssr_html),
         )

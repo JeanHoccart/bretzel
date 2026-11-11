@@ -261,6 +261,9 @@ def _classify_provide(obj: Any) -> ProvideInfo:
     if getattr(obj, "_bz_layout", None) is not None:
         return ProvideInfo(label, "layout", "", module)
 
+    if getattr(obj, "_bz_topic", False):
+        return ProvideInfo(label, "state", "", module)
+
     if isinstance(obj, type):
         # A Bretzel State stashes __scope__ (server) / __persist__ (client)
         # via its metaclass — cheap duck-check, no state-layer import.

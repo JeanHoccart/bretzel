@@ -47,7 +47,7 @@ def make_door(**kwargs: object) -> oauth.OIDC:
 
 def id_token(nonce: str, *, sub: str = "prov-42", aud: str = CLIENT_ID,
              iss: str = ISSUER, ttl: int = 300,
-             email: str = "jean@macorp.fr") -> str:
+             email: str = "alex@macorp.fr") -> str:
     """Un ``id_token`` non signé — la porte ne vérifie pas la signature.
 
     C'est le contrat, pas un raccourci de test : le jeton arrive du token
@@ -63,6 +63,8 @@ def id_token(nonce: str, *, sub: str = "prov-42", aud: str = CLIENT_ID,
         "exp": int(time.time()) + ttl,
         "nonce": nonce,
         "email": email,
+        # Ce que Google envoie : sans lui, la porte ne donne pas l'email.
+        "email_verified": True,
         "name": "Jean",
     }
     body = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
@@ -146,7 +148,7 @@ def test_the_profile_reaches_on_user(door_app) -> None:
 
     assert len(seen) == 1
     assert seen[0].subject == "prov-42"
-    assert seen[0].email == "jean@macorp.fr"
+    assert seen[0].email == "alex@macorp.fr"
     assert seen[0].raw["iss"] == ISSUER
 
 
@@ -230,6 +232,26 @@ def test_a_refused_user_never_opens_a_session(door_app) -> None:
         assert seen, "on_user devait être consulté — c'est lui qui refuse"
 
 
+def test_a_refusal_says_why_in_the_server_log(door_app, caplog) -> None:
+    """Le visiteur n'apprend rien ; l'exploitant, si. La raison restait
+    « côté serveur, dans l'exception levée » — que rien ne journalisait :
+    le 2026-11-01, la démo SSO refusait tout le monde depuis cinq jours
+    sans une ligne de log (son fournisseur ne garantissait pas l'adresse)."""
+    app, token_response, _ = door_app
+    with TestClient(app, follow_redirects=False) as client, \
+            caplog.at_level("INFO", logger="bretzel.server.oauth"):
+        state, nonce = start(client)
+        token_response["id_token"] = id_token(nonce, iss="https://ailleurs.test")
+        client.get("/auth/prov/callback", params={"code": "c", "state": state})
+        state, nonce = start(client)
+        token_response["id_token"] = id_token(nonce, email="quelquun@ailleurs.com")
+        client.get("/auth/prov/callback", params={"code": "c", "state": state})
+
+    said = [r.getMessage() for r in caplog.records if r.name == "bretzel.server.oauth"]
+    assert any("different issuer" in m for m in said), said
+    assert any("refused by on_user" in m for m in said), said
+
+
 def test_a_callback_without_a_transaction_refuses(door_app) -> None:
     """Une callback jouée seule — lien direct, ou cookie expiré."""
     app, _, seen = door_app
@@ -252,8 +274,8 @@ def test_a_boosted_link_gets_an_hx_redirect(door_app) -> None:
     du fournisseur swappé dans l'outlet. Il faut un ``HX-Redirect``, que
     le navigateur exécute en vraie navigation.
 
-    ⚠️ Ce cas ne se voit pas dans ``examples/auth`` : sa page de
-    connexion n'a pas d'outlet, donc rien n'y est boosté et la sonde
+    ⚠️ Ce cas ne se voit pas sur une page de
+    connexion sans outlet : rien n'y est boosté et la sonde
     navigateur reste verte quoi qu'il arrive. C'est exactement pour ça
     qu'il est épinglé ici.
     """

@@ -179,7 +179,7 @@ class TestPerView:
 
     def test_the_track_declares_its_gap_as_a_length(self) -> None:
         out = _html(per_view=3, gap="md")
-        assert 'style="--bz-gap:calc(var(--spacing) * 4)"' in out
+        assert 'style="--bz-gap:var(--bz-gap-4)"' in out
 
     @pytest.mark.parametrize("per_view", [0, 13, 14, {"base": 1, "md": 14}])
     def test_a_count_outside_the_safelist_is_refused(self, per_view) -> None:

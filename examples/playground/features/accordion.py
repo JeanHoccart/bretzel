@@ -193,7 +193,7 @@ def three_items_into(parent) -> None:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[AccordionPlayground])
+@refreshable
 def server_panel() -> None:
     state = AccordionPlayground()
 
@@ -266,7 +266,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[AccordionEvents])
+@refreshable
 def events_panel() -> None:
     state = AccordionEvents()
 
@@ -306,7 +306,7 @@ def events_panel() -> None:
 
     ui.divider()
 
-    representative = ui.accordion(value=ses.value,
+    representative = ui.accordion(value=ses.value, name="section",
                                    on_change=log_change)
     with representative:
         with ui.accordion_item("a", label="Sample"):
@@ -317,7 +317,7 @@ def events_panel() -> None:
     )
 
 
-@refreshable(deps=[FAQViewLog])
+@refreshable
 def faq_imperative() -> None:
     """Per-row 'view-tracker' pattern using the imperative API.
 
@@ -608,7 +608,7 @@ def page() -> None:
                                 with ui.form_field(label="Display name"):
                                     ui.input(value="Jean")
                                 with ui.form_field(label="Email"):
-                                    ui.input(value="jean@example.com")
+                                    ui.input(value="alex@example.com")
                         with ui.accordion_item(
                             "notifications", label="Notifications",
                         ):
@@ -691,6 +691,17 @@ def page() -> None:
                         ui.text("Current selection :",
                                 color="muted", size="sm")
                         ui.code(client.expanded, lang="text")
+                    # The EXTERNAL control, bound to the same field: the
+                    # select opens a section, and a header clicked in
+                    # the accordion moves the select — both ways, zero
+                    # round trip (playground-pattern.md § 8).
+                    with ui.hstack(align="center", gap="sm"):
+                        ui.text("External control :", color="muted", size="sm")
+                        ui.select(value=client.expanded,
+                                  options=[("general", "General"),
+                                           ("security", "Security"),
+                                           ("billing", "Billing")],
+                                  classes="max-w-48")
                     three_items_into(ui.accordion(value=client.expanded))
 
                     ui.divider()
@@ -925,7 +936,7 @@ def page() -> None:
                         with ui.accordion_item("b", label="B"):
                             ui.text("B body")
                     emitted_html_block(
-                        "Emitted HTML — @change relocated onto the "
+                        "Emitted HTML — the ``change`` handler relocated onto the "
                         "hidden input ; _emitChange dispatches change "
                         "after every open/close, the client "
                         "expression pushes the new open list.",

@@ -85,7 +85,7 @@ def build_preview(state: FormPlayground) -> dict:
     return kwargs
 
 
-@refreshable(deps=[FormPlayground])
+@refreshable
 def server_panel() -> None:
     state = FormPlayground()
 
@@ -150,7 +150,7 @@ def server_changed(state: FormPlayground) -> None:
     pass
 
 
-@refreshable(deps=[FormEvents])
+@refreshable
 def events_panel() -> None:
     state = FormEvents()
 
@@ -193,7 +193,7 @@ def events_panel() -> None:
     )
 
 
-@refreshable(deps=[AccountForm])
+@refreshable
 def account_card() -> None:
     """Typed-form-model showcase — the V3 idiomatic pattern.
 
@@ -243,7 +243,7 @@ def account_card() -> None:
     )
 
 
-@refreshable(deps=[LoginForm])
+@refreshable
 def login_card() -> None:
     """Login — typed pattern. ``login_submit(form: LoginForm)`` ; no
     separate error-store ClientState, no ``error=`` : each form_field
@@ -293,7 +293,7 @@ def login_card() -> None:
     )
 
 
-@refreshable(deps=[SignupForm])
+@refreshable
 def signup_card() -> None:
     """Signup — per-field + cross-field. The cross-field ``FormError``
     (passwords don't match) lands in ``form.errors["_"]`` and shows in a
@@ -346,7 +346,7 @@ def signup_card() -> None:
     )
 
 
-@refreshable(deps=[ProfileForm])
+@refreshable
 def profile_card() -> None:
     """Profile edit — transformation validators normalise on hydration ;
     success stamps ``saved_at``. Typed pattern : no separate error-store."""
@@ -354,8 +354,8 @@ def profile_card() -> None:
 
     ui.text(
         "Transformation validators normalise the input during hydration "
-        "(strip + lowercase email). Type '  JEAN@Example.COM  ' → it "
-        "lands as 'jean@example.com' after submit. A bad email raises → "
+        "(strip + lowercase email). Type '  ALEX@Example.COM  ' → it "
+        "lands as 'alex@example.com' after submit. A bad email raises → "
         "inline error (inferred, auto-clearing) ; success refreshes the "
         "card so the normalised values + save timestamp show up.",
         color="muted", size="sm",
@@ -478,7 +478,7 @@ def page() -> None:
                         "inline error appears via bz-show + bz-text. "
                         "Then type ONE character in the field → "
                         "the error vanishes instantly via the "
-                        "``@input.capture`` auto-clear directive "
+                        "``bz-on:input`` auto-clear directive "
                         "(zero round-trip).",
                         color="muted", size="xs",
                     )

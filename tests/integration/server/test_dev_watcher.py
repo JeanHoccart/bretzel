@@ -30,10 +30,29 @@ pytestmark = [pytest.mark.integration, pytest.mark.slow]
 def _write_pid_marker(marker_path: str) -> None:
     """Child target : write the current PID to a marker file, then
     sleep forever. The parent test reads the marker to learn the
-    child's PID across respawns."""
+    child's PID across respawns. Like the real child (``_run_uvicorn``),
+    it leaves with its parent: this test's own ``terminate()`` used to
+    leave one orphan per run of the suite (2026-10-27)."""
+    from bretzel.server._dev import exit_with_parent
+
+    exit_with_parent()
     Path(marker_path).write_text(str(os.getpid()))
     while True:
         time.sleep(0.5)
+
+
+def _alive(pid: int) -> bool:
+    """Whether ``pid`` still runs — without ``os.kill(pid, 0)``, which
+    TERMINATES the process on Windows."""
+    if sys.platform == "win32":
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                             capture_output=True, text=True).stdout
+        return str(pid) in out
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
 
 
 def _read_pid_when_ready(marker: Path, timeout: float = 5.0) -> int:
@@ -98,9 +117,11 @@ if __name__ == "__main__":
             [sys.executable, str(runner_script)],
             cwd=str(Path(__file__).resolve().parents[3]),  # repo root
         )
+        last = None   # the child alive last — never read back from the marker,
+        #               which the child may be rewriting at that instant
         try:
             # 1. First spawn writes its PID to the marker.
-            first_pid = _read_pid_when_ready(marker, timeout=10.0)
+            first_pid = last = _read_pid_when_ready(marker, timeout=10.0)
 
             # 2. Touch the trigger ``.py`` — watchfiles + PythonFilter
             #    should pick it up and kill/respawn the child.
@@ -108,7 +129,7 @@ if __name__ == "__main__":
             trigger.write_text("# changed content\n")
 
             # 3. Marker file now contains the NEW child's PID.
-            second_pid = _read_pid_when_changed(
+            second_pid = last = _read_pid_when_changed(
                 marker, first_pid, timeout=15.0,
             )
 
@@ -117,9 +138,21 @@ if __name__ == "__main__":
                 "This is the original Windows bug — design broken."
             )
         finally:
-            proc.terminate()
+            proc.terminate()      # abrupt on Windows: nothing reaches the child
             try:
                 proc.wait(timeout=5.0)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait(timeout=2.0)
+        # The child leaves with its parent — and is killed here if it did
+        # not, so that a regression never leaves the orphan it is about.
+        if last is None:
+            return
+        deadline = time.monotonic() + 5.0
+        while _alive(last) and time.monotonic() < deadline:
+            time.sleep(0.2)
+        orphan = _alive(last)
+        if orphan:
+            subprocess.run(["taskkill", "/F", "/PID", str(last)] if sys.platform == "win32"
+                           else ["kill", "-9", str(last)], capture_output=True)
+        assert not orphan, f"the dev child {last} outlived its parent"

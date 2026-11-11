@@ -4,8 +4,7 @@ API ::
 
     # The mobile shell — the tab bar AT THE BOTTOM, the content above.
     # The responsive part stays server-driven: it is the layout that
-    # branches on ``Screen().is_mobile``
-    # (cf. ``.claude/bretzel/screen-responsive-nav.md``).
+    # branches on ``Screen().is_mobile``.
     if Screen().is_mobile:
         with ui.vstack():
             ui.outlet()
@@ -25,12 +24,11 @@ is a row of equal-width tabs (``flex-1``); ``NavbarSection``'s left /
 centre / right grouping makes no sense there, and that is precisely what
 sets it apart from a navbar.
 
-The framework **imposes no mobile nav** (settled decision, cf.
-``todo.md`` § A): ``ui.sidebar`` no longer has a built-in drawer, and
-this component is never mounted on its own. It is the dev who writes
-their ``if``, and who chooses the bottom bar rather than a horizontal
-navbar — which remains a poor compromise on a phone (targets too small,
-out of the thumb's reach).
+The framework **imposes no mobile nav**: ``ui.sidebar`` has no built-in
+mobile drawer, and this component is never mounted on its own. It is the
+dev who writes their ``if``, and who chooses the bottom bar rather than a
+horizontal navbar — which remains a poor compromise on a phone (targets
+too small, out of the thumb's reach).
 
 Why ``sticky`` and not ``fixed``
 --------------------------------
@@ -50,7 +48,7 @@ sticks to the bottom of the viewport during the scroll. It is exactly
 ``ui.navbar(sticky=True)``'s mechanism, flipped.
 
 ⚠️ Two corollaries inherited from sticky, and there is **no prop to work
-around them** (cf. ``_CUT``):
+around them** (cf. ``REFUSED_PROPS``):
 
 - an ancestor with ``overflow: hidden`` or ``overflow: auto`` moves the
   anchoring — the bar sticks to the bottom of THAT container, not of the
@@ -65,11 +63,11 @@ In a "frozen document" shell, the bar RAISES if it is misplaced
 A page that writes ``ui.viewport`` chooses the frozen document model,
 and the frame is ``fixed inset-0`` — it leaves the flow. Two natural
 placements then render a page that looks built, and
-``check_sticky_bar_placement`` (``base/_wiring``, called by the pipeline
+``check_sticky_bar_placement`` (``base/``, called by the pipeline
 once the tree is built) refuses both, with the gesture to write:
 
 - **outside the frame** — the placement "stuck to the bottom of the
-  screen" suggests. Measured: the bar renders at **y = 0**;
+  screen" suggests: the bar renders at **y = 0**;
 - **direct child of a row frame** — the bar is full width, so it takes
   the whole row and the neighbouring ``ui.pane`` drops to **0 px wide**.
   It is the page's content that disappears, not the bar.
@@ -86,12 +84,11 @@ from typing import Any, ClassVar
 
 from bretzel.components.base import (
     Component,
-    ComponentUsageError,
-    reactive_prop,
 )
-from bretzel.components.base._wiring import register_sticky_bar
+from bretzel.components.base.arguments import has_content, shown
+from bretzel.components.base.page_checks import register_sticky_bar
+from bretzel.components.navigation._nav_item import NavItem
 from bretzel.components.navigation._wiring import (
-    capture_layout,
     current_path_resync_init,
     current_path_scope,
     render_badge,
@@ -106,6 +103,13 @@ from bretzel.core.tree import Element
 # ───────────────────────────────────────────────────────────────────────────
 # BottomBar — root container
 # ───────────────────────────────────────────────────────────────────────────
+
+
+_OVERRIDE = (
+    "Override the theme's `root` slot to change that — "
+    'Bretzel(theme=Theme(components={"bottom_bar": {"slots": {"root": "…"}}}})), or '
+    '`slots={"root": "…"}` on the instance for a one-off.'
+)
 
 
 class BottomBar(Component):
@@ -125,39 +129,25 @@ class BottomBar(Component):
     # component in two shapes in the SAME app?". No: an app has a single
     # tab bar.
     #
-    # ⚠️ The guard is not politeness. Without it, the base layer absorbs
-    # the unknown kwarg into the raw attrs: ``ui.bottom_bar(sticky=False)``
-    # would emit an HTML attribute ``sticky="false"`` **in silence**,
-    # changing nothing in the render. The risk is concrete — the navbar,
-    # of which this component is the mirror, kept ``sticky=`` AND
-    # ``variant=``, so the gesture gets imitated.
-    _CUT: ClassVar[dict[str, str]] = {
+    # The navbar, of which this component is the mirror, kept ``sticky=``
+    # AND ``variant=``, so the gesture gets imitated.
+    REFUSED_PROPS: ClassVar[dict[str, str]] = {
         "variant": (
             "the look (detached rounded pill vs full-width bar) is "
-            "chosen once per app: it is a theme decision"
+            f"chosen once per app: it is a theme decision. {_OVERRIDE}"
         ),
         "sticky": (
             "a tab bar is ALWAYS stuck — a bar that goes away on scroll "
-            "is no longer a tab bar, it is a footer"
+            f"is no longer a tab bar, it is a footer. {_OVERRIDE}"
         ),
     }
 
     def __init__(self, **kwargs: Any) -> None:
-        for name, why in self._CUT.items():
-            if name in kwargs:
-                raise ComponentUsageError(
-                    f"ui.bottom_bar has no `{name}=`: {why}. "
-                    f"Override the theme's `root` slot to change that — "
-                    f'Bretzel(theme=Theme(components={{"bottom_bar": '
-                    f'{{"slots": {{"root": "…"}}}}}})), or '
-                    f'`slots={{"root": "…"}}` on the instance for a '
-                    f"one-off."
-                )
         super().__init__(**kwargs)
         # It registers, it does not judge itself: "am I well placed?"
         # is a question asked of the TREE, and the tree does not exist
         # yet. It is ``render/pipeline._drain`` that decides, once the
-        # page is built. Cf. ``base/_wiring.check_sticky_bar_placement``.
+        # page is built. Cf. ``base/page_checks.check_sticky_bar_placement``.
         register_sticky_bar(self, "ui.bottom_bar")
 
     # ── Render ─────────────────────────────────────────────────────────
@@ -177,8 +167,7 @@ class BottomBar(Component):
         attrs.setdefault("bz-data", current_path_scope())
         # Resync on back/forward and on a partial nav triggered
         # elsewhere — without that the highlighting comes unstuck from
-        # the URL at the first back (the bug the navbar carried until
-        # 2026-07-27).
+        # the URL at the first back.
         attrs.setdefault("bz-init", current_path_resync_init())
 
         inner = Element(
@@ -195,35 +184,19 @@ class BottomBar(Component):
 # ───────────────────────────────────────────────────────────────────────────
 
 
-class BottomBarItem(Component):
+class BottomBarItem(NavItem):
     """Render a bottom-bar item with an icon, label, and optional badge."""
 
     THEME: ClassVar[dict[str, Any]] = BOTTOM_BAR_ITEM_THEME
     THEME_KEY: ClassVar[str] = "bottom_bar_item"
-    IS_CONTAINER: ClassVar[bool] = False
-    EVENTS: ClassVar[tuple[str, ...]] = ("click",)
-    NAMED_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
-    ICON_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
-    # Exact mirror of NavbarItem: ``active`` is auto-derived from
-    # ``current_path`` when nothing is passed; ``badge`` and ``disabled``
-    # accept a ClientBinding for a live counter (unread, cart).
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("active", "badge", "disabled")
-
-    label: str = reactive_prop(default="", emit_attr=False)
-    href: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
-    active: Any = reactive_prop(default=None, emit_attr=False)
-    badge: Any = reactive_prop(default=None, emit_attr=False)
-    disabled: bool = reactive_prop(default=False, emit_attr=False)
-    color: str = reactive_prop(default="primary", emit_attr=False)
-
     def __init__(
         self,
-        label: str = "",
+        label: str | Component = "",
         *,
-        icon: Any = None,
+        icon: str | Component | None = None,
         href: str | None = None,
         active: Any = None,
-        badge: Any = None,
+        badge: str | int | Component | None = None,
         disabled: bool | None = None,
         color: str | None = None,
         on_click: Callable[..., Any] | str | None = None,
@@ -239,19 +212,16 @@ class BottomBarItem(Component):
         # ⚠️ BEFORE the ``super()``, not after. Passing the string then
         # overwriting ``_slot_components`` builds TWO ``Icon`` per tab —
         # the one ``adopt_slot`` makes at the default size, thrown away
-        # immediately, then the right one. Measured: ~10.6 µs per item,
-        # that is 40 % of the construction cost and more than half of a
-        # full ``render()``. By normalising here, the standard slot
-        # pipeline adopts the value once. (EmptyState does the opposite
-        # out of necessity: its icon size comes from the resolved theme,
-        # so after ``super()``. Here it is the constant ``"lg"`` — the
-        # constraint does not apply.)
+        # immediately, then the right one. By normalising here, the
+        # standard slot pipeline adopts the value once. (EmptyState does
+        # the opposite out of necessity: its icon size comes from the
+        # resolved theme, so after ``super()``. Here it is the constant
+        # ``"lg"`` — the constraint does not apply.)
         if isinstance(icon, str):
             from bretzel.components.primitives.icon.icon import Icon
 
             icon = Icon(icon, size="lg")
 
-        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             label=label,
             href=href,
@@ -263,12 +233,6 @@ class BottomBarItem(Component):
             on_click=on_click,
             **kwargs,
         )
-
-        # Capture of the enclosing layout for the HTMX partial-nav
-        # (same mechanics as SidebarItem / NavbarItem). At construction,
-        # because the ``with @layout(): ...`` is still open here —
-        # ``layout_stack`` is empty at ``render()`` time.
-        self._captured_layout: str | None = capture_layout()
 
     # ── Render ─────────────────────────────────────────────────────────
 
@@ -282,7 +246,10 @@ class BottomBarItem(Component):
         w = wire_nav_item(self, slots)
         tag, attrs = w.tag, w.attrs
         badge_value, badge_binding = w.badge_value, w.badge_binding
-        label = w.label
+        # The label is only drawn as text here: ``shown`` hands the binding
+        # when it is bound, so the page follows
+        # it — ``w.label`` is the frozen server value.
+        label = shown(self, "label")
 
         # ── Children: (icon + badge) above, label below ───────────────
         #
@@ -326,7 +293,7 @@ class BottomBarItem(Component):
                 )
             )
 
-        if label:
+        if has_content(label):
             children.append(
                 Element(
                     tag="span",

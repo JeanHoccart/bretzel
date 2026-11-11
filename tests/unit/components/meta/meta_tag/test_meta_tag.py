@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from bretzel.components.base import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.meta.meta_tag.meta_tag import MetaTag
 from bretzel.core.serialize import serialize
@@ -111,7 +112,7 @@ class TestMetaTagOutsideRenderScope:
     def test_render_outside_scope_raises(self) -> None:
         with render_isolated():
             t = MetaTag(name="x", content="y")
-        with pytest.raises(RuntimeError, match="render scope"):
+        with pytest.raises(ComponentUsageError, match="render scope"):
             t.render()
 
 

@@ -36,21 +36,13 @@ def resolve(app: Any) -> Any:
     """``"module:attr"`` → the object. An object stays itself."""
     if not isinstance(app, str):
         return app
-    if ":" not in app:
-        raise ValueError(
-            f"{app!r} is not an app target: it must be "
-            "\"module:attribute\", for example \"examples.kanban.main:app\"."
-        )
-    import importlib
+    from bretzel.introspect._target import load_target
 
-    module_name, _, attr = app.partition(":")
-    module = importlib.import_module(module_name)
-    try:
-        return getattr(module, attr)
-    except AttributeError as exc:
-        raise ValueError(
-            f"the module {module_name!r} has no attribute {attr!r}."
-        ) from exc
+    return load_target(app)[0]
+
+
+#: Seconds a served app has to start.
+_START_BUDGET = 30.0
 
 
 class _ThreadServer:
@@ -66,17 +58,17 @@ class _ThreadServer:
         self._thread = threading.Thread(target=self._server.run, daemon=True)
         self._thread.start()
         # uvicorn exposes no "ready" event: we poll its flag. Tight
-        # first — measured on 2026-09-10, it flips in 6 to 40 ms once the
-        # imports are warm, so a 50 ms step wastes half of it — then we
-        # relax, the budget being 5 s.
-        deadline = time.monotonic() + 5.0
+        # first — it flips within milliseconds once the imports are warm,
+        # so a coarse step wastes most of the wait — then we relax. An app that
+        # seeds a database at startup takes seconds of its own.
+        deadline = time.monotonic() + _START_BUDGET
         step = 0.002
         while time.monotonic() < deadline:
             if self._server.started:
                 return
             time.sleep(step)
             step = min(step * 1.5, 0.05)
-        raise RuntimeError("the server did not start within 5 seconds")
+        raise RuntimeError(f"the server did not start within {_START_BUDGET:.0f} seconds")
 
     def stop(self) -> None:
         self._server.should_exit = True

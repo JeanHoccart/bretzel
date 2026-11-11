@@ -5,13 +5,13 @@ Usage as a context manager wrapping the trigger ::
     with ui.tooltip("Reclaim 30% of your quota"):
         ui.button("Free up space", on_click=...)
 
-The panel **teleports to ``<body>`` via ``bz-teleport``** at init —
-no ancestor's ``overflow-hidden`` (accordion body clip, sticky page
-header, table cell, …) can clip it because the panel isn't a
-descendant of any of them at the DOM level. Positioning rides
-``$bz.helpers.floating`` (``position: fixed``, main-axis flip +
-cross-axis clamp), so the panel follows the trigger across scrolls
-and reflows.
+The panel is the page's ONE ``#bz-tip`` (:func:`tooltip_host`), under
+``<body>`` — no ancestor's ``overflow-hidden`` (accordion body clip,
+sticky page header, table cell, …) can clip it — and ``tip.js``
+shows it for the trigger hovered or focused. Positioning rides
+``$bz.helpers.floating`` (``position: fixed`` ; its side, the
+opposite, then the others ; both axes clamped), so the panel follows
+the trigger across scrolls and reflows.
 
 Works on hover AND keyboard focus so the affordance is keyboard-
 accessible. The panel is ``pointer-events-none`` so it never
@@ -23,17 +23,16 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop, stamp_display_none
-from bretzel.components.base._wiring import (
-    anchored_panel_effect,
+from bretzel.components.base.attrs import ComponentUsageError
+from bretzel.components.base.overlay_wiring import (
+    FLOATING_POSITIONS,
     expand_fit_wrapper,
-    scope_literal,
-    teleport_to_body,
     trigger_is_full_width,
 )
 from bretzel.components.overlay.tooltip.theme import TOOLTIP_THEME
-from bretzel.core.tree import Element, Node
-from bretzel.core.tree import TextNode as TextNode
+from bretzel.core.tree import Element
 from bretzel.state.scopes.client import ClientBinding
+from bretzel.theme.bridges import bridge_class
 
 
 class Tooltip(Component):
@@ -41,9 +40,15 @@ class Tooltip(Component):
 
     THEME: ClassVar[dict[str, Any]] = TOOLTIP_THEME
     THEME_KEY: ClassVar[str] = "tooltip"
+    #: Retired names, refused with the new one (``attrs.split_kwargs``).
+    RENAMED_PROPS: ClassVar[dict[str, str]] = {
+        "enabled": "write ``disabled=`` with the opposite value — "
+                   "``enabled=x`` is ``disabled=~x`` for a binding, "
+                   "``disabled=not x`` for a literal.",
+    }
     # hints, dynamic descriptions). Position/delay/color are
     # design-time. The text is passed as the first positional arg.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("text",)
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("disabled",)
 
     # Default ``auto`` = best-fit : ``$bz.helpers.floating`` picks the
     # roomiest side that fits (preference bottom → top → right → left)
@@ -51,15 +56,15 @@ class Tooltip(Component):
     # per-tooltip (``position="right"`` for a sidebar rail item that must
     # open away from the rail, etc.) — the pinned side then flips to its
     # opposite only when it lacks room.
-    position: str = reactive_prop(default="auto", emit_attr=False)
+    position: str = reactive_prop(default="auto", emit_attr=False, steps=FLOATING_POSITIONS)
     #: The TOTAL budget, from hover to readable text. That is the
     #: number that is felt — not the delay alone.
     #:
     #: The tooltip is the family's ONLY member to pay two waits that ADD
-    #: UP: this delay, THEN the enter fade. Writing 300 in ``delay``
-    #: therefore gave 450 on screen, and a hover that takes half a second
-    #: to answer reads as a failure, not as an anti-trigger guard.
-    #: Reported from use on 2026-09-04.
+    #: UP: this delay, THEN the enter fade. Writing the whole budget in
+    #: ``delay`` would overshoot it by the fade, and a hover that takes
+    #: half a second to answer reads as a failure, not as an anti-trigger
+    #: guard.
     REVEAL_BUDGET_MS: ClassVar[int] = 300
 
     #: The fade's duration, mirroring the theme's ``duration-75``.
@@ -78,15 +83,18 @@ class Tooltip(Component):
     # ``color="text"`` = neutral dark default ; any theme color works
     # (semantic info/success/warning/error or palette primary/muted/...).
     color: str = reactive_prop(default="text", emit_attr=False)
+    # The colour paints the panel only: the root wraps the trigger, which
+    # keeps its own (cf. ``base/theme_values.root_color_bridge``).
+    _COLOR_ON_ROOT: ClassVar[bool] = False
 
     def __init__(
         self,
-        text: str | ClientBinding | None = None,
+        text: str | Component | ClientBinding | None = None,
         *,
         position: str | None = None,
         delay: int | None = None,
         color: str | None = None,
-        enabled: bool | ClientBinding | str | None = None,
+        disabled: bool | ClientBinding | None = None,
         **kwargs: Any,
     ) -> None:
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
@@ -96,20 +104,28 @@ class Tooltip(Component):
             color=color,
             **kwargs,
         )
-        # ``enabled`` gates whether hover/focus actually reveals the panel.
-        # ``None`` (default) → always on. Accepts a literal ``bool``, a
-        # ``ClientBinding`` (reactive server-driven flag), or a raw client
-        # expression string (escape hatch — e.g. a DOM/media-query guard
-        # like the Sidebar's "only in the collapsed rail"). Evaluated in
-        # ``_show()`` against the tooltip root's scope (``$el`` = the
-        # trigger wrapper), so it can read ancestors via ``$el.closest``.
-        self._enabled: bool | ClientBinding | str | None = enabled
+        # ``disabled`` keeps hover/focus from revealing the panel (R4 of
+        # the API rules).
+        # ``None`` (default) → always on. Accepts a literal ``bool`` or a
+        # ``ClientBinding`` / ``ClientExpression`` — a raw guard is
+        # ``ClientExpression("window.innerWidth < 600")``. Evaluated at
+        # hover against the trigger (``$el``), so it can read ancestors
+        # via ``$el.closest``.
+        #
+        # ⚠️ A plain ``str`` is refused, by the rule « a string given to a
+        # component is data » (test_a_string_is_never_code): code says it
+        # is code.
+        if isinstance(disabled, str):
+            raise ComponentUsageError(
+                f"ui.tooltip(disabled={disabled!r}): a string is data, not code. "
+                f"A client condition is written ClientExpression({disabled!r}) "
+                f"(from bretzel.state), or a binding of a ClientState field."
+            )
+        self._disabled: bool | ClientBinding | None = disabled
         # ``text`` accepts a literal string, a ``ClientBinding`` (reactive
-        # panel content), or a Component. ``adopt_slot`` detaches a
-        # Component (otherwise rendered twice) and lets string /
-        # ClientBinding through intact. ``ClientBinding.__bool__``
+        # panel content), or a Component. ``ClientBinding.__bool__``
         # RAISES, so the ``or ""`` is reserved for the non-binding case.
-        adopted = Component.adopt_slot(text)
+        adopted = text
         if isinstance(adopted, (ClientBinding, Component)):
             self._text: str | ClientBinding | Component = adopted
         else:
@@ -118,81 +134,18 @@ class Tooltip(Component):
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
+        """The wrapper around the trigger, and what it says — nothing more.
+
+        A client scope, four listeners and a teleported panel per tooltip
+        would be a heavy way to say « Edit ». The panel is the page's ONE
+        ``#bz-tip`` (:func:`tooltip_host`, rendered by the page pipeline
+        with the app's merged theme) and ``tip.js`` shows it: the wrapper
+        carries the text and the settings that differ from the default, as
+        ``data-bz-tip*`` attributes.
+        """
         theme = self._resolved_theme()
         slots = theme.get("slots", {})
 
-        position = self._reactive_values.get("position") or "auto"
-        delay = int(
-            self._reactive_values.get("delay") or self.DEFAULT_DELAY_MS
-        )
-        # Pre-JS default side for the arrow (``floating`` overwrites
-        # ``data-side`` on the first open) : the pinned side if any, a
-        # sensible ``bottom`` for the ``auto`` case.
-        initial_side = "bottom" if position == "auto" else position
-
-        # ── Panel : the floating tooltip ─────────────────────────────
-        # ``fixed`` (not ``absolute``) because the panel is teleported
-        # to ``<body>`` — ancestor positioned containers no longer
-        # exist for it. Coordinates are JS-set on every show from the
-        # trigger's ``getBoundingClientRect()``.
-        # ``group`` names the panel so the arrow's ``group-data-[side=…]``
-        # variants can read the ``data-side`` that ``floating`` writes.
-        panel_class = self.compose_class(
-            "panel",
-            apply_variant_size_modifiers=False,
-        ).replace("absolute", "fixed") + " group"
-
-        # ``emit_text_slot`` handles the 4 shapes of a textual slot
-        # (string / ClientBinding → span+bz-text through ``path_of`` /
-        # Component → rendered in place / empty → None). The ``or
-        # TextNode("")`` covers the empty slot (the panel always exists,
-        # with no text).
-        text_node: Node = self.emit_text_slot(self._text) or TextNode("")
-        # Arrow stays absolute-positioned RELATIVE TO THE PANEL. Its
-        # per-side anchor lives in the ``arrow`` slot as four
-        # ``group-data-[side=…]`` variants — the one matching the panel's
-        # runtime ``data-side`` applies. No SSR side lookup : the arrow
-        # follows the flip / best-fit. Always present (no arrowless mode).
-        panel_children: list[Node] = [text_node]
-        arrow_class = self.compose_class(
-            "arrow",
-            apply_variant_size_modifiers=False,
-        )
-        panel_children.append(
-            Element(
-                tag="div",
-                attrs={"class": arrow_class, "aria-hidden": "true"},
-                children=(),
-            )
-        )
-        panel_attrs: dict[str, Any] = {
-            "class": panel_class,
-            "role": "tooltip",
-            "bz-ref": "bzpanel",
-            # Initial arrow side before ``floating`` runs (it overwrites
-            # ``data-side`` on the first open with the resolved side).
-            "data-side": initial_side,
-            # display toggle + floating attach against the trigger
-            # root (anchored on its firstElementChild, the real
-            # trigger box). Anchored on ``bzroot`` (the tooltip root).
-            "bz-effect": anchored_panel_effect(
-                "open", position, trigger_ref="bzroot"
-            ),
-        }
-        # FOUC : pre-stamp hidden (tooltip starts closed).
-        stamp_display_none(panel_attrs)
-        panel = Element(
-            tag="div",
-            attrs=panel_attrs,
-            children=tuple(panel_children),
-        )
-        # Teleport the panel under ``<body>`` (shared helper) : ancestor
-        # ``overflow`` / stacking traps lose power over it, while it stays
-        # bound to this tooltip's origin scope.
-        teleport = teleport_to_body(panel, self)
-
-        # ── Root wrapper : the trigger lives inside as children ──────
-        # Carries the open flag + show/hide/position methods.
         root_slot = slots.get("root", "")
         if trigger_is_full_width(self._children):
             # A full-width trigger must expand the ``w-fit`` wrapper or it
@@ -201,78 +154,115 @@ class Tooltip(Component):
         attrs = self.emit_attrs()
         # ``classes=`` set by the metaclass wrap — not here (duplicate).
         attrs["class"] = root_slot
-        # ``_show`` / ``_hide`` live once in ``$bz.tooltip.scope``. No
-        # value cell: ``open`` and ``_t`` (the pending hover timer) are
-        # CLIENT state — re-seeding them would close a displayed tooltip
-        # on every neighbouring swap. ``_delay`` is server config.
-        #
-        # ``_enabled`` must stay an EXPRESSION re-read on every hover (a
-        # collapsed state, a media query, a ClientBinding), hence a
-        # METHOD override of the slab's constant: as a field it would be
-        # evaluated once, at mount. ``true`` has nothing more to say than
-        # the slab.
-        enabled_expr = self._enabled_expr()
-        attrs["bz-data"] = scope_literal(
-            "$bz.tooltip.scope",
-            fields={"open": "false", "_t": "null"},
-            methods=(
-                [f"_enabled() {{ return !!({enabled_expr}); }}"]
-                if enabled_expr != "true"
-                else []
-            ),
-            config={"_delay": str(delay)},
-        )
-        attrs["bz-ref"] = "bzroot"
-        attrs["bz-on:mouseenter"] = "_show($el)"
-        attrs["bz-on:mouseleave"] = "_hide()"
-        # Keyboard a11y : focusing inside (e.g. tabbing onto the
-        # button) reveals the tooltip without delay.
-        attrs["bz-on:focusin"] = "_show($el)"
-        attrs["bz-on:focusout"] = "_hide()"
-        # An anchored descendant dispatches `open` when its panel becomes
-        # visible. This also catches keyboard opening while focus remains
-        # in the trigger. A click hides immediately, before that effect.
-        attrs["bz-on:click"] = "_hide()"
-        attrs["bz-on:open"] = "_hide()"
+        attrs["data-bz-tip-root"] = ""
 
         children = list(self._render_children())
-        children.append(teleport)
+        text = self._text
+        if isinstance(text, Component):
+            # Rich content: rendered here, inert until the runtime clones
+            # it into the panel at show time.
+            rendered = self.emit_text_slot(text)
+            children.append(Element(
+                tag="template",
+                attrs={"data-bz-tip-content": ""},
+                children=(rendered,) if rendered is not None else (),
+            ))
+        elif isinstance(text, ClientBinding):
+            # A bound text: the attribute follows the store, and the
+            # runtime follows the attribute while the panel shows.
+            attrs["bz-attr:data-bz-tip"] = self.path_of(text)
+        else:
+            attrs["data-bz-tip"] = str(text or "")
+
+        position = self._reactive_values.get("position") or "auto"
+        if position != "auto":
+            attrs["data-bz-tip-position"] = position
+        delay = int(self._reactive_values.get("delay") or self.DEFAULT_DELAY_MS)
+        if delay != self.DEFAULT_DELAY_MS:
+            attrs["data-bz-tip-delay"] = str(delay)
+        color = self._reactive_values.get("color") or "text"
+        if color != "text":
+            attrs["data-bz-tip-color"] = color
+        # ``slots={"panel": …}`` on ONE tooltip: the shared panel wears it
+        # for that show only — the escape hatch stays open.
+        extra = _extra_classes(slots.get("panel", ""), _host_slots().get("panel", ""))
+        if extra:
+            attrs["data-bz-tip-class"] = extra
+        off = self._off_expr()
+        if off is not None:
+            attrs["data-bz-tip-off"] = off
+
         return Element(tag=self._tag, attrs=attrs, children=tuple(children))
 
-    def _enabled_expr(self) -> str:
-        """Resolve ``enabled`` to a JS predicate for ``_show()``'s guard.
+    def _off_expr(self) -> str | None:
+        """``disabled`` as the JS expression the runtime reads at HOVER time
+        (``$el`` = the trigger), or ``None`` when it is never off.
 
-        ``None`` → ``"true"`` (always reveal). A literal ``bool`` bakes
-        ``"true"``/``"false"``. A :class:`ClientBinding` reads the reactive
-        store path. A raw string is used verbatim (caller owns the
-        expression — it's evaluated in the tooltip root's scope).
+        A :class:`ClientBinding` reads the store path, a
+        ``ClientExpression`` its expression, verbatim — a DOM or
+        media-query guard, which must be re-read on every hover and never
+        frozen at mount (the bug of 2026-07, when it rode a ``bz-data``
+        field).
         """
-        enabled = self._enabled
-        if enabled is None:
-            return "true"
-        if isinstance(enabled, bool):
-            return "true" if enabled else "false"
-        if isinstance(enabled, ClientBinding):
+        disabled = self._disabled
+        if disabled is None:
+            return None
+        if isinstance(disabled, ClientBinding):
             # ``path_of`` already unifies the ClientBinding /
             # ClientExpression resolution (the latter is a subclass and
-            # must NOT get a second ``$bz.state.`` prefix) — reuse it
-            # instead of hand-rolling the path here.
-            return self.path_of(enabled)
-        if not isinstance(enabled, str):
-            # ⚠️ A SERVER-BACKED value is not a ``bool`` in the
-            # ``isinstance`` sense: ``ServerState`` stamps it as a
-            # ``_BoundBool``, an ``int`` subclass carrying its
-            # ``field_name``. The ``isinstance(enabled, bool)`` test
-            # above therefore misses it, and the final ``str()`` emitted
-            # the PYTHON literal ``True`` into JavaScript — hence a
-            # ``ReferenceError: True is not defined`` on the first hover,
-            # which killed the effect.
-            #
-            # Found in the browser on 2026-07-29, on the playground's
-            # tooltip page (``enabled=state.enabled``). A bug PREDATING
-            # the switch to ``$bz.tooltip.scope``: the old builder
-            # interpolated the same expression into ``if (!(True))
-            # return;``. The 9,400 Python tests were green — only a real
-            # browser could see it.
-            return "true" if enabled else "false"
-        return str(enabled)
+            # must NOT get a second ``$bz.state.`` prefix).
+            return self.path_of(disabled)
+        # ⚠️ A SERVER-BACKED value is not a ``bool`` in the ``isinstance``
+        # sense: ``ServerState`` stamps it as a ``_BoundBool``, an ``int``
+        # subclass. Emitting ``str()`` of it would write the PYTHON literal
+        # ``True`` into JavaScript — a ``ReferenceError`` on the first
+        # hover. Hence the truthiness.
+        return "true" if disabled else None
+
+
+def _host_slots() -> dict[str, str]:
+    """The tooltip theme's slots, merged with the app's override when a
+    render context is active — what the shared panel wears."""
+    from bretzel.render.context import maybe_current_context
+
+    theme = TOOLTIP_THEME
+    ctx = maybe_current_context()
+    getter = getattr(getattr(getattr(ctx, "app", None), "theme", None), "merged_component_theme", None)
+    if callable(getter):
+        theme = getter("tooltip", TOOLTIP_THEME)
+    return theme.get("slots", {})
+
+
+def _extra_classes(own: str, shared: str) -> str:
+    """The classes ONE tooltip's panel adds to the shared one."""
+    base = set(shared.split())
+    return " ".join(c for c in own.split() if c not in base)
+
+
+def tooltip_host() -> Element:
+    """The page's ONE tooltip panel, ``#bz-tip`` — shown by ``tip.js``.
+
+    Rendered by the page pipeline, inside the render context, so it wears
+    the app's MERGED tooltip theme: ``Theme(components={"tooltip": …})``
+    reaches every tooltip of the page at once. ``fixed`` and not
+    ``absolute``: it lives under ``<body>``, outside every clipping
+    ancestor, and ``$bz.helpers.floating`` sets its coordinates. ``group``
+    lets the arrow's ``group-data-[side=…]`` variants read the side that
+    ``floating`` writes. Hidden until a trigger asks (no flash on load).
+    """
+    slots = _host_slots()
+    panel_class = slots.get("panel", "").replace("absolute", "fixed") + " group"
+    attrs: dict[str, Any] = {
+        "id": "bz-tip",
+        "role": "tooltip",
+        "class": f"{panel_class} {bridge_class('text')}",
+        "data-side": "bottom",
+        # The reveal delay lives in Python (the budget is split with the
+        # fade — ``REVEAL_BUDGET_MS``); a trigger overrides it on its own.
+        "data-bz-tip-delay": str(Tooltip.DEFAULT_DELAY_MS),
+    }
+    stamp_display_none(attrs)
+    return Element(tag="div", attrs=attrs, children=(
+        Element(tag="span", attrs={"data-bz-tip-body": ""}, children=()),
+        Element(tag="div", attrs={"class": slots.get("arrow", ""), "aria-hidden": "true"}, children=()),
+    ))

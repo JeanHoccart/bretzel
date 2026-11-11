@@ -2,10 +2,11 @@
 
 Tooltip / Popover / Dropdown enveloppent leur trigger dans une racine
 ``w-fit``. Un trigger pleine largeur doit faire grandir ce wrapper
-(``block w-full``) ou il se rétracte à la largeur du contenu. Parti d'un
+(``grid grid-cols-1 w-full`` — une grille à une cellule, qui passe aussi la
+hauteur de sa cellule, 2026-11-06) ou il se rétracte à la largeur du contenu. Parti d'un
 fix tooltip-only, le bug s'est révélé identique sur Popover + Dropdown
 (même racine ``inline-flex w-fit``) — d'où ``trigger_is_full_width`` /
-``expand_fit_wrapper`` dans ``bretzel.components.base._wiring``.
+``expand_fit_wrapper`` dans ``bretzel.components.base``.
 
 ``ui.combobox(trigger=…)`` pose la question SYMÉTRIQUE : sa racine est
 ``w-full`` (c'est un champ de formulaire), et détachée elle enveloppe le
@@ -23,6 +24,8 @@ propriété (cf. la même leçon dans traps.md).
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from bretzel import ui
@@ -30,6 +33,11 @@ from bretzel.components.base.testing import render_isolated
 from bretzel.render import serialize_html
 from bretzel.theme import Theme
 
+
+def fills(wrapper: str) -> bool:
+    """The anchored wrapper fills its cell: a one-cell grid, full width, no fit."""
+    classes = re.search(r'class="([^"]*)"', wrapper).group(1).split()
+    return "grid" in classes and "w-full" in classes and "w-fit" not in classes
 
 def _root(html: str) -> str:
     return html[: html.find(">") + 1]
@@ -46,7 +54,7 @@ def _root(html: str) -> str:
 def test_full_width_trigger_expands_wrapper(build) -> None:
     with render_isolated(theme=Theme()):
         root = _root(serialize_html(build()))
-    assert "block w-full" in root
+    assert fills(root)
     assert "w-fit" not in root
 
 
@@ -97,4 +105,4 @@ def test_tooltip_children_trigger_expands() -> None:
         with ui.tooltip(text="t") as t:
             ui.button("z", classes="w-full")
         root = _root(serialize_html(t))
-    assert "block w-full" in root
+    assert fills(root)

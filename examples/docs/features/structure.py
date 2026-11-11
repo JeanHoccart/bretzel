@@ -46,7 +46,7 @@ MARQUEURS: tuple[tuple[str, str, str], ...] = (
      'the rendering of an HTTP status'),
     ("bretzel.download", '@download("/export.csv")',
      'a route that returns a FILE, not a page'),
-    ("bretzel.refreshable", "@refreshable(deps=[Cart])",
+    ("bretzel.refreshable", "@refreshable",
      'a zone that re-renders when a state mutates'),
     ("bretzel.background", "@background",
      'work launched after the response, off the critical path'),

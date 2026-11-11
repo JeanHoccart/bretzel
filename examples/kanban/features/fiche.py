@@ -17,8 +17,7 @@ from __future__ import annotations
 
 from functools import partial
 
-from bretzel import refreshable, ui
-from examples.kanban.core.i18n import tr
+from bretzel import refreshable, t, ui
 from examples.kanban.features.donnees import (
     COULEURS,
     ETIQUETTES,
@@ -26,7 +25,6 @@ from examples.kanban.features.donnees import (
     MEMBRES,
     NOMS,
     STATUTS,
-    Tableau,
     avancement,
     carte_par_id,
     depuis,
@@ -54,29 +52,27 @@ from examples.kanban.features.state import (
 def champs(brouillon: Brouillon) -> None:
     """The draft: what gets typed, and the button that saves it."""
     with ui.form(on_submit=enregistrer), ui.vstack(gap="sm"):
-        with ui.form_field(label=tr("Title", "Titre"), required=True):
+        with ui.form_field(label=t("Title"), required=True):
             ui.input(value=brouillon.titre, maxlength=120, size="sm",
-                     placeholder=tr("The card's title", "Titre de la carte"))
-        with ui.form_field(label=tr("Description", "Description")):
+                     placeholder=t("The card's title"))
+        with ui.form_field(label=t("Description")):
             ui.textarea(value=brouillon.description, rows=4, maxlength=800,
                         size="sm",
-                        placeholder=tr("What one needs to know to take it",
-                                       "Ce qu'il faut savoir pour la "
-                                       "prendre"))
+                        placeholder=t("What one needs to know to take it"))
         # ⚠️ Two columns and not three. At three, the date picker falls
         # below 120 px and its value is CUT — "2026-09" instead of the
         # whole date, without the slightest overflow to signal it.
         # Measured on a screenshot, invisible when reading the code.
-        with ui.form_field(label=tr("Assignee", "Assigné")):
+        with ui.form_field(label=t("Assignee")):
             ui.select(value=brouillon.qui, size="sm",
                       options=[(cle, nom) for cle, nom, _, _ in MEMBRES])
         with ui.grid(cols={"base": 1, "sm": 2}, gap="sm"):
-            with ui.form_field(label=tr("Due date", "Échéance")):
+            with ui.form_field(label=t("Due date")):
                 ui.date_picker(value=brouillon.echeance, size="sm")
-            with ui.form_field(label=tr("Points", "Points")):
+            with ui.form_field(label=t("Points")):
                 ui.number_input(value=brouillon.points, min=0, max=99, size="sm")
         with ui.hstack(justify="end"):
-            ui.button(tr("Save", "Enregistrer"), type="submit",
+            ui.button(t("Save"), type="submit",
                       color="primary", size="sm", icon_left="check")
 
 
@@ -88,7 +84,7 @@ def etiquettes(carte: dict) -> None:
     reopen a menu.
     """
     with ui.vstack(gap="xs"):
-        ui.text(tr("Labels", "Étiquettes"), size="xs", weight="medium",
+        ui.text(t("Labels"), size="xs", weight="medium",
                 color="muted")
         with ui.hstack(gap="xs", wrap=True):
             for cle, libelle, couleur in ETIQUETTES:
@@ -119,7 +115,7 @@ def sous_taches(carte: dict, brouillon: Brouillon) -> None:
     Avancement().faites = faites
     with ui.vstack(gap="xs"):
         with ui.hstack(justify="between", align="center"):
-            ui.text(tr("Subtasks", "Sous-tâches"), size="xs",
+            ui.text(t("Subtasks"), size="xs",
                     weight="medium", color="muted")
             if total:
                 # ``+`` and not an f-string: an f-string around a
@@ -127,8 +123,7 @@ def sous_taches(carte: dict, brouillon: Brouillon) -> None:
                 # render time. ``binding + str`` stays ONE reactive text
                 # that follows the client counter (traps.md § « Un
                 # espace en tête d'un texte dans un hstack disparaît »).
-                ui.text(Avancement().faites + tr(f" of {total}",
-                                                 f" sur {total}"),
+                ui.text(Avancement().faites + t(" of {total}", total=total),
                         size="xs", color="muted")
         if total:
             # ``value=`` is a BOUND prop: the bar moves on click, with
@@ -160,21 +155,19 @@ def sous_taches(carte: dict, brouillon: Brouillon) -> None:
                             classes="flex-1 min-w-0")
                 ui.icon_button("x", variant="ghost", size="xs", color="muted",
                                on_click=partial(retirer_sous_tache, rang),
-                               tooltip=tr("Remove this subtask",
-                                          "Retirer cette sous-tâche"))
+                               tooltip=t("Remove this subtask"))
         with ui.form(on_submit=ajouter_sous_tache), ui.hstack(gap="xs", align="center"):
             ui.input(value=brouillon.sous_tache, size="sm", maxlength=120,
-                     placeholder=tr("Add a subtask",
-                                    "Ajouter une sous-tâche"),
+                     placeholder=t("Add a subtask"),
                      classes="flex-1")
             ui.icon_button("plus", type="submit", variant="soft",
-                           size="sm", tooltip=tr("Add", "Ajouter"))
+                           size="sm", tooltip=t("Add"))
 
 
 def commentaires(carte: dict, brouillon: Brouillon) -> None:
     """The card's discussion thread, and the writing field."""
     with ui.vstack(gap="sm"):
-        ui.text(tr("Comments", "Commentaires"), size="xs",
+        ui.text(t("Comments"), size="xs",
                 weight="medium", color="muted")
         for mot in carte["commentaires"]:
             with ui.hstack(gap="sm", align="start"):
@@ -187,19 +180,18 @@ def commentaires(carte: dict, brouillon: Brouillon) -> None:
                     ui.text(mot["texte"], size="sm")
         with ui.form(on_submit=commenter), ui.vstack(gap="xs"):
             ui.textarea(value=brouillon.commentaire, rows=2, maxlength=600,
-                        placeholder=tr("Write a comment",
-                                       "Écrire un commentaire"))
+                        placeholder=t("Write a comment"))
             with ui.hstack(justify="end"):
-                ui.button(tr("Comment", "Commenter"), type="submit",
+                ui.button(t("Comment"), type="submit",
                           variant="soft", size="sm",
                           icon_left="message-circle")
 
 
-@refreshable(deps=[Tableau, Vue], broadcast=[Tableau])
+@refreshable
 def tiroir() -> None:
     """The drawer, opened by the state and not by a click.
 
-    ``broadcast=[Tableau]``: if somebody else ticks a subtask of the card
+    It reads ``Tableau``: if another window ticks a subtask of the card
     I am looking at, the tick moves before my eyes.
 
     The draft is only reloaded if the drawer changes card. Without that
@@ -220,7 +212,7 @@ def tiroir() -> None:
 
     with ui.drawer(open=vue.tiroir, side="right", width="lg",
                    title=(carte["titre"] if carte
-                          else tr("Card", "Carte")),
+                          else t("Card")),
                    on_close=fermer):
         if carte is None:
             return
@@ -237,7 +229,6 @@ def tiroir() -> None:
             commentaires(carte, brouillon)
             ui.divider()
             with ui.hstack(justify="end"):
-                ui.button(tr("Archive this card",
-                             "Archiver cette carte"),
+                ui.button(t("Archive this card"),
                           variant="ghost", color="error", size="sm",
                           icon_left="archive", on_click=archiver_ouverte)

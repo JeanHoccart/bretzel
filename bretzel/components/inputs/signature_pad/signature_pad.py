@@ -29,10 +29,9 @@ the client writes cannot be form-bound without being bindable), and in
 LOCAL mode — the normal case, ``value=doc.signature`` on a ServerState —
 the data URL lives in the JS scope and costs nothing on the wire. The
 ``ClientState`` snapshot, on the other hand, leaves **whole on every
-action POST** (``runtime/_src/05_bridge.js``), so a pad bound to a
+action POST** (``runtime/_src/bridge.js``), so a pad bound to a
 ``ClientState`` would send its tens of kilobytes back on every click of
-the page. There is no "delta" mode to avoid it — it was removed on
-2026-08-14, its semantics being wrong (cf. ``ClientState``'s docstring).
+the page. There is no "delta" mode to avoid it.
 The only lever is ``send_to_server=False``, which does NOT apply here: a
 signature is written by the client, it has to travel back. Only do this
 if another component has to read the signature on the client side.
@@ -76,11 +75,9 @@ from typing import Any, ClassVar
 
 from bretzel.components.actions.button import Button
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
-    hidden_carrier_attrs,
-    pop_change_handler,
-    scope_literal,
-)
+from bretzel.components.base.arguments import has_content, shown
+from bretzel.components.base.field_wiring import hidden_carrier_attrs, relocate_handlers
+from bretzel.components.base.scope_wiring import scope_literal
 from bretzel.components.inputs.signature_pad.theme import SIGNATURE_PAD_THEME
 from bretzel.core.tree import Element, Node
 from bretzel.render import text
@@ -110,23 +107,13 @@ class SignaturePad(Component):
     # what forces ``value`` into ``BINDABLE_PROPS`` above. What NEVER
     # goes back into a signal is the stroke itself: the points live in
     # the canvas, only the data URL lands on the carrier.
-    # ``never_code``: this value is a **data URL**, and its base64
-    # padding is written ``=`` or ``==`` — so roughly one stroke in four
-    # came out classified "client expression" by the heuristic, left as
-    # ``bz-attr:value=`` and crashed the runtime's boot (measured on
-    # 2026-08-13). It had been repaired by a ``data:`` exclusion INSIDE
-    # the heuristic; that is gone since 2026-08-26 in favour of this
-    # declaration, which states the fact where it is true. It is the
-    # only URI carrier whose prop name does not announce it — hence its
-    # by-name entry in ``test_a_url_prop_is_never_read_as_code``.
     value: str | None = reactive_prop(
         default=None, emit_attr=False, writes=True, names_field=True,
-        never_code=True,
     )
     # ``None``: a ``reactive_prop`` default is resolved at import, so it
     # would freeze English whatever the app's language.
-    placeholder: str | None = reactive_prop(default=None, emit_attr=False)
-    clear_label: str | None = reactive_prop(default=None, emit_attr=False)
+    placeholder: str | Component | None = reactive_prop(default=None, emit_attr=False)
+    clear_label: str | Component | None = reactive_prop(default=None, emit_attr=False)
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -136,8 +123,8 @@ class SignaturePad(Component):
         self,
         *,
         value: str | None = None,
-        placeholder: str | None = None,
-        clear_label: str | None = None,
+        placeholder: str | Component | None = None,
+        clear_label: str | Component | None = None,
         disabled: bool | None = None,
         size: str | None = None,
         color: str | None = None,
@@ -177,16 +164,13 @@ class SignaturePad(Component):
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        theme = self._resolved_theme()
-        size_table = theme.get("sizes", {})
-        size_key = self._reactive_values.get("size") or "md"
-        size_cfg = size_table.get(size_key, size_table.get("md", {}))
+        size_cfg = self._size_row() or {}
         disabled = bool(self._reactive_values.get("disabled"))
         initial = self._reactive_values.get("value") or ""
         # ``is None`` and not ``or``: ``placeholder=""`` is an explicit
         # opt-out that must stay silent, and an ``or`` would give it the
-        # default back.
-        placeholder = self._reactive_values.get("placeholder")
+        # default back. ``shown``: a bound prompt is drawn live.
+        placeholder = shown(self, "placeholder")
         if placeholder is None:
             placeholder = text("signature_pad.placeholder")
 
@@ -233,14 +217,12 @@ class SignaturePad(Component):
                 children=(),
             ),
         ]
-        if placeholder:
+        if has_content(placeholder):
             pad_children.append(
                 Element(
                     tag="div",
                     attrs={
-                        "class": self.slot_class(
-                            "hint", size_cfg.get("hint", "")
-                        ),
+                        "class": self.compose_class("hint"),
                         # The same ``data-empty`` the frame carries:
                         # the prompt's Tailwind variant reads it on
                         # itself, so it must be there too.
@@ -253,7 +235,7 @@ class SignaturePad(Component):
         pad = Element(
             tag="div",
             attrs={
-                "class": self.slot_class("pad", size_cfg.get("pad", "")),
+                "class": self.compose_class("pad"),
                 # SSR: empty unless a signature is already there (a
                 # reopened record). The runtime takes over at the first
                 # stroke.
@@ -269,7 +251,8 @@ class SignaturePad(Component):
         # So the runtime writes ONLY the state, never the input — a
         # single author.
         root_attrs = self.emit_attrs()
-        relocated = pop_change_handler(root_attrs)
+        relocated: dict[str, Any] = {}
+        relocate_handlers(root_attrs, {"change": relocated})
         field_name = (
             self._reactive_values.get("name") or self._derive_field_name()
         )
@@ -290,10 +273,12 @@ class SignaturePad(Component):
         # The button IS a ``ui.button``, not an imitation: it is the
         # repository's dogfooding rule, and it brings the focus ring, the
         # disabled state and the size scale for free.
-        clear_label = self._reactive_values.get("clear_label")
+        # ``shown``: a bound label goes to the Button as is, which draws it
+        # live.
+        clear_label = shown(self, "clear_label")
         if clear_label is None:
             clear_label = text("signature_pad.clear")
-        if clear_label:
+        if has_content(clear_label):
             children.append(
                 Element(
                     tag="div",
@@ -343,6 +328,10 @@ class SignaturePad(Component):
         # context, that we capture the canvas into the scope.
         root_attrs["bz-init"] = "_canvas = $refs.bzcanvas"
         root_attrs["bz-on:bz-clear"] = "clear()"
+        # ``value`` is two-way: a value written from outside (a server
+        # reset, another control on the same ClientState) repaints the
+        # pad — ``_follow`` ignores what the pad itself published.
+        root_attrs["bz-effect"] = "_follow()"
 
         return Element(
             tag=self._tag, attrs=root_attrs, children=tuple(children)

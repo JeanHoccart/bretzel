@@ -37,7 +37,7 @@ class TestSparkline:
             out = serialize(
                 Sparkline([1, 5, 3, 8, 4, 9], smooth=True).render()
             )
-        # Catmull-Rom-as-Bézier path → contains "C" for cubic segments.
+        # Monotone cubic path → contains "C" for cubic segments.
         assert "C" in out
 
     def test_area_fill_emits_two_paths(self) -> None:

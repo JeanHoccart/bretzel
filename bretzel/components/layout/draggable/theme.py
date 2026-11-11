@@ -8,7 +8,7 @@ Slots :
                  the scroll gesture amounts to forbidding scrolling at
                  all. It is the CAUGHT gesture that takes over, not the
                  CSS — cf. the non-passive ``touchmove`` of
-                 ``19_dnd.js``, and the § below.
+                 ``dnd.js``, and the § below.
 - ``dragging`` : composed over ``root`` while this item is in flight.
 - ``handle``   : the opt-in grip. Sized ≥ 24×24 px (WCAG 2.2 target
                  size) because a 16 px grip is unusable with a finger, and
@@ -31,19 +31,16 @@ DRAGGABLE_THEME: dict[str, Any] = {
         # drag and leaves the page with a blue smear.
         #
         # ⚠️ ``touch-pan-x touch-pan-y`` and most certainly NOT
-        # ``touch-none``, which lived here until 2026-08-21.
-        # ``touch-action: none`` takes the scroll gesture away from the
-        # browser over the card's whole surface: in a column full of
-        # cards, the finger could no longer scroll anything as soon as it
-        # landed — "touch does not work, I cannot scroll while selecting
-        # the cards". The irony: ``19_dnd.js`` carries a threshold
-        # commented "this is what PRESERVES THE SCROLL", which worked
-        # very well — above a CSS that made scrolling impossible.
+        # ``touch-none``. ``touch-action: none`` takes the scroll gesture
+        # away from the browser over the card's whole surface: in a column
+        # full of cards, the finger could no longer scroll anything as
+        # soon as it landed, whatever threshold ``dnd.js`` keeps to
+        # preserve the scroll.
         #
-        # The pan alone is NOT ENOUGH, and it is measured: it gives back
-        # the scroll and **loses the grab**, the browser taking the
+        # The pan alone is NOT ENOUGH: it gives back the scroll and
+        # **loses the grab**, the browser taking the
         # gesture away. The second half is the non-passive ``touchmove``
-        # of ``19_dnd.js``, which takes over when the long press
+        # of ``dnd.js``, which takes over when the long press
         # succeeds — at that instant the finger has not moved, so nothing
         # is in progress. Both halves are gated separately by
         # ``tests/runtime_js/test_a_draggable_card_still_lets_the_finger_scroll.py``.
@@ -60,8 +57,7 @@ DRAGGABLE_THEME: dict[str, Any] = {
         # duplicate card: it is the clone (`.bz-drag-preview`, a hook in
         # theme/css.py) that carries the lift and follows the pointer.
         # Leaving it a shadow would make two lifted cards at once.
-        # ⚠️ **The card KEEPS its size, and it is a choice** — settled on
-        # 2026-09-13 after trying it both ways.
+        # ⚠️ **The card KEEPS its size, and it is a choice.**
         #
         # During the gesture, the original fades and stays in place: the
         # landing zone opens by the height of a card, and the neighbours
@@ -69,8 +65,7 @@ DRAGGABLE_THEME: dict[str, Any] = {
         # is what you will get, at the scale you will get it.
         #
         # The other route — shrinking the card to a dashed placeholder,
-        # like react-beautiful-dnd — was written, measured (50 px at rest
-        # against 9 in flight) then REMOVED from the default: it asks the
+        # like react-beautiful-dnd — is not the default: it asks the
         # eye to link a thin line to a card floating elsewhere, and on a
         # short list it costs more than it gives.
         #

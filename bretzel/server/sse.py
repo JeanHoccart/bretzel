@@ -4,26 +4,21 @@ The broker is the single point through which ``_publish_broadcast`` → ``broker
 fans out a "state X is dirty" signal to every browser tab currently
 viewing a zone that subscribed to X. Two responsibilities:
 
-1. **Subscription bookkeeping** — at page render time, each
-   ``@refreshable(deps=[State], broadcast=[State])`` zone records itself
-   against the request's session_id +
+1. **Subscription bookkeeping** — at render time, each refreshable
+   zone that read a session, user or app state (a ``Topic`` included)
+   records the request's session_id against that state's
    ``State.__module__::State.__qualname__`` identifier. Re-renders
    refresh the bookkeeping; idle sessions age out via TTL.
 
-   ⚠️ This line announced an ``@app.subscribe(State)`` decorator until
-   2026-08-15, with a cross-reference to
-   ``bretzel.render.decorators.subscribe`` — **a module deleted in Phase
-   6**. There is **only one** way to subscribe: ``broadcast=[State]`` on
-   a refreshable zone. The cost of the gap was not the false line, it is
-   that it suggested two competing APIs for one mechanism, in a
-   repository whose principle 4 is "one single way to do each thing".
+   ⚠️ There is **only one** way to subscribe: reading the state in a
+   refreshable zone. Nothing is declared.
 
 2. **Event dispatch** — :meth:`publish` walks the subscribers for the
    target State and pushes a tiny ``state-dirty`` SSE event onto each
    one's queue. The HTTP route ``/_bretzel/sse`` drains the queue and
    formats it into the wire format the browser's ``EventSource``
    expects. The **payload is empty**: the runtime, on receiving the
-   event, fires an HTTP GET against ``/_bretzel/realtime/<state>/<zone>``
+   event, fires an HTTP GET against ``/_bretzel/refetch/<zone>``
    to re-render the zone in the **client's own RenderContext** — auth
    cookies and everything else come along naturally. No data ever
    travels through the SSE pipe except the State identifier.
@@ -33,8 +28,8 @@ the in-process :class:`MemoryBroker` (single process — subscriber state
 lives on the worker that rendered the page) and the :class:`RedisBroker`,
 which fans the ``state-dirty`` signal across workers over a Redis Pub/Sub
 channel. The lifecycle picks the Redis-backed one whenever ``redis_url``
-is configured (``server/lifecycle.py``), so **realtime
-(``broadcast=[State]``) works across ``workers>1`` and across replicas**.
+is configured (``server/lifecycle.py``), so **realtime works across
+``workers>1`` and across replicas**.
 Without a ``redis_url`` you get the single-process broker — fine for dev
 and single-worker deployments (the config already forces a ``redis_url``
 when ``workers>1``).
@@ -52,6 +47,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import time
 from collections.abc import AsyncIterator
 from typing import Any, Protocol, runtime_checkable
@@ -68,6 +64,11 @@ _HEARTBEAT_INTERVAL_SECONDS = 20.0
 # closed without firing ``beforeunload``, network drop, etc.) ; the
 # next ``publish()`` won't waste a queue push on it.
 _SESSION_TTL_SECONDS = 600.0  # 10 minutes
+
+# How often a ``subscribe`` may sweep the expired sessions. Far below the
+# TTL, so the tables stay bounded; far above a render, so a page of zones
+# does not walk every session once per zone.
+_SWEEP_INTERVAL_SECONDS = 30.0
 
 # Per-connection backlog cap. Each open tab's queue holds at most this many
 # pending ``state-dirty`` chunks ; beyond it the OLDEST is dropped (see
@@ -100,8 +101,11 @@ class SSEBroker(Protocol):
     ``redis_url`` is set.
     """
 
-    async def connect(self, session_id: str) -> AsyncIterator[str]:
-        """Open a long-lived SSE stream for ``session_id``.
+    async def connect(
+        self, session_id: str, tab_id: str = "", user_id: str = ""
+    ) -> AsyncIterator[str]:
+        """Open a long-lived SSE stream for ``session_id`` — signed in as
+        ``user_id``, which ``publish(only_user=…)`` filters on.
 
         Yields wire-format strings ready to be ``yield``-ed straight
         from a Starlette ``StreamingResponse`` body. The generator
@@ -122,7 +126,7 @@ class SSEBroker(Protocol):
 
     def publish(
         self, state_qualname: str, *, except_tab: str = "", only_session: str = "",
-        event: str = SSE_EVENT_STATE_DIRTY, data: str = "",
+        only_user: str = "",
     ) -> None:
         """Push a ``state-dirty`` signal to every CONNECTION subscribed
         to ``state_qualname`` (one per open tab). Returns immediately;
@@ -131,9 +135,7 @@ class SSEBroker(Protocol):
         ``except_tab`` skips the tab that has just written — it already
         received its zones in its action's response. ``only_session``,
         when set, restricts delivery to that session's tabs (the scope of
-        a ``SessionState``). ``event`` / ``data`` are what the tabs
-        receive — by default ``state-dirty`` with the state's name; the
-        broker routes by state and never reads them.
+        a ``SessionState``).
         """
         ...
 
@@ -171,6 +173,10 @@ class MemoryBroker:
         # other down on reconnect. ``asyncio.Queue`` (not ``deque``) lets
         # the connect-loop await new items without a polling sleep.
         self._queues: dict[int, asyncio.Queue[str]] = {}
+        # connection_id → the user the stream was opened for (empty when
+        # anonymous). ``only_user`` filters on it: a ``UserState`` signal
+        # tells WHEN another user acts — it is theirs alone.
+        self._conn_users: dict[int, str] = {}
         # connection_id → the TAB identity announced when the stream
         # opened. It serves only to exclude oneself from a broadcast
         # (cf. ``publish``). Absent = a mute tab, no exclusion.
@@ -185,6 +191,8 @@ class MemoryBroker:
         # session_id → last touched timestamp ; drives the subscription
         # TTL sweep so tables don't grow unbounded if browsers vanish.
         self._last_seen: dict[str, float] = {}
+        # When ``_sweep_stale`` last ran; see ``subscribe``.
+        self._last_sweep: float = 0.0
         # Monotonic connection-id counter. asyncio is single-threaded, so
         # an increment between awaits needs no lock.
         self._conn_seq: int = 0
@@ -192,7 +200,7 @@ class MemoryBroker:
     # ── Connection lifecycle ──────────────────────────────────────────
 
     async def connect(
-        self, session_id: str, tab_id: str = ""
+        self, session_id: str, tab_id: str = "", user_id: str = ""
     ) -> AsyncIterator[str]:
         """Open a stream for one tab of ``session_id`` and yield
         wire-format events as they arrive on this connection's queue.
@@ -217,6 +225,8 @@ class MemoryBroker:
         self._queues[conn_id] = queue
         if tab_id:
             self._conn_tabs[conn_id] = tab_id
+        if user_id:
+            self._conn_users[conn_id] = user_id
         self._session_conns.setdefault(session_id, set()).add(conn_id)
         self._last_seen[session_id] = time.monotonic()
 
@@ -257,6 +267,7 @@ class MemoryBroker:
         """
         self._queues.pop(conn_id, None)
         self._conn_tabs.pop(conn_id, None)
+        self._conn_users.pop(conn_id, None)
         conns = self._session_conns.get(session_id)
         if conns is not None:
             conns.discard(conn_id)
@@ -312,14 +323,20 @@ class MemoryBroker:
         if not session_id or not state_qualname:
             return
         self._subscribers.setdefault(state_qualname, set()).add(session_id)
-        self._last_seen[session_id] = time.monotonic()
-        self._sweep_stale()
+        now = time.monotonic()
+        self._last_seen[session_id] = now
+        # Every zone reading a shared state subscribes on every render:
+        # sweeping each time would walk every session as many times.
+        if now - self._last_sweep >= _SWEEP_INTERVAL_SECONDS:
+            self._last_sweep = now
+            self._sweep_stale()
 
     def _sweep_stale(self) -> None:
         """Drop subscriptions for sessions that haven't checked in
         within :data:`_SESSION_TTL_SECONDS`.
 
-        Called on every ``subscribe`` (cheap) so tables don't grow
+        Called from ``subscribe``, at most every
+        :data:`_SWEEP_INTERVAL_SECONDS`, so tables don't grow
         unbounded if browsers vanish without firing disconnect. The TTL
         is permissive — leak protection, not strict GC.
         """
@@ -365,6 +382,7 @@ class MemoryBroker:
         """
         self._queues.clear()
         self._conn_tabs.clear()
+        self._conn_users.clear()
         self._session_conns.clear()
         self._subscribers.clear()
         self._last_seen.clear()
@@ -374,7 +392,7 @@ class MemoryBroker:
 
     def publish(
         self, state_qualname: str, *, except_tab: str = "", only_session: str = "",
-        event: str = SSE_EVENT_STATE_DIRTY, data: str = "",
+        only_user: str = "",
     ) -> None:
         """Push a ``state-dirty`` event to every CONNECTION of every
         session subscribed to ``state_qualname``.
@@ -386,9 +404,7 @@ class MemoryBroker:
         ``except_tab`` skips the tab that has just written. It already
         received its zones in its action's response, so its re-read
         returns exactly what it is displaying: one round trip PER ZONE
-        for an identical render. Measured on ``examples/kanban`` before
-        the exclusion — ticking a subtask cost five requests and 354 KB,
-        of which 177 KB were re-reads.
+        for an identical render.
 
         ⚠️ We exclude the TAB, not the session. Two tabs of the same
         person must keep seeing each other.
@@ -399,6 +415,10 @@ class MemoryBroker:
         visitor's tab refetches its own, unchanged zone on each gesture
         of each other visitor: on the public Kanban, a board per visitor,
         one drag would cost one re-render per connected tab.
+
+        ``only_user`` narrows delivery to the tabs opened by ONE user, on
+        any of their sessions: a ``UserState`` is that user's data, and its
+        signal would otherwise tell every other visitor when they act.
         """
         if not state_qualname:
             return
@@ -407,12 +427,14 @@ class MemoryBroker:
             return
         if only_session:
             sessions = {only_session} & sessions
-        chunk = _format_event(event, data or state_qualname)
+        chunk = _format_event(SSE_EVENT_STATE_DIRTY, state_qualname)
         # Snapshot with ``list(...)`` : a put_nowait below could race a
         # concurrent teardown mutating these sets.
         for session_id in list(sessions):
             for conn_id in list(self._session_conns.get(session_id, ())):
                 if except_tab and self._conn_tabs.get(conn_id) == except_tab:
+                    continue
+                if only_user and self._conn_users.get(conn_id) != only_user:
                     continue
                 queue = self._queues.get(conn_id)
                 if queue is None:
@@ -478,18 +500,20 @@ class RedisBroker:
         Redis is imported lazily so an app running on the in-memory broker
         never needs the ``redis`` package installed.
         """
-        import redis.asyncio as redis_asyncio  # lazy — optional-ish dep
+        from bretzel.state.persistence.redis import require_redis
+
+        redis_asyncio = require_redis().asyncio  # an extra: bretzel[redis]
 
         return cls(redis_asyncio.from_url(url), channel=channel)
 
     # ── Connection + subscription : purely local ──────────────────────
 
     async def connect(
-        self, session_id: str, tab_id: str = ""
+        self, session_id: str, tab_id: str = "", user_id: str = ""
     ) -> AsyncIterator[str]:
         # Delegate the whole stream lifecycle to the local engine — the
         # socket lives on this worker, so does its queue.
-        async for chunk in self._local.connect(session_id, tab_id):
+        async for chunk in self._local.connect(session_id, tab_id, user_id):
             yield chunk
 
     def subscribe(self, session_id: str, state_qualname: str) -> None:
@@ -501,7 +525,7 @@ class RedisBroker:
 
     def publish(
         self, state_qualname: str, *, except_tab: str = "", only_session: str = "",
-        event: str = SSE_EVENT_STATE_DIRTY, data: str = "",
+        only_user: str = "",
     ) -> None:
         """PUBLISH the signal to the shared channel. Returns immediately;
         every worker's listener (this one included) does the local fanout.
@@ -511,18 +535,18 @@ class RedisBroker:
         fired as a background task so this stays non-blocking, matching the
         :class:`SSEBroker` contract.
 
-        ``except_tab`` and ``only_session`` travel WITH the signal,
-        separated by tab characters: the tab to exclude, or the session to
-        target, may hold its connection on a different worker from the
-        publishing one, so neither filter can be applied here. A tab
-        character cannot appear in a Python qualname, in a tab identifier
-        (hexadecimal) nor in a session identifier (URL-safe token).
+        The filters travel WITH the signal: the tab to exclude, the session
+        or user to target may hold its connection on a different worker
+        from the publishing one, so no filter can be applied here. They
+        ride as a JSON array — the tab id comes from a request header and
+        the session id from a cookie, so a separator character would be
+        theirs to write (a tab-joined charge let a forged tab id erase the
+        session filter). A bare qualname, the common case, stays bare.
         """
         if not state_qualname:
             return
-        extra = event != SSE_EVENT_STATE_DIRTY or data
-        charge = (f"{state_qualname}	{except_tab}	{only_session}	{event}	{data}"
-                  if except_tab or only_session or extra else state_qualname)
+        fields = [except_tab, only_session, only_user]
+        charge = json.dumps([state_qualname, *fields]) if any(fields) else state_qualname
         task = asyncio.create_task(
             self._client.publish(self._channel, charge)
         )
@@ -554,12 +578,15 @@ class RedisBroker:
             data = message.get("data")
             if isinstance(data, bytes):
                 data = data.decode("utf-8")
-            if data:
-                qualname, except_tab, only_session, event, payload = (
-                    *data.split("	", 4), "", "", "", "")[:5]
-                self._local.publish(qualname, except_tab=except_tab,
-                                    only_session=only_session,
-                                    event=event or SSE_EVENT_STATE_DIRTY, data=payload)
+            if not data:
+                continue
+            try:
+                charge = json.loads(data) if data.startswith("[") else [data]
+                qualname, except_tab, only_session, only_user = (*charge, "", "", "")[:4]
+            except ValueError:
+                continue  # not one of ours — the listener must outlive it
+            self._local.publish(qualname, except_tab=except_tab,
+                                only_session=only_session, only_user=only_user)
 
     async def aclose(self) -> None:
         """Cancel the listener, unsubscribe, and close the client. Called on

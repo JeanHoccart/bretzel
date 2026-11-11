@@ -22,11 +22,15 @@ client.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from bretzel.components.base.attrs import ComponentUsageError
 from bretzel.components.meta.iteration.limit_each import limit_each
 from bretzel.render import text
 from bretzel.state.scopes.client import ClientBinding
+
+if TYPE_CHECKING:
+    from bretzel.components.base import Component
 
 
 def show_more(
@@ -36,7 +40,7 @@ def show_more(
     step: int = 10,
     # ``None`` and not the sentence: a function default is evaluated at
     # the module's IMPORT, so before an app has declared its language.
-    label: str | None = None,
+    label: str | Component | None = None,
     key: str | Callable[[Any], Any] | None = None,
 ) -> Iterator[Any]:
     """Iterate ``items`` first-``count`` (client-side), then drop a
@@ -44,7 +48,7 @@ def show_more(
     from bretzel.components import ui  # lazy : ui namespace is this package
 
     if not isinstance(count, ClientBinding):
-        raise TypeError(
+        raise ComponentUsageError(
             "show_more: count must be a ClientBinding (it gets incremented) "
             "— for a fixed cap use ui.limit_each instead."
         )

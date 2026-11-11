@@ -20,7 +20,7 @@ made with a ``ui.vstack``, as everywhere else.
 swipe with inertia, the wheel, the keyboard and the snapping are the
 browser's; the runtime only goes to an index and reads the index back
 from the position (``$bz.carousel.scope``,
-``runtime/_src/17_carousel.js``). That is what makes a responsive
+``components/layout/carousel/carousel.js``). That is what makes a responsive
 ``per_view`` free: the JS knows no breakpoint, it MEASURES what CSS
 decided.
 
@@ -47,7 +47,7 @@ that stops is no longer a rotation.
 ``autoplay`` carries the activation AND the cadence in a single prop
 (``autoplay=5`` → every 5 s, ``None`` → off): two props would make the
 absurd state "off but timed" representable. It reuses ``$bz._tick``
-(``06_helpers.js``), the morph-idempotent timer already written for
+(``helpers.js``), the morph-idempotent timer already written for
 ``ui.interval`` — so the autoplay adds no timer to the runtime. At the
 user's first gesture it stops FOR GOOD: no resumption after a delay (a
 content that starts moving again while you are reading it is the
@@ -71,19 +71,17 @@ from bretzel.components.base import (
     ComponentUsageError,
     reactive_prop,
 )
-from bretzel.components.base._wiring import (
-    bool_attr,
+from bretzel.components.base.commands import IndexCommands
+from bretzel.components.base.field_wiring import (
     coerce_index,
     hidden_carrier_attrs,
-    scope_literal,
-)
-from bretzel.components.base._wiring import (
-    pop_change_handler as _pop_change_handler,
+    relocate_handlers,
 )
 from bretzel.components.base.responsive import (
     BASE_KEYS,
     responsive_classes,
 )
+from bretzel.components.base.scope_wiring import bool_attr, scope_literal
 from bretzel.components.layout.carousel.theme import (
     CAROUSEL_THEME,
     DOTS_HIDDEN,
@@ -158,12 +156,10 @@ def _per_view_at_base(value: Any) -> int:
     :meth:`Carousel._dots_hidden_class`) — the decision stays where the
     information lives, in the stylesheet.
 
-    ``BASE_KEYS`` and not a list written here: copying it by hand had
-    already drifted IN BOTH DIRECTIONS — it invented an upper-case
-    ``DEFAULT`` (which ``responsive_classes`` refuses, so a dead branch)
-    and forgot ``default`` (which it accepts). Measured result:
-    ``per_view={"default": 3}`` rendered one dot per slide while showing
-    three — exactly the state the module's docstring declares
+    ``BASE_KEYS`` and not a list written here: a copy by hand drifts.
+    Forgetting ``default``, which ``responsive_classes`` accepts, would
+    make ``per_view={"default": 3}`` render one dot per slide while
+    showing three — exactly the state the module's docstring declares
     impossible.
     """
     if isinstance(value, dict):
@@ -176,7 +172,7 @@ def _per_view_at_base(value: Any) -> int:
     return max(1, int(value))
 
 
-class Carousel(Component):
+class Carousel(IndexCommands, Component):
     """Render a snapping track whose direct children are slides."""
 
     THEME: ClassVar[dict[str, Any]] = CAROUSEL_THEME
@@ -257,36 +253,13 @@ class Carousel(Component):
                 f'site instead: per_view="{_slide_basis(n)}".'
             )
 
-    # ── Imperative API ─────────────────────────────────────────────────
-    #
-    # Ordinary class methods: none of these names is a
-    # ``reactive_prop``, so the overlays' non-data-descriptor trick has
-    # nothing to protect here — and it would make these methods
-    # invisible to ``test_imperative_classvar_is_complete``, which only
-    # reads a ClassDef's public methods.
-
-    def set(self, index: int) -> str:
-        """Go to ``index``. Write-through binding if there is one."""
-        return self._value_command(coerce_index(index, minimum=0))
-
-    def next(self) -> str:
-        # Always the dispatch, binding or not: the destination depends
-        # on the LIVE geometry (how many slides fit on screen at the
-        # current breakpoint), which the server does not know at render.
-        return self._dispatch_command("bz-next")
-
-    def prev(self) -> str:
-        return self._dispatch_command("bz-prev")
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
         theme = self._resolved_theme()
-        sizes = theme.get("sizes", {})
         gaps = theme.get("gaps", {})
 
-        size_key = self._reactive_values.get("size") or "md"
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
+        size_cfg = self._size_row() or {}
         per_view = self._reactive_values.get("per_view")
         autoplay = self._reactive_values.get("autoplay")
         gap_key = self._reactive_values.get("gap") or "md"
@@ -347,7 +320,7 @@ class Carousel(Component):
                 # again. An effect is redone at every rescan. (Reasoned
                 # from the code, not proved by a test: the track's box
                 # follows its slides', so observing the track covers in
-                # practice the cases we knew how to fabricate.)
+                # practice the cases a test can fabricate.)
                 "bz-effect": "_observeGeom()",
                 # With no modifier, and it is not an oversight:
                 # ``bz-on:`` passes its suffix VERBATIM to
@@ -374,7 +347,7 @@ class Carousel(Component):
         # The arrows anchor on the VIEWPORT, not on the root: their
         # ``top-1/2`` would otherwise be computed on a height that
         # includes the dot row, and they would visibly fall below the
-        # track's centre (measured at 10 px on a carousel with dots).
+        # track's centre.
         viewport_children: list[Node] = [track]
         children: list[Node] = []
 
@@ -385,7 +358,6 @@ class Carousel(Component):
         touch = "_touch(); " if autoplay else ""
 
         if has_controls:
-            arrow_size = size_cfg.get("arrow", "")
             icon_size = size_cfg.get("arrow_icon", "sm")
             for direction, icon_name, label_key, disabled_call in (
                 ("prev", "chevron-left", "carousel.previous", "_atStart()"),
@@ -397,9 +369,7 @@ class Carousel(Component):
                         attrs={
                             "type": "button",
                             "class": self.slot_class(
-                                "arrow",
-                                arrow_size,
-                                self.slot_class(f"arrow_{direction}"),
+                                "arrow", self.slot_class(f"arrow_{direction}"),
                             ),
                             "aria-label": text(label_key),
                             "bz-attr:disabled": disabled_call,
@@ -422,7 +392,7 @@ class Carousel(Component):
         )
 
         if has_dots:
-            dot_class = self.slot_class("dot", size_cfg.get("dot", ""))
+            dot_class = self.compose_class("dot")
             dot_nodes: list[Node] = []
             for index in range(count):
                 dot_attrs: dict[str, Any] = {
@@ -475,7 +445,8 @@ class Carousel(Component):
 
         # ── Hidden input — form data + source of the ``change`` ─────
         root_attrs = self.emit_attrs()
-        relocated = _pop_change_handler(root_attrs)
+        relocated: dict[str, Any] = {}
+        relocate_handlers(root_attrs, {"change": relocated})
         name = self._reactive_values.get("name") or self._derive_field_name()
         if name or relocated:
             hidden_attrs: dict[str, Any] = {
@@ -505,7 +476,7 @@ class Carousel(Component):
         # - ``_geom``, for the same reason: the bound is MEASURED
         #   (``scrollWidth - clientWidth``) and a measurement is not a
         #   signal. Without a declared field to read, the arrows'
-        #   ``_atEnd()`` froze at scan time — both disabled, so invisible;
+        #   ``_atEnd()`` would freeze at scan time — both disabled, so invisible;
         # - ``_track``, filled by the root's ``bz-init``: a scope method
         #   has no ``$refs``, only directives do.
         fields = {"still": "false"} if autoplay else {}

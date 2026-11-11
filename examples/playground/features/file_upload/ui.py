@@ -10,7 +10,7 @@ playground / Client events. FileUpload's reactive surface :
 Two variants : ``dropzone`` (default, large dashed area) and
 ``button`` (compact inline trigger). State + behaviour delegated to
 ``$bz.fileUpload.makeScope({...opts})`` factory in
-``bretzel/runtime/_src/08_file_upload.js``.
+``bretzel/components/inputs/file_upload/file_upload.js``.
 
 Two upload modes : form (hidden ``<input type="file">``, submitted
 with the parent form) and async (``upload_url=`` opt-in, XHR per
@@ -124,7 +124,7 @@ def control(label: str):
 # ─────────────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[FileUploadPlayground])
+@refreshable
 def server_panel() -> None:
     state = FileUploadPlayground()
     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
@@ -220,7 +220,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[FileUploadPlayground])
+@refreshable
 def events_panel() -> None:
     state = FileUploadPlayground()
     with ui.vstack(gap="sm"):
@@ -252,7 +252,7 @@ def page() -> None:
                 "and an opt-in async upload mode (``upload_url=``) "
                 "with per-file XHR progress. State + behaviour live in "
                 "``$bz.fileUpload.makeScope({...opts})`` "
-                "(``bretzel/runtime/_src/08_file_upload.js``) ; the "
+                "(``bretzel/components/inputs/file_upload/file_upload.js``) ; the "
                 "Python component just renders the markup. "
                 "``BINDABLE_PROPS = (disabled, multiple, accept)`` ; "
                 "``EVENTS = (change, upload_start, upload_complete, "
@@ -704,7 +704,33 @@ def page() -> None:
                         )),
                     )
 
-            # ── Card 9 — Client events ──────────────────────────────
+            # ── Card 9 — External controls — the 3 modes ────────────
+            with ui.card():
+                with ui.vstack():
+                    ui.heading("External controls — the 3 modes",
+                               level=2)
+                    ui.text(
+                        "FileUpload's imperative API is ``.focus()`` / "
+                        "``.blur()`` — DOM commands on the drop zone, "
+                        "with no value to write. Only Mode 1 (imperative) "
+                        "applies; there is no binding to write through, "
+                        "so Modes 2 and 3 have nothing to show.",
+                        color="muted", size="sm",
+                    )
+                    ui.heading("Mode 1 — Imperative only (default)",
+                               level=3)
+                    with ui.hstack(align="center", gap="md", wrap=True):
+                        target = ui.file_upload(variant="button")
+                        ui.button("Focus", on_click=target.focus())
+                        ui.button("Blur", variant="outline",
+                                  on_click=target.blur())
+                    ui.code(target.focus(), lang="js")
+                    emitted_html_block(
+                        "Emitted HTML (the id .focus() starts from)",
+                        serialize_html(target),
+                    )
+
+            # ── Card 10 — Client events ─────────────────────────────
             with ui.card():
                 with ui.vstack():
                     ui.heading("Client events", level=2)
@@ -755,7 +781,7 @@ def page() -> None:
                     ui.divider()
                     emitted_html_block(
                         "Emitted HTML — pure client-side "
-                        "``@change=\"...client_log.push(...)\"``, no "
+                        "``bz-on:change=\"...client_log.push(...)\"``, no "
                         "``hx-post`` round-trip.",
                         serialize_html(ui.file_upload(
                             on_change=cevents.client_log.push("change"),

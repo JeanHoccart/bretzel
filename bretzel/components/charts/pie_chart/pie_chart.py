@@ -24,22 +24,24 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from functools import partial
 from typing import Any, ClassVar
 
 from bretzel.components.base import (
     Component,
     item_action_attrs,
     reactive_prop,
+    reject_component,
 )
 from bretzel.components.charts._layers import (
+    data_table,
+    keyboard_attrs,
     reject_empty_text_component,
     render_empty_state,
     render_static_legend,
 )
 from bretzel.components.charts._svg import _fmt, arc_path, format_value
 from bretzel.components.charts.pie_chart.theme import PIE_CHART_THEME
-from bretzel.components.charts.series import coloured_slot
+from bretzel.components.charts.series import bad_point, coloured_slot
 from bretzel.core.tree import Element
 from bretzel.core.tree import TextNode as TextNode
 from bretzel.render import text
@@ -58,12 +60,10 @@ class PieChart(Component):
     THEME_KEY: ClassVar[str] = "pie_chart"
     #: The event is DECLARED, and it is not metadata.
     #:
-    #: As long as it was not, `on_item_click=` accepted only a callable:
-    #: the "client expression string" shape, which every framework `on_*`
-    #: accepts, raised a `TypeError` surfaced bare from
+    #: Undeclared, `on_item_click=` would accept only a callable: the
+    #: "client expression string" shape, which every framework `on_*`
+    #: accepts, would raise a `TypeError` surfaced bare from
     #: `functools.partial`, naming neither the component nor the prop.
-    #: Measured on 2026-09-06 on three shipped components
-    #: (commit `28958bf3`, which declared the event and gated it).
     #:
     #: The routing stays MANUAL — the base layer sets a declared event's
     #: `hx-post` on the ROOT, yet here it is each SLICE that carries its
@@ -84,8 +84,14 @@ class PieChart(Component):
     )
     show_labels: bool = reactive_prop(default=False, emit_attr=False)
     show_legend: bool = reactive_prop(default=True, emit_attr=False)
+    # « Voir les données » under the chart: the table behind the
+    # drawing, folded (``data_table``). Without it, the table is
+    # still there for a screen reader, invisible.
+    show_data: bool = reactive_prop(default=False, emit_attr=False)
     center_text: str = reactive_prop(default="", emit_attr=False)
-    empty_text: str = reactive_prop(default="No data", emit_attr=False)
+    # ``None``: the table's « No data », in the page's language — a
+    # literal default would freeze it in English.
+    empty_text: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
         self,
@@ -96,17 +102,32 @@ class PieChart(Component):
         variant: str | None = None,
         show_labels: bool | None = None,
         show_legend: bool | None = None,
+        show_data: bool | None = None,
         center_text: str | None = None,
         value_format: Any = None,
         value_unit: str | None = None,
         on_item_click: Any = None,
         empty_text: str | None = None,
-        empty_icon: str | None = "pie-chart",
-        empty_description: str | None = None,
+        empty_icon: str | Component | None = "pie-chart",
+        empty_description: str | Component | None = None,
         empty: Callable[[], Any] | None = None,
         **kwargs: Any,
     ) -> None:
         reject_empty_text_component(empty_text, owner="PieChart")
+        reject_component(
+            center_text,
+            owner="PieChart",
+            prop="center_text",
+            because=(
+                "the centre text is an SVG ``<text>`` inside the donut, and "
+                "SVG text holds characters, not HTML."
+            ),
+            instead=(
+                "For a composed centre, overlay it: a ``ui.vstack`` with "
+                "``classes=\"relative\"`` around the chart and an absolutely "
+                "placed child."
+            ),
+        )
         self._empty_icon = empty_icon
         self._empty_description = empty_description
         self._empty = empty
@@ -118,7 +139,7 @@ class PieChart(Component):
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             size=size, variant=variant,
-            show_labels=show_labels, show_legend=show_legend,
+            show_labels=show_labels, show_legend=show_legend, show_data=show_data,
             center_text=center_text, empty_text=empty_text,
             **kwargs,
         )
@@ -134,8 +155,9 @@ class PieChart(Component):
         is_donut = (self._reactive_values.get("variant") or "pie") == "donut"
         show_labels = bool(self._reactive_values.get("show_labels"))
         show_legend = bool(self._reactive_values.get("show_legend"))
+        show_data = bool(self._reactive_values.get("show_data"))
         center_text = self._reactive_values.get("center_text") or ""
-        empty_text = self._reactive_values.get("empty_text") or "No data"
+        empty_text = self._reactive_values.get("empty_text") or text("chart.empty")
 
         size_spec = sizes.get(size_name) or sizes.get("md") or {
             "h": 280, "label": 12, "center": 22,
@@ -160,7 +182,7 @@ class PieChart(Component):
             return Element(
                 tag=self._tag, attrs=wrapper_attrs,
                 children=(render_empty_state(
-                    self, width=side, height=side,
+                    height=side,
                     kind=text("chart.donut") if is_donut else text("chart.pie"),
                     message=empty_text, icon=self._empty_icon,
                     description=self._empty_description,
@@ -238,8 +260,7 @@ class PieChart(Component):
                     # `debounce=` / `throttle=`: the base layer applies
                     # them only to the ROOT's action.
                     modifier=self._trigger_modifier,
-                    bind=lambda fn, _l=str(label), _v=float(value): partial(
-                        fn, _l, _v),
+                    payload={"label": str(label), "value": float(value)},
                     owner_id=self.id,
                     ctx=ctx,
                 ))
@@ -262,7 +283,7 @@ class PieChart(Component):
                     "font-size": str(label_font),
                     "text-anchor": "middle",
                     "dominant-baseline": "middle",
-                }, children=(TextNode(f"{pct}%"),)))
+                }, children=(TextNode(text("number.percent", value=pct)),)))
 
             start = end
 
@@ -292,6 +313,14 @@ class PieChart(Component):
                 _render_legend(slot, slices, palette)
             )
 
+        wrapper_children.append(data_table(
+            slot,
+            [text("chart.category"), text("chart.value"), text("chart.share")],
+            [[label, format_value(value, self._value_format, self._value_unit),
+              format_value(value / total, "percent")] for label, value in slices],
+            shown=show_data,
+        ))
+        keyboard_attrs(wrapper_attrs)
         return Element(
             tag=self._tag, attrs=wrapper_attrs,
             children=tuple(wrapper_children),
@@ -308,14 +337,15 @@ def _coerce_slices(data: Any) -> list[tuple[str, float]]:
         return []
     out: list[tuple[str, float]] = []
     for item in data:
-        if isinstance(item, (tuple, list)) and len(item) >= 2:
-            try:
-                value = float(item[1])
-            except (TypeError, ValueError):
-                continue
-            # Negative / zero slices don't make a pie — skip silently.
-            if value > 0:
-                out.append((str(item[0]), value))
+        try:
+            if not (isinstance(item, (tuple, list)) and len(item) == 2):
+                raise bad_point("PieChart", item, "a (label, value) pair, value a number")
+            value = float(item[1])
+        except (TypeError, ValueError):
+            raise bad_point("PieChart", item, "a (label, value) pair, value a number") from None
+        # Negative / zero slices don't make a pie — skip silently.
+        if value > 0:
+            out.append((str(item[0]), value))
     return out
 
 

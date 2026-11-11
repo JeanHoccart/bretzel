@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from bretzel.components.base.testing import render_isolated
@@ -12,6 +14,14 @@ from bretzel.state.scopes.client import rendering_scope
 
 
 def _change_handler() -> None: ...
+
+
+def _walk(node):
+    """Every element of a rendered tree."""
+    if hasattr(node, "attrs"):
+        yield node
+        for child in node.children:
+            yield from _walk(child)
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -112,6 +122,35 @@ class TestBoundsAndStep:
 # ───────────────────────────────────────────────────────────────────────────
 # C. Keyboard + wheel
 # ───────────────────────────────────────────────────────────────────────────
+
+
+class TestDisabledReachesTheSteppers:
+    @staticmethod
+    def _steppers(html: str) -> list[str]:
+        return re.findall(r'<button[^>]*tabindex="-1"[^>]*>', html)
+
+    def test_literal_disabled_turns_both_steppers_off(self) -> None:
+        with render_isolated():
+            out = serialize(NumberInput(value=1, min=0, max=10, disabled=True).render())
+        steppers = self._steppers(out)
+        assert len(steppers) == 2
+        for tag in steppers:
+            assert re.search(r"\sdisabled(?=[\s/>=])", tag), tag
+            # A ``bz-attr:disabled`` would write the limit test over it.
+            assert "bz-attr:disabled" not in tag, tag
+
+    def test_bound_disabled_reaches_steppers_and_carrier(self) -> None:
+        class S(ClientState, persist="memory"):
+            locked: bool = field(default=False)
+
+        with rendering_scope(), render_isolated():
+            out = serialize(NumberInput(value=1, min=0, max=10, disabled=S().locked).render())
+        steppers = self._steppers(out)
+        assert len(steppers) == 2
+        for tag, limit in zip(steppers, ("_atMax()", "_atMin()"), strict=True):
+            assert re.search(rf'bz-attr:disabled="\([^"]*locked\) \|\| {re.escape(limit)}"', tag), tag
+        hidden = re.search(r'<input[^>]*type="hidden"[^>]*>', out).group(0)
+        assert "bz-attr:disabled" in hidden, hidden
 
 
 class TestKeyboardWheel:
@@ -268,7 +307,7 @@ class TestClientBindingValue:
             out = serialize(
                 NumberInput(value=state.amount).render()
             )
-        assert 'name="amount"' in out
+        assert 'name="S.amount"' in out
 
 
 class TestEvents:
@@ -288,15 +327,16 @@ class TestEvents:
         assert "hx-post=" in opening
 
     def test_emit_change_uses_captured_carrier(self) -> None:
-        """``_emitChange`` dispatches from ``this._carrier`` (the input
-        captured at bz-init) — a scope method can't reach ``$refs`` /
-        ``$el`` (directive-only locals), so the carrier is captured up
-        front."""
+        """``_emitChange`` dispatches from ``this._carrier`` — the HIDDEN
+        input that carries the value in the form data, captured at its
+        bz-init (a scope method can't reach ``$refs`` / ``$el``)."""
         with render_isolated():
-            out = serialize(NumberInput(value=42).render())
-        assert "_carrier" in out
-        # Captured from the ref (or $el) in the input's bz-init.
-        assert "$refs.bzinput || $el" in out
+            root = NumberInput(value=42, name="points").render()
+        hidden = next(e for e in _walk(root) if e.attrs.get("type") == "hidden")
+        assert hidden.attrs["bz-init"] == "_carrier = $el"
+        assert hidden.attrs["name"] == "points" and hidden.attrs["value"] == "42"
+        visible = next(e for e in _walk(root) if e.attrs.get("type") == "text")
+        assert "name" not in visible.attrs  # the shown text, « 42 » or « 2,5 », is not posted
 
     def test_callable_change_routes_to_private_bzchange(self) -> None:
         """A callable ``on_change=`` must observe the COMMITTED value,
@@ -340,11 +380,12 @@ class TestEvents:
         """The carrier is ``type="text"`` (so partial drafts are
         readable), so the browser blocks nothing at the keyboard — a
         ``beforeinput`` guard rejects any inserted char outside
-        ``[0-9.-]`` before it lands, so letters never show."""
+        ``[0-9.,-]`` before it lands, so letters never show — the comma is
+        a French decimal mark (2026-10-28)."""
         with render_isolated():
             out = serialize(NumberInput(value=42).render())
         assert "bz-on:beforeinput=" in out
-        assert "/[^0-9.-]/.test" in out
+        assert "/[^0-9.,-]/.test" in out
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -426,18 +467,19 @@ class TestImperativeAPI:
         assert "-1" in out
 
     def test_focus_targets_input(self) -> None:
+        # The target comes from ``FOCUS_TARGET`` (``base/focus.py``), read
+        # by ``autofocus=`` too; the browser half: tests/runtime_js/test_autofocus.py.
         with render_isolated():
             n = NumberInput(value=42)
             out = n.focus()
-        assert "input[type=text]" in out
-        assert ".focus()" in out
+        assert out == f"$bz.helpers.focusIn('{n.id}', [\"input[type=text]\"])"
 
     def test_blur_targets_input(self) -> None:
+        # Whatever has the focus INSIDE the component, not only the target.
         with render_isolated():
             n = NumberInput(value=42)
             out = n.blur()
-        assert "input[type=text]" in out
-        assert ".blur()" in out
+        assert out == f"$bz.helpers.blurIn('{n.id}')"
 
 
 # ───────────────────────────────────────────────────────────────────────────

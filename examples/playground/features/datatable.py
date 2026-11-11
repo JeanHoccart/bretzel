@@ -23,7 +23,7 @@ construction:
 1. **One ``DatatableState`` subclass per table.** States are keyed by
    class, so two tables sharing one subclass would share one sort and
    one page.
-2. **An interactive table lives in a ``@refreshable(deps=[ItsState])``.**
+2. **An interactive table lives in a ``@refreshable``.**
    Without the zone, clicking a header posts, mutates the state, and the
    page never changes. ``ui.datatable`` raises rather than let that ship.
 
@@ -223,7 +223,7 @@ SIZE_LADDER = [("sm", SizeSmQuery), ("md", SizeMdQuery), ("lg", SizeLgQuery)]
 
 
 # ── Card 1 — Reference ───────────────────────────────────────────────
-@refreshable(deps=[RefQuery])
+@refreshable
 def reference_panel() -> None:
     ui.text(
         "The full component. Click a header to sort (asc → desc → back "
@@ -251,22 +251,21 @@ def size_row(size: str, query) -> None:
 
 
 # ONE zone per table, and not one zone for the three. A zone re-renders
-# when ANY of its `deps` moves: with
-# `deps=[SizeSmQuery, SizeMdQuery, SizeLgQuery]`, changing page on the
-# `sm` table ALSO re-rendered `md` and `lg` — three complete tables for
-# one click, which shows on screen. The three states are independent, so
+# when ANY state it reads moves: one zone reading the three queries
+# would re-render `md` and `lg` on a page change of the `sm` table —
+# three complete tables for one click, which shows on screen. The three states are independent, so
 # the three zones are.
-@refreshable(deps=[SizeSmQuery])
+@refreshable
 def size_sm_panel() -> None:
     size_row("sm", SizeSmQuery)
 
 
-@refreshable(deps=[SizeMdQuery])
+@refreshable
 def size_md_panel() -> None:
     size_row("md", SizeMdQuery)
 
 
-@refreshable(deps=[SizeLgQuery])
+@refreshable
 def size_lg_panel() -> None:
     size_row("lg", SizeLgQuery)
 
@@ -284,7 +283,7 @@ def size_ladder_panel() -> None:
 
 
 # ── Card 2 — Edge cases ──────────────────────────────────────────────
-@refreshable(deps=[EdgeQuery])
+@refreshable
 def edge_panel() -> None:
     ui.text(
         "Search for something absent (``zzz``) : the empty state shows, "
@@ -305,10 +304,10 @@ class DatatablePlayground(PageState):
     size:               str = field(default="md")
     color:              str = field(default="primary")
     search:             str = field(default="on")
-    search_placeholder: str = field(default="Search…")
+    search_placeholder: str = field(default="")
     max_height:         str = field(default="")
     data:               str = field(default="populated")
-    empty_text:         str = field(default="No data.")
+    empty_text:         str = field(default="")
     empty_icon:         str = field(default="inbox")
     empty_description:  str = field(default="")
     # Escape hatches.
@@ -324,7 +323,7 @@ class DatatablePlayground(PageState):
 
 def server_changed(state: DatatablePlayground) -> None:
     # Typed param → the dispatcher hydrates the changed control's value
-    # into ``state`` (coerced + persisted) ; deps= re-renders the zone.
+    # into ``state`` (coerced + persisted) ; the zone reading it re-renders.
     pass
 
 
@@ -354,7 +353,7 @@ def build_preview(state: DatatablePlayground):
         "size": state.size,
         "color": state.color,
         "search": state.search == "on",
-        "empty_text": state.empty_text or "No data.",
+        "empty_text": state.empty_text or None,
         "empty_icon": state.empty_icon or "inbox",
     }
     if state.search_placeholder:
@@ -385,7 +384,7 @@ def build_preview(state: DatatablePlayground):
 # The preview depends on BOTH (it reads the config AND paginates); the
 # grid of fifteen controls depends only on the config. Joined, changing
 # page in the preview rebuilt the fifteen selects.
-@refreshable(deps=[DatatablePlayground, PreviewQuery])
+@refreshable
 def preview_panel() -> None:
     state = DatatablePlayground()
     build_preview(state)
@@ -400,7 +399,7 @@ def preview_panel() -> None:
     )
 
 
-@refreshable(deps=[DatatablePlayground])
+@refreshable
 def server_panel() -> None:
     state = DatatablePlayground()
 
@@ -489,10 +488,7 @@ def clear_clicks() -> None:
 # the log to `DatatableClicks` (the row clicks). Joined, every page
 # change rebuilt the log, and every row click rebuilt the table — twice
 # the work needed, on both sides.
-# ``EventsQuery`` too: this panel is called INSIDE ``events_panel``, so a
-# sort or a page redraws it anyway. Declare it, or take the panel out —
-# here it is inline, between the table and its HTML.
-@refreshable(deps=[DatatableClicks, EventsQuery])
+@refreshable
 def click_log_panel() -> None:
     state = DatatableClicks()
     with ui.vstack():
@@ -541,7 +537,7 @@ def client_events_panel() -> None:
             ' forms of an ``on_*`` hold here as they do there.',
         color="muted", size="sm",
     )
-    clicked = ClientExpression("String($event.detail ?? 'item_click')")
+    clicked = ClientExpression("new Date().toLocaleTimeString() + ' — ' + 'row ' + $event.detail.key")
     ui.datatable(
         state=ClientEventsQuery,
         columns=[ui.column("name", label="Name")],
@@ -580,7 +576,7 @@ def client_events_panel() -> None:
     )
 
 
-@refreshable(deps=[EventsQuery])
+@refreshable
 def events_panel() -> None:
     ui.text(
         "``row_key=\"id\"`` + ``on_item_click=open_issue``, forwarded to "
@@ -610,7 +606,7 @@ def events_panel() -> None:
 
 
 # ── Card 3 — Composability ───────────────────────────────────────────
-@refreshable(deps=[ComposeQuery])
+@refreshable
 def compose_panel() -> None:
     with ui.card():
         with ui.vstack():
@@ -622,7 +618,7 @@ def compose_panel() -> None:
 
 
 # ── Card 4 — A11y ────────────────────────────────────────────────────
-@refreshable(deps=[A11yQuery])
+@refreshable
 def a11y_panel() -> None:
     ui.datatable(state=A11yQuery, columns=SORTABLE_COLUMNS, rows=ISSUES,
                  aria_label="Issue tracker", max_height="16rem")

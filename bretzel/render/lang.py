@@ -32,11 +32,10 @@ Hence two measurements rather than a re-read:
 
 What this module does not do
 ----------------------------
-Translate the app's strings. :attr:`Language.code` returns the resolved
-language, and a dict per language in the app does the rest in six lines;
-catalogues, extraction and per-language plural rules are a separate
-project (v2.1). What was really missing was knowing WHICH language to
-serve.
+Translate. The framework's words are :mod:`bretzel.render.texts` and
+:mod:`bretzel.render.languages`; the app's, :func:`bretzel.t` and its
+tables (:mod:`bretzel.render.translations`). This module answers the
+question both need first: WHICH language to serve.
 """
 
 from __future__ import annotations
@@ -46,7 +45,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from bretzel.core.errors import BretzelError
-from bretzel.render.texts import DEFAULT_TEXTS, TextsError, resolve_texts
+from bretzel.render.texts import TextsError, resolve_texts
 from bretzel.runtime.protocol import LANG_COOKIE
 
 __all__ = [
@@ -127,13 +126,14 @@ class LanguageTables:
     ) -> None:
         codes = list(dict.fromkeys([default, *languages]))
         self._default = default
-        # Any declared but unoverridden language falls back to English.
-        # No error: an app adding ``"de"`` before having translated it
-        # must be able to serve it, in English, rather than refuse to
-        # start.
-        self._tables: dict[str, Mapping[str, str]] = dict.fromkeys(
-            codes, DEFAULT_TEXTS
-        )
+        # Each language starts from the framework's own words in it —
+        # French ships with the framework (``render/languages``) — and a
+        # language it does not ship falls back to English. No error: an
+        # app adding ``"de"`` before having translated it must be able to
+        # serve it, in English, rather than refuse to start.
+        self._tables: dict[str, Mapping[str, str]] = {
+            code: resolve_texts(None, lang=code) for code in codes
+        }
         if not overrides:
             return
 
@@ -144,25 +144,25 @@ class LanguageTables:
         flat = set(overrides) - nested
         if nested and flat:
             raise TextsError(
-                f"texts= mixes the two forms: {sorted(flat)[:3]} are "
+                f"the framework's words mix the two forms: {sorted(flat)[:3]} are "
                 f"sentences (flat form) and {sorted(nested)[:3]} are tables "
                 f"(per-language form). Pick one — a dict containing both "
                 f"has no correct reading."
             )
         if not nested:
-            self._tables[default] = resolve_texts(overrides)  # type: ignore[arg-type]
+            self._tables[default] = resolve_texts(overrides, lang=default)  # type: ignore[arg-type]
             return
 
         unknown = sorted(nested - set(codes))
         if unknown:
             raise TextsError(
-                f"texts= overrides undeclared languages: "
+                f"translations= replaces Bretzel's words in undeclared languages: "
                 f"{', '.join(repr(c) for c in unknown)}. Add them to "
                 f"``languages=``, otherwise nobody will ever receive them — "
                 f"a table nothing can select is work lost in silence."
             )
         for code in nested:
-            self._tables[code] = resolve_texts(overrides[code])
+            self._tables[code] = resolve_texts(overrides[code], lang=code)
 
     def for_language(self, code: str) -> Mapping[str, str]:
         """Return the table for ``code`` or for the default language."""

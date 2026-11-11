@@ -1,8 +1,7 @@
 """Wire-format constants — the **only** place these strings are defined.
 
 Every other module that needs a ``bz-*`` attribute name, an HTTP header
-name, or a framework route imports it from here. The strict rule
-(``.claude/bretzel/runtime.md`` §*Purpose*) : no other Bretzel module
+name, or a framework route imports it from here. The strict rule: no other Bretzel module
 hardcodes these strings.
 
 Bumping any constant here is a wire-format change and must be paired
@@ -34,7 +33,6 @@ BZ_ID_ATTR: Final[str] = "bz-id"
 BZ_STATE_ATTR: Final[str] = "bz-state"
 
 # Directive prefixes — the 13 directives the runtime evaluates.
-# Grammar and edge cases : .claude/bretzel/runtime.md §"_src/02_directives.js".
 BZ_ON_PREFIX: Final[str] = "bz-on:"          # event handler (client-only)
 BZ_MODEL_PREFIX: Final[str] = "bz-model"     # two-way binding on form inputs
 BZ_ATTR_PREFIX: Final[str] = "bz-attr:"      # generic one-way attribute bind
@@ -58,14 +56,34 @@ DATA_BZ_TS: Final[str] = "data-bz-ts"      # render timestamp, signed into the H
 # rendered by ``loading=False``, turns it off for the element and
 # everything inside it.
 BUSY_CLASS: Final[str] = "bz-busy"
+# A navigation entry's own path, read by ``$bz._navActive`` to light the
+# most specific entry of a menu (``components/navigation/_wiring.py``).
+DATA_NAV_HREF: Final[str] = "data-bz-nav"
+#: On ``<html>``, for an app under a ``base_path``: the runtime reads it once.
+DATA_BZ_BASE: Final[str] = "data-bz-base"
 DATA_BZ_BUSY: Final[str] = "data-bz-busy"
+# Replace-not-morph: an element carrying it is REPLACED whole when a swap
+# reaches it (``bridge.js`` hooks idiomorph's ``beforeNodeMorphed``),
+# instead of having its children paired one by one. Set by the components
+# whose content is a large server-built blob with no ids — ``ui.code``'s
+# Pygments spans, ``ui.markdown``'s HTML — where idiomorph's pairing is
+# quadratic, so a large blob can take seconds to morph. Nothing inside
+# such a blob holds client state to keep.
+DATA_BZ_REPLACE: Final[str] = "data-bz-replace"
+# Autofocus: the element (the one carrying the component's id) whose
+# focus target takes the focus when it enters the page. Its value is the
+# JSON list of the component's ``FOCUS_TARGET`` selectors, read by
+# ``$bz.helpers.focusTarget`` (``helpers.js``). Not the native
+# ``autofocus``: the browser honours it at page load only, and htmx
+# re-applies it on its own swaps without any of our rules.
+DATA_BZ_AUTOFOCUS: Final[str] = "data-bz-autofocus"
 
 # ``bz-data`` scope marker read by the runtime scope engine
-# (``_src/03_scope.js``), not a directive. ``_serverSync`` lists the scope
+# (``_src/scope.js``), not a directive. ``_serverSync`` lists the scope
 # keys a ``@refreshable`` morph must re-adopt from the freshly-rendered
 # ``bz-data`` (server wins), vs the client-owned keys ``absorb`` preserves.
 # Emitted by value-holding controls via
-# ``components/base/_wiring.server_sync_marker`` ; mirrored verbatim in the
+# ``base/scope_wiring.server_sync_marker`` ; mirrored verbatim in the
 # JS scope reader (guarded by ``tests/consistency/test_python_js_mirror.py``).
 SERVERSYNC_KEY: Final[str] = "_serverSync"
 
@@ -80,32 +98,12 @@ HEADER_BZ_TS: Final[str] = "X-Bz-Ts"                # render timestamp signed in
 HEADER_PAGE_ID: Final[str] = "X-Bretzel-Page-ID"    # page identity
 HEADER_CSRF: Final[str] = "X-Bretzel-CSRF"          # CSRF token
 
-#: The ``@refreshable`` zones the BROWSER actually has in front of it,
-#: in clear text, comma-separated. Sent on action POSTs only.
-#:
-#: Without it, ``enqueue_deps`` queues EVERY zone declared on a changed
-#: state class, including those living on other pages: the server
-#: renders them, serialises them, compresses them, sends them — and the
-#: browser throws them away for want of a target. Measured on 2026-09-05
-#: on ``examples/mad``: an action from ``/patients`` rendered the
-#: dashboard's zone for nothing, **8.4 ms** against 9.6 ms for the useful
-#: zone, so nearly half the drain. On ``examples/crm``, ``ViewerPrefs``
-#: drags 14 zones across 8 modules for 4 at most per page.
-#:
-#: ⚠️ An ABSENT header means "I do not know", not "no zone": the server
-#: then filters nothing. That is what makes the setting safe — a cached
-#: runtime, a third-party client or a test POSTing by hand falls back on
-#: the old behaviour, never on a zone that silently stops refreshing.
 #: The TAB identity, drawn once per page load.
 #:
 #: It serves one thing only, and it is a saving: excluding the tab that
 #: has just acted from its OWN broadcast. It already received its zones
 #: in its action's response; asking for them again through the real-time
 #: stream is one round trip per zone, for an identical render.
-#:
-#: Measured on ``examples/kanban`` before the exclusion: ticking a
-#: subtask cost **five requests and 354 KB** — the action (177 KB) plus
-#: four re-reads returning exactly what the first had just delivered.
 #:
 #: ⚠️ Exclude the tab, not the SESSION. Two tabs of the same person must
 #: keep seeing each other: that is the very use case of a shared board
@@ -116,6 +114,20 @@ HEADER_TAB: Final[str] = "X-Bretzel-Tab"
 #: cannot set a header.
 SSE_TAB_PARAM: Final[str] = "tab"
 
+#: The ``@refreshable`` zones the BROWSER actually has in front of it,
+#: in clear text, comma-separated. Sent on action POSTs only. An entry is
+#: ``id``, ``id:fingerprint`` (:data:`DATA_ZONE_HASH`) or
+#: ``id:fingerprint:reads`` (:data:`DATA_ZONE_READS`).
+#:
+#: Without it, ``enqueue_readers`` queues EVERY zone that read a changed
+#: field, including those living on other pages: the server
+#: renders them, serialises them, compresses them, sends them — and the
+#: browser throws them away for want of a target.
+#:
+#: ⚠️ An ABSENT header means "I do not know", not "no zone": the server
+#: then filters nothing. That is what makes the setting safe — a cached
+#: runtime, a third-party client or a test POSTing by hand falls back on
+#: queueing every reader, never on a zone that silently stops refreshing.
 HEADER_ZONES: Final[str] = "X-Bretzel-Zones"
 
 #: **Response → client**: the fingerprint of every zone this response
@@ -124,11 +136,6 @@ HEADER_ZONES: Final[str] = "X-Bretzel-Zones"
 #: back in :data:`HEADER_ZONES` on the next request; the server can then
 #: STAY SILENT about a zone whose fresh render is identical, or send only
 #: the elements that changed (``render/zone_diff.py``).
-#:
-#: Measured on ``examples/messagerie``: toggling a read flag shipped
-#: 93 075 bytes for 115 actually changed — two zones out of three came
-#: back byte for byte identical. On the comparison helpdesk
-#: (2026-10-23), one status change: 18.6 KB gzipped whole, 6.3 KB patched.
 #:
 #: It is the client that carries the fingerprint of what it displays. The
 #: server only caches the element fingerprints of recent zone versions,
@@ -156,13 +163,12 @@ ROUTE_THEME_CSS: Final[str] = f"{ROUTE_PREFIX}/theme.css"
 ROUTE_STYLE_CSS: Final[str] = f"{ROUTE_PREFIX}/style.css"
 # The third-party scripts brought in-house under ``./.bretzel/vendor/``
 # — htmx, idiomorph, iconify. Served from here rather than from three
-# CDNs: a page's ``DOMContentLoaded`` goes from 644 to 110 ms (measured
-# on 2026-08-27). Cf. ``bretzel/render/vendor.py``.
+# CDNs, for a shorter ``DOMContentLoaded``. Cf. ``bretzel/render/vendor.py``.
 ROUTE_VENDOR: Final[str] = f"{ROUTE_PREFIX}/vendor"
 # The icon DATA, relayed and cached. The iconify web component fetches
 # its glyphs from three third-party hosts (``api.iconify.design`` and two
-# fallbacks): measured on 2026-09-13, with all three cut off it renders
-# **0 glyphs out of 25**. Bringing the component in-house does not bring
+# fallbacks): with all three cut off it renders no glyph at all.
+# Bringing the component in-house does not bring
 # its glyphs in-house — that is a second dependency, in the same page,
 # and it outlives the other one.
 ROUTE_ICONS: Final[str] = f"{ROUTE_PREFIX}/icons"
@@ -178,6 +184,9 @@ ROUTE_SSE: Final[str] = f"{ROUTE_PREFIX}/sse"
 # ``/_bretzel`` prefix, which is reserved for the framework: that path
 # appears in the URLs the app writes itself.
 ROUTE_STATIC_DIR: Final[str] = "/static"
+#: The web app manifest (``server/pwa.py``). At the root and not under
+#: ``/_bretzel``: a manifest's scope is the folder that serves it.
+ROUTE_MANIFEST: Final[str] = "/manifest.webmanifest"
 # NOT a live channel — a standard HTTP GET hit by the runtime AFTER an
 # SSE state-dirty event, to fetch the updated HTML of a subscribing
 # zone. The SSE stream is the only long-lived connection.
@@ -197,9 +206,9 @@ ROUTE_REFETCH: Final[str] = f"{ROUTE_PREFIX}/refetch"
 #: and ``/_bretzel/datatable.csv`` exports rows. Opening them means
 #: letting a whole app render for an anonymous visitor.
 #:
-#: **Why this constant exists.** The first example to write a guard
-#: (``examples/crm``, 2026-08-20) had to enumerate those three paths by
-#: hand AND reason about the four others. That is framework knowledge
+#: **Why this constant exists.** Without it, a guard would have to
+#: enumerate those paths by hand AND reason about the others. That is
+#: framework knowledge
 #: inside app code: the day an internal route is added, every guard
 #: breaks or opens **silently**. The classification therefore belongs to
 #: whoever mounts the routes.
@@ -224,6 +233,11 @@ PUBLIC_ASSET_ROUTES: Final[frozenset[str]] = frozenset({
     # so no icon, and nothing in the logs.
     ROUTE_FAVICON,
     ROUTE_TOUCH_ICON,
+    # The manifest, for a reason of its own: the browser fetches it WITHOUT
+    # the session cookies (a ``<link rel=manifest>`` has no credentials), so
+    # even for a signed-in user a guard would answer the sign-in page and
+    # the app would no longer be installable, in silence.
+    ROUTE_MANIFEST,
 })
 
 
@@ -248,7 +262,7 @@ def is_public_asset_path(path: str) -> bool:
 
 # Joins ``<module>`` + ``<qualname>`` into the addressable id that rides on
 # ``ROUTE_ACTION`` (action handlers) and the refetch/realtime routes
-# (refreshable zones + State ``deps``). Built by
+# (refreshable zones + the states they read). Built by
 # ``server.handlers.encode_action_id``,
 # ``components.base.events.encode_handler_id`` and
 # ``render.decorators.refreshable`` (zones + ``state_qualname``), split back
@@ -265,15 +279,9 @@ WIRE_ID_SEP: Final[str] = "::"
 
 SSE_EVENT_STATE_DIRTY: Final[str] = "state-dirty"
 
-#: ``refresh(zone, rows=[…])`` on a broadcast zone: the other tabs refetch
-#: that zone for those rows only. Data: JSON ``{"state", "zone", "rows"}``
-#: — ``state`` is the channel the zone subscribes to, ``zone`` its
-#: ``bz-id``, ``rows`` the keys as strings.
-SSE_EVENT_ZONE_ROWS: Final[str] = "zone-rows"
-
-#: Query parameter of the refetch route: a JSON list of row keys. Absent,
-#: the zone is refetched whole.
-REFETCH_ROWS_PARAM: Final[str] = "rows"
+#: Query parameter of the refetch route: the signature that ties a zone's
+#: URL to the session it was rendered for. The runtime keeps it untouched.
+REFETCH_SIG_PARAM: Final[str] = "sig"
 DATA_SUBSCRIBE_STATE: Final[str] = "data-bz-subscribe-state"
 DATA_SUBSCRIBE_URL: Final[str] = "data-bz-subscribe-url"
 
@@ -294,11 +302,20 @@ DATA_ZONE: Final[str] = "data-bz-zone"
 #: fingerprint of the one it replaced.
 DATA_ZONE_HASH: Final[str] = "data-bz-h"
 
+#: What the render of this zone version READ: one short identifier per
+#: state field (:func:`~bretzel.render.decorators.refreshable.field_id`),
+#: dot-separated. The runtime presents it back in :data:`HEADER_ZONES`
+#: (``id:fingerprint:reads``), so the server knows what THIS client's
+#: version of the zone follows — exact per client, and the same on every
+#: worker, since the identifier comes from the code. Living on the
+#: element, it changes with the HTML: a render that reads otherwise is a
+#: different version.
+DATA_ZONE_READS: Final[str] = "data-bz-r"
+
 # Viewport cookie — a client→server wire string, so it lives here (single
 # source, per this module's rule). Written pre-paint by the boot script
 # (``render/shell.py`` interpolates this name into the JS) and read at render
 # by ``render/screen.py``. Value format ``"{mobile},{touch}"`` (``1``/``0``).
-# Cf. ``.claude/bretzel/screen-responsive-nav.md``.
 SCREEN_COOKIE: Final[str] = "bz_screen"
 
 # The LANGUAGE cookie. It wins over ``Accept-Language`` — the header
@@ -310,7 +327,7 @@ SCREEN_COOKIE: Final[str] = "bz_screen"
 LANG_COOKIE: Final[str] = "bz_lang"
 
 # Global the pre-paint sync script defines (``render/shell.py``) and the runtime
-# calls by name (``_src/05_bridge.js``, before a boosted nav). Not a wire string
+# calls by name (``_src/bridge.js``, before a boosted nav). Not a wire string
 # in the HTTP sense, but the same problem this module exists for : one name, two
 # languages, no compiler to catch a rename. Substituted into the bundle as
 # ``__SCREEN_SYNC_FN__`` by ``_build.py`` and mirrored by
@@ -328,6 +345,15 @@ SCREEN_SYNC_FN: Final[str] = "$bzScreenSync"
 ENVELOPE_TAG_NAME: Final[str] = "bz-envelope"  # bootstrap (initial page load)
 PATCH_TAG_NAME: Final[str] = "bz-patch"        # delta patches (per response)
 AT_TAG_NAME: Final[str] = "bz-at"              # an element patched by position
+
+#: An ``id`` a patch may name: a CSS identifier, which htmx selects with
+#: ``"#" + id`` unescaped. An id legal in HTML but not in CSS — ``"137"``,
+#: ``"a b"`` — makes it throw and drops the response, so such an element
+#: is reached by its position, like one without an id. ONE rule for both
+#: sides: the zone diff (``render/zone_diff.py``) and the runtime
+#: (``bridge.js``, ``__ADDRESSABLE_ID__``) — two copies counted the
+#: children of a list differently and every patch of it missed.
+ADDRESSABLE_ID: Final[str] = r"^-?[A-Za-z_\u00a0-\uffff][\w\u00a0-\uffff-]*$"
 
 # Permanent sink element id — actions target it (``hx-target``) so the
 # non-OOB response body (where <bz-patch> rides) lands in the DOM

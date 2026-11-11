@@ -60,26 +60,31 @@ from bretzel.components.base import (
     reactive_prop,
     stamp_display_none,
 )
-from bretzel.components.base._wiring import (
+from bretzel.components.base.arguments import has_content, shown
+from bretzel.components.base.commands import IndexCommands
+from bretzel.components.base.composition import unwrap_transparent
+from bretzel.components.base.field_wiring import (
     coerce_index,
     hidden_carrier_attrs,
-    scope_literal,
-    unwrap_transparent,
+    relocate_handlers,
 )
-from bretzel.components.base._wiring import (
-    pop_change_handler as _pop_change_handler,
-)
+from bretzel.components.base.scope_wiring import scope_literal
+from bretzel.components.base.universals import finish_render
 from bretzel.components.navigation.stepper.theme import STEPPER_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element, Node
 from bretzel.core.tree import TextNode as TextNode
+from bretzel.state.scopes.client import ClientBinding
 
 
-class Stepper(Component):
+class Stepper(IndexCommands, Component):
     """Render an ordered sequence of steps with matching content panels."""
 
     THEME: ClassVar[dict[str, Any]] = STEPPER_THEME
     THEME_KEY: ClassVar[str] = "stepper"
+    #: Draws its children itself: a zone among them is refused
+    #: (``base/composition.unwrap_transparent``).
+    _COMPOSES_CHILDREN: ClassVar[bool] = True
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value",)
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "next", "prev")
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
@@ -127,39 +132,12 @@ class Stepper(Component):
             **kwargs,
         )
 
-    # ── Imperative API ─────────────────────────────────────────────────
-    #
-    # Ordinary CLASS methods, not instance attributes: the overlays'
-    # non-data-descriptor trick exists only so as not to shadow a
-    # same-named ``reactive_prop`` (``open``), and none of these three
-    # names is one. Taking it anyway would cost twice — the
-    # ``test_imperative_classvar_is_complete`` gate only reads a
-    # ClassDef's PUBLIC methods, so assigned ``_imperative_*`` would be
-    # invisible to it.
-
-    def set(self, index: int) -> str:
-        """Go to ``index``. Write-through binding if there is one."""
-        return self._value_command(coerce_index(index, minimum=0))
-
-    def next(self) -> str:
-        # Always the dispatch, binding or not: "the next step" is
-        # computed from the LIVE value and stops at ``_max``. The server
-        # knows neither at render time — a write-through would have to
-        # bake ``index + 1`` and would overrun.
-        return self._dispatch_command("bz-next")
-
-    def prev(self) -> str:
-        return self._dispatch_command("bz-prev")
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        theme = self._resolved_theme()
-        sizes = theme.get("sizes", {})
-        orientations = theme.get("orientations", {})
+        orientations = self._resolved_theme().get("orientations", {})
 
-        size_key = self._reactive_values.get("size") or "md"
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
+        size_cfg = self._size_row() or {}
         orientation = self._reactive_values.get("orientation") or "horizontal"
         axis = orientations.get(orientation) or orientations["horizontal"]
         clickable = bool(self._reactive_values.get("clickable"))
@@ -181,15 +159,15 @@ class Stepper(Component):
         # The ``(child, rewrap)`` pairs: a step is often WRAPPED — a
         # ``@refreshable`` zone to refresh alone, a ``ui.fragment``. The
         # wrapper is not an instance of ``Step``, so sorting by type
-        # missed it and the step **disappeared**, with no error (measured
-        # on 2026-08-23: 4,022 → 2,185 characters). The rewrap travels
+        # would miss it and the step would **disappear**, with no error.
+        # The rewrap travels
         # WITH the child because the render happens further down, once
         # the indices are known.
         steps: list[tuple[Step, Any]] = []
         panels: list[tuple[StepPanel, Any]] = []
         passthrough: list[Element] = []
         for raw in self._children:
-            child, rewrap = unwrap_transparent(raw)
+            child, rewrap = unwrap_transparent(raw, self)
             if isinstance(child, Step):
                 steps.append((child, rewrap))
             elif isinstance(child, StepPanel):
@@ -213,12 +191,11 @@ class Stepper(Component):
         chrome: dict[str, Any] = {
             "clickable": clickable,
             "rail_class": self.slot_class("rail", axis.get("rail", "")),
-            "bullet_class": self.slot_class("bullet", size_cfg.get("bullet", "")),
+            "bullet_class": self.compose_class("bullet"),
             "connector_class": self.slot_class("connector", axis.get("connector", "")
             ),
-            "label_class": self.slot_class("label", size_cfg.get("label", "")),
-            "description_class": self.slot_class("description", size_cfg.get("description", "")
-            ),
+            "label_class": self.compose_class("label"),
+            "description_class": self.compose_class("description"),
             "icon_size": size_cfg.get("icon_size", "sm"),
             "active_expr": active_expr,
             "initial_index": initial_index,
@@ -259,7 +236,8 @@ class Stepper(Component):
         # whose ``bz-effect`` re-fires a ``change`` at every move of the
         # index.
         root_attrs = self.emit_attrs()
-        relocated = _pop_change_handler(root_attrs)
+        relocated: dict[str, Any] = {}
+        relocate_handlers(root_attrs, {"change": relocated})
         name = self._reactive_values.get("name") or self._derive_field_name()
 
         hidden_node: Element | None = None
@@ -303,7 +281,7 @@ class Stepper(Component):
 
         root_attrs["class"] = self.slot_class("root")
         # The methods (``_status`` / ``goTo`` / ``next`` / ``prev``) live
-        # once in ``$bz.stepper.scope`` (``16_accordion.js``). ``_max`` is
+        # once in ``$bz.stepper.scope`` (``accordion.js``). ``_max`` is
         # server config: a stepper that gains or loses a step must not
         # keep its old bound (``next()`` would stop at the old maximum).
         root_attrs["bz-data"] = scope_literal(
@@ -336,17 +314,17 @@ class Step(Component):
     NAMED_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
     ICON_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
 
-    label: Any = reactive_prop(default="", emit_attr=False)
-    description: Any = reactive_prop(default="", emit_attr=False)
-    status: str | None = reactive_prop(default=None, emit_attr=False)
+    label: str | Component | None = reactive_prop(default="", emit_attr=False)
+    description: str | Component | None = reactive_prop(default="", emit_attr=False)
+    status: str | None = reactive_prop(default=None, emit_attr=False, steps=("error",))
     disabled: bool = reactive_prop(default=False, emit_attr=False)
 
     def __init__(
         self,
-        label: Any = "",
+        label: str | Component | None = "",
         *,
-        description: Any = None,
-        icon: Any = None,
+        description: str | Component | None = None,
+        icon: str | Component | None = None,
         status: str | None = None,
         disabled: bool | None = None,
         **kwargs: Any,
@@ -379,8 +357,13 @@ class Step(Component):
         icon_size: str = chrome["icon_size"]
         initial_index: int = chrome["initial_index"]
 
+        # ``label`` stays the resolved string for the bullet's
+        # ``aria-label`` (an attribute cannot hold a binding); the visible
+        # texts take ``shown``, so a bound label / description is drawn
+        # live.
         label = self._reactive_values.get("label")
-        description = self._reactive_values.get("description")
+        label_text = shown(self, "label")
+        description = shown(self, "description")
         frozen_status = self._reactive_values.get("status")
         disabled = bool(self._reactive_values.get("disabled"))
         status_expr = f"_status({index})"
@@ -455,10 +438,12 @@ class Step(Component):
             # below would be enough for a11y, but it is ``aria-disabled``
             # that the theme reads to dim — and when NOT clickable the
             # chip is a ``<span>``, where ``:disabled`` never matches:
-            # ``disabled=True`` therefore had NO effect there, neither
-            # visual nor announced (measured on 2026-08-13, while
-            # clearing ``_UNAUDITED``).
+            # ``disabled=True`` would therefore have NO effect there,
+            # neither visual nor announced.
             bullet_attrs["aria-disabled"] = "true"
+        if clickable and isinstance(label, str) and label:
+            # The bullet shows a number or a check: its name is the step's.
+            bullet_attrs["aria-label"] = label
         if clickable and not disabled:
             bullet_tag = "button"
             bullet_attrs["type"] = "button"
@@ -487,20 +472,27 @@ class Step(Component):
 
         # ── Le corps ─────────────────────────────────────────────────
         body_children: list[Node] = []
-        if label is not None and label != "":
+        if has_content(label_text):
+            label_attrs: dict[str, Any] = {"class": chrome["label_class"]}
+            if clickable and not disabled:
+                # The label goes to its step too, as the bullet does —
+                # the reader aims at the words (the button keeps the
+                # keyboard: the label is no second tab stop).
+                label_attrs["bz-on:click"] = f"goTo({index})"
+                label_attrs["data-clickable"] = ""
             body_children.append(
                 Element(
                     tag="span",
-                    attrs={"class": chrome["label_class"]},
-                    children=(_text_or_component(label),),
+                    attrs=label_attrs,
+                    children=(_text_or_component(label_text, self),),
                 )
             )
-        if description is not None and description != "":
+        if has_content(description):
             body_children.append(
                 Element(
                     tag="span",
                     attrs={"class": chrome["description_class"]},
-                    children=(_text_or_component(description),),
+                    children=(_text_or_component(description, self),),
                 )
             )
 
@@ -519,7 +511,11 @@ class Step(Component):
                 )
             )
 
-        return Element(tag="li", attrs=step_attrs, children=tuple(children))
+        # ``finish_render``: the parent draws this child instead of calling
+        # its ``render()``, so the two passes of the metaclass wrap
+        # (``classes=``, ``style=``, ``slots={"root"}``…) happen here.
+        return finish_render(
+            self, Element(tag="li", attrs=step_attrs, children=tuple(children)))
 
     def render(self) -> Element:
         # Outside a Stepper, a step has no status context.
@@ -562,9 +558,12 @@ class StepPanel(Component):
             # Anti-FOUC: pre-stamped hidden, otherwise the panel
             # flickers before the first ``bz-show`` effect.
             stamp_display_none(attrs)
-        return Element(
+        # ``finish_render``: the parent draws this child instead of calling
+        # its ``render()``, so the two passes of the metaclass wrap
+        # (``classes=``, ``style=``, ``slots={"root"}``…) happen here.
+        return finish_render(self, Element(
             tag="div", attrs=attrs, children=tuple(self._render_children())
-        )
+        ))
 
     def render(self) -> Element:
         # Standalone use — the content appears, without the toggle wiring.
@@ -575,15 +574,14 @@ class StepPanel(Component):
         )
 
 
-def _text_or_component(value: Any) -> Node:
-    """A textual slot's content: a rendered Component, otherwise text.
-
-    No ClientBinding branch — ``label`` / ``description`` are not
-    bindable, and a binding lives in ``_binding_metadata``, never in
-    ``_reactive_values``.
-    """
+def _text_or_component(value: Any, owner: Component) -> Node:
+    """A textual slot's content: a rendered Component, a live text for a
+    binding (``label`` / ``description`` are bindable, read through
+    ``shown``), otherwise text."""
     if isinstance(value, Component):
         return Component.render_detached(value)
+    if isinstance(value, ClientBinding):
+        return owner.emit_text_slot(value) or TextNode("")
     return TextNode(str(value))
 
 

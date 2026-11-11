@@ -1,7 +1,7 @@
 """``/slider`` — drag to pick a number, or a range of them."""
 
-from bretzel import refreshable, ui
-from bretzel.state import ClientState, PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("Drag, click the track or use the arrow keys — one handle for a "
@@ -50,27 +50,18 @@ def sizes() -> None:
             ui.slider(value=20 + level * 15, size=size)
 
 
-class Plan(PageState):
+class SeatPlan(ClientState):
     seats: int = field(default=12)
 
 
-def change_seats(plan: Plan) -> None:
-    """The new seat count is already in ``plan``; the quote re-renders."""
-
-
-@refreshable(deps=[Plan])
-def quote() -> None:
-    seats = Plan().seats
-    with ui.hstack(justify="between"):
-        ui.text(f"{seats} seats × €12", color="muted")
-        ui.heading(f"€{seats * 12} / month", level=3, size="lg")
-
-
 def seat_pricing() -> None:
+    seats = SeatPlan().seats
     with ui.card(padding="md", classes="w-full max-w-sm"), ui.vstack(gap="md"):
         ui.text("Team seats", weight="medium")
-        ui.slider(value=Plan().seats, min=1, max=50, on_change=change_seats)
-        quote()
+        ui.slider(value=seats, min=1, max=50)
+        with ui.hstack(justify="between"):
+            ui.text(seats + " seats × €12", color="muted")
+            ui.heading("€" + seats * 12 + " / month", level=3, size="lg")
 
 
 def page() -> None:
@@ -85,6 +76,6 @@ def page() -> None:
             note="min, max and step fit the unit; colour tells the settings "
                  "apart, and disabled locks one.")
     example("Sizes", sizes)
-    example("Price a plan", seat_pricing, uses=[Plan, change_seats, quote],
-            note="on_change fires when the handle settles: Python recomputes "
-                 "the quote and only that zone is re-rendered.")
+    example("Price a plan", seat_pricing, uses=[SeatPlan],
+            note="The quote is computed in the browser while you drag. A "
+                 "Python on_change fires once, when the handle settles.")

@@ -29,10 +29,9 @@ grows. Cf. ``Pane``'s docstring.
 
 Where you write it
 -------------------
-Two shapes, and there is no third: an application shell (eight in
-``examples/``), and a full-screen page with no layout —
-``examples/crm/features/login.py``, which has neither a bar nor an
-outlet because nobody is signed in yet to be entitled to one.
+Two shapes, and there is no third: an application shell, and a full-screen page with no layout — a
+sign-in page, which has neither a bar nor an outlet because nobody is
+signed in yet to be entitled to one.
 
 A sign-in page must be able to scroll on a small phone: that asks for NO
 prop, it composes — a ``Viewport`` that does not scroll, containing a
@@ -56,7 +55,7 @@ class Viewport(Flex):
     THEME_KEY: ClassVar[str] = "viewport"
     #: "I am a frozen frame." Read by duck typing, like
     #: ``IS_TRANSPARENT_WRAPPER`` right beside it: the reader is
-    #: ``base/_wiring.check_sticky_bar_placement``, which judges the
+    #: ``base/page_checks.check_sticky_bar_placement``, which judges the
     #: placement of ``sticky`` bars once the tree is built. An
     #: ``isinstance`` would do the same here — the ``base → layout``
     #: import would be acyclic — but a marker remains the repository's
@@ -65,11 +64,10 @@ class Viewport(Flex):
     IS_FROZEN_FRAME: ClassVar[bool] = True
 
     #: ``row`` — the dominant shape (side bar on the left, content on
-    #: the right: eight sites out of nine). ``col`` serves the mobile
-    #: shell, top bar then content. The two **co-occur in the same app**:
-    #: a demo app since removed had both shells, chosen by
+    #: the right). ``col`` serves the mobile shell, top bar then content.
+    #: The two **co-occur in the same app**: both shells, chosen by
     #: ``if Screen().is_mobile``. That is what earns the prop its place
-    #: where ``ui.vstack`` / ``ui.hstack`` lost theirs.
+    #: where ``ui.vstack`` / ``ui.hstack`` bake a direction in.
     direction: Any = reactive_prop(default="row", emit_attr=False)
     #: ``stretch`` — a frame's regions fill the cross axis.
     #: ``ui.hstack``'s ``center`` default reduced the right panel to its

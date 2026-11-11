@@ -17,11 +17,11 @@ Open / close — the framework's universal contract :
   No popover-specific helpers ; same primitive as every other
   reactive prop in the framework.
 
-Wiring (shared ``base/_wiring.py``) :
+Wiring (shared ``base/``) :
 
 - positioning is owned by ``$bz.helpers.floating`` — the panel's
-  ``bz-effect`` attaches it on open (4 sides × 3 alignments, main-axis
-  flip + cross-axis clamp), no static positioning classes needed.
+  ``bz-effect`` attaches it on open (4 sides × 3 alignments ; its side,
+  the opposite, then the others ; both axes clamped), no static positioning classes needed.
 - click-outside + Escape dismiss are registered once at mount via
   ``$bz.helpers.clickOutside`` / ``escapeKey`` (``bz-init``).
 
@@ -31,68 +31,22 @@ the floating helper already offsets it 6px off the trigger.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import install_open_close_toggle
+from bretzel.components.base import reactive_prop
+from bretzel.components.base.overlay_wiring import FLOATING_ALIGNS
 from bretzel.components.overlay._anchored import render_anchored_overlay
+from bretzel.components.overlay._base import AnchoredOverlay
 from bretzel.components.overlay.popover.theme import POPOVER_THEME
 from bretzel.core.tree import Element
 
 
-class Popover(Component):
+class Popover(AnchoredOverlay):
     """Anchored floating panel toggled by a trigger element."""
 
     THEME: ClassVar[dict[str, Any]] = POPOVER_THEME
     THEME_KEY: ClassVar[str] = "popover"
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("open",)
-    IMPERATIVE: ClassVar[tuple[str, ...]] = ("open", "close", "toggle")
-    EVENTS: ClassVar[tuple[str, ...]] = ("open", "close")
-    # ``open`` AND ``close`` both fire on the root, so a single popover can
-    # wire on_open + on_close to the server (the second rides a hidden
-    # carrier — cf. ``Component.ALLOW_MULTI_SERVER_EVENTS``).
-    ALLOW_MULTI_SERVER_EVENTS: ClassVar[bool] = True
-
-    open: Any = reactive_prop(default=False, emit_attr=False, writes=True)
-    # ``auto`` = best-fit (``$bz.helpers.floating`` picks the roomiest
-    # side that fits) ; pin a side per-popover to override.
-    position: str = reactive_prop(default="auto", emit_attr=False)
-    align: str = reactive_prop(default="center", emit_attr=False)
-    dismissible: bool = reactive_prop(default=True, emit_attr=False)
-
-    def __init__(
-        self,
-        *,
-        trigger: Component | None = None,
-        open: Any = None,
-        position: str | None = None,
-        align: str | None = None,
-        dismissible: bool | None = None,
-        on_open: Callable[..., Any] | str | None = None,
-        on_close: Callable[..., Any] | str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
-        super().__init__(
-            open=open,
-            position=position,
-            align=align,
-            dismissible=dismissible,
-            on_open=on_open,
-            on_close=on_close,
-            **kwargs,
-        )
-        # Detach the trigger from the active parent stack so it
-        # doesn't auto-register as an unrelated sibling — same pattern
-        # as IconButton's icon slot.
-        self._trigger: Component | None = Component.adopt_slot(trigger)
-        # Write-only imperative API ``.open()`` / ``.close()`` /
-        # ``.toggle()`` — installed as instance attributes (shadowing the
-        # ``open`` descriptor) by the base helper, identical on the 4
-        # open-driven overlays. Cf. `imperative-api.md`.
-        install_open_close_toggle(self)
-
+    align: str = reactive_prop(default="center", emit_attr=False, steps=FLOATING_ALIGNS)
 
     # ── Render ─────────────────────────────────────────────────────────
 

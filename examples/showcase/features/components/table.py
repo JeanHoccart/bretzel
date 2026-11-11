@@ -100,7 +100,7 @@ def open_invoice(invoice_id: str) -> None:
     Opened().invoice = invoice_id
 
 
-@refreshable(deps=[Opened])
+@refreshable
 def invoice_detail() -> None:
     row = next(r for r in invoices() if r["id"] == Opened().invoice)
     with ui.card(padding="md"), ui.hstack(gap="md", justify="between", wrap=True):

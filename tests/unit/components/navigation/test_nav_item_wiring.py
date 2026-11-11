@@ -52,7 +52,7 @@ class TestPartialNav:
         with render_isolated():
             out = serialize(item_cls("Docs", href="/docs").render())
         assert 'href="/docs"' in out
-        assert "hx-get" not in out
+        assert "hx-target" not in out
         # Pas de flip optimiste non plus : un rechargement complet démonterait
         # la nav de toute façon, le feedback serait perdu.
         assert "bz-on:click=" not in out
@@ -61,10 +61,9 @@ class TestPartialNav:
         with render_isolated() as ctx:
             ctx.layout_stack.append("app_layout")
             out = serialize(item_cls("Docs", href="/docs").render())
-        assert 'hx-get="/docs"' in out
+        # Only the aim: the page's boost does the rest, as for any link.
         assert 'hx-target="#outlet_app_layout"' in out
-        assert 'hx-swap="morph:innerHTML"' in out
-        assert 'hx-push-url="true"' in out
+        assert "hx-get" not in out
 
     def test_innermost_layout_wins(self, item_cls) -> None:
         with render_isolated() as ctx:
@@ -81,7 +80,7 @@ class TestPartialNav:
             out = serialize(item_cls("GitHub", href="https://github.com/x").render())
         assert 'target="_blank"' in out
         assert 'rel="noopener noreferrer"' in out
-        assert "hx-get" not in out
+        assert "hx-target" not in out
         # Ni flip optimiste : le document courant RESTE sur la page
         # précédente, donc basculer ``current_path`` afficherait un onglet
         # sélectionné alors que rien n'a changé.
@@ -170,8 +169,7 @@ class TestDisabled:
             el = item_cls("Bientôt", href="/soon", disabled=True).render()
         assert el.attrs.get("aria-disabled") == "true"
         assert el.attrs.get("tabindex") == "-1"
-        for channel in ("href", "hx-get", "hx-target", "hx-swap",
-                        "hx-push-url", "bz-on:click"):
+        for channel in ("href", "hx-target", "bz-on:click"):
             assert channel not in el.attrs, channel
 
     def test_binding_drives_the_reactive_lock(self, item_cls) -> None:

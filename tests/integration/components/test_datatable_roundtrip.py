@@ -5,7 +5,7 @@ shape. Neither proves the thing the component actually promises : that
 clicking a header **changes what comes back**. That path crosses the
 whole spine — header button → signed action → ``sys.modules`` resolution
 of a *state class* by reference → ``cycle_sort`` → dirty diff → the
-enclosing zone's ``deps`` → OOB re-render with the new order baked in.
+enclosing zone, which reads it → OOB re-render with the new order baked in.
 
 The state-by-reference hop is the novel piece and the fragile one : an
 action's bound args must be JSON-serialisable, so the Datatable ships
@@ -30,6 +30,7 @@ from bretzel.state import field
 from bretzel.components import DatatableState
 from bretzel.runtime import HEADER_PAGE_ID
 from bretzel.server.handlers import sign_action
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -55,7 +56,7 @@ class People(DatatableState):
 _app = Bretzel(secret_key=_SECRET, mode="dev")
 
 
-@refreshable(deps=[People])
+@refreshable
 def people_zone() -> None:
     ui.datatable(state=People, columns=COLUMNS, rows=ROWS)
 
@@ -138,12 +139,12 @@ def _page_id(html: str) -> str:
     a FRESH state each time — which silently turns "the sort persists"
     into "the sort resets", so the tests carry it like a real client.
     """
-    # ``data-bretzel-page-id`` et pas le JSON d'``hx-headers`` : les
+    # ``data-bz-page-id`` et pas le JSON d'``hx-headers`` : les
     # deux portent la MÊME valeur, mais l'attribut nu est stable
     # tandis que le JSON dépend de son échappement — quatre copies de
     # cette ligne ont rougi le 2026-08-28 quand ``hx-headers`` est
     # passé en doubles quotes, sans qu'aucun comportement ne change.
-    match = re.search(r'data-bretzel-page-id="([^"]+)"', html)
+    match = re.search(r'data-bz-page-id="([^"]+)"', html)
     assert match, "the shell must publish the page id for actions to reuse"
     return match.group(1)
 
@@ -154,7 +155,7 @@ def _post(client: TestClient, url: str, args: str, page: str,
     return client.post(
         url,
         headers={
-            "X-Bz-Sig": sign_action(_app.config._action_key, action_id, args),
+            "X-Bz-Sig": sign_action(_app.config._action_key, action_id, args, session_id=session_of(client)),
             HEADER_PAGE_ID: page,
         },
         data={"_args": args, **(extra or {})},

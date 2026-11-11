@@ -65,9 +65,9 @@ class SecurityHeadersMiddleware:
             # block the CDN of a fallback it does not know about.
             #
             # A direct read and not a ``getattr`` with a default: the
-            # attribute always exists, and the default we used to write
-            # recomputed from the REQUESTED setting, that is to say did
-            # exactly what the paragraph above forbids.
+            # attribute always exists, and a default recomputed from the
+            # REQUESTED setting would do exactly what the paragraph above
+            # forbids.
             sources = shell_sources(
                 browser_css=app._css_browser_fallback,
                 mobile_breakpoint=app.config.mobile_breakpoint,

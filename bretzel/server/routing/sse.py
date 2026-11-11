@@ -48,7 +48,11 @@ def register_sse_route(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
 
         state = ensure_state(request.scope)
         session_id = getattr(state, "session_id", "") or ""
-        if not session_id:
+        # ``session_fresh``: minted by THIS request — no page was opened in
+        # it. Each stream opened that way would be a new session, so the
+        # per-session ceiling would never bite. The session cookie is
+        # signed, so it cannot be invented either.
+        if not session_id or getattr(state, "session_fresh", False):
             return PlainTextResponse(
                 "No session cookie — open a page first.",
                 status_code=400,
@@ -61,7 +65,7 @@ def register_sse_route(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
         tab_id = (request.query_params.get(SSE_TAB_PARAM) or "").strip()[:64]
 
         return StreamingResponse(
-            broker.connect(session_id, tab_id),
+            broker.connect(session_id, tab_id, getattr(state, "user_id", "") or ""),
             media_type="text/event-stream",
             headers={
                 # The EventSource client owns reconnection ; the

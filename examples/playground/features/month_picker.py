@@ -156,7 +156,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[MonthPickerPlayground])
+@refreshable
 def server_panel() -> None:
     state = MonthPickerPlayground()
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
@@ -226,7 +226,7 @@ def server_panel() -> None:
                        serialize_html(ui.month_picker(**kwargs)))
 
 
-@refreshable(deps=[MonthPickerEvents])
+@refreshable
 def events_panel() -> None:
     state = MonthPickerEvents()
     ui.text(
@@ -242,9 +242,9 @@ def events_panel() -> None:
         with control("on_change"):
             ui.month_picker(value=picked.picked, on_change=log_change)
         with control("on_focus"):
-            ui.month_picker(SEED, on_focus=log_focus)
+            ui.month_picker(value=SEED, on_focus=log_focus)
         with control("on_blur"):
-            ui.month_picker(SEED, on_blur=log_blur)
+            ui.month_picker(value=SEED, on_blur=log_blur)
 
     ui.divider()
     with ui.hstack(justify="between", align="center"):
@@ -280,30 +280,30 @@ def page() -> None:
 
             ui.heading("Basic", level=3)
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
-                ui.month_picker(SEED)
+                ui.month_picker(value=SEED)
                 ui.month_picker()
-                ui.month_picker(SEED, clearable=False)
+                ui.month_picker(value=SEED, clearable=False)
 
             ui.heading("min / max", level=3)
             ui.text('min / max are truncated to the month: a min on 15 March does'
                 ' NOT forbid March, part of the month staying allowed.', color="muted", size="xs")
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
-                ui.month_picker(SEED, min="2026-03", max="2026-12")
-                ui.month_picker(SEED, max="2026-12")
+                ui.month_picker(value=SEED, min="2026-03", max="2026-12")
+                ui.month_picker(value=SEED, max="2026-12")
 
             ui.heading("Sizes", level=3)
             with ui.grid(cols={"base": 1, "md": 5}, gap="md"):
                 for s in SIZES:
                     with ui.vstack(gap="xs"):
                         ui.text(f"size={s}", color="muted", size="xs")
-                        ui.month_picker(SEED, size=s)
+                        ui.month_picker(value=SEED, size=s)
 
             ui.heading("Colors", level=3)
             with ui.grid(cols={"base": 1, "md": 4}, gap="md"):
                 for c in COLORS:
                     with ui.vstack(gap="xs"):
                         ui.text(c, color="muted", size="xs")
-                        ui.month_picker(SEED, color=c)
+                        ui.month_picker(value=SEED, color=c)
 
 
             ui.heading("i18n + options", level=3)
@@ -318,22 +318,22 @@ def page() -> None:
                 with ui.vstack(gap="xs"):
                     ui.text("month_names=FR", color="muted",
                             size="xs")
-                    ui.month_picker(SEED, month_names=["Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin",
+                    ui.month_picker(value=SEED, month_names=["Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin",
           "Juillet", "Aout", "Septembre", "Octobre",
           "Novembre", "Decembre"])
                     with ui.vstack(gap="xs"):
                         ui.text("close_on_pick=False", color="muted",
                                 size="xs")
-                        ui.month_picker(SEED, close_on_pick=False)
+                        ui.month_picker(value=SEED, close_on_pick=False)
                     with ui.vstack(gap="xs"):
                         ui.text('name="periode"', color="muted",
                                 size="xs")
-                        ui.month_picker(SEED, name="periode")
+                        ui.month_picker(value=SEED, name="periode")
 
                 ui.heading("disabled / required", level=3)
                 with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
-                    ui.month_picker(SEED, disabled=True)
-                    ui.month_picker(SEED, required=True)
+                    ui.month_picker(value=SEED, disabled=True)
+                    ui.month_picker(value=SEED, required=True)
 
         with ui.card(), ui.vstack():
             ui.heading("Edge cases", level=2)
@@ -347,21 +347,21 @@ def page() -> None:
                 with ui.vstack(gap="xs"):
                     ui.text("cellule etroite", color="muted",
                             size="xs")
-                    ui.month_picker(SEED, size="sm")
+                    ui.month_picker(value=SEED, size="sm")
                 ui.text("Voisine.", color="muted")
 
         with ui.card(), ui.vstack():
             ui.heading("Composability", level=2)
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.form_field(label="Debut", hint="Periode de facturation"):
-                    ui.month_picker(SEED)
+                    ui.month_picker(value=SEED)
                 with ui.form_field(label="Fin"):
-                    ui.month_picker(SEED)
+                    ui.month_picker(value=SEED)
             ui.heading('Inside a ui.dialog', level=3)
             with ui.dialog(title="Planifier", width="md") as dlg, \
                         ui.vstack():
                 with ui.form_field(label="Quand ?"):
-                    ui.month_picker(SEED)
+                    ui.month_picker(value=SEED)
                 ui.text('The panel is anchored in fixed position, so it escapes '
                     "the dialog's overflow.",
                         color="muted", size="xs")
@@ -374,7 +374,7 @@ def page() -> None:
                 'are real buttons, hence reachable with Tab and genuinely '
                 'disabled out of bounds. Escape and a click outside close it.', color="muted", size="sm")
             with ui.flex(classes="max-w-xs"):
-                ui.month_picker(SEED, aria_label="Mois de facturation")
+                ui.month_picker(value=SEED, aria_label="Mois de facturation")
 
         with ui.card(), ui.vstack():
             ui.heading("Server playground", level=2)
@@ -516,7 +516,7 @@ def page() -> None:
             cevents = MonthPickerClientEvents()
             _new = ClientExpression("$event.target.value")
             with ui.flex(classes="max-w-xs"):
-                ui.month_picker(SEED, on_change=cevents.log.push(_new))
+                ui.month_picker(value=SEED, on_change=cevents.log.push(_new))
             ui.divider()
             with ui.hstack(justify="between", align="center"):
                 ui.text("Live log (client-reactive)",
@@ -537,6 +537,6 @@ def page() -> None:
                 'Emitted HTML - the bz-on:change handler lives on the '
                     'hidden input, the only carrier with a name and a value.',
                 serialize_html(
-                    ui.month_picker(SEED, on_change=cevents.log.push(_new))
+                    ui.month_picker(value=SEED, on_change=cevents.log.push(_new))
                 ),
             )

@@ -41,6 +41,7 @@ from bretzel.theme.tokens import (
     FONT_SLOT_NAMES,
     SEMANTIC_COLOR_NAMES,
     SHAPE_SLOT_NAMES,
+    SPACING_SLOT_NAMES,
     TEXT_SLOT_NAMES,
 )
 from bretzel.theme.tokens import (
@@ -108,6 +109,11 @@ _INTERNAL = [
 ]
 
 
+#: The semantic slots that are PLANES and must swap in dark mode — the
+#: page, the panels, the controls' fill, the text. Every other slot is a
+#: colour that keeps the app's value unless the app gives its own dark.
+_SWAPPING_PLANES = frozenset({"background", "surface", "interface", "text", "muted"})
+
 # Sentinel to distinguish "user passed nothing" from "user passed None".
 _UNSET: Any = object()
 
@@ -135,6 +141,7 @@ class Theme:
         "_semantic_dark",
         "_shape",
         "_spacing",
+        "_spacing_layout",
         "_stroke",
         "_text",
     )
@@ -148,7 +155,7 @@ class Theme:
         palette_dark: Mapping[str, Any] | None = None,
         components: Mapping[str, Any] | None = None,
         fonts: Mapping[str, str] | None = None,
-        spacing: str | None = None,
+        spacing: str | Mapping[str, str] | None = None,
         text: Mapping[str, str] | None = None,
         shape: Mapping[str, str] | None = None,
         stroke: str | None = None,
@@ -161,9 +168,16 @@ class Theme:
 
         # ── Section-by-section merge with the resolved base ─────────────
         self._semantic = _merge_dict(_section(base_theme, "_semantic"), semantic)
-        self._semantic_dark = _merge_dict(
-            _section(base_theme, "_semantic_dark"), semantic_dark
-        )
+        # An accent given in light alone is the APP's colour in both modes:
+        # the base's dark value is the dark of ANOTHER colour (the default
+        # plum's). The neutral planes are the exception: they must swap,
+        # so theirs is kept.
+        inherited_dark = {
+            key: value
+            for key, value in _section(base_theme, "_semantic_dark").items()
+            if key in _SWAPPING_PLANES or key not in (semantic or {})
+        }
+        self._semantic_dark = _merge_dict(inherited_dark, semantic_dark)
         self._palette = _merge_dict(_section(base_theme, "_palette"), palette)
         self._palette_dark = _merge_dict(
             _section(base_theme, "_palette_dark"), palette_dark
@@ -174,14 +188,21 @@ class Theme:
         # Merges ``cls.THEME`` ↔ override, memoised by THEME_KEY (cf.
         # ``merged_component_theme``). Both inputs are immutable after
         # boot, so the merge is computed ONCE — without the cache,
-        # ``compose_class`` re-merged on every slot of every render
-        # (measured: +76 % on a render of an overridden Select).
+        # ``compose_class`` would re-merge on every slot of every render.
         self._merged_components: dict[str, dict[str, Any]] = {}
         self._fonts = _merge_fonts(_section(base_theme, "_fonts"), fonts)
         # The scale: its base is a SCALAR (a single setting, like the
         # stroke), its text steps a dict of closed slots (like the
         # fonts). Both are mute by default — cf. ``_emit_scale_block``.
-        self._spacing = _merge_spacing(_scalar(base_theme, "_spacing"), spacing)
+        # ``spacing=`` is one length (the three families together) or a
+        # dict of them — ``field`` stays the scalar Tailwind reads, ``box``
+        # and ``gap`` follow it unless said.
+        field_step = spacing.get("field") if isinstance(spacing, Mapping) else spacing
+        if isinstance(spacing, Mapping):
+            _refuse_unknown_spacing(spacing)
+        self._spacing = _merge_spacing(_scalar(base_theme, "_spacing"), field_step)
+        self._spacing_layout = _merge_spacing_layout(
+            _section(base_theme, "_spacing_layout"), spacing)
         self._text = _merge_text(_section(base_theme, "_text"), text)
         self._shape = _merge_shape(_section(base_theme, "_shape"), shape)
         # ``_scalar`` and not ``_section``: the stroke is ONE string,
@@ -191,13 +212,11 @@ class Theme:
         )
         # The CSS door ADDS to the base's, it does not replace it.
         #
-        # The first version replaced, on the grounds that inheriting
-        # invisible rules from ``base=`` is unpleasant. Measured, that
-        # gave half a theme: ``Theme(base=brand, css=…)`` kept the
-        # brand's ``--font-sans`` (the dict sections do merge) and lost
-        # the ``@font-face`` that made that font loadable. The page fell
-        # back on the system stack **saying nothing** — the exact failure
-        # mode this section exists to close.
+        # Replacing would give half a theme: ``Theme(base=brand, css=…)``
+        # would keep the brand's ``--font-sans`` (the dict sections do
+        # merge) and lose the ``@font-face`` that makes that font loadable.
+        # The page would fall back on the system stack **saying nothing**
+        # — the exact failure mode this section exists to close.
         #
         # In strings, the last piece wins at equal specificity, so
         # "adding" is enough to override too: the CSS cascade IS the
@@ -303,6 +322,7 @@ class Theme:
                 text=self._text,
                 shape=self._shape,
                 stroke=self._stroke,
+                spacing_layout=self._spacing_layout,
                 extra_css="\n".join(self._css),
             )
         return self._css_cache[key]
@@ -318,7 +338,7 @@ class Theme:
             "palette_dark": dict(self._palette_dark),
             "components": dict(self._components),
             "fonts": dict(self._fonts),
-            "spacing": self._spacing,
+            "spacing": {"field": self._spacing, **self._spacing_layout},
             "text": dict(self._text),
             "shape": dict(self._shape),
             "stroke": self._stroke,
@@ -442,9 +462,8 @@ def _merge_spacing(base: str | None, override: str | None) -> str:
     """The spacing step: a string, and it may stay absent.
 
     Absent, it is :data:`DEFAULT_SPACING` that comes out — Tailwind's
-    value since 2026-10-23, written down so the emitted ``@theme`` is
-    explicit and a ``Theme(text=…)`` override has a full scale to merge
-    onto.
+    value, written down so the emitted ``@theme`` is explicit and a
+    ``Theme(text=…)`` override has a full scale to merge onto.
 
     A CSS length and not a number, for the reason that already holds for
     the stroke: the value can be ``3px``, ``0.1875rem`` or ``0.2em``, and
@@ -463,6 +482,45 @@ def _merge_spacing(base: str | None, override: str | None) -> str:
     return override.strip()
 
 
+def _refuse_unknown_spacing(spacing: Mapping[str, Any]) -> None:
+    unknown = sorted(set(spacing) - set(SPACING_SLOT_NAMES))
+    if unknown:
+        raise ThemeError(
+            f"Theme(spacing=…): unknown famil{'ies' if len(unknown) > 1 else 'y'} "
+            f"{', '.join(map(repr, unknown))}. The three are "
+            f"{', '.join(map(repr, SPACING_SLOT_NAMES))}: ``field`` the "
+            f"controls, ``box`` inside what contains, ``gap`` between blocks."
+        )
+
+
+def _merge_spacing_layout(
+    base: Mapping[str, str], override: str | Mapping[str, str] | None
+) -> dict[str, str]:
+    """The ``box`` and ``gap`` steps: what the override says, else the
+    base's, else nothing — and nothing means « follow ``field`` ».
+
+    A single length for ``spacing=`` sets ``field`` only, and resets the
+    two others to follow it: « one step for everything », as the keyword
+    always meant.
+    """
+    if override is None:
+        return dict(base)
+    if not isinstance(override, Mapping):
+        return {}
+    merged = dict(base)
+    for slot in ("box", "gap"):
+        value = override.get(slot)
+        if value is None:
+            continue
+        if not isinstance(value, str) or not value.strip():
+            raise ThemeError(
+                f"Theme(spacing={{{slot!r}: {value!r}}}): expected a non-empty CSS "
+                f'length, for example "0.1875rem".'
+            )
+        merged[slot] = value.strip()
+    return merged
+
+
 def _merge_text(
     base: Mapping[str, str], override: Mapping[str, str] | None
 ) -> dict[str, str]:
@@ -471,8 +529,7 @@ def _merge_text(
     An unknown step is refused rather than ignored: ``--text-md`` does
     not exist in Tailwind, so ``Theme(text={"md": "14px"})`` would emit a
     token nobody reads — nothing to see, no error, no CSS, no hint. It is
-    the family of silences the theme layer has turned away at the door
-    since 2026-08-16.
+    the family of silences the theme layer turns away at the door.
 
     ⚠️ ``base`` is Tailwind's name for the middle step, where a
     component's ``size=`` says ``md``. The two scales are not the same:
@@ -551,9 +608,8 @@ def _merge_fonts(
     nothing will emit and no class will read. Without this guard, the
     section would be accepted, the font would not change, and there would
     be **nothing to see** — no error, no CSS, no hint. It is the family
-    of silences noted on 2026-08-16 on the theme layer (unknown
-    component, misspelled slot, non-existent variant); this one is born
-    closed rather than waiting for its lint rule.
+    of silences the theme layer turns away at the door (unknown
+    component, misspelled slot, non-existent variant).
 
     An empty family (``{"sans": ""}``) is refused by the same door: the
     only thing it can mean is "I am removing my override", and the way to

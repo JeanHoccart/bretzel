@@ -1,7 +1,6 @@
 """Une zone ``@refreshable`` ``async`` rend — au premier affichage ET au refresh.
 
-Le bug, mesuré le 2026-08-21 (finding [1], rencontré en construisant
-``examples/crm``) : ``RefreshableHandle.__call__`` appelait ``self.fn(...)``
+Le bug : ``RefreshableHandle.__call__`` appelait ``self.fn(...)``
 sans jamais l'attendre. Un corps ``async def`` rendait donc une **coroutine
 jamais attendue** — que le test ``hasattr(result, "render")`` laissait
 tomber. Résultat : une zone **VIDE**, sans exception, sans 500, sans rien
@@ -46,6 +45,7 @@ from fastapi.testclient import TestClient
 from bretzel import Bretzel, page, refreshable, ui
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.state import AppState, field
+from tests._session import session_of
 
 _SECRET = "y" * 32
 
@@ -67,19 +67,19 @@ async def read_tally() -> int:
     return Tally().n
 
 
-@refreshable(deps=[Tally])
+@refreshable
 async def async_zone() -> None:
     ui.text(f"async={await read_tally()}")
 
 
-@refreshable(deps=[Tally])
+@refreshable
 def sync_zone() -> None:
     """Le témoin. Sans lui, une régression du harnais (app qui ne rend
     plus rien) ferait passer les assertions d'absence pour des succès."""
     ui.text(f"sync={Tally().n}")
 
 
-@refreshable(deps=[Tally])
+@refreshable
 async def outer_zone() -> None:
     """Une zone async qui en appelle une autre.
 
@@ -90,7 +90,7 @@ async def outer_zone() -> None:
     inner_zone()
 
 
-@refreshable(deps=[Tally])
+@refreshable
 async def inner_zone() -> None:
     ui.text(f"inner={await read_tally()}")
 
@@ -124,9 +124,10 @@ def _reset():
         asyncio.new_event_loop().run_until_complete(_wipe())
 
 
-def _signed(action):
+def _signed(action, client: TestClient):
     action_id = encode_action_id(action)
-    return action_id, sign_action(_app.config._action_key, action_id, "")
+    return action_id, sign_action(_app.config._action_key, action_id, "",
+                                  session_id=session_of(client))
 
 
 # ───────────────────────────────────────────────────────────────────────
@@ -193,9 +194,9 @@ def test_a_nested_async_zone_is_drained_too() -> None:
 
 
 def test_an_async_zone_re_renders_on_a_refresh() -> None:
-    action_id, sig = _signed(bump)
     with TestClient(_app) as client:
         client.get("/")  # établit la session et les bz-id
+        action_id, sig = _signed(bump, client)
         response = client.post(
             f"/_bretzel/action/{action_id}",
             headers={"X-Bz-Sig": sig},

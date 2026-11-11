@@ -57,6 +57,8 @@ from bretzel.runtime.protocol import (
     is_public_asset_path,
     outlet_id_for,
 )
+from bretzel.runtime.sources import MODULES as RUNTIME_MODULES
+from bretzel.runtime.sources import SOURCES as RUNTIME_SOURCES
 from bretzel.runtime.verbs import (
     copy,
     fullscreen,
@@ -71,6 +73,8 @@ from bretzel.runtime.version import (
 )
 
 __all__ = [
+    "RUNTIME_MODULES",
+    "RUNTIME_SOURCES",
     "copy",
     "fullscreen",
     "print_page",

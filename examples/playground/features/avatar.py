@@ -111,7 +111,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[AvatarPlayground])
+@refreshable
 def server_panel() -> None:
     state = AvatarPlayground()
 
@@ -222,10 +222,10 @@ def page() -> None:
                         color="muted", size="sm",
                     )
                     with ui.hstack(align="end", gap="lg"):
-                        ui.avatar(name="Jean Hoccart")
+                        ui.avatar(name="Alex Martin")
                         ui.avatar(name="Ada Lovelace", color="success")
                         ui.avatar(
-                            name="Jean Hoccart",
+                            name="Alex Martin",
                             src="https://i.pravatar.cc/96?u=named",
                         )
 

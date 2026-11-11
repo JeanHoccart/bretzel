@@ -35,6 +35,7 @@ from starlette.testclient import TestClient
 from bretzel import Bretzel, page, ui
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.state import SessionState, field
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -104,7 +105,7 @@ _app.include(home)
 def _deux_suppressions(client: TestClient, handler) -> str:
     """Supprimer « a » et « b » EN MÊME TEMPS ; rendre ce qui subsiste."""
     action_id = encode_action_id(handler)
-    sig = sign_action(_app.config._action_key, action_id, "")
+    sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
 
     def poste(cible: str) -> None:
         client.post(

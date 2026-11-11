@@ -38,8 +38,8 @@ def clear_log() -> None:
 
 def server_changed(state: SidebarPlayground) -> None:
     # A typed param → the dispatcher hydrates the changed control's
-    # value into ``state`` (coerced + persisted). The panel declares
-    # ``deps=[SidebarPlayground]``, it re-renders on its own.
+    # value into ``state`` (coerced + persisted). The panel reads that
+    # state, so it re-renders on its own.
     pass
 
 

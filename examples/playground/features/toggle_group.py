@@ -174,7 +174,7 @@ def control(label: str):
 # ── Server playground panel ─────────────────────────────────────────────
 
 
-@refreshable(deps=[ToggleGroupPlayground])
+@refreshable
 def server_panel() -> None:
     state = ToggleGroupPlayground()
 
@@ -253,7 +253,7 @@ def server_panel() -> None:
 # ── Server-events panel ─────────────────────────────────────────────────
 
 
-@refreshable(deps=[ToggleGroupEvents])
+@refreshable
 def events_panel() -> None:
     state = ToggleGroupEvents()
 
@@ -363,9 +363,9 @@ def page() -> None:
                         value=["b", "i"],
                         multiple=True,
                     ):
-                        ui.toggle_button("b", "Bold",      icon="bold")
-                        ui.toggle_button("i", "Italic",    icon="italic")
-                        ui.toggle_button("u", "Underline", icon="underline")
+                        ui.toggle_button("b", label="Bold",      icon="bold")
+                        ui.toggle_button("i", label="Italic",    icon="italic")
+                        ui.toggle_button("u", label="Underline", icon="underline")
 
                     ui.heading("Icon-only (container API)", level=3)
                     ui.text(
@@ -374,11 +374,11 @@ def page() -> None:
                         color="muted", size="xs",
                     )
                     with ui.toggle_group(value="grid"):
-                        ui.toggle_button("grid",   None, icon="grid-3x3",
+                        ui.toggle_button("grid",   label=None, icon="grid-3x3",
                                          tooltip="Grid view")
-                        ui.toggle_button("list",   None, icon="list",
+                        ui.toggle_button("list",   label=None, icon="list",
                                          tooltip="List view")
-                        ui.toggle_button("kanban", None, icon="columns-3",
+                        ui.toggle_button("kanban", label=None, icon="columns-3",
                                          tooltip="Kanban view")
 
                     ui.heading("Sizes", level=3)
@@ -410,9 +410,9 @@ def page() -> None:
                     ui.heading("Disabled button inside enabled group",
                                level=3)
                     with ui.toggle_group(value="a"):
-                        ui.toggle_button("a", "Available")
-                        ui.toggle_button("b", "Available")
-                        ui.toggle_button("c", "Locked", disabled=True)
+                        ui.toggle_button("a", label="Available")
+                        ui.toggle_button("b", label="Available")
+                        ui.toggle_button("c", label="Locked", disabled=True)
 
                     ui.heading("Disabled whole group", level=3)
                     ui.toggle_group(
@@ -439,18 +439,18 @@ def page() -> None:
 
                     ui.heading("Plain string labels", level=3)
                     with ui.toggle_group(value="a"):
-                        ui.toggle_button("a", "Plain string A")
-                        ui.toggle_button("b", "Plain string B")
+                        ui.toggle_button("a", label="Plain string A")
+                        ui.toggle_button("b", label="Plain string B")
 
                     ui.heading("With icons + tooltip per item", level=3)
                     with ui.toggle_group(value="left"):
-                        ui.toggle_button("left",   "Left",
+                        ui.toggle_button("left",   label="Left",
                                          icon="align-left",
                                          tooltip="Align left")
-                        ui.toggle_button("center", "Center",
+                        ui.toggle_button("center", label="Center",
                                          icon="align-center",
                                          tooltip="Align center")
-                        ui.toggle_button("right",  "Right",
+                        ui.toggle_button("right",  label="Right",
                                          icon="align-right",
                                          tooltip="Align right")
 
@@ -552,13 +552,13 @@ def page() -> None:
                         with ui.vstack():
                             ui.text("Text alignment", weight="bold")
                             with ui.toggle_group(value="left"):
-                                ui.toggle_button("left",   None,
+                                ui.toggle_button("left",   label=None,
                                                  icon="align-left",
                                                  tooltip="Left")
-                                ui.toggle_button("center", None,
+                                ui.toggle_button("center", label=None,
                                                  icon="align-center",
                                                  tooltip="Center")
-                                ui.toggle_button("right",  None,
+                                ui.toggle_button("right",  label=None,
                                                  icon="align-right",
                                                  tooltip="Right")
 
@@ -819,10 +819,10 @@ def page() -> None:
                         multiple=True,
                     )
                     with gm:
-                        ui.toggle_button("b", "Bold",      icon="bold")
-                        ui.toggle_button("i", "Italic",    icon="italic")
-                        ui.toggle_button("u", "Underline", icon="underline")
-                        ui.toggle_button("s", "Strike",
+                        ui.toggle_button("b", label="Bold",      icon="bold")
+                        ui.toggle_button("i", label="Italic",    icon="italic")
+                        ui.toggle_button("u", label="Underline", icon="underline")
+                        ui.toggle_button("s", label="Strike",
                                          icon="strikethrough")
                     with ui.hstack(gap="sm"):
                         ui.button("select_all", variant="outline",
@@ -907,7 +907,7 @@ def page() -> None:
                         on_change=cevents.log.push(_new_value),
                     )
                     emitted_html_block(
-                        "Emitted HTML — @change on the hidden input ; "
+                        "Emitted HTML — the ``change`` handler on the hidden input ; "
                         "the client expression pushes the new value "
                         "onto the bound list.",
                         serialize_html(preview),

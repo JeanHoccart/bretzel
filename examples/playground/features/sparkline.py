@@ -124,7 +124,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[SparklinePlayground])
+@refreshable
 def server_panel() -> None:
     state = SparklinePlayground()
 

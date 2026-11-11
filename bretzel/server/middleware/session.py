@@ -1,9 +1,11 @@
 """Session-cookie middleware — `Bretzel_session`.
 
-Tiny on purpose : the session id is just a random opaque string the
-state registry uses to scope per-session storage. No payload, no
-signing — Starlette's :class:`SessionMiddleware` would be overkill
-for what we need.
+Tiny on purpose : the session id is a random opaque string the state
+registry uses to scope per-session storage, and the cookie carries it
+SIGNED (:func:`bretzel.server.auth.session_cookie`): an id this server did
+not mint is replaced by a fresh one. The request says whether its session
+was minted just now (``request.state.session_fresh``): the SSE route
+refuses those — a page always comes first.
 
 Outermost framework middleware in inbound order : also parses the
 inbound ``Cookie`` header once and stashes it on
@@ -20,8 +22,11 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from bretzel.server.auth import (
     COOKIE_SESSION,
+    REVOKED_SESSIONS,
     parse_cookies_from_scope,
     resolve_cookie_secure,
+    session_cookie,
+    session_of_cookie,
     verify_session_key,
 )
 from bretzel.server.middleware._state import ensure_state, read_header
@@ -37,9 +42,13 @@ class SessionMiddleware:
         max_age_seconds: int,
         secure: bool | None,
         session_key: bytes = b"",
+        bretzel_app: object = None,
     ) -> None:
         self.app = app
         self._max_age = max_age_seconds
+        # Where revoked sessions are recorded: the app's state backend,
+        # read at request time (it is wired at startup, after us).
+        self._bretzel = bretzel_app
         # Verifies the keys of :func:`bretzel.auth.session_key`. Empty in
         # a rig that builds the middleware by hand: no key opens anything
         # then — an empty HMAC key is forgeable by anyone.
@@ -64,7 +73,10 @@ class SessionMiddleware:
         # A program holding a session key acts in THAT session, ahead of
         # any cookie: it named the session on purpose. No cookie is set
         # back — the key is how it comes again.
-        existing = self._keyed_session(scope) or cookies.get(COOKIE_SESSION)
+        existing = self._keyed_session(scope) or session_of_cookie(
+            cookies.get(COOKIE_SESSION), self._session_key)
+        if existing and await self._revoked(existing):
+            existing = None  # left by a logout or a login: a fresh one
         if existing:
             session_id = existing
             mint_fresh = False
@@ -75,16 +87,18 @@ class SessionMiddleware:
         state = ensure_state(scope)
         state.cookies = cookies
         state.session_id = session_id
+        state.session_fresh = mint_fresh
 
         if not mint_fresh:
             await self.app(scope, receive, send)
+            await self._record_revocations(scope)
             return
 
         # ``auth.login`` / ``auth.logout`` ROTATE the session cookie
         # through the render context's ``new_cookies`` pipeline — we only
         # emit ours when we have just minted a fresh one.
         cookie_header = _format_session_cookie(
-            session_id,
+            session_cookie(session_id, self._session_key),
             max_age=self._max_age,
             secure=resolve_cookie_secure(
                 scope.get("scheme"), self._secure_override
@@ -99,6 +113,25 @@ class SessionMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_cookie)
+        await self._record_revocations(scope)
+
+    def _backend(self) -> object | None:
+        return getattr(self._bretzel, "_state_backend", None)
+
+    async def _revoked(self, session_id: str) -> bool:
+        backend = self._backend()
+        if backend is None:
+            return False
+        return await backend.load("session", _revoked_key(session_id)) is not None
+
+    async def _record_revocations(self, scope: Scope) -> None:
+        """Record the sessions ``auth.login`` / ``auth.logout`` left — for
+        as long as a session lives, after which nothing opens it anyway."""
+        backend = self._backend()
+        for session_id in scope.get(REVOKED_SESSIONS) or ():
+            if backend is not None:
+                await backend.save("session", _revoked_key(session_id),
+                                   {"revoked": True}, ttl=self._max_age)
 
 
     def _keyed_session(self, scope: Scope) -> str | None:
@@ -131,14 +164,16 @@ def _already_written(message: Message) -> bool:
     browser was not going to keep — so a draft set in the sign-in handler
     was lost on the next page. And the anti-fixation rotation was no more
     than an intention.
-
-    Measured on 2026-08-24, on a sign-in at the very first hit: two
-    headers, the second erasing the first.
     """
     return any(
         key == b"set-cookie" and value.startswith(_SESSION_PREFIX)
         for key, value in message.get("headers", ())
     )
+
+
+def _revoked_key(session_id: str) -> str:
+    """Where a revoked session is recorded: in its own namespace."""
+    return f"{session_id}:__revoked__"
 
 
 def _format_session_cookie(value: str, *, max_age: int, secure: bool) -> str:

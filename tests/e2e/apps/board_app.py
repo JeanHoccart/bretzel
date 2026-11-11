@@ -100,7 +100,7 @@ def task_card(task: dict) -> None:
                 )
 
 
-@refreshable(deps=[BoardStore])
+@refreshable
 def board() -> None:
     """Refreshing this zone re-projects every teleported panel clone —
     which is exactly the moment the guarded bug used to strike."""

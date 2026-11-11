@@ -63,25 +63,22 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
-    SERVER_ACTION_ATTRS,
-    bool_attr,
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.field_wiring import (
     hidden_carrier_attrs,
-    relocate_server_action,
-    scope_literal,
-    theme_context,
+    keep_own_name,
+    relocate_aria,
+    relocate_handlers,
 )
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.scope_wiring import bool_attr, scope_literal
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.inputs.slider.theme import SLIDER_THEME
 from bretzel.core.tree import Element, Node
 from bretzel.render import text
 
-# Native HTMX action attrs a callable handler lands on the root via
-# ``emit_attrs`` ; relocated wholesale to the carrier that holds
-# name+value (the dispatcher reads form-data from there).
-_ACTION_ATTRS_TO_RELOCATE = SERVER_ACTION_ATTRS
 
-
-class Slider(Component):
+class Slider(ValueCommands, FocusCommands, Component):
     """Drag-to-pick numeric input, single or range."""
 
     THEME: ClassVar[dict[str, Any]] = SLIDER_THEME
@@ -89,6 +86,8 @@ class Slider(Component):
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "clear", "focus", "blur")
+    # Where ``autofocus=`` / ``.focus()`` land: the (first) thumb.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("[role=slider]",)
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
@@ -135,9 +134,6 @@ class Slider(Component):
 
     # ── Imperative write-only API ─────────────────────────────────────
 
-    def set(self, value: Any) -> str:
-        return self._value_command(value)
-
     def clear(self) -> str:
         """Reset to a "neutral" value :
         - single mode → ``min``
@@ -151,24 +147,10 @@ class Slider(Component):
             return self.set([min_v, max_v])
         return self.set(min_v)
 
-    def focus(self) -> str:
-        return (
-            f"document.getElementById('{self.id}')"
-            f".querySelector('[role=slider]').focus()"
-        )
-
-    def blur(self) -> str:
-        return (
-            f"document.getElementById('{self.id}')"
-            f".querySelector('[role=slider]').blur()"
-        )
-
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        _theme, slots, sizes, size_key, _color = theme_context(self)
-        size_map = sizes.get(size_key, sizes.get("md", {}))
+        _theme, slots, _sizes, _size_key, _color = theme_context(self)
         is_range = bool(self._reactive_values.get("range"))
         disabled = bool(self._reactive_values.get("disabled"))
         required = bool(self._reactive_values.get("required"))
@@ -189,9 +171,6 @@ class Slider(Component):
         min_v = float(self._reactive_values.get("min") or 0.0)
         max_v = float(self._reactive_values.get("max") or 100.0)
         step_v = float(self._reactive_values.get("step") or 1.0)
-
-        def _resolve(template: str) -> str:
-            return template
 
         # ── Initial value normalisation ─────────────────────────────
         raw_initial = self._reactive_values.get("value")
@@ -223,30 +202,15 @@ class Slider(Component):
         root_attrs = self.emit_attrs()
         relocated_to_hidden: dict[str, Any] = {}
         relocated_to_handle: dict[str, Any] = {}
-        # Only ONE server callable can be wired per instance (no
-        # ALLOW_MULTI_SERVER_EVENTS on Slider), so ``hx-trigger`` — read
-        # BEFORE any relocation — tells us which event it actually
-        # belongs to. Blindly relocating SERVER_ACTION_ATTRS to the
-        # hidden input regardless of that value used to misroute a
-        # callable ``on_focus=``/``on_blur=`` there : the hidden input
-        # never fires focus/blur natively, and the line below used to
-        # force-overwrite ``hx-trigger`` to ``"change"`` unconditionally
-        # — so the handler silently fired on ``change`` instead. Cf.
-        # traps.md § "Un event déclaré doit partir du bon élément".
-        # The routing lives in the base layer. It also pins
-        # ``hx-trigger="change"`` on the value carrier — an
-        # ``<input type=hidden>`` never fires ``change`` natively, it is
-        # ``change_emit_effect`` that dispatches it.
-        relocate_server_action(
-            root_attrs,
-            value_carrier=relocated_to_hidden,
-            focusable=relocated_to_handle,
-        )
-        if "bz-on:change" in root_attrs:
-            relocated_to_hidden["bz-on:change"] = root_attrs.pop("bz-on:change")
-        for ev_attr in ("bz-on:focus", "bz-on:blur"):
-            if ev_attr in root_attrs:
-                relocated_to_handle[ev_attr] = root_attrs.pop(ev_attr)
+        relocate_handlers(root_attrs, {
+            "change": relocated_to_hidden,
+            "focus": relocated_to_handle,
+            "blur": relocated_to_handle,
+        })
+        # Every handle is focusable, so each one is named and described,
+        # where only the first relays focus / blur.
+        aria_of_handles: dict[str, Any] = {}
+        relocate_aria(root_attrs, aria_of_handles, takes_required=False)
 
         # ── Form-data name (autoname) ───────────────────────────────
         derived_name = self._derive_field_name()  # reused by value_server_backed below
@@ -299,7 +263,7 @@ class Slider(Component):
 
         # ── bz-data : range or scalar ───────────────────────────────
         # The ~15 drag / keyboard / pointer / clamp methods live ONCE in
-        # ``$bz.slider.scope`` (``12_slider.js``); they branch on
+        # ``$bz.slider.scope`` (``slider.js``); they branch on
         # ``_range``. The bounds are server config — a ``min=`` changed
         # server-side must not stay frozen at its first mount's value.
         # ⚠️ ``_dragging`` / ``_hovered`` / ``_focused`` / ``_track`` /
@@ -335,15 +299,9 @@ class Slider(Component):
         )
 
         # ── Track + fill + handles ──────────────────────────────────
-        track_class = " ".join(p for p in (
-            slots.get("track", ""),
-            size_map.get("track", ""),
-        ) if p)
-        fill_class = _resolve(slots.get("fill", ""))
-        handle_class = " ".join(p for p in (
-            _resolve(slots.get("handle", "")),
-            size_map.get("handle", ""),
-        ) if p)
+        track_class = self.compose_class("track")
+        fill_class = slots.get("fill", "")
+        handle_class = self.compose_class("handle")
         tooltip_class = slots.get("tooltip", "")
 
         # Fill positioning :
@@ -385,6 +343,7 @@ class Slider(Component):
                 value_text_expr="_picked()[0]",
                 aria_label=text("slider.range_start"),
                 relocated_attrs=relocated_to_handle,
+                aria_attrs=aria_of_handles,
                 disabled=disabled,
             ))
             handle_nodes.append(self._build_handle(
@@ -397,6 +356,7 @@ class Slider(Component):
                 # Only the first handle relays focus / blur events
                 # (Combobox / Select do the same with their trigger).
                 relocated_attrs={},
+                aria_attrs=aria_of_handles,
                 disabled=disabled,
             ))
         else:
@@ -408,6 +368,7 @@ class Slider(Component):
                 value_text_expr="_picked()",
                 aria_label=None,
                 relocated_attrs=relocated_to_handle,
+                aria_attrs=aria_of_handles,
                 disabled=disabled,
             ))
 
@@ -494,6 +455,7 @@ class Slider(Component):
         value_text_expr: str,
         aria_label: str | None,
         relocated_attrs: dict[str, Any],
+        aria_attrs: dict[str, Any],
         disabled: bool,
     ) -> Element:
         """One draggable handle + its hover/focus tooltip.
@@ -508,7 +470,7 @@ class Slider(Component):
         # Combine (don't overwrite) when a user-relocated client-string
         # handler targets the SAME event as the handle's own internal
         # focus/blur tooltip-visibility tracking (``_focused``). A blind
-        # ``**relocated_attrs`` spread here used to silently destroy the
+        # ``**relocated_attrs`` spread here would silently destroy the
         # internal wiring by dict-key collision. Internal logic runs
         # FIRST so ``_focused`` stays consistent before the caller's
         # expression runs. Server callables never collide -- they route
@@ -571,8 +533,10 @@ class Slider(Component):
             "bz-on:blur": "_focused = null",
             **relocated_attrs,
         }
+        attrs.update(aria_attrs)
         if aria_label:
             attrs["aria-label"] = aria_label
+            keep_own_name(attrs, f"{self.id}_{target}")
         if disabled:
             attrs["aria-disabled"] = "true"
 

@@ -49,7 +49,8 @@ class TestDeriveFieldName:
         )
         with render_isolated():
             c = _NamedInput(value=binding)
-        assert c._derive_field_name() == "email"
+        # WHOSE field it is, not the field alone (``state/_wire_name.py``).
+        assert c._derive_field_name() == "Form.email"
 
     def test_server_stamp_source(self) -> None:
         with render_isolated():
@@ -201,14 +202,12 @@ class TestReactivePropDispatch:
         # treats absence as "not disabled".
         assert "disabled" not in btn.emit_attrs()
 
-    def test_alpine_string_emits_bz_attr(self) -> None:
+    def test_a_string_that_looks_like_code_stays_a_value(self) -> None:
+        """A ``str`` is data (2026-11-06): code is a binding, or a
+        ``bz-attr:`` written by hand. Cf. test_a_string_is_never_code."""
         with render_isolated():
             btn = _Btn(disabled="$bz.state.cart.default.empty")
-        attrs = btn.emit_attrs()
-        assert "bz-attr:disabled" in attrs
-        assert attrs["bz-attr:disabled"] == "$bz.state.cart.default.empty"
-        # The static slot stays empty so we don't double-emit.
-        assert "disabled" not in attrs
+        assert "bz-attr:disabled" not in btn.emit_attrs()
 
     def test_client_binding_emits_bz_attr(self) -> None:
         binding = ClientBinding(
@@ -324,9 +323,25 @@ class TestEvents:
         assert attrs["bz-on:click"] == "$bz.toggle('menu')"
         assert "hx-post" not in attrs
 
-    def test_two_server_handlers_on_one_element_rejected(self) -> None:
-        with render_isolated(), pytest.raises(HandlerError, match="ONE hx-post"):
-            _Btn(on_click=_module_handler, on_focus=_module_handler)
+    def test_two_server_handlers_each_get_their_post(self) -> None:
+        # One server handler PER EVENT (audit of the events, D4,
+        # 2026-10-29): the first rides the root, the second a hidden
+        # carrier listening FROM the root — focus as focusin, which
+        # bubbles — and bringing the component's fields.
+        with render_isolated():
+            out = serialize(_Btn(on_click=_module_handler, on_focus=_module_handler).render())
+        assert out.count("hx-post") == 2
+        assert 'hx-trigger="focusin from:#' in out and 'hx-include="#' in out
+
+    def test_the_class_order_decides_which_rides_the_root(self) -> None:
+        # Not the call's: a list is unwrapped and landed last in the
+        # kwargs, and the second event took the root.
+        with render_isolated():
+            out = serialize(_Btn(on_focus=_module_handler,
+                                 on_click=["$bz.toggle('menu')", _module_handler]).render())
+        root = out.split(">", 1)[0]
+        assert 'hx-trigger="click"' in root
+        assert 'hx-trigger="focusin from:#' in out
 
     def test_lambda_rejected(self) -> None:
         with render_isolated(), pytest.raises(HandlerError, match="Lambda"):

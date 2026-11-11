@@ -48,12 +48,12 @@ def create_account(form: SignupForm) -> None:
     if form.errors:
         return
     ui.notification(f"Welcome aboard, {form.full_name}!",
-                    title="Workspace created", variant="success")
+                    title="Workspace created", color="success")
     form.full_name = form.work_email = form.workspace = ""
     form.password = form.confirm = ""
 
 
-@refreshable(deps=[SignupForm])
+@refreshable
 def signup_form() -> None:
     form = SignupForm()
     with (ui.card(padding="lg", classes="w-full max-w-md"),
@@ -126,10 +126,10 @@ def save_profile(form: ProfileSettings) -> None:
     if form.errors:
         return
     ui.notification("Your profile is up to date.", title="Saved",
-                    variant="success")
+                    color="success")
 
 
-@refreshable(deps=[ProfileSettings])
+@refreshable
 def profile_form() -> None:
     profile = ProfileSettings()
     with ui.form(on_submit=save_profile), ui.vstack(gap="lg"):

@@ -6,23 +6,18 @@ Run: ``py -m examples.kanban.main`` (port 8009).
 ``donnees.Tableau`` is a ``SessionState`` since ``75f9a702``, on purpose:
 on the public demo, a board common to every visitor would let anyone
 write anything for everyone to read. Its windows still share it — two
-tabs of the same browser are one session — and the broadcast reaches
+tabs of the same browser are one session — and the signal reaches
 exactly them: a ``SessionState`` signal stays in its session (decided on
 2026-10-03, ``tests/integration/server/test_a_session_state_broadcast_
 stays_in_its_session.py``), so other visitors are neither reached nor
 re-rendered. An ``AppState`` board would be shared by everyone, with the
 same code.
 
-Each zone declares two distinct lists —
-
-    @refreshable(deps=[Tableau, Filtres], broadcast=[Tableau])
-
-— and the question they ask is not the same. ``deps`` says *what
-re-renders me*, in the response to my own action. ``broadcast`` says
-*what the other windows must redo*, through an SSE signal. The board is
-in both: I change it, they must see it. The filters are only in ``deps``
-— what I hide concerns only me, and broadcasting it would make the whole
-team work again at every keystroke of a single person.
+A zone re-renders when what it read changes, in every window showing
+it, as far as that state's scope allows — nothing to write. The board
+is a ``SessionState``: I change it, my other windows see it. The filters
+are ``PageState``: what I hide concerns only this window, and nobody
+else redraws at every keystroke.
 
 **The trial that proves something is done with TWO windows.** One shows
 nothing: it would have re-rendered its own zone anyway. Open the app
@@ -39,20 +34,21 @@ shows the other door, ``locked=True``: it accepts everything and lets
 nothing leave.
 
 **Bilingual**, and the seam is worth a look: the app declares
-``languages=("en", "fr")`` and routes its own sentences through
-``core/i18n.tr(en, fr)``. Bretzel resolves the language (cookie, then
-``Accept-Language``) and translates ITS words; the app translates its
-own, the seeded board included. The activity feed keeps what was written
+``languages=("en", "fr")`` and writes its own sentences ``t("Create")`` —
+English is the source, ``core/i18n.FR`` the French, the sentence as its
+key. Bretzel resolves the language (cookie, then ``Accept-Language``),
+says its own words in it, and the app's through ``t()``, the seeded board
+included; ``bretzel translations examples.kanban.main:app`` lists what
+the French table lacks. The activity feed keeps what was written
 AT THE TIME — a line filed in French stays in French, because a log
 records what was said.
 
 **No database**: restarting the server puts the board back to its
 starting state. **No authentication**: the "You are…" selector changes
 identity in one click, because this example's subject is shared state
-and not signing in (``examples/auth`` does the other one). And **no
-addressable field**: ``URL = {…}`` is ``examples/messagerie``'s
-mechanic, taking it up here would give two subjects to an app that
-demonstrates one.
+and not signing in. And **no addressable field**: taking up
+``URL = {…}`` here would give two subjects to an app that demonstrates
+one.
 
 **An API, on the same board** — ``features/api.py``: the banner's ``</>``
 button shows a ready ``curl`` whose card lands on the visitor's board,
@@ -65,6 +61,7 @@ This app does not use the ``Feature`` contracts: app structure is what
 import os
 
 from bretzel import Bretzel
+from examples.kanban.core.i18n import FR
 from examples.kanban.core.theme import THEME
 from examples.kanban.features import (
     api,
@@ -89,9 +86,10 @@ app = Bretzel(
     theme=THEME,
     # English is the source language and the default; French is one
     # click away, in the banner. The app's own sentences go through
-    # ``core/i18n.tr``; the framework's own go through ``lang``.
+    # ``t()`` and the French table; the framework's own through ``lang``.
     lang="en",
     languages=("en", "fr"),
+    translations={"fr": FR},
     api_docs=True,
 )
 

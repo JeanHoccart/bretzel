@@ -109,12 +109,12 @@ class TestScatterChart:
         with render_isolated():
             out = serialize(ScatterChart(
                 SAMPLE,
-                reference_lines=[Reference(value=10, label="Threshold",
+                y_reference_lines=[Reference(value=10, label="Threshold",
                                            color="warning")],
             ).render())
         assert "bz-line-refs" in out
         assert ">Threshold" in out
-        assert "stroke-(--bz-solid)" in out
+        assert "stroke-(--bz-border-hover)" in out
         assert "bz-c-warning" in out
 
     def test_size_drives_height(self) -> None:
@@ -141,5 +141,7 @@ class TestScatterChart:
         assert "ms" in out
         assert "s)" in out  # x unit lands on the x side of the pair
 
-    def test_no_bindable_props(self) -> None:
-        assert ScatterChart.BINDABLE_PROPS == ()
+    def test_binds_only_its_displayed_contents(self) -> None:
+        # The data flows through @refreshable; only the displayed contents
+        # (the empty state's words and icon) bind, by construction (2026-11-06).
+        assert set(ScatterChart.BINDABLE_PROPS) - set(ScatterChart.__displayed_props__) == set()

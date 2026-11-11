@@ -125,7 +125,7 @@ class TestActionAttrs:
 
     def test_modifier_appends_to_trigger(self) -> None:
         out = action_attrs("input", "m::f", "", "", modifier="delay:300ms")
-        assert out["hx-trigger"] == "input delay:300ms"
+        assert out["hx-trigger"] == "input delay:300ms, change"
 
     def test_no_modifier_plain_trigger(self) -> None:
         out = action_attrs("input", "m::f", "", "", modifier=None)
@@ -189,7 +189,7 @@ class TestDebounceThrottle:
         return m.group(1) if m else ""
 
     def test_debounce_becomes_delay(self) -> None:
-        assert self._trigger_of(debounce=300) == "input delay:300ms"
+        assert self._trigger_of(debounce=300) == "input delay:300ms, change"
 
     def test_throttle_becomes_throttle(self) -> None:
         assert self._trigger_of(throttle=500) == "input throttle:500ms"

@@ -27,7 +27,7 @@ PROGRESS_THEME: dict[str, Any] = {
         # Inner fill : ``transition-[width]`` so updates animate cleanly.
         "fill": (
             "h-full rounded-full bg-(--bz-solid) "
-            "transition-[width] duration-300 ease-out"
+            "transition-[width] duration-200 ease-out"
         ),
         # Indeterminate fill : pulse + opacity shift so it doesn't sit
         # dead on screen.

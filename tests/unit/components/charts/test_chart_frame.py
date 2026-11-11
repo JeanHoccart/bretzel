@@ -108,13 +108,13 @@ def _last_data_mark(cls: type, html: str) -> int:
 
 @pytest.mark.parametrize("cls", CHARTS, ids=lambda c: c.__name__)
 def test_a_reference_label_is_painted_after_the_data(cls: type) -> None:
-    html = _render(cls, reference_lines=[Reference(value=5, label="Goal")])
+    html = _render(cls, y_reference_lines=[Reference(value=5, label="Goal")])
     assert html.index(">Goal") > _last_data_mark(cls, html)
 
 
 @pytest.mark.parametrize("cls", CHARTS, ids=lambda c: c.__name__)
 def test_the_reference_line_itself_stays_behind(cls: type) -> None:
-    html = _render(cls, reference_lines=[Reference(value=5, label="Goal")])
+    html = _render(cls, y_reference_lines=[Reference(value=5, label="Goal")])
     first_line = html.index('stroke-dasharray="4 4"')
     first_mark = html.index({BarChart: "bz-bar-fill", LineChart: "<path",
                              ScatterChart: "<circle"}[cls])
@@ -123,7 +123,7 @@ def test_the_reference_line_itself_stays_behind(cls: type) -> None:
 
 def test_a_horizontal_bar_reference_label_is_painted_after_the_bars() -> None:
     html = _render(BarChart, orientation="horizontal",
-                   reference_lines=[Reference(value=5, label="Goal")])
+                   y_reference_lines=[Reference(value=5, label="Goal")])
     assert html.index(">Goal") > html.rindex("bz-bar-fill")
 
 

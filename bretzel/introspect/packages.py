@@ -3,9 +3,9 @@ same entry point as the roots to scan.
 
 The missing half
 ----------------
-Since 2026-08-29, a third-party library has its Tailwind classes
-compiled: it declares a root in ``bretzel.scan_roots`` and the production
-``style.css`` keeps them. But the THEME door stayed closed ::
+A third-party library has its Tailwind classes compiled: it declares a
+root in ``bretzel.scan_roots`` and the production ``style.css`` keeps
+them. But that leaves the THEME door closed ::
 
     Theme(components={"gauge": {...}})
     # ThemeError: no component has this theme key

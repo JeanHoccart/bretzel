@@ -1,9 +1,10 @@
 """Default themes for :class:`ToggleGroup` and :class:`ToggleButton`.
 
-One visual contract — a joined-button bar. Items share their edges
-(border-radius only on the first / last), the selected state is a
-background fill in ``color``. Natural shape for filters, formatting
-toolbars, multi-select pills.
+One visual contract — a segmented bar. A framed rail holds the items
+slightly apart; each selected item is a filled pill in ``color``'s
+solid fill, as every selection of the framework. Natural shape for
+filters, formatting toolbars, multi-select pills: several selected items
+stay separate pills, never one block.
 
 The selected state is driven by ``data-selected="true"`` (Tailwind's
 ``data-[selected=true]:`` variant) rather than ``aria-pressed:``.
@@ -39,39 +40,44 @@ TOGGLE_GROUP_THEME: dict[str, Any] = {
         # naturally in a form row.
         # ⚠️ No ``h-fit`` here, and the step's height lives on THIS box
         # (``sizes[…]["root"]``), not on the item. The frame's border is
-        # set on the root: an ``h-10`` on the item rendered a 42 px
-        # cluster against 40 px for the select placed beside it in the
-        # same grid — measured at every size, +2 px everywhere.
+        # set on the root: an ``h-10`` on the item would make the cluster
+        # 2 px taller than a select placed beside it in the same grid.
+        #
+        # The spacing between items belongs to the ROW (``gap``): an item
+        # wrapped in its tooltip is the only child of that wrapper, so any
+        # ``first:`` / ``last:`` on the item reads the wrapper, not the row.
+        #
+        # Too narrow for its column, it SCROLLS (``max-w-full
+        # overflow-x-auto``) rather than overflow onto its neighbour, wrap
+        # (no longer a bar) or shrink (« Trim… »). The bar is hidden, since a 40 px rail
+        # has no room for it; a trackpad, a finger, or Tab reaching an
+        # item scroll it. The items do not shrink (``shrink-0``).
         "root": (
-            "inline-flex items-stretch w-fit select-none "
+            "inline-flex items-stretch w-fit max-w-full select-none "
             "transition-colors duration-150 "
             "rounded-field bg-interface border-(length:--bz-stroke) border-text/10 "
-            "overflow-hidden p-0 gap-0"
+            "overflow-x-auto [scrollbar-width:none] p-0.5 gap-0.5"
         ),
-        # Item shell : flex centred, border-r for the inter-item
-        # separator, removed on the last child via :last-child. Three
-        # states for the text colour, matching the Tabs ``line`` idiom
-        # — hover gives a colour preview of what selection looks like :
+        # Item shell : a pill nested in the rail (``rounded-selector``,
+        # the family of a control nested inside another). Three states:
         # - base   : ``text-muted``
-        # - hover  : ``text-(--bz-text)`` (preview, no bg yet)
-        # - active : an underline + ``bg-(--bz-bg) text-(--bz-text)``
+        # - hover  : ``text-(--bz-text)`` on an unselected item, a colour
+        #   preview of the selection
+        # - active : the colour's solid fill, its label in the colour
+        #   written on it — as a sidebar's active row, a checked box, a
+        #   picked day
         "item": (
-            "inline-flex items-center justify-center gap-1.5 "
-            "font-medium text-muted cursor-pointer "
-            "border-r-(length:--bz-stroke) border-text/10 last:border-r-0 "
+            "inline-flex shrink-0 items-center justify-center gap-1.5 "
+            "rounded-selector font-medium text-muted cursor-pointer "
             "transition-colors duration-150 ease-out "
-            "not-disabled:hover:text-(--bz-text) "
-            # The selection is an UNDERLINE, the tabs' idiom: the 10 %
-            # tint below is mixed towards the surface and lands on the
-            # ``bg-interface`` rail, where it measured 1.05:1 — a
-            # selected avatar or icon showed nothing. In ``--bz-text``,
-            # not ``--bz-solid``: a dark brand colour (the shipped plum)
-            # is 1.5:1 on the dark rail, the text step is held readable.
+            "not-disabled:not-data-[selected=true]:hover:text-(--bz-text) "
+            # The fill is ``--bz-solid``, the colour itself — every
+            # selection of the framework says "chosen" the same way. The
+            # palette gives each colour a dark value that reads on the dark
+            # rail (``palette.py``). A faint tint would not read there.
             # Gate: ``tests/runtime_js/test_a_selection_is_visible.py``.
-            "border-b-(length:--bz-stroke-strong) border-b-transparent "
-            "data-[selected=true]:border-b-(--bz-text) "
-            "data-[selected=true]:bg-(--bz-bg) "
-            "data-[selected=true]:text-(--bz-text) "
+            "data-[selected=true]:bg-(--bz-solid) "
+            "data-[selected=true]:text-(--bz-on-solid) "
             "focus-visible:outline-none focus-visible:ring-2 "
             "focus-visible:ring-(--bz-focus) "
             "focus-visible:ring-inset "
@@ -90,10 +96,9 @@ TOGGLE_GROUP_THEME: dict[str, Any] = {
         "sm": {"root": "h-8", "item": "h-full px-3 text-sm"},
         "md": {"root": "h-10", "item": "h-full px-4 text-sm"},
         "lg": {"root": "h-12", "item": "h-full px-5 text-base"},
-        # ``xl`` was missing: a ``size="xl"`` silently fell back to
-        # ``md``, a step smaller than an ``xl`` select/combobox placed
-        # beside it in the same form (audit F91). The step traces
-        # Select's (``h-14 px-5 text-lg``) so the family stays aligned.
+        # ``xl`` traces Select's step (``h-14 px-5 text-lg``), so the
+        # cluster stays aligned with an ``xl`` select/combobox placed
+        # beside it in the same form.
         "xl": {"root": "h-14", "item": "h-full px-5 text-lg"},
     },
 }

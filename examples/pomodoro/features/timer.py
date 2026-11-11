@@ -43,7 +43,7 @@ class TimerState(SessionState):
 
 class Play(ClientState):
     """The run/pause gate — a CLIENT signal so flipping it stops the
-    ``ui.interval`` instantly. Drives both the interval ``active=`` and the
+    ``ui.interval`` instantly. Drives both the interval ``disabled=~play.active`` and the
     Start/Pause button visibility toggle."""
 
     active: bool = field(default=False)
@@ -63,7 +63,7 @@ def advance(s: TimerState) -> None:
     s.remaining = MODES[nxt][1]
     ui.notification(
         f"{MODES[nxt][0]} time!",
-        variant="success",
+        color="success",
         title="Pomodoro",
         duration_ms=4000,
     )
@@ -99,7 +99,7 @@ def skip() -> None:
 # ── UI ───────────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[TimerState])
+@refreshable
 def timer_zone() -> None:
     """The clock face : mode badge, mm:ss, elapsed progress, session count.
     Refreshed by every tick so the countdown animates without a reload."""
@@ -136,7 +136,7 @@ def timer_page() -> None:
 
         # Client timer : ``tick`` fires every second WHILE ``play.active`` ;
         # flip the signal false (Pause) and it clears instantly.
-        ui.interval(on_tick=tick, seconds=1, active=play.active)
+        ui.interval(on_tick=tick, seconds=1, disabled=~play.active)
 
         with ui.card(padding="lg", classes="w-full"):
             with ui.vstack(gap="lg", align="center"):

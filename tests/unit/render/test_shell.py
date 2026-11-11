@@ -247,7 +247,7 @@ class TestFouc:
         # ``mode === 'system'`` (canonical) and ``'auto'`` (legacy alias)
         # both defer to the OS preference via ``prefers-color-scheme`` —
         # not just an explicit dark choice. Must match the runtime effect
-        # in ``runtime/_src/00_index.js``.
+        # in ``runtime/_src/index.js``.
         script = _fouc_script()
         assert "'system'" in script
         assert "'auto'" in script
@@ -313,7 +313,7 @@ class TestScreenBoot:
 class TestAntiFlashStyle:
     """V3 anti-flash : SSR pre-stamps every directive's initial state,
     so the only flash risk is ``bz-data`` scopes — hidden until
-    ``00_index.js`` flips ``.bz-ready`` on <html>. The data tags
+    ``index.js`` flips ``.bz-ready`` on <html>. The data tags
     (``<bz-envelope>`` / ``<bz-patch>``) are never displayed."""
 
     def test_bz_data_hidden_until_ready(self) -> None:
@@ -384,7 +384,7 @@ class TestBodyWrapper:
 
     def test_data_attribute_mirrors_uuid(self) -> None:
         out = _shell(page_uuid="abc123")
-        assert 'data-bretzel-page-id="abc123"' in out
+        assert 'data-bz-page-id="abc123"' in out
 
     def test_hx_headers_carries_page_id(self) -> None:
         out = _shell(page_uuid="abc123")

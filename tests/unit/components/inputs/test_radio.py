@@ -44,7 +44,9 @@ class TestGroupStructure:
                 Radio("pro", label="Pro")
                 Radio("enterprise", label="Enterprise")
             out = serialize(rg.render())
-        assert out.count("<input") == 3
+        assert out.count('<input type="radio"') == 3
+        # Plus ONE carrier for the group's field (``RadioGroup.render``).
+        assert out.count('type="hidden"') == 1
 
 
 class TestRadioInheritance:
@@ -53,12 +55,46 @@ class TestRadioInheritance:
     time."""
 
     def test_radio_inherits_name_from_group(self) -> None:
+        """Two names, two jobs (2026-11-06): the radios share a name
+        PRIVATE to their group — what makes them one group for the
+        browser, and only them — and the field ``plan`` rides the group's
+        hidden carrier, which a form sends."""
         with render_isolated():
             with RadioGroup(name="plan") as rg:
                 Radio("free", label="Free")
                 Radio("pro", label="Pro")
             out = serialize(rg.render())
-        assert out.count('name="plan"') == 2
+        radios = re.findall(r'<input type="radio"[^>]*>', out)
+        private = {re.search(r'name="([^"]+)"', r).group(1) for r in radios}
+        assert len(radios) == 2 and len(private) == 1
+        assert next(iter(private)).startswith("_")
+        assert out.count('name="plan"') == 1
+        assert re.search(r'<input type="hidden" name="plan"', out)
+
+    def test_two_groups_of_one_name_are_two_groups(self) -> None:
+        """Le cas du playground : deux groupes d'un même champ. Un seul
+        nom pour tous les radios en faisait UN groupe — cocher dans l'un
+        décochait l'autre."""
+        with render_isolated():
+            with RadioGroup(name="plan") as first:
+                Radio("free", label="Free")
+            with RadioGroup(name="plan") as second:
+                Radio("free", label="Free")
+            out = serialize(first.render()) + serialize(second.render())
+        names = {re.search(r'name="([^"]+)"', r).group(1)
+                 for r in re.findall(r'<input type="radio"[^>]*>', out)}
+        assert len(names) == 2
+
+    def test_the_carrier_follows_the_ticked_radio(self) -> None:
+        with render_isolated():
+            with RadioGroup(name="plan", value="pro") as rg:
+                Radio("free", label="Free")
+                Radio("pro", label="Pro")
+            out = serialize(rg.render())
+        carrier = re.search(r'<input type="hidden"[^>]*>', out).group(0)
+        assert 'value="pro"' in carrier
+        for radio in re.findall(r'<input type="radio"[^>]*>', out):
+            assert "data-bz-radio-value" in radio and ".value = $el.value" in radio
 
     def test_checked_when_value_matches_option(self) -> None:
         with render_isolated():
@@ -66,7 +102,7 @@ class TestRadioInheritance:
                 Radio("free", label="Free")
                 Radio("pro", label="Pro")
             out = serialize(rg.render())
-        inputs = re.findall(r"<input[^>]+>", out)
+        inputs = re.findall(r'<input type="radio"[^>]+>', out)
         assert len(inputs) == 2
         # First (free) is unchecked, second (pro) is checked.
         assert "checked" not in inputs[0]
@@ -83,14 +119,17 @@ class TestRadioInheritance:
 
 
 class TestRadioVisual:
-    def test_input_is_peer_sronly(self) -> None:
-        # V1 idiom : real input visually hidden, fake circle/dot
-        # listens to its checked state via Tailwind ``peer-*`` classes.
+    def test_input_is_an_invisible_peer_on_top(self) -> None:
+        # The real input stays invisible, ON TOP of the drawn circle, so a
+        # click — a test's ``radio.check()`` included — reaches it (it was
+        # ``sr-only``, under the circle); the circle/dot still listen to
+        # its checked state via Tailwind ``peer-*`` classes.
         with render_isolated():
             with RadioGroup() as rg:
                 Radio("a", label="A")
             out = serialize(rg.render())
-        assert "peer sr-only" in out
+        assert "peer absolute inset-0 m-0 opacity-0 z-10" in out
+        assert "sr-only" not in out
 
     def test_circle_and_dot_present(self) -> None:
         with render_isolated():
@@ -168,7 +207,8 @@ class TestRadioDisabledPropagation:
                 Radio("b", label="B")
                 Radio("c", label="C")
             out = serialize(rg.render())
-        assert len(self._DISABLED_ATTR_RE.findall(out)) == 3
+        # Three radios, and the carrier: a disabled group sends nothing.
+        assert len(self._DISABLED_ATTR_RE.findall(out)) == 4
 
     def test_group_binding_disabled_propagates_to_every_child(self) -> None:
         from bretzel.state import ClientState, field
@@ -188,7 +228,8 @@ class TestRadioDisabledPropagation:
         # (V3 : full ``$bz.state.<path>`` expression, falsy →
         # removeAttribute).
         directive = 'bz-attr:disabled="$bz.state._C.default.locked"'
-        assert out.count(directive) == 2
+        # Two radios, and the carrier (a disabled group sends nothing).
+        assert out.count(directive) == 3
         # No literal ``disabled`` SSR-stamp since the bound value is False.
         assert self._DISABLED_ATTR_RE.search(out) is None
 
@@ -212,8 +253,9 @@ class TestRadioDisabledPropagation:
         # literal so the cluster shows locked before the runtime boots
         # (no flash-of-unlocked-then-locked).
         directive = 'bz-attr:disabled="$bz.state._D.default.locked"'
-        assert out.count(directive) == 2
-        assert len(self._DISABLED_ATTR_RE.findall(out)) == 2
+        # Two radios, and the carrier (a disabled group sends nothing).
+        assert out.count(directive) == 3
+        assert len(self._DISABLED_ATTR_RE.findall(out)) == 3
 
     def test_per_item_binding_not_overridden_by_group_binding(self) -> None:
         from bretzel.state import ClientState, field
@@ -324,16 +366,18 @@ class TestImperativeAPI:
         assert attrs.get("id") == rg.id
         assert rg.id in rg.set("a")
 
-    def test_no_clear_or_focus_methods(self) -> None:
-        # v2-C scope is intentionally minimal — radios are one-of-N so
-        # ``.clear()`` has no real use case, and the group has no single
-        # focus target. If we ever add them, drop this test.
+    def test_clear_and_a_focus_on_the_checked_radio(self) -> None:
+        # ``.focus()``: the checked radio, else the first (``FOCUS_TARGET``,
+        # an ordered priority).
         with render_isolated():
             with RadioGroup(name="g") as rg:
                 Radio("a", label="A")
-        assert not hasattr(rg, "clear")
-        assert not hasattr(rg, "focus")
-        assert not hasattr(rg, "blur")
+        assert "bz-set" in rg.clear()
+        assert rg.focus() == (
+            f"$bz.helpers.focusIn('{rg.id}', "
+            '["input:checked:not([disabled])", "input:not([disabled])"])'
+        )
+        assert rg.blur() == f"$bz.helpers.blurIn('{rg.id}')"
 
 
 class TestAnUnnamedGroupStillExcludes:
@@ -357,3 +401,17 @@ class TestAnUnnamedGroupStillExcludes:
                 Radio("standard", label="Standard")
             out = serialize(rg.render())
         assert 'name="shipping"' in out
+
+
+def test_an_unknown_direction_is_refused_with_the_accepted_values() -> None:
+    # ``direction="vertical"`` rendered no class, in silence.
+    from bretzel.components.base.attrs import ComponentUsageError
+
+    with render_isolated(), pytest.raises(ComponentUsageError, match="'col', 'row'"):
+        RadioGroup(direction="vertical")
+
+
+def test_the_known_directions_still_pass() -> None:
+    with render_isolated():
+        RadioGroup(direction="row")
+        RadioGroup(direction="col")

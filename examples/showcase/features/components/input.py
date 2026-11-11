@@ -55,7 +55,7 @@ def search_customers(search: CustomerSearch) -> None:
     """The typed parameter receives the input's value; the list follows."""
 
 
-@refreshable(deps=[CustomerSearch])
+@refreshable
 def customer_results() -> None:
     needle = CustomerSearch().query.strip().lower()
     hits = [c for c in CUSTOMERS if needle in c[0].lower() or needle in c[1].lower()]

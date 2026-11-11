@@ -1,11 +1,11 @@
 """``/select`` — pick from a list you can read at a glance."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A styled dropdown for short lists: one value or several, custom "
-           "option bodies, and a change that runs Python.")
+           "option bodies, and a value the rest of the page can follow.")
 
 COUNTRIES = [("fr", "France"), ("de", "Germany"), ("es", "Spain"),
              ("it", "Italy"), ("nl", "Netherlands"), ("gb", "United Kingdom"),
@@ -70,39 +70,30 @@ INVOICES = [
 STATUS_COLOR = {"paid": "success", "pending": "warning", "overdue": "error"}
 
 
-class InvoiceFilter(PageState):
+class InvoiceFilter(ClientState):
     status: str = field(default="all")
 
 
-def filter_changed(filters: InvoiceFilter) -> None:
-    """The typed parameter receives the new status; the list follows."""
-
-
-@refreshable(deps=[InvoiceFilter])
-def invoice_list() -> None:
-    status = InvoiceFilter().status
-    rows = [i for i in INVOICES if status in ("all", i[3])]
-    with ui.vstack(gap="sm"):
-        for number, customer, amount, state in rows:
-            with ui.hstack(gap="md", justify="between"):
-                with ui.hstack(gap="sm"):
-                    ui.text(number, color="muted", size="sm", classes="font-mono")
-                    ui.text(customer, weight="medium")
-                with ui.hstack(gap="sm"):
-                    ui.text(amount)
-                    ui.badge(state.capitalize(), color=STATUS_COLOR[state],
-                             variant="soft", size="sm")
-
-
 def live_filter() -> None:
+    status = InvoiceFilter().status
     with ui.card(padding="md", classes="w-full max-w-xl"), ui.vstack(gap="md"):
         with ui.hstack(justify="between"):
             ui.heading("Invoices", level=3, size="md")
             ui.select([("all", "All statuses"), ("paid", "Paid"),
                        ("pending", "Pending"), ("overdue", "Overdue")],
-                      value=InvoiceFilter().status, on_change=filter_changed,
-                      size="sm", classes="w-48")
-        invoice_list()
+                      value=status, size="sm", classes="w-48")
+        with ui.vstack(gap="sm"):
+            for number, customer, amount, state in INVOICES:
+                shown = (status == "all") | (status == state)
+                with ui.hstack(gap="md", justify="between", visible=shown):
+                    with ui.hstack(gap="sm"):
+                        ui.text(number, color="muted", size="sm",
+                                classes="font-mono")
+                        ui.text(customer, weight="medium")
+                    with ui.hstack(gap="sm"):
+                        ui.text(amount)
+                        ui.badge(state.capitalize(), color=STATUS_COLOR[state],
+                                 variant="soft", size="sm")
 
 
 def sizes_and_states() -> None:
@@ -128,7 +119,8 @@ def page() -> None:
             note="render= draws the inside of each option — here a coloured "
                  "badge per priority.")
     example("Filter a list", live_filter,
-            uses=[InvoiceFilter, filter_changed, invoice_list],
-            note="on_change sends the status to Python; only the list "
-                 "re-renders.")
+            uses=[InvoiceFilter],
+            note="The select writes a ClientState and each row shows or hides "
+                 "itself in the browser. Give on_change a Python function to "
+                 "filter on the server instead.")
     example("Sizes and disabled", sizes_and_states)

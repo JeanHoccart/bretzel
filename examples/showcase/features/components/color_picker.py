@@ -1,7 +1,7 @@
 """``/color-picker`` — a hex field with the theme's palette one click away."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A themable colour field: the palette of your theme in a panel, "
@@ -38,22 +38,9 @@ def sizes() -> None:
         ui.color_picker(value="#16a34a", size="lg", name="size-lg")
 
 
-class LabelDraft(PageState):
+class LabelDraft(ClientState):
     name: str = field(default="Needs design review")
     colour: str = field(default="#d97706")
-
-
-def update_label(draft: LabelDraft) -> None:
-    """The new name or colour is already in ``draft``; the preview follows."""
-
-
-@refreshable(deps=[LabelDraft])
-def label_preview() -> None:
-    draft = LabelDraft()
-    with ui.hstack(gap="sm"):
-        ui.icon("tag", size="lg", style=f"color: {draft.colour}")
-        ui.text(draft.name or "Untitled label", weight="medium")
-        ui.text(draft.colour, color="muted", size="sm", classes="font-mono")
 
 
 def label_editor() -> None:
@@ -61,12 +48,14 @@ def label_editor() -> None:
     with ui.card(padding="md", classes="w-full max-w-md"), ui.vstack(gap="md"):
         with ui.grid(cols=2, gap="md"):
             with ui.form_field(label="Label"):
-                ui.input(value=draft.name, on_change=update_label)
+                ui.input(value=draft.name)
             with ui.form_field(label="Colour"):
-                ui.color_picker(value=draft.colour, color="secondary",
-                                on_change=update_label)
+                ui.color_picker(value=draft.colour, color="secondary")
         ui.divider()
-        label_preview()
+        with ui.hstack(gap="sm"):
+            ui.icon("tag", size="lg", style="color: " + draft.colour)
+            ui.text(draft.name | "Untitled label", weight="medium")
+            ui.text(draft.colour, color="muted", size="sm", classes="font-mono")
 
 
 def page() -> None:
@@ -78,7 +67,6 @@ def page() -> None:
             note="clearable with a placeholder for “no colour”, and disabled "
                  "for one the user cannot change.")
     example("Sizes", sizes)
-    example("A label editor", label_editor,
-            uses=[LabelDraft, update_label, label_preview],
-            note="on_change sends the colour to Python, and the preview zone "
-                 "re-renders with it.")
+    example("A label editor", label_editor, uses=[LabelDraft],
+            note="The field and the picker write a ClientState; the preview "
+                 "follows as you type, without a round trip.")

@@ -52,7 +52,7 @@ def cadence_page() -> None:
                         size="sm",
                     )
                     ui.code(
-                        '# Server: the zone re-renders every 5 s.\n@refreshable(deps=[Metrics])\ndef board() -> None:\n    ui.text(f"{Metrics().running} running")\n\ndef sample() -> None:\n    Metrics().running = count()\n\nboard()\nui.interval(on_tick=sample, seconds=5)\n',
+                        '# Server: the zone re-renders every 5 s.\n@refreshable\ndef board() -> None:\n    ui.text(f"{Metrics().running} running")\n\ndef sample() -> None:\n    Metrics().running = count()\n\nboard()\nui.interval(on_tick=sample, seconds=5)\n',
                         lang="python",
                     )
 
@@ -67,7 +67,7 @@ def cadence_page() -> None:
                         color="muted", size="sm",
                     )
                     ui.code(
-                        'class Monitoring(ClientState):\n    running: bool = field(default=True)\n\nm = Monitoring()\nui.switch(value=m.running, label="Refresh")\nui.interval(on_tick=sample, seconds=5,\n            active=m.running)\n',
+                        'class Monitoring(ClientState):\n    running: bool = field(default=True)\n\nm = Monitoring()\nui.switch(value=m.running, label="Refresh")\nui.interval(on_tick=sample, seconds=5,\n            disabled=~m.running)\n',
                         lang="python",
                     )
 
@@ -88,11 +88,11 @@ def cadence_page() -> None:
                         "c = Countdown()\n"
                         "ui.text(c.left)\n"
                         "ui.interval(on_tick=c.left.decrement(1),\n"
-                        "            seconds=1, active=c.left > 0)\n",
+                        "            seconds=1, disabled=c.left <= 0)\n",
                         lang="python",
                     )
                     ui.text(
-                        '`active=m.remaining > 0` is an expression of the '
+                        '`disabled=c.left <= 0` is an expression of the '
                         'client algebra: it becomes JavaScript, re-'
                         'evaluated on every change. So the timer stops by '
                         'itself at zero.',
@@ -117,8 +117,8 @@ def cadence_page() -> None:
                         'Every tick of a server `on_tick=` is a request. A'
                         ' one-second interval across fifty open tabs makes'
                         ' fifty requests a second. When the data comes '
-                        'from the server and changes rarely, '
-                        '`@refreshable(broadcast=True)` costs less: it is '
+                        'from the server and changes rarely, a '
+                        '`@refreshable` zone reading it costs less: it is '
                         'the server that pushes, when it has something to '
                         'say.',
                         color="warning", title='The cost, in requests',

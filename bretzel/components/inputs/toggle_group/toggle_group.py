@@ -48,56 +48,27 @@ import json as _json
 from collections.abc import Callable
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
-    SERVER_ACTION_ATTRS,
-    bool_attr,
-    hidden_carrier_attrs,
-    reject_sealed,
-    server_sync_marker,
-    theme_context,
-    trigger_event,
-    unwrap_transparent,
-)
-from bretzel.components.base.component import finish_render
+from bretzel.components.base import Component, ComponentUsageError, reactive_prop
+from bretzel.components.base.arguments import reject_sealed
+from bretzel.components.base.composition import unwrap_transparent
+from bretzel.components.base.field_wiring import hidden_carrier_attrs, relocate_handlers
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.scope_wiring import bool_attr, server_sync_marker
+from bretzel.components.base.universals import finish_render
+from bretzel.components.inputs._wiring import ChoiceCommands
 from bretzel.components.inputs.toggle_group.theme import TOGGLE_GROUP_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element
 
-# Server-action attrs relocated from the wrapper onto the hidden input
-# (the element that actually fires ``change``). Single source :
-# ``base/_wiring.SERVER_ACTION_ATTRS``.
-_SERVER_ACTION_ATTRS = SERVER_ACTION_ATTRS
 
-
-def _pop_server_action(root_attrs: dict[str, Any]) -> dict[str, Any] | None:
-    """Pop the ``change``-triggered ``hx-*`` server-action bundle off
-    ``root_attrs`` for re-stamping on the hidden input.
-
-    Returns the relocated attrs, or ``None`` when no server handler is
-    wired. ToggleGroup also exposes ``focus`` / ``blur`` events, but
-    those stay on the root (the root carries no focusable element to
-    relocate them to — they're client-string only in practice) ; only
-    the ``change`` server action moves to the hidden form carrier.
-    """
-    # The EVENT, not the string: with a ``debounce=`` the trigger is
-    # ``"change delay:300ms"``, the comparison failed, and the bundle
-    # stayed on the root — a ``<div>`` that never fires ``change``. Dead
-    # handler, without a word.
-    if trigger_event(root_attrs) != "change":
-        return None
-    return {
-        key: root_attrs.pop(key)
-        for key in _SERVER_ACTION_ATTRS
-        if key in root_attrs
-    }
-
-
-class ToggleGroup(Component):
+class ToggleGroup(ChoiceCommands, FocusCommands, Component):
     """Cluster of :class:`ToggleButton` items — single or multi-select."""
 
     THEME: ClassVar[dict[str, Any]] = TOGGLE_GROUP_THEME
     THEME_KEY: ClassVar[str] = "toggle_group"
+    #: Draws its children itself: a zone among them is refused
+    #: (``base/composition.unwrap_transparent``).
+    _COMPOSES_CHILDREN: ClassVar[bool] = True
     #: The author owns the loop: they open a ``with`` and place their
     #: ``ToggleButton``. ``options=`` is the simple case's shortcut and
     #: materialises the same children — it is the two-tier pattern
@@ -105,6 +76,10 @@ class ToggleGroup(Component):
     COLLECTION_OWNER: ClassVar[str | None] = "author"
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "clear", "focus", "blur", "select_all", "deselect_all")
+    # Where ``autofocus=`` / ``.focus()`` land: the selected option, else the first.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = (
+        "button[data-selected=true]:not([disabled])", "button:not([disabled])",
+    )
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     value: Any = reactive_prop(default=None, emit_attr=False, writes=True, names_field=True)
@@ -133,7 +108,7 @@ class ToggleGroup(Component):
         # **kwargs → a dead HTML attribute on the <div> → a silently
         # single group.
         if "type" in kwargs:
-            raise TypeError(
+            raise ComponentUsageError(
                 "ToggleGroup(type='single'|'multiple') has been replaced "
                 "by multiple=True|False — the same API as Select / "
                 "Combobox / FileUpload."
@@ -159,7 +134,7 @@ class ToggleGroup(Component):
         if options is not None:
             for i, item in enumerate(options):
                 if not (isinstance(item, tuple) and len(item) == 2):
-                    raise TypeError(
+                    raise ComponentUsageError(
                         f"ToggleGroup options[{i}] must be a "
                         f"(value, label) 2-tuple — got {item!r}. "
                         f"For icons or richer items, use the "
@@ -171,61 +146,14 @@ class ToggleGroup(Component):
             # parent_stack via Component.__init__ auto-attach.
             with self:
                 for value_str, label_str in self._shortcut_options:
-                    ToggleButton(value_str, label_str)
+                    ToggleButton(value_str, label=label_str)
 
     # ── Imperative write-only API ─────────────────────────────────────
-
-    def set(self, value: Any) -> str:
-        """Write the picked value. Single → scalar str ; multi → list."""
-        return self._value_command(value)
-
-    def clear(self) -> str:
-        """Empty the selection. Single → ``""`` ; multi → ``[]``."""
-        is_multi = bool(self._reactive_values.get("multiple"))
-        return self.set([] if is_multi else "")
-
-    def focus(self) -> str:
-        return (
-            f"document.getElementById('{self.id}')"
-            ".querySelector('button:not([disabled])')?.focus()"
-        )
-
-    def blur(self) -> str:
-        return (
-            f"document.activeElement?.closest("
-            f"'#{self.id}')?.querySelector("
-            f"'button:focus')?.blur()"
-        )
-
-    def select_all(self) -> str:
-        """Pick every ToggleButton in the group. Multi-mode only."""
-        if not self._reactive_values.get("multiple"):
-            raise RuntimeError(
-                "ToggleGroup.select_all() is multi-only — "
-                "set multiple=True on the group first."
-            )
-        return self._dispatch_command("bz-select-all")
-
-    def deselect_all(self) -> str:
-        """Drop every pick. Multi-mode only (single uses .clear())."""
-        if not self._reactive_values.get("multiple"):
-            raise RuntimeError(
-                "ToggleGroup.deselect_all() is multi-only — "
-                "use .clear() for single-mode."
-            )
-        return self._dispatch_command("bz-deselect-all")
-
 
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        _theme, slots, sizes, size_key, _color = theme_context(self)
-
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
         is_multi = bool(self._reactive_values.get("multiple"))
-
-        def _resolve(template: str) -> str:
-            return template
 
         # ── Resolve value binding ──────────────────────────────────────
         # Two streams from the user-passed ``value`` :
@@ -269,13 +197,9 @@ class ToggleGroup(Component):
         # so we don't duplicate it locally (would race the framework's
         # delta apply).
         if binding_path is None:
-            # The key comes from ``_scope_keys``, no longer from a
-            # literal copied here: it lived in THREE places (the local
-            # variable, the declaration, the marker) and a rename had to
-            # touch all three (audit F84). It is the naming divergence
-            # (value/picked/active/sel) that caused 5 of the 8 forgotten
-            # ``_serverSync`` — it is gone since 2026-09-07, the key is
-            # the prop's name.
+            # The key comes from ``_scope_keys``, not from a literal copied
+            # here, so a rename touches one place; the key is the prop's
+            # name.
             sync = server_sync_marker(
                 *self._scope_keys("value"), enabled=value_server_backed)
             bz_data_obj = (
@@ -315,14 +239,7 @@ class ToggleGroup(Component):
         # ── Walk children — collect ToggleButton items only ────────────
         buttons: list[Element] = []
         item_values: list[str] = []
-        item_class = " ".join(
-            p
-            for p in (
-                _resolve(slots.get("item", "")),
-                size_cfg.get("item", ""),
-            )
-            if p
-        )
+        item_class = self.compose_class("item")
 
         # Group-level ``disabled`` resolution — same dual-stream as
         # ``value`` :
@@ -351,7 +268,7 @@ class ToggleGroup(Component):
             # child" branch and its bare ``render()`` RAISED ("only valid
             # inside a ToggleGroup"). The only one of the five sorting
             # containers to be loud; the others degraded in silence.
-            child, rewrap = unwrap_transparent(raw)
+            child, rewrap = unwrap_transparent(raw, self)
             if isinstance(child, ToggleButton):
                 buttons.append(rewrap(
                     child._render_button(
@@ -386,8 +303,7 @@ class ToggleGroup(Component):
         # JSON.stringify the array so the server-side handler gets
         # a parseable string. Single-mode ships the raw string.
         root_attrs = self.emit_attrs()
-        relocated_change = root_attrs.pop("bz-on:change", None)
-        relocated_server = _pop_server_action(root_attrs)
+        relocated: dict[str, Any] = {}
 
         # ── focus / blur: re-keyed to focusin / focusout ────────────────
         # ``focus`` / ``blur`` do NOT BUBBLE: set on the root ``<div>``
@@ -395,26 +311,19 @@ class ToggleGroup(Component):
         # elements are the CHILD ``<button>``. ``focusin`` / ``focusout``
         # are the BUBBLING twins: set on the container, they fire when
         # any child takes / loses focus. Same relay as ``<bz-calendar>``
-        # (07_calendar.js). Preferred over relocating onto the first
+        # (calendar.js). Preferred over relocating onto the first
         # ``<button>`` (the Select idiom): "the first" would be
         # arbitrary, the focus can come in through any of them.
-        for src, dst in (("focus", "focusin"), ("blur", "focusout")):
-            attr = f"bz-on:{src}"
-            if attr in root_attrs:
-                root_attrs[f"bz-on:{dst}"] = root_attrs.pop(attr)
-        if root_attrs.get("hx-trigger") in ("focus", "blur"):
-            root_attrs["hx-trigger"] = (
-                "focusin" if root_attrs["hx-trigger"] == "focus" else "focusout"
-            )
+        relocate_handlers(root_attrs, {
+            "change": relocated,
+            "focus": (root_attrs, "focusin"),
+            "blur": (root_attrs, "focusout"),
+        })
 
         name = self._reactive_values.get("name") or self._derive_field_name()
 
         hidden_node: Element | None = None
-        if (
-            name
-            or relocated_change is not None
-            or relocated_server is not None
-        ):
+        if name or relocated:
             hidden_value_expr = (
                 f"JSON.stringify({picked_expr})" if is_multi else picked_expr
             )
@@ -438,10 +347,7 @@ class ToggleGroup(Component):
             }
             if name:
                 hidden_attrs["name"] = str(name)
-            if relocated_change is not None:
-                hidden_attrs["bz-on:change"] = relocated_change
-            if relocated_server is not None:
-                hidden_attrs.update(relocated_server)
+            hidden_attrs.update(relocated)
             hidden_node = Element(
                 tag="input", attrs=hidden_attrs, children=()
             )
@@ -468,17 +374,10 @@ class ToggleGroup(Component):
 
         # ── Root assembly ──────────────────────────────────────────────
         # ``classes=`` set by the metaclass wrap — not here (duplicate).
-        root_class = " ".join(
-            p
-            for p in (
-                _resolve(slots.get("root", "")),
-                # The step's height: it is on the root because it is
-                # the root that carries the frame's border (cf. the
-                # comment on ``TOGGLE_GROUP_THEME["sizes"]``).
-                size_cfg.get("root", ""),
-            )
-            if p
-        )
+        # The step's height is on the root because it is the root that
+        # carries the frame's border (cf. the comment on
+        # ``TOGGLE_GROUP_THEME["sizes"]``).
+        root_class = self.compose_class("root")
         root_attrs["class"] = root_class
         root_attrs["bz-data"] = bz_data
         root_attrs.setdefault("role", "group")
@@ -508,10 +407,6 @@ class ToggleButton(Component):
     # ``__init__`` — it MUST be there, before the ``super().__init__``:
     # the kwarg collision is raised by Python when building the call, so
     # the base layer never sees it.
-    #
-    # ⚠️ This comment said "produces a multiple values" and left it at
-    # that, until 2026-09-04. That was describing an unreadable message
-    # instead of fixing it — nothing would have prompted a return to it.
     SEALED_PROPS: ClassVar[tuple[str, ...]] = ("option_value",)
     #: The refusal's message. Without it, ``reject_sealed``'s default
     #: speaks of an AXIS — true for a stack, false here.
@@ -529,11 +424,11 @@ class ToggleButton(Component):
     def __init__(
         self,
         value: str,
-        label: str | None = None,
         *,
+        label: str | Component | None = None,
         icon: str | Component | None = None,
         disabled: bool | None = None,
-        tooltip: str | None = None,
+        tooltip: str | Component | None = None,
         **kwargs: Any,
     ) -> None:
         reject_sealed(kwargs, type(self))
@@ -547,7 +442,18 @@ class ToggleButton(Component):
         )
         self._option_value = value
         self._label = label
+        # The framework's tooltip, like every other component's, and not
+        # an HTML ``title``, the browser's grey bubble, late and out
+        # of the theme. Built by
+        # hand because the base would wrap in an ``inline-block h-fit``
+        # box: inside the group's stretched row, the wrapper must take
+        # the row's height, or the button shrinks to its content.
         self._tooltip = tooltip
+        if tooltip is not None and not (isinstance(tooltip, str) and not tooltip):
+            from bretzel.components.overlay.tooltip import Tooltip
+
+            self._tooltip_wrapper = Component.adopt_slot(
+                Tooltip(tooltip, classes="flex! h-full!"))
         # ⚠️ An ``icon="star"`` keeps its NAME here: its size depends
         # on the GROUP's ``size=``, which a child does not know at its
         # construction. It is derived at render, where ``item_class``
@@ -568,7 +474,7 @@ class ToggleButton(Component):
             self._icon = Component.adopt_slot(icon, icon_shortcut=True)
 
     def render(self) -> Element:
-        raise RuntimeError(
+        raise ComponentUsageError(
             "ToggleButton.render() is only valid inside a "
             "ToggleGroup ``with`` block. Use ``ui.toggle_group(...)`` "
             "and put your ``ui.toggle_button(...)`` items inside it."
@@ -651,8 +557,11 @@ class ToggleButton(Component):
         if per_item_static or group_disabled:
             attrs["disabled"] = True
 
-        if self._tooltip:
-            attrs["title"] = self._tooltip
+        # An icon-only button is named by its tooltip (the ``title`` did
+        # it before, for screen readers too).
+        named = isinstance(self._tooltip, str) and self._tooltip and not self._label
+        if named and "aria-label" not in attrs:
+            attrs["aria-label"] = self._tooltip
 
         # Icon + label children. ``label is None`` is a valid case —
         # icon-only buttons. Don't emit a stray empty text node.
@@ -678,12 +587,11 @@ class ToggleButton(Component):
         # ⚠️ ``finish_render`` and not an ``Element`` rendered as is.
         #
         # This path short-circuits the child's ``render()`` — so the
-        # metaclass wrap, so the three passes EVERY component node must
-        # undergo. Measured before this fix:
+        # metaclass wrap, so the two passes EVERY component node must
+        # undergo. Without ``finish_render``,
         # ``ui.toggle_button(..., classes=…, style=…, slots={"root": …})``
-        # lost **all three** universal kwargs, in silence, as soon as it
-        # was inside a ``ui.toggle_group`` — while they work on the 75
-        # other components.
+        # would lose **all three** universal kwargs, in silence, as soon
+        # as it is inside a ``ui.toggle_group``.
         #
         # Any parent that rebuilds a child instead of calling it must end
         # up here. It is the only place that describes what "rendering a

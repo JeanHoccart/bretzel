@@ -29,7 +29,7 @@ def storage() -> None:
             ui.heading("182 GB of 250 GB", level=3, size="xl")
         ui.pie_chart(data=[("Videos", 94), ("Design files", 41),
                            ("Documents", 29), ("Backups", 18)],
-                     show_labels=True, value_unit="GB",
+                     show_labels=True, value_unit="GB", show_data=True,
                      colors=["primary", "secondary", "info", "muted"])
 
 
@@ -70,7 +70,7 @@ def pick_category(label: str, value: float) -> None:
     Breakdown().category = label
 
 
-@refreshable(deps=[Breakdown])
+@refreshable
 def category_tickets() -> None:
     category = Breakdown().category
     with ui.vstack(gap="sm"):
@@ -99,7 +99,8 @@ def page() -> None:
                  "reader looks for first.")
     example("Labels on the slices", storage,
             note="show_labels writes each share on its slice; colors picks "
-                 "the theme colours, in order.")
+                 "the theme colours, in order; show_data folds the figures "
+                 "and their shares under the pie.")
     example("Small multiples", small_multiples, uses=[devices], full=True,
             note="Three small donuts compare better than one crowded pie.")
     example("A click that runs Python", drilldown,

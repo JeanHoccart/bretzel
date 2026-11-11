@@ -1,15 +1,16 @@
-"""End-to-end realtime tests — ``@refreshable(broadcast=[…])`` + SSE wire.
+"""End-to-end realtime tests — ``@refreshable`` + SSE wire.
 
 Validates the full round-trip on a single uvicorn worker :
 
-1. A page rendering a ``broadcast=True`` zone produces HTML carrying
-   ``data-bz-subscribe-state`` + ``data-bz-subscribe-url`` attrs the
-   runtime will pick up.
+1. A page rendering a zone that reads a shared state produces HTML
+   carrying ``data-bz-subscribe-state`` + ``data-bz-subscribe-url`` attrs
+   the runtime will pick up; a zone reading only a ``PageState`` carries
+   none.
 2. Subscriber bookkeeping lands on the broker so a future dep-change
    fan-out knows whose queue to push to.
 3. Mutating a dep inside an action puts a ``state-dirty`` event on every
    subscribed connection's queue (the automatic broadcast).
-4. The ``/_bretzel/refetch/<state>/<zone>`` route re-renders the
+4. The ``/_bretzel/refetch/<zone>`` route re-renders the
    zone in the requesting client's RenderContext and returns an
    OOB-wrapped HTML fragment.
 5. The ``/_bretzel/sse`` route streams events from the broker over a
@@ -36,7 +37,9 @@ from bretzel.runtime.protocol import (
     DATA_SUBSCRIBE_STATE,
     DATA_SUBSCRIBE_URL,
 )
-from bretzel.state import AppState, field
+from bretzel.state import AppState, PageState, field
+from tests._session import session_of
+from tests.integration.server._refetch import refetch_url
 
 _SECRET = "x" * 32
 
@@ -48,38 +51,27 @@ class IssueStore(AppState):
 _app = Bretzel(secret_key=_SECRET, mode="dev")
 
 
-@refreshable(deps=[IssueStore], broadcast=[IssueStore])
+@refreshable
 def issue_list_zone() -> None:
     for it in IssueStore().items:
         ui.text(it)
 
 
 def add_issue() -> None:
-    # In-place append — caught by the snapshot-diff, which then auto-
-    # fans-out to other clients because issue_list_zone is broadcast.
+    # In-place append — caught by the snapshot-diff, which then fans out
+    # to the other clients because issue_list_zone reads it.
     IssueStore().items.append("fresh")
 
 
-class ViewerPrefs(AppState):
-    """Un second état, pour séparer ``deps`` de ``broadcast``."""
+class PageView(PageState):
+    """What one tab looks at: no other tab can change it."""
 
     scope: str = field(default="all")
 
 
-@refreshable(broadcast=[IssueStore])
-def listen_only_zone() -> None:
-    """Le cas que la doc met en avant : « je ne le change jamais ».
-
-    ``deps`` est VIDE — cette zone n'est jamais re-rendue par une action
-    locale, elle ne suit que le flux.
-    """
-    ui.text("écoute : " + str(len(IssueStore().items)))
-
-
-@refreshable(deps=[IssueStore, ViewerPrefs], broadcast=[IssueStore])
-def partly_broadcast_zone() -> None:
-    """``deps`` déborde de ``broadcast`` : ``ViewerPrefs`` est personnel."""
-    ui.text(ViewerPrefs().scope)
+@refreshable
+def page_only_zone() -> None:
+    ui.text(PageView().scope)
 
 
 @page("/")
@@ -87,14 +79,13 @@ def home() -> None:
     issue_list_zone()
 
 
-@page("/ecoute")
-def listen_page() -> None:
-    listen_only_zone()
-    partly_broadcast_zone()
+@page("/page-only")
+def page_only() -> None:
+    page_only_zone()
 
 
 _app.include(home)
-_app.include(listen_page)
+_app.include(page_only)
 
 
 @pytest.fixture(autouse=True)
@@ -135,6 +126,12 @@ class TestInitialRender:
             response = client.get("/")
         assert "/_bretzel/refetch/" in response.text
 
+    def test_a_zone_reading_only_its_page_opens_no_stream(self) -> None:
+        with TestClient(_app) as client:
+            response = client.get("/page-only")
+        assert response.status_code == 200
+        assert DATA_SUBSCRIBE_STATE not in response.text
+
 
 # ───────────────────────────────────────────────────────────────────────────
 # Subscriber bookkeeping on the broker
@@ -146,7 +143,7 @@ class TestSubscriptionBookkeeping:
         with TestClient(_app) as client:
             response = client.get("/")
             assert response.status_code == 200
-            session_id = client.cookies["Bretzel_session"]
+            session_id = session_of(client)
             qn = state_qualname(IssueStore)
             assert session_id in _app.sse_broker._subscribers[qn]
 
@@ -175,8 +172,7 @@ class TestRealtimeRoute:
         with TestClient(_app) as client:
             client.get("/")
             _seed_issue_store(["one", "two"])
-            qn = state_qualname(IssueStore)
-            url = f"/_bretzel/refetch/{qn}/{issue_list_zone.zone_qualname}"
+            url = refetch_url(_app, client, issue_list_zone.zone_qualname)
             response = client.get(url)
         assert response.status_code == 200
         body = response.text
@@ -189,22 +185,8 @@ class TestRealtimeRoute:
     def test_unknown_zone_returns_404(self) -> None:
         with TestClient(_app) as client:
             client.get("/")
-            qn = state_qualname(IssueStore)
-            response = client.get(f"/_bretzel/refetch/{qn}/missing.module::nope")
+            response = client.get(refetch_url(_app, client, "missing.module::nope"))
         assert response.status_code == 404
-
-    def test_mismatched_state_returns_404(self) -> None:
-        # An attacker who knows the zone qualname can still get 404 if
-        # the State segment doesn't match what the zone declared.
-        with TestClient(_app) as client:
-            client.get("/")
-            url = (
-                f"/_bretzel/refetch/some.other::Class/"
-                f"{issue_list_zone.zone_qualname}"
-            )
-            response = client.get(url)
-        assert response.status_code == 404
-
 
 # ───────────────────────────────────────────────────────────────────────────
 # /_bretzel/sse route
@@ -219,7 +201,7 @@ class TestRealtimeRoute:
 
 
 class TestBroadcastFanout:
-    """Phase 5 : mutating a subscribed State inside an action fans out an
+    """Mutating a state a zone reads inside an action fans out an
     SSE ``state-dirty`` to every subscribed CONNECTION — a second tab of
     the acting session AND another browser both receive it (per-connection
     broker). The acting tab additionally has its local OOB swap."""
@@ -233,7 +215,7 @@ class TestBroadcastFanout:
             # INSIDE the ``with`` so it is the same instance the action uses.
             broker = _app.sse_broker
             client.get("/")  # renders the zone → subscribes the actor session
-            actor = client.cookies["Bretzel_session"]
+            actor = session_of(client)
             # Simulate a SECOND tab of the actor's session (conn 101) and a
             # DIFFERENT browser / session (conn 202), each with a live queue.
             broker._session_conns.setdefault(actor, set()).add(101)
@@ -243,7 +225,7 @@ class TestBroadcastFanout:
             broker._queues[202] = asyncio.Queue()
 
             action_id = encode_action_id(add_issue)
-            sig = sign_action(_app.config._action_key, action_id, "")
+            sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
             resp = client.post(
                 f"/_bretzel/action/{action_id}",
                 headers={"X-Bz-Sig": sig},
@@ -254,58 +236,3 @@ class TestBroadcastFanout:
         assert resp.status_code == 200
         assert broker._queues[101].qsize() == 1
         assert broker._queues[202].qsize() == 1
-
-    def test_a_broadcast_only_zone_can_be_refetched(self) -> None:
-        """``@refreshable(broadcast=[X])`` SANS ``deps`` doit répondre.
-
-        C'est la forme que la doc met en avant — « je ne le change
-        jamais » — et elle rendait **404** jusqu'au 2026-09-09 : la garde
-        validait le segment d'état contre ``deps``, qui est vide ici. La
-        zone s'abonnait, le signal arrivait, le navigateur allait
-        chercher, le serveur refusait, et rien ne bougeait. Sans un mot :
-        ni console, ni journal.
-
-        Mesuré sur un banc à deux fenêtres : la zone diffusée seule
-        restait à sa valeur de chargement pendant que sa voisine
-        ``deps=`` + ``broadcast=`` suivait.
-        """
-        with TestClient(_app) as client:
-            client.get("/ecoute")
-            url = (
-                f"/_bretzel/refetch/{state_qualname(IssueStore)}/"
-                f"{listen_only_zone.zone_qualname}"
-            )
-            response = client.get(url)
-        assert response.status_code == 200, (
-            f"une zone diffusée SEULE est refusée : {response.text[:120]}"
-        )
-
-    def test_a_dep_that_is_not_a_channel_is_refused(self) -> None:
-        """Le versant qui SERRE, et qui interdit de « réparer » trop large.
-
-        ``deps=[IssueStore, ViewerPrefs], broadcast=[IssueStore]`` :
-        ``ViewerPrefs`` est une dépendance locale, jamais annoncée au
-        client comme canal. Un refetch qui la nomme est forgé, et la
-        garde d'avant l'acceptait.
-        """
-        with TestClient(_app) as client:
-            client.get("/ecoute")
-            url = (
-                f"/_bretzel/refetch/{state_qualname(ViewerPrefs)}/"
-                f"{partly_broadcast_zone.zone_qualname}"
-            )
-            response = client.get(url)
-        assert response.status_code == 404, (
-            "un état qui n'est PAS un canal de diffusion a été accepté — "
-            "la garde lit encore ``deps``"
-        )
-
-    def test_non_broadcast_zone_is_not_remotely_refetchable(self) -> None:
-        # A bare @refreshable / local deps zone must 404 on the refetch
-        # route even if the URL is guessed — only broadcast zones qualify.
-        with TestClient(_app) as client:
-            client.get("/")
-            # issue_list_zone IS broadcast ; forge a state it doesn't dep on.
-            url = f"/_bretzel/refetch/wrong.mod::Nope/{issue_list_zone.zone_qualname}"
-            response = client.get(url)
-        assert response.status_code == 404

@@ -137,7 +137,7 @@ def control(label: str):
 # ── Refreshables ──────────────────────────────────────────────────────
 
 
-@refreshable(deps=[BannerPlayground])
+@refreshable
 def server_panel() -> None:
     state = BannerPlayground()
 
@@ -219,7 +219,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[BannerServerEvents])
+@refreshable
 def dismiss_demo() -> None:
     state = BannerServerEvents()
     ui.text(

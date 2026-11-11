@@ -14,7 +14,7 @@ Ce fichier tient les trois versants :
 2. une route qui REFUSE (4xx) ne garde rien de ce qu'elle a écrit avant
    de refuser — y compris quand une ``@error_page`` est rendue à sa place,
    qui sauvegardait jusque-là l'état de la page qu'elle rend ;
-3. un état diffusé (``broadcast=``) prévient les fenêtres ouvertes, comme
+3. un état partagé prévient les autres fenêtres ouvertes, comme
    après un clic — mais seulement pour une écriture : un GET qui écrit
    (une relecture de zone) ferait relire chaque fenêtre à son tour.
 """
@@ -41,13 +41,14 @@ class Panier(SessionState):
     lignes: int = field(default=0)
 
 
-@refreshable(deps=[Compteur], broadcast=[Compteur])
+@refreshable
 def affichage() -> None:
     ui.text(str(Compteur().n))
 
 
 def make_app() -> Bretzel:
     app = Bretzel(secret_key=SECRET)
+    app.include(affichage)
 
     @app.fastapi.post("/api/plus")
     def plus() -> dict:

@@ -146,7 +146,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[IconButtonPlayground])
+@refreshable
 def server_panel() -> None:
     state = IconButtonPlayground()
 
@@ -223,7 +223,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[IconButtonEvents])
+@refreshable
 def events_panel() -> None:
     state = IconButtonEvents()
 

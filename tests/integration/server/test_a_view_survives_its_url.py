@@ -32,6 +32,7 @@ from bretzel.components import DatatableState
 from bretzel.runtime import HEADER_PAGE_ID
 from bretzel.server.handlers import sign_action
 from bretzel.state import PageState, field
+from tests._session import session_of
 
 _SECRET = "z" * 32
 
@@ -67,12 +68,12 @@ class Remembered(DatatableState, scope="session", addressable=True):
 _app = Bretzel(secret_key=_SECRET, mode="dev")
 
 
-@refreshable(deps=[Issues])
+@refreshable
 def issues_zone() -> None:
     ui.datatable(state=Issues, columns=COLUMNS, rows=ROWS)
 
 
-@refreshable(deps=[Plain])
+@refreshable
 def plain_zone() -> None:
     ui.datatable(state=Plain, columns=COLUMNS, rows=ROWS)
 
@@ -87,7 +88,7 @@ def plain_page() -> None:
     plain_zone()
 
 
-@refreshable(deps=[Remembered])
+@refreshable
 def remembered_zone() -> None:
     ui.datatable(state=Remembered, columns=COLUMNS, rows=ROWS)
 
@@ -104,7 +105,7 @@ _app.include(issues_page, plain_page, remembered_page)
 
 
 def _page_id(html: str) -> str:
-    match = re.search(r'data-bretzel-page-id="([^"]+)"', html)
+    match = re.search(r'data-bz-page-id="([^"]+)"', html)
     assert match, "le shell doit publier l'id de page"
     return match.group(1)
 
@@ -133,7 +134,8 @@ def _sort(client: TestClient, html: str, page_id: str, current: str):
         url,
         headers={
             "X-Bz-Sig": sign_action(
-                _app.config._action_key, url.rsplit("/", 1)[-1], args
+                _app.config._action_key, url.rsplit("/", 1)[-1], args,
+                session_id=session_of(client),
             ),
             HEADER_PAGE_ID: page_id,
             "HX-Request": "true",
@@ -164,7 +166,8 @@ def _post_action(client, url, args, page_id, current, form=None):
         url,
         headers={
             "X-Bz-Sig": sign_action(
-                _app.config._action_key, url.rsplit("/", 1)[-1], args
+                _app.config._action_key, url.rsplit("/", 1)[-1], args,
+                session_id=session_of(client),
             ),
             HEADER_PAGE_ID: page_id,
             "HX-Request": "true",

@@ -2,7 +2,8 @@
 
 Pure functions, with ONE exception, and it is named here because the
 docstring lied for the length of a commit: :func:`format_value` reads
-``text("chart.currency")`` for the currency symbol, so it consults the
+``text("chart.currency")`` for the currency symbol and
+``text("chart.decimal")`` for the decimal mark, so it consults the
 render context. Everything else builds no ``Element`` and imports
 nothing from the framework — each chart composes its ``<svg>`` by
 calling these helpers and assembling the tree itself.
@@ -20,8 +21,8 @@ Conventions :
   ``y`` grows downward. Helpers that take a "domain" (data space) flip
   the axis as needed.
 - All numeric output is rounded to **2 decimals**. SVG accepts more,
-  but the byte-saving on long paths is meaningful (10–30 %) and
-  visually indistinguishable.
+  but the byte-saving on long paths is meaningful and visually
+  indistinguishable.
 - Empty inputs (``[]``) return safe sentinels (``""`` for paths, the
   domain endpoints unchanged) — callers decide how to render the empty
   state.
@@ -29,14 +30,57 @@ Conventions :
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Callable, Iterable
+from typing import Any
 
 from bretzel.render import text
 
 # ───────────────────────────────────────────────────────────────────────
 # Value formatting
 # ───────────────────────────────────────────────────────────────────────
+
+
+class Localized(str):
+    """A label the BROWSER writes in the page's language — the string
+    itself is only the server's fallback, shown until the runtime starts.
+
+    A date on a chart's axis is the case: its month's name and the order
+    of day and month come from ``Intl`` (``$bz.dates.axis``), which the
+    server does not have: ``strftime`` would say « Feb 02 » on a French
+    page. Each sink that writes a label carries the twin with
+    :func:`localized_attr`.
+    """
+
+    js: str
+
+    def __new__(cls, fallback: str, js: str) -> Localized:
+        label = super().__new__(cls, fallback)
+        label.js = js
+        return label
+
+
+def label_js(label: str) -> str:
+    """The JS expression of a label: its browser twin, or the string."""
+    return label.js if isinstance(label, Localized) else json.dumps(label)
+
+
+def localized_attr(label: str, attr: str | None = None) -> dict[str, str]:
+    """The directive that lets the browser rewrite ``label``: ``bz-text``
+    for a text node, ``bz-attr:<attr>`` for an attribute — nothing for a
+    plain string."""
+    if not isinstance(label, Localized):
+        return {}
+    return {f"bz-attr:{attr}" if attr else "bz-text": label.js}
+
+
+def joined(*parts: str) -> str:
+    """``parts`` glued together, keeping the browser twin of any of them."""
+    plain = "".join(parts)
+    if not any(isinstance(p, Localized) for p in parts):
+        return plain
+    return Localized(plain, " + ".join(label_js(p) for p in parts))
 
 
 def format_value(
@@ -52,15 +96,19 @@ def format_value(
     - ``"abbreviated"`` — ``1 234`` → ``"1.2k"``, ``2_500_000`` → ``"2.5M"``.
       Sweet spot for KPI charts where the magnitude matters more than the
       decimals.
-    - ``"percent"``    — ``0.42`` → ``"42%"`` (multiplies by 100).
+    - ``"percent"``    — ``0.42`` → ``"42%"`` (multiplies by 100), the
+      shape from the ``number.percent`` text key (« 42 % » in French).
     - ``"currency"``   — ``1234.5`` → ``"$1,234.50"``. The symbol and its
       place come from the ``chart.currency`` text key, so an app writes
-      ``texts={"chart.currency": "{value} €"}`` once and for all. The
-      thousands separator stays English: it is a number-formatting axis,
-      not a framework word.
+      ``translations={"fr": {"chart.currency": "{value} €"}}`` once; the
+      marks from ``chart.thousands`` and ``chart.decimal``
+      (« 1 234,50 € » in French).
 
     ``None`` falls back to terse ``"1234"`` (int-like) or ``"3.14"``
     (with decimals, trailing zeros stripped).
+
+    Every decimal mark is the ``chart.decimal`` text key — ``"3,14"`` in
+    a French app.
 
     ``unit`` (optional) appends a space-separated suffix —
     ``unit="ms"`` → ``"91 ms"``, ``unit="users"`` → ``"1.2k users"``.
@@ -71,7 +119,8 @@ def format_value(
     avoids ambiguity.
     """
     if callable(fmt):
-        return str(fmt(value))
+        out: Any = fmt(value)
+        return out if isinstance(out, Localized) else str(out)
     if fmt == "abbreviated":
         absv = abs(value)
         if absv >= 1_000_000_000:
@@ -82,12 +131,15 @@ def format_value(
             base = f"{value / 1_000:.1f}k".replace(".0k", "k")
         else:
             base = _plain(value)
+        base = base.replace(".", text("chart.decimal"))
     elif fmt == "percent":
-        return f"{round(value * 100)}%"
+        return text("number.percent", value=round(value * 100))
     elif fmt == "currency":
-        base = text("chart.currency", value=f"{value:,.2f}")
+        # Both marks at once: "," then "." would turn one into the other.
+        marks = {ord(","): text("chart.thousands"), ord("."): text("chart.decimal")}
+        base = text("chart.currency", value=f"{value:,.2f}".translate(marks))
     else:
-        base = _plain(value)
+        base = _plain(value).replace(".", text("chart.decimal"))
     return f"{base} {unit}" if unit else base
 
 
@@ -95,6 +147,17 @@ def _plain(value: float) -> str:
     if float(value).is_integer():
         return str(int(value))
     return f"{value:.2f}".rstrip("0").rstrip(".")
+
+
+def number(value: float) -> str:
+    """A number as the page writes it: its thousands grouped, its decimal
+    mark — « 48 240 », « 12,4 » in French, « 48,240 », « 12.4 » in
+    English. At most two decimals, trailing zeros dropped, as
+    :func:`format_value`. The value of a ``ui.stat``."""
+    whole, _, decimals = _plain(value).partition(".")
+    sign, digits = ("-", whole[1:]) if whole.startswith("-") else ("", whole)
+    grouped = f"{int(digits):,}".replace(",", text("chart.thousands"))
+    return sign + grouped + (text("chart.decimal") + decimals if decimals else "")
 
 
 def linear_scale(
@@ -181,10 +244,36 @@ def _nice_number(rough: float, round_to_one_of: bool) -> float:
     return math.copysign(nice * (10**exponent), rough)
 
 
+def widen(
+    domain: tuple[float, float], values: Iterable[float],
+    low: float | None = None, high: float | None = None,
+) -> tuple[float, float]:
+    """The domain stretched to cover ``[low, high]`` — the bounds an app
+    asked for (``y_max=20``: a mean on 20 reads on 0–20). Never narrowed:
+    a value past a bound pushes it (a 21/20 with a bonus stays seen). A
+    bound replaces the domain's padding on its side, so ``y_max=20``
+    with a 20/20 ends at 20, not at a padded 21 → 25."""
+    lo, hi = domain
+    seen = list(values)
+    if low is not None:
+        lo = min([low, *seen])
+    if high is not None:
+        hi = max([high, *seen])
+    return lo, hi
+
+
+def whole(values: Iterable[float]) -> bool:
+    """Every value a whole number — counts: their axis steps by 1 at
+    least (``compute_ticks(whole=True)``)."""
+    return all(float(v).is_integer() for v in values)
+
+
 def compute_ticks(
     domain_min: float,
     domain_max: float,
     target_count: int = 5,
+    *,
+    whole: bool = False,
 ) -> list[float]:
     """Return ``target_count``-ish "nice" tick values BRACKETING the
     domain. The first and last ticks fall on round numbers that extend
@@ -196,11 +285,16 @@ def compute_ticks(
 
     Uses the Heckbert nice-numbers algorithm — same routine D3 ships
     in ``d3-scale``. Output count is approximate (``target_count ± 2``).
+
+    ``whole``: the values are counts — the step never goes under 1, so a
+    chart of pupils per mark does not read « 0,5 » on its axis.
     """
     if domain_min == domain_max or target_count < 2:
         return [domain_min] if domain_min == domain_max else [domain_min, domain_max]
     span = _nice_number(domain_max - domain_min, round_to_one_of=False)
     step = _nice_number(span / (target_count - 1), round_to_one_of=True)
+    if whole:
+        step = max(step, 1.0)
     start = math.floor(domain_min / step) * step
     end = math.ceil(domain_max / step) * step
     ticks: list[float] = []
@@ -209,6 +303,56 @@ def compute_ticks(
     while value <= end + step * 0.5:
         ticks.append(round(value, 10))
         value += step
+    return ticks
+
+
+#: The steps a time axis is graduated in, in seconds: a minute, a quarter
+#: of an hour, an hour, a few hours, a day, a week. Beyond two months the
+#: nice-number ticks of :func:`compute_ticks` read well enough (« janv.
+#: 01 »), so the list stops there.
+_TIME_STEPS = (60, 300, 900, 1800, 3600, 2 * 3600, 3 * 3600, 6 * 3600, 12 * 3600,
+               86400, 2 * 86400, 7 * 86400, 14 * 86400)
+
+
+def compute_time_ticks(domain_min: float, domain_max: float,
+                       target_count: int = 5) -> list[float] | None:
+    """Ticks of a TIME axis, on round moments: whole hours, midnights,
+    Mondays — inside the domain.
+
+    The x of a time axis is a POSIX timestamp, and the nice numbers of
+    :func:`compute_ticks` are nice in SECONDS: a day would read « 22h20,
+    3h53, 9h26 ». Here the step is
+    picked from :data:`_TIME_STEPS` and the first tick is the first
+    boundary of that step in local time (the timestamps are local:
+    ``series.to_x``). ``None`` past the last step: the caller keeps the
+    numeric ticks.
+    """
+    from datetime import datetime, timedelta
+
+    span = domain_max - domain_min
+    if span <= 0:
+        return None
+    step = next((s for s in _TIME_STEPS if span / s <= target_count), None)
+    if step is None:
+        return None
+    start = datetime.fromtimestamp(domain_min)
+    if step >= 7 * 86400:
+        first = (start - timedelta(days=start.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+    elif step >= 86400:
+        first = start.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        midnight = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        into = (start - midnight).total_seconds()
+        first = midnight + timedelta(seconds=(into // step) * step)
+    ticks: list[float] = []
+    moment = first
+    while moment.timestamp() <= domain_max:
+        if moment.timestamp() >= domain_min:
+            ticks.append(moment.timestamp())
+        # Calendar arithmetic, not seconds: a day stays a day across a
+        # change of summer time.
+        moment = moment + timedelta(seconds=step) if step < 86400 else             moment + timedelta(days=step // 86400)
     return ticks
 
 
@@ -259,11 +403,10 @@ def axis_margin(labels: Iterable[str], font_px: float, *, floor: float) -> int:
     """The room left of the plot for right-aligned axis labels.
 
     The labels end 6 px left of the axis (``x="-6"``, ``text-anchor:
-    end``), so the margin must hold the WIDEST of them plus that gap. It
-    was a constant (48 px): a ``y_unit=" requests/s"`` label measured
-    ~100 px and started 58 px outside the chart, cut by any card with an
-    ``overflow`` other than visible. ``floor`` keeps the historical width
-    when the labels are short, so a chart that fitted does not move.
+    end``), so the margin must hold the WIDEST of them plus that gap. A
+    constant margin would leave a long label (``y_unit=" requests/s"``)
+    outside the chart, cut by any card with an ``overflow`` other than
+    visible. ``floor`` is the width kept when the labels are short.
     """
     widest = max((text_width(label, font_px) for label in labels), default=0.0)
     return max(int(floor), math.ceil(widest + 6 + 2))
@@ -283,36 +426,57 @@ def line_path(points: list[tuple[float, float]]) -> str:
     return "".join(out)
 
 
-def smooth_path(points: list[tuple[float, float]]) -> str:
-    """SVG ``d`` for a Catmull-Rom-as-Bézier curve through ``points``.
+def _sign(value: float) -> int:
+    return (value > 0) - (value < 0)
 
-    Same visual algorithm D3 uses for ``curveCatmullRom``. The smooth
-    line passes through every given point ; the tangents are derived
-    from the neighbours, which gives a natural-feeling curve without
-    the overshoot you get from a pure cubic spline. Degenerate cases
-    (<2 points) fall back to a straight path.
+
+def smooth_path(points: list[tuple[float, float]]) -> str:
+    """SVG ``d`` for a monotone cubic curve through ``points``.
+
+    The algorithm D3 ships as ``curveMonotoneX`` (Steffen, 1990): the
+    curve passes through every point and never leaves the interval of
+    two neighbours — no dip under a flat stretch, no peak above the
+    highest close. A smooth line that draws a value the data never had
+    is lying, and a Catmull-Rom does as soon as the x steps are uneven
+    (a week-end in a series of closes).
+
+    Needs x increasing, as every chart's x is. Under 3 points, a
+    straight path. The control points are affine in x and y, so the
+    stretched frame of ``ui.line_chart`` (x scaled alone) keeps the
+    curve's shape.
     """
     n = len(points)
-    if n < 2:
+    if n < 3:
         return line_path(points)
-    if n == 2:
-        return line_path(points)
-    out = [f"M{_fmt(points[0][0])},{_fmt(points[0][1])}"]
-    # Reflect the first / last point for the boundary cases — same
-    # trick as ``d3-shape``'s Catmull-Rom implementation.
+    xs = [float(p[0]) for p in points]
+    ys = [float(p[1]) for p in points]
+    steps = [xs[i + 1] - xs[i] for i in range(n - 1)]
+    slopes = [(ys[i + 1] - ys[i]) / steps[i] if steps[i] else 0.0 for i in range(n - 1)]
+    tangents = [0.0] * n
+    for i in range(1, n - 1):
+        h0, h1, s0, s1 = steps[i - 1], steps[i], slopes[i - 1], slopes[i]
+        if h0 + h1 == 0:
+            continue
+        through = (s0 * h1 + s1 * h0) / (h0 + h1)
+        tangents[i] = (_sign(s0) + _sign(s1)) * min(abs(s0), abs(s1), 0.5 * abs(through))
+    # The ends: the tangent that keeps the first (last) segment's own
+    # slope, as D3's ``slope2``.
+    tangents[0] = (3 * slopes[0] - tangents[1]) / 2 if steps[0] else tangents[1]
+    tangents[-1] = (3 * slopes[-1] - tangents[-2]) / 2 if steps[-1] else tangents[-2]
+    # Clamp the ends too: an end tangent past three times its slope
+    # would bend the first segment out of its interval.
+    for i, s in ((0, slopes[0]), (n - 1, slopes[-1])):
+        if _sign(tangents[i]) != _sign(s):
+            tangents[i] = 0.0
+        elif abs(tangents[i]) > 3 * abs(s):
+            tangents[i] = 3 * s
+    out = [f"M{_fmt(xs[0])},{_fmt(ys[0])}"]
     for i in range(n - 1):
-        p0 = points[i - 1] if i > 0 else points[0]
-        p1 = points[i]
-        p2 = points[i + 1]
-        p3 = points[i + 2] if i + 2 < n else p2
-        # Catmull-Rom tension = 0.5 (the centripetal default).
-        c1x = p1[0] + (p2[0] - p0[0]) / 6
-        c1y = p1[1] + (p2[1] - p0[1]) / 6
-        c2x = p2[0] - (p3[0] - p1[0]) / 6
-        c2y = p2[1] - (p3[1] - p1[1]) / 6
+        third = steps[i] / 3
         out.append(
-            f"C{_fmt(c1x)},{_fmt(c1y)} {_fmt(c2x)},{_fmt(c2y)} "
-            f"{_fmt(p2[0])},{_fmt(p2[1])}"
+            f"C{_fmt(xs[i] + third)},{_fmt(ys[i] + tangents[i] * third)} "
+            f"{_fmt(xs[i + 1] - third)},{_fmt(ys[i + 1] - tangents[i + 1] * third)} "
+            f"{_fmt(xs[i + 1])},{_fmt(ys[i + 1])}"
         )
     return "".join(out)
 
@@ -360,10 +524,9 @@ def arc_path(
         if inner_radius <= 0:
             # Solid pie / single 100% slice — render as a closed circle
             # (two back-to-back semicircle arcs) so the path has no
-            # ``L``-to-centre cuts. The previous "split into two
-            # wedges and concatenate" approach overlapped the centre-
-            # to-edge segments and showed a vertical seam through the
-            # middle when stroked between slices.
+            # ``L``-to-centre cuts. Two wedges concatenated would
+            # overlap the centre-to-edge segments and show a vertical
+            # seam through the middle when stroked between slices.
             r = _fmt(radius)
             return (
                 f"M{_fmt(cx - radius)},{_fmt(cy)} "

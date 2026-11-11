@@ -39,7 +39,9 @@ the HMAC on the action, not this function.
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import json
+import types
 import typing
 from typing import Any, ClassVar, TypeVar
 
@@ -108,7 +110,20 @@ _FALSEY = frozenset({"", "false", "0", "no", "off", "null", "none"})
 
 
 def _coerce(value: Any, annotation: Any) -> Any:
-    """Apply the declared scalar type, or pass the value through."""
+    """Apply the declared scalar type, or pass the value through.
+
+    A ``datetime`` / ``date`` field (``X | None`` included) is read from
+    its ISO string — the runtime has no other way to send a moment.
+    """
+    if typing.get_origin(annotation) in (typing.Union, types.UnionType):
+        inner = [a for a in typing.get_args(annotation) if a is not type(None)]
+        if len(inner) == 1:
+            annotation = inner[0]
+    if annotation in (datetime.datetime, datetime.date) and isinstance(value, str):
+        try:
+            return annotation.fromisoformat(value) if value else None
+        except ValueError:
+            return value
     if annotation is bool and isinstance(value, str):
         return value.strip().lower() not in _FALSEY
     if annotation in _SCALARS and not isinstance(value, annotation):

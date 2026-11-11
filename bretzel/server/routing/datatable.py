@@ -34,6 +34,7 @@ value actually needs it.
 
 from __future__ import annotations
 
+import functools
 from contextlib import nullcontext
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -51,10 +52,12 @@ from bretzel.core import call_without_blocking
 from bretzel.render.context import maybe_current_context
 from bretzel.server.handlers import (
     HandlerResolutionError,
+    decode_args,
     resolve_handler,
     verify_action,
 )
 from bretzel.server.routing._csv import to_csv
+from bretzel.server.routing.downloads import attachment
 from bretzel.state.registry import use_registry
 
 if TYPE_CHECKING:
@@ -80,13 +83,24 @@ async def _serve(bretzel_app: BretzelApp, request: Request) -> Response:
     key = getattr(bretzel_app.config, "_action_key", b"")
     # Same gate as an action, minus the timestamp : an export link is
     # meant to survive as long as the page it sits on, so an age limit
-    # would expire the button under a reader who left the tab open.
-    if not key or not verify_action(key, EXPORT_ROUTE, payload, signature):
+    # would expire the button under a reader who left the tab open. Bound
+    # to the session like an action: pasted into a ticket, the link
+    # serves no one else — this route does not pass through the page's
+    # access control.
+    context = maybe_current_context()
+    session_id = context.session_id if context else ""
+    if not key or not verify_action(key, EXPORT_ROUTE, payload, signature,
+                                    session_id=session_id):
         return Response("Forbidden", status_code=403)
 
     try:
         spec = decode_export(payload)
         rows_source = resolve_handler(spec["r"])
+        # What a ``partial`` bound rides the link, signed with the rest
+        # (``_encode_export``).
+        args, kwargs = decode_args(spec.get("a", ""))
+        if args or kwargs:
+            rows_source = functools.partial(rows_source, *args, **kwargs)
         # The reader's view rides IN the link. A plain browser navigation
         # carries no page identity, so resolving the page-scoped state
         # here would hand back a pristine query and export the default
@@ -103,22 +117,19 @@ async def _serve(bretzel_app: BretzelApp, request: Request) -> Response:
         return Response("Not found", status_code=404)
 
     # Run the caller's code the way EVERY other user-code entry point in
-    # this framework runs it — inside the request's state registry. This
-    # is a fourth entry point (page render, action, realtime refetch,
-    # and now export) and the only one that had been written bare.
+    # this framework runs it (page render, action, realtime refetch) —
+    # inside the request's state registry.
     #
-    # Measured before fixing : without the registry, ``current_registry()``
-    # is None and ``StateMeta.__call__`` falls through to a plain
-    # constructor — so two ``MyState()`` calls inside one callable
-    # returned two DIFFERENT objects, ``get()`` saw no form data, and
-    # nothing the callable read was the request's state.
+    # Without the registry, ``current_registry()`` is None and
+    # ``StateMeta.__call__`` falls through to a plain constructor — so two
+    # ``MyState()`` calls inside one callable would return two DIFFERENT
+    # objects, ``get()`` would see no form data, and nothing the callable
+    # read would be the request's state.
     #
     # ⚠️ What this does NOT fix : a ``SessionState`` written during the
-    # page render still reads its default here. Verified that an ordinary
-    # action handler behaves identically, so that is a framework-wide
-    # property of the sync-resolve path, not something this route broke.
-    # Noted in work/todo.md rather than papered over here.
-    context = maybe_current_context()
+    # page render still reads its default here. An ordinary action
+    # handler behaves identically: it is a framework-wide property of the
+    # sync-resolve path, not something specific to this route.
     registry = getattr(context, "state_registry", None) if context else None
     with use_registry(registry) if registry is not None else nullcontext():
         # A rows callable that hits a database is the tier's whole
@@ -131,7 +142,7 @@ async def _serve(bretzel_app: BretzelApp, request: Request) -> Response:
     return Response(
         to_csv(rows, columns, read_cell),
         media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": attachment(filename)},
     )
 
 

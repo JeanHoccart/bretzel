@@ -30,11 +30,11 @@ from bretzel import (
     copy,
     layout,
     refreshable,
+    t,
     ui,
 )
 from bretzel.render import current_context
 from bretzel.theme import ColorScheme
-from examples.kanban.core.i18n import tr
 from examples.kanban.features.donnees import (
     COULEURS,
     ETIQUETTES,
@@ -54,7 +54,7 @@ from examples.kanban.features.logic import (
 from examples.kanban.features.state import Filtres, Moi, Nouvelle
 
 
-@refreshable(deps=[Moi])
+@refreshable
 def identite() -> None:
     """"You are…" — the session identity, changeable in one click.
 
@@ -66,8 +66,7 @@ def identite() -> None:
     mutable state there without being a zone is frozen for the life of
     the page, and the trigger would keep showing the previous person.
 
-    ``deps=[Moi]`` alone, with no ``broadcast``: who I am concerns only
-    me.
+    It reads ``Moi``, a ``SessionState``: who I am concerns only my windows.
     """
     moi = Moi().membre
     with ui.dropdown(
@@ -76,8 +75,7 @@ def identite() -> None:
             icon_left=ui.avatar(variant="solid", initials=INITIALES[moi], size="xs",
                                 color=COULEURS[moi]),
             icon_right="chevron-down",
-            tooltip=tr("Who you are on this board",
-                       "Qui tu es sur ce tableau"),
+            tooltip=t("Who you are on this board"),
         ),
         align="end",
     ):
@@ -86,7 +84,7 @@ def identite() -> None:
                 label=nom,
                 icon_left=ui.avatar(variant="solid", initials=initiales, size="xs",
                                     color=couleur),
-                icon_right="check" if cle == moi else None,
+                checked=cle == moi,
                 on_click=partial(devenir, cle),
             )
 
@@ -100,10 +98,9 @@ def connexion() -> None:
     live = LiveConnection()
     with ui.hstack(align="center", gap="xs", classes="shrink-0"):
         ui.icon("radio", color="success", size="sm", visible=live.connected,
-                tooltip=tr("Live — your other windows follow",
-                           "En direct — tes autres fenêtres suivent"))
+                tooltip=t("Live — your other windows follow"))
         ui.icon("radio", color="muted", size="sm", visible=~live.connected,
-                tooltip=tr("Stream interrupted", "Flux interrompu"))
+                tooltip=t("Stream interrupted"))
 
 
 def langue() -> None:
@@ -126,13 +123,13 @@ def langue() -> None:
     code = Language().code
     with ui.dropdown(
         trigger=ui.icon_button("languages", variant="ghost", size="md",
-                               tooltip=tr("Language", "Langue")),
+                               tooltip=t("Language")),
         align="end",
     ):
         for cle, libelle in (("en", "English"), ("fr", "Français")):
             ui.dropdown_item(
                 label=libelle,
-                icon_right="check" if code.startswith(cle) else None,
+                checked=code.startswith(cle),
                 on_click=partial(Language.set, cle),
             )
 
@@ -146,13 +143,13 @@ def theme_sombre() -> None:
     ui.icon_button(
         "moon", variant="ghost", size="md",
         on_click=ColorScheme.toggle(),
-        tooltip=tr("Switch to dark", "Passer en sombre"),
+        tooltip=t("Switch to dark"),
         classes="dark:!hidden",
     )
     ui.icon_button(
         "sun", variant="ghost", size="md",
         on_click=ColorScheme.toggle(),
-        tooltip=tr("Switch to light", "Passer en clair"),
+        tooltip=t("Switch to light"),
         classes="!hidden dark:!inline-flex",
     )
 
@@ -187,14 +184,11 @@ def dialogue_api() -> None:
 Invoke-RestMethod @request""",
     }
     windows = "Windows" in requete.headers.get("user-agent", "")
-    boite = ui.dialog(title=tr("This board's API", "L'API de ce tableau"),
+    boite = ui.dialog(title=t("This board's API"),
                       width="lg")
     with boite, ui.vstack(gap="md"):
-        ui.text(tr("Run this command in a terminal: the card lands on THIS "
-                   "board, and the windows you have open follow, live.",
-                   "Lance cette commande dans un terminal : la carte arrive "
-                   "sur CE tableau, et tes fenêtres ouvertes suivent, en "
-                   "direct."), tag="p")
+        ui.text(t("Run this command in a terminal: the card lands on THIS "
+                   "board, and the windows you have open follow, live."), tag="p")
         with ui.tabs(value="powershell" if windows else "bash",
                      name="shell_api", size="sm"):
             ui.tab("bash", label="bash")
@@ -204,45 +198,40 @@ Invoke-RestMethod @request""",
                                                       classes="pt-3"):
                     ui.code(commande, lang=langage)
                     with ui.hstack(justify="end"):
-                        ui.button(tr("Copy the command",
-                                     "Copier la commande"),
+                        ui.button(t("Copy the command"),
                                   icon_left="copy", variant="soft",
                                   on_click=copy(commande))
-        ui.link(tr("Every route, to try in the browser",
-                   "Toutes les routes, à essayer dans le navigateur"),
+        ui.link(t("Every route, to try in the browser"),
                 href="/docs", external=True)
-        ui.text(tr("The key opens your session: your board, nobody else's. "
-                   "Keep it to yourself.",
-                   "La clé ouvre ta session : ton tableau, celui de "
-                   "personne d'autre. Garde-la pour toi."),
+        ui.text(t("The key opens your session: your board, nobody else's. "
+                   "Keep it to yourself."),
                 size="sm", color="muted", tag="p")
     ui.icon_button("code", variant="ghost", size="md",
-                   tooltip=tr("API", "API"), on_click=boite.open())
+                   tooltip=t("API"), on_click=boite.open())
 
 
 def dialogue_nouvelle() -> None:
     """The creation dialog. Opened by the banner's button."""
     nouvelle = Nouvelle()
-    boite = ui.dialog(title=tr("New card", "Nouvelle carte"),
+    boite = ui.dialog(title=t("New card"),
                       width="sm")
     with boite, ui.form(on_submit=[creer, boite.close()]), ui.vstack(gap="md"):
-        with ui.form_field(label=tr("Title", "Titre"), required=True):
+        with ui.form_field(label=t("Title"), required=True):
             ui.input(value=nouvelle.titre, maxlength=120,
-                     placeholder=tr("What there is to do",
-                                    "Ce qu'il y a à faire"))
-        with ui.form_field(label=tr("Column", "Colonne")):
+                     placeholder=t("What there is to do"))
+        with ui.form_field(label=t("Column")):
             ui.select(value=nouvelle.colonne,
                       options=[(cle, lib) for cle, lib, _ in colonnes()])
         with ui.hstack(justify="end", gap="sm"):
-            ui.button(tr("Cancel", "Annuler"), variant="ghost",
+            ui.button(t("Cancel"), variant="ghost",
                       on_click=boite.close())
-            ui.button(tr("Create", "Créer"), type="submit",
+            ui.button(t("Create"), type="submit",
                       color="primary", icon_left="plus")
-    ui.button(tr("New card", "Nouvelle carte"), color="primary",
+    ui.button(t("New card"), color="primary",
               size="md", icon_left="plus", on_click=boite.open())
 
 
-@refreshable(deps=[Tableau], broadcast=[Tableau])
+@refreshable
 def commandes() -> None:
     """Undo and redo. Their tooltips say WHAT they would undo.
 
@@ -259,20 +248,20 @@ def commandes() -> None:
             "undo-2", variant="ghost", size="md", on_click=annuler,
             disabled=tableau.curseur == 0,
             tooltip=(
-                tr("Undo: ", "Annuler : ")
+                t("Undo: ")
                 + tableau.journal[tableau.curseur - 1]["texte"]
                 if tableau.curseur
-                else tr("Nothing to undo", "Rien à annuler")
+                else t("Nothing to undo")
             ),
         )
         ui.icon_button(
             "redo-2", variant="ghost", size="md", on_click=refaire,
             disabled=tableau.curseur >= len(tableau.journal),
             tooltip=(
-                tr("Redo: ", "Rétablir : ")
+                t("Redo: ")
                 + tableau.journal[tableau.curseur]["texte"]
                 if tableau.curseur < len(tableau.journal)
-                else tr("Nothing to redo", "Rien à rétablir")
+                else t("Nothing to redo")
             ),
         )
 
@@ -291,24 +280,24 @@ def filtres_du_bandeau() -> None:
     # filter would be a bug on a board whose cards get dragged.
     ui.input(
         value=filtres.q, on_input=filtrer, debounce=350,
-        placeholder=tr("Search a card", "Rechercher une carte"),
+        placeholder=t("Search a card"),
         icon_left="search", size="md", clearable=True,
         classes="w-[15rem]",
     )
     with ui.toggle_group(value=filtres.qui, on_change=filtrer, size="md",
                          color="primary"):
-        ui.toggle_button(value="tous", label=tr("All", "Tous"),
-                         tooltip=tr("The whole team", "Toute l'équipe"))
+        ui.toggle_button(value="tous", label=t("All"),
+                         tooltip=t("The whole team"))
         for cle, nom, initiales, couleur in MEMBRES:
             ui.toggle_button(
                 value=cle,
                 icon=ui.avatar(variant="solid", initials=initiales, size="xs", color=couleur),
-                tooltip=tr(f"{nom}'s cards", f"Les cartes de {nom}"),
+                tooltip=t("{nom}'s cards", nom=nom),
             )
     ui.select(
         value=filtres.etiquette, on_change=filtrer, size="md",
         classes="w-[9rem]",
-        options=[("toutes", tr("All labels", "Toutes étiquettes")),
+        options=[("toutes", t("All labels")),
                  *[(cle, lib) for cle, lib, _ in ETIQUETTES]],
     )
 
@@ -346,8 +335,7 @@ def shell() -> None:
                                            "rounded-field bg-(--bz-solid) "
                                            "text-(--bz-on-solid)"):
                         ui.icon("kanban", size="md")
-                    ui.heading(tr("Client portal rework",
-                                  "Refonte du portail client"),
+                    ui.heading(t("Client portal rework"),
                                level=1, size="md", weight="semibold")
                     ui.badge("Sprint 24", variant="soft", color="primary",
                              size="md")
@@ -370,6 +358,7 @@ def shell() -> None:
 feature = Feature(
     name="shell", kind="shell",
     provides=[shell, identite, connexion, langue, theme_sombre,
-              dialogue_api, dialogue_nouvelle, commandes, filtres_du_bandeau],
+              dialogue_api, dialogue_nouvelle, commandes, filtres_du_bandeau,
+              DESCRIPTION, TITLE],
     uses=["donnees", "state", "logic"],
 )

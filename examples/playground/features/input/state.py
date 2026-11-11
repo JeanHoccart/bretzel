@@ -43,7 +43,7 @@ class InputPlayground(PageState):
     / autocomplete), every decorative slot (prefix / suffix / icon_left
     / icon_right), every universal escape hatch (classes / id /
     aria_label / style / extra_attrs), every universal modifier
-    (visible / tooltip), and the event-handler shape toggle
+    (visible / tooltip / autofocus), and the event-handler shape toggle
     (on_change_mode).
     """
 
@@ -79,6 +79,9 @@ class InputPlayground(PageState):
     # Universal modifiers
     visible:      str  = field(default="on")
     tooltip:      str  = field(default="")
+    # The field takes the focus when it enters the page (universal, the
+    # fields and buttons only).
+    autofocus:    bool = field(default=False)
     # Event-handler shape — drives which attrs land on the <input>.
     on_change_mode: str = field(default="none")
 

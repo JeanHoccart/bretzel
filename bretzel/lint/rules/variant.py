@@ -11,8 +11,7 @@ table (``bretzel/components/base/component.py``) ::
         parts.append(...)
 
 A gap is not an error: it is a ``None``, an ``if`` that does not take,
-and one class fewer. Measured on 2026-08-16 on
-``ui.button(variant="does-not-exist")``: the button renders **with no
+and one class fewer. ``ui.button(variant="does-not-exist")`` renders **with no
 variant class at all** — no fill, no border, no shadow. It stays in the
 flow, it is clickable, it simply no longer looks like a button. No error,
 no suspicious attribute in the HTML.
@@ -28,8 +27,8 @@ Deriving them from a pluralisation rule would be a hand-written table in
 a linter, that is to say the thing that drifts from the code it judges
 (same refusal as :mod:`bretzel.lint.rules.kwargs`).
 
-⚠️ ``size=`` cost a detour, and it is worth knowing
-----------------------------------------------------
+⚠️ ``size=`` is not read like ``variant=``
+-------------------------------------------
 
 The symmetry with ``variant`` is tempting — ``compose_class`` does
 ``theme["sizes"].get(size_value)`` — but reading the table's raw keys is
@@ -39,14 +38,12 @@ OPPOSITE nestings coexist there —
 - ``Checkbox``: ``{"sm": {<slot>: classes}}`` — keys = sizes;
 - ``DatePicker``: ``{"input_field": {"sm": classes}}`` — keys = **slots**.
 
-A first version of this rule therefore reported
-``ui.date_picker(size="sm")``, which is perfectly correct. The vocabulary
-now comes from :attr:`ComponentInfo.size_values`, resolved by
+Read that way, this rule would report ``ui.date_picker(size="sm")``, which
+is perfectly correct. The vocabulary therefore comes from
+:attr:`ComponentInfo.size_values`, resolved by
 ``bretzel.components.base.size_vocabulary`` — which absorbs both tiers by
 relying on :data:`~bretzel.components.base.SIZE_SCALE`, the canonical
-scale. That scale did not exist in ``bretzel/`` before 2026-08-16: it was
-copied five times in ``tests/``, which would have made any read from here
-a sixth copy.
+scale.
 """
 
 from __future__ import annotations
@@ -84,12 +81,11 @@ def _shipped() -> dict[str, dict[str, frozenset[str]]]:
     Indexed by ``THEME_KEY`` so as to join without friction with the
     vocabulary the app declares, which is written under that key.
 
-    ⚠️ For THIS rule, indexing by key is today **indistinguishable** from
+    ⚠️ For THIS rule, indexing by key is **indistinguishable** from
     indexing by ``ui.*`` name, and the mutation that inverts it turns red
-    nowhere — measured on 2026-08-16 rather than assumed. Of the 8
-    components carrying a ``variants`` table, only one has a key
-    different from its name (``navbar_section`` → ``navbar``), and its
-    sibling ``navbar`` already fills that entry with the **same**
+    nowhere. Of the components carrying a ``variants`` table, only one has
+    a key different from its name (``navbar_section`` → ``navbar``), and
+    its sibling ``navbar`` already fills that entry with the **same**
     ``THEME`` object.
 
     It is written down and not fixed with a contrived test: the
@@ -151,8 +147,7 @@ def _declared_everywhere(module: Module) -> dict[str, dict[str, set[str]]]:
 
     The union is the SAME for a pass's N modules, so it is derived once
     (:func:`~bretzel.lint.corpus.derived`) and not once per module —
-    without which the rule is quadratic, which it was until 2026-08-27 for
-    56 s over ``examples/``. The only case that leaves the memo is a
+    without which the rule is quadratic. The only case that leaves the memo is a
     module ABSENT from the corpus: we then start from a copy, so as not to
     pollute the shared derivation with a tree that is not part of it.
     """

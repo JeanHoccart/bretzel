@@ -1,7 +1,7 @@
 """``/carousel`` — a row of slides you swipe through."""
 
-from bretzel import refreshable, ui
-from bretzel.state import ClientState, PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("Slides that snap into place under a swipe, the wheel or the "
@@ -12,7 +12,7 @@ def gallery() -> None:
     with ui.carousel(classes="w-full max-w-xl"):
         for seed in ("cabin", "lake", "forest", "dunes", "harbor"):
             ui.image(src=f"https://picsum.photos/seed/{seed}/960/540",
-                     alt=f"Holiday rental — {seed}", ratio="16/9")
+                     alt=f"Holiday rental — {seed}", ratio="video")
 
 
 def products() -> list[tuple[str, str, str]]:
@@ -32,7 +32,7 @@ def several_at_once() -> None:
         for name, price, seed in products():
             with ui.card(padding="none"):
                 ui.image(src=f"https://picsum.photos/seed/{seed}/480/360",
-                         alt=name, ratio="4/3")
+                         alt=name, classes="aspect-[4/3] w-full")
                 with ui.hstack(justify="between", classes="p-3"):
                     ui.text(name, weight="medium")
                     ui.text(price, color="muted")
@@ -57,26 +57,11 @@ class Tour(ClientState):
     step: int = field(default=0)
 
 
-class TourProgress(PageState):
-    furthest: int = field(default=0)
-
-
-def reached(step: str = "0") -> None:
-    progress = TourProgress()
-    progress.furthest = max(progress.furthest, int(step))
-
-
-@refreshable(deps=[TourProgress])
-def tour_progress() -> None:
-    seen = TourProgress().furthest + 1
-    ui.progress(value=seen, max=4, label=f"{seen} of 4 screens seen",
-                show_label=True, size="sm")
-
-
 def onboarding() -> None:
     tour = Tour()
+    screen = tour.step + 1
     with ui.vstack(gap="md", classes="w-full max-w-xl [contain:inline-size]"):
-        with ui.carousel(value=tour.step, on_change=reached) as slides:
+        with ui.carousel(value=tour.step) as slides:
             for icon, title, body in (
                 ("folder-plus", "Create a project", "Group boards, files and "
                  "people around one goal."),
@@ -90,7 +75,8 @@ def onboarding() -> None:
                     ui.icon(icon, size="xl", color="primary")
                     ui.heading(title, level=3, size="lg")
                     ui.text(body, color="muted", align="center")
-        tour_progress()
+        ui.progress(value=screen, max=4, label="Screen " + screen + " of 4",
+                    show_label=True, size="sm")
         with ui.hstack(gap="sm", justify="center"):
             ui.button("Back", variant="ghost", icon_left="arrow-left",
                       on_click=slides.prev())
@@ -110,7 +96,7 @@ def page() -> None:
             note="autoplay=4 turns the page every four seconds, and stops for "
                  "good the moment the reader touches it.")
     example("An onboarding tour", onboarding,
-            uses=[Tour, TourProgress, reached, tour_progress],
+            uses=[Tour],
             note="The buttons drive the carousel with .prev() and .next(); "
-                 "each slide change calls a Python handler that records how "
-                 "far the user got.")
+                 "value= is bound to a ClientState, so the bar follows the "
+                 "slide in the browser.")

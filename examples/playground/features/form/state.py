@@ -97,7 +97,7 @@ class ProfileForm(PageState):
     defaults so the user can edit and re-save."""
 
     name:    str  = field(default="Jean Dupont")
-    email:   str  = field(default="jean@example.com")
+    email:   str  = field(default="alex@example.com")
     saved_at: str = field(default="")           # ISO HH:MM:SS
 
     @validator("name")

@@ -24,14 +24,26 @@ mode drops ``aria-valuenow`` per the WAI-ARIA spec.
 
 from __future__ import annotations
 
+import json
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import theme_context
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.feedback.progress.theme import PROGRESS_THEME
 from bretzel.core.tree import Element
 from bretzel.core.tree import TextNode as TextNode
+from bretzel.render import text
+from bretzel.render.texts import template
 
+
+def percent(value: float) -> str:
+    """« 42 % » in French, « 42% » in English — the table's ``number.percent``."""
+    return text("number.percent", value=round(value))
+
+
+def percent_js(number_js: str) -> str:
+    """The same, written by the browser from a JS number."""
+    return f"{json.dumps(template('number.percent'))}.replace('{{value}}', {number_js})"
 
 class Progress(Component):
     """Horizontal progress bar."""
@@ -41,7 +53,7 @@ class Progress(Component):
     IS_CONTAINER: ClassVar[bool] = False
     # Reactive surface — current value + label text. max / color / size /
     # show_label / indeterminate are design-time.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "label")
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value",)
 
     value: Any = reactive_prop(default=0, emit_attr=False)
     max: float = reactive_prop(default=100, emit_attr=False)
@@ -49,7 +61,7 @@ class Progress(Component):
     color: str = reactive_prop(default="primary", emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
     show_label: bool = reactive_prop(default=False, emit_attr=False)
-    label: str | None = reactive_prop(default=None, emit_attr=False)
+    label: str | Component | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
         self,
@@ -60,7 +72,7 @@ class Progress(Component):
         color: str | None = None,
         size: str | None = None,
         show_label: bool | None = None,
-        label: str | None = None,
+        label: str | Component | None = None,
         **kwargs: Any,
     ) -> None:
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
@@ -96,10 +108,7 @@ class Progress(Component):
         track_class = " ".join(
             p
             for p in (
-                self.compose_class(
-                    "track",
-                    apply_variant_size_modifiers=False,
-                ),
+                self.compose_class("track"),
                 size_cls,
             )
             if p
@@ -107,16 +116,10 @@ class Progress(Component):
 
         if indeterminate:
             fill_attrs: dict[str, Any] = {
-                "class": self.compose_class(
-                    "fill_indeterminate",
-                    apply_variant_size_modifiers=False,
-                ),
+                "class": self.compose_class("fill_indeterminate"),
             }
         else:
-            fill_class = self.compose_class(
-                "fill",
-                apply_variant_size_modifiers=False,
-            )
+            fill_class = self.compose_class("fill")
             fill_attrs = {"class": fill_class}
             if value_binding is not None:
                 # Live binding : ``bz-attr:style`` is the single writer
@@ -133,7 +136,7 @@ class Progress(Component):
                 fill_attrs["bz-attr:style"] = expr
             # SSR snapshot of the resolved value (binding or literal)
             # so the bar paints at the right width before the runtime
-            # boots (FOUC discipline, .claude/bretzel/runtime.md).
+            # boots (FOUC discipline).
             fill_attrs["style"] = f"width: {ssr_pct:.1f}%"
 
         track = Element(
@@ -153,10 +156,7 @@ class Progress(Component):
         # 4. none → no span.
         children: list[Any] = [track]
         label_binding = self._binding_metadata.get("label")
-        label_class = self.compose_class(
-            "label",
-            apply_variant_size_modifiers=False,
-        )
+        label_class = self.compose_class("label")
 
         if label_binding is not None and not indeterminate:
             label_path = self.path_of(label_binding)
@@ -166,11 +166,11 @@ class Progress(Component):
                 value_path = self.path_of(value_binding)
                 text_expr = (
                     f"({label_path}) || "
-                    f"(Math.round((({value_path}) / {max_val}) * 100) + '%')"
+                    f"({percent_js(f'Math.round((({value_path}) / {max_val}) * 100)')})"
                 )
             elif show_label:
                 # Static percentage as fallback.
-                text_expr = f"({label_path}) || '{int(round(ssr_pct))}%'"
+                text_expr = f"({label_path}) || {json.dumps(percent(ssr_pct))}"
             else:
                 text_expr = label_path
             label_attrs: dict[str, Any] = {
@@ -182,7 +182,7 @@ class Progress(Component):
             # the runtime boots, no flash.
             initial = (
                 str(custom_label) if custom_label
-                else (f"{int(round(ssr_pct))}%" if show_label else "")
+                else (percent(ssr_pct) if show_label else "")
             )
             children.append(
                 Element(
@@ -214,16 +214,16 @@ class Progress(Component):
                 # percentage before the runtime boots.
                 label_attrs = {
                     "class": label_class,
-                    "bz-text": (
+                    "bz-text": percent_js(
                         f"Math.round((({self.path_of(value_binding)})"
-                        f" / {max_val}) * 100) + '%'"
+                        f" / {max_val}) * 100)"
                     ),
                 }
                 children.append(
                     Element(
                         tag="span",
                         attrs=label_attrs,
-                        children=(TextNode(f"{int(round(ssr_pct))}%"),),
+                        children=(TextNode(percent(ssr_pct)),),
                     )
                 )
             else:
@@ -231,7 +231,7 @@ class Progress(Component):
                     Element(
                         tag="span",
                         attrs={"class": label_class},
-                        children=(TextNode(f"{int(round(ssr_pct))}%"),),
+                        children=(TextNode(percent(ssr_pct)),),
                     )
                 )
 

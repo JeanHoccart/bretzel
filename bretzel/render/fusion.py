@@ -26,13 +26,12 @@ from bretzel.runtime.protocol import BZ_ID_ATTR
 class FusionConflict(ValueError):  # noqa: N818 — domain term, not a generic Error
     """Kept as a public name for backwards compatibility.
 
-    Earlier drafts raised this when a candidate single-root already
-    carried a ``bz-id``. Reality : every :class:`Component` stamps its
-    own id at render time, and that id is the per-component identity
-    morph relies on — distinct from the refreshable section's id.
-    Fusion now wraps in that case instead of raising, so this class is
-    no longer thrown by the framework. Apps may still raise it from
-    their own code if they want the old discipline.
+    Every :class:`Component` stamps its own id at render time, and that
+    id is the per-component identity morph relies on — distinct from the
+    refreshable section's id. Fusion therefore wraps a candidate
+    single-root that already carries a ``bz-id`` instead of raising, and
+    the framework never throws this class. Apps may still raise it from
+    their own code.
     """
 
 

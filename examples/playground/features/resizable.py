@@ -188,7 +188,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[ResizablePlayground])
+@refreshable
 def server_panel() -> None:
     state = ResizablePlayground()
 
@@ -280,7 +280,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[ResizableEvents])
+@refreshable
 def events_panel() -> None:
     state = ResizableEvents()
 

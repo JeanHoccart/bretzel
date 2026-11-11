@@ -49,7 +49,7 @@ def change_month(report: MonthlyReport) -> None:
     """The picked month is already in ``report``; the KPIs re-render."""
 
 
-@refreshable(deps=[MonthlyReport])
+@refreshable
 def monthly_kpis() -> None:
     month = date.fromisoformat(MonthlyReport().month + "-01")
     seed = month.month + month.year % 10

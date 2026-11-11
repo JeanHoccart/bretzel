@@ -8,7 +8,6 @@ import re
 import pytest
 
 from bretzel.components.base.attrs import (
-    ComponentDefinitionError,
     ComponentUsageError,
 )
 from bretzel.components.base.testing import render_isolated
@@ -176,7 +175,7 @@ class TestValueCoercion:
 
     def test_a_wrong_type_raises_with_the_component_name(self) -> None:
         with render_isolated(), pytest.raises(
-            ComponentDefinitionError, match="TimePicker"
+            ComponentUsageError, match="TimePicker"
         ):
             TimePicker(value=42).render()
 
@@ -199,7 +198,7 @@ class TestFormIntegration:
 
     def test_change_handler_is_routed_onto_the_carrier(self) -> None:
         out = _html(value=dt.time(9, 30), on_change=_change_handler)
-        # ``relocate_server_action`` lit hx-trigger et choisit la cible :
+        # ``relocate_handlers`` lit hx-trigger et choisit la cible :
         # un change va au porteur de valeur, pas au wrapper (qui n'a ni
         # name ni value, donc enverrait une FormData vide).
         assert "hx-post" not in out.split("<input")[0]
@@ -218,7 +217,7 @@ class TestBindings:
                                 field_name="start", value="09:00")
         out = _html(value=binding)
         path = "$bz.state.Slot.default.start"
-        assert f'bz-model="{path}"' in out          # champ éditable
+        assert f"{path} = $el.value" in out         # champ éditable, écrit une fois normalisé
         assert f'bz-attr:value="{path}"' in out     # input caché
 
     def test_disabled_binding_reaches_the_three_carriers(self) -> None:

@@ -122,7 +122,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[AlertPlayground])
+@refreshable
 def server_panel() -> None:
     state = AlertPlayground()
 
@@ -187,7 +187,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[AlertEvents])
+@refreshable
 def events_panel() -> None:
     state = AlertEvents()
 

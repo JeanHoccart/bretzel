@@ -90,7 +90,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[SkeletonPlayground])
+@refreshable
 def server_panel() -> None:
     state = SkeletonPlayground()
 

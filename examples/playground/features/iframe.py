@@ -82,7 +82,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[EmbedPlayground])
+@refreshable
 def server_panel() -> None:
     state = EmbedPlayground()
 

@@ -72,7 +72,7 @@ def clear_log() -> None:
 def server_changed(state: CardPlayground) -> None:
     # Typed param → the dispatcher hydrates the changed
     # control's value into ``state`` (coerced + persisted).
-    # deps=[CardPlayground] re-renders server_panel automatically.
+    # server_panel reads the state, so it re-renders automatically.
     pass
 
 
@@ -140,7 +140,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[CardPlayground])
+@refreshable
 def server_panel() -> None:
     state = CardPlayground()
 
@@ -216,7 +216,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[CardEvents])
+@refreshable
 def events_panel() -> None:
     state = CardEvents()
 

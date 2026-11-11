@@ -5,12 +5,14 @@ no custom dispatcher). The flow :
 
 1. Verify the HMAC signature (``X-Bz-Sig`` header, forwarded by the
    runtime bridge from the element's ``data-bz-sig`` stamp).
-2. Decode bound args from the ``_args`` form field if present (baked
-   into ``hx-vals`` at render time for ``functools.partial`` handlers).
+2. Decode the ``_args`` form field (baked into ``hx-vals`` at render
+   time): the ``functools.partial`` bound args, and the control's own
+   field.
 3. Resolve the callable through ``sys.modules``.
 4. Inject signature-typed args (any keyword that matches a key in the
    form data — client-state fields were already split off by the
-   render-context middleware).
+   render-context middleware). A ``ServerState`` parameter takes only
+   the fields the page rendered for this request (``writable_fields``).
 5. Run the handler ; if it returns an awaitable, ``await`` it.
 6. Drain any refreshable handles the handler queued, render the
    partial response (OOB fragments + ``<bz-patch>`` delta).
@@ -22,8 +24,10 @@ already shows the post-handler view.
 
 from __future__ import annotations
 
+import copy
 import functools
 import inspect
+import logging
 import time
 import typing
 from collections.abc import Callable
@@ -37,7 +41,7 @@ from starlette.responses import HTMLResponse, Response
 
 from bretzel.core import EventPayload, call_without_blocking
 from bretzel.render.context import current_context
-from bretzel.render.decorators.refreshable import broadcast_deps, enqueue_deps
+from bretzel.render.decorators.refreshable import broadcast_changes, enqueue_readers
 from bretzel.render.partials import drain_refresh_queue
 from bretzel.runtime.envelope import error_envelope
 from bretzel.runtime.protocol import (
@@ -52,11 +56,17 @@ from bretzel.server.decorators.background import bind_background_tasks
 from bretzel.server.errors import AuthRequiredError, BretzelError
 from bretzel.server.handlers import (
     HandlerResolutionError,
+    UnsealedActionError,
+    UploadRefusedError,
+    check_uploads,
     decode_args,
+    form_token,
     resolve_handler,
     verify_action,
+    writable_fields,
 )
 from bretzel.server.idempotency import idempotency_key, idempotent_ttl
+from bretzel.state._wire_name import DEFAULT_KEY, lookup, state_view, wire_name
 from bretzel.state.fields.descriptor import assign_fields, coerce_form_value
 from bretzel.state.registry import use_registry
 from bretzel.state.scopes.client import rendering_scope
@@ -66,6 +76,8 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
     from bretzel.render.types import BretzelApp
+
+_log = logging.getLogger("bretzel.server.actions")
 
 
 def register_action_route(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
@@ -98,13 +110,10 @@ async def _dispatch(
     signature = request.headers.get(HEADER_BZ_SIG, "")
     ts = request.headers.get(HEADER_BZ_TS, "")
 
-    # Protocol compatibility. The bridge has sent
-    # ``X-Bretzel-Protocol`` on every action POST forever, and
-    # ``check_compat`` existed with its tests — but NOBODY read the
-    # header (measured 2026-08-01: zero callers outside the tests). The
-    # real case: after a deployment, a tab left open keeps its cached
-    # ``runtime.js`` and POSTs to a server of a different major. Without
-    # this check, it broke with no message.
+    # Protocol compatibility. The bridge sends ``X-Bretzel-Protocol`` on
+    # every action POST. The real case: after a deployment, a tab left
+    # open keeps its cached ``runtime.js`` and POSTs to a server of a
+    # different major. Without this check, it breaks with no message.
     #
     # We refuse ONLY on a present and different major: an absent header
     # (old client, forged request, test) falls into the HMAC path below,
@@ -122,11 +131,13 @@ async def _dispatch(
         )
 
     action_key = bretzel_app.config._action_key  # type: ignore[attr-defined]
-    if not verify_action(action_key, action_id, args_blob, signature, ts=ts):
+    if not verify_action(action_key, action_id, args_blob, signature, ts=ts,
+                         session_id=ctx.session_id):
         # 403 not 404 — explicit "we know you tried, you can't". Body is a
         # ``_error: reload`` envelope : a bad sig is almost always a stale /
-        # rotated page token, and re-rendering mints a fresh one — so the
-        # bridge reloads instead of dead-ending on a generic toast.
+        # rotated page token (a login rotates the session), and
+        # re-rendering mints a fresh one — so the bridge reloads instead
+        # of dead-ending on a generic toast.
         return HTMLResponse(
             content=error_envelope("reload", "Invalid action signature."),
             status_code=403,
@@ -150,6 +161,16 @@ async def _dispatch(
                 status_code=403,
             )
 
+    # The page's states have expired (a tab idle past their hour): the
+    # click would act on a selection reset to zero, in silence. Reload
+    # instead — the envelope of a stale signature.
+    if ctx.state_registry is not None and await ctx.state_registry.page_expired():
+        return HTMLResponse(
+            content=error_envelope(
+                "reload", "This page has been idle too long — reloading it."),
+            status_code=409,
+        )
+
     try:
         handler = resolve_handler(action_id)
     except HandlerResolutionError:
@@ -158,14 +179,18 @@ async def _dispatch(
         return HTMLResponse(content="Unknown action.", status_code=404)
 
     bound_args, bound_kwargs = decode_args(args_blob)
+    token = form_token(ctx.form_data or {}, action_key, session_id=ctx.session_id,
+                       action_id=action_id)
+    fields = writable_fields(args_blob, token)
 
     # C — @idempotent : collapse a same-render double-submit. The key is
-    # the signed (action_id|args|ts) + user, so a re-rendered button (fresh
+    # the signed (action_id|args|ts|session) + user, so a re-rendered button (fresh
     # ts) is a distinct op. A replay short-circuits to a no-op 204.
     ttl = idempotent_ttl(handler)
     store = getattr(bretzel_app, "idempotency_store", None)
     if ttl is not None and ts and store is not None:
-        key = idempotency_key(ctx.user_id, action_id, args_blob, ts)
+        key = idempotency_key(ctx.user_id, action_id, args_blob, ts,
+                              session_id=ctx.session_id)
         if not await store.claim(key, ttl):
             return HTMLResponse(status_code=204)
 
@@ -198,12 +223,13 @@ async def _dispatch(
                 f"unreadable form would erase the fields it believes it is "
                 f"receiving."
             )
+        check_uploads(ctx.form_data or {}, token)
         with registry_cm, bind_background_tasks(bg):
             # Arg injection runs INSIDE the registry context so a
             # ``form: MyState`` parameter can resolve + hydrate the bound
             # state from the submission (registry-cached instance).
             args, kwargs = await _inject_signature_args(
-                handler, request, bound_args, bound_kwargs
+                handler, request, bound_args, bound_kwargs, fields
             )
             # Handler runs OUTSIDE ``rendering_scope`` — ClientState
             # field reads must return real values here so the body can
@@ -219,12 +245,12 @@ async def _dispatch(
 
             # Detect state mutations — including in-place list/dict ops the
             # descriptor never sees — BEFORE the drain, then enqueue every
-            # zone that declared a changed state in ``deps=`` (the
-            # declarative auto-refresh). Also flips ``_dirty`` so ``commit``
+            # zone that read a changed field (the automatic
+            # refresh). Also flips ``_dirty`` so ``commit``
             # persists in-place mutations. Runs outside ``rendering_scope``
             # (raw values) and before ``drain_refresh_queue``.
             if ctx.state_registry is not None:
-                changed = ctx.state_registry.diff_and_notify()
+                ctx.state_registry.diff_and_notify()
                 # The field NAMES, not only the classes: a component
                 # can then skip re-emitting a region the change cannot
                 # have touched. Empty elsewhere (full page, SSE refetch),
@@ -243,12 +269,12 @@ async def _dispatch(
                 # stack an identical entry, and leaving the page would
                 # take ten backs.
                 _push_addressable_url(request, ctx)
-                enqueue_deps(ctx, changed)
-                # Cross-tab fan-out for broadcast=[State] zones : every other
-                # tab (same session or another browser) gets an SSE signal
-                # to refetch. The acting tab already has the local OOB swap
-                # from enqueue_deps.
-                broadcast_deps(ctx, changed)
+                enqueue_readers(ctx, ctx.changed_fields)
+                # The other tabs showing a shared state that changed get an
+                # SSE signal to refetch, as far as its scope allows. The
+                # acting tab already has the local OOB swap from
+                # enqueue_readers.
+                broadcast_changes(ctx, ctx.changed_fields)
 
             # ── Drain refreshable / client-state delta into the response ────
             with rendering_scope():
@@ -260,6 +286,11 @@ async def _dispatch(
             # Only now may the other tabs ask again: they read the store.
             for send in ctx.deferred_broadcasts:
                 send()
+    except UploadRefusedError as exc:
+        return HTMLResponse(content=str(exc), status_code=400)
+    except UnsealedActionError as exc:
+        # Same envelope as a stale signature: re-rendering seals it.
+        return HTMLResponse(content=error_envelope("reload", str(exc)), status_code=409)
     except AuthRequiredError:
         # Caught HERE rather than left to the app-level 401 handler
         # (``routing/errors.py``) on purpose : this response is swapped
@@ -269,7 +300,14 @@ async def _dispatch(
         # shape ; the page path keeps the real error page.
         return HTMLResponse(content="Authentication required.", status_code=401)
     except BretzelError as exc:
-        return HTMLResponse(content=str(exc), status_code=500)
+        # The rule of a page (``routing/errors.py``): the message is for
+        # the developer — always logged, shown only with ``expose_errors``.
+        # It can name a file, a table, an invariant of the app.
+        _log.error("Action %s failed: %s", action_id, exc)
+        expose = bool(getattr(bretzel_app.config, "expose_errors", False))
+        return HTMLResponse(
+            content=str(exc) if expose else "The action failed.", status_code=500
+        )
     if render_result is None:
         # Nothing to refresh, no client-state changed → empty 204
         # so HTMX knows there's no swap to apply. Scheduled background
@@ -363,6 +401,40 @@ def _payload_params(handler: Callable[..., Any]) -> dict[str, type]:
     }
 
 
+def _writable(
+    handler: Callable[..., Any],
+    state_cls: type[ServerState],
+    form_data: dict[str, Any],
+    fields: frozenset[str] | None,
+) -> dict[str, Any]:
+    """``{field: value}`` of ``state_cls`` this request may write
+    (:func:`~bretzel.server.handlers.writable_fields`).
+
+    A field travels under its wire name (``Delivery.mode``) or, from a
+    control the app named itself, under the bare field name — the signed
+    list holds whichever the control rendered (``state/_wire_name.py``).
+
+    A declared field outside the list was added by the client — dropped,
+    and said once. A request with no list at all comes from a page older
+    than the server: :class:`UnsealedActionError`, it reloads rather than
+    drop what the user typed.
+    """
+    view = state_view(form_data, state_cls)
+    if view and fields is None:
+        raise UnsealedActionError(
+            "This page was rendered before its form fields were signed — "
+            "reloading to sign them."
+        )
+    refused = {
+        name for name in view
+        if name not in fields
+        and wire_name(state_cls.__name__, DEFAULT_KEY, name) not in fields
+    }
+    for name in sorted(refused):
+        _say_a_field_was_refused(handler, state_cls, name)
+    return {k: v for k, v in view.items() if k not in refused}
+
+
 async def _hydrate_state(
     state_cls: type[ServerState], form_data: dict[str, Any]
 ) -> Any:
@@ -406,6 +478,13 @@ async def _hydrate_state(
         instance.__dict__["_bz_errors"] = errors
     if raw:
         instance.__dict__["_bz_raw"] = raw
+    # What the browser shows now, typed: ``diff_and_notify`` re-renders a
+    # field the handler sets to anything else (cf. ``overridden_fields``).
+    values = instance._field_values()
+    instance.__dict__["_bz_posted"] = {
+        name: copy.deepcopy(values[name])
+        for name in submitted if name not in rejected and name in values
+    }
     return instance
 
 
@@ -414,6 +493,7 @@ async def _inject_signature_args(
     request: Request,
     bound_args: list[Any],
     bound_kwargs: dict[str, Any],
+    fields: frozenset[str] | None,
 ) -> tuple[list[Any], dict[str, Any]]:
     """Build the final ``(args, kwargs)`` tuple for ``handler``.
 
@@ -427,8 +507,9 @@ async def _inject_signature_args(
 
     A parameter annotated with a ``ServerState`` subclass
     (``def save(form: CartForm)``) is resolved through the registry and
-    **hydrated from the submission** : every declared field present in the
-    form data is written back (coerced + validated via ``Field.__set__``).
+    **hydrated from the submission** : every declared field the request
+    may write (:func:`_writable`) and the form data carries is written
+    back (coerced + validated via ``Field.__set__``).
     Handlers can still call ``CartState()`` directly for state they don't
     want bound to the form, and ``state.form_value()`` stays the escape hatch for
     one-off unbound fields.
@@ -455,7 +536,10 @@ async def _inject_signature_args(
         if name in kwargs:
             continue
         if name in state_params:
-            kwargs[name] = await _hydrate_state(state_params[name], form_data)
+            state_cls = state_params[name]
+            kwargs[name] = await _hydrate_state(
+                state_cls, _writable(handler, state_cls, form_data, fields)
+            )
             continue
         if name in payload_params:
             payload_cls = payload_params[name]
@@ -472,12 +556,15 @@ async def _inject_signature_args(
                 )
             kwargs[name] = payload_cls.from_wire(raw)
             continue
-        if name in form_data:
+        # ``mode`` itself, else THE one ``<State>.mode`` sent — two raise
+        # (``state/_wire_name.lookup``): picking one was a silent loss.
+        found, raw = lookup(form_data, name)
+        if found:
             annotation = _plain_hints(handler).get(name)
             if annotation is None:
-                kwargs[name] = form_data[name]
+                kwargs[name] = raw
                 continue
-            provided, value = coerce_form_value(form_data[name], annotation)
+            provided, value = coerce_form_value(raw, annotation)
             if provided:
                 kwargs[name] = value
             elif param.default is inspect.Parameter.empty:
@@ -511,9 +598,8 @@ def _say_a_parameter_got_no_field(
     ``def set_search(q: str = "")`` with no field named ``q`` in the
     submission runs with ``q=""``, answers 204, and nothing happens — the
     most common cause being ``value=str(state.q)``, whose cast drops the
-    ``name=`` stamp. An outside build lost an afternoon to it on
-    2026-10-22 (21 failing tests for one cast). Dev only, once per
-    (handler, parameter): production keeps its logs quiet.
+    ``name=`` stamp. Dev only, once per (handler, parameter): production
+    keeps its logs quiet.
     """
     app = getattr(ctx, "app", None)
     config = getattr(app, "config", None)
@@ -523,13 +609,8 @@ def _say_a_parameter_got_no_field(
     if annotation is not None and annotation not in _FIELD_SHAPED:
         return
     key = (getattr(handler, "__qualname__", repr(handler)), name)
-    said = getattr(app, "_bz_said_no_field", None)
-    if said is None:
-        said = set()
-        app._bz_said_no_field = said
-    if key in said:
+    if not _first_time(app, key):
         return
-    said.add(key)
     fields = ", ".join(sorted(k for k in form_data if not k.startswith("_"))) or "none"
     print(
         f"[bretzel] WARN: {key[0]}({name}): no field named {name!r} in the "
@@ -537,6 +618,41 @@ def _say_a_parameter_got_no_field(
         f"[bretzel]       Name the input {name!r}, or pass the state field "
         f"itself to value= (a str() cast drops its name)."
     )
+
+
+def _say_a_field_was_refused(
+    handler: Callable[..., Any], state_cls: type, name: str
+) -> None:
+    """Log once that a state field arrived which the request may not
+    write — and so was not written.
+
+    Either a client added it to the body, or the app expects a field its
+    page does not render where the request is sent from (a control
+    outside the form, a zone inside one refreshed alone). Both deserve a
+    line, in production too; neither may write the state.
+    """
+    key = (getattr(handler, "__qualname__", repr(handler)), state_cls.__qualname__, name)
+    if _first_time(getattr(current_context(), "app", None), key):
+        _log.warning(
+            "%s(%s): field %r arrived, but no control of this request renders "
+            "it — not written. Render its control inside the form, or take "
+            "it as a parameter of the handler.",
+            *key,
+        )
+
+
+def _first_time(app: Any, key: tuple[str, ...]) -> bool:
+    """``True`` the first time this process says ``key``: a warning about
+    the code of a handler would otherwise repeat on every request."""
+    said = getattr(app, "_bz_said", None)
+    if said is None:
+        said = set()
+        if app is not None:
+            app._bz_said = said
+    if key in said:
+        return False
+    said.add(key)
+    return True
 
 
 def _push_addressable_url(request: Any, ctx: Any) -> None:
@@ -565,8 +681,7 @@ def _push_addressable_url(request: Any, ctx: Any) -> None:
     # field back at its default leaves ``addressable_params()``; merging
     # it would therefore leave the old value in place — and since the URL
     # is authoritative on the next action, it would re-seed what the user
-    # has just left. Measured: sorting by "Sector" then "Account" kept
-    # ``?sort=sector``, and every subsequent click fell back on it.
+    # has just left.
     #
     # What the app carried itself (``?utm_source=``, a campaign id) is
     # not declared, so it survives.

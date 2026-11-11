@@ -46,6 +46,10 @@ class TabsClient(ClientState, persist="memory"):
     value: str = field(default="a")
 
 
+class TabsExternal(ClientState, persist="memory"):
+    tab: str = field(default="a")
+
+
 class TabsClientEvents(ClientState, persist="memory"):
     log: list = field(default_factory=list)
 
@@ -137,7 +141,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[TabsPlayground])
+@refreshable
 def server_panel() -> None:
     state = TabsPlayground()
 
@@ -224,7 +228,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[TabsEvents])
+@refreshable
 def events_panel() -> None:
     state = TabsEvents()
 
@@ -642,6 +646,37 @@ def page() -> None:
                         "round-trip.",
                         serialize_html(preview),
                     )
+
+            # ── External controls — the 3 modes ──────────────────
+            with ui.card():
+                with ui.vstack():
+                    ui.heading("External controls — the 3 modes", level=2)
+                    ui.text(
+                        "``.set(tab)`` opens a tab from outside the bar. Without "
+                        "a binding it dispatches a DOM command; with one it "
+                        "writes through the binding.",
+                        color="muted", size="sm",
+                    )
+                    ui.heading("Mode 1 — Imperative only (default)", level=3)
+                    with ui.tabs(value="a") as m1:
+                        ui.tab("a", label="A")
+                        ui.tab("b", label="B")
+                    with ui.hstack(gap="sm"):
+                        ui.button("Open A", on_click=m1.set("a"))
+                        ui.button("Open B", variant="outline", on_click=m1.set("b"))
+                    ui.divider()
+                    ui.heading("Mode 2 — ClientBinding only", level=3)
+                    external = TabsExternal()
+                    with ui.tabs(value=external.tab):
+                        ui.tab("a", label="A")
+                        ui.tab("b", label="B")
+                    ui.button("Open B", variant="outline", on_click=external.tab.set("b"))
+                    ui.divider()
+                    ui.heading("Mode 3 — Binding + .set()", level=3)
+                    with ui.tabs(value=external.tab) as m3:
+                        ui.tab("a", label="A")
+                        ui.tab("b", label="B")
+                    ui.button("Open A", on_click=m3.set("a"))
 
             # ── Card 9 — Client events ──────────────────────────────
             with ui.card():

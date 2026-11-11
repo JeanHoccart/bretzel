@@ -1,9 +1,8 @@
 """Reading a live Python signature — the shared primitive.
 
-Taken out of ``examples/docs/lib/introspect.py`` on 2026-08-16, at the
-same time as the rest of the engine: as long as it lived in an example,
-neither the framework, nor a CLI, nor third-party tooling could depend on
-it (a module in ``bretzel/`` cannot import ``examples/``).
+It lives in the framework, with the rest of the engine, so that the
+framework, a CLI and third-party tooling can depend on it (a module in
+``bretzel/`` cannot import ``examples/``).
 
 Named ``_signature`` and not ``_labels`` — it carries more than labels,
 it carries :func:`describe_callable`, which every section of

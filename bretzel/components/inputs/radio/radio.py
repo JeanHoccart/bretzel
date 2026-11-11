@@ -1,11 +1,13 @@
 """``Radio`` + ``RadioGroup`` — single-choice input cluster.
 
 Composition pattern : children ``Radio`` instances live inside a
-``RadioGroup`` ``with`` block. The group provides the ``name=`` and
-``value=`` (currently selected) ; each radio reads them at render
-time and emits the matching ``<input type="radio" name="..." …>``
-plus a styled fake-circle + dot overlay (same idiom as
-checkbox / switch).
+``RadioGroup`` ``with`` block. The group provides the ``value=``
+(currently selected) ; each radio emits an ``<input type="radio">``
+named PRIVATELY to its group (``_<group id>``), plus a styled
+fake-circle + dot overlay (same idiom as checkbox / switch). The
+FIELD (``name=``, or the autoname ``State.field``) rides one hidden
+carrier per group: two groups of one field are two groups for the
+browser, not one.
 
 Two-way bind via ``value=state.field`` on the GROUP — the radio
 children all wire ``bz-model`` to that path. Native browser semantics
@@ -18,23 +20,32 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import reject_sealed
+from bretzel.components.base.arguments import has_content, reject_sealed
 from bretzel.components.base.attrs import ComponentUsageError
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.focus import FocusCommands
 from bretzel.components.inputs.radio.theme import (
     RADIO_GROUP_THEME,
     RADIO_THEME,
 )
 from bretzel.core.tree import Element
 
+#: Marks a group's hidden value carrier (``RadioGroup.render``).
+_CARRIER = "data-bz-radio-value"
 
-class RadioGroup(Component):
+
+class RadioGroup(ValueCommands, FocusCommands, Component):
     """Container for a cluster of ``Radio`` items. Owns the ``name``
     and the bound ``value``."""
 
     THEME: ClassVar[dict[str, Any]] = RADIO_GROUP_THEME
     THEME_KEY: ClassVar[str] = "radio_group"
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
-    IMPERATIVE: ClassVar[tuple[str, ...]] = ("set",)
+    IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "clear", "focus", "blur")
+    # Where ``autofocus=`` / ``.focus()`` land: the checked radio, else the first.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = (
+        "input:checked:not([disabled])", "input:not([disabled])",
+    )
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
@@ -70,18 +81,20 @@ class RadioGroup(Component):
             on_change=on_change,
             **kwargs,
         )
-
-    # ── Imperative write-only API ─────────────────────────────────────
-    #
-    # Only ``.set(value)`` — RadioGroup is one-of-N, so ``.clear()``
-    # (deselect-all) has no use case and ``.focus()`` / ``.blur()`` have
-    # no single target. Write-through when ``value=`` carries a binding ;
-    # else DOM dispatch caught by the wrapper's ``bz-on:bz-set``. Cf.
-    # `imperative-api.md`.
-
-    def set(self, value: Any) -> str:
-        return self._value_command(value)
-
+        # An unknown direction would render NO class, without a word, and
+        # the choices would go in a cramped row. Same refusal as
+        # ``Flex``'s tables. A bound direction is not a literal: it is
+        # not checked here.
+        literal = self._reactive_values.get("direction")
+        directions = self._resolved_theme().get("directions", {})
+        if isinstance(literal, str) and literal not in directions:
+            accepted = ", ".join(repr(k) for k in directions)
+            raise ComponentUsageError(
+                f"RadioGroup(direction={literal!r}) is not a known value. "
+                f"Accepted values: {accepted}.\n"
+                f"  Without this refusal, the call would render an EMPTY "
+                f"class — valid HTML, no error, the choices simply in a row."
+            )
 
     def render(self) -> Element:
         theme = self._resolved_theme()
@@ -109,15 +122,14 @@ class RadioGroup(Component):
         # EMPTY form and ``on_change(value=...)`` never sees the pick
         # (the bound value still rides as namespaced signal state, but
         # that's consumed as state-sync, not handler kwargs). Pull the
-        # checked radio into the request via ``hx-include`` scoped to this
-        # group's id. Works for BOTH bound (autoname ``name="value"``) and
-        # unbound (explicit ``name=``) groups.
+        # group's VALUE CARRIER (below) into the request via
+        # ``hx-include`` scoped to this group's id. Works for BOTH bound
+        # (autoname ``name="State.field"``) and unbound (explicit
+        # ``name=``) groups.
         if "hx-post" in attrs:
             group_id = attrs.get("id")
             if group_id:
-                attrs["hx-include"] = (
-                    f"#{group_id} input[type=\"radio\"]"
-                )
+                attrs["hx-include"] = f"#{group_id} input[{_CARRIER}]"
         # role + aria-required for screen readers : the cluster is the
         # actual semantic radiogroup, not the individual <input>s.
         attrs.setdefault("role", "radiogroup")
@@ -127,32 +139,59 @@ class RadioGroup(Component):
         # when no binding is in play. Iterate the child radios, flip
         # ``.checked`` to match the payload, then fire a synthetic
         # ``change`` on the selected one so ``on_change=`` handlers run
-        # (and ``bz-model`` syncs in the binding case). Cf. `imperative-api.md`.
+        # (and ``bz-model`` syncs in the binding case). Nothing ticked
+        # (``.clear()``): no radio can tell, so the group empties the field
+        # and fires the ``change`` itself. Cf. `imperative-api.md`.
         attrs["bz-on:bz-set"] = (
+            "let hit = false; "
             "$el.querySelectorAll('input[type=\"radio\"]').forEach("
             "r => { r.checked = (r.value === String($event.detail.value)); "
-            "if (r.checked) r.dispatchEvent("
-            "new Event('change', {bubbles: true})); })"
+            "if (r.checked) { hit = true; r.dispatchEvent("
+            "new Event('change', {bubbles: true})); } }); "
+            f"if (!hit) {{ const c = $el.querySelector('[{_CARRIER}]'); "
+            "if (c) c.value = ''; "
+            "$el.dispatchEvent(new Event('change', {bubbles: true})); }"
         )
-        # Effective form name for the child radios : an explicit ``name=``
-        # (cosmetic, in ``_reactive_values``) OR the autoname derived by
-        # ``emit_attrs`` from a ``value=`` binding (lands in ``attrs``).
-        # The radios read this — without it a BOUND group's radios emit no
-        # ``name`` at all, so they never serialise and ``on_change`` gets
-        # an empty form (the value only rides as namespaced signal state).
-        # Last resort, the group's own identity: radios without a common
-        # ``name`` do not exclude each other — an unnamed, unbound group
-        # let "Standard" and "Express" be ticked together. Prefixed
-        # ``_``, the wire's mark for plumbing: it is never handed to a
-        # ``**kwargs`` handler as if the app had named the field.
-        self._radio_name = (
-            self._reactive_values.get("name") or attrs.get("name")
-            or (f"_{attrs['id']}" if attrs.get("id") else None)
-        )
+        # ── Two names, two jobs ──────────────────────────────────────
+        # A radio's ``name`` does TWO things: the browser groups every
+        # radio of one name (one ticked among them), and a form sends the
+        # ticked one under it. One name cannot do both once two groups
+        # share a field: several groups bound to one ``value`` would be
+        # ONE group for the browser, and ticking an option in the first
+        # would untick it everywhere else. Same with two
+        # ``ui.radio_group(name="plan")`` in two cards.
+        #
+        # So the radios take a name PRIVATE to this group — its identity,
+        # prefixed ``_``, the wire's mark for plumbing (never handed to a
+        # ``**kwargs`` handler) — and the FIELD rides a hidden carrier:
+        # an explicit ``name=``, else the autoname (``State.field``). The
+        # carrier follows the ticked radio (each radio writes it on
+        # ``change``, before the group's own ``hx-trigger`` reads it) and,
+        # bound, the store (a mirror group elsewhere ticking for it).
+        self._radio_name = f"_{self.id}"
+        field_name = self._reactive_values.get("name") or attrs.get("name")
+        self._carries_value = bool(field_name)
+        children = list(self._render_children())
+        if field_name:
+            initial = self._reactive_values.get("value")
+            carrier: dict[str, Any] = {
+                "type": "hidden",
+                "name": field_name,
+                "value": "" if initial is None else str(initial),
+                _CARRIER: "",
+            }
+            binding = self._binding_metadata.get("value")
+            if binding is not None:
+                carrier["bz-attr:value"] = self.path_of(binding)
+            # A disabled group sends nothing, as its disabled radios do.
+            if self._reactive_values.get("disabled") is True:
+                carrier["disabled"] = True
+            self.forward_binding("disabled", carrier)
+            children.insert(0, Element(tag="input", attrs=carrier, children=()))
         return Element(
             tag=self._tag,
             attrs=attrs,
-            children=self._render_children(),
+            children=tuple(children),
         )
 
 
@@ -180,10 +219,6 @@ class Radio(Component):
     # ``__init__`` — it MUST be there, before the ``super().__init__``:
     # the kwarg collision is raised by Python when building the call, so
     # the base layer never sees it.
-    #
-    # ⚠️ This comment said "produces a multiple values" and left it at
-    # that, until 2026-09-04. That was describing an unreadable message
-    # instead of fixing it — nothing would have prompted a return to it.
     SEALED_PROPS: ClassVar[tuple[str, ...]] = ("option_value",)
     #: The refusal's message. Without it, ``reject_sealed``'s default
     #: speaks of an AXIS — true for a stack, false here.
@@ -208,9 +243,9 @@ class Radio(Component):
 
     def __init__(
         self,
-        value: str = "",
+        value: str,
         *,
-        label: str | None = None,
+        label: str | Component | None = None,
         name: str | None = None,
         color: str | None = None,
         size: str | None = None,
@@ -234,18 +269,20 @@ class Radio(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # ``adopt_slot`` + ``emit_text_slot`` are a COUPLE (cf.
-        # emit_text_slot's docstring): the 1st detaches the Component
-        # (otherwise rendered twice), the 2nd RENDERS it (otherwise it
-        # goes into TextNode() which expects a string → `'Text' object
-        # has no attribute 'replace'` at serialize). Doing one without
-        # the other swaps one bug for another.
-        self._label = Component.adopt_slot(label)
+        self._label = label
         # Capture the enclosing RadioGroup at construction time : the
         # ``with RadioGroup(...) as rg`` block is still active here, so
         # the group is on ``parent_stack``. By render time the ``with``
         # has exited and the stack lookup would return None.
         self._group: RadioGroup | None = self._lookup_group()
+
+    def _size_key(self) -> str | None:
+        """Its own ``size=``, else its group's, else ``md``: a radio's
+        size is ``None`` by default — "inherit"."""
+        group = self._group
+        return self._reactive_values.get("size") or (
+            group._reactive_values.get("size") if group else None
+        ) or "md"
 
     def render(self) -> Element:
         # Inherit name / size / disabled / value-binding from the
@@ -254,24 +291,18 @@ class Radio(Component):
         # ``color`` is NOT in that list, and it is not an oversight: the
         # group carries the ``bz-c-<colour>`` bridge class on its root,
         # and the eleven steps flow down in CSS over the whole subtree.
-        # Re-reading it here gave a variable nobody used — removed on
-        # 2026-09-07, checked by render: a ``color="warning"`` group does
-        # render ``bz-c-warning`` around its radios.
         group = self._group
-        size_key = self._reactive_values.get("size") or (
-            group._reactive_values.get("size") if group else None
-        ) or "md"
+        size_key = self._size_key()
         # The out-of-table refusal, HERE and not on the prop — it is
-        # the only point where the EFFECTIVE size exists. Two reasons,
-        # measured on 2026-09-07:
+        # the only point where the EFFECTIVE size exists. Two reasons:
         #
         # - ``Radio.size`` is ``None`` by default ("inherit"), and the
         #   generic refusal uses the default as an ANCHOR to know which
         #   of a nested table's two levels carries the steps. With no
-        #   anchor it abstained, and ``size="zzz"`` rendered a radio WITH
-        #   NO SIZE AT ALL;
+        #   anchor it abstains, and ``size="zzz"`` would render a radio
+        #   WITH NO SIZE AT ALL;
         # - the size can come from the GROUP, which has no table of its
-        #   own. ``ui.radio_group(size="zzz")`` therefore went through
+        #   own. ``ui.radio_group(size="zzz")`` would therefore go through
         #   the whole render without a word.
         #
         # The table is read RESOLVED: an app's ``Theme(components=
@@ -335,9 +366,6 @@ class Radio(Component):
             group._reactive_values.get("value") if group else None
         )
 
-        size_map: dict[str, str] = (
-            self._resolved_theme().get("sizes", {}).get(size_key) or {}
-        )
         opt_value = self._reactive_values.get("option_value") or ""
 
         # The real <input>. Sr-only ; carries name + value + framework
@@ -345,14 +373,22 @@ class Radio(Component):
         input_attrs: dict[str, Any] = {
             "type": "radio",
             "value": str(opt_value),
-            "class": self.compose_class(
-                "input", apply_variant_size_modifiers=False
-            ),
+            "class": self.compose_class("input"),
         }
         input_attrs.update(self.emit_attrs())
 
         if name:
             input_attrs["name"] = name
+        # The group's value carrier follows the ticked radio — written on
+        # the radio itself, so before the group's ``hx-trigger="change"``
+        # (bubbling, on the root) serialises it (``RadioGroup.render``).
+        if group is not None and getattr(group, "_carries_value", False):
+            write = (
+                "$el.closest('[role=radiogroup]')"
+                f".querySelector('[{_CARRIER}]').value = $el.value"
+            )
+            prior = input_attrs.get("bz-on:change")
+            input_attrs["bz-on:change"] = f"{write}; {prior}" if prior else write
         # Binding lives on the GROUP, not on this radio — inject it
         # through ``_bind_x_model``'s explicit-binding overload. When
         # the group has no binding the helper is a no-op and we fall
@@ -367,34 +403,13 @@ class Radio(Component):
         ):
             input_attrs["checked"] = True
 
-        circle_class = " ".join(
-            p
-            for p in (
-                self.compose_class(
-                    "circle",
-                    apply_variant_size_modifiers=False,
-                ),
-                size_map.get("circle", ""),
-            )
-            if p
-        )
-        dot_class = " ".join(
-            p
-            for p in (
-                self.compose_class(
-                    "dot", apply_variant_size_modifiers=False
-                ),
-                size_map.get("dot", ""),
-            )
-            if p
-        )
+        circle_class = self.compose_class("circle")
+        dot_class = self.compose_class("dot")
 
         container = Element(
             tag="div",
             attrs={
-                "class": self.compose_class(
-                    "container", apply_variant_size_modifiers=False
-                )
+                "class": self.compose_class("container")
             },
             children=(
                 Element(tag="input", attrs=input_attrs, children=()),
@@ -408,17 +423,9 @@ class Radio(Component):
         )
 
         children: list[Any] = [container]
-        if self._label:
-            label_class = " ".join(
-                p
-                for p in (
-                    self.compose_class(
-                        "label", apply_variant_size_modifiers=False
-                    ),
-                    size_map.get("label", ""),
-                )
-                if p
-            )
+        # A bound label (ClientBinding) refuses a truth test — has_content.
+        if has_content(self._label):
+            label_class = self.compose_class("label")
             children.append(
                 Element(
                     tag="span",
@@ -429,7 +436,7 @@ class Radio(Component):
 
         return Element(
             tag=self._tag,
-            attrs={"class": self.compose_class("root", )},
+            attrs={"class": self.compose_class("root")},
             children=tuple(children),
         )
 

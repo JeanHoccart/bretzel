@@ -51,9 +51,11 @@ from urllib.parse import urlsplit
 from starlette.responses import RedirectResponse, Response
 from starlette.routing import compile_path
 
+from bretzel.core.base_path import same_host, with_base, without_base
 from bretzel.core.errors import BretzelError
 
 __all__ = [
+    "PageRedirectError",
     "redirect",
     "redirect_response",
     "reload",
@@ -90,7 +92,10 @@ _HX_PUSH_URL = "HX-Push-Url"
 _HX_LOCATION = "HX-Location"
 
 
-def _validate(url: str) -> None:
+def _validate(url: str, request: Any = None, *, off_origin: bool = False) -> None:
+    """Refuse a URL that would split the header — and, unless the framework
+    itself leaves the origin (an OAuth door, :func:`_leave_origin`), one
+    that is not a path of this site."""
     if not isinstance(url, str) or not url:
         raise TypeError("redirect() expects a non-empty URL")
     if any(ch in url for ch in _HEADER_UNSAFE):
@@ -99,6 +104,29 @@ def _validate(url: str) -> None:
             "NUL) — refused: inside a header, it would allow others to "
             "be written."
         )
+    if not off_origin and not _is_local_path(url) and not same_host(url, request):
+        raise ValueError(
+            f"redirect() takes a path of this site (\"/invoices/42\") or a "
+            f"full address on this host, not {url!r}. A target often comes from the user (``?next=``): "
+            f"\"javascript:…\" would run script in your origin, "
+            f"\"//host\" or \"https://…\" would send your users elsewhere."
+        )
+
+
+def _is_local_path(url: str) -> bool:
+    r"""Is ``url`` a path of this origin — ``/`` then anything but a second
+    ``/`` or a ``\``?
+
+    Each refusal is a way out that a prefix test lets through: ``//host``
+    is a URL without a scheme, a browser reads ``/\host`` as ``//host``,
+    and it DROPS tabs and newlines before parsing, so ``/<tab>/host``
+    becomes ``//host`` — any control character is refused.
+    """
+    return (
+        url.startswith("/")
+        and url[1:2] not in ("/", "\\")
+        and not any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in url)
+    )
 
 
 def response_is_read_by_htmx(request: Any) -> bool:
@@ -117,8 +145,8 @@ def response_is_read_by_htmx(request: Any) -> bool:
 
     ⚠️ ``ctx.is_action`` would look like a better proxy. It is not, for
     two reasons: it would miss partial nav and refresh, and above all
-    **nothing sets it to ``True``** in the framework. That reserved field
-    is tracked in ``.claude/work/todo.md``.
+    **nothing sets it to ``True``** in the framework: the field is only
+    reserved.
     """
     headers = getattr(request, "headers", None)
     return headers is not None and headers.get("HX-Request") == "true"
@@ -154,7 +182,20 @@ def redirect_response(request: Any, url: str, *, status_code: int = 302) -> Resp
     ``status_code`` applies only to the browser branch (303 after a bare
     form POST, 307/308 to preserve the method).
     """
-    _validate(url)
+    _validate(url, request)
+    return _respond(request, url, status_code)
+
+
+def _leave_origin(request: Any, url: str) -> Response:
+    """:func:`redirect_response` to ANOTHER origin — for the framework only
+    (an OAuth door sending the browser to its provider). Its URL comes from
+    the provider's configuration, never from a request."""
+    _validate(url, off_origin=True)
+    return _respond(request, url, 302)
+
+
+def _respond(request: Any, url: str, status_code: int) -> Response:
+    url = with_base(url)
     if response_is_read_by_htmx(request):
         # Empty body: htmx reads the header and navigates, it swaps
         # nothing.
@@ -162,35 +203,56 @@ def redirect_response(request: Any, url: str, *, status_code: int = 302) -> Resp
     return RedirectResponse(url, status_code=status_code)
 
 
-def redirect(url: str) -> None:
-    """Navigate the browser to ``url`` after the current request.
+class PageRedirectError(BretzelError):
+    """:func:`redirect` called while a page renders for an ordinary
+    navigation. The page route answers it with a real redirect
+    (``routing/pages.py``); it only surfaces where no page is rendering —
+    an API route, a ``@download`` —, with the way out in its message."""
 
-    Like a link: when the displayed page and ``url``'s page share a
-    layout, only that layout's outlet changes — the sidebar, its scroll
-    and the client state stay mounted (``HX-Location``). Otherwise, or
-    for another origin, the browser loads the whole document
-    (``HX-Redirect``).
+    def __init__(self, url: str) -> None:
+        super().__init__(
+            f"redirect({url!r}) outside a page render and outside htmx: there "
+            f"is no response here for it to turn into a redirect. From a "
+            f"middleware or a FastAPI route, return redirect_response(request, "
+            f"url)."
+        )
+        self.url = url
+
+
+def redirect(url: str) -> None:
+    """Navigate the browser to ``url``.
+
+    After a click (an action, a refresh, a boosted partial navigation):
+    like a link — when the displayed page and ``url``'s page share a
+    layout, only that layout's outlet changes, the sidebar, its scroll and
+    the client state stay mounted (``HX-Location``); otherwise the browser
+    loads the whole document (``HX-Redirect``).
+
+    While a page renders for an ordinary navigation — a typed address, a
+    reload — it stops the render, and the browser gets a real ``307`` to
+    ``url``: an address that only leads elsewhere is a page ::
+
+        @page("/")
+        def home() -> None:
+            redirect("/strategies")
+
+    ``url`` is a path of this site (:func:`_is_local_path`), or a full
+    address on this same host — a sibling app, on another port or under
+    another ``base_path``. A target often comes from the user: another host
+    is refused.
     """
     from bretzel.render.context import current_context
 
-    _validate(url)
     ctx = current_context()
+    _validate(url, ctx.request)
     if not response_is_read_by_htmx(ctx.request):
-        raise BretzelError(
-            "redirect() only has an effect on a response read by htmx "
-            "(an action, a refresh, or a boosted partial navigation) — "
-            "the current request is a classic page render, where the "
-            "HX-Redirect header would be silently ignored. From a "
-            "middleware, call redirect_response(request, url): it has no "
-            "render context and can answer a real 302. To refuse the page "
-            "rather than redirect, abort(401) + @error_page(401)."
-        )
+        raise PageRedirectError(url)
     outlet = _shared_outlet(ctx.app, ctx.request, url)
     if outlet is None:
-        ctx.set_header(_HX_REDIRECT, url)
+        ctx.set_header(_HX_REDIRECT, with_base(url))
         return
     ctx.set_header(_HX_LOCATION, json.dumps({
-        "path": url,
+        "path": with_base(url),
         "target": f"#{outlet}",
         "swap": "morph:innerHTML",
     }))
@@ -250,7 +312,7 @@ def _shared_outlet(app: Any, request: Any, url: str) -> str | None:
             return path[len(root):] or "/"
         return path
 
-    here = _layout_chain_of(app, local(urlsplit(current).path))
+    here = _layout_chain_of(app, without_base(local(urlsplit(current).path)))
     there = _layout_chain_of(app, local(target.path))
     if not here or not there:
         return None

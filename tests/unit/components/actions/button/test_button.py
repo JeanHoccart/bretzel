@@ -239,11 +239,12 @@ class TestEvents:
         with render_isolated(), pytest.raises(HandlerError, match="Lambda"):
             Button("X", on_click=lambda: None)
 
-    def test_two_server_handlers_rejected(self) -> None:
-        # V3 constraint : an element carries ONE hx-post — two server
-        # handlers on the same Button raise at construction.
-        with render_isolated(), pytest.raises(HandlerError, match="ONE hx-post"):
-            Button("X", on_focus=my_action, on_blur=my_action)
+    def test_two_server_handlers_both_post(self) -> None:
+        # An element carries ONE hx-post: the second handler rides a
+        # hidden carrier inside the button (2026-10-29, audit D4).
+        with render_isolated():
+            out = serialize(Button("X", on_focus=my_action, on_blur=my_action).render())
+        assert 'hx-trigger="focus"' in out and 'hx-trigger="focusout from:#' in out
 
     def test_server_handler_coexists_with_client_string(self) -> None:
         # A single server handler can coexist with any number of

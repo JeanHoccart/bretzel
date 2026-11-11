@@ -19,14 +19,10 @@ import socket
 class PortAlreadyTakenError(OSError):
     """The port is already held — said BEFORE launching anything.
 
-    It is the cheap half of the remedy for a flaw measured on
-    2026-09-03: ``watchfiles.run_process`` launches uvicorn in a CHILD
-    process, and when the parent dies without propagating — terminal
-    closed, ``timeout``, kill — **the child survives and keeps the
-    port**. The next launch then fails INSIDE the child, and depending on
-    the terminal the ``[Errno 10048]`` does not even surface: one sees
-    "watching: …" then the prompt, and nothing else. Seen for real, PID
-    5640 holding 8006 while ``netstat`` said nothing about it.
+    ``watchfiles.run_process`` launches uvicorn in a CHILD process, so a
+    launch on a held port fails INSIDE that child, and depending on the
+    terminal the ``[Errno 10048]`` does not even surface: one sees
+    "watching: …" then the prompt, and nothing else.
 
     A bind attempt in the PARENT costs a millisecond and puts the error
     back where the user reads it.
@@ -36,8 +32,8 @@ class PortAlreadyTakenError(OSError):
 def ensure_port_is_free(host: str, port: int) -> None:
     """Raise :class:`PortAlreadyTakenError` if ``(host, port)`` is taken.
 
-    ⚠️ We do NOT name the process holding the port: the 2026-09-03
-    measurement showed ``netstat`` can return nothing where
+    ⚠️ We do NOT name the process holding the port: ``netstat`` can
+    return nothing where
     ``Get-NetTCPConnection`` sees the holder. Promising a PID we cannot
     obtain reliably would be worse than promising nothing — we say what
     we know, and we say how to find it.
@@ -64,15 +60,40 @@ def ensure_port_is_free(host: str, port: int) -> None:
         probe.close()
 
 
+def exit_with_parent(poll: float = 1.0) -> None:
+    """In a spawned child: leave when the parent is gone.
+
+    The parent can die without telling (a terminal closed, a ``timeout``,
+    a preview stopped), and an orphan child would keep holding its folder.
+    So the child watches its parent's sentinel and exits with it.
+    """
+    import multiprocessing
+    import os
+    import threading
+
+    parent = multiprocessing.parent_process()
+    if parent is None:
+        return
+
+    def watch() -> None:
+        parent.join()          # returns when the parent process ends
+        os._exit(0)
+
+    threading.Thread(target=watch, daemon=True, name="bretzel-exit-with-parent").start()
+
+
 def _run_uvicorn(target: str, host: str, port: int, log_level: str) -> None:
     """Run a uvicorn server against a ``"module:varname"`` target.
 
     Module-level so :func:`watchfiles.run_process` can re-import it
     in the spawned child process. Each child runs this once ; on a
     file change the parent kills it and respawns a fresh process
-    that re-imports the user's app from scratch.
+    that re-imports the user's app from scratch. It leaves with its
+    parent (:func:`exit_with_parent`).
     """
     import uvicorn
+
+    exit_with_parent()
 
     uvicorn.run(target, host=host, port=port, log_level=log_level)
 
@@ -96,11 +117,10 @@ def run_dev_server(
     ⚠️ Raises :class:`PortAlreadyTakenError` before any launch if the
     port is already held — cf. its docstring for the flaw that closes.
 
-    ⚠️ **What stays open**: the child's end of life. A parent killed
-    abruptly propagates nothing to it, and that is what CREATES the
-    situation detected here. The clean remedy on Windows is a Job Object
-    that kills its children with it; it is not written. Detecting is
-    better than suffering, but it is not the root.
+    The child's end of life: a parent killed abruptly propagates
+    nothing, so the child watches its parent and leaves with it
+    (:func:`exit_with_parent`). The port check stays for whatever else
+    holds the port.
     """
     from watchfiles import PythonFilter, run_process
 

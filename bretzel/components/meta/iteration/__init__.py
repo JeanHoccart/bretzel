@@ -7,14 +7,13 @@ straddle two layers by necessity :
   :mod:`bretzel.render.iteration` module only carries the key stack
   (``_KEY_STACK`` / ``current_iteration_key`` / ``_extract_key``), and
   neither defines nor re-exports ``each``.
-- ``filter_each`` / ``paginate_each`` build *on* ``each`` by wrapping each
-  item's body in a component (a ``bz-show`` window), so they are
+- ``filter_each`` / ``paginate_each`` / ``limit_each`` wrap each item's
+  body in a component (a ``bz-show`` window), so they are
   **component-layer** and live here.
 
 Re-exported together so callers — and the ``ui.*`` namespace — find the
-whole family in one place. Future reactive members (e.g. server-side
-``sort`` / ``group`` are intentionally NOT here : reorder is a refreshable
-concern, cf. ``todo.md``) would join this package.
+whole family in one place. Server-side ``sort`` / ``group`` are
+intentionally NOT here : reorder is a refreshable concern.
 """
 
 from bretzel.components.meta.iteration.drag_each import drag_each

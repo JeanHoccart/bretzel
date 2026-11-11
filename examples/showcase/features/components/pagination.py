@@ -27,7 +27,7 @@ def turn_page(page: int) -> None:
     Ledger().page = page
 
 
-@refreshable(deps=[Ledger])
+@refreshable
 def ledger() -> None:
     page = int(Ledger().page)
     rows = invoices()[(page - 1) * 6:page * 6]

@@ -114,6 +114,12 @@ class Backend(Protocol):
         place. That is where the merge differs from :meth:`save` — a
         partial write has no business deciding the fate of a duration it
         did not set.
+
+        With nothing to write (``changes`` and ``add`` empty), a ``ttl``
+        still renews the expiration of a row that EXISTS, and creates
+        none: that is how a state read and not written stays alive
+        (``StateRegistry.commit``). A backend that ignores the empty
+        merge loses only that renewal.
         """
         ...
 

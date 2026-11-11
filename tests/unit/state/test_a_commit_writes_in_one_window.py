@@ -41,9 +41,13 @@ class _Compteur(MemoryBackend):
         self.en_cours = 0
         self.pic = 0
         self.appels = 0
+        #: Les champs envoyés, appel par appel, quand il y en a.
+        self.champs: list[dict] = []
 
     async def merge(self, scope, key, changes, *, add=None, ttl=None):
         self.appels += 1
+        if changes or add:
+            self.champs.append({**changes, **(add or {})})
         self.en_cours += 1
         self.pic = max(self.pic, self.en_cours)
         try:
@@ -119,7 +123,9 @@ async def test_a_clean_state_writes_nothing() -> None:
     registre = StateRegistry(backend=backend, session_id="s1")
     registre.register(Un())  # lu, jamais muté
     await registre.commit()
-    assert backend.appels == 0, (
+    # Une fusion VIDE passe — elle repousse l'échéance d'un état lu
+    # (``test_a_state_read_stays_alive.py``) ; aucun champ ne part.
+    assert backend.champs == [], (
         "un état propre a été écrit : le groupage a perdu le filtre "
         "``_dirty``."
     )

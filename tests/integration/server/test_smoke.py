@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from bretzel import Bretzel, page, ui
+from tests._session import session_of
 
 
 _SECRET = "x" * 32
@@ -167,10 +168,10 @@ class TestActions:
 
         app = Bretzel(secret_key=_SECRET, mode="dev")
         action_id = encode_action_id(smoke_action)
-        signature = sign_action(app.config._action_key, action_id, "")
-
         _call_log.clear()
         with TestClient(app) as client:
+            signature = sign_action(app.config._action_key, action_id, "",
+                                    session_id=session_of(client))
             # V3 wire : sig in the X-Bz-Sig header (the bridge forwards
             # it from data-bz-sig), _args as a regular form field.
             response = client.post(
@@ -216,8 +217,9 @@ class TestActions:
         app = Bretzel(secret_key=_SECRET, mode="dev")
         # Sign correctly, but the resolved id won't exist.
         bogus = "does.not.exist::nope"
-        signature = sign_action(app.config._action_key, bogus, "")
         with TestClient(app) as client:
+            signature = sign_action(app.config._action_key, bogus, "",
+                                    session_id=session_of(client))
             response = client.post(
                 f"/_bretzel/action/{bogus}",
                 headers={"X-Bz-Sig": signature},

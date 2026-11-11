@@ -8,8 +8,8 @@ Two requests that read 5 both send "set 6": one is missing. Declaring
 ``field(default=0, merge="add")`` sends the DELTA instead, which the
 store applies itself — and both count.
 
-Nothing reports the omission. Measured on 2026-09-04: alone in front of
-their screen, a developer NEVER meets it, because their requests are
+Nothing reports the omission. Alone in front of their screen, a
+developer NEVER meets it, because their requests are
 sequential — each reads what the previous one wrote. It takes two tabs
 clicking together, or two users. The fault therefore waits for
 production, and there it does not raise either: a counter simply advances
@@ -35,9 +35,8 @@ are safe:
 - ``PageState`` only lives for the duration of a render; two quick clicks
   on the same page can overlap, but what is lost there dies with the tab.
 
-Measured over ``examples/`` on 2026-09-05: 45 increments on an
-``AppState``, 4 on a session, 2 on a page. The scope that matters is also
-the one where the pattern is most frequent.
+The scope that matters is also the one where the pattern is most
+frequent.
 
 What the rule cannot see
 ------------------------

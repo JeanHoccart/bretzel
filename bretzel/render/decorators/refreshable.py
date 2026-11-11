@@ -2,71 +2,41 @@
 
 The decorated function is wrapped in a :class:`RefreshableHandle`. The
 handle is callable like the original function (so it slots into a page
-render naturally). A zone re-renders declaratively when a state in its
-``deps=`` changes ; :func:`refresh` (the free function) forces one
-imperatively from anywhere.
+render naturally). A zone re-renders when a field it read during its
+render changes — every ``MyState()`` call made while it renders, directly
+or through any helper, is recorded, and :class:`~bretzel.state.Topic`
+adds what is not a state. The redraw reaches every open tab showing the
+zone, as far as the scope of what changed allows; :func:`refresh` (the
+free function) forces one imperatively.
 
 """
 
 from __future__ import annotations
 
+import functools
 import inspect
-import json
-from collections.abc import Callable, Iterable, Sequence
+import sys
+import warnings
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from functools import partial
+from types import ModuleType
 from typing import Any, ClassVar
 
-from bretzel.core import hash_segment
+from bretzel.core import TRACKER, hash_segment
+from bretzel.core.base_path import with_base
 from bretzel.render.context import maybe_current_context
 from bretzel.runtime.protocol import (
     DATA_SUBSCRIBE_STATE,
     DATA_SUBSCRIBE_URL,
     DATA_ZONE,
+    DATA_ZONE_READS,
+    REFETCH_SIG_PARAM,
     ROUTE_REFETCH,
-    SSE_EVENT_ZONE_ROWS,
     WIRE_ID_SEP,
 )
-
-
-def _resolve_broadcast(
-    broadcast: Sequence[type], zone: str
-) -> tuple[type, ...]:
-    """``broadcast=`` → the states the zone listens to over SSE.
-
-    **Orthogonal to ``deps``**, and that is the whole model:
-
-    ==============  ====================================================
-    who changes     where you write it
-    ==============  ====================================================
-    **me**          ``deps`` — the zone is re-rendered IN the action's
-                    response. One round trip, one swap.
-    **the others**  ``broadcast`` — an SSE signal, then a refetch. Two
-                    round trips, but the tab that did nothing follows.
-    **both**        both lists. That is not redundancy: it says
-                    "instant for me, pushed to the others".
-    ==============  ====================================================
-
-    A ``broadcast=[X]`` on its OWN is therefore legitimate — the "I never
-    change this state myself" case (a background job, another user).
-    There is no inclusion rule: the two lists only overlap if the author
-    wants them to.
-
-    Booleans are refused: deriving the broadcast states from ``deps``
-    would couple the two lists. The caller explicitly names the states it
-    wants to observe on other clients.
-    """
-    if broadcast is True or broadcast is False:
-        raise TypeError(
-            f"@refreshable({zone}): broadcast= takes a LIST of states, "
-            f"no longer a boolean (removed on 2026-08-23). `deps` says "
-            f"what re-renders me in MY action's response, `broadcast` what "
-            f"I listen to from OTHER clients — those are two questions. "
-            f"Write `broadcast=[MyState]`, and keep it in `deps` too if "
-            f"your own action is what changes it (otherwise you pay one "
-            f"more round trip for the tab that clicked)."
-        )
-    return tuple(broadcast)
-
+from bretzel.state.scopes import SHARED_SCOPES
+from bretzel.state.topic import Topic
 
 #: The two variadic forms. They are NOT refused: nothing in a signature
 #: says what a ``**kwargs`` carries, so refusing them would amount to
@@ -86,9 +56,9 @@ def _reject_parameters(fn: Callable[..., Any], zone: str) -> None:
 
     ``def zone(x)``
         The page renders perfectly. Then the first action touching a
-        ``deps`` raises ``TypeError`` — **a 500 on the re-render, not on
+        state it reads raises ``TypeError`` — **a 500 on the re-render, not on
         the page**, so in the place nobody looks. That is the case that
-        motivated this refusal (2026-09-04).
+        motivates this refusal.
 
     ``def zone(x=0)``
         Worse, because mute: the page renders ``zone(3)``, and every
@@ -116,7 +86,7 @@ def _reject_parameters(fn: Callable[..., Any], zone: str) -> None:
         f"@refreshable({zone}): a zone takes no parameter, and this one "
         f"declares {', '.join(offenders)}. The refresh calls it WITHOUT "
         f"arguments — a required parameter raises a 500 on the first "
-        f"action touching a `deps` (never on page load), a parameter with "
+        f"action touching its state (never on page load), a parameter with "
         f"a default raises nothing and simply re-renders something else. "
         f"Read a state in the zone's body, or keep an ordinary "
         f"parameterisable function that the zone calls."
@@ -128,32 +98,92 @@ def state_qualname(state_class: type) -> str:
     return f"{state_class.__module__}{WIRE_ID_SEP}{state_class.__qualname__}"
 
 
-# Registry of every refreshable zone by its ``name`` (default = the
-# module-qualified zone name). Lets the free ``refresh("name")`` resolve a
-# zone from ANYWHERE without importing the zone function (a cron, a webhook,
-# another feature). Populated at decoration time — import order applies, the
-# same caveat as action handlers.
-_ZONE_BY_NAME: dict[str, RefreshableHandle] = {}
+def shared_states(classes: Iterable[type]) -> list[type]:
+    """The states among ``classes`` that another tab can change. Who among
+    the other tabs hears of it is the scope's business
+    (:func:`_publish_broadcast`)."""
+    return [cls for cls in classes if getattr(cls, "__scope__", None) in SHARED_SCOPES]
 
-# Reverse index : State class → the zones that declared it in ``deps``. The
-# action pipeline uses it to enqueue exactly the zones affected by a state
-# change (see :func:`enqueue_deps`).
-_ZONES_BY_DEP: dict[type, list[RefreshableHandle]] = {}
 
-#: ``State → zones listening to it over SSE``. An index SEPARATE from
-#: ``_ZONES_BY_DEP``, and not a filter on it: the two lists have been
-#: orthogonal since 2026-08-23, so a zone can be here without being
-#: there ("I never change this state myself"). Merging them would make
-#: the LOCAL re-render sensitive to a channel, which is exactly the
-#: confusion we have just undone.
-_ZONES_BY_CHANNEL: dict[type, list[RefreshableHandle]] = {}
+class ZoneRegistry:
+    """The zones of one application, owned by it (``Bretzel.zones``).
+
+    Filled at startup with every zone the app can reach
+    (:func:`zones_reachable_from`), and by a zone's first render for a
+    module imported later. Two indexes:
+
+    - ``by_name``: refuses two zones under one name;
+    - ``by_id``: the action pipeline walks it to enqueue the zones a state
+      change reaches (:func:`enqueue_readers`);
+    """
+
+    __slots__ = ("by_id", "by_name")
+
+    def __init__(self) -> None:
+        self.by_name: dict[str, RefreshableHandle] = {}
+        self.by_id: dict[str, RefreshableHandle] = {}
+
+    def add(self, zone: RefreshableHandle) -> None:
+        """Enter a zone; adding it again is a no-op.
+
+        A second function under a name already taken is refused: one of
+        the two would never refresh. The same function decorated again (a
+        reloaded module) replaces its former self.
+        """
+        known = self.by_name.get(zone.name)
+        if known is zone:
+            return
+        if known is not None and known.zone_qualname != zone.zone_qualname:
+            raise ValueError(
+                f"Two refreshable zones are named {zone.name!r}: "
+                f"{known.zone_qualname} and {zone.zone_qualname}. "
+                f"A name addresses one zone: give each its own."
+            )
+        self.by_name[zone.name] = zone
+        self.by_id[zone.id] = zone
+
+
+def zones_reachable_from(declarations: Iterable[Any]) -> Iterator[RefreshableHandle]:
+    """Every zone bound to a module name in the app's own modules.
+
+    Starts from the modules that define ``declarations`` (the pages, the
+    features) and follows what those modules import: a zone must be a
+    module attribute to be resolved at all, so walking them finds it,
+    whichever helper module it lives in.
+    """
+    pending = [sys.modules[owner] for owner in
+               {getattr(value, "__module__", None) for value in declarations}
+               if owner in sys.modules]
+    seen: set[ModuleType] = set()
+    while pending:
+        module = pending.pop()
+        if module in seen or not _is_app_module(module):
+            continue
+        seen.add(module)
+        for value in tuple(vars(module).values()):
+            if isinstance(value, RefreshableHandle):
+                yield value
+            elif isinstance(value, ModuleType):
+                pending.append(value)
+            elif (owner := getattr(value, "__module__", None)) in sys.modules:
+                pending.append(sys.modules[owner])
+
+
+def _is_app_module(module: ModuleType) -> bool:
+    """Is this module the app's code — not the framework, the standard
+    library or an installed package?"""
+    package = module.__name__.partition(".")[0]
+    if package == "bretzel" or package in sys.stdlib_module_names:
+        return False
+    source = getattr(module, "__file__", None)
+    return bool(source) and "site-packages" not in source
 
 
 def zone_attrs(
     refresh_id: str,
     *,
-    subscribe_state_qualname: str | None = None,
-    subscribe_url: str | None = None,
+    reads: str | None = None,
+    subscription: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     """The attributes a zone sets IN ADDITION to its ``bz-id``.
 
@@ -162,13 +192,17 @@ def zone_attrs(
     parent (``_rewrap``), and the fallback fragment of a zone that raised
     (``render/partials._zone_failure_fragment``).
 
-    The third was hand-written for a day, and it cost exactly what this
-    function exists to prevent: it omitted ``DATA_ZONE``, so after an
-    error the zone dropped out of the browser's enumeration, so the
-    ``X-Bretzel-Zones`` header no longer carried it, so ``enqueue_deps``
-    filtered it out — **it never refreshed again** until a full reload,
-    without a word. Two gates covered it, each on its own side; neither
-    saw the crossing.
+    A hand-written third path is what this function exists to prevent:
+    without ``DATA_ZONE``, after an error the zone would drop out of the
+    browser's enumeration, so the ``X-Bretzel-Zones`` header would not
+    carry it, so ``enqueue_readers`` would filter it out — **it would
+    never refresh again** until a full reload, without a word.
+
+    ``reads`` is what this render read (:data:`DATA_ZONE_READS`). The
+    fallback fragment of a zone that raised has nothing to say and omits
+    it: the server then falls back on what it learned. ``subscription`` is
+    :meth:`RefreshableHandle.subscription` — empty when nothing the zone
+    read can change in another tab.
 
     ``DATA_ZONE`` is EMPTY: the identifier is already on the same element
     as ``bz-id``. The marker says "I am a zone", ``bz-id`` says which
@@ -177,20 +211,27 @@ def zone_attrs(
     client-side would make a mirror that drifts.
     """
     attrs = {DATA_ZONE: ""}
-    if subscribe_state_qualname and subscribe_url:
-        attrs[DATA_SUBSCRIBE_STATE] = subscribe_state_qualname
-        attrs[DATA_SUBSCRIBE_URL] = subscribe_url
+    if reads is not None:
+        attrs[DATA_ZONE_READS] = reads
+    attrs.update(subscription or {})
     return attrs
 
 
-def _stable_id(fn: Callable[..., Any]) -> str:
-    """Hash ``module.qualname`` to a short stable id.
+def _stable_id(fn: Callable[..., Any], name: str | None = None) -> str:
+    """Hash the zone's ``name=``, else its ``module.qualname``, to a short
+    stable id.
 
     The id is used as the ``bz-id`` of the wrapping element, so it must
     survive code reloads but stay readable in DevTools. We keep the
     last 8 hex chars — collision risk is negligible at this scale.
+
+    ``name=`` wins because a NAMED zone's identity is its name, unique in
+    the app. Without that, zones built by a factory (``def make(s):
+    @refreshable def zone(): …``) all share ``make.<locals>.zone``: one id
+    on N elements — the refresh of one morphs the first — and one entry
+    in the id registry, the last zone's. A factory names each zone.
     """
-    qual = f"{fn.__module__}.{fn.__qualname__}"
+    qual = name or f"{fn.__module__}.{fn.__qualname__}"
     return f"refresh_{hash_segment(qual)}"
 
 
@@ -224,10 +265,10 @@ def _section_cls() -> type:
 
         Pure framework concern : never instantiated by user code.
 
-        When the wrapping handle is a ``@refreshable(deps=[State], broadcast=[State])`` zone,
-        ``subscribe_state_qualname`` + ``subscribe_url`` are emitted
-        as ``data-bz-subscribe-*`` attributes the runtime parses on
-        DOMContentLoaded to wire the EventSource + refetch URL.
+        When this render read a state another tab can change, the section
+        carries ``data-bz-subscribe-*`` (those states + a refetch URL): the
+        runtime opens its EventSource for it and refetches the zone on a
+        matching signal. Derived from what was read, never declared.
         """
 
         THEME_KEY: ClassVar[str] = "_refreshable"
@@ -237,15 +278,17 @@ def _section_cls() -> type:
         #: must see through me to find what I carry, then give me back my
         #: ``bz-id`` on the node it composed — otherwise the tab is
         #: correct and never refreshes again. Cf.
-        #: ``base/_wiring.unwrap_transparent``.
+        #: ``base/composition.unwrap_transparent``.
         IS_TRANSPARENT_WRAPPER: ClassVar[bool] = True
+        #: Its children's reads are this zone's, wherever they render
+        #: (``base/composition.zone_of_children``).
+        IS_ZONE: ClassVar[bool] = True
 
         def __init__(
             self,
             *,
             refresh_id: str,
-            subscribe_state_qualname: str | None = None,
-            subscribe_url: str | None = None,
+            handle: RefreshableHandle,
             **kwargs: Any,
         ) -> None:
             # The handle's stable id wins over auto-generated so
@@ -253,8 +296,31 @@ def _section_cls() -> type:
             kwargs.setdefault("id", refresh_id)
             super().__init__(**kwargs)
             self._refresh_id = refresh_id
-            self._subscribe_state_qualname = subscribe_state_qualname
-            self._subscribe_url = subscribe_url
+            self._handle = handle
+            #: What THIS render read, as the ids the browser will hold.
+            self._read: set[str] = set()
+            #: The states THIS render read that another tab can change:
+            #: what the browser listens to for this zone.
+            self._shared: set[type] = set()
+
+        @contextmanager
+        def learning(self) -> Iterator[None]:
+            """Record what the block reads for this render and its zone.
+
+            The ONE place a render teaches its zone — the body, the async
+            body, the flattening, and a child a container recomposes
+            elsewhere (``base/composition.render_in_its_zone``) all go through it; a
+            path that skipped it would freeze the zone without a word.
+            """
+            with TRACKER.recording(owner=self) as recorded:
+                yield
+            learned = _what_was_read(recorded)
+            self._read |= _ids_of(learned)
+            self._handle.learn(learned)
+            new = set(shared_states(learned)) - self._shared
+            if new:
+                self._shared |= new
+                _subscribe(new)
 
         def _rewrap(self, node: Any) -> Any:
             """Set the zone's identity back on a node composed ELSEWHERE.
@@ -273,12 +339,16 @@ def _section_cls() -> type:
             the three paths (render, recomposition, fallback fragment)."""
             return zone_attrs(
                 self._refresh_id,
-                subscribe_state_qualname=self._subscribe_state_qualname,
-                subscribe_url=self._subscribe_url,
+                reads=".".join(sorted(self._read)),
+                subscription=self._handle.subscription(self._shared),
             )
 
         def render(self) -> Any:
-            children_nodes = self._render_children()
+            # Flattening calls app code back (a ``ui.datatable``'s
+            # ``rows=``, a column's ``render=``): what it reaches belongs
+            # to the zone as much as what its body read.
+            with self.learning():
+                children_nodes = self._render_children()
             extra_attrs = self._zone_attrs()
             return fuse_or_wrap(
                 children_nodes,
@@ -313,7 +383,7 @@ async def drain_pending_async_zones(ctx: Any) -> None:
     """
     while ctx.pending_async_zones:
         section, coro = ctx.pending_async_zones.pop(0)
-        with section:
+        with section, section.learning():
             result = await coro
             RefreshableHandle._attach_direct_return(section, result)
 
@@ -327,24 +397,24 @@ class RefreshableHandle:
       function's output in a ``_RefreshableSection`` carrying the
       stable ``bz-id``. Initial render and partial re-render produce
       the SAME target shape so HTMX OOB swaps land cleanly.
-    - A change to any state in ``deps=`` enqueues the zone for a partial
-      re-render at end-of-action ; the free :func:`refresh` forces one
-      imperatively.
-    - When the zone declares ``broadcast=[State]`` its ``deps`` are the
-      SSE channels : the call path (a) emits ``data-bz-subscribe-*``
-      attrs (a space-separated list of the deps' wire qualnames + a
-      refetch URL) so the runtime refetches on any matching signal ;
-      (b) records the session against each dep on the app's SSE broker
-      so a future dep-change fan-out knows which sessions to ping.
+    - Every field the zone reads while it renders is recorded in
+      ``reads``; a change to any of them enqueues the zone for a
+      partial re-render at end-of-action. The free :func:`refresh`
+      forces one imperatively.
+    - What it read that another tab can change (a session, user or app
+      state, a ``Topic``) is its SSE subscription: the render (a) emits
+      ``data-bz-subscribe-*`` attrs (their wire qualnames + a refetch URL)
+      so the runtime refetches on a matching signal; (b) records the
+      session against each on the app's SSE broker, so a change knows
+      which sessions to ping.
     """
 
     __slots__ = (
-        "broadcast",
-        "deps",
         "fn",
         "id",
         "is_async",
         "name",
+        "reads",
         "zone_qualname",
     )
 
@@ -353,8 +423,6 @@ class RefreshableHandle:
         fn: Callable[..., Any],
         id: str,
         *,
-        deps: Sequence[type] = (),
-        broadcast: Sequence[type] = (),
         name: str | None = None,
     ) -> None:
         self.fn = fn
@@ -372,52 +440,36 @@ class RefreshableHandle:
         # same scheme as action handlers. Used by the realtime route
         # to resolve the fn back through ``sys.modules`` and re-render.
         self.zone_qualname = f"{fn.__module__}{WIRE_ID_SEP}{fn.__qualname__}"
-        # ── Declarative reactivity (target model) ──────────────────────
-        # ``deps``: the State classes this zone reads. A change to ANY of
-        # them re-renders the zone (wired in the action pipeline, Phase 3).
-        # ``broadcast``: ALSO pushes the change to other clients over SSE.
-        # ``name``: stable string address for ``refresh("name")``;
-        # defaults to the module-qualified zone name.
-        self.deps: tuple[type, ...] = tuple(deps)
-        #: **The states this zone listens to over SSE.** Orthogonal to
-        #: ``deps``: the two lists only overlap if the author wants them
-        #: to. Empty = a purely local zone.
-        #:
-        #: Until 2026-08-23, ``broadcast`` was a boolean and ``deps``
-        #: served TWO roles in the same word: "what re-renders me" and
-        #: "what I broadcast on". Consequence, measured on
-        #: `examples/crm`: a real-time zone could not declare a PERSONAL
-        #: dependency — putting management's portfolio preference in it
-        #: would have made the whole world refetch as soon as a single
-        #: user changed THEIR setting. The real-time screen therefore did
-        #: not follow the portfolio change, for want of being able to
-        #: write it.
-        self.broadcast: tuple[type, ...] = _resolve_broadcast(
-            broadcast, self.zone_qualname
-        )
+        #: **What this zone has read** in a render of this process: for
+        #: each state class it obtained (``MyState()`` in its body or its
+        #: flattening, through any helper), the fields it read — all of
+        #: them when it read the class whole (a bulk read, a
+        #: ``@computed``, ``@reads``, or obtained without reading a
+        #: field). A UNION, never replaced — the FALLBACK for a client
+        #: that does not say what its version read, and the guess of what
+        #: the other clients show; a client that says
+        #: decides for itself (``data-bz-r``). ``None`` = never rendered
+        #: here (a restart, another worker): :func:`enqueue_readers` then
+        #: re-renders it, the safe side.
+        self.reads: dict[type, frozenset[str]] | None = None
         self.name: str = name or self.zone_qualname
-        _ZONE_BY_NAME[self.name] = self
-        for dep in self.deps:
-            _ZONES_BY_DEP.setdefault(dep, []).append(self)
-        for channel in self.broadcast:
-            _ZONES_BY_CHANNEL.setdefault(channel, []).append(self)
 
-    def _broadcast_qualnames(self) -> list[str]:
-        """Wire qualnames of the states this zone broadcasts on.
+    def subscription(self, states: Iterable[type]) -> dict[str, str]:
+        """The subscription attributes for a version of this zone that read
+        ``states`` — none when nothing it read can change in another tab.
 
-        Empty for a local zone. Otherwise exactly the states declared in
-        ``broadcast`` — which may be a strict subset of ``deps``.
-        Computed on demand (deps are few), so the handle keeps no derived
-        cache to maintain.
+        The refetch URL is built server-side, so the runtime never
+        hardcodes a framework route, and signed for the session that
+        renders it, which the route requires.
         """
-        return [state_qualname(dep) for dep in self.broadcast]
-
-    def _subscribe_url(self, states: list[str]) -> str:
-        """Refetch URL for this zone. The state segment is any of the
-        zone's deps (the realtime route validates membership, not exact
-        match, so one URL serves a multi-dep zone). Built server-side so
-        the runtime never hardcodes a framework route."""
-        return f"{ROUTE_REFETCH}/{states[0]}/{self.zone_qualname}"
+        names = sorted(state_qualname(cls) for cls in shared_states(states))
+        if not names:
+            return {}
+        ctx = maybe_current_context()
+        sig = ctx.refetch_signature(self.zone_qualname) if ctx is not None else ""
+        url = with_base(f"{ROUTE_REFETCH}/{self.zone_qualname}") + (
+            f"?{REFETCH_SIG_PARAM}={sig}" if sig else "")
+        return {DATA_SUBSCRIBE_STATE: " ".join(names), DATA_SUBSCRIBE_URL: url}
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         ctx = maybe_current_context()
@@ -427,19 +479,7 @@ class RefreshableHandle:
         if ctx is None:
             return self.fn(*args, **kwargs)
 
-        # Broadcast zones : notify the broker that this session now
-        # renders a zone for each dep State, so a future dep-change
-        # fan-out knows to push to its queue. The wire attrs flow
-        # through ``_RefreshableSection.render()`` and land on the
-        # rendered Element for the runtime to discover.
-        broadcast_states = self._broadcast_qualnames()
-        subscribe_state_attr: str | None = None
-        subscribe_url: str | None = None
-        if broadcast_states:
-            for qualname in broadcast_states:
-                self._register_subscription(ctx, qualname)
-            subscribe_state_attr = " ".join(broadcast_states)
-            subscribe_url = self._subscribe_url(broadcast_states)
+        ctx.app.zones.add(self)
 
         # Push the section as the current parent, run the function, pop.
         # Children registered inside fn() (``ui.text(...)``, …) attach to
@@ -453,18 +493,14 @@ class RefreshableHandle:
         # ``ui.text(...).render()`` instead of registering via
         # ``parent_stack``). The full-page flow continues to ignore
         # the return.
-        section = _section_cls()(
-            refresh_id=self.id,
-            subscribe_state_qualname=subscribe_state_attr,
-            subscribe_url=subscribe_url,
-        )
+        section = _section_cls()(refresh_id=self.id, handle=self)
         # ── ASYNC body: the section is set down, the body is deferred ──
         #
         # The zone keeps its calling convention — ``zone()``, never
         # ``await zone()``. An ``await`` to write would be an ``await`` to
         # FORGET, and forgetting it would give back exactly the failure
         # this path repairs: a coroutine never awaited, hence an EMPTY
-        # zone, with no error (finding [1], 2026-08-21).
+        # zone, with no error.
         #
         # The section enters the tree NOW because the zone's place in the
         # page is decided here — at the call site — and not when its data
@@ -477,10 +513,23 @@ class RefreshableHandle:
             )
             return None
 
-        with section:
+        with section, section.learning():
             result = self.fn(*args, **kwargs)
             self._attach_direct_return(section, result)
         return result
+
+    def learn(self, learned: dict[type, frozenset[str]]) -> None:
+        """Add what a render read to what this process knows the zone reads
+        — the fallback for a client that does not say, and the guess for
+        what the other clients show. Nothing is written once known:
+        renders run in threadpool threads, and a map rebuilt on every
+        render could lose a concurrent addition."""
+        known = self.reads or {}
+        merged = dict(known)
+        for cls, fields in learned.items():
+            merged[cls] = known.get(cls, frozenset()) | fields
+        if merged != self.reads:
+            self.reads = merged
 
     @staticmethod
     def _attach_direct_return(section: Any, result: Any) -> None:
@@ -496,123 +545,153 @@ class RefreshableHandle:
         ):
             section.add_child(result)
 
-    @staticmethod
-    def _register_subscription(ctx: Any, state_qualname: str) -> None:
-        """Notify the broker that this session now renders this zone.
-
-        ``ctx`` is the active render context — passed in by the
-        caller so we don't pay the ContextVar lookup twice per call.
-        Silently no-ops in setups where the broker isn't wired (test
-        rigs that bypass lifecycle).
-        """
-        broker = ctx.app.sse_broker
-        if broker is None:
-            return
-        session_id = ctx.session_id
-        if not session_id:
-            return
-        broker.subscribe(session_id, state_qualname)
-
     def __repr__(self) -> str:
         return f"RefreshableHandle({self.fn.__qualname__}, id={self.id!r})"
 
 
-def zone_ids_watching(state_cls: type) -> frozenset[str]:
-    """Return refreshable region ids that watch ``state_cls``."""
-    return frozenset(
-        zone.id
-        for zone in (
-            *_ZONES_BY_DEP.get(state_cls, ()),
-            *_ZONES_BY_CHANNEL.get(state_cls, ()),
-        )
-    )
+def _subscribe(states: Iterable[type]) -> None:
+    """Tell the broker this session now shows zones reading ``states``, so
+    a change to one of them knows to ping it. No-op without a request or a
+    broker (test rigs that bypass the lifecycle)."""
+    ctx = maybe_current_context()
+    broker = getattr(getattr(ctx, "app", None), "sse_broker", None)
+    session_id = getattr(ctx, "session_id", "")
+    if broker is None or not session_id:
+        return
+    for cls in states:
+        broker.subscribe(session_id, state_qualname(cls))
 
 
-def enqueue_deps(ctx: Any, changed_classes: set[type]) -> None:
-    """Enqueue every zone whose ``deps`` include a changed State class for
-    the end-of-action refresh drain.
+def _what_was_read(recorded: Any) -> dict[type, frozenset[str]]:
+    """A recording, as a zone keeps it: each class → the fields it read.
 
-    Called by the action pipeline right after
+    Every declared field when the class was read whole (a bulk read,
+    ``@reads``), or obtained without a field read through a descriptor
+    — it may have been handed to code that reads it otherwise. A name
+    that is not a field (a ``@computed``'s own) is dropped: what the
+    computed read was replayed with it.
+    """
+    out: dict[type, frozenset[str]] = {}
+    for cls in recorded.fields.keys() | recorded.whole:
+        declared = cls._all_fields().keys()
+        names = recorded.fields.get(cls, set()) & declared
+        whole = cls in recorded.whole or not names
+        out[cls] = frozenset(declared if whole else names)
+    return out
+
+
+@functools.lru_cache(maxsize=4096)
+def field_id(cls: type, name: str) -> str:
+    """The short wire identifier of a state field — derived from the code,
+    so the same on every worker. Two fields sharing one (16M values) cost
+    a re-render too many, never one too few."""
+    return hash_segment(f"{state_qualname(cls)}.{name}")[:6]
+
+
+def _ids_of(read: dict[type, frozenset[str]]) -> set[str]:
+    return {field_id(cls, name) for cls, names in read.items() for name in names}
+
+
+def _changed_ids(changes: dict[type, set[str]]) -> set[str]:
+    """The changes as field ids — every field of a class whose changed
+    fields are unknown."""
+    return {
+        field_id(cls, name)
+        for cls, moved in changes.items()
+        for name in (moved or cls._all_fields())
+    }
+
+
+def _reads_field(reads: dict[type, frozenset[str]], cls: type, moved: set[str]) -> bool:
+    """Did this change of ``cls`` touch a field the zone read? Changed
+    fields unknown (an empty set) count as the whole class — the safe
+    side."""
+    read = reads.get(cls)
+    return read is not None and (not moved or not read.isdisjoint(moved))
+
+
+def _reads_a_change(
+    reads: dict[type, frozenset[str]], changes: dict[type, set[str]]
+) -> bool:
+    """Did one of these changes touch a field the zone read?"""
+    return any(_reads_field(reads, cls, moved) for cls, moved in changes.items())
+
+
+def enqueue_readers(ctx: Any, changes: dict[type, set[str]]) -> None:
+    """Enqueue every zone that read a changed field for the end-of-action
+    refresh drain.
+
+    ``changes`` is the registry's ``changed_fields``
+    — each changed class → the names of its fields that moved — read by
+    the action pipeline right after
     :meth:`~bretzel.state.registry.StateRegistry.diff_and_notify`. Dedup is
-    by handle identity (a zone hit by several changed deps enqueues once) —
-    the same ``if self not in queue`` guard an explicit refresh uses. This is
-    the LOCAL auto-refresh; the cross-client broadcast for ``broadcast=[State]``
-    zones is wired separately (Phase 5).
+    by handle identity (a zone hit by several changed states enqueues
+    once) — the same ``if self not in queue`` guard an explicit refresh
+    uses. This is the acting tab's redraw; the other tabs hear of it
+    through :func:`broadcast_changes`.
 
-    **Only what the browser has in front of it is enqueued.**
-    ``_ZONES_BY_DEP`` is indexed by state CLASS, not by page: a class
-    shared by several screens drags all their zones, and without a filter
-    the server rendered the other pages' zones for nothing — the browser
-    threw them away for want of a target, with no error anywhere.
-    Measured on 2026-09-05 on ``examples/mad``: an action from
-    ``/patients`` also rendered the dashboard's zone, **8.4 ms** against
-    9.6 ms for the useful one. On ``examples/crm``, ``ViewerPrefs`` drags
-    14 zones across 8 modules for 4 at most per page.
+    **Only what the browser has in front of it is enqueued.** A state
+    shared by several screens reaches all their zones, and without a
+    filter the server would render the other pages' zones for nothing —
+    the browser would throw them away for want of a target, with no error
+    anywhere.
+
+    **By field, per client.** A zone that read ``View.q`` is not
+    re-rendered when only ``View.ticket`` moved. What it read is what THIS
+    browser's version of the zone read: the zone carries it
+    (``data-bz-r``) and the browser sends it back with the zone's id, so
+    the answer is exact per client and the same on every worker. A zone
+    the browser does not describe (an older runtime, a fallback fragment)
+    falls back on what this process learned; one this process never
+    rendered is re-rendered, which also teaches it.
 
     ⚠️ ``ctx.live_zones is None`` means "the client did not say" and
     **filters nothing** — not "no zone". A cached runtime, a third-party
-    client or a test POSTing by hand therefore falls back on the old
-    behaviour. Confusing the two would silence every zone of the first
-    client that does not speak the latest version of the protocol, and
-    the symptom would be a page that stops updating without anything
-    raising.
+    client or a test POSTing by hand therefore gets every zone that
+    read the change. Confusing the two would silence every zone of the
+    first client that does not speak the latest version of the protocol.
     """
-    if not changed_classes:
+    if not changes:
         return
     live = ctx.live_zones
-    for cls in changed_classes:
-        for zone in _ZONES_BY_DEP.get(cls, ()):
-            if live is not None and zone.id not in live:
-                continue
+    shown = ctx.zone_reads
+    changed = _changed_ids(changes) if shown else set()
+    # A snapshot: a lazy import in another thread may decorate a zone.
+    for zone in tuple(ctx.app.zones.by_id.values()):
+        if live is not None and zone.id not in live:
+            continue
+        held = shown.get(zone.id)
+        if held is not None:
+            if not held.isdisjoint(changed):
+                enqueue(ctx, zone)
+        elif zone.reads is None:
+            if live is not None:
+                enqueue(ctx, zone)
+        elif _reads_a_change(zone.reads, changes):
             enqueue(ctx, zone)
 
 
-#: More row keys than this refresh the zone whole: a row patch that large
-#: would cost about as much as the zone.
-MAX_ROWS = 200
-
-
-def row_keys(rows: Iterable[Any]) -> set[str]:
-    """Row keys as the table compares them: strings, at most
-    :data:`MAX_ROWS` (beyond, ``enqueue`` takes the zone whole)."""
-    return {str(key) for key in rows}
-
-
-def enqueue(ctx: Any, zone: RefreshableHandle, *, rows: set[str] | None = None) -> None:
-    """Queue ``zone`` for the drain — whole, or for some rows. The one rule:
-    a whole refresh wins over rows, and rows add up."""
-    queued = zone in ctx.refresh_queue
-    if not queued:
+def enqueue(ctx: Any, zone: RefreshableHandle) -> None:
+    """Queue ``zone`` for the drain, once."""
+    if zone not in ctx.refresh_queue:
         ctx.refresh_queue.append(zone)
-    if rows is None or len(rows) > MAX_ROWS:
-        ctx.zone_rows.pop(zone.id, None)
-    elif not queued:
-        ctx.zone_rows[zone.id] = set(rows)
-    elif zone.id in ctx.zone_rows:
-        ctx.zone_rows[zone.id] |= rows
-        if len(ctx.zone_rows[zone.id]) > MAX_ROWS:
-            ctx.zone_rows.pop(zone.id)
 
 
-def _publish_broadcast(
-    ctx: Any, states: Iterable[type], *, rows: tuple[str, list[str]] | None = None
-) -> None:
+def _publish_broadcast(ctx: Any, states: Iterable[type]) -> None:
     """Push an SSE ``state-dirty`` for each state to every subscribed
     connection (tab). No-op when no broker is wired (test rigs bypassing
     the lifecycle).
 
     A ``SessionState`` reaches only the tabs of the session that changed
-    it (``only_session``): it is that session's own data, so the other
-    sessions have nothing to refetch. The other scopes reach every
-    subscribed session — an ``AppState`` is shared by design, and the
-    broker does not know which sessions belong to one user.
+    it (``only_session``), a ``UserState`` only the tabs of the user who
+    changed it, on any of their devices (``only_user``): their own data —
+    the signal would otherwise tell everybody else WHEN they act. An
+    ``AppState`` is shared by design and reaches every subscribed tab.
 
-    ⚠️ **The tab that has just written is EXCLUDED** since 2026-09-09. It
-    already received its zones in its action's response; its re-read
-    therefore returned exactly what it was displaying — one round trip
-    PER ZONE, for an identical render that idiomorph diffed to a no-op.
-    Measured on ``examples/kanban``: ticking a subtask cost **five
-    requests and 354 KB**, of which 177 KB were re-reads.
+    ⚠️ **The tab that has just written is EXCLUDED.** It already received
+    its zones in its action's response; its re-read would return exactly
+    what it is displaying — one round trip PER ZONE, for an identical
+    render that idiomorph diffs to a no-op.
 
     This line long said the exclusion "needs a per-tab id threaded
     through the action; that optimization is deferred". That is exactly
@@ -630,16 +709,17 @@ def _publish_broadcast(
         return
     emitter = getattr(ctx, "tab_id", "") or ""
     session = getattr(ctx, "session_id", "") or ""
+    user = getattr(ctx, "user_id", "") or ""
     for cls in states:
-        scoped = getattr(cls, "__scope__", None) == "session"
+        scope = getattr(cls, "__scope__", None)
         qualname = state_qualname(cls)
-        # A ``refresh(zone, rows=…)``: a ``zone-rows`` event naming the
-        # zone and its keys. Passed only then — a broker that predates it
-        # keeps working for every other signal.
-        extra = {"event": SSE_EVENT_ZONE_ROWS, "data": json.dumps(
-            {"state": qualname, "zone": rows[0], "rows": rows[1]})} if rows else {}
+        if scope == "user" and not user:
+            # No one to address: ``only_user=""`` filters nothing, and the
+            # signal would reach every session.
+            continue
+        extra = {"only_user": user} if scope == "user" else {}
         send = partial(broker.publish, qualname, except_tab=emitter,
-                       only_session=session if scoped else "", **extra)
+                       only_session=session if scope == "session" else "", **extra)
         deferred = getattr(ctx, "deferred_broadcasts", None)
         if deferred is not None:
             deferred.append(send)  # after the commit (``RenderContext``)
@@ -647,21 +727,25 @@ def _publish_broadcast(
             send()
 
 
-def broadcast_deps(ctx: Any, changed_classes: set[type]) -> None:
-    """Fan out ``state-dirty`` for every changed state that a
-    ``broadcast=[State]`` zone depends on, so OTHER clients refetch it.
+def broadcast_changes(ctx: Any, changes: dict[type, set[str]]) -> None:
+    """Fan out ``state-dirty`` for every changed state another tab can see
+    and some zone shows, so the OTHER tabs showing it refetch it.
 
-    Called by the action pipeline right after :func:`enqueue_deps`. No-op
-    when no changed state feeds a broadcast zone — the common case, so the
-    ``any(...)`` scan short-circuits cheaply.
+    Called by the action pipeline right after :func:`enqueue_readers`,
+    with the same ``changes``. A ``PageState`` never leaves its tab. A
+    state publishes only when a field some zone read moved: a ``Tables``
+    channel stays quiet when the write touched a table no zone shows. A
+    zone this process never rendered counts as reading everything — the
+    safe side. Who receives the signal is the scope's business
+    (:func:`_publish_broadcast`), and only the sessions that rendered a
+    zone reading the state are subscribed to it.
     """
-    if not changed_classes:
-        return
-    # The CHANNEL index, not the deps one — this is where the
-    # 2026-08-23 fix plays out. A zone broadcasting on ``Deals`` and
-    # ALSO reading a personal preference publishes nothing when it is the
-    # preference that moves: the preference is not in this index.
-    to_publish = [cls for cls in changed_classes if _ZONES_BY_CHANNEL.get(cls)]
+    zones = tuple(ctx.app.zones.by_id.values())
+    to_publish = [
+        cls for cls in shared_states(changes)
+        if any(zone.reads is None or _reads_field(zone.reads, cls, changes[cls])
+               for zone in zones)
+    ]
     if to_publish:
         _publish_broadcast(ctx, to_publish)
 
@@ -669,25 +753,23 @@ def broadcast_deps(ctx: Any, changed_classes: set[type]) -> None:
 def refreshable(
     fn: Callable[..., Any] | None = None,
     *,
-    deps: Sequence[type] = (),
-    broadcast: Sequence[type] = (),
     name: str | None = None,
 ) -> Any:
     """Wrap ``fn`` as a refreshable page region.
 
-    The region redraws itself when a typed state named in ``deps`` changes
-    (``@refreshable(deps=[MyState])``). Data kept elsewhere — a database —
-    is redrawn by calling ``refresh(region)`` after writing it.
-    ``broadcast`` names the states whose change must also reach the other
-    open windows.
+    The region redraws itself when a typed state it reads changes —
+    every ``MyState()`` it calls while it renders, directly or through a
+    helper. Data kept elsewhere — a database, the clock — is followed
+    through a :class:`~bretzel.state.Topic`. The redraw reaches every open
+    tab showing the region, as far as the scope of what changed allows: a
+    ``PageState`` stays in its tab, a ``SessionState`` in its session, a
+    ``UserState`` with its user, an ``AppState`` and a ``Topic`` go to all.
     """
 
     def _wrap(f: Callable[..., Any]) -> RefreshableHandle:
         return RefreshableHandle(
             fn=f,
-            id=_stable_id(f),
-            deps=tuple(deps),
-            broadcast=broadcast,
+            id=_stable_id(f, name),
             name=name,
         )
 
@@ -696,61 +778,44 @@ def refreshable(
     return _wrap(fn) if fn is not None else _wrap
 
 
-def refresh(
-    zone_or_name: RefreshableHandle | str, *, rows: Iterable[Any] | None = None
-) -> None:
+def refresh(target: RefreshableHandle | Topic) -> None:
     """Force a refresh of a zone — the single imperative trigger.
 
-    ``rows=[key, …]`` refreshes only those rows of the zone's keyed
-    ``ui.table`` (its ``row_key`` values): the zone runs again, but the
-    table renders and ships those rows alone, and a row no longer in the
-    list is removed. Whatever the framework cannot do row by row — a new
-    row, a new order, a client copy it does not know — ships the zone
-    whole. A whole refresh of the same zone in the same action wins.
-    The contract: a row's render depends on its data, and on what
-    already refreshes the table whole (filters, search, selection).
+    Takes the zone itself (``refresh(my_zone)``). Enqueues it for the
+    end-of-action OOB drain with the same identity dedup as the automatic
+    path, in THIS tab: nothing tells the others what was not written.
 
-    Accepts the zone **handle** (``refresh(my_zone)`` — type-safe,
-    refactor-safe) or its ``name`` **string** (``refresh("my_zone")`` —
-    usable from anywhere without importing the zone, e.g. a cron or webhook).
-    Enqueues it for the end-of-action OOB drain with the same identity dedup
-    as the declarative ``deps=`` path. Raises loudly on an unknown name
-    (never a silent no-op). Reach follows the zone's ``broadcast`` flag — the
-    cross-client push for ``broadcast=[State]`` is wired separately (Phase 5).
+    A :class:`~bretzel.state.Topic` redraws every zone reading it, in
+    every tab showing one.
+
+    It works DURING a request (an action, a page). Outside one — a cron,
+    a webhook's background task — there is no response to carry the zone
+    and no connection to reach: it does nothing, and WARNS
+    (``RuntimeWarning``).
     """
-    if isinstance(zone_or_name, str):
-        zone = _ZONE_BY_NAME.get(zone_or_name)
-        if zone is None:
-            raise ValueError(
-                f"refresh(): no refreshable zone named {zone_or_name!r}. "
-                f"Known zones: {sorted(_ZONE_BY_NAME)}."
-            )
-    else:
-        zone = zone_or_name
+    if isinstance(target, str):
+        raise TypeError(
+            f"refresh({target!r}): pass the zone itself, `refresh(my_zone)`, "
+            f"or a Topic to redraw every zone reading it."
+        )
+    if isinstance(target, Topic):
+        target._ring()
     ctx = maybe_current_context()
     if ctx is None:
-        # Out of any request (cron / webhook) : there is no response to
-        # attach a local OOB swap to, and no context to reach the broker
-        # through. A global broker handle for cron-driven broadcast is a
-        # deferred follow-up ; no-op here.
-        return
-    if isinstance(rows, (str, bytes)):
-        raise TypeError(
-            f"refresh({zone.name}, rows=…) takes a list of row keys, not a "
-            f"string: rows=[{rows!r}]."
+        # Out of any request (cron / webhook): no response to attach the
+        # zone to, no context to reach the broker through. Silence here
+        # was the bug — the call LOOKED like it worked. A warning and not
+        # a raise: code shared between an action and a start-up must not
+        # crash on it.
+        label = target.__name__ if isinstance(target, Topic) else target.name
+        warnings.warn(
+            f"refresh({label!r}) outside a request reaches no screen: "
+            f"there is no response to carry the zone and no open "
+            f"connection to tell. Call it from an action or a page; a zone "
+            f"refreshed from a background task is not supported yet.",
+            RuntimeWarning, stacklevel=2,
         )
-    keys = row_keys(rows) if rows is not None else None
-    if keys is not None and not keys:
         return
-    # Rows of a zone this page does not show: nothing to render here (the
-    # whole render would be wasted, the client presenting no fingerprint),
-    # only the other tabs to tell — as ``enqueue_deps`` filters its zones.
-    live = ctx.live_zones
-    if keys is None or live is None or zone.id in live:
-        enqueue(ctx, zone, rows=keys)
-    # A broadcast zone forced via refresh(x) also fans out to every
-    # subscribed tab ; the acting tab additionally gets the local OOB
-    # swap enqueued just above.
-    if zone.broadcast:
-        _publish_broadcast(ctx, zone.broadcast,
-                           rows=(zone.id, sorted(keys)) if keys else None)
+    if isinstance(target, Topic):
+        return
+    enqueue(ctx, target)

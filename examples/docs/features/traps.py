@@ -52,22 +52,24 @@ _TRAPS: list[tuple[str, str, str]] = [
         'a native for instead of ui.each on stateful components',
         'After a re-render/reorder, open overlays close, checkboxes lose '
         'their state.',
-        'Iterate with `ui.each(items, key="id")` as soon as the body '
-        'produces stateful components: the key stabilises identity across '
-        'the morph. A Python `for` is enough for static content (`ui.text`'
-        ' × N).',
+        'Iterate with `ui.each(items, key="id")` as soon as the list '
+        'comes from data that can change: the key names each item, so its '
+        'state follows it. A Python `for` is enough for a list written in '
+        'the code, whose ranks never move. In debug mode, a list with no '
+        'key that moves under a client state raises a RuntimeWarning '
+        'naming the zone.',
     ),
     (
         'A bindable prop whose attribute does not act on the root',
         'The binding exists but the UI does not react (e.g. `disabled` on '
         'a `<div>` wrapper, `src` on a `<span>`).',
-        'The attribute must land on the right carrier element. Declare '
-        '`BINDABLE_CARRIERS = {prop: "bz-ref"}` (or `forward_binding`) to '
+        'The attribute must land on the right carrier element. Call '
+        '`forward_binding` in `render()` to '
         'forward the directive onto the child that really carries the '
         'attribute.',
     ),
     (
-        'Writing name= / @click / hx-post by hand',
+        'Writing name= / bz-on:click / hx-post by hand',
         'It works, but it is the escape hatch — not the idiom.',
         'The `name` is auto-derived from the binding (`AUTONAME_FROM`). '
         'Actions go through `on_<event>=` (a server callable or a client '

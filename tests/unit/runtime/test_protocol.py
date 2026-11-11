@@ -38,7 +38,7 @@ class TestConstants:
             assert getattr(protocol, name).endswith(":")
 
     def test_directive_prefixes_complete_and_unique(self) -> None:
-        # The 13 V3 directives — spec/V3/03-runtime.md §02_directives.js.
+        # The 13 V3 directives — spec/V3/03-runtime.md §directives.js.
         directive_names = [
             k for k in vars(protocol) if k.startswith("BZ_") and k.endswith("_PREFIX")
         ]

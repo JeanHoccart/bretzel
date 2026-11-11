@@ -10,20 +10,13 @@ scroll-into-view on mount, the collapsed rail's tooltip) really differ.
 behave identically" is written — their docstrings lean on it. A fourth
 consumer is added here, not only in the imports.
 
-All of this lived in duplicate (audit F15, F16, F54), and the drift **had
-already happened** — that is what makes the finding concrete rather than
-theoretical:
+Two details are settled here for all of them:
 
-- the reactive ``aria-disabled`` was written ``'true' : null`` on the
-  navbar side and ``'true' : 'false'`` on the sidebar side (F88) — with
-  no consequence today, a Tailwind ``aria-disabled:*`` variant only
-  matching ``="true"``, but the two components would have diverged the
-  day a theme selected ``aria-disabled=false``;
-- the sidebar's reactive badge rendered an **empty** chip at the first
-  paint, where the navbar's painted the SSR value while waiting for the
-  runtime's boot, and knew how to accept a Component.
-
-Both are reconciled here on the better of the two versions.
+- the reactive ``aria-disabled`` is written ``'true'`` or ``'false'``,
+  so a theme can select ``aria-disabled=false``, whereas a Tailwind
+  ``aria-disabled:*`` variant only matches ``="true"``;
+- the reactive badge paints the SSR value while waiting for the
+  runtime's boot, never an **empty** chip, and accepts a Component.
 """
 
 from __future__ import annotations
@@ -32,17 +25,18 @@ import json
 from typing import Any, NamedTuple
 
 from bretzel.components.base import Component
-from bretzel.components.base._wiring import bool_attr
+from bretzel.components.base.scope_wiring import bool_attr
+from bretzel.core import base_path
 from bretzel.core.tree import Element
 from bretzel.render.context import maybe_current_context
-from bretzel.runtime.protocol import BZ_ATTR_PREFIX, outlet_id_for
+from bretzel.runtime.protocol import DATA_NAV_HREF, outlet_id_for
 
 # The channels through which a click can leave. A disabled item loses
-# them ALL: ``href`` (browser nav), ``hx-*`` (partial swap), and the
+# them ALL: ``href`` (browser nav and the boost), ``hx-target``, and the
 # optimistic flip of ``current_path`` (otherwise the highlight goes out
 # of sync with the URL with no navigation to reconcile it).
 _CLICK_CHANNELS = (
-    "href", "hx-get", "hx-target", "hx-swap", "hx-push-url", "bz-on:click",
+    "href", "hx-target", "bz-on:click",
 )
 
 
@@ -63,6 +57,16 @@ def capture_layout() -> str | None:
     return stack[-1] if stack else None
 
 
+def _client_path() -> str:
+    """The JS expression for the path the menu compares its entries with."""
+    return "$bz._localPath()" if base_path.current() else "window.location.pathname"
+
+
+def _on_this_host(href: str) -> bool:
+    ctx = maybe_current_context()
+    return ctx is not None and base_path.same_host(href, ctx.request)
+
+
 def current_path_scope(extra: str = "") -> str:
     """The ``bz-data`` literal that declares the ``current_path`` signal.
 
@@ -75,9 +79,11 @@ def current_path_scope(extra: str = "") -> str:
     THAT nav's highlighting in silence.
 
     ``extra`` adds the component's own fields (the sidebar puts its
-    ``open`` and the three fields of its rail tooltip there).
+    ``open`` there).
     """
     base = "current_path: window.location.pathname"
+    if base_path.current():
+        base = f"current_path: {_client_path()}"
     return "{ " + (f"{base}, {extra}" if extra else base) + " }"
 
 
@@ -107,22 +113,19 @@ class NavItemWiring(NamedTuple):
 def wire_nav_item(item: Component, slots: dict[str, Any]) -> NavItemWiring:
     """The prologue of a nav item's ``render()`` — reading + wiring.
 
-    The three items (Navbar / Sidebar / BottomBar) had exactly these 45
-    lines, identically: the eight reads of values and bindings, the
+    The three items (Navbar / Sidebar / BottomBar) share these lines,
+    identically: the eight reads of values and bindings, the
     choice of tag, the resolution of the two class strings,
     ``emit_attrs``, then the three ``apply_*``. What really sets them
     apart begins AFTER — the composition of the children, and two
     sidebar extras.
 
-    ⚠️ It is not aesthetics: this module's header tells how this
-    duplication has **already drifted twice** (the reactive
-    ``aria-disabled`` written two ways, the reactive badge that painted
-    an empty chip on one side only). The third copy arrived with
-    ``bottom_bar``.
+    ⚠️ It is not aesthetics: a copy per component drifts, on exactly the
+    two details this module's header settles.
 
-    The order of the three ``apply_*`` is the one from before, and it
-    matters: ``apply_disabled`` comes LAST because it removes the click
-    channels the previous two have just set.
+    The order of the three ``apply_*`` matters: ``apply_disabled`` comes
+    LAST because it removes the click channels the previous two have
+    just set.
     """
     values = item._reactive_values
     bindings = item._binding_metadata
@@ -144,16 +147,10 @@ def wire_nav_item(item: Component, slots: dict[str, Any]) -> NavItemWiring:
 
     attrs: dict[str, Any] = item.emit_attrs()
     attrs["class"] = base_class
-    # A client expression on ``active`` is wired like a binding; left to
-    # ``emit_attrs`` it became a bare ``bz-attr:active`` that nothing read.
-    active_expr = item._client_expressions.get("active")
-    if active_expr:
-        attrs.pop(f"{BZ_ATTR_PREFIX}active", None)
 
     apply_active_state(
         attrs,
         active_binding=bindings.get("active"),
-        active_expr=active_expr,
         active_value=values.get("active"),
         href=href,
         base_class=base_class,
@@ -196,11 +193,10 @@ def apply_active_state(
     href: Any,
     base_class: str,
     active_class: str,
-    active_expr: str | None = None,
 ) -> None:
     """Set the active state on ``attrs`` — three sources, in order.
 
-    1. explicit binding or client expression → reactive ``bz-attr:data-active``;
+    1. a binding or a ``ClientExpression`` → reactive ``bz-attr:data-active``;
     2. literal boolean → static ``data-active``;
     3. ``None`` (auto) → reactive comparison with ``current_path``, the
        signal the Navbar / Sidebar owns in its ``bz-data``.
@@ -216,8 +212,8 @@ def apply_active_state(
     base classes in it).
     """
     active_js = json.dumps(active_class)
-    if active_binding is not None or active_expr:
-        expr = active_expr or active_binding.binding_path()
+    if active_binding is not None:
+        expr = active_binding.binding_path()
         attrs["bz-attr:data-active"] = bool_attr(expr)
         attrs["bz-class"] = f"({expr}) ? {active_js} : ''"
         attrs["bz-attr:aria-current"] = f"({expr}) ? 'page' : null"
@@ -227,27 +223,16 @@ def apply_active_state(
     elif active_value is False:
         attrs["data-active"] = "false"
     elif href:
-        # Auto: ``/`` must match ONLY the root, not every path starting
-        # with ``/``.
-        #
-        # Everything constant AT RENDER is evaluated here, in Python, not
-        # 186 times per page in the browser: ``href !== '/'`` compares
-        # two literals whose verdict the server already knows, and
-        # ``href + '/'`` is a concatenation of constants. The expression
-        # goes from ~150 to ~62 characters, and it is copied onto three
-        # attributes per entry (cf. todo.md § sidebar).
-        #
-        # The ``current_path !== '/'`` guard disappears with them, and it
-        # is safe: it only protected the ``href == '/'`` case, now
-        # handled by its own branch. For any other href,
-        # ``'/'.startsWith('/text/')`` is already false.
-        if href == "/":
-            condition = "(current_path === '/')"
-        else:
-            condition = (
-                f"(current_path === {json.dumps(href)} || "
-                f"current_path.startsWith({json.dumps(href + '/')}))"
-            )
+        # Auto: the entry is lit for its own path and what lies below it
+        # (``/`` only for itself), unless a MORE SPECIFIC entry of the same
+        # menu matches too — on ``/tickets/mine``, ``/tickets`` stays off
+        # beside ``/tickets/mine``. That rule is the runtime's
+        # (``$bz._navActive``): entries rendered by a refreshable zone
+        # belong to the same menu, which no server render sees whole. The
+        # entry carries its path; the call is short, as it is copied onto
+        # three attributes per entry.
+        attrs[DATA_NAV_HREF] = str(href)
+        condition = f"$bz._navActive(current_path, {json.dumps(str(href))}, $el)"
         attrs["bz-attr:data-active"] = bool_attr(condition)
         attrs["bz-class"] = f"{condition} ? {active_js} : ''"
         attrs["bz-attr:aria-current"] = f"{condition} ? 'page' : null"
@@ -259,8 +244,8 @@ def apply_partial_nav(
     href: Any,
     captured_layout: Any,
 ) -> None:
-    """Wire the HTMX outlet swap when the item carries an href AND a
-    layout was captured.
+    """Aim the item at its layout's outlet when it has an href AND a layout
+    was captured: the page's boost does the rest, as for any link.
 
     With no layout, the link falls back to a plain anchor (full reload,
     which is correct). An external href keeps ``target=_blank`` + the
@@ -270,10 +255,7 @@ def apply_partial_nav(
         return
     if captured_layout and not is_external_href(href):
         attrs["href"] = href
-        attrs.setdefault("hx-get", href)
         attrs.setdefault("hx-target", f"#{outlet_id_for(captured_layout)}")
-        attrs.setdefault("hx-swap", "morph:innerHTML")
-        attrs.setdefault("hx-push-url", "true")
         # Optimistic feedback: flip ``current_path`` synchronously so
         # the highlight moves on the click, before the round trip. The
         # item has no ``bz-data`` of its own, so the expression resolves
@@ -282,7 +264,10 @@ def apply_partial_nav(
         attrs.setdefault("bz-on:click", f"current_path = {json.dumps(href)}")
         return
     attrs["href"] = href
-    if is_external_href(href):
+    # A new tab is for LEAVING: a full address on this same host is a sibling
+    # app, opened in place (not partial-nav'd, though: its document is not
+    # this app's outlet).
+    if is_external_href(href) and not _on_this_host(href):
         attrs.setdefault("target", "_blank")
         attrs.setdefault("rel", "noopener noreferrer")
 
@@ -313,17 +298,11 @@ def apply_disabled(
     engine. Once the binding turns true, **it is the runtime base layer
     that blocks** — ``$bz._inert`` derives the inertness from
     ``aria-disabled="true"`` alone and refuses the click, native
-    navigation and the server action (``02_directives.js`` +
-    ``05_bridge.js``). No stale ``hx-get`` can leave.
+    navigation and the server action (``directives.js`` +
+    ``bridge.js``). No stale ``hx-get`` can leave.
 
-    ⚠️ Two versions of this docstring lied before this one, in two
-    opposite directions, and that is worth keeping: the first described
-    ``pointer-events-none`` as always present — it was, in ``root``, and
-    that was the bug (on the same element as ``cursor-not-allowed`` it
-    cancels the cursor); the second announced a ``locked_live`` class set
-    here, an intermediate solution that left the cursor dead in the
-    reactive case. Both disappeared when inertness became a property of
-    the base layer.
+    No ``pointer-events-none``: on the same element as
+    ``cursor-not-allowed``, it cancels the cursor.
     """
     if disabled_path is not None:
         # Stringified ternary: on a bare false boolean, ``bz-attr``
@@ -427,10 +406,15 @@ def current_path_resync_init() -> str:
     triggered elsewhere in the page (a sidebar item when a navbar is
     mounted beside it, an in-page link).
 
-    Two listeners, then: ``popstate`` and ``htmx:after-request`` — the
-    second covers both success AND the error rollback in one handler
-    (htmx skips ``hx-push-url`` on 4xx/5xx, so the URL is already back
-    when we re-read it).
+    Three listeners, then: ``popstate``, ``htmx:after-request`` — it
+    covers both success AND the error rollback in one handler (htmx skips
+    ``hx-push-url`` on 4xx/5xx, so the URL is already back when we re-read
+    it) — and ``htmx:afterSettle``: a ``redirect()`` inside the layout
+    answers ``HX-Location``, whose URL htmx 2.0.4 pushes AFTER its request
+    ended, and without ``htmx:pushedIntoHistory`` (only ``hx-push-url``
+    fires it). On ``after-request`` the URL is still the old one, and the
+    entry left would stay lit; the push lands before the settle. Gate:
+    ``test_the_sidebar_lights_the_page_a_redirect_leads_to``.
 
     ⚠️ They go through ``$bz.helpers.onWindow``: ``bz-on:`` listens on
     the ELEMENT and has no ``.window`` modifier. ``popstate`` only fires
@@ -442,14 +426,15 @@ def current_path_resync_init() -> str:
     ``bz-attr:data-active`` / ``bz-class`` — an O(N) reactive cascade for
     nothing.
 
-    Both sources are necessary to keep the highlighting in sync with the
+    All three are necessary to keep the highlighting in sync with the
     URL, including after a history navigation.
     """
     guard = (
-        "const p = window.location.pathname; "
+        f"const p = {_client_path()}; "
         "if (current_path !== p) { current_path = p; } "
     )
     return (
         f"$bz.helpers.onWindow('popstate', () => {{ {guard}}}); "
-        f"$bz.helpers.onWindow('htmx:after-request', () => {{ {guard}}})"
+        f"$bz.helpers.onWindow('htmx:after-request', () => {{ {guard}}}); "
+        f"$bz.helpers.onWindow('htmx:afterSettle', () => {{ {guard}}})"
     )

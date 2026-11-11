@@ -1,1 +1,0 @@
-"""Messagerie — the demonstration mailbox."""

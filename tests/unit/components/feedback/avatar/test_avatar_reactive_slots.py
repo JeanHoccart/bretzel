@@ -13,16 +13,16 @@ from bretzel.state.scopes.client import rendering_scope
 
 
 class _AvatarState(ClientState, persist="memory"):
-    initials: str = field(default="JH")
+    initials: str = field(default="AM")
     src: str = field(default="/jean.jpg")
 
 
 class TestStaticAvatar:
     def test_static_initials_emit_plain_text(self) -> None:
         with render_isolated():
-            a = Avatar(initials="JH")
+            a = Avatar(initials="AM")
         out = serialize(a.render())
-        assert ">JH<" in out
+        assert ">AM<" in out
         # ``bz-text=`` : la DIRECTIVE. Le palier ``text-(--bz-text)``
         # partage la sous-chaîne sans être elle.
         assert "bz-text=" not in out
@@ -48,13 +48,12 @@ class TestStaticAvatar:
 
 
 class TestReactiveAvatar:
-    def test_initials_binding_is_refused(self) -> None:
-        # ``initials`` coupé du bindable 2026-07-16 (règle « driver client,
-        # sinon serveur » : les initiales ne changent qu'avec les données
-        # serveur → @refreshable, ∅). Un binding y lève ComponentUsageError.
+    def test_initials_follow_a_binding(self) -> None:
+        # ``initials`` est un contenu affiché : liable par construction depuis
+        # le 2026-11-06 (régularité avant la règle du pilote, choix de Jean).
         with render_isolated(), rendering_scope():
-            with pytest.raises(ComponentUsageError):
-                Avatar(initials=_AvatarState().initials)
+            out = serialize(Avatar(initials=_AvatarState().initials).render())
+        assert "_AvatarState" in out
 
     def test_src_binding_is_refused(self) -> None:
         # ``src`` coupé du bindable 2026-07-16 (même raison : ∅). Seul

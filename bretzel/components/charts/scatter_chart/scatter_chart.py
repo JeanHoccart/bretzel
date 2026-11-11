@@ -31,12 +31,19 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import theme_context
+from bretzel.components.base.events import item_action_attrs
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.charts._layers import (
     apply_fixed_width,
+    data_table,
+    keyboard_attrs,
     plot_svg,
     reject_empty_text_component,
     render_empty_state,
+    render_line_axis_layer,
+    render_toggle_legend,
+    render_x_axis_labels,
+    titled,
 )
 from bretzel.components.charts._svg import (
     PLOT_SPAN,
@@ -45,22 +52,35 @@ from bretzel.components.charts._svg import (
     axis_margin,
     compute_ticks,
     format_value,
+    joined,
     linear_scale,
+    localized_attr,
     nice_domain,
+    whole,
+    widen,
 )
-from bretzel.components.charts.line_chart.line_chart import (
-    _coerce_references,
-    _render_axis_layer,
-    _render_legend,
-    _render_reference_labels,
-    _render_reference_lines,
-    _render_x_axis_labels,
-    resolve_date_axis_format,
+from bretzel.components.charts.reference import (
+    coerce_references,
+    coerce_x_references,
+    render_reference_labels,
+    render_reference_lines,
+    render_x_reference_labels,
+    render_x_reference_lines,
 )
 from bretzel.components.charts.scatter_chart.theme import SCATTER_CHART_THEME
-from bretzel.components.charts.series import Series, coerce_xy_series, coloured_slot
+from bretzel.components.charts.series import (
+    Series,
+    coerce_xy_series,
+    coloured_slot,
+    has_points,
+    resolve_date_axis_format,
+    with_series,
+    x_back,
+    x_bound,
+)
 from bretzel.core.tree import Element
 from bretzel.render import text
+from bretzel.render.context import current_context
 
 # The left margin is at least this, and grows with the widest y label
 # (``axis_margin``). The right one is ``_layers.PLOT_MARGIN_RIGHT``.
@@ -75,6 +95,10 @@ class ScatterChart(Component):
 
     THEME: ClassVar[dict[str, Any]] = SCATTER_CHART_THEME
     THEME_KEY: ClassVar[str] = "scatter_chart"
+    #: A click on an element of the collection — a point, here — as on
+    #: the bars and the slices: ``on_item_click(x, y)``, routed per
+    #: element by ``item_action_attrs`` (cf. ``BarChart.EVENTS``).
+    EVENTS: ClassVar[tuple[str, ...]] = ("item_click",)
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -85,7 +109,13 @@ class ScatterChart(Component):
     show_axis: bool = reactive_prop(default=True, emit_attr=False)
     show_gridlines: bool = reactive_prop(default=True, emit_attr=False)
     show_legend: bool = reactive_prop(default=True, emit_attr=False)
-    empty_text: str = reactive_prop(default="No data", emit_attr=False)
+    # « Voir les données » under the chart: the table behind the
+    # drawing, folded (``data_table``). Without it, the table is
+    # still there for a screen reader, invisible.
+    show_data: bool = reactive_prop(default=False, emit_attr=False)
+    # ``None``: the table's « No data », in the page's language — a
+    # literal default would freeze it in English.
+    empty_text: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
         self,
@@ -97,14 +127,23 @@ class ScatterChart(Component):
         show_axis: bool | None = None,
         show_gridlines: bool | None = None,
         show_legend: bool | None = None,
+        show_data: bool | None = None,
         y_format: Any = None,
         x_format: Any = None,
         y_unit: str | None = None,
         x_unit: str | None = None,
-        reference_lines: Any = None,
+        y_min: float | None = None,
+        y_max: float | None = None,
+        x_min: Any = None,
+        x_max: Any = None,
+        x_label: str | None = None,
+        y_label: str | None = None,
+        y_reference_lines: Any = None,
+        x_reference_lines: Any = None,
+        on_item_click: Any = None,
         empty_text: str | None = None,
-        empty_icon: str | None = "scatter-chart",
-        empty_description: str | None = None,
+        empty_icon: str | Component | None = "scatter-chart",
+        empty_description: str | Component | None = None,
         empty: Callable[[], Any] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -117,12 +156,22 @@ class ScatterChart(Component):
         self._x_format = x_format
         self._y_unit = y_unit
         self._x_unit = x_unit
-        self._reference_lines = _coerce_references(reference_lines)
+        # The bounds an app asks for: the axis covers them at least.
+        # ``x_min`` / ``x_max`` may be dates, like the x values.
+        self._y_min, self._y_max = y_min, y_max
+        self._x_min = x_bound(type(self).__name__, "x_min", x_min)
+        self._x_max = x_bound(type(self).__name__, "x_max", x_max)
+        self._x_label, self._y_label = x_label, y_label
+        self._on_item_click = on_item_click
+        self._reference_lines = coerce_references(
+            type(self).__name__, y_reference_lines)
+        self._x_reference_lines = coerce_x_references(
+            type(self).__name__, x_reference_lines)
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             color=color, size=size, width=width,
             show_axis=show_axis, show_gridlines=show_gridlines,
-            show_legend=show_legend, empty_text=empty_text,
+            show_legend=show_legend, show_data=show_data, empty_text=empty_text,
             **kwargs,
         )
 
@@ -136,14 +185,15 @@ class ScatterChart(Component):
         show_axis = bool(self._reactive_values.get("show_axis"))
         show_gridlines = bool(self._reactive_values.get("show_gridlines"))
         show_legend = bool(self._reactive_values.get("show_legend"))
-        empty_text = self._reactive_values.get("empty_text") or "No data"
+        show_data = bool(self._reactive_values.get("show_data"))
+        empty_text = self._reactive_values.get("empty_text") or text("chart.empty")
 
         size_spec = sizes.get(size_name) or sizes.get("md") or {
-            "h": 280, "dot": 4.0, "axis": 12,
+            "h": 280, "dot_radius": 4.0, "axis_font": 12,
         }
         height = int(size_spec["h"])
-        dot_r = float(size_spec["dot"])
-        axis_font = int(size_spec["axis"])
+        dot_r = float(size_spec["dot_radius"])
+        axis_font = int(size_spec["axis_font"])
 
         series = _coerce_series(self._data, palette, default_color=color)
 
@@ -161,14 +211,14 @@ class ScatterChart(Component):
             f"$bz.charts.scatterScope({{n_series: {len(series) or 1}}})",
         )
 
-        if not series or not any(s.data for s in series):
+        if not has_points(series):
             return Element(
                 tag=self._tag, attrs=wrapper_attrs,
-                # An explicit ``kind``: by reusing LineChart's private
-                # helper, an empty scatter announced itself as "Line
-                # chart" to the screen reader (audit F24).
+                # An explicit ``kind``: the helper is shared, and an empty
+                # scatter must not announce itself as a "Line chart" to
+                # the screen reader.
                 children=(render_empty_state(
-                    self, width=width or 0, height=height,
+                    height=height,
                     kind=text("chart.scatter"),
                     message=empty_text, icon=self._empty_icon,
                     description=self._empty_description,
@@ -181,12 +231,20 @@ class ScatterChart(Component):
             self._data, series, self._x_format,
         )
 
-        xmin, xmax = _xy_domain(series, axis="x")
-        raw_ymin, raw_ymax = _xy_domain(series, axis="y")
+        xmin, xmax = widen(_xy_domain(series, axis="x"),
+                           (pt[0] for s in series for pt in s.data),
+                           self._x_min, self._x_max)
+        if self._x_reference_lines:
+            marks = [float(r.value) for r in self._x_reference_lines]
+            xmin, xmax = min(xmin, *marks), max(xmax, *marks)
+        raw_ymin, raw_ymax = widen(_xy_domain(series, axis="y"),
+                                   (pt[1] for s in series for pt in s.data),
+                                   self._y_min, self._y_max)
         # Snap y to nice ticks so the axis lands on round numbers and
         # spans the data fully (no half-cut axes — same trick as
         # LineChart / BarChart).
-        y_ticks = compute_ticks(raw_ymin, raw_ymax, target_count=5)
+        y_ticks = compute_ticks(raw_ymin, raw_ymax, target_count=5,
+                                whole=whole(pt[1] for s in series for pt in s.data))
         ymin = y_ticks[0] if y_ticks else raw_ymin
         ymax = y_ticks[-1] if y_ticks else raw_ymax
 
@@ -206,21 +264,27 @@ class ScatterChart(Component):
         children: list[Element] = []
 
         if show_gridlines or show_axis:
-            children.append(_render_axis_layer(
+            children.append(render_line_axis_layer(
                 slot, y_ticks, y_scale,
                 axis_font, show_axis, show_gridlines,
                 self._y_format, self._y_unit,
             ))
 
         # The line behind the dots, its label in front (after them).
+        if self._x_reference_lines:
+            children.append(render_x_reference_lines(
+                slot, self._x_reference_lines, x_scale, plot_top, plot_bottom,
+            ))
         if self._reference_lines:
-            children.append(_render_reference_lines(
+            children.append(render_reference_lines(
                 slot, self._reference_lines, y_scale,
             ))
 
         # Per-series dot groups — visibility binding rides on the
         # wrapper ``<g>`` so legend toggle hides the whole group at
         # once instead of forcing N attributes per dot.
+        back = x_back(self._data)
+        ctx = current_context() if self._on_item_click else None
         for s_idx, s in enumerate(series):
             s_color = s.color or None
             group_attrs: dict[str, Any] = {"class": f"bz-scatter-series-{s_idx}"}
@@ -228,9 +292,15 @@ class ScatterChart(Component):
                 # All series start visible → init truthy, no FOUC
                 # pre-stamp needed alongside the ``bz-show``.
                 group_attrs["bz-show"] = f"isVisible({s_idx})"
-            dot_cls = slot("dot", s_color)
+            dot_cls = slot("dot", s_color) + (" cursor-pointer" if self._on_item_click else "")
             dot_children: list[Element] = []
             for x, y in s.data:
+                click = item_action_attrs(
+                    self._on_item_click, event="item_click", dom_event="click",
+                    modifier=self._trigger_modifier,
+                    payload=with_series({"x": back(x), "y": y}, s, series),
+                    owner_id=self.id, ctx=ctx,
+                ) if self._on_item_click else {}
                 display = _build_display(
                     s, x, y,
                     x_format_effective, self._y_format,
@@ -242,22 +312,31 @@ class ScatterChart(Component):
                     "cy": _fmt(y_scale(float(y))),
                     "r": str(dot_r),
                     "data-bz-display": display,
+                    **localized_attr(display, "data-bz-display"),
                     "bz-on:mouseenter": "show($event)",
                     "bz-on:mouseleave": "hide()",
+                    **click,
                 }, children=()))
             children.append(Element(
                 tag="g", attrs=group_attrs, children=tuple(dot_children),
             ))
 
         if self._reference_lines:
-            children.append(_render_reference_labels(
+            children.append(render_reference_labels(
                 slot, self._reference_lines, y_scale, axis_font,
                 self._y_format, self._y_unit,
             ))
 
-        children.append(_render_x_axis_labels(
+        if self._x_reference_lines:
+            children.append(render_x_reference_labels(
+                slot, self._x_reference_lines, x_scale, plot_top, axis_font,
+                x_format_effective, self._x_unit,
+            ))
+
+        children.append(render_x_axis_labels(
             slot, xmin, xmax, x_scale, plot_bottom,
             axis_font, x_format_effective, self._x_unit,
+            whole_x=whole(pt[0] for s in series for pt in s.data), time_axis=date_axis,
         ))
 
         svg = plot_svg(
@@ -265,10 +344,22 @@ class ScatterChart(Component):
             aria_label=_aria_summary(series, date_axis),
         )
 
-        wrapper_children: list[Element] = [svg]
+        wrapper_children = titled(slot, svg, top=self._y_label, bottom=self._x_label)
         if show_legend and len(series) > 1:
-            wrapper_children.append(_render_legend(slot, series))
+            wrapper_children.append(render_toggle_legend(slot, series))
 
+        multi = len(series) > 1
+        wrapper_children.append(data_table(
+            slot,
+            [*([text("chart.series")] if multi else []),
+             self._x_label or "x", self._y_label or text("chart.value")],
+            [[*([s.name] if multi else []),
+              format_value(float(x), x_format_effective, self._x_unit),
+              format_value(float(y), self._y_format, self._y_unit)]
+             for s in series for x, y in s.data],
+            shown=show_data,
+        ))
+        keyboard_attrs(wrapper_attrs)
         return Element(
             tag=self._tag, attrs=wrapper_attrs,
             children=tuple(wrapper_children),
@@ -288,7 +379,7 @@ def _coerce_series(
     is skipped rather than indexed."""
     return coerce_xy_series(
         data, palette, default_color=default_color, owner="ScatterChart",
-        validate_shared_x=False, allow_index=False,
+        allow_index=False,
     )
 
 
@@ -309,8 +400,8 @@ def _build_display(
     x_str = format_value(x, x_format, x_unit)
     y_str = format_value(y, y_format, y_unit)
     if s.name:
-        return f"{s.name}\n({x_str}, {y_str})"
-    return f"({x_str}, {y_str})"
+        return joined(f"{s.name}\n(", x_str, f", {y_str})")
+    return joined("(", x_str, f", {y_str})")
 
 
 def _aria_summary(series: list[Series], date_axis: bool) -> str:

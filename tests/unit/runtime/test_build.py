@@ -32,57 +32,57 @@ BUILD_SCRIPT = RUNTIME_DIR / "_build.py"
 # ``0N_`` prefix guarantees topological concat order (signals before
 # directives before scope, …).
 EXPECTED_MODULES = [
-    "00_index.js",
-    "01_signals.js",
-    "02_directives.js",
-    "03_scope.js",
-    "04_persistence.js",
-    "05_bridge.js",
-    "06_helpers.js",
+    "index.js",
+    "signals.js",
+    "directives.js",
+    "scope.js",
+    "persistence.js",
+    "bridge.js",
+    "helpers.js",
     # Stateful-widget slabs load after the core 7 (they use window.$bz
     # which 00-06 set up). ``<bz-calendar>`` custom element + the
     # ``$bz.fileUpload`` scope factory.
-    "06_locale.js",
-    "07_calendar.js",
-    "08_file_upload.js",
-    "09_notification.js",
-    "10_charts.js",
+    "locale.js",
+    "calendar.js",
+    "file_upload.js",
+    "notification.js",
+    "charts.js",
     # ``$bz.numberInput.scope`` factory — the heavy NumberInput client
     # logic, shared once instead of inlined per instance.
-    "11_number_input.js",
+    "number_input.js",
     # ``$bz.slider.scope`` factory — drag/keyboard/clamp logic shared.
-    "12_slider.js",
+    "slider.js",
     # ``$bz.select.single`` / ``.multi`` factory scopes.
-    "13_select.js",
+    "select.js",
     # ``$bz.combobox.common`` / ``.single`` / ``.multi`` factory scopes.
-    "14_combobox.js",
+    "combobox.js",
     # Le scope de Pagination. L'algorithme ``range()`` était sérialisé dans
     # le ``bz-data`` de chaque instance — 957 octets, le plus gros du dépôt,
     # avec la config cuite dans les corps de méthode. Migré le 2026-07-29 :
     # 957 → 142 octets par instance.
-    "15_pagination.js",
+    "pagination.js",
     # Les scopes d'Accordion (622 o/instance) et de Tree (293 o), migrés le
     # 2026-07-29. Accordion cuisait sa config dans les corps de méthode
     # (``if (true)`` pour collapsible) — d'où deux CODES pour deux configs.
-    "16_accordion.js",
+    "accordion.js",
     # Le scope du Carousel. Il tient dans un fichier à lui — contrairement
     # aux quatre scopes que ``16_`` héberge, il ne se contente pas d'un
     # setter gardé : il LIT la géométrie du DOM (foulée entre deux slides,
     # borne de défilement) pour que le ``per_view`` responsive ne coûte
     # aucun calcul de breakpoint.
-    "17_carousel.js",
+    "carousel.js",
     # Le scope du TimePicker. Un fichier à lui plutôt qu'une entrée dans
     # ``16_`` : ses méthodes portent une vraie découpe (``_parts`` tolère
     # ce que le champ texte accepte avant normalisation), pas un simple
     # setter gardé.
-    "18_time_picker.js",
+    "time_picker.js",
     # Le moteur de geste node-DnD (`dropzone` / `draggable`). Le seul module
     # de la liste qui n'est PAS une fabrique de scope : il n'expose rien à
     # un `bz-data` et se branche par délégation au document, parce qu'un
     # listener par zone devrait se rebrancher à chaque morph. Il lit un
     # contrat de `data-*` attributes ; `$bz.dnd` n'expose que ses constantes
     # d'activation et des lecteurs, pour les tests.
-    "19_dnd.js",
+    "dnd.js",
     # Le scope du Resizable (split panes). Un fichier à lui, et surtout PAS
     # une extension de ``19_`` : le node-DnD déplace un nœud, celui-ci ne
     # déplace rien — deux voisins se repartagent la place qu'ils occupent
@@ -90,17 +90,21 @@ EXPECTED_MODULES = [
     # reprend la capture de pointeur sans en partager le code : le slider
     # projette sur UNE échelle bornée, ici on redistribue une somme
     # invariante entre deux panneaux.
-    "20_resizable.js",
+    "resizable.js",
     # Le scope du SignaturePad. Le PREMIER et le seul <canvas> du depot
     # (les charts sont en SVG), d'ou un fichier a lui : un canvas n'a
     # aucune taille intrinseque et se VIDE quand on le redimensionne,
     # deux proprietes qu'aucun autre module n'a a gerer.
-    "21_signature_pad.js",
-        "22_verbs.js",
-        "23_diagram.js",
+    "signature_pad.js",
+        "verbs.js",
+        "diagram.js",
+        "scheduler.js",
+        "tip.js",
+        "message_input.js",
+        "message_list.js",
     # Les noms de mois et de jours, derives de ``<html lang>`` par
     # ``Intl``. Le seul module qui n'expose ni scope ni element : une
-    # table de consultation, appelee par ``07_calendar.js`` ET par des
+    # table de consultation, appelee par ``calendar.js`` ET par des
     # expressions ``bz-text`` du calendrier rendu cote serveur. Il vit
     # ici plutot que cote Python parce que Python n'a aucun moyen sur de
     # nommer un mois : le module ``locale`` est un etat global au
@@ -117,10 +121,10 @@ class TestSourceLayout:
     def test_src_dir_exists(self) -> None:
         assert SRC_DIR.is_dir()
 
-    def test_numbered_modules_layout(self) -> None:
-        modules = sorted(SRC_DIR.glob("[0-9]*_*.js"))
-        names = [m.name for m in modules]
-        assert names == EXPECTED_MODULES
+    def test_declared_modules_layout(self) -> None:
+        from bretzel.runtime.sources import SOURCES
+
+        assert [m.name for m in SOURCES] == EXPECTED_MODULES
 
     def test_build_script_present(self) -> None:
         assert BUILD_SCRIPT.is_file()
@@ -154,7 +158,7 @@ class TestBuildOutput:
         bundle = RUNTIME_JS.read_text(encoding="utf-8")
         assert "__PROTOCOL_VERSION__" not in bundle
         # And the actual version string MUST appear (assigned to
-        # ``$bz.version`` in 00_index.js).
+        # ``$bz.version`` in index.js).
         assert f'$bz.version = "{PROTOCOL_VERSION}"' in bundle
 
     def test_bundle_concatenates_all_modules(self) -> None:

@@ -55,7 +55,7 @@ def post_comment(thread: Thread) -> None:
     thread.reply = ""
 
 
-@refreshable(deps=[Thread])
+@refreshable
 def comment_thread() -> None:
     thread = Thread()
     with ui.vstack(gap="md", classes="w-full max-w-md"):

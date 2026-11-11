@@ -32,7 +32,9 @@ from bretzel.render.context import (
 from bretzel.render.decorators.page import PageMeta
 from bretzel.render.decorators.refreshable import drain_pending_async_zones
 from bretzel.render.icons import with_glyphs
+from bretzel.render.ids import refuse_duplicate_ids
 from bretzel.render.partials import RenderResult, fingerprinter_for
+from bretzel.render.shared_parts import shared_part_templates
 from bretzel.render.shell import default_shell
 from bretzel.render.types import BretzelApp
 from bretzel.render.zone_diff import stamp_zones
@@ -93,7 +95,12 @@ async def render_page(
     # The zones rendered inline carry their fingerprint, so the first
     # action can already patch them rather than ship them whole
     # (``render/zone_diff.py``).
-    produced = stamp_zones(produced, fingerprinter_for(app), getattr(app, "zone_maps", None))
+    maps = getattr(app, "zone_maps", None)
+    produced = stamp_zones(produced, fingerprinter_for(app),
+                           maps.scoped(ctx.session_id) if maps is not None else None)
+    # Two live elements with one ``id`` — dev only (``render/ids.py``).
+    if getattr(getattr(app, "config", None), "is_dev", False):
+        refuse_duplicate_ids(produced)
 
     # ── Partial-nav short-circuit ──────────────────────────────────────
     # When ``ctx.is_partial`` was flipped by the route handler (htmx
@@ -113,6 +120,9 @@ async def render_page(
         from bretzel.render.partials import _render_delta, push_title
 
         push_title(ctx, title)
+        # Before the headers are read: the shell zones send back their
+        # fingerprints there.
+        shell = await _shell_zones(app, ctx)
         headers = dict(ctx.response_headers)
         # First-time partial nav : the runtime has never seen the
         # ClientStates this page references. Without seeding them via
@@ -121,8 +131,10 @@ async def render_page(
         # ``_render_delta`` helper builds the script tag for us ;
         # ``include_unchanged=True`` widens the filter from dirty-only
         # (action flow) to every-registered (partial-nav flow).
+        # The parts the page's components share ride with it, in the outlet.
         body_html = _render_delta(ctx, include_unchanged=True) + "".join(
-            serialize(node) for node in produced)
+            serialize(node) for node in produced) + shared_part_templates(
+            ctx) + shell
         return RenderResult(
             body=body_html,
             status_code=200,
@@ -135,6 +147,16 @@ async def render_page(
     # a partial nav is swapped by htmx, which would not.
     produced, preload = with_glyphs(produced)
     body_html = "".join(serialize(node) for node in produced) + preload
+    # The page's ONE tooltip panel, wearing the app's merged theme — every
+    # ``tooltip=`` of the page shows it (``tip.js``). Outside the
+    # outlet, so a boosted navigation keeps it. Imported here: ``render``
+    # does not reach up to the components at load time.
+    from bretzel.components.overlay.tooltip.tooltip import tooltip_host
+
+    body_html += serialize(tooltip_host())
+    # The parts the page's components share (a calendar picker's header,
+    # a colour picker's palette), once each.
+    body_html += shared_part_templates(ctx)
 
     # ── 3. Build the bootstrap envelope from the registry + theme ───────
     envelope_json = _build_envelope_json(app, ctx)
@@ -409,10 +431,9 @@ async def _render_chain(
 ) -> list[Node]:
     """Render a non-empty layout chain, then the page inside it.
 
-    Extracted from :func:`_invoke_page` on 2026-08-13, when the identity
-    seed made its body conditional: the function carried two return paths
-    and one more ``try``, and nesting them would have made it unreadable
-    which ``finally`` pops what.
+    Kept apart from :func:`_invoke_page`, whose body is conditional on the
+    identity seed: nesting this path's ``try`` in its two return paths
+    would make it unreadable which ``finally`` pops what.
     """
     # Layout chain : outermost first. We run them one by one ; each
     # layout's ``ui.outlet()`` appears in the active parent_stack at
@@ -542,9 +563,7 @@ def _drain(
     # up to ``components`` here, at the point of use (cf. charter
     # principle 5).
     if ctx.sticky_bars:
-        from bretzel.components.base._wiring import (
-            check_sticky_bar_placement,
-        )
+        from bretzel.components.base.page_checks import check_sticky_bar_placement
 
         bars, ctx.sticky_bars = ctx.sticky_bars, []
         check_sticky_bar_placement(
@@ -556,7 +575,7 @@ def _drain(
     # page is built. Resolve first — it is the resolution that makes a
     # bar reachable.
     if ctx.sidebars or ctx.sidebar_triggers:
-        from bretzel.components.base._wiring import (
+        from bretzel.components.base.page_checks import (
             check_sidebars_are_reachable,
             wire_sidebar_triggers,
         )
@@ -677,11 +696,7 @@ def _build_envelope_json(app: BretzelApp, ctx: RenderContext) -> str:
 
     Pulls every :class:`ClientState` instance out of the active registry.
     The runtime hydrates from it at boot — it reads only
-    ``client_state`` / ``csrf`` / ``endpoints`` (``00_index.js``).
-
-    ⚠️ This function also used to pull the theme's ``palette`` and push
-    it into the envelope: 2 197 bytes per page that nothing read. Removed
-    on 2026-08-01 — cf. the field's comment in ``runtime/envelope.py``.
+    ``client_state`` / ``csrf`` / ``endpoints`` (``index.js``).
     """
     clients: list[ClientState] = []
     if ctx.state_registry is not None:
@@ -742,3 +757,49 @@ def _corrected_address(ctx: RenderContext) -> str:
     path = getattr(getattr(request, "url", None), "path", "") or ""
     query = urlencode(wanted)
     return f"{path}?{query}" if query else path
+
+
+async def _shell_zones(app: BretzelApp, ctx: RenderContext) -> str:
+    """The zones outside the outlet that read a page's state, redrawn.
+
+    A partial navigation swaps the outlet alone; the page it arrives at
+    has page states of its own. A zone of the shell that read one — a
+    dialog opened by a query parameter, a breadcrumb, a counter — would
+    show the page LEFT until a full load. The runtime lists the zones outside
+    the target (``bridge.js``) with what they read; those that read a
+    page state are rendered here, as out-of-band fragments next to the
+    page, through the same channel as an action's. A zone that read none
+    is not touched, nor shipped when its render did not move.
+
+    Nothing when the client did not say which zones it shows: an older
+    runtime keeps the old behaviour rather than getting every zone.
+    """
+    if ctx.live_zones is None:
+        return ""
+    from bretzel.render.decorators.refreshable import enqueue_readers
+    from bretzel.render.partials import render_zones
+
+    enqueue_readers(ctx, {cls: set() for cls in _page_states()})
+    if not ctx.refresh_queue:
+        return ""
+    queued, ctx.refresh_queue = list(ctx.refresh_queue), []
+    registry_cm = (
+        use_registry(ctx.state_registry) if ctx.state_registry is not None else nullcontext()
+    )
+    with use_context(ctx), registry_cm, rendering_scope():
+        return "".join(await render_zones(app, queued, ctx=ctx))
+
+
+def _page_states() -> list[type]:
+    """Every server state class living for one page, declared so far."""
+    from bretzel.state.scopes.server import ServerState
+
+    found: list[type] = []
+    todo: list[type] = [ServerState]
+    while todo:
+        cls = todo.pop()
+        for sub in cls.__subclasses__():
+            todo.append(sub)
+            if getattr(sub, "__scope__", None) == "page" and sub._all_fields():
+                found.append(sub)
+    return found

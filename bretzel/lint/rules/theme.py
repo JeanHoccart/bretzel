@@ -1,30 +1,24 @@
 """Rule: a ``Theme(components={…})`` name that nothing reads.
 
-The silence it closes
----------------------
+What it reports
+---------------
 
-The theme layer never refused a key. Measured on 2026-08-16, on
-``main``:
+- ``Theme(components={"crad": {...}})`` — the component does not exist.
+- ``Theme(components={"card": {"slotz": {...}}})`` — the group does not
+  exist.
+- ``Theme(components={"card": {"slots": {"rooot": "..."}}})`` — ``Card``
+  composes ``root``, never ``rooot``.
 
-- ``Theme(components={"crad": {...}})`` — accepted. The component does
-  not exist, the override never reaches anything.
-- ``Theme(components={"card": {"slotz": {...}}})`` — accepted. The group
-  does not exist.
-- ``Theme(components={"card": {"slots": {"rooot": "..."}}})`` — accepted.
-  ``Card`` composes ``root``, never ``rooot``.
+Each of these overrides reaches nothing.
 
-In all three cases the result is identical: **nothing changes**, with no
-error, no warning, no trace in the HTML. It is the symptom one blames on
-one's browser cache for half an hour before suspecting one's own typo.
+Why a rule as well as the startup refusal
+-----------------------------------------
 
-Why a rule and not a raise
---------------------------
-
-Raising at construction would change the behaviour of existing
-applications: since the silence is total today, nobody knows whether
-their theme carries a dead key. The lint **reports** — it breaks nothing,
-and it sees without executing, so it also sees the theme of a module
-never imported. Raising stays open, recorded in ``.claude/work/todo.md``.
+``server/lifecycle._validate_theme`` refuses the same names when an
+application starts, against the same vocabulary. A ``Theme`` built on its
+own stays valid. The lint sees without executing: it reports the mistake
+before anything runs, and it also sees the theme of a module never
+imported, which no startup reaches.
 
 What it does NOT report, and deliberately
 -----------------------------------------
@@ -130,8 +124,8 @@ def _check_groups(
                         f"`{comp_name}` has no `{group}` group."
                     ),
                     hint=(
-                        f"Ses groupes : {', '.join(sorted(groups)) or '(aucun)'}. "
-                        f"`bretzel describe {comp_name}` les liste."
+                        f"Its groups: {', '.join(sorted(groups)) or '(none)'}. "
+                        f"`bretzel describe {comp_name}` lists them."
                     ),
                 )
             )

@@ -30,6 +30,8 @@ from bretzel.theme.tokens import (
     DEFAULT_TEXT,
     FONT_SLOT_NAMES,
     FOREGROUND_SUFFIX,
+    GAP_STEPS,
+    PAD_STEPS,
     PALETTE_CLASS_PREFIX,
     SEMANTIC_COLOR_NAMES,
     SHAPE_SLOT_NAMES,
@@ -68,6 +70,7 @@ def generate_theme_css(
     text: Mapping[str, str] | None = None,
     shape: Mapping[str, str] | None = None,
     stroke: str | None = None,
+    spacing_layout: Mapping[str, str] | None = None,
 ) -> str:
     """Build the ``@import`` + ``@theme`` + ``.dark`` blocks.
 
@@ -143,6 +146,7 @@ def generate_theme_css(
     # palette.
     parts.extend("  " + line for line in _emit_font_block(fonts))
     parts.extend("  " + line for line in _emit_scale_block(spacing, text))
+    parts.extend("  " + line for line in _emit_layout_block(spacing_layout))
     parts.extend("  " + line for line in _emit_shape_block(shape))
     parts.extend("  " + line for line in _emit_stroke_block(stroke))
     parts.extend("  " + line for line in light_lines)
@@ -181,7 +185,7 @@ def _emit_scale_block(
     """``--spacing`` and ``--text-<step>`` — the BASE of the scale.
 
     **Always emitted**, like the radii and unlike the fonts. Tailwind
-    does ship both, but Bretzel no longer inherits them: it CHOOSES its
+    does ship both, but Bretzel does not inherit them: it CHOOSES its
     own (cf. :data:`DEFAULT_SPACING` and :data:`DEFAULT_TEXT`), because
     the upstream scale targets pages and a tool's is tighter. Staying
     silent here would return the page to a document's scale with nobody
@@ -212,6 +216,26 @@ def _emit_scale_block(
         size = merged.get(slot)
         if size:
             yield f"--text-{slot}: {size};"
+
+
+def _emit_layout_block(layout: Mapping[str, str] | None) -> Iterable[str]:
+    """The ``box`` and ``gap`` families of spacing, and their steps.
+
+    ``--bz-space-box`` and ``--bz-space-gap`` default to ``var(--spacing)``:
+    a theme that sets nothing gets exactly the page it had. The steps are
+    ``calc()`` of them, so a component writes ``gap-(--bz-gap-4)`` and the
+    theme decides how much a step is (cf. :data:`SPACING_SLOT_NAMES`).
+
+    Always emitted, like the radii: a missing variable would leave every
+    stack with no gap at all, silently.
+    """
+    layout = layout or {}
+    yield f"--bz-space-box: {layout.get('box') or 'var(--spacing)'};"
+    yield f"--bz-space-gap: {layout.get('gap') or 'var(--spacing)'};"
+    for n in GAP_STEPS:
+        yield f"--bz-gap-{n}: calc(var(--bz-space-gap) * {n});"
+    for n in PAD_STEPS:
+        yield f"--bz-pad-{n}: calc(var(--bz-space-box) * {n});"
 
 
 def _emit_shape_block(shape: Mapping[str, str] | None) -> Iterable[str]:
@@ -309,20 +333,17 @@ def _with_suffix(stem: str) -> str:
 
 #: LAYOUT classes whose value is a runtime scalar.
 #:
-#: ``ui.grid(cols=3)`` produces ``grid-cols-3`` by f-string, and
-#: ``ui.carousel(per_view=4)`` produces ``basis-1/4``. Those strings
-#: exist in NO source file, so the production compiler does not see them
-#: — like the colour classes, and for the same reason. Measured on
-#: 2026-08-07: **the playground's grid fell back to one column in
-#: compiled mode**, with no error and no trace, while being correct in
-#: dev (the browser compiler scans the live DOM).
+#: ``ui.grid(cols=3)`` produces ``grid-cols-3`` by f-string. Those
+#: strings exist in NO source file, so the production compiler does not
+#: see them: a grid would fall back to one column in compiled mode, with
+#: no error and no trace, while being correct in dev (the browser compiler
+#: scans the live DOM).
 #:
-#: The domain is BOUNDED, so the complete closure is writable — that is
-#: exactly the colour safelist's argument. Tailwind v4 has a utility for
-#: ANY column count, but only the counts listed here reach the compiled
-#: sheet; ``ui.grid`` refuses an int outside :data:`GRID_COLS` and
-#: points to the ``cols="grid-cols-…"`` escape hatch, literal at the call
-#: site and therefore scanned.
+#: The domain is BOUNDED, so the complete closure is writable. Tailwind v4
+#: has a utility for ANY column count, but only the counts listed here
+#: reach the compiled sheet; ``ui.grid`` refuses an int outside
+#: :data:`GRID_COLS` and points to the ``cols="grid-cols-…"`` escape hatch,
+#: literal at the call site and therefore scanned.
 #:
 #: Gated by ``tests/consistency/test_emitted_classes_exist_in_source.py``
 #: and ``tests/consistency/test_every_accepted_count_is_safelisted.py``.
@@ -331,16 +352,13 @@ GRID_COLS = range(1, 13)
 _LAYOUT_CLASSES: tuple[str, ...] = (
     *(f"grid-cols-{n}" for n in GRID_COLS),
     "grid-cols-none", "grid-cols-auto",
-    "basis-full",
-    *(f"basis-1/{n}" for n in range(2, 13)),
 )
-
 
 
 # Floor: the templates the safelist guarantees even when the caller
 # passes nothing (a bare ``generate_safelist_comment(palette)`` — a Theme
-# used outside an app, a test). This floor WAS the whole safelist; it is
-# not enough, hence the ``shapes`` parameter below.
+# used outside an app, a test). It is not enough for an app, hence the
+# ``responsive_classes`` parameter below.
 def generate_safelist_comment(
     palette: Palette,
     responsive_classes: Sequence[str] = (),
@@ -359,22 +377,16 @@ def generate_safelist_comment(
     exists because the ``theme`` base layer may not import
     ``components`` — it is the caller that bridges.
 
-    ⚠️ **The COLOUR half of this function was dropped on 2026-08-30**
-    (phase 5 of the token project). It expanded every theme template
-    (``bg-{bg_color}/10``) over **all** the palette's colours: 3 791
-    classes, 576 KB out of 717, **80 % of the sheet**. There is nothing
-    left to expand — a theme writes ``bg-(--bz-bg)``, a complete class
-    the compiler sees, and it is the bridge class on the root that says
-    the colour (cf. :mod:`bretzel.theme.bridges`). Measured:
-    ``style.css`` goes from 758 268 to 354 778 bytes.
+    Colours need no safelist: a theme writes ``bg-(--bz-bg)``, a complete
+    class the compiler sees, and it is the bridge class on the root that
+    says the colour (cf. :mod:`bretzel.theme.bridges`).
 
-    What remains here is the domain where the problem still exists: the
-    LAYOUT classes, which an f-string assembles from a scalar
-    (``grid-cols-3``, ``basis-1/4``) or which a graded prop draws from a
-    theme table. Both halves are necessary: the first alone shipped on
-    2026-08-07 and left
-    ``ui.flex(direction={"base":"col","md":"row"})`` with no ``md:`` rule
-    in production — the whole feature dead, with no error and no trace.
+    The safelist covers the LAYOUT classes, which an f-string assembles
+    from a scalar (``grid-cols-3``) or which a graded prop draws from a
+    theme table. Both halves are necessary: without the second,
+    ``ui.flex(direction={"base":"col","md":"row"})`` would have no ``md:``
+    rule in production — the whole feature dead, with no error and no
+    trace.
 
     v4 syntax: ``@source inline("class-1 class-2 …");`` (a real
     directive, not a CSS comment — the ``/* @source ... */`` form was
@@ -386,13 +398,12 @@ def generate_safelist_comment(
     # both axes.
     #
     # ``_LAYOUT_CLASSES`` covers what an f-string assembles from a
-    # SCALAR (``grid-cols-3``, ``basis-1/4``); ``responsive_classes``
+    # SCALAR (``grid-cols-3``); ``responsive_classes``
     # covers what a graded prop draws from a theme TABLE (``gap-6``,
-    # ``flex-row``, ``hidden``). Both halves are necessary: the first
-    # alone shipped on 2026-08-07 and left
-    # ``ui.flex(direction={"base":"col","md":"row"})`` with no ``md:``
-    # rule in production — the whole feature dead, with no error and no
-    # trace.
+    # ``flex-row``, ``hidden``). Both halves are necessary: without the
+    # second, ``ui.flex(direction={"base":"col","md":"row"})`` would have
+    # no ``md:`` rule in production — the whole feature dead, with no
+    # error and no trace.
     for cls in (*_LAYOUT_CLASSES, *responsive_classes):
         classes.append(cls)
         classes.extend(f"{bp}:{cls}" for bp in BREAKPOINTS)

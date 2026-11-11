@@ -1,6 +1,6 @@
 """``ColorPicker`` test bench.
 
-Nine cards, `.claude/bretzel/playground-pattern.md`'s template.
+Nine cards, the playground's template.
 ``ColorPicker.BINDABLE_PROPS = ("value", "disabled")`` — the colour and
 the lock; ``clearable`` / ``placeholder`` / ``color`` / ``size`` stay
 design-time. ``EVENTS = ("change", "focus", "blur")``. No imperative API,
@@ -88,8 +88,8 @@ def clear_log() -> None:
 
 def server_changed(state: ColorPickerPlayground) -> None:
     # Typed param → the dispatcher hydrates the changed control's value
-    # into ``state`` (coerced + persisted). ``server_panel`` declares
-    # deps=[ColorPickerPlayground], so it re-renders on its own.
+    # into ``state`` (coerced + persisted). ``server_panel`` reads that
+    # state, so it re-renders on its own.
     pass
 
 
@@ -158,7 +158,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[ColorPickerPlayground])
+@refreshable
 def server_panel() -> None:
     state = ColorPickerPlayground()
 
@@ -232,7 +232,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[ColorPickerEvents])
+@refreshable
 def events_panel() -> None:
     state = ColorPickerEvents()
 
@@ -259,9 +259,9 @@ def events_panel() -> None:
         with control("on_change"):
             ui.color_picker(value=picked.picked, on_change=log_change)
         with control("on_focus"):
-            ui.color_picker("#e5484d", on_focus=log_focus)
+            ui.color_picker(value="#e5484d", on_focus=log_focus)
         with control("on_blur"):
-            ui.color_picker("#f76b15", on_blur=log_blur)
+            ui.color_picker(value="#f76b15", on_blur=log_blur)
 
     ui.divider()
 
@@ -315,9 +315,9 @@ def page() -> None:
 
             ui.heading("Basic", level=3)
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
-                ui.color_picker("#2f5fd0")
+                ui.color_picker(value="#2f5fd0")
                 ui.color_picker()              # vide → le damier
-                ui.color_picker("#ffe629")
+                ui.color_picker(value="#ffe629")
 
             ui.heading("placeholder", level=3)
             ui.text(
@@ -341,7 +341,7 @@ def page() -> None:
                 for s in SIZES:
                     with ui.vstack(gap="xs"):
                         ui.text(f"size={s}", color="muted", size="xs")
-                        ui.color_picker("#8e4ec6", size=s)
+                        ui.color_picker(value="#8e4ec6", size=s)
 
             ui.heading("Colors", level=3)
             ui.text(
@@ -355,20 +355,20 @@ def page() -> None:
                 for c in COLORS:
                     with ui.vstack(gap="xs"):
                         ui.text(c, color="muted", size="xs")
-                        ui.color_picker("#12a594", color=c)
+                        ui.color_picker(value="#12a594", color=c)
 
             ui.heading("disabled / required / clearable", level=3)
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
                 with ui.vstack(gap="xs"):
                     ui.text("disabled", color="muted", size="xs")
-                    ui.color_picker("#0090ff", disabled=True)
+                    ui.color_picker(value="#0090ff", disabled=True)
                 with ui.vstack(gap="xs"):
                     ui.text("required", color="muted", size="xs")
-                    ui.color_picker("#0090ff", required=True)
+                    ui.color_picker(value="#0090ff", required=True)
                 with ui.vstack(gap="xs"):
                     ui.text('clearable=True (the × when filled)',
                             color="muted", size="xs")
-                    ui.color_picker("#0090ff", clearable=True)
+                    ui.color_picker(value="#0090ff", clearable=True)
 
             ui.heading("name", level=3)
             ui.text(
@@ -378,7 +378,7 @@ def page() -> None:
                 color="muted", size="xs",
             )
             with ui.flex(classes="max-w-xs"):
-                ui.color_picker("#d6409f", name="brand")
+                ui.color_picker(value="#d6409f", name="brand")
 
         # ── Card 2 — Slots ──────────────────────────────────────
         with ui.card(), ui.vstack():
@@ -395,12 +395,12 @@ def page() -> None:
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.vstack(gap="xs"):
                     ui.text('default', color="muted", size="xs")
-                    ui.color_picker("#e93d82")
+                    ui.color_picker(value="#e93d82")
                 with ui.vstack(gap="xs"):
                     ui.text("slots={'swatch': 'rounded-none w-10'}",
                             color="muted", size="xs")
                     ui.color_picker(
-                        "#e93d82",
+                        value="#e93d82",
                         slots={"swatch": "rounded-none w-10"},
                     )
 
@@ -431,7 +431,7 @@ def page() -> None:
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 ui.color_picker()
-                ui.color_picker("")
+                ui.color_picker(value="")
 
             ui.heading('What is not a hex value', level=3)
             ui.text(
@@ -445,7 +445,7 @@ def page() -> None:
                 for raw in ("#2f", "rebeccapurple", 'not a colour'):
                     with ui.vstack(gap="xs"):
                         ui.text(repr(raw), color="muted", size="xs")
-                        ui.color_picker(raw)
+                        ui.color_picker(value=raw)
 
             ui.heading('Case and short form', level=3)
             ui.text(
@@ -459,22 +459,22 @@ def page() -> None:
                 with ui.vstack(gap="xs"):
                     ui.text("\"#8E4EC6\" (majuscules)",
                             color="muted", size="xs")
-                    ui.color_picker("#8E4EC6")
+                    ui.color_picker(value="#8E4EC6")
                 with ui.vstack(gap="xs"):
                     ui.text("\"#abc\" (forme courte)",
                             color="muted", size="xs")
-                    ui.color_picker("#abc")
+                    ui.color_picker(value="#abc")
 
             ui.heading('Pure white on a white background', level=3)
             ui.text('The swatch keeps its border, otherwise it would vanish into '
                 'the surface.',
                     color="muted", size="xs")
             with ui.flex(classes="max-w-xs"):
-                ui.color_picker("#ffffff")
+                ui.color_picker(value="#ffffff")
 
             ui.heading('Inside a narrow cell', level=3)
             with ui.grid(cols={"base": 1, "md": 4}, gap="md"):
-                ui.color_picker("#2f5fd0")
+                ui.color_picker(value="#2f5fd0")
                 ui.text("Voisine.", color="muted")
                 ui.text("Voisine.", color="muted")
                 ui.text("Voisine.", color="muted")
@@ -489,9 +489,9 @@ def page() -> None:
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.form_field(label="Couleur de marque",
                                    hint="Sert d'accent partout"):
-                    ui.color_picker("#2f5fd0")
+                    ui.color_picker(value="#2f5fd0")
                 with ui.form_field(label="Couleur d'alerte"):
-                    ui.color_picker("#e5484d", clearable=True)
+                    ui.color_picker(value="#e5484d", clearable=True)
 
             ui.heading('A light / dark pair', level=3)
             ui.text(
@@ -502,9 +502,9 @@ def page() -> None:
                 color="muted", size="xs",
             )
             with ui.hstack(gap="sm", align="center"):
-                ui.color_picker("#2f5fd0", size="sm")
+                ui.color_picker(value="#2f5fd0", size="sm")
                 ui.text("→", color="muted")
-                ui.color_picker("#7da3f0", size="sm")
+                ui.color_picker(value="#7da3f0", size="sm")
 
             ui.heading('explicit name= (escape hatch)', level=3)
             ui.text(
@@ -515,13 +515,13 @@ def page() -> None:
                 color="muted", size="xs",
             )
             with ui.flex(classes="max-w-xs"):
-                ui.color_picker("#30a46c", name="accent")
+                ui.color_picker(value="#30a46c", name="accent")
 
             ui.heading('Inside a ui.dialog', level=3)
             with ui.dialog(title="Personnaliser", width="md") as dlg, \
                             ui.vstack():
                 with ui.form_field(label="Quelle teinte ?"):
-                    ui.color_picker("#6e56cf")
+                    ui.color_picker(value="#6e56cf")
                 ui.text(
                     'The panel is anchored in fixed position, so it '
                         "escapes the dialog's overflow.",
@@ -551,7 +551,7 @@ def page() -> None:
                 color="muted", size="sm",
             )
             with ui.flex(classes="max-w-xs"):
-                ui.color_picker("#2f5fd0",
+                ui.color_picker(value="#2f5fd0",
                                 aria_label='Brand colour')
 
         # ── Card 6 — Server playground ──────────────────────────
@@ -719,7 +719,7 @@ def page() -> None:
             _new_value = ClientExpression("$event.target.value")
             with ui.flex(classes="max-w-xs"):
                 ui.color_picker(
-                    "#00a2c7",
+                    value="#00a2c7",
                     on_change=cevents.log.push(_new_value),
                 )
 
@@ -750,7 +750,7 @@ def page() -> None:
                     ' value.',
                 serialize_html(
                     ui.color_picker(
-                        "#00a2c7",
+                        value="#00a2c7",
                         on_change=cevents.log.push(_new_value),
                     )
                 ),

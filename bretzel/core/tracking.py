@@ -34,6 +34,23 @@ class CircularDependencyError(RuntimeError):
     """Raised when an observer is detected at two levels of the eval stack."""
 
 
+class Reads:
+    """What one :meth:`DependencyTracker.recording` block read.
+
+    ``fields`` maps each state class obtained or read to the field names
+    read through their descriptor ; ``whole`` holds the classes read in
+    one go (a bulk read, ``@reads``), which count as every field.
+    ``owner`` is whoever the reads are for — a zone being rendered.
+    """
+
+    __slots__ = ("fields", "owner", "whole")
+
+    def __init__(self, owner: object = None) -> None:
+        self.fields: dict[type, set[str]] = {}
+        self.whole: set[type] = set()
+        self.owner = owner
+
+
 class DependencyTracker:
     """Coordinates dependency registration and invalidation.
 
@@ -42,12 +59,15 @@ class DependencyTracker:
     recording" observer per async task.
     """
 
-    __slots__ = ("_current", "_deps", "_stack", "_tracking_enabled")
+    __slots__ = ("_current", "_deps", "_reads", "_stack", "_tracking_enabled")
 
     def __init__(self) -> None:
         self._deps: dict[tuple[int, str], set[Observer]] = {}
         self._current: ContextVar[Observer | None] = ContextVar(
             "bretzel_tracker_current", default=None
+        )
+        self._reads: ContextVar[Reads | None] = ContextVar(
+            "bretzel_tracker_reads", default=None
         )
         self._stack: ContextVar[tuple[Observer, ...]] = ContextVar(
             "bretzel_tracker_stack", default=()
@@ -59,13 +79,21 @@ class DependencyTracker:
     # ── Recording side ───────────────────────────────────────────────────
 
     def track_access(self, source: object, key: str) -> None:
-        """Register the active observer as dependent on ``(source, key)``.
+        """Register the active observer as dependent on ``(source, key)``,
+        and note the read in the active :meth:`recording`, if any.
 
-        No-op if no observer is currently active or if tracking has been
-        suspended via :py:meth:`untracked`.
+        No-op if neither is active or if tracking has been suspended via
+        :py:meth:`untracked`.
         """
         if not self._tracking_enabled.get():
             return
+        reads = self._reads.get()
+        if reads is not None:
+            names = reads.fields.get(type(source))
+            if names is None:
+                reads.fields[type(source)] = {key}
+            else:
+                names.add(key)
         observer = self._current.get()
         if observer is None:
             return
@@ -75,6 +103,59 @@ class DependencyTracker:
             bucket = set()
             self._deps[slot] = bucket
         bucket.add(observer)
+
+    def note_obtained(self, state_cls: type) -> None:
+        """Record that ``state_cls`` was obtained inside a :meth:`recording`
+        block. Called by ``MyState()`` itself, so a zone follows every
+        state it reaches, directly or through any helper — by the fields
+        it then reads, or whole if it reads none through a descriptor."""
+        reads = self._reads.get()
+        if reads is not None:
+            reads.fields.setdefault(state_cls, set())
+
+    def note_whole(self, state_cls: type) -> None:
+        """Record that every field of ``state_cls`` was read at once — a
+        read that does not go through the descriptors (``to_dict()``,
+        ``errors``) or a ``@reads``."""
+        reads = self._reads.get()
+        if reads is not None:
+            reads.whole.add(state_cls)
+
+    def replay(self, recorded: Reads) -> None:
+        """Add a recording made earlier to the active one — what a
+        ``@computed`` served from its cache read when it was computed."""
+        reads = self._reads.get()
+        if reads is None:
+            return
+        for cls, names in recorded.fields.items():
+            mine = reads.fields.get(cls)
+            if mine is None:
+                reads.fields[cls] = set(names)
+            else:
+                mine |= names
+        reads.whole |= recorded.whole
+
+    def recording_owner(self) -> object:
+        """Whose reads are being recorded right now — ``None`` if nobody's."""
+        reads = self._reads.get()
+        return None if reads is None else reads.owner
+
+    @contextmanager
+    def recording(self, owner: object = None) -> Iterator[Reads]:
+        """Collect what is read within the block: classes obtained, fields
+        read through their descriptor, classes read whole.
+
+        Separate from :meth:`observing`: nothing lands in ``_deps``, which
+        is keyed by ``id()`` and would keep one entry per rendered
+        instance forever. A nested block records for itself only — what a
+        nested zone reads belongs to it.
+        """
+        reads = Reads(owner)
+        token = self._reads.set(reads)
+        try:
+            yield reads
+        finally:
+            self._reads.reset(token)
 
     # ── Notification side ────────────────────────────────────────────────
 

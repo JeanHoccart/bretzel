@@ -48,7 +48,7 @@ class EmptyState(Component):
     THEME: ClassVar[dict[str, Any]] = EMPTY_STATE_THEME
     THEME_KEY: ClassVar[str] = "empty_state"
     # message follow filter state without a server round-trip.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("title", "description")
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
 
     NAMED_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
     ICON_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
@@ -58,10 +58,10 @@ class EmptyState(Component):
 
     def __init__(
         self,
-        title: Any = None,
+        title: str | Component | None = None,
         *,
         icon: str | Component | None = None,
-        description: Any = None,
+        description: str | Component | None = None,
         size: str | None = None,
         color: str | None = None,
         **kwargs: Any,
@@ -71,12 +71,8 @@ class EmptyState(Component):
             size=size, color=color, icon=icon,
             **kwargs,
         )
-        # ``adopt_slot`` lets string / ClientBinding through intact (so
-        # ``emit_text_slot`` always sees the binding) and detaches a
-        # Component, which would otherwise render twice. Cf. traps.md
-        # § "Slot Component stocké sans `adopt_slot`".
-        self._title = Component.adopt_slot(title)
-        self._description = Component.adopt_slot(description)
+        self._title = title
+        self._description = description
 
         # ``size=`` must reach the GLYPH, not only its box. The table
         # already carried an ``icon_size`` token per step, never wired
@@ -86,22 +82,14 @@ class EmptyState(Component):
         # shortcut; a ``ui.icon(size=…)`` built by the caller carries an
         # explicit intent we do not overwrite.
         if isinstance(icon, str):
-            size_map = self._resolved_theme().get("sizes", {}).get(
-                self._reactive_values.get("size") or "md", {}
-            )
+            size_map = self._size_row() or {}
             self._slot_components["icon"] = Component.adopt_slot(
                 icon, icon_shortcut=True,
                 icon_size=size_map.get("icon_size", "lg"),
             )
 
     def render(self) -> Element:
-        theme = self._resolved_theme()
-        slots = theme.get("slots", {})
-        sizes = theme.get("sizes", {})
-
-        size_key = self._reactive_values.get("size") or "md"
-        size_map = sizes.get(size_key, sizes.get("md", {}))
-
+        slots = self._resolved_theme().get("slots", {})
         children: list[Node] = []
 
         # ── Icon box (rounded background + icon inside) ─────────────
@@ -120,9 +108,8 @@ class EmptyState(Component):
                 else "bg-(--bz-bg) text-(--bz-text)"
             )
             icon_box_class = " ".join(p for p in (
-                slots.get("icon", ""),
+                self.compose_class("icon"),
                 icon_tint,
-                size_map.get("icon_box", ""),
             ) if p)
             # We don't mutate the icon's classes — the rendered span
             # keeps the user's (or auto-built shortcut's) size ; the box
@@ -139,10 +126,7 @@ class EmptyState(Component):
         # ── Title ───────────────────────────────────────────────────
         title_node = self.emit_text_slot(self._title)
         if title_node is not None:
-            title_class = " ".join(p for p in (
-                slots.get("title", ""),
-                size_map.get("title", ""),
-            ) if p)
+            title_class = self.compose_class("title")
             children.append(
                 Element(
                     tag="h3",
@@ -154,10 +138,7 @@ class EmptyState(Component):
         # ── Description ─────────────────────────────────────────────
         desc_node = self.emit_text_slot(self._description)
         if desc_node is not None:
-            desc_class = " ".join(p for p in (
-                slots.get("description", ""),
-                size_map.get("description", ""),
-            ) if p)
+            desc_class = self.compose_class("description")
             children.append(
                 Element(
                     tag="p",

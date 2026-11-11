@@ -1,6 +1,6 @@
 """Default themes for :class:`RadioGroup` and :class:`Radio`.
 
-Same idiom as the checkbox / switch — ``peer sr-only`` real
+Same idiom as the checkbox / switch — an invisible ``peer`` real
 ``<input type="radio">`` + a fake ``<div class="circle">`` + an
 absolute-positioned ``<div class="dot">`` that fades in on
 ``peer-checked``. Each radio shares the ``name=`` from the parent
@@ -24,7 +24,9 @@ RADIO_GROUP_THEME: dict[str, Any] = {
 RADIO_THEME: dict[str, Any] = {
     "slots": {
         "root": (
-            "inline-flex items-center align-middle gap-2 group select-none cursor-pointer "
+            # ``items-start``: a label on several lines keeps the box on its
+            # first line — the container is one line high (``_checkable``).
+            "inline-flex items-start align-middle gap-2 group select-none cursor-pointer "
             # Disabled visual — fully CSS-reactive via the hidden peer
             # ``<input disabled>`` descendant. Same shape as Checkbox /
             # Switch so the family stays uniform.
@@ -34,10 +36,12 @@ RADIO_THEME: dict[str, Any] = {
         "container": (
             "relative inline-flex items-center justify-center shrink-0"
         ),
-        "input": "peer sr-only",
+        "input": "peer absolute inset-0 m-0 opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed",
         "circle": (
             "block rounded-full border-(length:--bz-stroke) border-text/25 bg-interface "
-            "transition-all duration-200 ease-out "
+            # ``border-width`` too: checking thickens the ring.
+            "transition-[color,background-color,border-color,border-width,box-shadow] "
+            "duration-200 ease-out "
             "peer-checked:border-(--bz-solid) peer-checked:border-(length:--bz-stroke-strong) "
             "peer-focus-visible:ring-2 peer-focus-visible:ring-(--bz-focus) "
             "peer-focus-visible:ring-offset-2 "
@@ -56,7 +60,7 @@ RADIO_THEME: dict[str, Any] = {
             "transition-opacity duration-200 ease-out"
         ),
         "label": (
-            "font-medium text-text transition-all duration-200 "
+            "font-medium text-text transition duration-200 "
             "group-has-[input:not(:disabled)]:group-hover:opacity-70"
         ),
     },

@@ -11,20 +11,18 @@ expression** (``_value_expr()``) :
 
 - **Bound** (``value=client_state.picked``) : the value expression IS
   the binding path ``$bz.state.X.y``. The scope is just
-  ``bz-data="{open: false}"``. The editable ``<input>`` carries
-  ``bz-model="$bz.state.X.y"`` (two-way), the hidden form-data input
-  ``bz-attr:value="$bz.state.X.y"``, the inner ``<bz-calendar>``
-  ``bz-attr:value="$bz.state.X.y"`` + ``bz-on:change="$bz.state.X.y =
-  $event.detail.value"``. Everything addresses the store directly —
-  zero ``$watch`` sync.
+  ``bz-data="{open: false}"``. The field, the hidden form-data input and
+  the inner ``<bz-calendar>`` all address the store directly — zero
+  ``$watch`` sync.
 - **Literal** (``value=date(...)`` / no value) : the value expression
   is a local scope var ``value``. The scope is
-  ``bz-data="{open: false, value: '<initial>'}"``, and ``bz-model`` /
-  ``bz-attr:value`` / the calendar change handler all address ``value``.
+  ``bz-data="{open: false, value: '<initial>'}"``, and the field, the
+  hidden input and the calendar change handler all address ``value``.
 
 Wired (both modes, ``V`` = ``_value_expr()``) :
 
-- the editable ``<input>`` uses ``bz-model="V"`` (typing → V) ;
+- the editable ``<input>`` shows ``V`` and writes it once normalised, at
+  ``change`` and ``blur`` (``typed_field_attrs``) — never at each key ;
 - the hidden form-data input uses ``bz-attr:value="V"`` ;
 - the clear ``×`` button does ``V = ''`` and is shown only when ``V``
   is non-empty (``bz-show="V"`` + FOUC pre-stamp) ;
@@ -51,23 +49,13 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
-    anchored_dismiss_init,
-    calendar_value_mirror,
-    imperative_listeners,
-    install_open_close_toggle,
-    install_value_commands,
-    theme_context,
-)
+from bretzel.components.base.arguments import reject_attribute_component
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.overlay_wiring import install_open_close_toggle
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.inputs._picker_field import (
-    anchored_panel,
-    calendar_picker_scope,
-    clear_button,
-    detach_wrapper_carriers,
-    hidden_carrier,
-    panel_calendar,
-    relocate_field_events,
-    trigger_button,
+    render_calendar_field,
     value_expr,
 )
 from bretzel.components.inputs._wiring import date_to_iso
@@ -78,34 +66,25 @@ from bretzel.render import text
 
 def _date_to_iso(value: Any) -> str:
     """``DatePicker``'s date coercion — the shared one, bound to this
-    component's name for the error message (audit F50: the three
-    components of the date family each carried an identical copy)."""
+    component's name for the error message."""
     return date_to_iso(value, owner="DatePicker")
 
 
-# Client expression — typed text → ISO ``YYYY-MM-DD`` on blur,
-# rejecting unparsable input. Templated on the value expression so the
-# bound (``$bz.state.X.y``) and literal (``value``) modes — and the
-# date_range_picker's ``vstart`` / ``vend`` — reuse the exact same
-# parser. ``{V}`` is substituted with the value expression at render.
-NORMALISE_TO_ISO_TEMPLATE = (
-    "(() => {{ if (!({V})) return; "
-    "const m = String({V}).match(/^(\\d{{4}})-(\\d{{2}})-(\\d{{2}})$/); "
-    "if (m) return; "
-    "const d = new Date({V}); "
-    "if (isNaN(d.getTime())) {{ {V} = ''; return; }} "
-    "const pad = n => String(n).padStart(2, '0'); "
-    "{V} = d.getFullYear() + '-' + pad(d.getMonth() + 1) + "
-    "'-' + pad(d.getDate()); }})()"
-)
-"""On blur : if the value expression is already a clean ISO date, keep
-it. Else try ``new Date(...)`` — if it parses, rewrite it in ISO. If
-it doesn't parse, clear the field. Free-form (``"July 19 2018"``,
-``"2018/07/19"``, …) normalised to ``"2018-07-19"``.
-
-Templated on ``{V}`` (the value expression) so the bound store path,
+# Client expression — typed text → ISO ``YYYY-MM-DD`` on change and blur,
+# or empty when it names no day. The reader is ``$bz.dates.typed``
+# (``locale.js``), the ONE reader of a typed date: a numeric date is read
+# in the order of ``<html lang>`` (« 02/07/2027 » is 2 July in French),
+# where ``new Date()`` reads ``MM/DD/YYYY`` whatever the language.
+NORMALISE_TO_ISO_TEMPLATE = "{V} = $bz.dates.typed({V})"
+"""Templated on ``{V}`` (the value expression) so the bound store path,
 the local ``value``, and the range picker's ``vstart`` / ``vend`` all
-share one parser. Use :func:`normalise_to_iso_js`."""
+share one reader. Use :func:`normalise_to_iso_js`."""
+
+
+def shown_date_js(value_expr: str) -> str:
+    """What the field shows of ``value_expr``: the day in the page's
+    language, « mar. 3 nov. 2026 » (``$bz.dates.shown``)."""
+    return f"$bz.dates.shown({value_expr})"
 
 
 def normalise_to_iso_js(value_expr: str) -> str:
@@ -118,11 +97,13 @@ def normalise_to_iso_js(value_expr: str) -> str:
     return NORMALISE_TO_ISO_TEMPLATE.format(V=value_expr)
 
 
-class DatePicker(Component):
+class DatePicker(ValueCommands, FocusCommands, Component):
     """Single-date input with an inline calendar popover."""
 
     THEME: ClassVar[dict[str, Any]] = DATE_PICKER_THEME
     THEME_KEY: ClassVar[str] = "date_picker"
+    #: Retired names, refused with the new one (``attrs.split_kwargs``).
+    RENAMED_PROPS: ClassVar[dict[str, str]] = {"weekstart": "write ``week_start=``."}
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = (
         "value", "min", "max", "disabled",
@@ -134,6 +115,10 @@ class DatePicker(Component):
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
+    # Where ``autofocus=`` / ``.focus()`` land. NOT ``"input"``: the first
+    # ``<input>`` is the HIDDEN carrier, where ``.focus()`` does nothing.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("input:not([type=hidden])",)
+    _command_value = staticmethod(_date_to_iso)
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
@@ -151,13 +136,13 @@ class DatePicker(Component):
 
     def __init__(
         self,
-        value: Any = None,
         *,
-        placeholder: str = "YYYY-MM-DD",
+        value: Any = None,
+        placeholder: str | None = None,
         min: Any = None,
         max: Any = None,
         disabled_dates: list[_dt.date] | None = None,
-        weekstart: int = 1,
+        week_start: int = 1,
         marks: Any = None,
         weekday_names: list[str] | None = None,
         month_names: list[str] | None = None,
@@ -173,6 +158,7 @@ class DatePicker(Component):
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
+        reject_attribute_component(placeholder, owner="DatePicker", prop="placeholder")
         self._placeholder = placeholder
         # ``None`` = "let the browser name them", from ``<html lang>``.
         # Freezing English here forced every app to pass the 19 strings
@@ -185,7 +171,7 @@ class DatePicker(Component):
         # ``ui.month_picker`` does not have it: its grid is made of
         # MONTHS, not days.
         self._marks = marks
-        self._weekstart = weekstart
+        self._weekstart = week_start
         self._clearable = clearable
         self._close_on_pick = close_on_pick
 
@@ -200,244 +186,57 @@ class DatePicker(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # AFTER `super().__init__`: both installers read
+        # AFTER `super().__init__`: the installer reads
         # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
-        # carrier (`hidden_carrier`), which does not take focus.
-        # Measured — `.focus()` did nothing on all six.
-        install_value_commands(
-            self, focus_selector="input:not([type=hidden])"
-        )
 
     def render(self) -> Element:
-        theme, slots, _sizes, size_key, color = theme_context(self)
-        size_map = theme.get("sizes", {})
-
-        disabled = bool(self._reactive_values.get("disabled"))
-        required = bool(self._reactive_values.get("required"))
-
-        def sz(group: str) -> str:
-            """Per-size class string for ``group`` in ``THEME["sizes"]``.
-            Without this the input + buttons all render ``h-10`` no matter
-            the ``size=``.
-            """
-            row = size_map.get(group, {})
-            return row.get(size_key) or row.get("md") or ""
-
-        def slot_with_size(slot: str) -> str:
-            # ``compose_class`` resolves the slot's ``{bg_color}`` against
-            # ``color=`` (the same seam ``ui.input`` uses for its multi-slot
-            # theme) so ``color=`` reaches the frame ring + trigger icon, not
-            # just the calendar popover. The per-slot size map stays local.
-            return " ".join(filter(None, [
-                self.compose_class(slot, apply_variant_size_modifiers=False),
-                sz(slot),
-            ]))
-
+        _theme, slots, _sizes, size_key, color = theme_context(self)
         raw_value = self._reactive_values.get("value")
-        initial_iso = _date_to_iso(raw_value) if raw_value else ""
-
-        min_binding = self._binding_metadata.get("min")
-        max_binding = self._binding_metadata.get("max")
-        disabled_binding = self._binding_metadata.get("disabled")
-
-        # ── Root attrs + scope (bz-data) ──────────────────────────
-        # Both calls are the mechanics shared by the three pickers
-        # (``inputs/_picker_field.py``, extracted on 2026-08-02): route
-        # each handler to the carrier able to fire it, and empty the root
-        # of what a ``<div>`` cannot carry. The blocks they replace lived
-        # here in three copies whose comments explained the same thing
-        # three times.
         val = value_expr(self)
-        root_attrs = self.emit_attrs()
-        hidden_extra: dict[str, Any] = {}
-        relocated_to_field: dict[str, Any] = {}
-        relocate_field_events(
-            root_attrs,
-            value_carrier=hidden_extra,
-            focusable=relocated_to_field,
-        )
-        name = detach_wrapper_carriers(self, root_attrs)
-        root_attrs["class"] = slots.get("root", "")
 
-        # bz-data : the same two modes as MonthPicker / WeekPicker —
-        # ``open`` alone when bound, ``open`` + a local seed otherwise.
-        root_attrs["bz-data"] = calendar_picker_scope(
-            self, value_expr=val, initial=initial_iso
-        )
-        # ── The receivers of the imperative API ──────────────────────
-        #
-        # In BOUND mode, `.open()` / `.set()` write straight into the
-        # store and these listeners never fire; we set them anyway so the
-        # contract is the same in both modes — the choice already made by
-        # Sidebar, Dialog, Select and the two sibling calendar pickers.
-        for _ev, _handler in imperative_listeners("open").items():
-            root_attrs.setdefault(_ev, _handler)
-        root_attrs.setdefault("bz-on:bz-set", f"{val} = $event.detail.value")
-        # Mirror the value expression onto the inner ``<bz-calendar>``'s
-        # observed ``value`` ATTRIBUTE. Shared with DateRangePicker via
-        # ``calendar_value_mirror`` (centralises the trap-prone
-        # ``setAttribute`` dance + captures the value expression once).
-        root_attrs["bz-effect"] = (
-            "(() => { " + calendar_value_mirror(val, is_range=False) + "})()"
-        )
-        # Escape + click-outside dismiss (the shared helper registers
-        # both on ``$el`` — ``bz-on`` has no ``.outside`` / ``.escape``).
-        root_attrs["bz-init"] = anchored_dismiss_init("open")
-
-        # ── Hidden form-data input ────────────────────────────────
-        # It now goes through the shared primitive: the skeleton (type /
-        # bz-ref / SSR value / bz-attr:value) comes from
-        # ``hidden_carrier_attrs``, which this component rewrote by hand
-        # because it PREDATES its extraction. The ``bz-ref`` was
-        # therefore missing here — it is what made
-        # ``test_hidden_carrier_skeleton_is_shared`` go red on TimePicker
-        # when I copied this block.
-        hidden_input = hidden_carrier(
-            value_expr=val,
-            initial=initial_iso,
-            name=name,
-            required=required,
-            extra=hidden_extra,
-        )
-
-        # ── Visible editable input ────────────────────────────────
-        field_attrs: dict[str, Any] = {
-            "type": "text",
-            "placeholder": self._placeholder,
-            "class": slot_with_size("input_field"),
-            "value": initial_iso,
-            "bz-model": val,
-            # On blur — try to normalise free-form input into ISO.
-            "bz-on:blur": normalise_to_iso_js(val),
-            "autocomplete": "off",
-            "inputmode": "numeric",
-            "spellcheck": "false",
-            "aria-label": self._placeholder,
-        }
-        if disabled:
-            field_attrs["disabled"] = True
-        if required:
-            # Pure visual ``required`` cue — the actual ``required`` for
-            # form-data validation lives on the hidden input.
-            field_attrs["aria-required"] = "true"
-        if "bz-on:blur" in relocated_to_field:
-            relocated_to_field["bz-on:blur"] = (
-                f"{field_attrs['bz-on:blur']}; {relocated_to_field['bz-on:blur']}"
-            )
-        field_attrs.update(relocated_to_field)
-        # Reactive ``disabled`` → the editable field, not the wrapper.
-        # The frame greys out by itself with it
-        # (``has-[input:disabled]`` in the theme), so the ring follows
-        # the binding with no extra directive.
-        self.forward_binding("disabled", field_attrs)
-        field_input = Element(
-            tag="input", attrs=field_attrs, children=()
-        )
-
-        # ── Clear button (only emitted when clearable) ────────────
-        children_in_frame: list[Any] = [field_input]
-        if self._clearable:
-            clear_btn = clear_button(
-                css=slot_with_size("clear_button"),
-                icon_css=slot_with_size("button_icon"),
-                aria_label=text("date_picker.clear"),
-                clear_js=f"{val} = ''",
-                show_when=val,
-                has_value_at_ssr=bool(initial_iso),
-                disabled=disabled,
-            )
-            self.forward_binding("disabled", clear_btn.attrs)
-            children_in_frame.append(clear_btn)
-
-        # ── Calendar trigger button ───────────────────────────────
-        trigger_btn = trigger_button(
-            icon="calendar",
-            css=slot_with_size("trigger_button"),
-            icon_css=slot_with_size("button_icon"),
-            aria_label=text("date_picker.open"),
-            disabled=disabled,
-        )
-        self.forward_binding("disabled", trigger_btn.attrs)
-        children_in_frame.append(trigger_btn)
-
-        # ── The visible field frame (input + buttons, one ring) ───
-        # ``bz-ref="bztrigger"`` : the floating anchor the panel's
-        # ``anchored_panel_effect`` pins against (same idiom as Select /
-        # Combobox — the panel opens against this box).
-        input_frame = Element(
-            tag="div",
-            attrs={
-                # ``slot_with_size`` and not ``compose_class``: the
-                # step's height lives on the FRAME, which carries the
-                # border — otherwise the control renders 2 px more than
-                # ``ui.input`` at the same ``size=`` (cf. the theme's
-                # note).
-                "class": slot_with_size("input_frame"),
-                "bz-ref": "bztrigger",
-            },
-            children=tuple(children_in_frame),
-        )
-
-        # ── Popover panel hosting the calendar ────────────────────
         cal_kwargs: dict[str, Any] = {
             "mode": "picker",
             "color": color,
             "size": size_key,
-            "weekstart": self._weekstart,
+            "week_start": self._weekstart,
             "marks": self._marks,
             "weekday_names": list(self._weekday_names)
             if self._weekday_names else None,
             "month_names": list(self._month_names)
             if self._month_names else None,
         }
-        if min_binding is not None:
-            cal_kwargs["min"] = min_binding
-        elif self._reactive_values.get("min"):
-            cal_kwargs["min"] = self._reactive_values.get("min")
-        if max_binding is not None:
-            cal_kwargs["max"] = max_binding
-        elif self._reactive_values.get("max"):
-            cal_kwargs["max"] = self._reactive_values.get("max")
-        if disabled_binding is not None:
-            cal_kwargs["disabled"] = disabled_binding
-        elif disabled:
-            cal_kwargs["disabled"] = True
+        for bound in ("min", "max"):
+            binding = self._binding_metadata.get(bound)
+            if binding is not None:
+                cal_kwargs[bound] = binding
+            elif self._reactive_values.get(bound):
+                cal_kwargs[bound] = self._reactive_values.get(bound)
         if self._disabled_dates:
             cal_kwargs["disabled_dates"] = self._disabled_dates
-        # On pick : write the picked value back into the value
-        # expression (which propagates to the input + the hidden
-        # form-data carrier + — when bound — the store, all addressing
-        # the same expression). Optionally close.
-        on_change_parts = [f"{val} = $event.detail.value"]
+        picked = [f"{val} = $event.detail.value"]
         if self._close_on_pick:
-            on_change_parts.append("open = false")
-        cal_kwargs["on_change"] = "; ".join(on_change_parts)
+            picked.append("open = false")
+        cal_kwargs["on_change"] = "; ".join(picked)
 
-        # Drop the calendar's static ``value`` attr — sync lives on the
-        # wrapper's ``bz-effect`` (see ``root_attrs[bz-effect]`` above),
-        # which has direct access to the value expression without going
-        # through the bz-calendar's nested ``bz-data="{year, month}"``
-        # header scope.
-        import dataclasses as _dc
-        cal_el = panel_calendar(self, cal_kwargs)
-        cal_attrs = {**cal_el.attrs}
-        cal_attrs.pop("value", None)
-        cal_el = _dc.replace(cal_el, attrs=cal_attrs)
-
-        # ``bz-ref="bzpanel"`` + the shared ``anchored_panel_effect`` toggles
-        # display AND attaches ``$bz.helpers.floating`` against ``bztrigger``
-        # (best-fit ``bottom-start`` : opens below, left-aligned, flips /
-        # clamps to stay in the viewport). Replaces the old ``bz-show`` +
-        # static ``absolute top-full left-0`` panel that clipped at the edge.
-        panel_node = anchored_panel(
-            css=slots.get("panel", ""),
-            children=(cal_el,),
-        )
-
-        return Element(
-            tag=self._tag,
-            attrs=root_attrs,
-            children=(hidden_input, input_frame, panel_node),
+        return render_calendar_field(
+            self,
+            initial=_date_to_iso(raw_value) if raw_value else "",
+            value_expr=val,
+            normalise=normalise_to_iso_js,
+            shown=shown_date_js,
+            mirror_granularity=None,
+            clearable=self._clearable,
+            clear_label=text("date_picker.clear"),
+            trigger_icon="calendar",
+            trigger_label=text("date_picker.open"),
+            field_label=text("date_picker.label"),
+            calendar_kwargs=cal_kwargs,
+            root_css=slots.get("root", ""),
+            frame_css=self.compose_class("input_frame"),
+            panel_css=slots.get("panel", ""),
+            field_css=self.compose_class("input_field"),
+            clear_css=self.compose_class("clear_button"),
+            trigger_css=self.compose_class("trigger_button"),
+            icon_css=self.compose_class("button_icon"),
         )

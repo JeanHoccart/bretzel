@@ -17,6 +17,13 @@ Each command answers a concrete question:
   default, ``--json`` for a consumer.
 - ``bretzel check`` — runs the rules over application code. Exit code 1
   when there is a finding, so a pre-commit hook or a CI can use it.
+- ``bretzel features`` — the map of an app's features (what each is, its
+  routes, what it exposes, who uses it), then what to fix in the
+  contracts.
+- ``bretzel translations`` — for each language, the sentences of ``t()``
+  its table lacks, and the entries nobody calls any more.
+- ``bretzel impact`` — what a change to some files touches: the features
+  importing them, their pages, the probes to run.
 - ``bretzel probe`` — drives a RUNNING app in a real browser and returns
   a single verdict block. The first two read text; this one is the only
   one that looks at what the user sees. Requires the ``bretzel[probe]``
@@ -131,6 +138,12 @@ def _as_dict(name: str) -> dict:
     }
 
 
+def _vendor(args: argparse.Namespace) -> int:
+    from bretzel.render.vendor import main as vendor_main
+
+    return vendor_main(["--force"] if args.force else [])
+
+
 def _check(args: argparse.Namespace) -> int:
     from bretzel.lint import available_rules, run, run_deep
 
@@ -157,6 +170,24 @@ def _check(args: argparse.Namespace) -> int:
     report = run(paths, rules=tuple(args.rule) or None)
     print(report.format(root=Path.cwd()))
     return report.exit_code
+
+
+def _features(args: argparse.Namespace) -> int:
+    from bretzel.cli.commands.features import run_features
+
+    return run_features(args.target, as_json=args.json)
+
+
+def _translations(args: argparse.Namespace) -> int:
+    from bretzel.cli.commands.translations import run_translations
+
+    return run_translations(args.target, as_json=args.json)
+
+
+def _impact(args: argparse.Namespace) -> int:
+    from bretzel.cli.commands.features import run_impact
+
+    return run_impact(args.target, args.files, probes=args.probes, as_json=args.json)
 
 
 def _probe(args: argparse.Namespace) -> int:
@@ -297,6 +328,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     desc.set_defaults(func=_describe)
 
+    vnd = sub.add_parser(
+        "vendor",
+        help="download the third-party scripts so no page loads them from a CDN",
+    )
+    vnd.add_argument("--force", action="store_true",
+                     help="download again, even what is already there")
+    vnd.set_defaults(func=_vendor)
+
     chk = sub.add_parser(
         "check",
         help="check application code against Bretzel's rules",
@@ -320,6 +359,54 @@ def build_parser() -> argparse.ArgumentParser:
         help="inspect the route map of a loaded app (`module:attribute`); executes its code",
     )
     chk.set_defaults(func=_check)
+
+    fts = sub.add_parser(
+        "features",
+        help="the map of an app's features, and what to fix in their contracts",
+        description=(
+            "Import the app (`module:attribute`) and print each feature — its kind, "
+            "its first docstring line, its routes, what it exposes, what it imports "
+            "and who uses it — each Topic with who reads and writes it, then what to fix: `uses` that differ from the real "
+            "imports, a public symbol nothing outside its feature uses, a symbol "
+            "taken from a feature that does not expose it. Executes the app's code."
+        ),
+    )
+    fts.add_argument("target", help="the application (`module:attribute`)")
+    fts.add_argument("--json", action="store_true", help="machine-readable output")
+    fts.set_defaults(func=_features)
+
+    trs = sub.add_parser(
+        "translations",
+        help="the sentences of t() a language's table still lacks",
+        description=(
+            "Read the app's code for every t(\"…\") — in the modules that import t "
+            "from bretzel — and print, for each language to translate into, the "
+            "sentences its table lacks (with where they are called) and the entries "
+            "no call uses any more. Imports the app for its languages and tables."
+        ),
+    )
+    trs.add_argument("target", help="the application (`module:attribute`)")
+    trs.add_argument("--json", action="store_true", help="machine-readable output")
+    trs.set_defaults(func=_translations)
+
+    imp = sub.add_parser(
+        "impact",
+        help="what a change to some files touches, and the probes to run",
+        description=(
+            "The features owning the files, every feature importing them (directly "
+            "or not), their pages, and the probes that visit those pages — a probe "
+            "imports one of these features or names the fixed start of one of "
+            "their routes. Executes the app's code."
+        ),
+    )
+    imp.add_argument("target", help="the application (`module:attribute`)")
+    imp.add_argument("files", nargs="+", metavar="FILE", help="the files changed")
+    imp.add_argument(
+        "--probes", default=None, metavar="DIRECTORY",
+        help="where the probes are (default: tests/probes next to the app)",
+    )
+    imp.add_argument("--json", action="store_true", help="machine-readable output")
+    imp.set_defaults(func=_impact)
 
     prb = sub.add_parser(
         "probe",

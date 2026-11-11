@@ -13,6 +13,16 @@ Two forms, because both reach the DOM:
   ``hx-``, so it goes out verbatim and **does not raise**;
 - the ``attrs={"hx-post": …}`` key — same path, different spelling.
 
+One form is NOT transport: ``hx-trigger`` on a call that declares an
+``on_<event>=`` handler. The request is still the base layer's, signed;
+only WHEN it fires changes — ``"click, intersect"`` turns a "Load more"
+button into an infinite scroll. Flagging it would say "the request will
+go out without the signature", which is false. Without a handler, an
+``hx-trigger`` starts nothing of the framework's: still flagged.
+
+Nor is ``hx-boost="false"``: it sends nothing, it TAKES a link out of the
+boost (a CSV download must be a real navigation).
+
 A few framework components drive the swap engine directly, and that is
 accepted: the list is frozen in
 ``tests/consistency/test_raw_htmx_stays_in_the_allowlist.py``, with the
@@ -47,15 +57,25 @@ def check(module: Module) -> list[Finding]:
     for node in module.nodes:
         if not isinstance(node, ast.Call):
             continue
+        handled = any(k.arg and k.arg.startswith("on_") for k in node.keywords)
+
+        def transport(attr: str, value: ast.expr, *, handled: bool = handled) -> bool:
+            if handled and attr == "hx-trigger":
+                return False
+            opt_out = isinstance(value, ast.Constant) and value.value in ("false", False)
+            return not (attr == "hx-boost" and opt_out)
+
         for keyword in node.keywords:
-            if keyword.arg and (attr := _hx_name(keyword.arg)):
+            if (keyword.arg and (attr := _hx_name(keyword.arg))
+                    and transport(attr, keyword.value)):
                 findings.append(_finding(module, keyword.value.lineno, attr))
             if keyword.arg == "attrs" and isinstance(keyword.value, ast.Dict):
-                for key in keyword.value.keys:
+                for key, value in zip(keyword.value.keys, keyword.value.values, strict=True):
                     if (
                         isinstance(key, ast.Constant)
                         and isinstance(key.value, str)
                         and (attr := _hx_name(key.value))
+                        and transport(attr, value)
                     ):
                         findings.append(_finding(module, key.lineno, attr))
     return findings

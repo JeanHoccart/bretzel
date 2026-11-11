@@ -51,10 +51,11 @@ ACCORDION_THEME: dict[str, Any] = {
         # Optional leading icon — sits before the label.
         "icon": "shrink-0",
         # Chevron — rotates 180° when the parent header carries
-        # ``data-open=true`` ; slightly longer easing than the body so it
-        # feels less mechanical.
+        # ``data-open=true``. It turns on OPENING and snaps back on
+        # closing: the transition lives on the open state (the why:
+        # ``overlay/dialog/theme.py``).
         "chevron": (
-            "shrink-0 transition-transform duration-300 ease-out "
+            "shrink-0 group-data-[open=true]:transition-transform group-data-[open=true]:duration-200 group-data-[open=true]:ease-out "
             "group-data-[open=true]:rotate-180"
         ),
         # Body wrapper — the **grid-template-rows trick** for height
@@ -62,9 +63,12 @@ ACCORDION_THEME: dict[str, Any] = {
         # (collapsed) to ``1fr`` (expanded). The inner ``min-h-0
         # overflow-hidden`` div inherits that height, so the transition
         # adapts to the real content height (no ``max-h`` cap, no JS
-        # measurement).
+        # measurement). It unfolds on OPENING and folds at once:
+        # ``not-aria-hidden:`` is the open state (the body carries
+        # ``aria-hidden="true"`` closed) — the why: ``overlay/dialog/theme.py``.
         "body": (
-            "grid transition-[grid-template-rows] duration-300 ease-out"
+            "grid not-aria-hidden:transition-[grid-template-rows] "
+            "not-aria-hidden:duration-200 not-aria-hidden:ease-out"
         ),
         # The grid row child — must clip its own overflow and accept
         # ``min-h-0`` so the grid can shrink it below its natural

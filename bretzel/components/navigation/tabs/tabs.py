@@ -52,15 +52,11 @@ from bretzel.components.base import (
     reactive_prop,
     stamp_display_none,
 )
-from bretzel.components.base._wiring import (
-    bool_attr,
-    hidden_carrier_attrs,
-    scope_literal,
-    unwrap_transparent,
-)
-from bretzel.components.base._wiring import (
-    pop_change_handler as _pop_change_handler,
-)
+from bretzel.components.base.arguments import has_content, shown
+from bretzel.components.base.composition import unwrap_transparent
+from bretzel.components.base.field_wiring import hidden_carrier_attrs, relocate_handlers
+from bretzel.components.base.scope_wiring import bool_attr, scope_literal
+from bretzel.components.base.universals import finish_render
 from bretzel.components.navigation.tabs.theme import TABS_THEME
 from bretzel.core.tree import Element
 
@@ -101,8 +97,12 @@ class Tabs(Component):
 
     THEME: ClassVar[dict[str, Any]] = TABS_THEME
     THEME_KEY: ClassVar[str] = "tabs"
+    #: Draws its children itself: a zone among them is refused
+    #: (``base/composition.unwrap_transparent``).
+    _COMPOSES_CHILDREN: ClassVar[bool] = True
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value",)
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
+    IMPERATIVE: ClassVar[tuple[str, ...]] = ("set",)
 
     # ``writes=True`` → the metaclass derives ``TWO_WAY_PROPS =
     # ("value",)`` and the scope key, which is the PROP'S NAME. It was
@@ -154,39 +154,21 @@ class Tabs(Component):
             **kwargs,
         )
 
+    def set(self, value: Any) -> str:
+        """Open the tab ``value``. Write-through binding if there is one."""
+        return self._value_command(value)
+
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        theme = self._resolved_theme()
-        sizes = theme.get("sizes", {})
-        size_key = self._reactive_values.get("size") or "md"
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
-
         # Slots via the shared ``compose_class`` composer (resolves the
         # ``{bg_color}`` placeholders against the ``color`` prop ; user
         # ``classes=`` land on the root later, not on these inner slots).
-        # ``apply_variant_size_modifiers=False`` : Tabs has no variant,
-        # and its sizes are multi-slot (resolved manually below).
-        tablist_class = self.compose_class(
-            "tablist", apply_variant_size_modifiers=False
-        )
-        tab_class = self.compose_class(
-            "tab", apply_variant_size_modifiers=False
-        )
+        tablist_class = self.compose_class("tablist")
+        tab_class = self.compose_class("tab")
         # Pill badge : slot base + the per-size text/padding.
-        pill_class = " ".join(
-            p
-            for p in (
-                self.compose_class(
-                    "pill", apply_variant_size_modifiers=False
-                ),
-                size_cfg.get("pill", ""),
-            )
-            if p
-        )
-        panel_class = self.compose_class(
-            "panel", apply_variant_size_modifiers=False
-        )
+        pill_class = self.compose_class("pill")
+        panel_class = self.compose_class("panel")
 
         # ── Resolve binding for ``value`` ────────────────────────────
         value_binding = self._binding_metadata.get("value")
@@ -231,7 +213,7 @@ class Tabs(Component):
         # ``bz-attr:value`` on the hidden input reads the same expression.
         value_expr = active_expr
 
-        # ``setTab`` lives once in ``$bz.tabs.scope`` (``16_accordion.js``).
+        # ``setTab`` lives once in ``$bz.tabs.scope`` (``accordion.js``).
         # ``_url``: the parameter's NAME, not its value — ``setTab`` pushes
         # the address after writing, ``_urlInit`` re-wires the back
         # button. Absent when nobody asked for an address, so the whole
@@ -255,12 +237,12 @@ class Tabs(Component):
             # ``unwrap_transparent``: a tab is very often WRAPPED — in
             # a ``@refreshable`` zone to refresh alone, or in a
             # ``ui.fragment``. The wrapper is not an instance of
-            # ``Tab``, so sorting by type missed it and the tab
-            # **disappeared from the bar**, with no error (measured on
-            # 2026-08-23: 2,268 → 1,353 characters). ``rewrap`` gives
+            # ``Tab``, so sorting by type would miss it and the tab
+            # would **disappear from the bar**, with no error. ``rewrap``
+            # gives
             # its ``bz-id`` back to the zone on the node just composed —
             # without it the tab would display and never refresh again.
-            child, rewrap = unwrap_transparent(raw)
+            child, rewrap = unwrap_transparent(raw, self)
             if isinstance(child, Tab):
                 tab_nodes.append(rewrap(
                     child._render_button(
@@ -294,12 +276,13 @@ class Tabs(Component):
         # (client ``bz-on:change`` + the ``hx-*`` server-action bundle)
         # is relocated off the wrapper <div> (which has no native
         # ``change`` event) onto the hidden input via the shared
-        # :func:`pop_change_handler`. Without relocation the listeners
+        # :func:`relocate_handlers`. Without relocation the listeners
         # sit on the wrapper but nothing fires ``change`` from there —
         # the hidden input's ``bz-effect`` (below) re-fires it on every
         # active-value move.
         root_attrs = self.emit_attrs()
-        relocated = _pop_change_handler(root_attrs)
+        relocated: dict[str, Any] = {}
+        relocate_handlers(root_attrs, {"change": relocated})
 
         name = self._reactive_values.get("name") or self._derive_field_name()
 
@@ -337,6 +320,7 @@ class Tabs(Component):
             "root", apply_variant_size_modifiers=False
         )
         root_attrs["bz-data"] = x_data
+        root_attrs["bz-on:bz-set"] = "setTab($event.detail.value)"
         if url_param:
             # The BACK button. ``setTab`` pushes the address; without
             # this counterpart, the browser's arrow would change the URL
@@ -346,11 +330,11 @@ class Tabs(Component):
             #
             # ``bz-init`` and not a ``bz-effect``: we subscribe ONCE to a
             # ``window`` event, we do not watch a signal. It is the route
-            # ``06_helpers.js`` documents for ``popstate``.
+            # ``helpers.js`` documents for ``popstate``.
             root_attrs["bz-init"] = "_urlInit()"
 
         # The keyboard lives on the tablist, once: arrows and Home/End
-        # move between tabs (``tabKey`` in ``16_accordion.js``). Without
+        # move between tabs (``tabKey`` in ``accordion.js``). Without
         # it the roving tabindex left a keyboard user on the active tab.
         tablist = Element(
             tag="div",
@@ -429,22 +413,24 @@ class Tab(Component):
     NAMED_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
     ICON_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
 
-    tab_id: str = reactive_prop(default="", emit_attr=False)
-    label: str = reactive_prop(default="", emit_attr=False)
+    #: What ``ui.tabs(value=…)`` holds when this tab is selected — the
+    #: same name as ``accordion_item`` and ``tree_node``.
+    value: str = reactive_prop(default="", emit_attr=False)
+    label: str | Component = reactive_prop(default="", emit_attr=False)
     disabled: bool = reactive_prop(default=False, emit_attr=False)
 
     def __init__(
         self,
-        tab_id: str = "",
+        value: str,
         *,
-        label: str = "",
-        icon: Any = None,
+        label: str | Component = "",
+        icon: str | Component | None = None,
         disabled: bool | None = None,
         **kwargs: Any,
     ) -> None:
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
-            tab_id=tab_id,
+            value=value,
             label=label,
             disabled=disabled,
             icon=icon,
@@ -462,10 +448,12 @@ class Tab(Component):
         initial_active: str,
         owner_id: str,
     ) -> Element:
-        tab_id = str(self._reactive_values.get("tab_id") or "")
+        tab_id = str(self._reactive_values.get("value") or "")
         # NO ``str(...)``: ``label`` is a textual slot (it accepts a
         # Component), and ``emit_text_slot`` sorts it out downstream.
-        label = self._reactive_values.get("label") or ""
+        # ``shown``: a bound label is drawn
+        # live; ``has_content`` below since a binding refuses ``if label:``.
+        label = shown(self, "label")
         disabled = bool(self._reactive_values.get("disabled"))
         id_js = json.dumps(tab_id)
         is_initial_active = tab_id == initial_active
@@ -486,8 +474,8 @@ class Tab(Component):
         # ``bz-attr:data-selected`` keeps it reactive on subsequent
         # clicks. The expression yields a ``'true'`` / ``'false'``
         # STRING via ``bool_attr``, which emits the stringified ternary —
-        # and NOT ``.toString()``, which raises on ``null`` (dialect
-        # unified on 2026-07-30). A bare boolean would make
+        # and NOT ``.toString()``, which raises on ``null``. A bare
+        # boolean would make
         # ``bz-attr`` strip the attribute on ``false`` and the
         # ``data-[selected=false]`` selectors would never match.
         attrs: dict[str, Any] = {
@@ -496,7 +484,7 @@ class Tab(Component):
             "id": _tab_dom_id(owner_id, tab_id),
             "aria-controls": _panel_dom_id(owner_id, tab_id),
             # Read by ``tabKey`` to activate the tab the keyboard reached.
-            "data-tab": tab_id,
+            "data-bz-tab": tab_id,
             "class": tab_class,
             "bz-attr:data-selected": bool_attr(f"{active_expr} === {id_js}"),
             "bz-attr:aria-selected": bool_attr(f"{active_expr} === {id_js}"),
@@ -517,7 +505,7 @@ class Tab(Component):
         if isinstance(icon, Component):
             Component._detach_from_parent(icon)
             pill_children.append(icon.render())
-        if label:
+        if has_content(label):
             pill_children.append(self.emit_text_slot(label))
         pill = Element(
             tag="span",
@@ -525,7 +513,11 @@ class Tab(Component):
             children=tuple(pill_children),
         )
 
-        return Element(tag="button", attrs=attrs, children=(pill,))
+        # ``finish_render``: the parent draws this child instead of calling
+        # its ``render()``, so the two passes of the metaclass wrap
+        # (``classes=``, ``style=``, ``slots={"root"}``…) happen here.
+        return finish_render(
+            self, Element(tag="button", attrs=attrs, children=(pill,)))
 
     # ── Default render — silent no-op when used outside Tabs ─────────
 
@@ -590,11 +582,14 @@ class TabPanel(Component):
         }
         if not is_initial_active:
             stamp_display_none(attrs)
-        return Element(
+        # ``finish_render``: the parent draws this child instead of calling
+        # its ``render()``, so the two passes of the metaclass wrap
+        # (``classes=``, ``style=``, ``slots={"root"}``…) happen here.
+        return finish_render(self, Element(
             tag="div",
             attrs=attrs,
             children=self._render_children(),
-        )
+        ))
 
     def render(self) -> Element:
         # Standalone usage — render a normal div so child content

@@ -7,9 +7,12 @@ nodes in ``tree.py``.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from functools import lru_cache
 from typing import Any, Final
+
+from bretzel.core import base_path as _base_path
 
 # ───────────────────────────────────────────────────────────────────────────
 # Body / attribute escaping
@@ -18,7 +21,7 @@ from typing import Any, Final
 # Order matters: ``&`` first to avoid double-encoding.
 #
 # Do NOT add a "does this string need escaping at all ?" pre-scan in front
-# of the loop — measured slower, not faster, on real render values.
+# of the loop — it is slower, not faster, on real render values.
 _HTML_ESCAPES: tuple[tuple[str, str], ...] = (
     ("&", "&amp;"),
     ("<", "&lt;"),
@@ -41,17 +44,16 @@ def escape_html(text: str) -> str:
     return out
 
 
-# The table behind :func:`escape_attr`. It is NO LONGER derived from
+# The table behind :func:`escape_attr`. It is NOT derived from
 # ``_HTML_ESCAPES``: an attribute value and body content do not share the
-# same dangerous characters, and conflating them cost 6 bytes per
-# apostrophe on pages carrying thousands of them (cf. the note under
-# :func:`escape_attr`).
+# same dangerous characters, and conflating them would inflate every
+# apostrophe on pages carrying thousands of them.
 #
 # The three control bytes at the tail do not terminate the value but are
 # silently folded inside a quoted one, which loses information.
 #
-# ``'``, ``=`` and the backtick were all three removed from here — same
-# reason, measured twice. See :func:`escape_attr`.
+# ``'``, ``=`` and the backtick are absent on purpose, for the same
+# reason: :func:`escape_attr` serves double-quoted values.
 _ATTR_ESCAPES: tuple[tuple[str, str], ...] = (
     ("&", "&amp;"),
     ("<", "&lt;"),
@@ -63,12 +65,10 @@ _ATTR_ESCAPES: tuple[tuple[str, str], ...] = (
 )
 
 
-#: The memo behind :func:`escape_attr`. Measured on 2026-08-27 against the
-#: playground: one page calls the function ~4 000 times for ~1 150
-#: **distinct** values, and the corpus settles at ~2 400 values for the
-#: WHOLE site — so 99 % reuse from one request to the next. An entry weighs
-#: the value plus its escaped form; 8 192 entries of ~80 characters fit in
-#: ~1.5 MB, a ceiling that is reached and never exceeded.
+#: The memo behind :func:`escape_attr`. A page calls the function far more
+#: often than it has **distinct** values, and a site's values settle, so
+#: they are reused from one request to the next. An entry weighs the value
+#: plus its escaped form; 8 192 entries of ~80 characters fit in ~1.5 MB.
 _ATTR_CACHE_SIZE: Final[int] = 8192
 
 
@@ -115,16 +115,24 @@ def escape_js(value: str) -> str:
 
 
 def escape_inline_json(payload: str) -> str:
-    """Defuse ``</`` in a JSON payload embedded inside an HTML tag.
+    """Make a JSON payload inert as the TEXT of an HTML element.
 
-    ``json.dumps`` output is valid JS but a literal ``</bz-envelope>``
-    (or any ``</…``) inside a string value would close the host tag
-    early during HTML parsing. ``<\\/`` is the standard JSON-safe
-    spelling: identical once parsed, inert for the HTML tokenizer.
-    Used by :mod:`bretzel.runtime.envelope` for the ``<bz-envelope>``
-    and ``<bz-patch>`` payloads.
+    ``<bz-envelope>`` and ``<bz-patch>`` are ordinary elements, not
+    ``<script>``: the HTML tokenizer reads their content as markup. A
+    ``<`` in a string value therefore opens a REAL tag — a ``ClientState``
+    field holding ``<img src=x onerror=…>`` would run its script — and an
+    ``&amp;`` is decoded by ``textContent`` before ``JSON.parse`` sees it,
+    so the data would change on the way.
+
+    ``json.dumps`` escapes none of the three (``json.dumps('<a>')`` is
+    ``"<a>"``). ``\\u003c``, ``\\u003e`` and ``\\u0026`` are the JSON
+    spellings of the same characters: ``JSON.parse`` gives them back
+    unchanged, the tokenizer sees no markup and no entity. They only
+    ever occur inside string values — ``json.dumps`` writes none of them
+    outside one. Used by :mod:`bretzel.runtime.envelope` and the
+    notification patch.
     """
-    return payload.replace("</", "<\\/")
+    return payload.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -138,8 +146,7 @@ def escape_inline_json(payload: str) -> str:
 #: An empty attribute resolves against the document URL: ``<img src="">``
 #: re-downloads THE CURRENT PAGE believing it loads an image, and
 #: ``<iframe src="">`` puts the page inside itself. Nothing breaks on
-#: screen, so it only shows in the server logs — that is how the bug was
-#: found on 2026-08-14, on ``ui.video``, by the user.
+#: screen, so it only shows in the server logs.
 #:
 #: ⚠️ ``href`` and ``action`` are DELIBERATELY absent: ``<a href="">`` and
 #: ``<form action="">`` point at the current page, which is a legitimate
@@ -150,13 +157,42 @@ _EMPTY_IS_A_BUG: Final[frozenset[str]] = frozenset(
 )
 
 
+#: Attributes whose value is a URL the browser FOLLOWS or LOADS. A
+#: ``javascript:`` URL there is script: ``ui.link("Site", href=website)``
+#: with a website a user typed would run it on click.
+URL_ATTRS: Final[frozenset[str]] = frozenset(
+    {"href", "src", "action", "formaction", "xlink:href", "poster", "data",
+     "background", "cite"}
+)
+#: The characters up to the space: browsers drop them from a URL before
+#: reading its scheme (``java\tscript:`` is ``javascript:``).
+_URL_BLANKS = re.compile(r"[\x00-\x20]")
+
+
+def is_script_url(value: str) -> bool:
+    """``javascript:`` or ``vbscript:``, as the browser reads the scheme.
+
+    Mirrored by ``scriptUrl`` in ``runtime/_src/directives.js``, for a
+    URL a ``bz-attr:`` sets in the browser."""
+    return _URL_BLANKS.sub("", value).lower().startswith(("javascript:", "vbscript:"))
+
+
 def serialize_attrs(attrs: Mapping[str, Any]) -> str:
-    """Serialize HTML attributes into a leading-space string."""
+    """Serialize HTML attributes into a leading-space string.
+
+    A URL attribute holding a script URL is left out: an ``<a>`` without
+    ``href`` is not a link, the honest rendering of one that must not be
+    followed."""
     parts: list[str] = []
+    base = _base_path.current()
     for name, value in attrs.items():
         if value is None or value is False:
             continue
+        if base and name in _base_path.BASED_ATTRS and isinstance(value, str):
+            value = _base_path.with_base(value, base)
         if value == "" and name in _EMPTY_IS_A_BUG:
+            continue
+        if name in URL_ATTRS and isinstance(value, str) and is_script_url(value):
             continue
         if value is True:
             parts.append(name)

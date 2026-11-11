@@ -45,35 +45,37 @@ EMPTY_STATE_THEME: dict[str, Any] = {
         # on narrow widths instead of overflowing.
         "actions": "flex flex-wrap items-center justify-center gap-2 mt-2",
     },
-    # Sizes scale the icon size + title text size. The standard 5
-    # paliers ; default ``md`` is the sweet spot for in-card use.
+    # Sizes scale the icon box, the glyph, the title and the description.
+    # The standard 5 paliers ; default ``md`` is the sweet spot for
+    # in-card use. ``icon`` is the box's slot; ``icon_size`` is the
+    # glyph's ``Icon`` token, read by the render.
     "sizes": {
         "xs": {
-            "icon_box": "h-8 w-8",
+            "icon": "h-8 w-8",
             "icon_size": "sm",
             "title": "text-sm",
             "description": "text-xs",
         },
         "sm": {
-            "icon_box": "h-10 w-10",
+            "icon": "h-10 w-10",
             "icon_size": "md",
             "title": "text-base",
             "description": "text-sm",
         },
         "md": {
-            "icon_box": "h-14 w-14",
+            "icon": "h-14 w-14",
             "icon_size": "lg",
             "title": "text-lg",
             "description": "text-sm",
         },
         "lg": {
-            "icon_box": "h-16 w-16",
+            "icon": "h-16 w-16",
             "icon_size": "xl",
             "title": "text-xl",
             "description": "text-base",
         },
         "xl": {
-            "icon_box": "h-20 w-20",
+            "icon": "h-20 w-20",
             "icon_size": "2xl",
             "title": "text-2xl",
             "description": "text-base",

@@ -139,9 +139,15 @@ def charts_page() -> None:
                             {"param": "y_format / y_unit",
                              "quoi": 'formats the axis — percentage, '
                                      'currency, unit'},
-                            {"param": "reference_lines",
+                            {"param": "y_reference_lines",
                              "quoi": 'a threshold, a target: the line that'
                                      ' gives the rest its meaning'},
+                            {"param": "x_reference_lines",
+                             "quoi": 'a moment — a buy, a sale, a release:'
+                                     ' a vertical line at its date'},
+                            {"param": "None in data=",
+                             "quoi": 'a hole: the line stops, never drops to'
+                                     ' zero; series may have different dates'},
                         ],
                         size="sm",
                     )

@@ -84,8 +84,7 @@ SOURCES = {
 
 def server_changed(state: ImagePlayground) -> None:
     # A typed param → the dispatcher hydrates the changed control's
-    # value into state. server_panel's deps=[ImagePlayground] re-renders
-    # it.
+    # value into state. server_panel reads it, so it re-renders.
     pass
 
 
@@ -133,7 +132,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[ImagePlayground])
+@refreshable
 def server_panel() -> None:
     state = ImagePlayground()
 

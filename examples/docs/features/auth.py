@@ -133,8 +133,3 @@ def auth_page() -> None:
                         ' to add for one provider.',
                         color="muted", size="sm",
                     )
-                    ui.text(
-                        '`examples/auth` shows the four ways in side by '
-                        'side, and it runs.',
-                        color="muted", size="sm",
-                    )

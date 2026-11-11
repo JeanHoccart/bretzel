@@ -1,11 +1,11 @@
 """``/alert`` — a message that sits in the flow of the page."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("Four semantic tones, an optional title, an icon that picks "
-           "itself — and a close button that can call Python.")
+           "itself — and a close button.")
 
 
 def statuses() -> None:
@@ -57,31 +57,18 @@ def in_a_form() -> None:
             ui.button("Save details")
 
 
-class Tips(PageState):
-    hidden: bool = field(default=False)
-
-
-def hide_tip() -> None:
-    Tips().hidden = True
-
-
-def show_tip() -> None:
-    Tips().hidden = False
-
-
-@refreshable(deps=[Tips])
-def onboarding_tip() -> None:
-    if Tips().hidden:
-        ui.button("Show the tip again", icon_left="lightbulb", variant="ghost",
-                  on_click=show_tip)
-    else:
-        ui.alert("Drag a card onto another column to change its status.",
-                 title="Tip", color="info", icon="lightbulb",
-                 dismissible=True, on_close=hide_tip, classes="w-full max-w-xl")
+class Tips(ClientState):
+    dismissed: bool = field(default=False)
 
 
 def dismissible() -> None:
-    onboarding_tip()
+    tips = Tips()
+    with ui.vstack(gap="sm", align="center", classes="w-full max-w-xl"):
+        ui.alert("Drag a card onto another column to change its status.",
+                 title="Tip", color="info", icon="lightbulb", dismissible=True,
+                 on_close=tips.dismissed.set(True), classes="w-full")
+        ui.text("Tip hidden — reload the page to see it again.", color="muted",
+                size="sm", visible=tips.dismissed)
 
 
 def page() -> None:
@@ -96,7 +83,7 @@ def page() -> None:
     example("Inside a form", in_a_form,
             note="Next to the fields it concerns, where the user is already "
                  "looking.")
-    example("Dismissed on the server", dismissible,
-            uses=[Tips, hide_tip, show_tip, onboarding_tip],
-            note="on_close runs a Python function: here it remembers the "
-                 "choice, and the zone re-renders without the tip.")
+    example("Dismissible", dismissible, uses=[Tips],
+            note="The × closes the alert in the browser. on_close takes a "
+                 "client expression, as here, or a Python function when the "
+                 "server must remember the choice.")

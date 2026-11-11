@@ -4,7 +4,7 @@ The silence it closes
 ---------------------
 
 A Bretzel app's routes are not attached at import: ``@page`` **marks**,
-``create_app()`` registers — anti-rule 4 — and ``create_app()`` runs in
+``create_app()`` registers, and ``create_app()`` runs in
 the **lifespan**. And ``TestClient`` only triggers the lifespan as a
 context manager ::
 
@@ -16,22 +16,18 @@ context manager ::
 
 **Why it bites so well**: 404 is exactly what one gets from a typo in the
 path. So one re-reads one's ``@page``, one's ``include``, one's prefix —
-and everything is correct. Measured on 2026-09-10: ``examples.kanban``
-returns 404 on ``/`` without the ``with``, 200 with it, without a line of
-the app moving.
+and everything is correct. An app returns 404 on ``/`` without the
+``with``, 200 with it, without a line of the app moving.
 
 The corollary holds for introspection: listing the routes before the
 lifespan returns an empty list, which reads as "my pages did not
 register" instead of "I am looking too early".
 
-The legitimate forms, measured and not assumed
-----------------------------------------------
+The legitimate forms
+--------------------
 
-This repository's corpus carries 219 occurrences, and it served to frame
-the rule rather than to confirm it:
-
-- ``with TestClient(app) as client:`` — 217 cases. The normal form.
-- ``def _client(): return TestClient(app)`` — 1 case, and it is CORRECT:
+- ``with TestClient(app) as client:`` — the normal form.
+- ``def _client(): return TestClient(app)`` — CORRECT:
   its callers write ``with _client() as client:``. The ``with`` simply
   happens elsewhere, and a static read of one module cannot follow the
   value that far.

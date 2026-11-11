@@ -89,13 +89,12 @@ STEPPER_THEME: dict[str, Any] = {
             # same element (and it would be dead anyway on a coarse
             # pointer).
             #
-            # ⚠️ It was ``not-disabled:`` until 2026-08-13, and the
-            # comment above already described the intent — but NOT what
-            # the variant does. In Tailwind v4 ``not-*`` is a generic
+            # ⚠️ ``enabled:`` and not ``not-disabled:``: in Tailwind v4
+            # ``not-*`` is a generic
             # negation: ``&:not(:disabled)`` matches any non-disabled
-            # element, ``<span>`` included. Measured in the browser: an
-            # indicator stepper's chip rendered ``cursor: pointer`` — it
-            # looked clickable with nothing being so.
+            # element, ``<span>`` included, so an indicator stepper's chip
+            # would render ``cursor: pointer`` and look clickable with
+            # nothing being so.
             "enabled:cursor-pointer enabled:active:scale-95 "
             # ⚠️ ``aria-disabled:`` and NOT ``disabled:``: the chip is a
             # ``<span>`` in non-clickable mode, and ``:disabled`` only
@@ -116,7 +115,8 @@ STEPPER_THEME: dict[str, Any] = {
             "transition-colors duration-200 ease-out "
             "group-data-[status=current]/step:text-text "
             "group-data-[status=done]/step:text-text "
-            "group-data-[status=error]/step:text-error"
+            "group-data-[status=error]/step:text-error "
+            "data-[clickable]:cursor-pointer"
         ),
         "description": "text-muted truncate",
         # The panels stack in the SAME grid cell: a cross-fade would
@@ -180,7 +180,7 @@ STEPPER_THEME: dict[str, Any] = {
             "rail": "flex-col items-center gap-1 self-stretch",
             "connector": "w-0.5 flex-1 min-h-5",
             "body": "pb-6",
-            # The last step no longer pushes anything below it.
+            # The last step pushes nothing below it.
             "body_last": "pb-0",
         },
     },

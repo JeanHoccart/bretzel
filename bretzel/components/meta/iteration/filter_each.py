@@ -18,7 +18,8 @@ supply only the query binding and a per-item text extractor.
         ):
             row(item)                       # row hidden client-side when no match
 
-The match is case-insensitive ``contains`` ; an empty query shows
+The match is a case- and accent-insensitive ``contains`` (« emilie »
+finds « Émilie », the framework's one ``fold``) ; an empty query shows
 everything. ``text(item)`` is evaluated at render to fix each row's
 searchable string into the generated expression — so the filter never
 touches the server.
@@ -37,12 +38,13 @@ import json
 from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 
-from bretzel.render.iteration import _KEY_STACK, _extract_key
+from bretzel.components.meta.iteration._window import shown_while
+from bretzel.core.text import fold
 from bretzel.state.scopes.client import ClientBinding, ClientExpression
 
 
 def _query_js(query: ClientBinding | str) -> str:
-    """The lowercased query as a JS sub-expression."""
+    """The folded query (``$bz.fold``) as a JS sub-expression."""
     if isinstance(query, ClientBinding):
         # ``binding_path()`` is polymorphic (an expression already
         # carries its prefix, a plain binding gets one) — the equivalent
@@ -50,7 +52,7 @@ def _query_js(query: ClientBinding | str) -> str:
         ref = query.binding_path()
     else:
         ref = json.dumps(str(query or ""))
-    return f"(({ref}) || '').toLowerCase()"
+    return f"$bz.fold(({ref}) || '')"
 
 
 def filter_each(
@@ -70,23 +72,16 @@ def filter_each(
     # caller may hand us a one-shot iterator.
     rows = list(items)
 
-    for index, item in enumerate(rows):
-        item_key = _extract_key(item, key, index)
-        tjs = json.dumps(str(text(item)).lower())
-        expr = ClientExpression(f"!{qjs} || {tjs}.indexOf({qjs}) >= 0")
-        previous = _KEY_STACK.get()
-        token = _KEY_STACK.set((*previous, item_key))
-        try:
-            with ui.vstack(visible=expr, gap="none"):
-                yield item
-        finally:
-            _KEY_STACK.reset(token)
+    yield from shown_while(
+        rows, key,
+        lambda _, item: f"!{qjs} || {json.dumps(fold(str(text(item))))}.indexOf({qjs}) >= 0",
+    )
 
     # The generator's terminal ``next()`` runs here, still inside the
     # caller's list container — so the empty state lands as the list's
     # last child, shown only when the query excludes every row.
     if empty is not None:
-        texts = json.dumps([str(text(i)).lower() for i in rows])
+        texts = json.dumps([fold(str(text(i))) for i in rows])
         none_match = ClientExpression(
             f"{qjs} && {texts}.every(function (t) {{ "
             f"return t.indexOf({qjs}) < 0; }})"

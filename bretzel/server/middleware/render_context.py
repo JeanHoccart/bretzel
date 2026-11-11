@@ -37,7 +37,7 @@ from starlette.responses import Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from bretzel.render.context import RenderContext, use_context
-from bretzel.render.decorators.refreshable import broadcast_deps
+from bretzel.render.decorators.refreshable import broadcast_changes
 from bretzel.render.lang import resolve_language
 from bretzel.runtime.envelope import parse_client_payload
 from bretzel.runtime.protocol import (
@@ -71,6 +71,8 @@ _log = logging.getLogger("bretzel.server.request")
 #: large passed the buffer then failed to parse, which the ``except``
 #: turned into an empty form, silently.
 _MAX_BODY_BYTES = 32 * 1024 * 1024
+#: Fields of a urlencoded form — Starlette's ceiling for a multipart one.
+_MAX_FORM_FIELDS = 1000
 
 #: Past which the buffer goes to DISK.
 #:
@@ -115,46 +117,41 @@ class _BufferedBody:
         self.spool.close()
 
 
-def _zones_declared_by(request: Any) -> frozenset[str] | None:
-    """The zones the browser says it carries, or ``None`` when it is silent.
+def _zones_shown(
+    request: Any,
+) -> tuple[frozenset[str] | None, dict[str, str], dict[str, frozenset[str]], tuple[str, ...]]:
+    """What the browser says it shows: ``(ids, fingerprints, reads,
+    document order)``.
 
-    ``None`` and the empty set do NOT mean the same thing: the first is
-    "I do not know" and lets the drain behave as before, the second would
-    be "no zone" and would silence them all. The runtime never sends the
-    header empty, so an empty or blank value is treated as silence.
+    Each entry of :data:`~bretzel.runtime.protocol.HEADER_ZONES` is
+    ``id``, ``id:fingerprint`` or ``id:fingerprint:reads`` — read here,
+    once.
 
+    ``None`` ids and an empty set do NOT mean the same thing: the first
+    is "I do not know" and leaves the drain unfiltered, the second
+    would be "no zone" and would silence them all. The runtime never
+    sends the header empty, so an empty or blank value is treated as
+    silence. A zone without a fingerprint has none to present (an older
+    runtime, the first POST after a load); one without a third part did
+    not say what it read, which is not "nothing" (an empty third part).
     Cf. :data:`~bretzel.runtime.protocol.HEADER_ZONES` for the
-    measurement justifying the header.
+    reason behind the header.
     """
     raw = request.headers.get(HEADER_ZONES)
-    if not raw:
-        return None
-    # Each entry is ``id`` or ``id:fingerprint`` — the fingerprint is
-    # read by :func:`_zone_hashes_of`, here we keep only the identity.
-    ids = frozenset(
-        p.split(":", 1)[0]
-        for p in (m.strip() for m in raw.split(",")) if p
-    )
-    return ids or None
-
-
-def _zone_hashes_of(request: Any) -> dict[str, str]:
-    """``{id: fingerprint}`` of what the browser is ALREADY displaying.
-
-    Empty when the client is silent or sends only identities — an older
-    runtime, or the very first POST after a full load, which has not yet
-    received any fingerprint.
-    """
-    raw = request.headers.get(HEADER_ZONES)
-    if not raw:
-        return {}
-    known: dict[str, str] = {}
-    for piece in (m.strip() for m in raw.split(",")):
-        if ":" in piece:
-            zone_id, digest = piece.split(":", 1)
-            if zone_id and digest:
-                known[zone_id] = digest
-    return known
+    ids: dict[str, None] = {}
+    hashes: dict[str, str] = {}
+    reads: dict[str, frozenset[str]] = {}
+    for piece in (m.strip() for m in (raw or "").split(",")):
+        zone_id, _, rest = piece.partition(":")
+        if not zone_id:
+            continue
+        ids[zone_id] = None
+        digest, has_reads, read = rest.partition(":")
+        if digest:
+            hashes[zone_id] = digest
+        if has_reads:
+            reads[zone_id] = frozenset(filter(None, read.split(".")))
+    return (frozenset(ids) or None), hashes, reads, tuple(ids)
 
 
 class RenderContextMiddleware:
@@ -215,6 +212,7 @@ class RenderContextMiddleware:
             available=cfg.languages,
             default=cfg.lang,
         )
+        live_zones, zone_hashes, zone_reads, zone_order = _zones_shown(request)
         ctx = RenderContext(
             app=self._bretzel_app,
             request=request,
@@ -225,8 +223,10 @@ class RenderContextMiddleware:
             user_id=user_id,
             session_id=session_id,
             csrf_token=csrf_token,
-            live_zones=_zones_declared_by(request),
-            zone_hashes=_zone_hashes_of(request),
+            live_zones=live_zones,
+            zone_hashes=zone_hashes,
+            zone_reads=zone_reads,
+            zone_order=zone_order,
             tab_id=(request.headers.get(HEADER_TAB) or "").strip()[:64],
             # The language and the framework's words travel BY VALUE
             # to here: a component in layer 5 cannot reach up to read the
@@ -239,10 +239,9 @@ class RenderContextMiddleware:
         # A navigation starts a NEW page, and its ``PageState`` fresh
         # (state.md) — whatever page id came along: the bridge sends the
         # one of the page being LEFT with every request, a boosted link
-        # included, and the server found the old state again. Measured in
-        # the product's cockpit: « Nouvelle conversation » (/atelier from
-        # /atelier?c=X) kept thread X on screen. The new id goes back in
-        # the response, and the bridge adopts it for the actions to come.
+        # included, and the server would find the old state again. The new
+        # id goes back in the response, and the bridge adopts it for the
+        # actions to come.
         navigation = _is_navigation(scope)
         page_id = (None if navigation else read_header(scope, HEADER_PAGE_ID)) \
             or ctx.page_uuid
@@ -266,6 +265,8 @@ class RenderContextMiddleware:
             if message["type"] == "http.response.start":
                 if message.get("status", 200) < 400:
                     await _save_route_state(ctx)
+                    if ctx.state_registry is not None:
+                        await ctx.state_registry.save_page_witness()
                 _apply_ctx_cookies_and_headers(ctx, message)
             await send(message)
 
@@ -297,12 +298,12 @@ async def _save_route_state(ctx: RenderContext) -> None:
 
     An action and a page commit their state themselves; any other route —
     an app's JSON API on ``app.fastapi``, a ``@download``, a zone refetch
-    — used to lose its writes, silently. Run when the response STARTS, so
-    a client reading right after its write finds it, and only for a
-    success: a route that refuses (4xx) or breaks keeps nothing it
-    half-wrote.
+    — would lose its writes, silently, without this function. Run when the
+    response STARTS, so a client reading right after its write finds it,
+    and only for a success: a route that refuses (4xx) or breaks keeps
+    nothing it half-wrote.
 
-    Only a WRITE method then notifies the open windows (``broadcast=``),
+    Only a WRITE method then notifies the other open tabs,
     as an action does. A GET that wrote — a zone refetch, typically —
     notifying them would make each of them refetch in turn, and write,
     and notify. A write made after the response has started (a streamed
@@ -311,10 +312,10 @@ async def _save_route_state(ctx: RenderContext) -> None:
     registry = ctx.state_registry
     if registry is None or registry.committed:
         return
-    changed = registry.diff_and_notify()
+    registry.diff_and_notify()
     await registry.commit()
     if ctx.request.method not in _READ_METHODS:
-        broadcast_deps(ctx, changed)
+        broadcast_changes(ctx, registry.changed_fields)
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -370,26 +371,34 @@ async def _collect_form(
                 "the form body is not valid UTF-8.",
                 buffered,
             )
-        return (
-            dict(parse_qsl(decoded, keep_blank_values=True)),
-            replay,
-            None,
-            buffered,
-        )
+        # ``max_num_fields``: the same ceiling Starlette puts on a
+        # multipart form (1 000). Without it, one anonymous body of
+        # ``a&a&…`` is millions of pairs, parsed on the event loop before
+        # any check, with the worker frozen. The count is a ``str.count``:
+        # refused at once.
+        try:
+            fields = parse_qsl(decoded, keep_blank_values=True,
+                               max_num_fields=_MAX_FORM_FIELDS)
+        except ValueError:
+            return (
+                {},
+                replay,
+                f"the form has more than {_MAX_FORM_FIELDS} fields.",
+                buffered,
+            )
+        return (dict(fields), replay, None, buffered)
     # multipart: delegate to Starlette so we inherit every quirk
     # (boundary handling, file uploads, charset detection).
     #
     # ``max_part_size`` raised: Starlette's default (1 MB) applies to
     # EACH part, including those that are not files, and a part that is
     # too large raises — which the ``except`` below turns into an EMPTY
-    # form, silently. A form only arrives here since August 2026, when it
-    # contains a file (``ui.form`` then derives its ``hx-encoding``);
-    # before that, those bodies went through ``parse_qsl``, which has no
-    # field limit. Without this raise, fixing file upload would have
-    # introduced a 1 MB cliff on the neighbouring TEXT FIELD — a
-    # ``ui.signature_pad`` (base64 data URL) or a long textarea is enough
-    # to cross it, and the handler would receive an empty form without a
-    # word.
+    # form, silently. A form only arrives here when it contains a file
+    # (``ui.form`` then derives its ``hx-encoding``). Without this raise,
+    # a file upload would put a 1 MB cliff on the neighbouring TEXT FIELD
+    # — a ``ui.signature_pad`` (base64 data URL) or a long textarea is
+    # enough to cross it, and the handler would receive an empty form
+    # without a word.
     request = Request(scope, _replay_receive(buffered))
     try:
         raw_form = await request.form(max_part_size=_MAX_PART_BYTES)
@@ -438,11 +447,10 @@ _MAX_PART_BYTES = 32 * 1024 * 1024
 async def _buffer_body(receive: Receive) -> _BufferedBody:
     """Drain ``receive`` into a BOUNDED buffer that can spill to disk.
 
-    Two differences from the previous version, and the first is a closed
-    hole: we stop at the ceiling instead of allocating whatever the
-    sender wants, and we write into a ``SpooledTemporaryFile`` instead of
-    a list of bytes — so below the threshold it is still memory, and
-    above, it is a file.
+    We stop at the ceiling instead of allocating whatever the sender
+    wants, and we write into a ``SpooledTemporaryFile`` instead of a list
+    of bytes — so below the threshold it is memory, and above, it is a
+    file.
 
     We stop reading as soon as the ceiling is crossed: finishing
     listening to a body we are going to refuse would amount to letting it

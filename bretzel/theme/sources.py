@@ -7,12 +7,11 @@ reason to exist: **which folders, besides the current one.**
 
 Three answers, and their order says what they are:
 
-1. **The framework package**, always, without anyone asking. The bug
-   closed on 2026-08-29 was exactly its absence: installed by pip,
-   ``bretzel`` is no longer under the ``cwd``, so the classes of its
-   ``theme.py`` files disappeared from the production ``style.css`` —
-   609 KB against 684, with no error, with the right colours and no
-   formatting at all.
+1. **The framework package**, always, without anyone asking. Installed
+   by pip, ``bretzel`` is not under the ``cwd``, so without this root the
+   classes of its ``theme.py`` files would disappear from the production
+   ``style.css``, with no error, with the right colours and no formatting
+   at all.
 2. **What installed packages declare**, through the ``bretzel.scan_roots``
    entry point (cf. :func:`discovered_source_roots`).
 3. Nothing else. There is **no** third door — no ``Theme`` kwarg, no
@@ -73,9 +72,8 @@ def discovered_source_roots() -> tuple[Path, ...]:
     ``sys.path`` order and on the file system. And these roots go into
     the CSS, whose fingerprint NAMES the cached compiled file
     (``build.get_or_build_css``). An unstable order would produce two
-    fingerprints for one environment, hence a two-second recompilation
-    on every startup — the exact illness fixed on 2026-08-27,
-    reintroduced through the next door.
+    fingerprints for one environment, hence a recompilation on every
+    startup.
 
     An unusable entry does not bring startup down — the app is not
     responsible for a third party's metadata — but it does not pass in
@@ -147,16 +145,13 @@ def all_source_roots() -> tuple[Path, ...]:
 def generate_source_directives(roots: Iterable[Path | str]) -> str:
     """Return the Tailwind v4 ``@source "<dir>";`` block for ``roots``.
 
-    Measured on 2026-08-29, ``cwd`` = some app folder, real production
-    path (``get_or_build_css``) ::
+    Without these directives, a class written only in a package outside
+    the ``cwd`` is absent from the production sheet.
 
-        without directive   609 KB   tabular-nums ABSENT · 16rem ABSENT
-        with                684 KB   both PRESENT
-
-    The ``@source inline(...)`` safelist could not make up for it, and
+    The ``@source inline(...)`` safelist cannot make up for it, and
     that is what makes the two mechanisms complementary rather than
     redundant: the safelist only closes what the scanner CANNOT see (a
-    ``{bg_color}`` unresolved at render time). A static class like
+    class assembled at render time, like ``grid-cols-3``). A static class like
     ``rounded-md`` is perfectly visible — provided one looks in the right
     folder.
 

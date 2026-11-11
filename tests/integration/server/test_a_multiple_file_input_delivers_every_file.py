@@ -17,13 +17,15 @@ change pas le type d'un champ que personne n'a déclaré multiple.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
 from starlette.testclient import TestClient
 
 from bretzel import Bretzel, page, ui
-from bretzel.server.handlers import encode_action_id, sign_action
+from bretzel.server.handlers import FIELDS_TOKEN, encode_action_id, sign_action
+from tests._session import session_of
 
 _SECRET = "y" * 32
 
@@ -42,7 +44,11 @@ def deposer(pieces: Any = None, note: str = "") -> None:
 
 @page("/")
 def accueil() -> None:
-    ui.text("ok")
+    # Le vrai champ : depuis le 2026-10-27, un fichier n'est pris que dans
+    # un champ que le jeton du formulaire déclare.
+    with ui.form(on_submit=deposer):
+        ui.file_upload(name="pieces", multiple=True)
+        ui.input(name="note")
 
 
 _app.include(accueil)
@@ -61,8 +67,12 @@ def trace_vierge():
 
 
 def _poster(client: TestClient, **kwargs: Any):
+    """Le POST du formulaire de la page, son jeton compris."""
     action_id = encode_action_id(deposer)
-    sig = sign_action(_app.config._action_key, action_id, "")
+    sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
+    jeton = re.search(rf'name="{FIELDS_TOKEN}" value="([^"]+)"',
+                      client.get("/").text).group(1)
+    kwargs["data"] = {**kwargs.get("data", {}), FIELDS_TOKEN: jeton}
     return client.post(f"/_bretzel/action/{action_id}",
                        headers={"X-Bz-Sig": sig}, **kwargs)
 

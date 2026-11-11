@@ -19,6 +19,7 @@ PATH = "/dropdown"
 
 POSITIONS = ["top", "bottom", "left", "right"]
 ALIGNS    = ["start", "center", "end"]
+ITEMS     = ["Edit", "Duplicate", "Delete"]
 
 
 class DropdownPlayground(PageState):
@@ -34,6 +35,8 @@ class DropdownPlayground(PageState):
     # Universal modifiers.
     visible:     str  = field(default="on")
     tooltip:     str  = field(default="")
+    # Item props: which row is the choice made (``checked=``), or none.
+    checked:     str  = field(default="none")
 
 
 class DropdownEvents(PageState):
@@ -114,7 +117,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[DropdownPlayground])
+@refreshable
 def server_panel() -> None:
     state = DropdownPlayground()
 
@@ -158,8 +161,18 @@ def server_panel() -> None:
                       options=[("on", "True (default)"),
                                ("off", "False (skip render)")],
                       on_change=server_changed)
+        with control("checked (items) — the choice made"):
+            ui.select(value=state.checked,
+                      options=[("none", "None (action rows)"),
+                               *((name, name) for name in ITEMS)],
+                      on_change=server_changed)
 
     ui.divider()
+
+    def mark(name: str) -> bool | None:
+        # ``None`` keeps a plain action row; ``True``/``False`` makes every
+        # row a choice of the set, the chosen one carrying the mark.
+        return None if state.checked == "none" else name == state.checked
 
     kwargs = build_preview(state)
     with ui.flex(justify="center", classes="min-h-32"):
@@ -169,10 +182,10 @@ def server_panel() -> None:
                               icon_right="chevron-down"),
             **kwargs,
         ):
-            ui.dropdown_item(label="Edit",      icon_left="pencil")
-            ui.dropdown_item(label="Duplicate", icon_left="copy")
+            ui.dropdown_item(label="Edit",      icon_left="pencil", checked=mark("Edit"))
+            ui.dropdown_item(label="Duplicate", icon_left="copy", checked=mark("Duplicate"))
             ui.dropdown_item(label="Delete",    icon_left="trash-2",
-                             color="error")
+                             color="error", checked=mark("Delete"))
 
     ui.divider()
 
@@ -181,16 +194,16 @@ def server_panel() -> None:
         **kwargs,
     )
     with preview:
-        ui.dropdown_item(label="Edit",   icon_left="pencil")
+        ui.dropdown_item(label="Edit",   icon_left="pencil", checked=mark("Edit"))
         ui.dropdown_item(label="Delete", icon_left="trash-2",
-                         color="error")
+                         color="error", checked=mark("Delete"))
     emitted_html_block(
         "Emitted HTML (Dropdown + items)",
         serialize_html(preview),
     )
 
 
-@refreshable(deps=[DropdownEvents])
+@refreshable
 def events_panel() -> None:
     state = DropdownEvents()
 
@@ -368,6 +381,20 @@ def page() -> None:
                         ui.dropdown_item(label="Only an explicit "
                                                "pick dismisses")
                         ui.dropdown_item(label="Item B")
+
+                    ui.heading("A choice (checked=)", level=3)
+                    ui.text(
+                        "Each row is one choice of a set: the chosen one "
+                        "carries the check mark and aria-checked.",
+                        color="muted", size="sm",
+                    )
+                    with ui.dropdown(
+                        trigger=ui.button("Week", variant="outline",
+                                          icon_right="chevron-down"),
+                    ):
+                        for view in ("Day", "Week", "Month"):
+                            ui.dropdown_item(label=view,
+                                             checked=view == "Week")
 
             # ── Card 2 — Slots ──────────────────────────────────────
             with ui.card():

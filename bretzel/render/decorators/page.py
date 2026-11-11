@@ -54,7 +54,7 @@ def page(
     Free decorator — imported from ``bretzel``, needs no app instance.
     It only MARKS the function (stamps ``_bz_page``) ; the app picks it
     up at :meth:`Bretzel.include` time and registers the FastAPI route.
-    Import order has no effect (charter anti-rule #4). Usage ::
+    Import order has no effect. Usage ::
 
         from bretzel import page
 
@@ -83,14 +83,10 @@ def page(
         # first route disappears, as a 404, in an app one is not even
         # reading.
         #
-        # Measured on 2026-08-29: two benches in ``tests/probes/`` did
-        # ``page("/")(sidebar_feat.page)`` on the function the playground
-        # already mounted at ``/sidebar``. Importing either bench — which
-        # any gate sweeping ``tests/probes`` does — was enough to make
-        # ``/sidebar`` and ``/datatable_solo`` unreachable. That is the
-        # cause of the two reds saying "the fast suite depends on ORDER":
-        # under ``xdist``, the worker inheriting a bench loses both
-        # pages; sequentially the order spared them.
+        # Merely importing a module that decorates an already mounted
+        # function is enough to make its first page unreachable, and the
+        # failure then depends on ORDER: under ``xdist``, only the worker
+        # that imports that module loses the page.
         #
         # The refusal is explicit rather than silent, and it costs the
         # legitimate case nothing: mounting the same function twice is

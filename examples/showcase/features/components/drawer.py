@@ -1,7 +1,7 @@
 """``/drawer`` — a panel that slides in from an edge of the screen."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A panel that slides in from any edge — for details, filters and "
@@ -33,56 +33,48 @@ def order_details() -> None:
               on_click=drawer.open())
 
 
-def invoices() -> list[dict]:
-    return [
-        {"number": "INV-2041", "customer": "Northwind Traders", "status": "paid"},
-        {"number": "INV-2040", "customer": "Lumen Studio", "status": "pending"},
-        {"number": "INV-2039", "customer": "Atlas Freight", "status": "overdue"},
-        {"number": "INV-2038", "customer": "Kinfolk & Co", "status": "paid"},
-        {"number": "INV-2037", "customer": "Harbor Labs", "status": "overdue"},
-        {"number": "INV-2036", "customer": "Oakline", "status": "pending"},
-    ]
+INVOICES = [
+    {"number": "INV-2041", "customer": "Northwind Traders", "status": "paid"},
+    {"number": "INV-2040", "customer": "Lumen Studio", "status": "pending"},
+    {"number": "INV-2039", "customer": "Atlas Freight", "status": "overdue"},
+    {"number": "INV-2038", "customer": "Kinfolk & Co", "status": "paid"},
+    {"number": "INV-2037", "customer": "Harbor Labs", "status": "overdue"},
+    {"number": "INV-2036", "customer": "Oakline", "status": "pending"},
+]
 
 
-class Filters(PageState):
+STATUS_COLORS = {"paid": "success", "pending": "warning", "overdue": "error"}
+
+
+class InvoiceFilters(ClientState):
     status: str = field(default="all")
 
 
-def apply_filters(filters: Filters) -> None:
-    """The typed parameter already holds the submitted fields."""
-
-
-@refreshable(deps=[Filters])
-def invoice_list() -> None:
-    status = str(Filters().status)
-    rows = [row for row in invoices() if status in ("all", row["status"])]
-    colors = {"paid": "success", "pending": "warning", "overdue": "error"}
-    with ui.vstack(gap="sm", classes="w-full"):
-        ui.text(f"{len(rows)} invoices · {status}", size="sm", color="muted")
-        for row in rows:
-            with ui.hstack(gap="md"):
-                ui.text(row["number"], weight="medium", classes="font-mono")
-                ui.text(row["customer"], color="muted", classes="flex-1")
-                ui.badge(row["status"].capitalize(), color=colors[row["status"]],
-                         variant="soft", size="sm")
-
-
 def filters_drawer() -> None:
-    filters = Filters()
+    status = InvoiceFilters().status
     drawer = ui.drawer(title="Filter invoices", side="left", width="sm")
-    with drawer, ui.form(on_submit=[apply_filters, drawer.close()]), ui.vstack(gap="md"):
-        with ui.form_field(label="Status"), ui.radio_group(value=filters.status):
+    with drawer, ui.vstack(gap="md"):
+        with ui.form_field(label="Status"), ui.radio_group(value=status):
             ui.radio("all", label="All invoices")
             ui.radio("paid", label="Paid")
             ui.radio("pending", label="Pending")
             ui.radio("overdue", label="Overdue")
-        ui.button("Show results", type="submit", icon_left="filter")
+        ui.button("Show results", icon_left="filter", on_click=drawer.close())
     with ui.card(padding="md", classes="w-full max-w-lg"), ui.vstack(gap="md"):
         with ui.hstack(justify="between"):
             ui.heading("Invoices", level=3, size="md")
             ui.button("Filters", size="sm", variant="outline",
                       icon_left="sliders-horizontal", on_click=drawer.open())
-        invoice_list()
+        with ui.vstack(gap="sm", classes="w-full"):
+            ui.text("Showing " + status, size="sm", color="muted")
+            for row in INVOICES:
+                shown = (status == "all") | (status == row["status"])
+                with ui.hstack(gap="md", visible=shown):
+                    ui.text(row["number"], weight="medium", classes="font-mono")
+                    ui.text(row["customer"], color="muted", classes="flex-1")
+                    ui.badge(row["status"].capitalize(),
+                             color=STATUS_COLORS[row["status"]], variant="soft",
+                             size="sm")
 
 
 def share_sheet() -> None:
@@ -124,10 +116,10 @@ def page() -> None:
     example("Details on the side", order_details,
             note="Opened with drawer.open(), closed by the × button, the "
                  "backdrop, Escape, or any drawer.close() inside it.")
-    example("Filters that run on the server", filters_drawer,
-            uses=[invoices, Filters, apply_filters, invoice_list],
-            note="The drawer holds a form: submitting filters the list on the "
-                 "server and closes the drawer in the same click.")
+    example("Filters in a drawer", filters_drawer,
+            uses=[InvoiceFilters],
+            note="The radios write a ClientState and the list filters itself "
+                 "in the browser; the button only closes the drawer.")
     example("An action sheet from the bottom", share_sheet,
             note="On top and bottom drawers, width= sets the height.")
     example("A notice from the top", notice_bar)

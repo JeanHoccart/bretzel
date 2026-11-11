@@ -23,6 +23,7 @@ rows callable through ``sys.modules``.
 
 from __future__ import annotations
 
+import functools
 import re
 
 import pytest
@@ -35,6 +36,7 @@ from bretzel.components.base import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
 from bretzel.runtime import HEADER_PAGE_ID
 from bretzel.server.handlers import sign_action
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -66,7 +68,7 @@ def load_people(q: Query) -> tuple[list, int]:
 _app = Bretzel(secret_key=_SECRET, mode="dev")
 
 
-@refreshable(deps=[People])
+@refreshable
 def people_zone() -> None:
     ui.datatable(state=People, columns=COLUMNS, rows=load_people,
                  exportable=True, export_filename="people.csv")
@@ -77,7 +79,33 @@ def home() -> None:
     people_zone()
 
 
-_app.include(home)
+class Opened(DatatableState):
+    per_page: int = field(default=2)
+
+
+def load_by_status(status: str, q: Query) -> tuple[list, int]:
+    """What the page knows (the status shown) rides a ``partial``."""
+    return apply_query([r for r in ROWS if r["status"] == status], COLUMNS, q)
+
+
+def remove_cell(_value, row):
+    return ui.button("Remove", size="sm")
+
+
+@refreshable
+def opened_zone() -> None:
+    ui.datatable(state=Opened,
+                 columns=[*COLUMNS, ui.column("", render=remove_cell)],
+                 rows=functools.partial(load_by_status, "open"),
+                 exportable=True, export_filename="open.csv")
+
+
+@page("/bound")
+def bound() -> None:
+    opened_zone()
+
+
+_app.include(home, bound)
 
 
 def _export_url(html: str) -> str:
@@ -129,17 +157,17 @@ class TestExportContent:
             response = client.get(_export_url(client.get("/").text))
         assert response.headers["content-type"].startswith("text/csv")
         assert response.headers["content-disposition"] == (
-            'attachment; filename="people.csv"'
+            "attachment; filename=\"people.csv\"; filename*=UTF-8''people.csv"
         )
 
 
 def _page_id(html: str) -> str:
-    # ``data-bretzel-page-id`` et pas le JSON d'``hx-headers`` : les
+    # ``data-bz-page-id`` et pas le JSON d'``hx-headers`` : les
     # deux portent la MÊME valeur, mais l'attribut nu est stable
     # tandis que le JSON dépend de son échappement — quatre copies de
     # cette ligne ont rougi le 2026-08-28 quand ``hx-headers`` est
     # passé en doubles quotes, sans qu'aucun comportement ne change.
-    match = re.search(r'data-bretzel-page-id="([^"]+)"', html)
+    match = re.search(r'data-bz-page-id="([^"]+)"', html)
     assert match
     return match.group(1)
 
@@ -151,7 +179,7 @@ def _post(client: TestClient, url: str, args: str, page_id: str,
     return client.post(
         url,
         headers={
-            "X-Bz-Sig": sign_action(_app.config._action_key, action_id, args),
+            "X-Bz-Sig": sign_action(_app.config._action_key, action_id, args, session_id=session_of(client)),
             HEADER_PAGE_ID: page_id,
         },
         data={"_args": args, **(extra or {})},
@@ -277,3 +305,21 @@ class TestExportGuard:
             with pytest.raises(ComponentUsageError, match="callable"):
                 Datatable(state=People, columns=COLUMNS, rows=ROWS,
                           exportable=True, search=False)
+
+
+class TestExportCarriesWhatThePageBound:
+    """``rows=partial(load, "open")``: until 2026-10-29 the link named the
+    function alone, and the export called ``load(query)`` — a 500."""
+
+    def test_the_bound_arguments_reach_the_callable(self) -> None:
+        with TestClient(_app) as client:
+            response = client.get(_export_url(client.get("/bound").text))
+        assert response.status_code == 200, response.text[:200]
+        lines = _rows_of(response.text)
+        assert len(lines) == 1 + 3
+        assert "closed" not in response.text
+
+    def test_an_action_column_stays_out_of_the_file(self) -> None:
+        with TestClient(_app) as client:
+            body = client.get(_export_url(client.get("/bound").text)).text
+        assert _rows_of(body)[0] == '#,"Name ""full""",Status'

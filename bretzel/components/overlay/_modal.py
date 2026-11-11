@@ -1,32 +1,22 @@
 """The shared render of the two modal overlays — ``Dialog`` and ``Drawer``.
 
-What the measurement showed
+One component rendered twice
 ----------------------------
-On 2026-08-19: ``Dialog.render`` = 181 lines, ``Drawer.render`` = 176,
-**139 identical (76 %)**. They are not two components that resemble each
+``Dialog`` and ``Drawer`` are not two components that resemble each
 other, it is one component rendered twice, whose whole difference fits
 in three style values: the width class (the drawer picks it on TWO axes
 depending on the side), what the side adds to the panel, what it adds to
 the container.
 
-⚠️ **The rest of the gap was not code, it was the comments.** Both files
-explained the same mechanics — the resolution of the open state, why the
-backdrop carries the click and not the container, why the local scope
-must resync when ``open=`` is server-backed — in different words, at
-different levels of detail. A reader therefore could not know whether
-the two behave alike without re-reading both. It is the cost duplication
-makes you pay BEFORE it even produces a bug.
-
 What stays with the caller
 ---------------------------
-The style strings. They stay per-component
-(`feedback_no_shared_style_tokens`) and arrive here **already
+The style strings. They stay per-component and arrive here **already
 composed**: this module never reads a theme, it assembles nodes.
 
 ⚠️ The drawer's closed translation class
 (``data-[open=false]:translate-x-full``) is already COMPLETE in its theme
-and cannot be assembled here — a Tailwind class assembled at runtime only
-exists in dev (`project_assembled_tailwind_class_dev_only`).
+and cannot be assembled here — a Tailwind class assembled at runtime is
+invisible to the compiler and only exists in dev.
 """
 
 from __future__ import annotations
@@ -35,14 +25,15 @@ from typing import Any
 
 from bretzel.components.actions.icon_button import IconButton
 from bretzel.components.base import Component
-from bretzel.components.base._wiring import (
+from bretzel.components.base.arguments import has_content, shown
+from bretzel.components.base.overlay_wiring import (
     escape_init,
     focus_trap_effect,
     imperative_listeners,
     modal_root_effect,
-    server_sync_marker,
     show_attrs,
 )
+from bretzel.components.base.scope_wiring import server_sync_marker
 from bretzel.core.tree import Element, Node
 from bretzel.render import text
 
@@ -63,7 +54,11 @@ def render_modal_overlay(
     ``class=``'s, but the order stays what the component wrote and a gate
     watches it (``test_no_same_specificity_conflict``).
     """
-    title = component._reactive_values.get("title")
+    # ``shown``: a bound title is drawn live,
+    # and ``aria-labelledby`` points at it by id, so the name follows too.
+    # ``has_content`` below because a binding refuses ``if title:``.
+    title = shown(component, "title")
+    has_title = has_content(title)
     dismissible = bool(component._reactive_values.get("dismissible"))
     persistent = bool(component._reactive_values.get("persistent"))
 
@@ -79,7 +74,7 @@ def render_modal_overlay(
     open_expr = open_binding.binding_path() if bound_open else "open"
     initial_open = bool(component._reactive_values.get("open"))
 
-    title_id = f"{component.id}_title" if component.id and title else None
+    title_id = f"{component.id}_title" if component.id and has_title else None
 
     # ── Backdrop ─────────────────────────────────────────────────────
     # A persistent overlay SWALLOWS the backdrop click; a dismissible one
@@ -116,9 +111,9 @@ def render_modal_overlay(
     # Header (title + close button) — only if there is a title OR
     # something to close with, so a persistent confirmation overlay can
     # do without it entirely with ``title=None``.
-    if title or dismissible:
+    if has_title or dismissible:
         header_children: list[Node] = []
-        if title:
+        if has_title:
             title_attrs: dict[str, Any] = {"class": slots.get("title", "")}
             if title_id:
                 title_attrs["id"] = title_id
@@ -207,7 +202,7 @@ def render_modal_overlay(
         )
     # Scroll lock + open/close dispatch (root bz-effect), imperative
     # API receivers, Escape to close: the shared overlay wiring (cf.
-    # ``base/_wiring.py``).
+    # ``base/``).
     attrs["bz-effect"] = modal_root_effect(open_expr)
     attrs.update(imperative_listeners(open_expr))
     if dismissible and not persistent:

@@ -21,6 +21,26 @@ in the render layer). No module-level singleton — explicit lifetime.
 from __future__ import annotations
 
 import hashlib
+import re
+
+# What an HTML id may hold and still be found by a bare ``#id`` selector:
+# htmx (``querySelectorAll``), idiomorph and the runtime select by id
+# without ``CSS.escape``. A ``:`` reads as a pseudo-class, a ``.`` as a
+# class — an id holding one throws ``not a valid selector`` and the zone
+# no longer redraws.
+_UNSAFE_IN_ID = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def key_segment(key: object) -> str:
+    """The id segment for a ``key=`` — the key itself when it is already
+    selector-safe (every id that worked renders the same byte), else its
+    unsafe characters turned into ``-`` plus a digest of the original, so
+    ``a:b`` and ``a-b`` stay two ids.
+    """
+    s = str(key)
+    if not _UNSAFE_IN_ID.search(s):
+        return s
+    return f"{_UNSAFE_IN_ID.sub('-', s)}-{hash_segment(s)}"
 
 
 def hash_segment(s: str) -> str:
@@ -73,7 +93,7 @@ class IdGenerator:
             slot: tuple[str, ...] = (parent, kind, key)
             n = self._counters.get(slot, 0)
             self._counters[slot] = n + 1
-            base = f"{parent}_{kind}_{key}"
+            base = f"{parent}_{kind}_{key_segment(key)}"
             if n:
                 base = f"{base}_{n}"
         else:

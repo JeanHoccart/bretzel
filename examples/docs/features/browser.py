@@ -242,11 +242,8 @@ def exemple_download() -> None:
     async def clients_csv() -> list[dict]:
         return await db.clients()
 
-    # ⚠️ `download=True` is MANDATORY: without it, `hx-boost` swallows
-    # the link and the CSV arrives as HTML in the outlet, with no sign at
-    # all on the server side. The example omitted it although the
-    # /capabilities page said so — two pages contradicting each other.
-    ui.link('Export the customers', href="/clients.csv", download=True)
+    # Any component with an href: a @download route never navigates.
+    ui.link('Export the customers', href="/clients.csv")
 
 
 def exemple_pwa() -> None:

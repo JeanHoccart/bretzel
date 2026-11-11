@@ -24,6 +24,8 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop, stamp_display_none
+from bretzel.components.base.arguments import has_content, shown
+from bretzel.components.base.attrs import ComponentUsageError
 from bretzel.components.inputs.form_field.theme import FORM_FIELD_THEME
 from bretzel.core.tree import Element
 from bretzel.core.tree import TextNode as TextNode
@@ -36,20 +38,20 @@ class FormField(Component):
     THEME: ClassVar[dict[str, Any]] = FORM_FIELD_THEME
     THEME_KEY: ClassVar[str] = "form_field"
     # both change at runtime. label/required/name are design-time.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("error", "hint")
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
 
-    label: str | None = reactive_prop(default=None, emit_attr=False)
-    hint: str | None = reactive_prop(default=None, emit_attr=False)
-    error: str | None = reactive_prop(default=None, emit_attr=False, writes=True)
+    label: str | Component | None = reactive_prop(default=None, emit_attr=False)
+    hint: str | Component | None = reactive_prop(default=None, emit_attr=False)
+    error: str | Component | None = reactive_prop(default=None, emit_attr=False, writes=True)
     required: bool = reactive_prop(default=False, emit_attr=False)
     name: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
         self,
+        label: str | Component | None = None,
         *,
-        label: str | None = None,
-        hint: str | None = None,
-        error: str | None = None,
+        hint: str | Component | None = None,
+        error: str | Component | None = None,
         required: bool | None = None,
         name: str | None = None,
         **kwargs: Any,
@@ -91,6 +93,20 @@ class FormField(Component):
         return None
 
     def render(self) -> Element:
+        # The label, the asterisk and the error are WIRED onto the control
+        # (``aria-labelledby`` and company, below). A control inside a
+        # zone is not seen at page render, and cannot be when the zone
+        # redraws alone, without this field around it. The field goes in
+        # the zone.
+        for child in self._children:
+            if getattr(type(child), "IS_ZONE", False):
+                raise ComponentUsageError(
+                    "ui.form_field wires its label and its error onto its "
+                    "control, so the control cannot sit in a @refreshable zone "
+                    "of its own: the field would not find it, and the zone "
+                    "would redraw without the field around it.\n"
+                    "  Put the ui.form_field INSIDE the zone."
+                )
         theme = self._resolved_theme()
         slots = theme.get("slots", {})
 
@@ -136,15 +152,18 @@ class FormField(Component):
         # ``required=True`` wins. Duck-typed on ``__reactive_props__`` to
         # avoid importing the concrete Input / Select / Textarea (circular).
         required = bool(self._reactive_values.get("required"))
-        # The label names its controls through ``aria-labelledby``. Its
-        # ``for=<name>`` pointed at an id no control carries (the input's
-        # id is the generated one, ``root_form_field_0_input_0``), so the
-        # label labelled NOTHING — a screen reader announced the
-        # placeholder, ``get_by_label`` found no field. Found by an
-        # outside build on 2026-10-22. ``aria-labelledby`` works on any
-        # element, and its name excludes the ``aria-hidden`` asterisk of
-        # ``required=True``, which ``<label for>`` text matching did not.
-        label_id = f"{self.id}-label" if self._reactive_values.get("label") else None
+        # The label names its controls through ``aria-labelledby``. A
+        # ``for=<name>`` would point at an id no control carries (the
+        # input's id is the generated one, ``root_form_field_0_input_0``),
+        # so the label would label NOTHING — a screen reader would announce
+        # the placeholder, ``get_by_label`` would find no field.
+        # ``aria-labelledby`` works on any element, and its name excludes
+        # the ``aria-hidden`` asterisk of ``required=True``, which
+        # ``<label for>`` text matching does not.
+        # ``shown``: a bound label is drawn live, and the controls'
+        # ``aria-labelledby`` follows it by id.
+        label = shown(self, "label")
+        label_id = f"{self.id}-label" if has_content(label) else None
         for child in self._children:
             descriptors = getattr(type(child), "__reactive_props__", {})
             if "required" not in descriptors:
@@ -164,8 +183,7 @@ class FormField(Component):
         children: list[Any] = []
 
         # ── Label ──────────────────────────────────────────────────────
-        label = self._reactive_values.get("label")
-        if label:
+        if has_content(label):
             label_attrs: dict[str, Any] = {"class": slots.get("label", ""), "id": label_id}
             # When the field has a ``name``, point the <label for=…> at
             # it: an author who sets ``id=<name>`` on the control gets the
@@ -211,8 +229,8 @@ class FormField(Component):
         # when there is no error). Bound error/hint = reactive
         # ``bz-show``/``bz-text`` ; static literal = frozen ; inferred =
         # auto-clear via the local ``bz-data`` flag set on the root. FOUC :
-        # the falsy branch is pre-stamped ``display:none`` (cf.
-        # .claude/bretzel/runtime.md) so nothing flashes either way.
+        # the falsy branch is pre-stamped ``display:none`` so nothing
+        # flashes either way.
         if error_expr is not None:
             error_attrs: dict[str, Any] = {
                 "class": slots.get("error", ""),

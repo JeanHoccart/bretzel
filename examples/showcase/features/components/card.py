@@ -1,9 +1,7 @@
 """``/card`` — the surface everything else sits on."""
 
-from functools import partial
-
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A bordered surface with a padding scale — a link or a click "
@@ -27,7 +25,8 @@ def metrics() -> None:
 def article() -> None:
     with ui.card(padding="none", classes="w-full max-w-sm"):
         ui.image(src="https://picsum.photos/seed/harbor/640/320",
-                 alt="Boats moored in a harbour at dusk", ratio="2/1")
+                 alt="Boats moored in a harbour at dusk",
+                 classes="aspect-[2/1] w-full")
         with ui.vstack(gap="sm", classes="p-5"):
             ui.badge("Case study", color="primary", variant="soft", size="sm")
             ui.heading("How Atlas Freight cut invoice disputes by 40%",
@@ -65,42 +64,33 @@ def paddings() -> None:
                 ui.text(f"padding=\"{padding}\"", size="sm", weight="medium")
 
 
-class Plan(PageState):
-    chosen: str = field(default="team")
+PLANS = [
+    ("Starter", "€0", "For side projects", "3 projects, 1 seat"),
+    ("Team", "€29", "For growing teams", "Unlimited projects, 10 seats"),
+    ("Scale", "€99", "For the whole company", "SSO, audit log, SLA"),
+]
 
 
-def choose(plan: str) -> None:
-    Plan().chosen = plan
+class ChosenPlan(ClientState):
+    name: str = field(default="Team")
 
 
-@refreshable(deps=[Plan])
-def plan_picker() -> None:
-    chosen = Plan().chosen
-    plans = [
-        ("starter", "Starter", "€0", "For side projects", "3 projects, 1 seat"),
-        ("team", "Team", "€29", "For growing teams", "Unlimited projects, 10 seats"),
-        ("scale", "Scale", "€99", "For the whole company", "SSO, audit log, SLA"),
-    ]
+def clickable() -> None:
+    chosen = ChosenPlan().name
     with ui.grid(min_col="12rem", gap="md"):
-        for key, name, price, tagline, limits in plans:
+        for name, price, tagline, limits in PLANS:
             with ui.card(padding="lg", hoverable=True,
-                         on_click=partial(choose, key)), ui.vstack(gap="sm"):
+                         on_click=chosen.set(name)), ui.vstack(gap="sm"):
                 with ui.hstack(justify="between"):
                     ui.heading(name, level=3, size="md")
-                    if key == chosen:
-                        ui.badge("Selected", color="primary", size="sm",
-                                 icon_left="check")
+                    ui.badge("Selected", color="primary", size="sm",
+                             icon_left="check", visible=chosen == name)
                 with ui.hstack(gap="xs", align="baseline"):
                     ui.heading(price, level=4, size="3xl")
                     ui.text("/ month", color="muted", size="sm")
                 ui.text(tagline, weight="medium")
                 ui.text(limits, color="muted", size="sm")
-    ui.text(f"You picked the {chosen.capitalize()} plan.", color="muted",
-            size="sm")
-
-
-def clickable() -> None:
-    plan_picker()
+    ui.text("You picked the " + chosen + " plan.", color="muted", size="sm")
 
 
 def page() -> None:
@@ -113,8 +103,7 @@ def page() -> None:
     example("Cards that navigate", links, uses=[resource_card], full=True,
             note="Give it an href and the whole card becomes the link, with "
                  "a hover lift to say so.")
-    example("Pick a plan", clickable, uses=[Plan, choose, plan_picker],
-            full=True,
-            note="on_click takes a Python function: the choice is stored on "
-                 "the server and the zone re-renders.")
+    example("Pick a plan", clickable, uses=[ChosenPlan], full=True,
+            note="on_click writes the choice to a ClientState: the badge and "
+                 "the sentence follow in the browser, with no request.")
     example("Padding scale", paddings, full=True)

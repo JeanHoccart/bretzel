@@ -30,7 +30,7 @@ zero server hit when ``value`` is a :class:`ClientBinding`) and
 form-integrated (``AUTONAME_FROM = "value"`` → a hidden ``<input>``
 rides the selection into FormData ; a callable ``on_change`` relocates
 its native ``hx-post`` onto that input via the shared
-:func:`pop_change_handler`, fired by a ``change`` the
+:func:`relocate_handlers`, fired by a ``change`` the
 :func:`change_emit_effect` dispatches when the selection genuinely
 mutates). Same idiom, one level of recursion added.
 """
@@ -41,22 +41,27 @@ import json
 from collections.abc import Callable, Sequence
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component, reactive_prop, reject_component
-from bretzel.components.base._wiring import (
+from bretzel.components.base import (
+    Component,
+    ComponentUsageError,
+    reactive_prop,
+    reject_component,
+)
+from bretzel.components.base.arguments import shown
+from bretzel.components.base.composition import unwrap_transparent
+from bretzel.components.base.field_wiring import (
     activate_keydown,
-    bool_attr,
     hidden_carrier_attrs,
-    scope_literal,
-    theme_context,
-    unwrap_transparent,
+    relocate_handlers,
 )
-from bretzel.components.base._wiring import (
-    pop_change_handler as _pop_change_handler,
-)
+from bretzel.components.base.scope_wiring import bool_attr, scope_literal
+from bretzel.components.base.theme_values import theme_context
+from bretzel.components.base.universals import finish_render
 from bretzel.components.data.tree.theme import TREE_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element, Node
 from bretzel.core.tree import TextNode as TextNode
+from bretzel.state.scopes.client import ClientBinding
 
 # ───────────────────────────────────────────────────────────────────────────
 # Tree — root container
@@ -68,10 +73,13 @@ class Tree(Component):
 
     THEME: ClassVar[dict[str, Any]] = TREE_THEME
     THEME_KEY: ClassVar[str] = "tree"
+    #: Draws its children itself: a zone among them is refused
+    #: (``base/composition.unwrap_transparent``).
+    _COMPOSES_CHILDREN: ClassVar[bool] = True
     DEFAULT_TAG: ClassVar[str] = "ul"
     # client-managed (seeded by ``expanded=``) and intentionally NOT a
     # binding : two bindings would double the plumbing without adding
-    # expressive power for the 99% case (apps care which node is picked).
+    # expressive power for the common case (apps care which node is picked).
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value",)
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
 
@@ -79,6 +87,10 @@ class Tree(Component):
     selectable: bool = reactive_prop(default=True, emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
+    # The form field's name — as on Tabs, Pagination, Carousel, Stepper:
+    # derived from a bound ``value=state.x``, or given for a literal one
+    # that a server handler must still read.
+    name: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
         self,
@@ -88,6 +100,7 @@ class Tree(Component):
         selectable: bool | None = None,
         size: str | None = None,
         color: str | None = None,
+        name: str | None = None,
         on_change: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
@@ -97,6 +110,7 @@ class Tree(Component):
             selectable=selectable,
             size=size,
             color=color,
+            name=name,
             on_change=on_change,
             **kwargs,
         )
@@ -107,16 +121,13 @@ class Tree(Component):
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        _theme, slots, sizes, size_key, _color = theme_context(self)
+        _theme, slots, _sizes, _size_key, _color = theme_context(self)
         selectable = bool(self._reactive_values.get("selectable", True))
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
-
-        def _resolve(template: str) -> str:
-            return template
+        size_cfg = self._size_row() or {}
 
         # ── bz-data: DATA, the methods live in the runtime ────────────
         # ``isOpen`` / ``toggle`` / ``isSel`` / ``select`` come out once
-        # from ``$bz.tree.scope`` (``16_accordion.js``). Two cells:
+        # from ``$bz.tree.scope`` (``accordion.js``). Two cells:
         #
         # - the disclosure (``open``, the expanded branch ids) is pure
         #   client UI, never re-seeded, read through ``_read``/``_write``;
@@ -150,9 +161,9 @@ class Tree(Component):
         # spacer is truly constant, so build that one Element once and
         # share it. The spacer shares the indicator cell's width so leaf
         # labels line up under branch labels.
-        row_class = " ".join(
-            p for p in (_resolve(slots.get("row", "")), size_cfg.get("row", "")) if p
-        )
+        row_class = self.compose_class("row")
+        # The spacer takes the INDICATOR's width on purpose (a leaf's
+        # label lines up under a branch's): the one size read by hand.
         indicator_w = size_cfg.get("indicator", "w-4")
         spacer_class = " ".join(
             p for p in (slots.get("spacer", ""), indicator_w) if p
@@ -167,12 +178,10 @@ class Tree(Component):
             selectable=selectable,
             row_class=row_class,
             row_disabled=slots.get("row_disabled", ""),
-            indicator_class=" ".join(
-                p for p in (slots.get("indicator", ""), indicator_w) if p
-            ),
+            indicator_class=self.compose_class("indicator"),
             chevron_glyph=slots.get("chevron", ""),
             chevron_size=size_cfg.get("chevron_size", "sm"),
-            icon_class=_resolve(slots.get("icon", "")),
+            icon_class=slots.get("icon", ""),
             label_class=slots.get("label", ""),
             icon_size=size_cfg.get("icon_size", "sm"),
             group_class=slots.get("group", ""),
@@ -185,19 +194,17 @@ class Tree(Component):
 
         # ``unwrap_transparent``: a WRAPPED node — a ``@refreshable``
         # zone, a ``ui.fragment`` — is not an instance of ``TreeNode``,
-        # so it DISAPPEARED from the tree. Measured on 2026-08-23: 2,211
-        # → 1,249 characters, with no error. ``rewrap`` gives its
-        # ``bz-id`` back to the zone.
-        top_nodes = [unwrap_transparent(c) for c in self._children]
+        # so it would DISAPPEAR from the tree, with no error. ``rewrap``
+        # gives its ``bz-id`` back to the zone.
         node_els = [
             rewrap(self._render_node(n, 0, ctx))
-            for n, rewrap in top_nodes
-            if isinstance(n, TreeNode)
+            for n, rewrap in self._node_children(self._children)
         ]
 
         # ── Hidden input — form / server-action integration ──────────
         root_attrs = self.emit_attrs()
-        relocated_change = _pop_change_handler(root_attrs)
+        relocated_change: dict[str, Any] = {}
+        relocate_handlers(root_attrs, {"change": relocated_change})
         name = self._reactive_values.get("name") or self._derive_field_name()
 
         hidden_node: Element | None = None
@@ -212,7 +219,7 @@ class Tree(Component):
             hidden_node = Element(tag="input", attrs=hidden_attrs, children=())
 
         # ── Assemble the root <ul> ───────────────────────────────────
-        root_attrs["class"] = _resolve(slots.get("root", ""))
+        root_attrs["class"] = slots.get("root", "")
         root_attrs["role"] = "tree"
         root_attrs["bz-data"] = bz_data
 
@@ -224,17 +231,28 @@ class Tree(Component):
 
     # ── Recursive node render ──────────────────────────────────────────
 
+    def _node_children(self, children: Sequence[Any]) -> list[tuple[TreeNode, Any]]:
+        """``children`` as ``(node, rewrap)`` pairs; anything else is refused."""
+        pairs: list[tuple[TreeNode, Any]] = []
+        for raw in children:
+            child, rewrap = unwrap_transparent(raw, self)
+            if not isinstance(child, TreeNode):
+                raise ComponentUsageError(
+                    f"ui.tree holds ui.tree_node children only — got "
+                    f"{type(child).__name__}. A row's text and icon are the "
+                    "label= and icon= of its ui.tree_node; put anything else "
+                    "beside the tree."
+                )
+            pairs.append((child, rewrap))
+        return pairs
+
     def _render_node(self, node: TreeNode, depth: int, ctx: _RenderCtx) -> Element:
         node_id = str(node._reactive_values.get("value") or "")
         id_js = json.dumps(node_id)
         disabled = bool(node._reactive_values.get("disabled"))
         # A node's children unwrap like the root's: a refreshable
         # subtree is just as normal a use case.
-        kids = [
-            child
-            for child, _ in (unwrap_transparent(c) for c in node._children)
-            if isinstance(child, TreeNode)
-        ]
+        kids = self._node_children(node._children)
         is_branch = bool(kids)
         is_open = node_id in ctx.expanded
         is_sel = ctx.selectable and node_id == ctx.selected
@@ -294,7 +312,8 @@ class Tree(Component):
 
         # ── Leaf : the row is the whole li ───────────────────────────
         if not is_branch:
-            return Element(tag="li", attrs={"role": "none"}, children=(row,))
+            return finish_render(
+                node, Element(tag="li", attrs={"role": "none"}, children=(row,)))
 
         # ── Branch : row + collapsible <ul role="group"> ─────────────
         group_attrs: dict[str, Any] = {
@@ -309,9 +328,15 @@ class Tree(Component):
         group = Element(
             tag="ul",
             attrs=group_attrs,
-            children=tuple(self._render_node(k, depth + 1, ctx) for k in kids),
+            children=tuple(rewrap(self._render_node(k, depth + 1, ctx))
+                           for k, rewrap in kids),
         )
-        return Element(tag="li", attrs={"role": "none"}, children=(row, group))
+        # ``finish_render``: the tree draws the node instead of calling its
+        # ``render()``, so the two passes of the metaclass wrap
+        # (``classes=``, ``style=``, ``slots={"root"}``…) happen here — on
+        # the ``li``, which holds the node and its subtree (both returns).
+        return finish_render(
+            node, Element(tag="li", attrs={"role": "none"}, children=(row, group)))
 
     @staticmethod
     def _chevron(id_js: str, is_open: bool, ctx: _RenderCtx) -> Element:
@@ -352,18 +377,22 @@ class Tree(Component):
             return None
         if isinstance(icon, Component):
             return Component.render_detached(icon)
-        # String name → build a themed Icon at the tree's size.
+        # A name — or a binding, which ``Icon`` follows live (``icon`` is
+        # bindable on every icon slot, R1) → a themed Icon at the tree's
+        # size. ``str(icon)`` would drop a binding.
         return Component.render_detached(
-            Icon(str(icon), size=ctx.icon_size, classes=ctx.icon_class)
+            Icon(icon, size=ctx.icon_size, classes=ctx.icon_class)
         )
 
     @staticmethod
     def _node_label(node: TreeNode, ctx: _RenderCtx) -> Element:
-        label = node._reactive_values.get("label")
+        # ``shown``: a bound label is drawn live through ``bz-text``.
+        label = shown(node, "label")
         attrs = {"class": ctx.label_class}
-        # No ClientBinding branch: ``label`` is not bindable and a
-        # binding lives in ``_binding_metadata``, never
-        # ``_reactive_values``.
+        if isinstance(label, ClientBinding):
+            return Element(
+                tag="span", attrs=attrs, children=(node.emit_text_slot(label),),
+            )
         if isinstance(label, Component):
             return Element(tag="span", attrs=attrs, children=(label.render(),))
         # Empty / omitted label → fall back to the node id (a labelless
@@ -424,15 +453,15 @@ class TreeNode(Component):
     # ``value`` drives selection ; per-node bindings would mean N bindings.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     value: str = reactive_prop(default="", emit_attr=False)
-    label: Any = reactive_prop(default="", emit_attr=False)
+    label: str | Component | None = reactive_prop(default="", emit_attr=False)
     disabled: bool = reactive_prop(default=False, emit_attr=False)
 
     def __init__(
         self,
-        value: str = "",
+        value: str,
         *,
-        label: Any = None,
-        icon: Any = None,
+        label: str | Component | None = None,
+        icon: str | Component | None = None,
         disabled: bool | None = None,
         **kwargs: Any,
     ) -> None:
@@ -463,7 +492,7 @@ class TreeNode(Component):
         # Icon is rendered by the parent Tree (which knows the size) —
         # detach a Component icon so it doesn't leak into the child list.
         if isinstance(icon, Component):
-            icon = Component.adopt_slot(icon)
+            icon = icon
         self._icon: Any = icon
 
     def render(self) -> Element:

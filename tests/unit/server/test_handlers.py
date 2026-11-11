@@ -36,6 +36,9 @@ class _Holder:
 _SECRET = "x" * 32
 # What the dispatch path actually uses : the *derived* action key.
 _KEY = derive_key(_SECRET, PURPOSE_ACTION)
+_SESSION = "s1"
+sign = functools.partial(sign_action, session_id=_SESSION)
+verify = functools.partial(verify_action, session_id=_SESSION)
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -158,34 +161,34 @@ class TestArgsCodec:
 class TestSignVerify:
     def test_round_trip(self) -> None:
         action_id = encode_action_id(my_handler)
-        signature = sign_action(_KEY, action_id, "")
-        assert verify_action(_KEY, action_id, "", signature) is True
+        signature = sign(_KEY, action_id, "")
+        assert verify(_KEY, action_id, "", signature) is True
 
     def test_round_trip_with_args(self) -> None:
         action_id = encode_action_id(my_handler)
         bound = functools.partial(my_handler, 7)
         args_blob = encode_args(bound)
-        signature = sign_action(_KEY, action_id, args_blob)
-        assert verify_action(_KEY, action_id, args_blob, signature)
+        signature = sign(_KEY, action_id, args_blob)
+        assert verify(_KEY, action_id, args_blob, signature)
 
     def test_signature_short(self) -> None:
         # 16 hex chars → 64 bits — explicitly designed for URL brevity.
-        signature = sign_action(_KEY, "x::y")
+        signature = sign(_KEY, "x::y")
         assert len(signature) == 16
         assert all(c in "0123456789abcdef" for c in signature)
 
     def test_tampered_id_rejected(self) -> None:
-        signature = sign_action(_KEY, "real::handler")
-        assert verify_action(_KEY, "fake::handler", "", signature) is False
+        signature = sign(_KEY, "real::handler")
+        assert verify(_KEY, "fake::handler", "", signature) is False
 
     def test_tampered_args_rejected(self) -> None:
-        signature = sign_action(_KEY, "x::y", "args1")
-        assert verify_action(_KEY, "x::y", "args2", signature) is False
+        signature = sign(_KEY, "x::y", "args1")
+        assert verify(_KEY, "x::y", "args2", signature) is False
 
     def test_wrong_key_rejected(self) -> None:
-        signature = sign_action(_KEY, "x::y", "")
+        signature = sign(_KEY, "x::y", "")
         other_key = derive_key("y" * 32, PURPOSE_ACTION)
-        assert verify_action(other_key, "x::y", "", signature) is False
+        assert verify(other_key, "x::y", "", signature) is False
 
     def test_derived_keys_differ_per_purpose(self) -> None:
         # Cross-purpose tampering : a signature made with the auth key
@@ -194,5 +197,5 @@ class TestSignVerify:
         from bretzel.server.crypto import PURPOSE_AUTH
 
         auth_key = derive_key(_SECRET, PURPOSE_AUTH)
-        signature = sign_action(auth_key, "x::y", "")
-        assert verify_action(_KEY, "x::y", "", signature) is False
+        signature = sign(auth_key, "x::y", "")
+        assert verify(_KEY, "x::y", "", signature) is False

@@ -27,7 +27,7 @@ class TestStructure:
         assert "value:" in html
 
     def test_hidden_input_reactively_binds_val(self) -> None:
-        html = _render(dt.date(2026, 6, 15))
+        html = _render(value=dt.date(2026, 6, 15))
         # Hidden form-data carrier uses a reactive bz-attr:value (plus
         # a static SSR value) so re-renders + scope mutations stay in
         # sync with the SSR'd initial.
@@ -37,15 +37,26 @@ class TestStructure:
         assert "2026-06-15" in html
 
     def test_visible_input_is_editable_and_model_bound(self) -> None:
-        html = _render(dt.date(2026, 6, 15))
+        html = _render(value=dt.date(2026, 6, 15))
         # Typing is allowed (no readonly), bound to wrapper ``val``.
-        assert 'bz-model="value"' in html
+        # It shows the value and writes it only once normalised — never
+        # ``bz-model``, which sent every keystroke to on_change.
+        assert "bz-model=" not in html
+        assert "value = $el.value" in html
         assert 'readonly' not in html
 
-    def test_default_placeholder_shows_iso_hint(self) -> None:
+    def test_default_placeholder_is_the_typed_form(self) -> None:
         html = _render()
-        # The placeholder doubles as a format hint for the typer.
-        assert "YYYY-MM-DD" in html
+        # The hint is the form the field reads, in the page's order —
+        # built in the browser (``$bz.dates.pattern``) from the
+        # framework's letters. It said « YYYY-MM-DD » until 2026-11-02.
+        assert 'bz-attr:placeholder="$bz.dates.pattern(&quot;DD&quot;, &quot;MM&quot;, &quot;YYYY&quot;)"' in html
+        assert "YYYY-MM-DD" not in html
+
+    def test_the_field_is_named_not_hinted(self) -> None:
+        # A screen reader announced the hint, « YYYY-MM-DD ».
+        assert 'aria-label="Date"' in _render()
+        assert 'aria-label="Date"' in _render(placeholder="Pick a deadline")
 
     def test_custom_placeholder(self) -> None:
         html = _render(placeholder="Pick a deadline")
@@ -53,10 +64,14 @@ class TestStructure:
 
     def test_blur_normalises_free_form_to_iso(self) -> None:
         html = _render()
-        # The bz-on:blur handler tries new Date(val) when val is not
-        # already ISO-shaped — cf. normalise_to_iso_js docstring.
+        # The bz-on:blur handler hands the text to the ONE reader of a
+        # typed date, ``$bz.dates.typed`` (locale.js), since 2026-10-27
+        # — it is no longer recopied into the field. The behaviour itself
+        # is gated in a browser:
+        # tests/runtime_js/test_a_typed_date_follows_the_language.py.
         assert "bz-on:blur=" in html
-        assert "new Date(value)" in html
+        assert "$bz.dates.typed($el.value)" in html
+        assert "Intl.DateTimeFormat" not in html, "the reader is recopied into the field again"
 
     def test_calendar_inside_popover_panel(self) -> None:
         html = _render()
@@ -158,9 +173,9 @@ class TestBindableContract:
 
         with rendering_scope(), render_isolated():
             out = serialize(DatePicker(value=_S().appointment).render())
-        assert 'name="appointment"' in out
+        assert 'name="_S.appointment"' in out
         # …and it does NOT leak onto the wrapper <div> root (released).
-        assert out.count('name="appointment"') == 1
+        assert out.count('name="_S.appointment"') == 1
 
     def test_events_listed(self) -> None:
         assert DatePicker.EVENTS == ("change", "focus", "blur")
@@ -174,17 +189,17 @@ class TestBindableContract:
 
         with render_isolated(), rendering_scope():
             state = _DP()
-            html = serialize(DatePicker(state.picked).render())
+            html = serialize(DatePicker(value=state.picked).render())
         # V3 : no ``$watch`` sync. The scope holds only ``open`` ; the
         # input / hidden / calendar all address the store path
         # directly (bz-model / bz-attr:value / bz-on:change).
         assert "$bz.state._DP.default.picked" in html
-        assert 'bz-model="$bz.state._DP.default.picked"' in html
+        assert "$bz.state._DP.default.picked = $el.value" in html
         assert "bz-data=\"{open: false}\"" in html
         # No local ``val`` seed in bound mode.
         assert "value:" not in html
         # Form-data name still autonamed from the bound field.
-        assert 'name="picked"' in html
+        assert 'name="_DP.picked"' in html
 
 
 class TestForwardingToCalendar:
@@ -197,7 +212,7 @@ class TestForwardingToCalendar:
         assert 'max="2026-12-31"' in html
 
     def test_weekstart_forwarded(self) -> None:
-        html = _render(weekstart=0)
+        html = _render(week_start=0)
         assert 'weekstart="0"' in html
 
     def test_disabled_dates_forwarded(self) -> None:
@@ -208,11 +223,11 @@ class TestForwardingToCalendar:
 
 class TestClearable:
     def test_clear_button_emitted_when_clearable_true(self) -> None:
-        html = _render(dt.date(2026, 6, 15))
+        html = _render(value=dt.date(2026, 6, 15))
         assert 'aria-label="Clear date"' in html
 
     def test_no_clear_button_when_clearable_false(self) -> None:
-        html = _render(dt.date(2026, 6, 15), clearable=False)
+        html = _render(value=dt.date(2026, 6, 15), clearable=False)
         assert 'aria-label="Clear date"' not in html
 
 
@@ -242,7 +257,7 @@ class TestFocusBlurRelocatedToField:
         field_opening = html[i - 10: html.index(">", i)]
         assert "console.log(1)" in field_opening
         # Internal ISO-normalise logic still present and runs first.
-        marker = "String(value).match"
+        marker = "$bz.dates.typed($el.value)"
         assert marker in field_opening
         assert field_opening.index(marker) < field_opening.index(
             "console.log(1)"
@@ -252,7 +267,7 @@ class TestFocusBlurRelocatedToField:
         html = _render()
         i = html.index('type="text"')
         field_opening = html[i - 10: html.index(">", i)]
-        assert "String(value).match" in field_opening
+        assert "$bz.dates.typed($el.value)" in field_opening
 
     def test_callable_focus_relocates_to_field_not_root(self) -> None:
         html = _render(on_focus=_focus_handler)
@@ -264,9 +279,10 @@ class TestFocusBlurRelocatedToField:
         assert 'hx-trigger="focus"' in field_opening
         assert html.count("hx-post=") == 1
 
-    def test_change_handler_still_lands_on_root(self) -> None:
-        """``change`` DOES bubble natively from the field input, so it
-        stays on root — only focus/blur needed relocation."""
+    def test_a_client_change_rides_the_value_carrier(self) -> None:
+        """On the root it would also hear the visible field's own
+        ``change``, and run twice for one entry."""
         html = _render(on_change="console.log(9)")
         root_opening = html[: html.index(">")]
-        assert 'bz-on:change="console.log(9)"' in root_opening
+        assert 'bz-on:change="console.log(9)"' not in root_opening
+        assert 'bz-on:change="console.log(9)"' in html

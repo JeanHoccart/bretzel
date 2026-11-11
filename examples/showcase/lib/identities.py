@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from examples.showcase.lib.studio import (
     FONTS,
     SHIPPED_DEFAULTS,
+    STEP,
     assign_expression,
 )
 
@@ -30,7 +31,13 @@ class Identity:
 
     @property
     def values(self) -> dict[str, str | float]:
-        return {**SHIPPED_DEFAULTS, **self.overrides}
+        values = {**SHIPPED_DEFAULTS, **self.overrides}
+        # A density given before the three spacing families (2026-10-26)
+        # meant all of them: the two others follow it unless said.
+        if "spacing" in self.overrides:
+            for family in ("space_box", "space_gap"):
+                values[family] = self.overrides.get(family, self.overrides["spacing"])
+        return values
 
     def apply(self) -> str:
         """The client expression that paints the app with this identity."""
@@ -77,7 +84,7 @@ IDENTITIES: list[Identity] = [
             "text": "#2b2118", "d_text": "#f3ebe1",
             "muted": "#7d6d5d", "d_muted": "#b0a08f",
             "box": 0.5, "field_": 0.375, "selector": 0.25,
-            "spacing": 0.2, "font": FONT["Book"],
+            "space_box": STEP * 1.25, "space_gap": STEP * 1.25, "font": FONT["Book"],
         },
     ),
     Identity(
@@ -131,7 +138,7 @@ IDENTITIES: list[Identity] = [
             "text": "#2a1523", "d_text": "#fbe9f2",
             "muted": "#86617a", "d_muted": "#c29bb2",
             "box": 1.5, "field_": 2.0, "selector": 1.0,
-            "spacing": 0.2, "font": FONT["Rounded"],
+            "space_box": STEP * 1.25, "space_gap": STEP * 1.25, "font": FONT["Rounded"],
         },
     ),
     Identity(
@@ -161,7 +168,8 @@ IDENTITIES: list[Identity] = [
             "text": "#111827", "d_text": "#e5e7eb",
             "muted": "#4b5563", "d_muted": "#9ca3af",
             "box": 0.375, "field_": 0.25, "selector": 0.125,
-            "spacing": 0.165, "font": FONT["Grotesk"],
+            "spacing": STEP * 0.75, "space_box": STEP * 0.5, "space_gap": STEP * 0.5,
+            "font": FONT["Grotesk"],
         },
     ),
 ]

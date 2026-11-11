@@ -1,7 +1,7 @@
 """``/popover`` — a small panel anchored to the element that opened it."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A floating panel anchored to its trigger — for an explanation, a "
@@ -40,32 +40,25 @@ def profile_card() -> None:
                 ui.button("Profile", size="sm", variant="outline")
 
 
-class Board(PageState):
+class Board(ClientState):
     title: str = field(default="Spring launch")
-
-
-def rename_board(board: Board) -> None:
-    board.title = str(board.title).strip() or "Untitled board"
-
-
-@refreshable(deps=[Board])
-def board_title() -> None:
-    ui.heading(str(Board().title), level=3, size="lg")
+    draft: str = field(default="Spring launch")
 
 
 def quick_edit() -> None:
     board = Board()
     with ui.hstack(gap="sm"):
-        board_title()
+        ui.heading(board.title | "Untitled board", level=3, size="lg")
         popover = ui.popover(trigger=ui.icon_button("pencil", variant="ghost",
                                                     size="sm", tooltip="Rename"))
-        with popover, ui.form(on_submit=[rename_board, popover.close()]), ui.vstack(gap="sm"):
+        with popover, ui.vstack(gap="sm"):
             with ui.form_field(label="Board name", classes="w-64"):
-                ui.input(value=board.title, maxlength=60)
+                ui.input(value=board.draft, maxlength=60)
             with ui.hstack(gap="sm", justify="end"):
                 ui.button("Cancel", size="sm", variant="ghost",
-                          on_click=popover.close())
-                ui.button("Save", size="sm", type="submit")
+                          on_click=[board.draft.set(board.title), popover.close()])
+                ui.button("Save", size="sm",
+                          on_click=[board.title.set(board.draft), popover.close()])
 
 
 def positions() -> None:
@@ -84,9 +77,10 @@ def page() -> None:
                  "outside or press Escape to close.")
     example("A profile card", profile_card,
             note="Anything can go inside: an avatar, text, buttons.")
-    example("Edit in place", quick_edit, uses=[Board, rename_board, board_title],
-            note="A form inside the popover: saving renames the board on the "
-                 "server and closes the popover with popover.close().")
+    example("Edit in place", quick_edit, uses=[Board],
+            note="The field edits a draft; Save copies it to the title and "
+                 "closes the popover with popover.close(), Cancel puts the "
+                 "draft back. No request leaves the browser.")
     example("Positions", positions,
             note="By default the popover takes the side with the most room; "
                  "position= pins it.")

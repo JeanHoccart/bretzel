@@ -1,7 +1,7 @@
 """``/toggle-group`` — a row of joined buttons: pick one, or several."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("Joined buttons for a view switch, a toolbar or a filter — one "
@@ -10,9 +10,9 @@ SUMMARY = ("Joined buttons for a view switch, a toolbar or a filter — one "
 
 def view_switch() -> None:
     with ui.toggle_group(value="board"):
-        ui.toggle_button("board", "Board", icon="columns-3")
-        ui.toggle_button("list", "List", icon="list")
-        ui.toggle_button("timeline", "Timeline", icon="gantt-chart")
+        ui.toggle_button("board", label="Board", icon="columns-3")
+        ui.toggle_button("list", label="List", icon="list")
+        ui.toggle_button("timeline", label="Timeline", icon="gantt-chart")
 
 
 def toolbar() -> None:
@@ -29,9 +29,9 @@ def toolbar() -> None:
             ui.toggle_button("right", icon="align-right", tooltip="Align right")
         ui.divider(orientation="vertical", classes="self-stretch")
         with ui.toggle_group(value="p", size="sm"):
-            ui.toggle_button("p", "Text")
-            ui.toggle_button("h2", "Heading")
-            ui.toggle_button("code", "Code", disabled=True,
+            ui.toggle_button("p", label="Text")
+            ui.toggle_button("h2", label="Heading")
+            ui.toggle_button("code", label="Code", disabled=True,
                              tooltip="Available on the Pro plan")
 
 
@@ -62,32 +62,22 @@ TICKETS = [
 ]
 
 
-class TicketView(PageState):
+class TicketView(ClientState):
     status: str = field(default="open")
 
 
-def filter_tickets(view: TicketView) -> None:
-    """The clicked status is already in ``view``; the list re-renders."""
-
-
-@refreshable(deps=[TicketView])
-def ticket_list() -> None:
-    status = TicketView().status
-    with ui.vstack(gap="xs", classes="w-full"):
-        for title, ticket_status, team in TICKETS:
-            if status in ("all", ticket_status):
-                with ui.hstack(gap="sm", justify="between"):
-                    ui.text(title, truncate=True)
-                    ui.badge(team, variant="soft", size="sm")
-
-
 def filter_a_list() -> None:
+    status = TicketView().status
     with ui.card(padding="md", classes="w-full max-w-xl"), ui.vstack(gap="md"):
-        ui.toggle_group(value=TicketView().status, color="secondary",
-                        on_change=filter_tickets,
+        ui.toggle_group(value=status, color="secondary",
                         options=[("open", "Open"), ("pending", "Pending"),
                                  ("closed", "Closed"), ("all", "All")])
-        ticket_list()
+        with ui.vstack(gap="xs", classes="w-full"):
+            for title, ticket_status, team in TICKETS:
+                shown = (status == "all") | (status == ticket_status)
+                with ui.hstack(gap="sm", justify="between", visible=shown):
+                    ui.text(title, truncate=True)
+                    ui.badge(team, variant="soft", size="sm")
 
 
 def page() -> None:
@@ -103,6 +93,6 @@ def page() -> None:
                  "in one line.")
     example("Sizes", sizes)
     example("Filter a list", filter_a_list,
-            uses=[TicketView, filter_tickets, ticket_list],
-            note="on_change sends the pick to Python; the zone that reads "
-                 "the state re-renders with the matching tickets.")
+            uses=[TicketView],
+            note="The group writes a ClientState and each ticket shows or "
+                 "hides itself in the browser, with no request.")

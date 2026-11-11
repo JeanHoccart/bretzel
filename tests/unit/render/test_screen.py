@@ -9,6 +9,8 @@ screen-responsive-nav.md, the pivot on 2026-07-13).
 
 from __future__ import annotations
 
+from bretzel.render.decorators.refreshable import ZoneRegistry
+
 from typing import Any
 
 from bretzel import Screen
@@ -21,6 +23,7 @@ class _FakeRequest:
 
 
 class _StubApp:
+    zones = ZoneRegistry()
     @property
     def theme(self) -> object:
         return object()

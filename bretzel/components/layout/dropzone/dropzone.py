@@ -5,7 +5,7 @@
             ui.card(t.title)
 
 The component emits a **DOM contract** and nothing else : the gesture
-lives in ``runtime/_src/19_dnd.js``, delegated from the document, so a
+lives in ``components/layout/dnd.js``, delegated from the document, so a
 zone works the moment its attributes are in the page — including after a
 morph, which is why no per-zone listener is wired here.
 
@@ -15,9 +15,8 @@ morph, which is why no per-zone listener is wired here.
   « anything »** : an undeclared zone receives only its OWN items, so a
   plain list reorders itself and never catches a card from an unrelated
   list on the same page. Receiving from elsewhere is an opt-in. Same
-  default as Sortable.js, and the playground bench proved it necessary —
-  with « omitted = anything », grabbing a kanban card lit up every
-  unrelated zone on the page.
+  default as Sortable.js: with « omitted = anything », grabbing a card
+  lights up every unrelated zone on the page.
 - ``locked=`` decides whether anything may go OUT. A trash zone accepts
   everything and lets nothing leave.
 
@@ -68,7 +67,7 @@ from collections.abc import Callable, Iterable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import pop_change_handler as _pop_change_handler
+from bretzel.components.base.field_wiring import relocate_handlers
 from bretzel.components.layout.dropzone.move import MOVE_WIRE_FIELD
 from bretzel.components.layout.dropzone.theme import DROPZONE_THEME
 from bretzel.core.tree import Element
@@ -87,6 +86,7 @@ class Dropzone(Component):
     color: str = reactive_prop(default="primary", emit_attr=False)
     locked: bool = reactive_prop(default=False, emit_attr=False)
     terminal: bool = reactive_prop(default=False, emit_attr=False)
+    holds: str = reactive_prop(default="many", emit_attr=False, steps=("many", "one"))
 
     def __init__(
         self,
@@ -100,10 +100,9 @@ class Dropzone(Component):
         on_move: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(color=color, locked=locked, terminal=terminal,
+        super().__init__(color=color, holds=holds, locked=locked, terminal=terminal,
                          on_move=on_move, **kwargs)
         self._name = name
-        self._holds = holds
         # Materialised at construction : ``accepts`` may legitimately be a
         # generator from a comprehension, and ``render()`` must stay
         # re-runnable (a refresh re-renders the same instance).
@@ -142,20 +141,19 @@ class Dropzone(Component):
         # ⚠️ ``one`` only: ``many`` is the default and has nothing to
         # write. An attribute set to say "as usual" weighs down every
         # zone on the page without any selector reading it.
-        if self._holds == "one":
+        holds = self._reactive_values["holds"]
+        if holds == "one":
             attrs["data-bz-holds"] = "one"
 
         # Through the COMPOSER, never through ``theme["slots"][…]``
         # directly: it is the composer that makes a caller's
         # ``slots={"root": …}`` land. A hand-made lookup drops that
-        # override IN SILENCE — the defect measured on ToggleGroup,
-        # written in ``slot_class``'s docstring. Both my components
-        # reproduced it.
+        # override IN SILENCE.
         attrs["class"] = " ".join(
             part for part in (
                 self.compose_class("root", ),
                 self.slot_class("valid"),
-                self.slot_class("replace") if self._holds == "one" else "",
+                self.slot_class("replace") if holds == "one" else "",
             ) if part
         ).strip()
 
@@ -163,7 +161,8 @@ class Dropzone(Component):
         # must post from the element that *carries the payload*, or the
         # blob the runtime just wrote would not be serialised into the
         # request.
-        relocated = _pop_change_handler(attrs)
+        relocated: dict[str, Any] = {}
+        relocate_handlers(attrs, {"move": relocated}, client_stays=("move",))
 
         children = list(self._render_children())
         # ⚠️ **The carrier is unconditional**, even with no server handler.

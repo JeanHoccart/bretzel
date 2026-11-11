@@ -83,28 +83,29 @@ class _IconState(ClientState, persist="memory"):
     glyph: str = field(default="save")
 
 
-class TestIconSlotsNotBindable:
-    """``icon_left`` / ``icon_right`` are NOT in Button's BINDABLE_PROPS.
-    The framework's Icon-wrapper auto-detection (``adopt_slot(icon_shortcut=True)``)
-    still exists for components that opt-in to icon binding, but Button
-    treats icons as design-time configuration. Passing a binding raises
-    a clear ``ComponentUsageError`` at construction.
-    """
+class TestIconSlotsAreBindable:
+    """``icon_left`` / ``icon_right`` ARE bindable since 2026-11-06 — on
+    every icon slot of the catalogue (R1: ``Badge`` bound its icons while
+    ``Button`` refused them). The glyph follows the state live, through the
+    reactive ``Icon`` that ``adopt_slot(icon_shortcut=True)`` builds."""
 
-    def test_icon_left_binding_raises(self) -> None:
+    def test_icon_left_follows_its_binding(self) -> None:
+        with render_isolated(), rendering_scope():
+            state = _IconState()
+            out = serialize(Button("Save", icon_left=state.glyph).render())
+        assert "bz-attr:icon" in out and "_IconState" in out
+
+    def test_icon_right_follows_its_binding(self) -> None:
+        with render_isolated(), rendering_scope():
+            state = _IconState()
+            out = serialize(Button("Save", icon_right=state.glyph).render())
+        assert "bz-attr:icon" in out and "_IconState" in out
+
+    def test_a_non_icon_prop_still_refuses(self) -> None:
         from bretzel.components.base import ComponentUsageError
         import pytest
 
         with render_isolated(), rendering_scope():
             state = _IconState()
-            with pytest.raises(ComponentUsageError, match="icon_left is not bindable"):
-                Button("Save", icon_left=state.glyph)
-
-    def test_icon_right_binding_raises(self) -> None:
-        from bretzel.components.base import ComponentUsageError
-        import pytest
-
-        with render_isolated(), rendering_scope():
-            state = _IconState()
-            with pytest.raises(ComponentUsageError, match="icon_right is not bindable"):
-                Button("Save", icon_right=state.glyph)
+            with pytest.raises(ComponentUsageError, match="type is not bindable"):
+                Button("Save", type=state.glyph)

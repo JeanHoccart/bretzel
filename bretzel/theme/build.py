@@ -175,26 +175,18 @@ def _content_fingerprint(roots: Sequence[Path]) -> str:
     workspace to know which classes exist. The compiled output therefore
     depends on TWO things, and the cache must reflect both.
 
-    **Without this, a class change never reaches production.** On
-    2026-08-27, replacing ``transition-all`` with an explicit list in
-    ``sidebar/theme.py`` changed nothing: the class touches no colour, so
-    it does not enter the safelist, so the input CSS's fingerprint does
-    not move, so the cache returned the old file. The render stayed what
-    it was, with not a single error.
-
-    The trap was masked until then: the cache held a single slot and two
-    apps kept taking it from each other, so it recompiled on almost every
-    startup — fresh by accident. Fixing that uncovered this.
+    **Without this, a class change never reaches production.** A class
+    that touches no colour does not enter the safelist, so the input
+    CSS's fingerprint does not move, so the cache returns the old file:
+    the render stays what it was, with not a single error.
 
     We read ``(path, size, mtime_ns)``, never the content: it is a
     ``stat`` walk, not a read.
 
     ⚠️ **Pruning happens ON THE WAY DOWN, not by filtering afterwards.**
-    A first version did ``root.rglob("*")`` then discarded the unwanted
-    paths: so it descended into ``.git`` and ``archive/`` before throwing
-    them away. Measured on this repository: **1 462 ms** against 60 ms
-    with pruning — for a function that runs at the startup of every app
-    in production mode.
+    A ``root.rglob("*")`` filtered afterwards would descend into ``.git``
+    and ``archive/`` before throwing them away — in a function that runs
+    at the startup of every app in production mode.
     """
     parts: list[str] = []
     # A subfolder that is itself a root is left to that root: each file
@@ -269,18 +261,16 @@ def scan_roots(theme_css: str) -> list[Path]:
 def _theme_digest(theme_css: str) -> str:
     """Fingerprint of the input — it NAMES the compiled file.
 
-    It used to live in a ``style.css.sha256`` set beside a single
-    ``style.css``, which left room for only ONE theme per folder. Cf.
-    :func:`get_or_build_css`.
+    A ``style.css.sha256`` set beside a single ``style.css`` would leave
+    room for only ONE theme per folder. Cf. :func:`get_or_build_css`.
     """
     return hashlib.sha256(theme_css.encode("utf-8")).hexdigest()
 
 
-#: How many compiled sheets the cache keeps. Each weighs 230 to 740 KB,
+#: How many compiled sheets the cache keeps. Each weighs hundreds of KB,
 #: and the key includes the fingerprint of the scanned sources: **any**
 #: edit to a framework ``theme.py`` creates a fresh entry. Without
-#: eviction, measured on 2026-08-30 on the dev machine: **470 files,
-#: 298 MB** accumulated over two days of work on the themes.
+#: eviction, the cache would grow without bound during work on the themes.
 #:
 #: Twelve because that is what a normal round trip consumes — two or
 #: three example apps, each with its theme variations — without paying
@@ -321,14 +311,10 @@ def _store_sheet(scratch: Path, css_dir: Path, pointer: Path) -> Path:
     ``theme.py`` without changing a single class produces a fresh key for
     an IDENTICAL output.
 
-    Measured on 2026-08-31: **6 of the 7 cached sheets were byte for
-    byte identical** — two distinct contents for seven entries. The cache
-    advertised twelve slots and held two useful ones during a session of
-    theme work, and the CRM's sheet could be evicted by six copies of the
-    playground's.
-
+    Keyed on the sources alone, several slots would hold byte-identical
+    sheets, and one app's sheet could be evicted by copies of another's.
     Addressing by content fixes that without touching the key: twelve
-    slots now hold twelve DIFFERENT themes.
+    slots hold twelve DIFFERENT themes.
     """
     payload = scratch.read_bytes()
     sheet = css_dir / f"{hashlib.sha256(payload).hexdigest()[:16]}.css"
@@ -368,8 +354,7 @@ def _prune_css_cache(css_dir: Path, *, keep: int = CACHE_KEEP) -> int:
     Also drops what eviction leaves behind: the pointers whose sheet is
     gone, and the abandoned scratches. Neither is ever read again — an
     orphaned pointer is a cache miss — but each source edit adds one
-    pointer, so they were the unbounded part of the cache: 868 pointers
-    for 12 sheets, measured on 2026-10-03.
+    pointer, so they are the unbounded part of the cache.
 
     Returns the number of sheets evicted. Never raises. A file another
     process holds open refuses to be deleted on Windows, and losing an
@@ -469,18 +454,16 @@ def get_or_build_css(
     # We compile to a TEMPORARY name: the final name is the fingerprint
     # of what comes out, and we only know it afterwards.
     #
-    # ⚠️ **The name must be unique per CALLER, not per key.** It was
-    # derived from the key, so two processes compiling the SAME theme at
-    # the same time shared the file: the first renamed it, the second
-    # read a vanished path and died on ``FileNotFoundError`` at the app's
+    # ⚠️ **The name must be unique per CALLER, not per key.** Derived from
+    # the key, two processes compiling the SAME theme at the same time
+    # would share the file: the first renames it, the second reads a
+    # vanished path and dies on ``FileNotFoundError`` at the app's
     # startup. And "two apps starting together from the same root" is
     # precisely the situation this cache holds several slots for.
     #
-    # Found on 2026-08-31 in `-m browser -n 4`, and the lesson is worth
-    # more than the fix: it showed up as a pytest COLLECTION error
-    # ("Different tests were collected between gw3 and gw0"), on three
-    # runs out of six, because the gate mounting the benches does it at
-    # import time. I first attributed it to my own edits — wrongly.
+    # Under parallel tests this failure shows up as a pytest COLLECTION
+    # error ("Different tests were collected between gw3 and gw0"), because
+    # the gate mounting the benches does it at import time.
     fd, tmp_name = tempfile.mkstemp(
         dir=css_dir, prefix=f".{digest[:16]}.", suffix=".tmp",
     )

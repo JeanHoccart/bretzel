@@ -4,8 +4,7 @@ Distinct from :mod:`._svg`, which is deliberately I/O-free (pure maths,
 no Bretzel import, no ``Element`` construction). Here we assemble nodes,
 so it could not go there.
 
-Three layers, each copied from one chart to the next (audit F10, F43,
-F45):
+Three layers, shared by the charts:
 
 - :func:`render_empty_state` — the empty state, a ``ui.empty_state`` in
   a box the size of the plot;
@@ -19,9 +18,20 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from bretzel.components.base import reject_component
-from bretzel.components.charts._svg import _fmt, format_value
+from bretzel.components.base.scope_wiring import bool_attr
+from bretzel.components.charts._svg import (
+    Localized,
+    _fmt,
+    _pct,
+    compute_ticks,
+    compute_time_ticks,
+    format_value,
+    localized_attr,
+)
+from bretzel.components.charts.series import Series
 from bretzel.core.tree import Element
 from bretzel.core.tree import TextNode as TextNode
+from bretzel.render import text
 
 
 def reject_empty_text_component(value: Any, *, owner: str) -> None:
@@ -34,14 +44,8 @@ def reject_empty_text_component(value: Any, *, owner: str) -> None:
     ``repr`` for the screen reader — it is word for word the argument by
     which ``file_upload.label`` already refuses.
 
-    ⚠️ The reason survived the render change (SVG → ``EmptyState``,
-    2026-09-07) because it bears on the DOUBLE use of the text, not on
-    the tag. It said "an SVG ``<text>`` and the ``<svg>``'s
-    ``aria-label``"; both destinations still exist.
-
     Written once here rather than four times in the charts: the reason
-    is the same for all four, and a reason copied four times drifts
-    (audit F10/F43/F45, this module's pattern).
+    is the same for all four, and a reason copied four times drifts.
     """
     reject_component(
         value,
@@ -61,9 +65,7 @@ def reject_empty_text_component(value: Any, *, owner: str) -> None:
 
 
 def render_empty_state(
-    component: Any,
     *,
-    width: int,
     height: int,
     kind: str,
     message: str,
@@ -76,29 +78,25 @@ def render_empty_state(
     the plot, or the escape hatch the author placed.
 
 
-    **Why it is no longer a centred SVG ``<text>``.** The four charts
-    offered only ``empty_text``, when ``table``, ``datatable`` and
-    ``diagram`` offer all four — three depths for one need (audit of
-    2026-09-06, § 1.3). An empty chart said "No data" and nothing else:
-    neither why, nor what to do. Composing :class:`EmptyState`, as
-    ``diagram`` does, aligns the four with the rest of the catalogue and
-    gives them the theme's icon, title hierarchy and spacing without
-    rewriting them.
+    **Why not a centred SVG ``<text>``.** A bare "No data" says neither
+    why, nor what to do. Composing :class:`EmptyState`, as ``diagram``
+    does, aligns the four charts with the rest of the catalogue and gives
+    them the theme's icon, title hierarchy and spacing without rewriting
+    them.
 
     ⚠️ **``role="img"`` + ``aria-label`` on the BOX**, not on the
-    content, and that is what preserves fix F24: an empty scatter
-    announced itself as "Line chart" when the helper was private to
-    line_chart. ``kind`` therefore stays mandatory, and ``role="img"``
-    makes the descendants presentational — exactly the semantics the
-    ``<svg role="img">`` had, without which the screen reader would lose
-    the component's identity while gaining the message.
+    content. ``kind`` is mandatory, or an empty scatter would announce
+    itself as another chart, and ``role="img"`` makes the descendants
+    presentational — exactly the semantics of the ``<svg role="img">``,
+    without which the screen reader would lose the component's identity
+    while gaining the message.
 
     ⚠️ **``_detach_from_parent`` BEFORE ``render()``.** A Component built
     in a ``render()`` registers itself with the ACTIVE parent and leaks
     — the trap traps.md § "Icon construit dans `render()` sans
     détachement", paid for by ``diagram`` before us.
     """
-    from bretzel.components.base import coerce_children
+    from bretzel.components.base import call_render, coerce_children
     from bretzel.components.base.component import Component
     from bretzel.components.feedback.empty_state import EmptyState
 
@@ -110,7 +108,7 @@ def render_empty_state(
     }
     if escape is not None:
         return Element(
-            tag="div", attrs=box_attrs, children=coerce_children(escape())
+            tag="div", attrs=box_attrs, children=coerce_children(call_render(escape))
         )
     empty = EmptyState(
         message,
@@ -147,9 +145,6 @@ def render_axis_layer(
     reads: merging them would gain nothing and would break a possible
     application selector. Unifying them stays possible, it will be a
     conscious gesture.
-
-    (BarChart carried a copy identical to the character, modulo that
-    class name and the line break — audit F10.)
 
     The svg is the plot (cf. :func:`plot_svg`): the axis sits at ``x=0``,
     the gridlines run to ``100%``, the labels end 6 px left of the axis,
@@ -209,9 +204,8 @@ def plot_svg(
     at negative or beyond-100 % positions, which the slot's
     ``overflow-visible`` shows.
 
-    No ``viewBox``, on purpose: it fixed the aspect ratio, so a wide card
-    letterboxed the drawing — measured, a bar chart 518 px wide centred
-    in a 938-px card. Physical ``margin-left`` and not
+    No ``viewBox``, on purpose: it would fix the aspect ratio, so a wide
+    card would letterbox the drawing. Physical ``margin-left`` and not
     ``margin-inline-start``: the drawing's coordinates are left-to-right
     whatever the document's direction, so its margin is too.
     """
@@ -248,9 +242,8 @@ def render_static_legend(
 
     ``entries`` is a sequence of ``(colour, label)`` — the series charts
     pass ``(s.color, s.name)``, the pie passes ``(palette[i], label)``.
-    It is the only thing that differed between the two copies (audit
-    F45); the interactive version (line / scatter, with series toggle)
-    stays separate, it has a real behaviour.
+    The interactive version (line / scatter, with series toggle) stays
+    separate, it has a real behaviour.
     """
     label_cls = slot("legend_label")
     children: list[Element] = []
@@ -267,11 +260,195 @@ def render_static_legend(
                    children=tuple(children))
 
 
+def data_table(
+    slot: Callable[..., str],
+    header: Sequence[str],
+    rows: Sequence[Sequence[str]],
+    *,
+    shown: bool,
+) -> Element:
+    """The table behind the drawing — the values a screen reader cannot
+    read off a picture (the ``aria-label`` only sums it up).
+
+    Always there: invisible (``sr-only``) by default; with ``show_data``,
+    a ``<details>`` that opens a ``ui.table`` under the chart, « Voir les
+    données » / « Masquer les données ». Native ``<details>``: no script,
+    and the summary is a button the keyboard reaches."""
+    if not shown:
+        head = Element(tag="tr", attrs={}, children=tuple(
+            Element(tag="th", attrs={"scope": "col"}, children=(TextNode(h),))
+            for h in header))
+        body = tuple(Element(tag="tr", attrs={}, children=tuple(
+            Element(tag="td", attrs=localized_attr(cell), children=(TextNode(cell),))
+            for cell in row))
+            for row in rows)
+        # ``sr-only`` on a DIV, the table inside: a ``<table>`` ignores
+        # ``height`` and ``overflow``, keeps its rows' height, and would
+        # hang under a card that clips.
+        return Element(tag="div", attrs={"class": "sr-only"}, children=(
+            Element(tag="table", attrs={}, children=(
+                Element(tag="thead", attrs={}, children=(head,)),
+                Element(tag="tbody", attrs={}, children=body),
+            )),
+        ))
+    from bretzel.components.base.component import Component
+    from bretzel.components.data.table.table import Table, column
+
+    def _cell(value: Any, _row: Any) -> Any:
+        # A date the browser writes in the page's language keeps its
+        # twin through the table (``Localized``).
+        if isinstance(value, Localized):
+            return Element(tag="span", attrs=localized_attr(value), children=(TextNode(value),))
+        return value
+
+    table = Table(
+        columns=[column(f"c{i}", label=h, align="left" if i == 0 else "right",
+                        render=_cell)
+                 for i, h in enumerate(header)],
+        rows=[{"key": n, **{f"c{i}": cell for i, cell in enumerate(row)}}
+              for n, row in enumerate(rows)],
+        row_key="key",
+    )
+    Component._detach_from_parent(table)
+    toggle_cls = slot("data_toggle")
+    toggle = Element(tag="summary", attrs={"class": toggle_cls}, children=(
+        Element(tag="span", attrs={"class": "group-open:hidden"},
+                children=(TextNode(text("chart.show_data")),)),
+        Element(tag="span", attrs={"class": "hidden group-open:inline"},
+                children=(TextNode(text("chart.hide_data")),)),
+    ))
+    return Element(tag="details", attrs={"class": slot("data")},
+                   children=(toggle, table.render()))
+
+
+def keyboard_attrs(attrs: dict[str, Any]) -> None:
+    """A chart with points is ONE tab stop: the arrows walk its points,
+    Enter clicks one, Escape leaves (``keyboard()`` in ``charts.js``,
+    merged into every chart scope). The ring is the wrapper's slot."""
+    attrs["tabindex"] = "0"
+    attrs["bz-on:keydown"] = "key($event)"
+    attrs["bz-on:focusout"] = "unkey($event)"
+
+
+def titled(
+    slot: Callable[..., str], svg: Element, *, top: str | None, bottom: str | None,
+) -> list[Element]:
+    """The plot between its axis titles (``x_label`` / ``y_label``): the
+    vertical axis's above it, at its left, the horizontal axis's below
+    it, at its right — read level, as Observable Plot sets them, never
+    turned on their side. Their font comes with the slot, from the size
+    step (``size=`` moves them with the axis labels)."""
+    out: list[Element] = []
+    if top:
+        out.append(Element(tag="div", attrs={"class": slot("title_top")},
+                           children=(TextNode(top),)))
+    out.append(svg)
+    if bottom:
+        out.append(Element(tag="div", attrs={"class": slot("title_bottom")},
+                           children=(TextNode(bottom),)))
+    return out
+
+
+def render_line_axis_layer(
+    slot, ticks: list[float], y_scale,
+    axis_font: int, show_axis: bool, show_gridlines: bool, y_format,
+    y_unit: str | None = None,
+) -> Element:
+    """The vertical axis of the charts drawing x/y points."""
+    return render_axis_layer(
+        slot, ticks, y_scale, axis_font,
+        show_axis, show_gridlines, y_format, y_unit,
+        group_class="bz-line-axes",
+    )
+
+
+def render_x_axis_labels(
+    slot, xmin: float, xmax: float, x_scale, plot_bottom: float,
+    axis_font: int, x_format, x_unit: str | None = None, *, whole_x: bool = False,
+    time_axis: bool = False,
+) -> Element:
+    """Numeric ticks across the X domain — Heckbert ~5 ticks; by 1 at
+    least when every x is whole (``whole_x``: weeks, seats, days).
+
+    ``compute_ticks`` rounds outward to the next nice number, so for a
+    raw domain like ``(0, 11)`` it returns ``[0, 5, 10, 15]`` — the
+    ``15`` would land past the plot's right edge and dangle off the chart.
+    Filter to the in-domain ticks so the axis stops cleanly at the
+    data. Same logic applies on the date axis : timestamps past xmax
+    would render past the chart.
+    """
+    # A time axis is graduated on round moments (``compute_time_ticks``);
+    # past its last step, or on numbers, the nice numbers.
+    timed = compute_time_ticks(xmin, xmax, target_count=5) if time_axis else None
+    ticks = timed if timed else [
+        t for t in compute_ticks(xmin, xmax, target_count=5, whole=whole_x)
+        if xmin <= t <= xmax]
+    label_cls = slot("axis_label")
+    children: list[Element] = []
+    for tick in ticks:
+        label = format_value(tick, x_format, x_unit)
+        children.append(Element(tag="text", attrs={
+            "class": label_cls,
+            "x": _pct(x_scale(tick)),
+            "y": _fmt(plot_bottom + axis_font + 8),
+            "font-size": str(axis_font),
+            "text-anchor": "middle",
+            **localized_attr(label),
+        }, children=(TextNode(label),)))
+    return Element(tag="g", attrs={"class": "bz-line-x-labels"},
+                   children=tuple(children))
+
+
+def render_toggle_legend(slot, series: list[Series]) -> Element:
+    legend_attrs = {"class": slot("legend")}
+    label_cls = slot("legend_label")
+    item_cls = slot("legend_item")
+    children: list[Element] = []
+    for s_idx, s in enumerate(series):
+        dot_cls = slot("legend_dot", s.color or None)
+        # ``bz-on:click`` flips the visibility boolean. V3 has no
+        # ``.prevent`` modifier so ``preventDefault`` is inlined ; the
+        # button is ``type="button"`` so this is just belt-and-braces.
+        # ``bz-class`` MERGES the dim utility onto the static
+        # ``legend_item`` classes (never ``bz-attr:class``, which would
+        # clobber them) — the item dims to 40 % opacity when off so the
+        # user sees which series are hidden at a glance ; the dot keeps
+        # full opacity so the colour swatch stays readable as a legend
+        # key. All series start visible so ``opacity-100`` is the SSR
+        # snapshot — no pre-stamp needed.
+        children.append(Element(tag="button", attrs={
+            "type": "button",
+            "class": item_cls,
+            "bz-on:click": (
+                f"$event.preventDefault(); toggleSeries({s_idx})"
+            ),
+            "bz-class": (
+                f"isVisible({s_idx}) ? 'opacity-100' : 'opacity-40'"
+            ),
+            "aria-pressed": "true",
+            # Stringify — a raw boolean makes ``bz-attr`` write an empty
+            # attr (true) / remove it (false) instead of the "true" /
+            # "false" string aria-pressed needs (data-attr trap).
+            "bz-attr:aria-pressed": bool_attr(f"isVisible({s_idx})"),
+        }, children=(
+            Element(tag="span", attrs={"class": dot_cls}, children=()),
+            Element(tag="span", attrs={"class": label_cls},
+                    children=(TextNode(s.name or text("chart.series")),)),
+        )))
+    return Element(tag="div", attrs=legend_attrs, children=tuple(children))
+
+
 __all__ = [
+    "render_line_axis_layer",
+    "render_toggle_legend",
+    "render_x_axis_labels",
     "PLOT_MARGIN_RIGHT",
     "apply_fixed_width",
+    "data_table",
+    "keyboard_attrs",
     "plot_svg",
     "render_axis_layer",
     "render_empty_state",
     "render_static_legend",
+    "titled",
 ]

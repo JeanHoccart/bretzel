@@ -2,8 +2,8 @@
 
 Centered modal : translucent backdrop + card panel. Same identity
 as Card — rounded-box + shadow + subtle border. Sizes scale max-width
-in the reasonable web range (sm 24rem … xl 36rem (``max-w-xl``), ``full`` fills the
-viewport with margin).
+in the reasonable web range (sm 24rem … xl 36rem (``max-w-xl``), ``2xl``
+64rem for a settings-sized window, ``full`` fills the viewport with margin).
 
 Slots :
 - ``backdrop``   : full-screen dim layer behind the panel
@@ -21,31 +21,46 @@ from typing import Any
 
 DIALOG_THEME: dict[str, Any] = {
     "slots": {
-        # Enter/leave is CSS-only, driven by ``data-open`` (set by the
-        # runtime). The element stays mounted ; ``visibility`` is in the
-        # transition so it holds ``visible`` through the fade-out then
-        # flips ``hidden`` (closed = inert : invisible + no pointer events,
-        # so a closed dialog can't be tabbed into).
+        # Enter is CSS-only, driven by ``data-open`` (set by the runtime).
+        # The element stays mounted; closed = inert (invisible + no
+        # pointer events, so a closed dialog can't be tabbed into).
+        #
+        # THE TRANSITION LIVES ON THE OPEN STATE (``data-[open=true]:``):
+        # CSS takes the transition of the state it ARRIVES in, so opening
+        # fades and closing drops at once — what disappears does not
+        # linger, one chains on. Same rule for every overlay, chevron
+        # and disclosure; ``duration`` is prefixed too, or the initial
+        # ``transition-property: all`` would animate the close anyway.
         "backdrop": (
             "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm "
-            "transition-[opacity,visibility] duration-200 "
+            "data-[open=true]:transition-[opacity,visibility] data-[open=true]:duration-200 "
             "data-[open=false]:opacity-0 data-[open=false]:invisible "
-            "data-[open=false]:pointer-events-none"
+            "data-[open=false]:pointer-events-none "
+            # A dialog that ARRIVES open (rendered by a zone, ``open=True``)
+            # has no closed state to leave: without ``@starting-style``
+            # it would appear in one frame, unanimated.
+            "starting:opacity-0"
         ),
         "container": (
             "fixed inset-0 z-50 flex items-center justify-center p-4 "
-            "pointer-events-none transition-[visibility] duration-200 "
+            "pointer-events-none data-[open=true]:transition-[visibility] data-[open=true]:duration-200 "
             "data-[open=false]:invisible"
         ),
         # ``scale`` (v4 individual prop, NOT transform) for the pop ;
         # ``data-[open=false]`` is the closed state, the base is open.
+        # ``bg-surface``, not ``bg-interface``: a panel that HOLDS fields
+        # must not wear the fields' own fill — inside a dialog at
+        # ``interface`` the inputs would vanish into it.
+        # Three levels: ``background`` the page, ``surface`` a panel,
+        # ``interface`` a control.
         "panel": (
-            "pointer-events-auto w-full bg-interface text-text "
+            "pointer-events-auto w-full bg-surface text-text "
             "rounded-box border-(length:--bz-stroke) border-text/10 shadow-xl "
             "flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden "
-            "transition-[opacity,scale,visibility] duration-200 ease-out "
+            "data-[open=true]:transition-[opacity,scale,visibility] data-[open=true]:duration-200 data-[open=true]:ease-out "
             "data-[open=false]:opacity-0 data-[open=false]:scale-95 "
-            "data-[open=false]:invisible data-[open=false]:pointer-events-none"
+            "data-[open=false]:invisible data-[open=false]:pointer-events-none "
+            "starting:opacity-0 starting:scale-95"
         ),
         "header": (
             "flex items-start gap-3 px-5 py-4 border-b-(length:--bz-stroke) border-text/5"
@@ -61,6 +76,10 @@ DIALOG_THEME: dict[str, Any] = {
         "md":   "max-w-md",   # 28rem
         "lg":   "max-w-lg",   # 32rem
         "xl":   "max-w-xl",   # 36rem
+        # A window of settings, a two-column form: the step between a
+        # form (``xl``) and the whole screen. Named like the container's
+        # widest step.
+        "2xl":  "max-w-5xl",  # 64rem
         "full": "max-w-none",
     },
 }

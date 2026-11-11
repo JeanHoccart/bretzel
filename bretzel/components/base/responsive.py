@@ -16,7 +16,7 @@ than two useful steps. Anything binary (shown / hidden, sidebar / topbar)
 is a **structural** choice and belongs to ``if Screen().is_mobile:`` in
 the dev's own layout, not to a prop. That boundary is why Bretzel has no
 ``visible_from=`` : it would be a second way to say what ``Screen``
-already says. Cf. ``.claude/work/todo.md`` § *A-ter*.
+already says.
 """
 
 from __future__ import annotations
@@ -114,10 +114,7 @@ def reject_stray_breakpoints(
         TypeError: cannot use 'dict' as a dict key (unhashable type: 'dict')
 
     — which names neither the component, nor the prop, nor the fact that
-    a step dict has no place there. Measured on 2026-09-04: **80
-    ``Class.prop`` pairs** died like that, listed one by one in
-    ``tests/consistency/_not_graded.txt`` because we did not know how to
-    repair them in one go.
+    a step dict has no place there.
 
     Yet the framework ALREADY had the right shape of error —
     ``ui.card(size=…)`` answers "this component does not read ``size``",

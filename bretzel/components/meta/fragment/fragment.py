@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component
+from bretzel.components.base import Component, ComponentUsageError
 from bretzel.core.tree import FragmentNode
 
 
@@ -47,7 +47,7 @@ class Fragment(Component):
     #: ``ui.tabs`` looking for its ``Tab`` must see through me. Unlike a
     #: ``@refreshable`` zone's section, I have no identity to give back
     #: to the composed node: ``_rewrap`` is therefore the identity.
-    #: Cf. ``base/_wiring.unwrap_transparent``.
+    #: Cf. ``base/composition.unwrap_transparent``.
     IS_TRANSPARENT_WRAPPER: ClassVar[bool] = True
 
     @staticmethod
@@ -59,7 +59,7 @@ class Fragment(Component):
         # ``classes=``, no ``id=`` — there's no DOM element to attach
         # them to). Surface the misuse rather than swallowing.
         if kwargs:
-            raise TypeError(
+            raise ComponentUsageError(
                 f"Fragment takes no keyword arguments — "
                 f"got : {sorted(kwargs)}. There's no wrapping element "
                 f"to attach attributes to ; use ``ui.flex()`` / "

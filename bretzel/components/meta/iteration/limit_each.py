@@ -23,9 +23,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 
-from bretzel.components.meta.iteration._ref import window_ref
-from bretzel.render.iteration import _KEY_STACK, _extract_key
-from bretzel.state.scopes.client import ClientBinding, ClientExpression
+from bretzel.components.meta.iteration._window import shown_while, window_ref
+from bretzel.state.scopes.client import ClientBinding
 
 
 def limit_each(
@@ -39,16 +38,5 @@ def limit_each(
     See the module docstring. ``limit`` is a ``ClientBinding`` (reactive)
     or an ``int`` (fixed cap).
     """
-    from bretzel.components import ui  # lazy : ui namespace is this package
-
     lref = window_ref(limit)
-    for index, item in enumerate(items):
-        item_key = _extract_key(item, key, index)
-        expr = ClientExpression(f"{index} < {lref}")
-        previous = _KEY_STACK.get()
-        token = _KEY_STACK.set((*previous, item_key))
-        try:
-            with ui.vstack(visible=expr, gap="none"):
-                yield item
-        finally:
-            _KEY_STACK.reset(token)
+    yield from shown_while(items, key, lambda index, _: f"{index} < {lref}")

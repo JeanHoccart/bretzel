@@ -13,14 +13,11 @@ callable — one shape to learn for the whole framework ::
 exception to raise : a handler that mutates nothing leaves the card where
 the finger dropped it *for one frame*, and the runtime undoes the gesture.
 
-⚠️ This paragraph said for months that the morph was enough — "a handler
-that does not mutate leaves the server's next render disagreeing with the
-DOM, and the morph puts the card back". That was false: a handler that
-mutates nothing makes NO zone re-render, so there is no next render and
-nothing contradicts the DOM. The server answers zero bytes and the card
-stays in the column that refused it (measured on 2026-09-09 on
-``examples/kanban``). The snap-back is since a **witness** set by
-``19_dnd.js`` on the dropped item: the server never renders that
+⚠️ The morph is not enough: a handler that mutates nothing makes NO zone
+re-render, so there is no next render and nothing contradicts the DOM.
+The server answers zero bytes, and the card would stay in the column
+that refused it. The snap-back is a **witness** set by
+``dnd.js`` on the dropped item: the server never renders that
 attribute, so the morph erases it if it re-pairs the node, and its
 survival says nobody answered. Gated by
 ``tests/runtime_js/test_a_refusal_that_mutates_nothing_snaps_back.py``,
@@ -48,7 +45,7 @@ from typing import ClassVar
 
 from bretzel.core import EventPayload
 
-#: The hidden form field ``19_dnd.js`` writes the JSON blob into. Shared
+#: The hidden form field ``dnd.js`` writes the JSON blob into. Shared
 #: with the runtime by convention rather than by import — the JS cannot
 #: read Python. ``test_dnd_wire_field_matches_runtime`` holds the two ends
 #: together.

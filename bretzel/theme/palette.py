@@ -88,8 +88,8 @@ _FG_TINT_CAP: Final[float] = 0.08
 #: value, not an "about right": it is the threshold the
 #: ``test_the_colour_steps_stay_readable`` gate applies.
 _FG_AA_TARGET: Final[float] = 4.5
-#: The number of back-off steps. Five are enough: the worst measured
-#: case (``plum``) clears AA at the second.
+#: The number of back-off steps. Five are enough: the palette's worst
+#: case clears AA at the second.
 _FG_ESCALATION_STEPS: Final[int] = 5
 
 
@@ -134,12 +134,9 @@ def resolve_color_pair(hex_color: str) -> tuple[str, str]:
     feels of-a-piece visually — and back that tint off if it would
     cost readability (:func:`_readable_fg`).
 
-    ⚠️ This line said "clears AA Large (>= 3.0) … and AA (>= 4.5) for
-    MOST" until 2026-09-01, and the "most" was a quantifiable concession
-    nobody had quantified: three colours of the shipped palette fell
-    outside it. Since the back-off, AA holds for all of them — it is a
-    guarantee, no longer a tendency, and
-    ``test_the_colour_steps_stay_readable`` checks it.
+    AA (>= 4.5) holds for every colour of the shipped palette — it is a
+    guarantee, not a tendency, and ``test_the_colour_steps_stay_readable``
+    checks it.
 
     A pure invert-lightness approach (the v1 attempt) crashes on
     mid-luminance colors like ``#3e63dd`` whose inverted lightness
@@ -167,19 +164,16 @@ def _readable_fg(
 ) -> str:
     """The tinted foreground, BACKED OFF until it is readable.
 
-    Why this exists (2026-09-01)
-    ----------------------------
-    Three colours of the shipped palette missed AA on their own
-    ``--bz-on-solid``, and the gate's ``_KNOWN_BELOW`` table carried them
-    as debt: ``muted`` 4.36 · ``pink`` 4.48 · ``plum`` 4.33.
+    Why this exists
+    ---------------
+    Without it, some colours of the shipped palette would miss AA on their
+    own ``--bz-on-solid``.
 
-    The culprit was **not** the foreground's direction. Measured, the
-    0.179 threshold already picks the better of the two candidates for
-    all 31 colours — on ``plum``, pure black would give 4.42 where pure
-    white gives 4.75. The culprit is the **tint**: the 0.08 of lightness
-    held in reserve and the saturation borrowed from the background cost
-    between 0.40 and 0.61 of ratio, and that is what takes those three
-    under the bar.
+    The culprit is **not** the foreground's direction: the 0.179 threshold
+    already picks the better of the two candidates. The culprit is the
+    **tint**: the lightness held in reserve and the saturation borrowed
+    from the background cost enough ratio to take those colours under the
+    bar.
 
     Hence the shape: the tint is kept, but BACKED OFF — towards the
     lightness extreme and towards zero saturation — until AA is cleared,
@@ -187,9 +181,7 @@ def _readable_fg(
     intention; readability is a contract.
 
     What it changes, and this is the point: **nothing for the others**. A
-    colour that clears AA at step 0 comes out at step 0, byte for byte —
-    73 of the default theme's 78 (name, mode) pairs. Only the three in
-    debt move: ``pink`` at step 1, ``muted`` and ``plum`` at step 2.
+    colour that clears AA at step 0 comes out at step 0, byte for byte.
     """
     extreme = 0.0 if base_l < 0.5 else 1.0
     fg = (0, 0, 0)
@@ -249,14 +241,10 @@ DEFAULT_PALETTE: Final[dict[str, str]] = {
 
 # The six BRAND hues are spread across the colour wheel (blue / violet /
 # green / amber / red / cyan) so every semantic pair stays perceptually
-# distinct — worst-pair ΔE(CIE76) ≈ 36 vs the old palette's 17.7, where
-# ``secondary``≈``warning`` (both amber) and ``primary``≈``success`` (both
-# green) collapsed into confusable tints. Enforced by
+# distinct. Enforced by
 # ``tests/consistency/test_palette_distinctness.py`` (min ΔE gate) — retune a
 # hue here and the gate fails if it re-introduces a collision.
-# ⚠️ **The neutrals are STRICTLY ACHROMATIC, and that is a decision of
-# 2026-09-13.** They used to be Tailwind's ``slate`` — so bluish, and
-# recognisable at a glance as "a project that did not choose its colours".
+# ⚠️ **The neutrals are STRICTLY ACHROMATIC.**
 # A grey carrying a hue takes that hue's side: it warms or cools
 # everything laid on it, and it quarrels with the app's accent as soon as
 # that accent goes the other way. At zero hue, the background says
@@ -264,22 +252,15 @@ DEFAULT_PALETTE: Final[dict[str, str]] = {
 # exactly what one expects of a framework's default, since it does not
 # know the brand of the app that will use it.
 #
-# ⚠️ **``interface`` is no longer equal to ``background``.** Both were at
-# ``#f8fafc`` in light mode: a field, a select panel, a control's recess
-# therefore rendered EXACTLY the page colour, and the whole depth
-# hierarchy rested on the border alone. That was not a choice — it was
-# the same token copied twice.
+# ⚠️ **``interface`` differs from ``background``.** If they were equal, a
+# field, a select panel, a control's recess would render EXACTLY the page
+# colour, and the whole depth hierarchy would rest on the border alone.
 DEFAULT_SEMANTIC_LIGHT: Final[dict[str, str]] = {
-    # The accent: a DEEP indigo rather than the previous royal blue
-    # (``#2f5fd0``). It stops shouting on a light page, it stays plainly
-    # distinct from ``info``'s cyan, and it carries enough violet not to
-    # be mistaken for a browser link.
-    #
-    # The second is a muted PLUM, and its distance is measured: ΔE 47
-    # from the accent, 47 from the error red, 96 from the green. An
-    # amethyst (#8455ab) was tried the same day and refused by
-    # ``test_palette_distinctness`` — ΔE 21 from the accent, so two
-    # semantic colours that look alike and an ambiguous variant matrix.
+    # The accent is a muted PLUM, the second a DEEP indigo, distinct from
+    # each other and from the status colours (``test_palette_distinctness``).
+    # An amethyst (#8455ab) would fail that gate: too close to the indigo,
+    # so two semantic colours that look alike and an ambiguous variant
+    # matrix.
     "primary":    "#682747",
     "secondary":  "#3a52b0",
     "success":    "#2f9e64",
@@ -296,15 +277,19 @@ DEFAULT_SEMANTIC_LIGHT: Final[dict[str, str]] = {
 
 # Only the slots that actually swap in dark mode — everything else
 # falls through to light (the brand colors stay constant).
-# The dark is neutral too, and **it is no longer a near-black navy**.
-# ``#020617`` was almost pure black AND very blue: under a saturated
-# fill it tires the eye within seconds, and the gap up to ``surface`` was
-# a jump. The three planes now climb in regular steps, which is what
-# makes depth readable.
+# The dark is neutral too. A near-black blue tires the eye within seconds
+# under a saturated fill, and makes the gap up to ``surface`` a jump; the
+# three planes climb in regular steps, which is what makes depth readable.
 #
-# Only the slots that really SWAP are here — the brand and status colours
-# keep their light value in both modes.
+# The neutral slots swap, and so do the two colours too DARK for a dark
+# page (plum and indigo): a primary button, a sidebar's active row, a
+# chosen toggle would all but vanish. Each is the same hue made lighter
+# until it holds 3:1 on the darkest plane a control sits on (``interface``);
+# white still reads on it. The status colours keep their light value: they
+# already read on a dark page.
 DEFAULT_SEMANTIC_DARK: Final[dict[str, str]] = {
+    "primary":    "#b9467f",
+    "secondary":  "#566dc7",
     "background": "#0a0a0a",
     "surface":    "#151515",
     "interface":  "#212121",
@@ -409,10 +394,9 @@ class Palette:
             name: _coerce_pair(name, semantic_light[name])
             for name in SEMANTIC_COLOR_NAMES
         }
-        # No more ``if name in SEMANTIC_COLOR_NAMES`` filter: the guard
-        # above has already raised, so it could no longer remove
-        # anything. Leaving it would suggest a key outside the list can
-        # reach here.
+        # No ``if name in SEMANTIC_COLOR_NAMES`` filter: the guard above
+        # has already raised, so it could remove nothing, and it would
+        # suggest a key outside the list can reach here.
         self._semantic_dark = {
             name: _coerce_pair(name, value)
             for name, value in (semantic_dark or {}).items()

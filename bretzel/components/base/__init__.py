@@ -15,13 +15,8 @@ from bretzel.components.base.attrs import (
     normalize_attr_name,
     split_kwargs,
 )
-from bretzel.components.base.component import (
-    Component,
-    coerce_children,
-    el,
-    reject_component,
-    stamp_display_none,
-)
+from bretzel.components.base.callbacks import call_render
+from bretzel.components.base.component import Component
 from bretzel.components.base.events import (
     HandlerError,
     action_attrs,
@@ -29,12 +24,11 @@ from bretzel.components.base.events import (
     encode_handler_id,
     item_action_attrs,
 )
+from bretzel.components.base.nodes import coerce_children, el, reject_component, stamp_display_none
 from bretzel.components.base.reactive_prop import (
     MISSING,
     ReactivePropDescriptor,
-    looks_like_client_expr,
     reactive_prop,
-    reads_as_client_expr,
 )
 from bretzel.components.base.responsive import (
     BASE_KEYS,
@@ -56,8 +50,6 @@ __all__ = [
     "MISSING",
     # Helpers exposed for sub-component composition / advanced authors
     "ReactivePropDescriptor",
-    "looks_like_client_expr",
-    "reads_as_client_expr",
     "split_kwargs",
     "normalize_attr_name",
     "action_attrs",
@@ -65,6 +57,7 @@ __all__ = [
     "item_action_attrs",
     "encode_handler_id",
     "stamp_display_none",
+    "call_render",
     "coerce_children",
     # Responsive ({breakpoint: value}) prop values
     "responsive_classes",

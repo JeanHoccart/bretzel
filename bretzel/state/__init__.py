@@ -52,6 +52,7 @@ from bretzel.state.scopes.client import (
 )
 from bretzel.state.scopes.server import ServerScope as ServerScope
 from bretzel.state.scopes.server import ServerState
+from bretzel.state.topic import Topic, reads, writes
 from bretzel.state.types import register_type
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -104,8 +105,12 @@ def form_value(
     if registry is None:
         return default
 
-    raw = registry.form_data.get(name, MISSING)
-    if raw is MISSING:
+    # ``name`` itself, else THE one ``<State>.name`` a bound control sent
+    # (``state/_wire_name.py``) — two raise rather than pick one.
+    from bretzel.state._wire_name import lookup
+
+    found, raw = lookup(registry.form_data, name)
+    if not found:
         return default
 
     if cast is None:
@@ -146,6 +151,10 @@ __all__ = [
     "FormError",     # raised by an instance validator → cross-field error
     # Escape hatch: read a form value without modelling it
     "form_value",
+    # What is not a state, followed by the functions that touch it
+    "Topic",
+    "reads",
+    "writes",
     # Client reactivity types — what you annotate and what you compose
     "ClientBinding",
     "ClientExpression",

@@ -1,255 +1,189 @@
-"""Unit tests for :class:`bretzel.components.overlay.tooltip.Tooltip`."""
+"""Unit tests for :class:`bretzel.components.overlay.tooltip.Tooltip`.
+
+Since 2026-10-27 a tooltip renders its WRAPPER and what it says, as
+``data-bz-tip*`` attributes; the panel is the page's one ``#bz-tip``
+(:func:`tooltip_host`), shown by ``tip.js``. The behaviour — delay,
+hiding rules, live text, arrow, placement — is judged in the browser
+(``tests/runtime_js/test_a_tooltip_*``); these tests hold the CONTRACT
+between the two halves.
+"""
 
 from __future__ import annotations
+
+import re
 
 import pytest
 
 from bretzel.components.actions.button import Button
+from bretzel.components.base.attrs import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.overlay.tooltip import Tooltip
+from bretzel.components.overlay.tooltip.tooltip import tooltip_host
 from bretzel.core.serialize import serialize
+from bretzel.state import ClientExpression
+from bretzel.theme import Theme
+
+
+def fills(wrapper: str) -> bool:
+    """The anchored wrapper fills its cell: a one-cell grid, full width, no fit."""
+    classes = re.search(r'class="([^"]*)"', wrapper).group(1).split()
+    return "grid" in classes and "w-full" in classes and "w-fit" not in classes
+
+def _tip(text="Hi", **kwargs):
+    with render_isolated():
+        with Tooltip(text, **kwargs) as t:
+            Button("X", size="sm")
+        return t.render()
 
 
 class TestStructure:
-    def test_root_wraps_trigger_then_panel(self) -> None:
-        with render_isolated():
-            with Tooltip("Hi") as t:
-                Button("Hover me", size="sm")
-            out = serialize(t.render())
-        # Trigger first, panel second — tab order matches reading order.
-        # The panel is identified by ``role="tooltip"``.
-        assert out.index("<button") < out.index('role="tooltip"')
+    def test_the_wrapper_holds_the_trigger_and_says_its_text(self) -> None:
+        el = _tip("Helpful copy here.")
+        assert "data-bz-tip-root" in el.attrs
+        assert el.attrs.get("data-bz-tip") == "Helpful copy here."
+        assert "<button" in serialize(el)
 
-    def test_panel_has_role_tooltip(self) -> None:
+    def test_no_panel_and_no_machinery_per_tooltip(self) -> None:
+        """The weight claim: no scope, no listener, no teleported panel.
+
+        Before, a tooltip around a button added ~2 KB (measured on the
+        kanban board: 35 tooltips, 17 % of the page)."""
+        el = _tip()
+        out = serialize(el)
+        for gone in ("bz-data", "bz-on:", "bz-teleport", 'role="tooltip"', "bz-effect"):
+            assert gone not in out, f"{gone} is back on the wrapper"
         with render_isolated():
-            with Tooltip("Hi") as t:
+            bare = serialize(Button("X", size="sm").render())
+        assert len(out) - len(bare) < 200, f"a tooltip costs {len(out) - len(bare)} bytes"
+
+    def test_a_bound_text_follows_the_store(self) -> None:
+        from bretzel.state import ClientState, field
+        from bretzel.state.scopes.client import rendering_scope
+
+        class Hint(ClientState):
+            text: str = field(default="live")
+
+        with render_isolated(), rendering_scope():
+            with Tooltip(Hint().text) as t:
+                Button("X", size="sm")
+            el = t.render()
+        assert "Hint" in el.attrs.get("bz-attr:data-bz-tip", "")
+        assert "data-bz-tip" not in el.attrs
+
+    def test_rich_content_waits_in_an_inert_template(self) -> None:
+        from bretzel.components.primitives.text import Text
+
+        with render_isolated():
+            with Tooltip(Text("RICH_PROBE")) as t:
                 Button("X", size="sm")
             out = serialize(t.render())
-        assert 'role="tooltip"' in out
-
-    def test_panel_text_rendered(self) -> None:
-        with render_isolated():
-            with Tooltip("Helpful copy here.") as t:
-                Button("X", size="sm")
-            out = serialize(t.render())
-        assert ">Helpful copy here.<" in out
+        tpl = out.index("<template data-bz-tip-content")
+        assert out.index("RICH_PROBE") > tpl, "the rich content is not in the template"
+        assert out.index("<button") < tpl, "the trigger fell into the template"
 
 
-def _teleport(el):
-    """The ``<template bz-teleport>`` is the last child of the root."""
-    return el.children[-1]
+class TestDisabled:
+    """``disabled`` is read at HOVER time by the runtime, with ``$el`` =
+    the trigger — never frozen at mount (the bug of 2026-07, when it rode
+    a ``bz-data`` field)."""
+
+    def test_never_off_says_nothing(self) -> None:
+        assert "data-bz-tip-off" not in _tip().attrs
+        assert "data-bz-tip-off" not in _tip(disabled=False).attrs
+
+    def test_a_literal_true_is_the_constant(self) -> None:
+        assert _tip(disabled=True).attrs.get("data-bz-tip-off") == "true"
+
+    def test_an_expression_rides_verbatim(self) -> None:
+        el = _tip(disabled=ClientExpression("window.innerWidth <= 600"))
+        assert el.attrs.get("data-bz-tip-off") == "window.innerWidth <= 600"
+
+    def test_a_plain_string_is_refused_with_the_remedy(self) -> None:
+        """A string is data (2026-11-07): the last prop where it was code."""
+        with pytest.raises(ComponentUsageError, match="ClientExpression"):
+            _tip(disabled="window.innerWidth <= 600")
 
 
-def _panel(el):
-    """The tooltip panel lives inside the teleport template."""
-    return _teleport(el).children[0]
+class TestSettings:
+    """A setting rides only when it differs from the default — the
+    common ``tooltip="Edit"`` stays one attribute."""
 
-
-class TestRuntimeWiring:
-    """V3 : the Alpine ``x-data`` / ``x-show`` / ``_pos()`` JS is gone.
-    The root carries a ``bz-data`` holding the open flag + debounce
-    timer + ``_show()`` / ``_hide()`` ; the panel's display + position
-    are owned by its ``bz-effect`` (``$bz.helpers.floating``)."""
-
-    def test_bz_data_open_flag(self) -> None:
-        with render_isolated():
-            with Tooltip("Hi") as t:
-                Button("X", size="sm")
-            el = t.render()
-        bz_data = el.attrs.get("bz-data") or ""
-        # The bz-data carries the open flag, the debounce timer slot,
-        # and the show/hide methods — assert the structural markers
-        # rather than the exact literal (would couple to JS whitespace).
-        # ``_pos()`` no longer exists (floating owns positioning).
-        assert "open: false" in bz_data
-        assert "_t: null" in bz_data
-        # ``_show`` / ``_hide`` vivent dans ``$bz.tooltip.scope`` depuis le
-        # 2026-07-29 — ils étaient sérialisés par instance en cuisant leur
-        # config dans le corps (``if (!(true))``, le délai en littéral).
-        # Ce que l'instance porte, ce sont ses DONNÉES.
-        assert "$bz.tooltip.scope" in bz_data
-        assert "_delay:" in bz_data
-        # Sans ``enabled=``, rien à dire : la constante ``_enabled()`` du
-        # slab suffit. Surtout, ``_enabled`` ne doit JAMAIS repartir en
-        # champ — cf. ``test_enabled_condition_stays_a_method``.
-        assert "_enabled" not in bz_data
-        assert "_pos()" not in bz_data
-        # The panel's display is driven by its bz-effect, not x-show.
-        assert "bz-effect" in _panel(el).attrs
-
-    def test_enabled_condition_stays_a_method(self) -> None:
-        """Une condition vivante doit être RELUE à chaque survol.
-
-        Elle partait en champ (``_enabled: <expr>``) depuis la bascule
-        « config en données » : un champ de ``bz-data`` est évalué une
-        seule fois, hors effet, et ``absorb`` en découple le snapshot du
-        store — la condition était figée au montage alors que la docstring
-        du builder promettait le survol. Seul un corps de méthode est relu.
-        """
-        with render_isolated():
-            with Tooltip("Hi", enabled="window.innerWidth > 600") as t:
-                Button("X", size="sm")
-            el = t.render()
-        bz_data = el.attrs.get("bz-data") or ""
-        assert "_enabled() {" in bz_data, (
-            f"la condition doit vivre dans un corps de méthode — {bz_data!r}"
-        )
-        assert "_enabled:" not in bz_data, (
-            "champ = évalué une fois au montage, la condition ne suit plus"
-        )
-        assert "window.innerWidth > 600" in bz_data
-
-    def test_hover_handlers_with_delay(self) -> None:
-        with render_isolated():
-            with Tooltip("Hi", delay=500) as t:
-                Button("X", size="sm")
-            el = t.render()
-        bz_data = el.attrs.get("bz-data") or ""
-        # Le délai passe en DONNÉE (``_delay``), plus en littéral cuit
-        # dans un ``setTimeout`` sérialisé — c'était précisément ce qui
-        # faisait que deux tooltips de délais différents produisaient deux
-        # CODES différents.
-        assert "_delay: 500" in bz_data
-        assert "setTimeout" not in bz_data
-        # Hover handlers ride ``bz-on:mouseenter`` / ``bz-on:mouseleave``.
-        assert el.attrs.get("bz-on:mouseenter") == "_show($el)"
-        assert el.attrs.get("bz-on:mouseleave") == "_hide()"
-
-    def test_focus_handlers_for_keyboard_a11y(self) -> None:
-        with render_isolated():
-            with Tooltip("Hi") as t:
-                Button("X", size="sm")
-            el = t.render()
-        # V3 : focus a11y rides ``bz-on:focusin`` / ``bz-on:focusout``.
-        assert el.attrs.get("bz-on:focusin") == "_show($el)"
-        assert el.attrs.get("bz-on:focusout") == "_hide()"
-        assert el.attrs.get("bz-on:click") == "_hide()"
-        assert el.attrs.get("bz-on:open") == "_hide()"
-
-
-class TestTeleport:
-    """The panel teleports to ``<body>`` via ``bz-teleport`` so ancestor
-    ``overflow-hidden`` (accordion body, sticky header, table cell)
-    can't clip it. Positioning rides ``$bz.helpers.floating``
-    (``position: fixed``) on the panel's ``bz-effect``."""
-
-    def test_panel_uses_template_teleport(self) -> None:
-        with render_isolated():
-            with Tooltip("X") as t:
-                Button("Y", size="sm")
-            out = serialize(t.render())
-        # ``<template bz-teleport="body">`` wraps the panel so the
-        # runtime relocates it under <body> at init.
-        assert '<template bz-teleport="body">' in out
-
-    def test_panel_has_bz_ref_for_positioning(self) -> None:
-        with render_isolated():
-            with Tooltip("X") as t:
-                Button("Y", size="sm")
-            el = t.render()
-        # The panel exposes ``bz-ref="bzpanel"`` ; floating anchors it
-        # against the root (``bzroot``).
-        panel = _panel(el)
-        assert panel.attrs.get("bz-ref") == "bzpanel"
-        assert "$refs.bzroot" in panel.attrs.get("bz-effect", "")
-
-    def test_panel_uses_fixed_positioning(self) -> None:
-        with render_isolated():
-            with Tooltip("X") as t:
-                Button("Y", size="sm")
-            el = t.render()
-        # ``fixed`` (substituted for ``absolute`` at render time) is
-        # the contract — the panel positions itself relative to the
-        # viewport, not any ancestor.
-        assert "fixed" in _panel(el).attrs.get("class", "")
-
-
-class TestPositioning:
-    """V3 : the per-side ``_pos()`` JS artefacts are GONE — floating owns
-    positioning. The visible artefacts are the ``placement`` string
-    handed to floating in the panel's ``bz-effect`` and the panel's
-    ``data-side`` (the runtime-resolved side, which the arrow follows)."""
-
-    def test_default_placement_is_auto(self) -> None:
-        # No ``position=`` → best-fit : floating gets ``'auto'`` and the
-        # panel pre-stamps ``data-side="bottom"`` (overwritten on open).
-        with render_isolated():
-            with Tooltip("X") as t:
-                Button("Y", size="sm")
-            el = t.render()
-        panel = _panel(el)
-        assert "__p = 'auto'" in panel.attrs.get("bz-effect", "")
-        assert panel.attrs.get("data-side") == "bottom"
+    def test_defaults_say_nothing(self) -> None:
+        attrs = _tip().attrs
+        for name in ("data-bz-tip-position", "data-bz-tip-delay", "data-bz-tip-color", "data-bz-tip-class"):
+            assert name not in attrs
 
     @pytest.mark.parametrize("position", ["top", "bottom", "left", "right"])
-    def test_pinned_placement_flows_through(self, position: str) -> None:
-        # A pinned side rides to floating as the placement literal AND
-        # pre-stamps ``data-side`` so the arrow points right before JS.
+    def test_a_pinned_side_rides(self, position: str) -> None:
+        assert _tip(position=position).attrs.get("data-bz-tip-position") == position
+
+    def test_a_delay_rides(self) -> None:
+        assert _tip(delay=500).attrs.get("data-bz-tip-delay") == "500"
+
+    @pytest.mark.parametrize("color", ["info", "success", "warning", "error", "primary"])
+    def test_a_colour_rides(self, color: str) -> None:
+        assert _tip(color=color).attrs.get("data-bz-tip-color") == color
+
+    def test_one_panel_slot_override_rides(self) -> None:
+        el = _tip(slots={"panel": "ring-2"})
+        assert el.attrs.get("data-bz-tip-class") == "ring-2"
+
+    def test_the_colour_paints_the_panel_not_the_trigger(self) -> None:
+        """The wrapper encloses a FOREIGN trigger: a bridge there gave the
+        trigger the tooltip's colour — a toggle button read ``bz-c-text``
+        instead of its group's primary, its selected fill went black.
+        The colour now travels as data, to the panel only."""
+        from bretzel.components.inputs.toggle_group import ToggleButton, ToggleGroup
+
         with render_isolated():
-            with Tooltip("X", position=position) as t:
-                Button("Y", size="sm")
-            el = t.render()
-        panel = _panel(el)
-        assert f"__p = '{position}'" in panel.attrs.get("bz-effect", "")
-        assert panel.attrs.get("data-side") == position
-
-    def test_arrow_follows_data_side(self) -> None:
-        # The arrow no longer bakes ONE side : it carries all four
-        # ``group-data-[side=…]`` variants, and the panel is a ``group``
-        # so the arrow reads the panel's runtime ``data-side``.
-        with render_isolated():
-            with Tooltip("X") as t:
-                Button("Y", size="sm")
-            el = t.render()
-        panel = _panel(el)
-        assert "group" in panel.attrs.get("class", "").split()
-        arrow_cls = panel.children[-1].attrs.get("class", "")
-        for side, anchor in (
-            ("top", "top-full"), ("bottom", "bottom-full"),
-            ("left", "left-full"), ("right", "right-full"),
-        ):
-            assert f"group-data-[side={side}]:{anchor}" in arrow_cls
+            with ToggleGroup(value="a", color="primary") as group:
+                ToggleButton("a", label="A", tooltip="Première")
+            out = serialize(group.render())
+        assert "bz-c-text" not in out, "the tooltip's colour reached the trigger"
+        assert "bz-c-primary" in out
 
 
-class TestArrow:
-    def test_arrow_always_present(self) -> None:
-        # The arrow is unconditional now — there is no arrowless mode.
-        with render_isolated():
-            with Tooltip("X") as t:
-                Button("Y", size="sm")
-            out = serialize(t.render())
-        # Arrow has rotate-45 + the same surface color as the panel.
-        assert "rotate-45" in out
+class TestHost:
+    """The page's ONE panel, rendered by the pipeline."""
 
+    def _host(self, theme=None):
+        with render_isolated(theme=theme):
+            return tooltip_host()
 
-class TestColor:
-    """``color=`` accepts any theme color, defaulting to ``"text"``
-    for the V1-style neutral dark surface. Semantic colors paint the
-    panel + arrow in the matching tinted background."""
+    def test_the_host_is_the_page_tooltip(self) -> None:
+        el = self._host()
+        assert el.attrs.get("id") == "bz-tip"
+        assert el.attrs.get("role") == "tooltip"
+        assert "display:none" in el.attrs.get("style", "").replace(" ", "")
 
-    def test_default_color_is_neutral_dark(self) -> None:
-        # ``bg-text`` + ``text-background`` = dark panel, light text.
-        with render_isolated():
-            with Tooltip("X") as t:
-                Button("Y", size="sm")
-            out = serialize(t.render())
-        assert "bg-(--bz-solid)" in out
-        assert "bz-c-text" in out
+    def test_it_floats_fixed_and_names_its_group(self) -> None:
+        cls = self._host().attrs.get("class", "").split()
+        assert "fixed" in cls and "absolute" not in cls
+        assert "group" in cls
+        assert "bz-c-text" in cls, "the neutral colour by default"
+        assert "bg-(--bz-solid)" in cls
 
-    @pytest.mark.parametrize(
-        "color", ["info", "success", "warning", "error", "primary"],
-    )
-    def test_color_substitutes_into_panel(self, color: str) -> None:
-        with render_isolated():
-            with Tooltip("X", color=color) as t:
-                Button("Y", size="sm")
-            out = serialize(t.render())
-        assert "bg-(--bz-solid)" in out
-        assert f"bz-c-{color}" in out
+    def test_the_arrow_follows_the_side(self) -> None:
+        arrow = self._host().children[-1].attrs.get("class", "")
+        assert "rotate-45" in arrow
+        for side, anchor in (("top", "top-full"), ("bottom", "bottom-full"),
+                             ("left", "left-full"), ("right", "right-full")):
+            assert f"group-data-[side={side}]:{anchor}" in arrow
+
+    def test_the_delay_comes_from_the_budget(self) -> None:
+        assert self._host().attrs.get("data-bz-tip-delay") == str(Tooltip.DEFAULT_DELAY_MS)
+
+    def test_the_app_theme_reaches_every_tooltip(self) -> None:
+        """``Theme(components={"tooltip": …})`` restyles THE panel — so
+        every tooltip of the page at once."""
+        theme = Theme(components={"tooltip": {"slots": {"panel": "absolute HOST_PROBE"}}})
+        assert "HOST_PROBE" in self._host(theme).attrs.get("class", "")
 
 
 class TestFullWidthDetection:
-    """Tooltip auto-swaps its ``inline-block`` wrapper to ``block w-full``
+    """Tooltip auto-swaps its ``inline-flex`` wrapper to a one-cell
+    ``grid grid-cols-1 w-full`` (2026-11-06; it was ``block w-full``, which
+    did not hand the cell's height down)
     when the wrapped trigger is full-width (Input / Form / Textarea /
     etc.). Without this, the trigger collapses to content width — a
     V1 trap re-discovered in V2."""
@@ -262,19 +196,19 @@ class TestFullWidthDetection:
             with Tooltip("hint") as t:
                 Input(placeholder="email")
             out = serialize(t.render())
-        # The wrapper class should be ``block w-full`` instead of
-        # ``inline-block`` because Input's theme root carries ``w-full``.
-        assert "inline-block" not in out.split("</div>")[0]
-        assert "block w-full" in out.split("</div>")[0]
+        # The wrapper should fill instead of hugging,
+        # ``inline-flex`` because Input's theme root carries ``w-full``.
+        assert "inline-flex" not in out.split("</div>")[0]
+        assert fills(out.split("</div>")[0])
 
-    def test_button_keeps_inline_block(self) -> None:
-        """Button is NOT full-width — wrapper stays ``inline-block``."""
+    def test_button_keeps_inline_flex(self) -> None:
+        """Button is NOT full-width — wrapper stays ``inline-flex``."""
         with render_isolated():
             with Tooltip("hint") as t:
                 Button("Y", size="sm")
             out = serialize(t.render())
-        # The wrapper opener should carry ``inline-block``.
-        assert "inline-block" in out.split("</div>")[0]
+        # The wrapper opener should carry ``inline-flex``.
+        assert "inline-flex" in out.split("</div>")[0]
 
     def test_button_with_user_w_full_class_fills_row(self) -> None:
         """A user-passed ``classes="w-full"`` on the trigger (not just the
@@ -285,7 +219,7 @@ class TestFullWidthDetection:
                 Button("Y", size="sm", classes="w-full")
             out = serialize(t.render())
         wrapper = out.split("</div>")[0]
-        assert "block w-full" in wrapper
+        assert fills(wrapper)
         assert "w-fit" not in wrapper
 
     def test_universal_modifier_input_keeps_full_width(self) -> None:
@@ -302,12 +236,12 @@ class TestFullWidthDetection:
             i = Input(placeholder="email", tooltip="hint")
             out = serialize(i.render())
         # The tooltip wrap is around the input, so the outer <div>
-        # should carry ``block w-full``.
-        assert "block w-full" in out
+        # should fill.
+        assert fills(out)
 
     def test_full_width_path_strips_w_fit_h_fit(self) -> None:
         """When the trigger is full-width, the wrapper switches to
-        ``block w-full`` — and must NOT carry leftover ``w-fit`` /
+        a one-cell grid that fills — and must NOT carry leftover ``w-fit`` /
         ``h-fit`` tokens from the default root slot (Tailwind ordering
         of ``w-full w-fit`` is non-deterministic and the input would
         collapse to content width)."""

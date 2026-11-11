@@ -36,12 +36,6 @@ NAVBAR_THEME: dict[str, Any] = {
         # Outer ``<header>`` — full-bleed, surface background, optional
         # border. ``z-30`` sits below the sidebar (z-40) and dialog/drawer
         # (z-50), so a modal paints over the navbar.
-        # ⚠️ The reason given here until 2026-08-01 — "a sidebar open on
-        # mobile also darkens the navbar through its backdrop" — no
-        # longer holds: the sidebar NO LONGER has a mobile drawer nor a
-        # backdrop (removed from the component on 2026-07-14, mobile is
-        # the dev's ``if Screen().is_mobile``). The z-index order stays
-        # right, for the teleported overlays.
         "root": (
             "group/navbar w-full bg-surface z-30 "
             "border-b-(length:--bz-stroke) border-text/10"
@@ -87,12 +81,13 @@ NAVBAR_ITEM_THEME: dict[str, Any] = {
     "slots": {
         # Outer pill — horizontal padding, gap for icon+label, hover bg
         # bump, active bg-color highlight. Same motion idiom as
-        # SidebarItem (transition-all + active:scale-[0.97]) so the
-        # whole nav family feels consistent.
+        # SidebarItem — the press scale animates, the hover does not fade
+        # (a row of a nav lights at once) — so the whole nav family feels
+        # consistent.
         "root": (
             "group/row relative inline-flex flex-row items-center gap-2 "
             "px-3 py-1.5 rounded-box cursor-pointer "
-            "transition-all duration-200 ease-out "
+            "transition-[scale] duration-150 ease-out "
             "active:scale-[0.97] "
             "whitespace-nowrap "
             "outline-none text-muted text-sm font-medium "
@@ -124,13 +119,11 @@ NAVBAR_ITEM_THEME: dict[str, Any] = {
         # The root's ``text-muted`` and a BARE ``text-(--bz-text)`` are
         # two utilities of the SAME specificity (0,1,0): the winner is the
         # last one in the Tailwind sheet, and the order of the ``class=``
-        # attribute changes nothing. Measured on `bottom_bar`, which
-        # carried the same shape: two colours out of six rendered GREY in
-        # dev — and in the generated `@theme` (`theme/tailwind.py`),
-        # ``muted`` comes LAST of the eleven semantic colours, so a
-        # compiled build would most likely lose them all. The variant
-        # raises the specificity to (0,2,0): the verdict no longer depends
-        # on any order.
+        # attribute changes nothing. In the generated `@theme`
+        # (`theme/tailwind.py`), ``muted`` comes LAST of the semantic
+        # colours, so a compiled build would most likely keep the root's
+        # grey on the active item. The variant raises the specificity to
+        # (0,2,0): the verdict does not depend on any order.
         # Guarded by `tests/consistency/test_active_layer_outranks_root.py`.
         "active": (
             "bg-(--bz-bg) data-[active=true]:text-(--bz-text) "

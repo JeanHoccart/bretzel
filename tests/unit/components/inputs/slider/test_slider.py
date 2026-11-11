@@ -326,7 +326,7 @@ class TestClientBindingValue:
         with rendering_scope(), render_isolated():
             state = S()
             out = serialize(Slider(value=state.volume).render())
-        assert 'name="volume"' in out
+        assert 'name="S.volume"' in out
 
     def test_range_hidden_uses_json_stringify(self) -> None:
         class S(ClientState, persist="memory"):
@@ -407,18 +407,19 @@ class TestImperativeAPI:
         assert "100" in out
 
     def test_focus_targets_handle(self) -> None:
+        # The target comes from ``FOCUS_TARGET`` (``base/focus.py``), read
+        # by ``autofocus=`` too; the browser half: tests/runtime_js/test_autofocus.py.
         with render_isolated():
             s = Slider(value=30)
             out = s.focus()
-        assert "[role=slider]" in out
-        assert ".focus()" in out
+        assert out == f"$bz.helpers.focusIn('{s.id}', [\"[role=slider]\"])"
 
     def test_blur_targets_handle(self) -> None:
+        # Whatever has the focus INSIDE the component, not only the target.
         with render_isolated():
             s = Slider(value=30)
             out = s.blur()
-        assert "[role=slider]" in out
-        assert ".blur()" in out
+        assert out == f"$bz.helpers.blurIn('{s.id}')"
 
     def test_needs_identity_true(self) -> None:
         with render_isolated():

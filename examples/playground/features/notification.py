@@ -61,97 +61,97 @@ def fire_from_playground() -> None:
 
 
 # ── Per-variant fire handlers (used in Reference card) ─────────────
-def fire_info()    -> None: ui.notification(message="Info notification fired.",    variant="info")
-def fire_success() -> None: ui.notification(message="Success notification fired.", variant="success")
-def fire_warning() -> None: ui.notification(message="Warning notification fired.", variant="warning")
-def fire_error()   -> None: ui.notification(message="Error notification fired.",   variant="error")
+def fire_info()    -> None: ui.notification(message="Info notification fired.",    color="info")
+def fire_success() -> None: ui.notification(message="Success notification fired.", color="success")
+def fire_warning() -> None: ui.notification(message="Warning notification fired.", color="warning")
+def fire_error()   -> None: ui.notification(message="Error notification fired.",   color="error")
 
 
 def fire_title() -> None:
-    ui.notification(message="Click to dismiss.", title="With title", variant="info")
+    ui.notification(message="Click to dismiss.", title="With title", color="info")
 
 
 def fire_icon() -> None:
     ui.notification(message="Custom icon — any Iconify name.",
-                    variant="success", icon="rocket")
+                    color="success", icon="rocket")
 
 
 def fire_no_icon() -> None:
     # Opt out of the auto-icon entirely — clean banner without chrome.
     ui.notification(message="No icon — pass icon=False.",
-                    variant="info", icon=False)
+                    color="info", icon=False)
 
 
 def fire_1s() -> None:
     ui.notification(message="Auto-dismiss in 1 second.",
-                    variant="success", duration_ms=1000)
+                    color="success", duration_ms=1000)
 
 
 def fire_3s() -> None:
     ui.notification(message="Auto-dismiss in 3 seconds.",
-                    variant="success", duration_ms=3000)
+                    color="success", duration_ms=3000)
 
 
 def fire_10s() -> None:
     ui.notification(message="Auto-dismiss in 10 seconds.",
-                    variant="success", duration_ms=10_000)
+                    color="success", duration_ms=10_000)
 
 
 def fire_persistent() -> None:
     ui.notification(message="Persistent — dismissible only by user.",
-                    variant="warning", title="Stays open",
+                    color="warning", title="Stays open",
                     duration_ms=0, dismissible=True)
 
 
-def fire_top_left()      -> None: ui.notification(message="Anchored top-left.",      variant="info", position="top-left")
-def fire_top_center()    -> None: ui.notification(message="Anchored top-center.",    variant="info", position="top-center")
-def fire_top_right()     -> None: ui.notification(message="Anchored top-right.",     variant="info", position="top-right")
-def fire_bottom_left()   -> None: ui.notification(message="Anchored bottom-left.",   variant="info", position="bottom-left")
-def fire_bottom_center() -> None: ui.notification(message="Anchored bottom-center.", variant="info", position="bottom-center")
-def fire_bottom_right()  -> None: ui.notification(message="Anchored bottom-right.",  variant="info", position="bottom-right")
+def fire_top_left()      -> None: ui.notification(message="Anchored top-left.",      color="info", position="top-left")
+def fire_top_center()    -> None: ui.notification(message="Anchored top-center.",    color="info", position="top-center")
+def fire_top_right()     -> None: ui.notification(message="Anchored top-right.",     color="info", position="top-right")
+def fire_bottom_left()   -> None: ui.notification(message="Anchored bottom-left.",   color="info", position="bottom-left")
+def fire_bottom_center() -> None: ui.notification(message="Anchored bottom-center.", color="info", position="bottom-center")
+def fire_bottom_right()  -> None: ui.notification(message="Anchored bottom-right.",  color="info", position="bottom-right")
 
 
 def fire_long() -> None:
     ui.notification(message="A very long notification message that may wrap "
                             "across several lines to demonstrate how the "
                             "toaster handles overflowing content.",
-                    variant="info", title="Long body")
+                    color="info", title="Long body")
 
 
 def fire_emoji() -> None:
-    ui.notification(message="🚀 Ship — שלום — 中文", variant="success")
+    ui.notification(message="🚀 Ship — שלום — 中文", color="success")
 
 
 def fire_xss() -> None:
     ui.notification(message="<script>alert(1)</script>",
                     title="<script>alert('title')</script>",
-                    variant="error")
+                    color="error")
 
 
 def fire_five() -> None:
-    ui.notification(message="Toast 1", variant="info")
-    ui.notification(message="Toast 2", variant="success")
-    ui.notification(message="Toast 3", variant="warning")
-    ui.notification(message="Toast 4", variant="error")
-    ui.notification(message="Toast 5", variant="info")
+    ui.notification(message="Toast 1", color="info")
+    ui.notification(message="Toast 2", color="success")
+    ui.notification(message="Toast 3", color="warning")
+    ui.notification(message="Toast 4", color="error")
+    ui.notification(message="Toast 5", color="info")
 
 
 def submitted_form(**kwargs) -> None:
     if not kwargs:
-        ui.notification(message="Form was empty.", variant="warning")
+        ui.notification(message="Form was empty.", color="warning")
         return
     ui.notification(message=f"Saved : {kwargs}",
                     title="Form submitted",
-                    variant="success")
+                    color="success")
 
 
 def slow_save() -> None:
-    ui.notification(message="Saving…", variant="info", duration_ms=1000)
-    ui.notification(message="Saved.", variant="success", icon="check")
+    ui.notification(message="Saving…", color="info", duration_ms=1000)
+    ui.notification(message="Saved.", color="success", icon="check")
 
 
 def hovered() -> None:
-    ui.notification(message="Hovered !", variant="info", duration_ms=1500)
+    ui.notification(message="Hovered !", color="info", duration_ms=1500)
 
 
 def control(label: str):
@@ -161,7 +161,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[NotificationPlayground])
+@refreshable
 def server_panel() -> None:
     state = NotificationPlayground()
 

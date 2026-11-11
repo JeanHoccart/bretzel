@@ -1,9 +1,7 @@
 """``/empty-state`` — what to show when there is nothing to show."""
 
-import functools
-
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("The screen before the first record: an icon, a sentence, and the "
@@ -50,44 +48,30 @@ def sizes() -> None:
                            description="Monitors are quiet.")
 
 
-def default_tasks() -> list[str]:
-    return ["Send the Q3 report to Lumen Studio", "Renew the SSL certificate",
-            "Review Grace's pull request"]
+TASKS = ["Send the Q3 report to Lumen Studio", "Renew the SSL certificate",
+         "Review Grace's pull request"]
 
 
-class Tasks(PageState):
-    todo: list[str] = field(default_factory=default_tasks)
-
-
-def complete(task: str) -> None:
-    tasks = Tasks()
-    tasks.todo = [t for t in tasks.todo if t != task]
-
-
-def restore_tasks() -> None:
-    Tasks().todo = default_tasks()
-
-
-@refreshable(deps=[Tasks])
-def task_list() -> None:
-    tasks = Tasks().todo
-    with ui.card(padding="md", classes="w-full max-w-md"), ui.vstack(gap="sm"):
-        ui.heading("Today", level=3, size="md")
-        for task in tasks:
-            with ui.hstack(gap="sm", justify="between"):
-                ui.text(task)
-                ui.button("Done", size="xs", variant="soft", icon_left="check",
-                          on_click=functools.partial(complete, task))
-        if not tasks:
-            with ui.empty_state("Nothing left for today", icon="party-popper",
-                                size="sm", color="success",
-                                description="Enjoy the quiet."):
-                ui.button("Bring my tasks back", size="sm", variant="ghost",
-                          on_click=restore_tasks)
+class Tasks(ClientState):
+    done: list = field(default_factory=list)
 
 
 def live_list() -> None:
-    task_list()
+    done = Tasks().done
+    with ui.card(padding="md", classes="w-full max-w-md"), ui.vstack(gap="sm"):
+        ui.heading("Today", level=3, size="md")
+        for task in TASKS:
+            with ui.hstack(gap="sm", justify="between",
+                           visible=~done.contains(task)):
+                ui.text(task)
+                ui.button("Done", size="xs", variant="soft", icon_left="check",
+                          on_click=done.push(task))
+        with ui.empty_state("Nothing left for today", icon="party-popper",
+                            size="sm", color="success",
+                            description="Enjoy the quiet.",
+                            visible=done.length() == len(TASKS)):
+            ui.button("Bring my tasks back", size="sm", variant="ghost",
+                      on_click=done.clear())
 
 
 def page() -> None:
@@ -101,6 +85,6 @@ def page() -> None:
             note="Emptiness can be good news: say it in green.")
     example("Sizes and colours", sizes, full=True)
     example("When the last item goes", live_list,
-            uses=[default_tasks, Tasks, complete, restore_tasks, task_list],
-            note="Complete each task: the server state empties, and the same "
-                 "zone renders the empty state in its place.")
+            uses=[Tasks],
+            note="Complete each task: the rows hide one by one and the empty "
+                 "state takes their place, all in the browser.")

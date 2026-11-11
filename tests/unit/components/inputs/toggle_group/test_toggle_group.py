@@ -6,6 +6,7 @@ import re
 
 import pytest
 
+from bretzel.components.base import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.inputs.toggle_group.toggle_group import (
     ToggleButton,
@@ -59,9 +60,9 @@ class TestContainerAPI:
         with render_isolated():
             g = ToggleGroup(value="b")
             with g:
-                ToggleButton("a", "A")
-                ToggleButton("b", "B")
-                ToggleButton("c", "C")
+                ToggleButton("a", label="A")
+                ToggleButton("b", label="B")
+                ToggleButton("c", label="C")
             out = serialize(g.render())
         assert out.count("<button") == 3
         for label in ("A", "B", "C"):
@@ -71,9 +72,9 @@ class TestContainerAPI:
         with render_isolated():
             g = ToggleGroup()
             with g:
-                ToggleButton("b", "Bold",      icon="bold")
-                ToggleButton("i", "Italic",    icon="italic")
-                ToggleButton("u", "Underline", icon="underline")
+                ToggleButton("b", label="Bold",      icon="bold")
+                ToggleButton("i", label="Italic",    icon="italic")
+                ToggleButton("u", label="Underline", icon="underline")
             out = serialize(g.render())
         assert out.count("<iconify-icon") == 3
 
@@ -81,7 +82,7 @@ class TestContainerAPI:
         with render_isolated():
             g = ToggleGroup()
             with g:
-                ToggleButton("a", None, icon="check")
+                ToggleButton("a", label=None, icon="check")
             out = serialize(g.render())
         # The iconify-icon is there, but no text node for the label.
         assert "<iconify-icon" in out
@@ -91,8 +92,8 @@ class TestContainerAPI:
 
     def test_toggle_button_render_raises_outside_group(self) -> None:
         with render_isolated():
-            t = ToggleButton("a", "A")
-        with pytest.raises(RuntimeError, match="ToggleGroup"):
+            t = ToggleButton("a", label="A")
+        with pytest.raises(ComponentUsageError, match="ToggleGroup"):
             t.render()
 
 
@@ -315,7 +316,7 @@ class TestBinding:
                     options=[("active", "A")],
                 ).render()
             )
-        assert 'name="filter"' in out
+        assert 'name="_Picks.filter"' in out
 
 
 # ── Disabled ─────────────────────────────────────────────────────────────
@@ -326,8 +327,8 @@ class TestDisabled:
         with render_isolated():
             g = ToggleGroup(disabled=True)
             with g:
-                ToggleButton("a", "A")
-                ToggleButton("b", "B")
+                ToggleButton("a", label="A")
+                ToggleButton("b", label="B")
             out = serialize(g.render())
         button_blocks = re.findall(r"<button[^>]*>", out)
         assert len(button_blocks) == 2
@@ -341,8 +342,8 @@ class TestDisabled:
         with render_isolated():
             g = ToggleGroup()
             with g:
-                ToggleButton("a", "A")
-                ToggleButton("b", "B", disabled=True)
+                ToggleButton("a", label="A")
+                ToggleButton("b", label="B", disabled=True)
             out = serialize(g.render())
         button_blocks = re.findall(r"<button[^>]*>", out)
         def _has_disabled_attr(block: str) -> bool:
@@ -407,14 +408,23 @@ class TestImperative:
     def test_select_all_multi_only(self) -> None:
         with render_isolated():
             g = ToggleGroup(options=[("a", "A")])
-        with pytest.raises(RuntimeError, match="multi-only"):
+        with pytest.raises(ComponentUsageError, match="multi-only"):
             g.select_all()
 
     def test_deselect_all_multi_only(self) -> None:
         with render_isolated():
             g = ToggleGroup(options=[("a", "A")])
-        with pytest.raises(RuntimeError, match="multi-only"):
+        with pytest.raises(ComponentUsageError, match="multi-only"):
             g.deselect_all()
+
+    @pytest.mark.parametrize("name", ["select", "combobox"])
+    def test_deselect_all_is_multi_only_on_the_whole_family(self, name) -> None:
+        from bretzel.components import ui
+
+        with render_isolated():
+            control = getattr(ui, name)(options=[("a", "A")])
+        with pytest.raises(ComponentUsageError, match="deselect_all"):
+            control.deselect_all()
 
     def test_select_all_multi_dispatches_bz_command(self) -> None:
         with render_isolated():
@@ -443,7 +453,11 @@ class TestSurface:
         assert ToggleButton.EVENTS == ()
 
     def test_toggle_button_bindable_disabled(self) -> None:
-        assert ToggleButton.BINDABLE_PROPS == ("disabled",)
+        # ``disabled`` is ToggleButton's choice; its displayed contents
+        # (label, icon) bind by construction since 2026-11-06 — not the
+        # universal ``tooltip=``, which the socle owns.
+        assert set(ToggleButton.BINDABLE_PROPS) - set(ToggleButton.__displayed_props__) == {"disabled"}
+        assert "tooltip" not in ToggleButton.BINDABLE_PROPS
 
 
 # ── Role + a11y ──────────────────────────────────────────────────────────
@@ -467,3 +481,29 @@ class TestA11y:
             )
         assert ":data-selected=" in out
         assert ":aria-pressed=" in out
+
+
+# ── The tooltip is the framework's ──
+
+
+class TestTooltip:
+    def test_a_tooltip_is_bretzels_and_names_an_icon_only_button(self) -> None:
+        with render_isolated():
+            with ToggleGroup(value="wide") as group:
+                ToggleButton("wide", icon="rectangle-horizontal", tooltip="En largeur")
+                ToggleButton("deep", icon="rectangle-vertical", tooltip="En profondeur")
+            out = serialize(group.render())
+        # Not the browser's grey ``title`` bubble any more.
+        assert 'title="En largeur"' not in out
+        assert out.count('data-bz-tip="En ') == 2
+        assert 'aria-label="En largeur"' in out
+
+    def test_the_spacing_belongs_to_the_row(self) -> None:
+        # Wrapped in its tooltip, an item is the only child of the wrapper:
+        # an item's own ``last:border-r-0`` once erased every separator.
+        from bretzel.components.inputs.toggle_group.theme import TOGGLE_GROUP_THEME
+
+        slots = TOGGLE_GROUP_THEME["slots"]
+        assert "gap-0.5" in slots["root"].split()
+        assert not [c for c in slots["item"].split()
+                    if c.startswith(("first:", "last:"))]

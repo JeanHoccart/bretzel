@@ -9,11 +9,11 @@ without a comment having to repeat it.
   window is another. That is what makes the two-screen trial readable.
 - :class:`Vue` and :class:`Filtres` are ``PageState``: what I look at
   concerns only me. Filtering on my cards must change nothing for the
-  others — and that is precisely why these states are **not** broadcast
-  (cf. ``broadcast=`` in ``tableau.py``).
+  others — and that is precisely why these states never leave their
+  window.
 
-**Nothing is addressable here, and that is a decision.** ``URL = {…}`` is
-the mechanic ``examples/messagerie`` stages; taking it up would give two
+**Nothing is addressable here, and that is a decision.** Taking up
+``URL = {…}`` would give two
 subjects to an app that demonstrates one. A link to a card is therefore
 this example's first acknowledged gap.
 """
@@ -61,7 +61,7 @@ A declared boolean, ``tiroir``, rather than ``open=vue.ouverte != ""``
     at the call site: it says what the drawer shows. (Until 2026-10-23 the
     expression also broke the drawer — a computed value never resynced
     from the server; the runtime now re-adopts any value the server
-    changed, cf. ``runtime/_src/03_scope.js``.)
+    changed, cf. ``runtime/_src/scope.js``.)
     """
 
     ouverte: str = field(default="")
@@ -88,7 +88,7 @@ class Affichage(ClientState):
 class Filtres(PageState):
     """The banner's three filters. Server side, not client — and why.
 
-    ``examples/messagerie`` filters in the browser with
+    A mailbox can filter in the browser with
     ``ui.filter_each``: zero requests per keystroke. Here that would be a
     bug. A client filter leaves the hidden cards IN the DOM; the base
     layer reads a drop's index among the draggable elements really
@@ -130,7 +130,7 @@ class Brouillon(ClientState):
 
     ⚠️ **``ClientState``, and it took a measurement to write it.** These
     fields lived in the ``PageState`` above, so they were rendered by the
-    server — inside a zone declaring ``broadcast=[Tableau]``.
+    server — inside a zone that the other windows redraw.
     Consequence: **anybody moved a card, and what you were typing
     vanished.** Measured across two sessions on 2026-09-09 — B writes
     "brouillon en cours" without sending, A drags a card to the other end
@@ -138,9 +138,7 @@ class Brouillon(ClientState):
     title has gone back to the server's.
 
     A ``ClientState`` value lives in the browser's store: the morph
-    reapplies it, so it survives a re-render coming from elsewhere. It is
-    the same decision as ``examples/messagerie``'s composing, and for the
-    same reason.
+    reapplies it, so it survives a re-render coming from elsewhere.
 
     The server can still SEED it — ``logic.charger`` copies the open card
     into it, and the value comes back down in the patch. Writing a client

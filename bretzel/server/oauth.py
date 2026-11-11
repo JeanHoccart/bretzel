@@ -6,6 +6,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import time
 import urllib.error
@@ -23,7 +24,9 @@ from bretzel.server.auth import (
 )
 from bretzel.server.crypto import sign as _crypto_sign
 from bretzel.server.crypto import verify as _crypto_verify
-from bretzel.server.navigation import redirect_response
+from bretzel.server.navigation import _leave_origin, redirect_response
+
+_log = logging.getLogger("bretzel.server.oauth")
 
 __all__ = ["OIDC", "OAuth2", "OAuthProfile", "OAuthError"]
 
@@ -46,7 +49,13 @@ class OAuthError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class OAuthProfile:
-    """Represent the normalized user profile returned by an OAuth provider."""
+    """Represent the normalized user profile returned by an OAuth provider.
+
+    ``email`` of an OIDC door is filled only when the provider vouches for
+    it (``email_verified``): a door that admits ``@mycompany.com`` must not
+    admit whoever TYPED that address at a provider that does not check.
+    The claim itself stays in ``raw``.
+    """
 
     subject: str
     email: str = ""
@@ -79,10 +88,9 @@ def _http_json(
         # ⚠️ An OAuth endpoint that REFUSES answers 4xx **with a useful
         # JSON body** (``{"error": "invalid_grant"}``) — that is the
         # protocol, not a failure. ``urlopen`` nonetheless raises on any
-        # non-2xx, and without this catch the exception crossed the door:
-        # the visitor got a 500 instead of coming back to the sign-in
-        # page. Found on 2026-08-24 by faking the PKCE verifier against a
-        # real provider — the probe did not turn red, it BROKE.
+        # non-2xx, and without this catch the exception would cross the
+        # door: the visitor would get a 500 instead of coming back to the
+        # sign-in page.
         try:
             payload = exc.read().decode("utf-8")
         except Exception:
@@ -206,8 +214,7 @@ class _Door:
         Raw routes, not ``@page``: a door renders no HTML — it redirects,
         twice. They do not need a render context for all that:
         ``RenderContextMiddleware`` wraps ALL requests, so
-        ``auth.login()`` does set its cookie from the callback (measured
-        on 2026-08-23).
+        ``auth.login()`` does set its cookie from the callback.
 
         ⚠️ The three redirects go through :func:`redirect_response` and
         **never** through a bare ``RedirectResponse``. The reason is a
@@ -217,9 +224,8 @@ class _Door:
         would follow the 302 with ``fetch``, towards ANOTHER origin, and
         that fails silently (CORS) or swaps foreign HTML into the outlet.
         ``redirect_response`` then answers an ``HX-Redirect``, which the
-        browser executes as a real navigation. ``examples/auth`` escaped
-        it by accident (its sign-in page has no outlet), so the probe was
-        green.
+        browser executes as a real navigation. A sign-in page with no
+        outlet escapes it by accident, so a probe of that page stays green.
         """
         async def start(request: Any) -> Any:
             endpoints = await self._endpoints()
@@ -241,7 +247,7 @@ class _Door:
                 "code_challenge": challenge,
                 "code_challenge_method": "S256",
             }
-            response = redirect_response(
+            response = _leave_origin(
                 request, f"{endpoints['authorize']}?{urllib.parse.urlencode(params)}"
             )
             self._seal(request, response, state, verifier, nonce)
@@ -282,9 +288,11 @@ class _Door:
                 # necessarily synchronous, in the callback. Offloaded,
                 # otherwise it freezes the loop on every sign-in.
                 user_id = await call_without_blocking(on_user, profile)
-            except OAuthError:
+            except OAuthError as exc:
+                _log.warning("sign-in through %r refused: %s", self.name, exc)
                 return self._refuse(request)
             if not user_id:
+                _log.info("sign-in through %r refused by on_user", self.name)
                 return self._refuse(request)
             login(str(user_id))
             response = redirect_response(request, self.on_success)
@@ -441,13 +449,11 @@ class OIDC(_Door):
             raise OAuthError("id_token was issued for a different client")
         if int(claims.get("exp", 0)) <= int(time.time()):
             raise OAuthError("id_token has expired")
-        # ⚠️ The ``and claims.get("nonce")`` that used to be here made
-        # the check OPTIONAL: a token WITHOUT a nonce passed, although we
-        # had sent one. That is exactly the replay door the nonce exists
+        # ⚠️ No ``and claims.get("nonce")`` here: it would make the check
+        # OPTIONAL, and a token WITHOUT a nonce would pass although we
+        # sent one. That is exactly the replay door the nonce exists
         # to close, and OIDC Core requires it the other way round ("if a
         # nonce was sent, its presence AND its value MUST be verified").
-        # Found on 2026-08-24 by mutating the nonce's emission: the probe
-        # stayed green.
         if nonce and not hmac.compare_digest(str(claims.get("nonce", "")), nonce):
             raise OAuthError("nonce absent ou non concordant — rejeu possible.")
 
@@ -456,7 +462,8 @@ class OIDC(_Door):
             raise OAuthError("id_token does not contain a sub claim")
         return OAuthProfile(
             subject=subject,
-            email=str(claims.get("email", "")),
+            email=str(claims.get("email", ""))
+            if claims.get("email_verified") in (True, "true") else "",
             name=str(claims.get("name", "")),
             raw=claims,
             token=str(tokens.get("access_token", "")),

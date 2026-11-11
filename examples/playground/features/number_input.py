@@ -86,7 +86,7 @@ def clear_log() -> None:
 def server_changed(state: NumberInputPlayground) -> None:
     # Typed param → the dispatcher hydrates the changed
     # control's value into ``state`` (coerced + persisted).
-    # deps=[NumberInputPlayground] re-renders server_panel automatically.
+    # server_panel reads the state, so it re-renders automatically.
     pass
 
 
@@ -180,7 +180,7 @@ def control(label: str):
 # ──────────────────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[NumberInputPlayground])
+@refreshable
 def server_panel() -> None:
     state = NumberInputPlayground()
 
@@ -248,7 +248,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[NumberInputEvents])
+@refreshable
 def events_panel() -> None:
     state = NumberInputEvents()
 

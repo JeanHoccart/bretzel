@@ -1,13 +1,11 @@
 """``/dropdown`` — a menu of actions behind one button."""
 
-from functools import partial
-
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A menu anchored to its trigger — icons, shortcuts, links, "
-           "coloured rows, and items that run Python.")
+           "coloured rows, and items that act on the page.")
 
 
 def row_actions() -> None:
@@ -41,37 +39,32 @@ def account_menu() -> None:
         ui.dropdown_item(label="Sign out", icon_left="log-out", href="#sign-out")
 
 
-class Invoice(PageState):
+INVOICE_STATUSES = {"sent": ("Sent", "info"), "paid": ("Paid", "success"),
+                    "void": ("Void", "error")}
+
+
+class InvoiceStatus(ClientState):
     status: str = field(default="sent")
 
 
-def set_status(status: str) -> None:
-    Invoice().status = status
-
-
-@refreshable(deps=[Invoice])
-def invoice_status() -> None:
-    label, color = {"sent": ("Sent", "info"), "paid": ("Paid", "success"),
-                    "void": ("Void", "error")}[str(Invoice().status)]
-    with ui.hstack(gap="md"):
-        ui.text("INV-2041 · Northwind Traders", weight="medium")
-        ui.badge(label, color=color, variant="soft")
-
-
 def change_status() -> None:
+    status = InvoiceStatus().status
     menu = ui.button("Change status", icon_right="chevron-down", variant="outline",
                      size="sm")
     with ui.card(padding="sm", classes="w-full max-w-lg"), ui.hstack(justify="between"):
-        invoice_status()
+        with ui.hstack(gap="md"):
+            ui.text("INV-2041 · Northwind Traders", weight="medium")
+            for key, (label, color) in INVOICE_STATUSES.items():
+                ui.badge(label, color=color, variant="soft", visible=status == key)
         with ui.dropdown(trigger=menu, align="end"):
             ui.dropdown_item(label="Mark as paid", icon_left="circle-check",
-                             color="success", on_click=partial(set_status, "paid"))
+                             color="success", on_click=status.set("paid"))
             ui.dropdown_item(label="Back to sent", icon_left="send",
-                             on_click=partial(set_status, "sent"))
+                             on_click=status.set("sent"))
             ui.dropdown_item(label="Send a reminder", icon_left="bell-ring",
                              color="warning", disabled=True)
             ui.dropdown_item(label="Void the invoice", icon_left="ban",
-                             color="error", on_click=partial(set_status, "void"))
+                             color="error", on_click=status.set("void"))
 
 
 def placement() -> None:
@@ -94,10 +87,10 @@ def page() -> None:
     example("Account menu", account_menu,
             note="Items with href= are links; align=\"end\" keeps the menu "
                  "under the right edge of its trigger.")
-    example("Items that run Python", change_status,
-            uses=[Invoice, set_status, invoice_status],
-            note="on_click takes a handler (here a partial): the menu closes, "
-                 "the state changes on the server, the badge re-renders.")
+    example("Items that change the page", change_status, uses=[InvoiceStatus],
+            note="on_click takes a client expression: the menu closes and the "
+                 "badge follows in the browser. Pass a Python function (or a "
+                 "partial) when the server must record the change.")
     example("Placement", placement,
             note="position picks the side, align the edge. By default the "
                  "menu takes the side with the most room.")

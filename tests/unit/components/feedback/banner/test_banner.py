@@ -14,6 +14,16 @@ from bretzel.state.scopes.client import ClientBinding
 def _on_close() -> None: ...
 
 
+class TestIconFalse:
+    def test_icon_false_removes_the_automatic_icon(self) -> None:
+        with render_isolated():
+            with_icon = serialize(Banner("Hello", color="warning").render())
+            without = serialize(Banner("Hello", color="warning", icon=False).render())
+        assert "iconify-icon" in with_icon
+        assert "iconify-icon" not in without
+        assert "Hello" in without
+
+
 class TestStructure:
     def test_renders_root_status(self) -> None:
         with render_isolated():
@@ -201,7 +211,8 @@ class TestBindableSurface:
     def test_bindable_props(self) -> None:
         # dismissible coupé 2026-07-16 (règle « driver client, sinon
         # serveur » : ∅). Seuls les slots de texte live restent bindables.
-        assert set(Banner.BINDABLE_PROPS) == {"title", "message"}
+        # L'icône aussi depuis le 2026-11-06 (toutes les icônes du catalogue).
+        assert set(Banner.BINDABLE_PROPS) == {"title", "message", "icon"}
 
     def test_events(self) -> None:
         assert Banner.EVENTS == ("close",)

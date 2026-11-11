@@ -84,7 +84,7 @@ def build_preview(state: DiagramPlayground) -> dict:
         "direction": state.direction,
         "size": state.size,
         "color": state.color,
-        "empty_text": state.empty_text,
+        "empty_text": state.empty_text or None,
     }
     if state.focus:
         kwargs["focus"] = state.focus
@@ -122,7 +122,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[Picked])
+@refreshable
 def focus_panel() -> None:
     """``focus=`` driven by a server click — the narrowing."""
     picked = Picked().key
@@ -138,7 +138,7 @@ def focus_panel() -> None:
     )
 
 
-@refreshable(deps=[DiagramPlayground])
+@refreshable
 def server_panel() -> None:
     state = DiagramPlayground()
 
@@ -225,7 +225,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[DiagramServerEvents])
+@refreshable
 def events_panel() -> None:
     state = DiagramServerEvents()
 
@@ -275,10 +275,11 @@ def client_events_panel() -> None:
             'onto a ClientState. Zero requests.',
         color="muted", size="sm",
     )
-    # ``$event.detail`` carries the node's key: it is what the component
-    # puts in the payload, and it is the same value a server handler
-    # receives.
-    clicked = ClientExpression("$event.currentTarget.dataset.bzNode")
+    # ``$event.detail.key`` is the node's key — the same value a server
+    # handler receives (2026-10-29: the click is a ``CustomEvent``
+    # ``item_click``; before, this read ``dataset.bzNode`` by hand).
+    clicked = ClientExpression(
+        "new Date().toLocaleTimeString() + ' — ' + $event.detail.key")
     ui.diagram(nodes=NODES, edges=EDGES,
                on_item_click=events.log.push(clicked))
 

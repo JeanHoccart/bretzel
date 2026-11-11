@@ -30,7 +30,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from bretzel import Bretzel, page, ui
-from bretzel.render.texts import TextsError
+from bretzel.render.translations import TranslationsError
 from bretzel.server.config import ConfigError
 
 _HTML_TAG = re.compile(r"<html[^>]*>")
@@ -92,7 +92,7 @@ def test_a_framework_word_follows_the_texts_table() -> None:
     assert 'aria-label="Dismiss alert"' in english
 
     french = document_of(app_saying(
-        lang="fr", texts={"alert.dismiss": "Fermer cette alerte"},
+        lang="fr", translations={"fr": {"alert.dismiss": "Fermer cette alerte"}},
     ))
     assert 'aria-label="Dismiss alert"' not in french
     assert "Fermer cette alerte" in french
@@ -102,15 +102,21 @@ def test_an_unknown_text_key_raises_at_startup() -> None:
     """Pas à la page qui l'affiche : une faute de frappe dans un dict de
     traduction ne se manifeste que par une phrase restée en anglais, que
     l'auteur de la traduction ne relira jamais."""
-    with pytest.raises(TextsError, match="unknown"):
-        Bretzel(secret_key="x" * 32, texts={"alert.dismis": "Fermer"})
+    with pytest.raises(TranslationsError, match="did you mean 'alert.dismiss'"):
+        Bretzel(secret_key="x" * 32, translations={"en": {"alert.dismis": "Fermer"}})
+
+
+def test_texts_is_gone() -> None:
+    """Une seule table pour tous les mots de l'écran : ``translations=``."""
+    with pytest.raises(TypeError):
+        Bretzel(secret_key="x" * 32, texts={"alert.dismiss": "Fermer"})  # type: ignore[call-arg]
 
 
 def test_two_apps_do_not_share_a_table() -> None:
     """La table voyage par le contexte de rendu, donc par requête. Deux
     apps dans le même processus — le cas de toute la suite — ne doivent
     pas se contaminer."""
-    french = app_saying(lang="fr", texts={"alert.dismiss": "Fermer"})
+    french = app_saying(lang="fr", translations={"fr": {"alert.dismiss": "Fermer"}})
     english = app_saying()
     assert "Fermer" in document_of(french)
     assert 'aria-label="Dismiss alert"' in document_of(english)

@@ -37,7 +37,7 @@ class ContainerPlayground(PageState):
 def server_changed(state: ContainerPlayground) -> None:
     # Typed param → the dispatcher hydrates the changed
     # control's value into ``state`` (coerced + persisted).
-    # deps=[ContainerPlayground] on server_panel triggers the re-render.
+    # server_panel reads the state, so it re-renders automatically.
     pass
 
 
@@ -80,7 +80,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[ContainerPlayground])
+@refreshable
 def server_panel() -> None:
     state = ContainerPlayground()
 

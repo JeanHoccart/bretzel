@@ -87,6 +87,7 @@ def shell() -> None:
             with ui.sidebar_footer(name="Bretzel", subtitle="v0.1.0a4 · Early alpha"):
                 for value, label, icon in SCHEMES:
                     ui.sidebar_footer_item(label=label, icon_left=icon,
+                                           checked=ColorScheme().mode == value,
                                            on_click=ColorScheme.set(value))
                 ui.divider(classes="my-1")
                 for label, icon, href in SITES:

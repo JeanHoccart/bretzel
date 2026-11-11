@@ -23,7 +23,7 @@ DATE_RANGE_PICKER_THEME: dict[str, Any] = {
         # under one ring.
         "input_frame": (
             "flex items-stretch w-full rounded-field border-(length:--bz-stroke) border-text/10 "
-            "bg-interface text-text transition-all duration-200 "
+            "bg-interface text-text transition duration-200 "
             "focus-within:border-(--bz-solid) focus-within:ring-2 "
             "focus-within:ring-(--bz-focus-soft) focus-within:ring-offset-2 "
             "focus-within:ring-offset-background "
@@ -58,9 +58,12 @@ DATE_RANGE_PICKER_THEME: dict[str, Any] = {
             "transition-colors disabled:opacity-50 "
             "disabled:cursor-not-allowed"
         ),
+        # Neutral at rest, ink on hover — never the field's colour: the
+        # accent marks the ACTIVE (the field's focus ring says it), not a
+        # glyph that sits there (``components.md`` § R1).
         "trigger_button": (
             "shrink-0 inline-flex items-center justify-center "
-            "text-(--bz-text) not-disabled:hover:bg-(--bz-bg) rounded-r-field "
+            "text-muted not-disabled:hover:text-text not-disabled:hover:bg-text/5 rounded-r-field "
             "outline-none focus-visible:ring-2 focus-visible:ring-inset "
             "focus-visible:ring-(--bz-focus) transition-colors "
             "disabled:opacity-50 disabled:cursor-not-allowed"
@@ -73,11 +76,11 @@ DATE_RANGE_PICKER_THEME: dict[str, Any] = {
         # coords under fixed). Same as date_picker / Select / Combobox.
         "panel": (
             "absolute z-40 mt-1 "
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface shadow-lg "
+            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface shadow-lg "
             # The enter fade, FIELD cadence (75 ms, half the menus').
             # Mechanism of the three classes: a single copy, in
             # ``overlay/dropdown/theme.py``.
-            "transition-[opacity,display] transition-discrete duration-75 "
+            "transition-opacity duration-75 "
             "starting:opacity-0"
         ),
     },
@@ -87,56 +90,56 @@ DATE_RANGE_PICKER_THEME: dict[str, Any] = {
     # ``box-sizing: border-box`` (Tailwind's preset), an ``h-10`` set on
     # the frame is 40 px border included, exactly like ``ui.input``,
     # which sets its height and its border on the SAME element. Set on
-    # the child, it gave 40 px + the frame's 2 px: **42 px**, that is
-    # 2 px more than any other control, at each of the five steps.
-    # Measured in Chromium on 2026-08-23, guarded by
+    # the child, it would give 40 px + the frame's 2 px, that is 2 px more
+    # than any other control, at each of the five steps. Guarded by
     # ``tests/runtime_js/test_form_controls_share_one_height.py``.
     #
-    # The children therefore no longer have an ``h-*``: the frame is
-    # ``items-stretch``, they fill its inner height. Giving them one back
+    # The children therefore have no ``h-*``: the frame is
+    # ``items-stretch``, they fill its inner height. Giving them one
     # would make them overflow the frame.
     "sizes": {
-        "input_frame": {
-            "xs": "h-7",
-            "sm": "h-8",
-            "md": "h-10",
-            "lg": "h-12",
-            "xl": "h-14",
+        # One row per step, one entry per slot — the shape of every
+        # other table (``sizes[<size>][<slot>]``). The base composer puts
+        # a row's entry on the slot of that name, for every component.
+        "xs": {
+            "input_frame": "h-7",
+            "input_field": "text-xs",
+            "separator": "text-xs",
+            "clear_button": "w-6",
+            "trigger_button": "w-7",
+            "button_icon": "text-xs",
         },
-        "input_field": {
-            "xs": "text-xs",
-            "sm": "text-sm",
-            "md": "text-sm",
-            "lg": "text-base",
-            "xl": "text-lg",
+        "sm": {
+            "input_frame": "h-8",
+            "input_field": "text-sm",
+            "separator": "text-sm",
+            "clear_button": "w-7",
+            "trigger_button": "w-8",
+            "button_icon": "text-sm",
         },
-        "separator": {
-            "xs": "text-xs",
-            "sm": "text-sm",
-            "md": "text-sm",
-            "lg": "text-base",
-            "xl": "text-lg",
+        "md": {
+            "input_frame": "h-10",
+            "input_field": "text-sm",
+            "separator": "text-sm",
+            "clear_button": "w-8",
+            "trigger_button": "w-10",
+            "button_icon": "text-base",
         },
-        "clear_button": {
-            "xs": "w-6",
-            "sm": "w-7",
-            "md": "w-8",
-            "lg": "w-9",
-            "xl": "w-10",
+        "lg": {
+            "input_frame": "h-12",
+            "input_field": "text-base",
+            "separator": "text-base",
+            "clear_button": "w-9",
+            "trigger_button": "w-12",
+            "button_icon": "text-lg",
         },
-        "trigger_button": {
-            "xs": "w-7",
-            "sm": "w-8",
-            "md": "w-10",
-            "lg": "w-12",
-            "xl": "w-14",
-        },
-        "button_icon": {
-            "xs": "text-xs",
-            "sm": "text-sm",
-            "md": "text-base",
-            "lg": "text-lg",
-            "xl": "text-xl",
+        "xl": {
+            "input_frame": "h-14",
+            "input_field": "text-lg",
+            "separator": "text-lg",
+            "clear_button": "w-10",
+            "trigger_button": "w-14",
+            "button_icon": "text-xl",
         },
     },
 }

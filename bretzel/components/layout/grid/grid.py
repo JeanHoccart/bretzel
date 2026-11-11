@@ -77,10 +77,9 @@ class Grid(Component):
     #:
     #: Why it exists when ``cols=`` is already responsive: an ``xl:``
     #: prefix reads the WINDOW's width, not the grid's. Under a shell
-    #: with a side bar, the two diverge by the bar's width — measured on
-    #: the CRM, 4 columns of 244 px where the content only has 1024 px,
-    #: so a 256 px ``ui.toggle_group`` outside. ``auto-fit`` reads the
-    #: real room.
+    #: with a side bar, the two diverge by the bar's width: 4 columns of
+    #: 244 px where the content only has 1024 px, so a 256 px
+    #: ``ui.toggle_group`` outside. ``auto-fit`` reads the real room.
     min_col: Any = reactive_prop(default=None, emit_attr=False)
     # ``Any``, not ``str`` : both graded props take a breakpoint dict.
     gap: Any = reactive_prop(default="md", emit_attr=False)

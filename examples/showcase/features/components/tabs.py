@@ -1,11 +1,11 @@
 """``/tabs`` — several panels in the space of one."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("Switch between panels without a round trip — with icons, sizes, "
-           "colours, the active tab in the URL, or a handler in Python.")
+           "colours, the active tab in the URL or in a state the page reads.")
 
 
 def settings() -> None:
@@ -56,38 +56,29 @@ def linkable() -> None:
                     color="muted")
 
 
-def figures(period: str) -> tuple[str, str, str]:
-    return {
-        "week": ("€12.4k", "+4.1 %", "38 invoices"),
-        "month": ("€48.2k", "+12.4 %", "184 invoices"),
-        "quarter": ("€139.7k", "+9.8 %", "521 invoices"),
-    }[period]
+FIGURES = {
+    "week": ("€12.4k", "+4.1 %", "38 invoices"),
+    "month": ("€48.2k", "+12.4 %", "184 invoices"),
+    "quarter": ("€139.7k", "+9.8 %", "521 invoices"),
+}
 
 
-class Report(PageState):
+class Report(ClientState):
     period: str = field(default="month")
 
 
-def show_period(period: str) -> None:
-    Report().period = period
-
-
-@refreshable(deps=[Report])
-def revenue() -> None:
-    total, delta, count = figures(str(Report().period))
-    with ui.hstack(gap="md", align="end"):
-        ui.heading(total, level=3, size="3xl")
-        ui.badge(delta, color="success", variant="soft")
-        ui.text(count, color="muted")
-
-
-def server_tabs() -> None:
+def bound_tabs() -> None:
+    period = Report().period
     with ui.vstack(gap="md", classes="w-full"):
-        with ui.tabs(value=Report().period, on_change=show_period):
+        with ui.tabs(value=period):
             ui.tab("week", label="This week")
             ui.tab("month", label="This month")
             ui.tab("quarter", label="This quarter")
-        revenue()
+        for key, (total, delta, count) in FIGURES.items():
+            with ui.hstack(gap="md", align="end", visible=period == key):
+                ui.heading(total, level=3, size="3xl")
+                ui.badge(delta, color="success", variant="soft")
+                ui.text(count, color="muted")
 
 
 def page() -> None:
@@ -100,7 +91,9 @@ def page() -> None:
     example("The active tab in the URL", linkable, full=True,
             note="url=\"tab\" writes ?tab=activity into the address bar, so a "
                  "link or a reload lands on the same tab.")
-    example("A tab change that runs Python", server_tabs, full=True,
-            uses=[figures, Report, show_period, revenue],
-            note="Bound to a server state, on_change receives the new tab and "
-                 "the figures below re-render for that period.")
+    example("The active tab, read elsewhere", bound_tabs, full=True,
+            uses=[Report],
+            note="value= is bound to a ClientState, so any part of the page "
+                 "can follow the tab: here the figures, outside the strip. "
+                 "Give on_change a Python function to load them from the "
+                 "server instead.")

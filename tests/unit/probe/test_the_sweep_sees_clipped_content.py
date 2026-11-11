@@ -12,7 +12,7 @@ salit pas la console, ne casse aucune requête, et le HTML sérialisé est
 COMPLET : un test de rendu voit le bon document. Seule la mise en page
 manque, et on ne peut pas savoir qu'on regarde une information absente.
 
-Mesuré sur ``examples/ecole`` le 2026-09-12 : une case d'emploi du temps
+Mesuré : une case d'emploi du temps
 affichait sa classe et rien d'autre — la salle et le lien vers le cahier
 coupés net par un ``overflow:hidden`` de thème sur une hauteur imposée
 par l'app. Le compte de l'auteur s'est trompé **trois fois de suite**,
@@ -70,7 +70,7 @@ def _balayer(**geo: Any) -> dict[str, bool]:
     def check(nom: str, ok: Any, _detail: Any = None) -> None:
         verdicts[nom] = bool(ok)
 
-    _geometry(check, _Window(base), "taille-1")
+    _geometry(check, _Window(base), "size-1")
     return verdicts
 
 

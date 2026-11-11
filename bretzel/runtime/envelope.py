@@ -1,16 +1,16 @@
 """Envelope / patch serialisation — the V3 wire format server ↔ runtime.
 
-Two outgoing payloads cross the boundary (.claude/bretzel/runtime.md):
+Two outgoing payloads cross the boundary:
 
 - **``<bz-envelope>``** — bootstrap blob, emitted ONCE per full-page
   render. Carries every :class:`ClientState` instance (fields +
   persist / send_to_server config, cf. :func:`build_envelope`), the
-  framework endpoints and the CSRF token. ``00_index.js`` parses it on
+  framework endpoints and the CSRF token. ``index.js`` parses it on
   ``DOMContentLoaded`` to seed the signal store and register the
   persistence adapters.
 
 - **``<bz-patch>``** — delta patches, emitted on action responses and
-  on the partial-nav seed path. ``05_bridge.js`` parses them on
+  on the partial-nav seed path. ``bridge.js`` parses them on
   ``htmx:afterSwap`` and applies them to the signal store.
 
 Both are normal HTML tags (not ``<script type=...>`` workarounds):
@@ -31,6 +31,7 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import Any, NotRequired, TypedDict
 
+from bretzel.core.base_path import with_base
 from bretzel.core.escape import escape_inline_json
 from bretzel.runtime import protocol
 from bretzel.state.persistence.client_bridge import full_field_dict, instance_key
@@ -111,9 +112,9 @@ def _transport_config(state: ClientState) -> dict[str, Any]:
 def default_endpoints() -> dict[str, str]:
     """The runtime endpoints baked into a fresh envelope."""
     return {
-        "action": protocol.ROUTE_ACTION,
-        "sse": protocol.ROUTE_SSE,
-        "refetch": protocol.ROUTE_REFETCH,
+        "action": with_base(protocol.ROUTE_ACTION),
+        "sse": with_base(protocol.ROUTE_SSE),
+        "refetch": with_base(protocol.ROUTE_REFETCH),
     }
 
 
@@ -233,7 +234,7 @@ def error_envelope(kind: str, message: str = "") -> str:
     Bare-text 4xx responses reach the client as a dead-end generic
     "Request failed (403)" toast — the bridge can't tell a stale HMAC
     signature (which a reload heals) from a real error. This wraps the
-    body so ``05_bridge.js``'s ``htmx:responseError`` handler can dispatch
+    body so ``bridge.js``'s ``htmx:responseError`` handler can dispatch
     on ``kind``:
 
     - ``"reload"`` → ``window.location.reload()``. A stale / rotated

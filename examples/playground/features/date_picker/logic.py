@@ -1,6 +1,6 @@
 """``DatePicker`` server-side handlers (mutate state).
 
-Panels re-render automatically : the ``@refreshable(deps=[...])`` zones
+Panels re-render automatically : the ``@refreshable`` zones
 in ``ui.py`` observe ``DatePickerPlayground`` and re-render whenever a
 handler mutates it — no imperative refresh needed.
 """

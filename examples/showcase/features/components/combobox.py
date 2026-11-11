@@ -1,7 +1,7 @@
 """``/combobox`` — a select you can type into."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A select with a search box, for lists too long to scroll: type a "
@@ -63,31 +63,22 @@ ACCOUNTS = {
 }
 
 
-class PickedAccount(PageState):
+class PickedAccount(ClientState):
     account: str = field(default="northwind")
 
 
-def account_picked(pick: PickedAccount) -> None:
-    """The typed parameter receives the new account; the card follows."""
-
-
-@refreshable(deps=[PickedAccount])
-def account_card() -> None:
-    name, city, revenue, plan = ACCOUNTS[PickedAccount().account or "northwind"]
-    with ui.hstack(gap="md"):
-        ui.avatar(name=name, size="lg", color="primary")
-        with ui.vstack(gap="none"):
-            ui.text(name, weight="semibold", size="lg")
-            ui.text(f"{city} · {revenue}", color="muted")
-        ui.badge(plan, variant="soft", classes="ml-auto")
-
-
 def live_pick() -> None:
+    pick = PickedAccount()
     with ui.card(padding="md", classes="w-full max-w-md"), ui.vstack(gap="md"):
         ui.combobox([(key, row[0]) for key, row in ACCOUNTS.items()],
-                    value=PickedAccount().account, on_change=account_picked,
-                    placeholder="Find an account…")
-        account_card()
+                    value=pick.account, placeholder="Find an account…")
+        for key, (name, city, revenue, plan) in ACCOUNTS.items():
+            with ui.hstack(gap="md", visible=pick.account == key):
+                ui.avatar(name=name, size="lg", color="primary")
+                with ui.vstack(gap="none"):
+                    ui.text(name, weight="semibold", size="lg")
+                    ui.text(f"{city} · {revenue}", color="muted")
+                ui.badge(plan, variant="soft", classes="ml-auto")
 
 
 LABELS = [("bug", "Bug"), ("feature", "Feature request"),
@@ -114,10 +105,10 @@ def page() -> None:
     example("Options with avatars", assignee,
             note="render= draws each option — the search still runs on the "
                  "label.")
-    example("A pick that runs Python", live_pick,
-            uses=[PickedAccount, account_picked, account_card],
-            note="on_change sends the value to Python; the account card "
-                 "re-renders.")
+    example("A pick that updates the page", live_pick, uses=[PickedAccount],
+            note="The value lives in a ClientState: the account card follows "
+                 "the pick in the browser. Give on_change a Python function "
+                 "when the server needs it.")
     example("Your own trigger", custom_trigger,
             note="trigger= replaces the field with any component — a small "
                  "button in a toolbar, here.")

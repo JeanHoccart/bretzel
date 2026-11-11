@@ -7,13 +7,16 @@ beat opaque crashes mid-request.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from bretzel.core.base_path import normalize as normalize_base_path
 from bretzel.render import LanguageTables
+from bretzel.render.translations import TranslationTables, split_translations
 from bretzel.server.crypto import (
     PURPOSE_ACTION,
     PURPOSE_AUTH,
@@ -33,6 +36,23 @@ _BCP47 = re.compile(r"[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|\d{3}))?")
 class ConfigError(ValueError):
     """Raised at :class:`BretzelConfig` construction when a required
     setting is missing or malformed."""
+
+
+#: Words a placeholder key is written with — the ones the examples use.
+_PLACEHOLDERS = ("change-me", "changeme", "change_me")
+
+
+def weak_secret(key: str) -> str:
+    """Why ``key`` is weak for production, or ``""``: a placeholder, under
+    32 characters, or fewer than 10 distinct characters (``"x" * 32``).
+    A generated key (``secrets.token_hex(32)``) passes all three."""
+    if any(word in key.lower() for word in _PLACEHOLDERS):
+        return "a placeholder"
+    if len(key) < 32:
+        return f"{len(key)} characters, under 32"
+    if len(set(key)) < 10:
+        return f"{len(set(key))} distinct characters"
+    return ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +129,12 @@ class BretzelConfig:
 
     # ── Security middleware shortcuts ─────────────────────────────────
     cors_origins: tuple[str, ...] = ()
+    # The names the app answers (``Host``), as Django's ``ALLOWED_HOSTS``.
+    # Empty in DEV = the local names only (``middleware/host.py``,
+    # ``DEV_HOSTS``) : a dev server on a laptop that answers any name can
+    # be read by a page from another site (DNS rebinding).
+    # Empty in PROD = every name, the proxy in front decides — declaring
+    # the domain is still the better default.
     trusted_hosts: tuple[str, ...] = ()
     # Anti-replay window (HMAC v2, opt-in) : reject a signed action whose
     # render timestamp is older than this many seconds. ``None`` = valid
@@ -160,25 +186,26 @@ class BretzelConfig:
     #
     #   1. ``<html lang="…">``, which is the standard attribute — a
     #      screen reader picks its voice from it, and the browser its
-    #      hyphenation. The parameter existed in ``render/shell.py`` from
-    #      the start and **nobody passed it**: every Bretzel page shipped
-    #      a hard-coded ``lang="en"``, French apps included.
+    #      hyphenation.
     #   2. It travels as far as the components, which give it to ``Intl``
     #      (browser) or to their formatter (server) for everything that
     #      is DERIVED: month and day names, time axes, number
     #      separators, currency.
     #
-    # This is NOT i18n (out of scope for v2.0, cf. the charter): no
-    # catalogue, no plural rule, no message extraction. The sentences the
-    # framework wrote itself — "Clear filters", "No results" — derive
-    # from no language; they are replaced one by one through
-    # :attr:`texts`.
+    # And the sentences the framework wrote itself — "Clear filters", "No
+    # results" — in the languages it ships (``render/languages``),
+    # counted with the language's plural rule; a
+    # language it does not ship is English. The app replaces one, and
+    # says its own, through :attr:`translations`.
     lang: str = "en"
-    # The framework's words, overridable. Keys in
-    # :data:`bretzel.render.texts.DEFAULT_TEXTS`; an unknown key RAISES
-    # at startup rather than being silently ignored — a typo in a dict
-    # shows nowhere else.
-    texts: Mapping[str, Any] = field(default_factory=dict, compare=False)
+    # Every word on screen, by language. The app's own sentences, keyed by
+    # the sentence as written in the code (read by :func:`bretzel.t`), and
+    # Bretzel's, keyed by their name in
+    # :data:`bretzel.render.texts.DEFAULT_TEXTS`. A value is the
+    # translation, or its forms for a counted sentence (``{"one": …,
+    # "other": …}``). Checked at startup: an undeclared language, a hole
+    # renamed, a framework name that does not exist, raise.
+    translations: Mapping[str, Any] = field(default_factory=dict, compare=False)
     # The languages the app can render. EMPTY = monolingual, and that is
     # the default: nothing changes for an app that declares nothing.
     #
@@ -196,15 +223,23 @@ class BretzelConfig:
     #: DERIVED (``__post_init__``): the per-language word tables. Not a
     #: setting — it is not passed to ``Bretzel(...)``.
     text_tables: Any = field(init=False, repr=False, compare=False, default=None)
+    #: DERIVED (``__post_init__``): the app's tables, checked, queried by
+    #: language. Not a setting either.
+    translation_tables: Any = field(init=False, repr=False, compare=False, default=None)
 
     # ── Responsive nav ────────────────────────────────────────────────
     # Single viewport threshold (CSS px) below which ``Screen().is_mobile``
     # is true. Read only by the pre-paint boot script (interpolated
     # server-side into the FOUC-style inline script — never hardcoded in
-    # runtime.js, anti-rule 3). There is no live resize listener (the device
+    # runtime.js). There is no live resize listener (the device
     # doesn't change mid-session). 768 = Tailwind's ``md``. Cf.
     # screen-responsive-nav.md.
     mobile_breakpoint: int = 768
+
+    # The path the app lives under, when it is not at the root of its site
+    # (``"/radar"``). Written once: pages and links stay written from the
+    # app's own root (``core/base_path.py``). ``""``: at the root.
+    base_path: str = ""
 
     # NAVIGATION progress bar, on by default. On a page taking 800 ms to
     # come back, you click and nothing moves — so you click again. It is
@@ -250,9 +285,9 @@ class BretzelConfig:
     # ── Preset ────────────────────────────────────────────────────────
     # ``mode`` ONLY sets the defaults of the settings below, plus governs
     # the assets / cache axis (CSS pipeline, headers, cache-bust) through
-    # :attr:`is_dev`. It no longer decides anything else on its own: a
-    # single boolean governing verbosity, error exposure AND cookie
-    # security at once cost a session bug in production (cf.
+    # :attr:`is_dev`. It decides nothing else on its own: a single boolean
+    # governing verbosity, error exposure AND cookie security at once
+    # would kill the sessions of a production app served without TLS (cf.
     # ``auth.resolve_cookie_secure``).
     mode: Literal["dev", "prod"] = "prod"
 
@@ -317,6 +352,15 @@ class BretzelConfig:
                 "secret_key must be at least 16 characters long. "
                 "Use ``secrets.token_hex(32)`` to generate a strong one."
             )
+        if not self.is_dev and weak_secret(self.secret_key):
+            logging.getLogger("bretzel.server.config").warning(
+                "secret_key looks weak for production (%s): it signs the "
+                "sessions, the actions and the form tokens — whoever guesses "
+                "it forges them. Generate one with "
+                "``python -c \"import secrets; print(secrets.token_hex(32))\"`` "
+                "and pass it through BRETZEL_SECRET_KEY.",
+                weak_secret(self.secret_key),
+            )
         if self.workers < 1:
             raise ConfigError(
                 f"workers must be >= 1, got {self.workers}."
@@ -364,15 +408,26 @@ class BretzelConfig:
         object.__setattr__(
             self, "languages", tuple(dict.fromkeys([self.lang, *self.languages]))
         )
-        # ``texts`` stays WHAT THE USER WROTE — a setting. The resolved
-        # tables are a separate object, which is QUERIED: a language
-        # without a table falls back on the default there instead of
-        # raising a ``KeyError`` on every request.
+        # ``translations`` stays WHAT THE USER WROTE — a setting. The
+        # resolved tables are separate objects, which are QUERIED: a
+        # language without a table falls back on the default there instead
+        # of raising a ``KeyError`` on every request. Bretzel's sentences
+        # and the app's are split here, once.
+        framework, own = split_translations(self.translations)
         object.__setattr__(
             self,
             "text_tables",
-            LanguageTables(self.texts, languages=self.languages, default=self.lang),
+            LanguageTables(framework, languages=self.languages, default=self.lang),
         )
+        object.__setattr__(
+            self,
+            "translation_tables",
+            TranslationTables(own, languages=self.languages, default=self.lang),
+        )
+        try:
+            object.__setattr__(self, "base_path", normalize_base_path(self.base_path))
+        except ValueError as err:
+            raise ConfigError(str(err)) from err
         if self.mobile_breakpoint < 1:
             raise ConfigError(
                 f"mobile_breakpoint must be >= 1 (CSS px), got {self.mobile_breakpoint}."
@@ -466,4 +521,8 @@ class BretzelConfig:
             kwargs["cors_origins"] = tuple(kwargs["cors_origins"])
         if "trusted_hosts" in kwargs and kwargs["trusted_hosts"] is not None:
             kwargs["trusted_hosts"] = tuple(kwargs["trusted_hosts"])
+        if is_dev and not kwargs.get("trusted_hosts"):
+            from bretzel.server.middleware.host import DEV_HOSTS
+
+            kwargs["trusted_hosts"] = DEV_HOSTS
         return cls(**kwargs)

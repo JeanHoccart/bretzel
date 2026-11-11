@@ -1,7 +1,7 @@
 """``/radio`` — exactly one choice among a few."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A group of options where exactly one is picked — all visible at "
@@ -32,34 +32,26 @@ def in_a_row() -> None:
 PRICES = {"monthly": 29, "yearly": 24}
 
 
-class Billing(PageState):
+class Billing(ClientState):
     period: str = field(default="yearly")
 
 
-def period_changed(billing: Billing) -> None:
-    """The typed parameter receives the picked period; the price follows."""
-
-
-@refreshable(deps=[Billing])
-def plan_price() -> None:
-    period = Billing().period
-    with ui.hstack(gap="sm", align="end"):
-        ui.heading(f"€{PRICES[period]}", level=3, size="3xl")
-        ui.text("per seat / month", color="muted")
-    if period == "yearly":
-        ui.badge("You save €60 per seat each year", color="success", variant="soft")
-    else:
-        ui.badge("Cancel any time", color="secondary", variant="soft")
-
-
 def billing_period() -> None:
+    period = Billing().period
+    yearly = period == "yearly"
     with ui.card(padding="md", classes="w-full max-w-sm"), ui.vstack(gap="md"):
         ui.heading("Team plan", level=3, size="md")
-        with ui.radio_group(value=Billing().period, on_change=period_changed,
-                            direction="row"):
+        with ui.radio_group(value=period, direction="row"):
             ui.radio("monthly", label="Monthly")
             ui.radio("yearly", label="Yearly")
-        plan_price()
+        with ui.hstack(gap="sm", align="end"):
+            ui.heading("€" + yearly.then_else(PRICES["yearly"], PRICES["monthly"]),
+                       level=3, size="3xl")
+            ui.text("per seat / month", color="muted")
+        ui.badge("You save €60 per seat each year", color="success",
+                 variant="soft", visible=yearly)
+        ui.badge("Cancel any time", color="secondary", variant="soft",
+                 visible=~yearly)
         ui.button("Start free trial", classes="w-full")
 
 
@@ -96,10 +88,9 @@ def page() -> None:
                  "takes a name=.")
     example("In a row", in_a_row,
             note="direction=\"row\" for two or three short choices.")
-    example("A choice that runs Python", billing_period,
-            uses=[Billing, period_changed, plan_price],
-            note="on_change sends the period to Python; only the price "
-                 "re-renders.")
+    example("A choice that changes the price", billing_period, uses=[Billing],
+            note="The group writes a ClientState; the price and the badge "
+                 "follow in the browser, with no request.")
     example("Sizes", sizes)
     example("A colour per choice", review_verdict,
             note="color= on the group tints every radio; on a single radio it "

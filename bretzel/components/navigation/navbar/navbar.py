@@ -14,8 +14,8 @@ API ::
 
     # Mobile shell — the navbar IS the mobile nav. Responsive is server-
     # driven : the layout branches on ``Screen().is_mobile`` (a navbar on
-    # phones, a ``ui.sidebar`` on desktop). The sidebar no longer carries any
-    # built-in mobile drawer — see ``.claude/bretzel/screen-responsive-nav.md``.
+    # phones, a ``ui.sidebar`` on desktop). The sidebar carries no built-in
+    # mobile drawer.
     with ui.navbar():
         with ui.navbar_section(side="left"):
             ui.heading("Acme Dashboard", level=1)
@@ -38,20 +38,19 @@ Three pieces, mirror of the Sidebar trio :
   ``"center"`` / ``"right"``. No behaviour of its own, just a flex
   container with the right margin auto.
 - **NavbarItem** — horizontal counterpart of :class:`SidebarItem`.
-  Same htmx partial-nav wiring (auto-injected ``hx-get`` /
-  ``hx-target`` inside ``@layout``), same ``current_path``-driven
+  Same partial navigation (``hx-target`` inside ``@layout``), same ``current_path``-driven
   active state, but with a horizontal pill look.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import register_sticky_bar
+from bretzel.components.base.arguments import has_content, shown
+from bretzel.components.base.page_checks import register_sticky_bar
+from bretzel.components.navigation._nav_item import NavItem
 from bretzel.components.navigation._wiring import (
-    capture_layout,
     current_path_resync_init,
     current_path_scope,
     render_badge,
@@ -129,9 +128,8 @@ class Navbar(Component):
         # Resync ``current_path`` on back/forward and on a partial nav
         # triggered elsewhere in the page. The optimistic flip on click
         # covers ONLY the navs that left from the navbar: without these
-        # two listeners, the highlighting came unstuck from the URL at
-        # the first back — while the class's docstring promised parity
-        # with Sidebar (audit F26). Shared with it.
+        # two listeners, the highlighting comes unstuck from the URL at
+        # the first back. Shared with Sidebar.
         attrs.setdefault("bz-init", current_path_resync_init())
 
         # Inner ``<nav>`` wraps the children with the max-width clamp +
@@ -155,16 +153,16 @@ class NavbarSection(Component):
 
     THEME: ClassVar[dict[str, Any]] = NAVBAR_THEME
     THEME_KEY: ClassVar[str] = "navbar"
-    # the check on ``is not None``, so ``None`` = "check nothing" → a
-    # binding passed here was ACCEPTED then thrown away in silence
-    # (``side`` is ``emit_attr=False`` → the SSR value freezes and never
-    # changes). ``()`` = "no bindable prop", and the refusal becomes
-    # explicit. Cf. todo.md § C.
+    # ``()`` = "no bindable prop": a binding passed here is refused
+    # (``side`` is ``emit_attr=False`` → the SSR value would freeze and
+    # never change).
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     # Default ``"left"`` matches the visual order : left → center →
     # right reads in source order, the auto-margin pushes each to its
     # corner via flex.
-    side: str = reactive_prop(default="left", emit_attr=False)
+    side: str = reactive_prop(
+        default="left", emit_attr=False, steps=("left", "center", "right"),
+    )
 
     def __init__(
         self,
@@ -198,7 +196,7 @@ class NavbarSection(Component):
 # ───────────────────────────────────────────────────────────────────────────
 
 
-class NavbarItem(Component):
+class NavbarItem(NavItem):
     """Horizontal nav row — icon + label + optional badge.
 
     Mirrors :class:`SidebarItem` : same htmx partial-nav wiring (when
@@ -210,55 +208,6 @@ class NavbarItem(Component):
 
     THEME: ClassVar[dict[str, Any]] = NAVBAR_ITEM_THEME
     THEME_KEY: ClassVar[str] = "navbar_item"
-    IS_CONTAINER: ClassVar[bool] = False
-    EVENTS: ClassVar[tuple[str, ...]] = ("click",)
-    NAMED_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
-    ICON_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
-    # Curated reactive surface — active is auto-derived from
-    # current_path when no explicit value is passed ; badge + disabled
-    # accept ClientBinding so navbar items can show live counters
-    # (notifications, unread, etc.).
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("active", "badge", "disabled")
-
-    label: str = reactive_prop(default="", emit_attr=False)
-    href: str | None = reactive_prop(default=None, emit_attr=False, never_code=True)
-    active: Any = reactive_prop(default=None, emit_attr=False)
-    badge: Any = reactive_prop(default=None, emit_attr=False)
-    disabled: bool = reactive_prop(default=False, emit_attr=False)
-    color: str = reactive_prop(default="primary", emit_attr=False)
-
-    def __init__(
-        self,
-        label: str = "",
-        *,
-        icon: Any = None,
-        href: str | None = None,
-        active: Any = None,
-        badge: Any = None,
-        disabled: bool | None = None,
-        color: str | None = None,
-        on_click: Callable[..., Any] | str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
-        super().__init__(
-            label=label,
-            href=href,
-            active=active,
-            badge=badge,
-            disabled=disabled,
-            color=color,
-            icon=icon,
-            on_click=on_click,
-            **kwargs,
-        )
-
-        # Capture the enclosing layout name for htmx partial-nav (same
-        # mechanic as SidebarItem). Done at construct time because the
-        # ``with @layout(): ...`` block is still active here ;
-        # ``ctx.layout_stack`` empties by the time ``render()`` runs.
-        self._captured_layout: str | None = capture_layout()
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
@@ -271,7 +220,10 @@ class NavbarItem(Component):
         w = wire_nav_item(self, slots)
         tag, attrs = w.tag, w.attrs
         badge_value, badge_binding = w.badge_value, w.badge_binding
-        label = w.label
+        # The label is only drawn as text here: ``shown`` hands the binding
+        # when it is bound, so the page follows
+        # it — ``w.label`` is the frozen server value.
+        label = shown(self, "label")
 
         # ── Children : icon + label + badge ──────────────────────────
         children: list[Any] = []
@@ -283,7 +235,7 @@ class NavbarItem(Component):
             )
             children.append(icon_node)
 
-        if label:
+        if has_content(label):
             children.append(
                 Element(
                     tag="span",

@@ -5,12 +5,11 @@ inline trigger) — sharing the file-list strip below. Each ``size=``
 palier (xs/sm/md/lg/xl) scales padding + icon + font + button height
 in the ``sizes`` map below ; the render path picks the right one.
 
-Key UX choices vs the V1 (juin 2026 refactor) :
+Key UX choices :
 
 - The remove ``×`` button floats **outside** the card edge
   (``-top-2 -right-2``) on a solid dark background, so it stays
-  readable over any thumbnail. No more transparent-over-photo
-  illegibility.
+  readable over any thumbnail.
 - The horizontal strip uses a custom thin scrollbar so the browser
   default scrollbar doesn't waste vertical real-estate (and we
   don't end up with a double scrollbar inside Card).
@@ -72,7 +71,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         # loop: the strip's max-content contribution becomes 0 (it no
         # longer pulls the ancestor), but it fills 100% of the parent →
         # the cards overflow ITS width → ``overflow-x-auto`` finally
-        # scrolls. Robust in any context (measured: shrink-parent AND
+        # scrolls. Robust in any context (shrink-parent AND
         # full-width). The ``min-w-0`` on the root is still useful (a
         # grid cell narrower than the dropzone).
         #
@@ -85,20 +84,18 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         "file_list": (
             "flex flex-row items-start w-0 min-w-full gap-3 pt-3 pr-3 pb-2 "
             "snap-x overflow-x-auto overflow-y-hidden empty:hidden "
-            # ⚠️ These six variants DO NOT APPLY IN DEV — measured on
-            # 2026-08-29: the element carries them all, and the page's
-            # sheets contain no prefixed rule for them, so the strip
-            # inherits the global 4 px bar instead of its 1.5.
-            # In PROD they compile (checked against the binary, six
-            # ``::-webkit-scrollbar`` rules emitted): so it is not a
+            # ⚠️ These six variants DO NOT APPLY IN DEV: the element
+            # carries them all, and the page's sheets contain no prefixed
+            # rule for them, so the strip inherits the global 4 px bar
+            # instead of its 1.5. In PROD they compile: so it is not a
             # writing error but a dev/prod divergence, the same family as
             # ``theme/css.py`` § ``_NO_SCROLLBAR``.
             #
             # Kept as they are: the shape is right, and replacing them
             # with a home-made hook would go against the established
             # preference (standard Tailwind written by the dev rather
-            # than a proprietary utility). What gets fixed is the dev
-            # mode — cf. the open decision in ``work/todo.md``.
+            # than a proprietary utility). What needs fixing is the dev
+            # mode.
             "[&::-webkit-scrollbar]:h-1.5 "
             "[&::-webkit-scrollbar-track]:bg-transparent "
             "[&::-webkit-scrollbar-thumb]:bg-text/10 "
@@ -113,7 +110,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "group relative shrink-0 flex flex-col items-center "
             "justify-start w-28 p-2 rounded-box border-(length:--bz-stroke) border-text/10 "
             "bg-interface shadow-sm hover:border-(--bz-border-hover) "
-            "hover:bg-(--bz-bg) transition-all snap-start"
+            "hover:bg-(--bz-bg) transition snap-start"
         ),
         # ── The "chips" presentation (``list="chips"``) ────────────
         #
@@ -123,8 +120,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         # (`flex-row`) with no thumbnail, whose × is INLINE. No class
         # takes you from one to the other — it is the DOM's nesting that
         # changes, and that is precisely what `slots=` cannot do
-        # (measured: +78 px after overriding 5 slots, and the × was still
-        # floating).
+        # (overriding them would leave the × floating).
         #
         # The ``chip_`` prefix: THIS file's convention for an alternative
         # presentation (cf. ``dropzone_*`` / ``button_*`` for the
@@ -136,7 +132,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "group relative inline-flex flex-row items-center gap-1.5 "
             "max-w-full pl-2 pr-1 py-1 rounded-full border-(length:--bz-stroke) border-text/10 "
             "bg-interface hover:border-(--bz-border-hover) "
-            "hover:bg-(--bz-bg) transition-all"
+            "hover:bg-(--bz-bg) transition"
         ),
         "chip_icon": (
             "inline-flex shrink-0 items-center justify-center "
@@ -187,7 +183,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "rounded-b-box overflow-hidden"
         ),
         "file_progress_fill": (
-            "h-full bg-(--bz-solid) transition-all duration-150"
+            "h-full bg-(--bz-solid) transition-[width] duration-150"
         ),
         # Status badges over the thumb / icon.
         "file_status_done": (
@@ -227,7 +223,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "active:scale-90 active:bg-error active:text-white "
             "focus-visible:outline-none "
             "focus-visible:ring-2 focus-visible:ring-error/50 "
-            "transition-all"
+            "transition"
         ),
         # variant=dropzone — the big dashed area. Padding + content
         # scale via the ``sizes`` map below ; this slot only owns
@@ -245,7 +241,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
             "group relative flex flex-col items-center justify-center "
             "w-full rounded-box border-(length:--bz-stroke-strong) border-dashed "
             "border-text/15 bg-interface cursor-pointer "
-            "transition-all duration-200 "
+            "transition duration-200 "
             "hover:border-(--bz-border-hover) hover:bg-(--bz-bg) "
             "has-[:disabled]:opacity-50 has-[:disabled]:cursor-not-allowed "
             "outline-none focus-visible:border-(--bz-solid) "
@@ -263,7 +259,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         # file is being dragged anywhere on the page, every dropzone
         # surfaces itself.
         "dropzone_global_drag": (
-            "border-(--bz-solid)/60 bg-(--bz-bg) "
+            "border-(--bz-border-hover) bg-(--bz-bg) "
             "ring-2 ring-(--bz-focus-soft) ring-offset-2 "
             "ring-offset-background"
         ),
@@ -275,7 +271,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         # behaviour.
         "dropzone_icon": (
             "inline-flex shrink-0 text-muted "
-            "group-hover:text-(--bz-text) transition-all duration-200 "
+            "group-hover:text-(--bz-text) transition duration-200 "
             "group-hover:-translate-y-0.5"
         ),
         "dropzone_title": (
@@ -293,7 +289,7 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
         "button_wrapper": (
             "inline-flex items-center justify-center gap-2 "
             "rounded-field border-(length:--bz-stroke) border-text/10 bg-interface "
-            "text-text font-medium cursor-pointer transition-all "
+            "text-text font-medium cursor-pointer transition "
             "hover:bg-(--bz-bg) hover:border-(--bz-border-hover) "
             "hover:text-(--bz-text) "
             "has-[:disabled]:opacity-50 has-[:disabled]:cursor-not-allowed "
@@ -307,13 +303,11 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
     },
     # ── Variants: the root's width ───────────────────────────────────
     # The dropzone is a SURFACE, it fills its row. The button is a
-    # button: it takes its label's width. Both used to carry the
-    # dropzone's ``w-full`` on a stretching column, so the compact
-    # trigger became a 600 px bar and pushed its neighbour to the end of
-    # an ``hstack`` (measured on 2026-09-29; the showcase worked around
-    # it with ``classes="items-start"``). ``items-start`` keeps the
-    # file list under it at the root's width while the button hugs its
-    # label.
+    # button: it takes its label's width. With the dropzone's ``w-full``
+    # on a stretching column, the compact trigger would become a full-width
+    # bar and push its neighbour to the end of an ``hstack``.
+    # ``items-start`` keeps the file list under it at the root's width
+    # while the button hugs its label.
     "variants": {
         "dropzone": "w-full",
         "button": "items-start",
@@ -324,126 +318,116 @@ FILE_UPLOAD_THEME: dict[str, Any] = {
     # ``FileUpload.render`` because we want size-specific decisions on
     # multiple sub-elements (not just the root).
     "sizes": {
-        # ⚠️ **The padding is split by AXIS, and it is a fix, not a style.**
+        # One row per step, one entry per key — the shape of every other
+        # table (``sizes[<size>][<key>]``). The keys that NAME A
+        # SLOT (``dropzone_title``, ``dropzone_subtitle``, ``remove_btn``)
+        # land on that slot through the base composer; the others are read
+        # by ``FileUpload.render``.
         #
-        # Until 2026-08-29 the vertical axis lived in BOTH layers:
-        # ``px-6 py-8`` as a static ``class=``, ``py-3`` added in
-        # ``bz-class`` when files are there. Yet both utilities have the
+        # ⚠️ **The dropzone padding is split by AXIS, and that is not a
+        # style choice.** The vertical axis cannot live in BOTH layers
+        # (``py-8`` as a static ``class=``, ``py-3`` added in ``bz-class``
+        # when files are there): both utilities have the
         # SAME specificity — it is the Tailwind sheet's order that
-        # decides, not the order of addition to the ``classList``.
-        # Measured: an element carrying ``py-8 py-3`` computes
-        # ``padding-top: 32px``, so the compact state **never applied**.
-        #
-        # Hence three tables instead of two: the horizontal one is
+        # decides, not the order of addition to the ``classList``. An
+        # element carrying ``py-8 py-3`` takes the ``py-8``, so the compact
+        # state would **never apply**.
+        # Hence three entries instead of two: ``dropzone_padding_x`` is
         # identical in both states and stays static; the vertical one is
         # carried EXCLUSIVELY by the dynamic layer, which emits the full
-        # ternary. It is ``accordion.py``'s pattern ("both row classes
-        # live exclusively in the ``bz-class``").
+        # ternary — ``dropzone_padding_y`` for the EMPTY state (the large
+        # welcome area), ``dropzone_padding_with_files`` for the WITH-FILES
+        # state (the dropzone collapses into a "drop more" reminder). Same
+        # axis, so the two cannot coexist — the ternary picks one. It is
+        # ``accordion.py``'s pattern ("both row classes live exclusively in
+        # the ``bz-class``"). Do NOT put a ``py-*`` in the static padding:
+        # the repetition is invisible in the HTML, it only shows in
+        # ``getComputedStyle``.
         #
-        # ⚠️ Do NOT put a ``py-*`` back here: the repetition is invisible
-        # in the HTML, it only shows in ``getComputedStyle``.
-        "dropzone_padding_x": {
-            "xs": "px-3",
-            "sm": "px-4",
-            "md": "px-6",
-            "lg": "px-8",
-            "xl": "px-10",
-        },
-        # The EMPTY state — the large welcome area.
-        "dropzone_padding_y": {
-            "xs": "py-3",
-            "sm": "py-5",
-            "md": "py-8",
-            "lg": "py-12",
-            "xl": "py-16",
-        },
-        # The WITH-FILES state: the dropzone collapses into a "drop
-        # more" reminder. Same axis as above, so the two cannot coexist —
-        # the ternary picks one.
-        "dropzone_padding_with_files": {
-            "xs": "py-2",
-            "sm": "py-2.5",
-            "md": "py-3",
-            "lg": "py-4",
-            "xl": "py-5",
-        },
-        "dropzone_icon_size": {
-            "xs": "text-lg",
-            "sm": "text-xl",
-            "md": "text-3xl",
-            "lg": "text-4xl",
-            "xl": "text-5xl",
-        },
-        # Icon shrinks when the dropzone is compact (files present).
-        "dropzone_icon_size_with_files": {
-            "xs": "text-sm",
-            "sm": "text-base",
-            "md": "text-xl",
-            "lg": "text-2xl",
-            "xl": "text-3xl",
-        },
-        "dropzone_icon_margin": {
-            "xs": "mb-1",
-            "sm": "mb-2",
-            "md": "mb-3",
-            "lg": "mb-3",
-            "xl": "mb-4",
-        },
-        "dropzone_icon_margin_with_files": {
-            "xs": "mb-0.5",
-            "sm": "mb-1",
-            "md": "mb-1.5",
-            "lg": "mb-2",
-            "xl": "mb-2",
-        },
-        "dropzone_title": {
-            "xs": "text-xs",
-            "sm": "text-sm",
-            "md": "text-sm",
-            "lg": "text-base",
-            "xl": "text-lg",
-        },
-        "dropzone_subtitle": {
-            "xs": "text-xs mt-0.5",
-            "sm": "text-xs mt-1",
-            "md": "text-xs mt-1",
-            "lg": "text-sm mt-1",
-            "xl": "text-base mt-1.5",
-        },
-        "button_padding": {
-            "xs": "px-2 h-7 text-xs",
-            "sm": "px-3 h-8 text-sm",
-            "md": "px-4 h-10 text-sm",
-            "lg": "px-5 h-12 text-base",
-            "xl": "px-6 h-14 text-lg",
-        },
-        "button_icon_size": {
-            "xs": "text-xs",
-            "sm": "text-sm",
-            "md": "text-base",
-            "lg": "text-lg",
-            "xl": "text-xl",
-        },
-        # The remove × follows the component's ``size=`` — the box
-        # here, the glyph just below. Without that it stayed at
-        # ``w-6 h-6`` / ``text-xs`` at ALL steps (measured): the card
-        # grew, its × did not.
-        "remove_btn": {
-            "xs": "w-5 h-5",
-            "sm": "w-5 h-5",
-            "md": "w-6 h-6",
-            "lg": "w-7 h-7",
-            "xl": "w-8 h-8",
-        },
-        # Values = ``Icon`` size names (not ``text-*`` classes), it is
-        # ``Icon`` that owns the glyph's scale. Same contract as Badge's
+        # ``dropzone_icon_size_with_files``: the icon shrinks when the
+        # dropzone is compact (files present).
+        #
+        # ``remove_btn`` / ``remove_btn_icon_size``: the remove × follows
+        # the component's ``size=`` — the box, then the glyph. Without
+        # that it would stay at ``w-6 h-6`` / ``text-xs`` at ALL steps:
+        # the card would grow, its × would not. The glyph's values are
+        # ``Icon`` size names (not ``text-*`` classes): it is ``Icon`` that
+        # owns the glyph's scale. Same contract as Badge's
         # ``close_icon_size``.
-        "remove_btn_icon_size": {
-            "xs": "xs",
-            "sm": "xs",
-            "md": "xs",
-            "lg": "sm",
-            "xl": "sm",
+        "xs": {
+            "dropzone_padding_x": "px-3",
+            "dropzone_padding_y": "py-3",
+            "dropzone_padding_with_files": "py-2",
+            "dropzone_icon_size": "text-lg",
+            "dropzone_icon_size_with_files": "text-sm",
+            "dropzone_icon_margin": "mb-1",
+            "dropzone_icon_margin_with_files": "mb-0.5",
+            "dropzone_title": "text-xs",
+            "dropzone_subtitle": "text-xs mt-0.5",
+            "button_padding": "px-2 h-7 text-xs",
+            "button_icon_size": "text-xs",
+            "remove_btn": "w-5 h-5",
+            "remove_btn_icon_size": "xs",
+        },
+        "sm": {
+            "dropzone_padding_x": "px-4",
+            "dropzone_padding_y": "py-5",
+            "dropzone_padding_with_files": "py-2.5",
+            "dropzone_icon_size": "text-xl",
+            "dropzone_icon_size_with_files": "text-base",
+            "dropzone_icon_margin": "mb-2",
+            "dropzone_icon_margin_with_files": "mb-1",
+            "dropzone_title": "text-sm",
+            "dropzone_subtitle": "text-xs mt-1",
+            "button_padding": "px-3 h-8 text-sm",
+            "button_icon_size": "text-sm",
+            "remove_btn": "w-5 h-5",
+            "remove_btn_icon_size": "xs",
+        },
+        "md": {
+            "dropzone_padding_x": "px-6",
+            "dropzone_padding_y": "py-8",
+            "dropzone_padding_with_files": "py-3",
+            "dropzone_icon_size": "text-3xl",
+            "dropzone_icon_size_with_files": "text-xl",
+            "dropzone_icon_margin": "mb-3",
+            "dropzone_icon_margin_with_files": "mb-1.5",
+            "dropzone_title": "text-sm",
+            "dropzone_subtitle": "text-xs mt-1",
+            "button_padding": "px-4 h-10 text-sm",
+            "button_icon_size": "text-base",
+            "remove_btn": "w-6 h-6",
+            "remove_btn_icon_size": "xs",
+        },
+        "lg": {
+            "dropzone_padding_x": "px-8",
+            "dropzone_padding_y": "py-12",
+            "dropzone_padding_with_files": "py-4",
+            "dropzone_icon_size": "text-4xl",
+            "dropzone_icon_size_with_files": "text-2xl",
+            "dropzone_icon_margin": "mb-3",
+            "dropzone_icon_margin_with_files": "mb-2",
+            "dropzone_title": "text-base",
+            "dropzone_subtitle": "text-sm mt-1",
+            "button_padding": "px-5 h-12 text-base",
+            "button_icon_size": "text-lg",
+            "remove_btn": "w-7 h-7",
+            "remove_btn_icon_size": "sm",
+        },
+        "xl": {
+            "dropzone_padding_x": "px-10",
+            "dropzone_padding_y": "py-16",
+            "dropzone_padding_with_files": "py-5",
+            "dropzone_icon_size": "text-5xl",
+            "dropzone_icon_size_with_files": "text-3xl",
+            "dropzone_icon_margin": "mb-4",
+            "dropzone_icon_margin_with_files": "mb-2",
+            "dropzone_title": "text-lg",
+            "dropzone_subtitle": "text-base mt-1.5",
+            "button_padding": "px-6 h-14 text-lg",
+            "button_icon_size": "text-xl",
+            "remove_btn": "w-8 h-8",
+            "remove_btn_icon_size": "sm",
         },
     },
 }

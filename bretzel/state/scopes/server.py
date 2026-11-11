@@ -41,6 +41,7 @@ import inspect
 from datetime import date, datetime
 from typing import Any, ClassVar, Final, Literal, Self
 
+from bretzel.core.tracking import TRACKER
 from bretzel.state.base import State
 from bretzel.state.fields.descriptor import Field
 from bretzel.state.scopes.client import _RENDERING
@@ -48,6 +49,9 @@ from bretzel.state.scopes.client import _RENDERING
 # Tuple form for runtime validation, Literal for static checking.
 SCOPES: Final[tuple[str, ...]] = ("page", "session", "user", "app")
 ServerScope = Literal["page", "session", "user", "app"]
+#: The scopes another tab can see change: a ``PageState`` lives in one
+#: tab, and only that tab's response ever carries it.
+SHARED_SCOPES: Final[frozenset[str]] = frozenset(SCOPES) - {"page"}
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -210,7 +214,7 @@ class _BoundDate(date):
         # ``'int' object has no attribute 'year'``. A replaced date is a NEW
         # computed value, not the bound field, so drop the stamp and return a
         # plain ``date`` (e.g. Calendar's ``month.replace(day=1)`` on a
-        # server-bound month used to 500 here).
+        # server-bound month).
         return date(self.year, self.month, self.day).replace(*args, **kwargs)
 
 
@@ -246,6 +250,27 @@ class _BoundDateTime(datetime):
             self.year, self.month, self.day, self.hour, self.minute,
             self.second, self.microsecond, self.tzinfo, fold=self.fold,
         ).replace(*args, **kwargs)
+
+
+
+# A stamped value copied — the deepcopy of a commit, a pickle — becomes the
+# plain value it wraps: its field name and its owner belong to the READ,
+# not to the value. Without it, a value read during a render and put into
+# another state (``View().key = Page().doc``) would break the commit at the
+# end of the render: ``_BoundStr.__new__() missing 'field_name'``. Held by
+# ``test_a_stamped_value_copies_as_its_plain_value``.
+_BoundStr.__reduce__ = lambda self: (str, (str.__str__(self),))  # type: ignore[method-assign]
+_BoundInt.__reduce__ = lambda self: (int, (int(self),))  # type: ignore[method-assign]
+_BoundFloat.__reduce__ = lambda self: (float, (float(self),))  # type: ignore[method-assign]
+_BoundBool.__reduce__ = lambda self: (bool, (int(self) != 0,))  # type: ignore[method-assign]
+_BoundList.__reduce__ = lambda self: (list, (list(self),))  # type: ignore[method-assign]
+_BoundTuple.__reduce__ = lambda self: (tuple, (tuple(self),))  # type: ignore[method-assign]
+_BoundDate.__reduce__ = lambda self: (date, (self.year, self.month, self.day))  # type: ignore[method-assign]
+_BoundDateTime.__reduce__ = lambda self: (  # type: ignore[method-assign]
+    datetime, (self.year, self.month, self.day, self.hour, self.minute, self.second,
+               self.microsecond, self.tzinfo))
+# ``datetime`` answers ``__reduce_ex__`` itself, which ``copy`` asks first.
+_BoundDateTime.__reduce_ex__ = lambda self, protocol: self.__reduce__()  # type: ignore[method-assign]
 
 
 def _stamp(raw: Any, field_name: str, owner: Any = None) -> Any:
@@ -321,6 +346,8 @@ class ServerState(State):
         # the reverse at module level would make a cycle.
         from bretzel.state.registry import current_registry
 
+        # Like ``cls()``: the zone being rendered follows this state.
+        TRACKER.note_obtained(cls)
         registry = current_registry()
         if registry is None:
             return cls(key=key)  # type: ignore[return-value]

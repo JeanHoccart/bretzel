@@ -29,6 +29,7 @@ from fastapi.testclient import TestClient
 from bretzel import Bretzel, layout, page, redirect, ui
 from bretzel.core.errors import BretzelError
 from bretzel.server.handlers import encode_action_id, sign_action
+from tests._session import session_of
 
 _SECRET = "r" * 32
 
@@ -137,7 +138,7 @@ def client():
 
 def _post(client: TestClient, action, *, current: str | None = None) -> object:
     action_id = encode_action_id(action)
-    sig = sign_action(_app.config._action_key, action_id, "")
+    sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
     return client.post(
         f"/_bretzel/action/{action_id}",
         # htmx pose ``HX-Request`` sur toute requête qu'il émet ; la
@@ -199,10 +200,9 @@ class TestPartialNavigation:
         ("action", "current", "expected"),
         [
             (go_other_shell, "/dedans/a", "/hors-coque"),
-            (go_elsewhere, "/dedans/a", "https://example.com/x"),
             (go_inside, None, "/dedans/b?x=1"),
         ],
-        ids=["no-shared-layout", "other-origin", "unknown-current-page"],
+        ids=["no-shared-layout", "unknown-current-page"],
     )
     def test_anything_uncertain_loads_the_whole_document(
         self, client, action, current, expected
@@ -215,10 +215,13 @@ class TestPartialNavigation:
 
 
 class TestGuards:
-    def test_plain_page_render_refuses_instead_of_swallowing(self, client) -> None:
+    def test_plain_page_render_answers_a_real_redirect(self, client) -> None:
         """Sur un GET de page nu, htmx n'est pas dans la boucle : l'en-tête
-        ne serait lu par personne. On lève plutôt que de ne rien faire."""
-        assert client.get("/plain").status_code == 500
+        ne serait lu par personne. Le rendu s'arrête et le navigateur reçoit
+        un vrai 307 (depuis le 2026-11-11 ; avant, ça levait)."""
+        response = client.get("/plain", follow_redirects=False)
+        assert response.status_code == 307
+        assert response.headers["location"] == "/ailleurs"
 
     def test_boosted_partial_nav_is_accepted(self, client) -> None:
         """La même page, demandée par htmx, passe : la réponse d'une nav
@@ -236,6 +239,17 @@ class TestGuards:
 
         assert response.status_code == 500
         assert "X-Injected" not in response.headers
+
+
+    def test_another_origin_is_refused(self, client) -> None:
+        """Une cible vient souvent de l'utilisateur (``?next=``) : une autre
+        origine est refusée, et aucun en-tête ne part (gate :
+        ``test_a_redirect_stays_on_this_site``)."""
+        client.get("/dedans/a")
+        response = _post(client, go_elsewhere, current="/dedans/a")
+
+        assert response.status_code == 500
+        assert "HX-Redirect" not in response.headers
 
 
 class TestCallableOutsideARequest:

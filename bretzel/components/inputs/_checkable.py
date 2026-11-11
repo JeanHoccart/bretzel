@@ -1,11 +1,7 @@
 """The shared render of the two checkable controls — ``Checkbox`` and ``Switch``.
 
-What the measurement showed
-----------------------------
-On 2026-08-19: ``Checkbox.render`` = 137 lines, ``Switch.render`` = 113,
-**86 identical (62 %)**. Both files imported exactly the same three
-helpers from ``inputs/_wiring``, in the same order.
-
+What is shared
+--------------
 What really sets them apart is **visual, and only that**: the box has a
 frame plus a tick SVG, the switch has a rail plus a thumb. All the rest
 — the real ``<input type=checkbox>`` carrying the framework's
@@ -14,15 +10,14 @@ toggle survive a morph, the forcing of the boolean into the form data,
 the imperative API's listeners, the root ``<label>`` — is the same word
 for word.
 
-⚠️ And as with the overlays, a good part of the remaining gap was not
-code but **comments**: the unsubmitted-boolean trap (an unticked box
-sends NOTHING, so the ``false`` never reaches the server and the refresh
-re-ticks it) was explained twice there, at two levels of detail.
+⚠️ The unsubmitted-boolean trap (an unticked box sends NOTHING, so the
+``false`` never reaches the server and the refresh re-ticks it) is
+handled once, here.
 
 What stays with the caller
 ---------------------------
-The visual nodes, built with its own composed classes — they stay
-per-component (`feedback_no_shared_style_tokens`). This module never
+The visual nodes, built with its own composed classes: each component
+keeps its own, they are harmonised, not factored. This module never
 reads a theme: it receives nodes and places them under the ``<label>``.
 """
 
@@ -30,6 +25,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from bretzel.components.base.arguments import has_content
 from bretzel.components.inputs._wiring import (
     add_local_value_scope,
     checked_command_listeners,
@@ -42,7 +38,6 @@ from bretzel.core.tree import Element, Node
 def render_checkable(
     component: Any,
     *,
-    size_map: dict[str, str],
     visuals: tuple[Node, ...],
 ) -> Element:
     """``<label>``: the real ``<input>``, the fake visuals, then the label.
@@ -57,9 +52,7 @@ def render_checkable(
     # visuals are decorative descendants under the same ``<label>``.
     input_attrs: dict[str, Any] = {
         "type": "checkbox",
-        "class": component.compose_class(
-            "input", apply_variant_size_modifiers=False
-        ),
+        "class": component.compose_class("input"),
     }
     input_attrs.update(component.emit_attrs())
 
@@ -99,10 +92,9 @@ def render_checkable(
     #   box: both leave when it is ticked, and the server keeps the last
     #   (``FormData`` like ``parse_qsl``: the last one wins).
     #
-    # Measured on 2026-08-19 on the CRM's Settings screen: a
-    # ``ui.switch`` with no ``on_change`` unticked itself on screen and
-    # came back ticked after "Save" — a boolean setting stuck on ``True``
-    # forever.
+    # Without them, a ``ui.switch`` with no ``on_change``, unticked on
+    # screen, comes back ticked after the form is saved — a boolean
+    # setting stuck on ``True``.
     server_bound_boolean = (
         component._binding_metadata.get("checked") is None
         and component._reactive_values.get("value") is None
@@ -135,12 +127,20 @@ def render_checkable(
         if server_bound_boolean else ()
     )
 
+    # Beside a label, the container is at least ONE LINE of it high: the
+    # box centres on the first line, and a label that wraps runs on below
+    # it instead of pulling the box down to its middle. One line or a
+    # bigger visual (a switch's rail), nothing moves. The LABEL's size
+    # on the container, on purpose: ``1lh`` is a line of the label.
+    size_map = component._size_row() or {}
+    # ``has_content``, not ``if label:``: a bound label (a ClientBinding)
+    # refuses a truth test, and counts as present.
+    has_label = has_content(component._label)
+    line = f" min-h-[1lh] {size_map.get('label', '')}" if has_label else ""
     container = Element(
         tag="div",
         attrs={
-            "class": component.compose_class(
-                "container", apply_variant_size_modifiers=False
-            )
+            "class": component.compose_class("container") + line
         },
         children=(
             *companion,
@@ -150,17 +150,8 @@ def render_checkable(
     )
 
     children: list[Node] = [container]
-    if component._label:
-        label_class = " ".join(
-            p
-            for p in (
-                component.compose_class(
-                    "label", apply_variant_size_modifiers=False
-                ),
-                size_map.get("label", ""),
-            )
-            if p
-        )
+    if has_label:
+        label_class = component.compose_class("label")
         children.append(
             Element(
                 tag="span",
@@ -178,15 +169,4 @@ def render_checkable(
     )
 
 
-def sized_slot(component: Any, slot: str, size_map: dict[str, str]) -> str:
-    """A visual slot's composed class, plus its size entry.
-
-    Shared by Checkbox / Switch (box + icon, rail + thumb) and by the
-    colour, month and week pickers, which each wrote it as a local
-    closure. ``slot_class`` resolves the ``{bg_color}`` and adds nothing
-    else: neither variant nor size on a non-root slot.
-    """
-    return component.slot_class(slot, size_map.get(slot, ""))
-
-
-__all__ = ["render_checkable", "sized_slot"]
+__all__ = ["render_checkable"]

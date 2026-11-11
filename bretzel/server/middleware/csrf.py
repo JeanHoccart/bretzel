@@ -17,7 +17,7 @@ The page render pipeline injects the same token into the envelope as
 ``$bz._csrf`` (:attr:`RenderContext.csrf_token
 <bretzel.render.context.RenderContext.csrf_token>`) ; the runtime
 echoes it back from the bridge
-(:file:`runtime/_src/05_bridge.js`).
+(:file:`runtime/_src/bridge.js`).
 
 **Why this works as CSRF protection** — the browser auto-sends the
 session cookie cross-origin, but cannot read it (HttpOnly) ; cross-
@@ -100,8 +100,7 @@ class CSRFMiddleware:
     A bearer-token caller skips the session token (cf. the module
     docstring). A caller that proves itself some other way — a webhook
     signing its body in its own header — is refused: every route of
-    ``app.fastapi`` sits behind this middleware, and that case is open
-    (``.claude/work/todo.md``).
+    ``app.fastapi`` sits behind this middleware. That case is not handled.
     """
 
     def __init__(
@@ -116,8 +115,8 @@ class CSRFMiddleware:
         # Lower-cased once at construction so the per-request hostname
         # comparison is direct case-insensitive equality. Wildcards
         # (``*.example.com``) are accepted as a literal prefix match
-        # against the leading dot — same convention as Starlette's
-        # :class:`TrustedHostMiddleware`.
+        # against the leading dot — same convention as the Host check,
+        # :class:`bretzel.server.middleware.host.HostMiddleware`.
         self._trusted_hosts: tuple[str, ...] = tuple(
             h.lower() for h in trusted_hosts
         )

@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from bretzel import Bretzel, background
 from bretzel.server.handlers import encode_action_id, sign_action
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -30,7 +31,7 @@ def schedule_handler() -> None:
 
 def _post(client: TestClient, app: Bretzel, handler) -> int:
     action_id = encode_action_id(handler)
-    signature = sign_action(app.config._action_key, action_id, "")
+    signature = sign_action(app.config._action_key, action_id, "", session_id=session_of(client))
     resp = client.post(
         f"/_bretzel/action/{action_id}",
         headers={"X-Bz-Sig": signature},

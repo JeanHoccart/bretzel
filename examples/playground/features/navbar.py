@@ -45,8 +45,8 @@ class NavbarPlayground(PageState):
 
 def server_changed(state: NavbarPlayground) -> None:
     # Typed param → the dispatcher hydrates the changed control's value
-    # into ``state``. server_panel declares deps=[NavbarPlayground], so it
-    # re-renders on its own.
+    # into ``state``. server_panel reads that state, so it re-renders on
+    # its own.
     pass
 
 
@@ -109,7 +109,7 @@ def demo_bar(**kwargs) -> None:
             ui.button("Get started", color="primary", size="sm")
 
 
-@refreshable(deps=[NavbarPlayground])
+@refreshable
 def server_panel() -> None:
     state = NavbarPlayground()
 
@@ -326,7 +326,7 @@ def page() -> None:
                     ui.heading("Tableau de bord", level=3)
                 with ui.navbar_section(side="right"):
                     ui.icon_button("bell", variant="ghost")
-                    ui.avatar(initials="JH", size="sm")
+                    ui.avatar(initials="AM", size="sm")
 
             ui.heading('Inside a constrained grid cell', level=3)
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):

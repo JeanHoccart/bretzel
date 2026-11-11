@@ -72,12 +72,15 @@ def lists_page() -> None:
                     ui.heading('ui.each — the key, and why it counts',
                                level=2)
                     ui.text(
-                        'A bare `for` loop works… until an item carries '
-                        'client state. On re-render, idiomorph pairs the '
-                        'nodes by position: deleting the first shifts all '
-                        'the others, and the open accordion changes row. '
-                        '`ui.each` pushes a stable key per item, so the '
-                        'pairing follows IDENTITY.',
+                        'A bare `for` names each item by its rank. Fine '
+                        'for a list written in the code (`for size in '
+                        '("sm", "md")`): it never moves. For a list that '
+                        'comes from data, deleting the first item shifts '
+                        'the others, and a client state (an open menu, a '
+                        'ticked box) stays with the rank: it lands on the '
+                        'neighbour. `ui.each` names each item by its key, '
+                        'so that state follows IDENTITY. In debug mode, '
+                        'Bretzel warns when it happens — only then.',
                         color="muted", size="sm",
                     )
                     ui.code(

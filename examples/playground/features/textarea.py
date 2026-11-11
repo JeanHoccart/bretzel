@@ -166,7 +166,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[TextareaPlayground])
+@refreshable
 def server_panel() -> None:
     state = TextareaPlayground()
 
@@ -253,7 +253,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[TextareaEvents])
+@refreshable
 def events_panel() -> None:
     state = TextareaEvents()
 

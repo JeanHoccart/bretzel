@@ -3,8 +3,8 @@
 Every handler is a MODULE-LEVEL callable: Bretzel addresses it by
 ``module::qualname`` and refuses a lambda or a closure.
 
-No ``ui`` import: the panels declare ``deps=[…]``, so mutating the state
-is enough to re-render them. It is what avoids the handler ↔ panel cycle.
+No ``ui`` import: the panels read the state, so mutating it is enough
+to re-render them. It is what avoids the handler ↔ panel cycle.
 """
 
 from examples.playground.features.diagram.state import (

@@ -52,16 +52,15 @@ class TestWidths:
         assert "mx-auto" in out
         assert "px-6" in out
 
-    def test_unknown_width_silently_drops(self) -> None:
-        # Mirrors the Flex/Stack pattern : an unknown lookup falls
-        # through to no class rather than raising. Lets future
-        # widths land in the theme without breaking the constructor.
-        with render_isolated():
-            c = Container(width="nonsense")
-        out = serialize(c.render())
-        assert "max-w-" not in out
-        # Root slot still emitted.
-        assert "mx-auto" in out
+    def test_an_unknown_width_is_refused(self) -> None:
+        # It fell through to no class, in silence — a typo lost the width
+        # without a word (2026-11-03). Same refusal as ``size=``.
+        import pytest
+
+        from bretzel.components.base.attrs import ComponentUsageError
+
+        with render_isolated(), pytest.raises(ComponentUsageError, match="width='nonsense'"):
+            Container(width="nonsense").render()
 
 
 class TestEscapeHatches:

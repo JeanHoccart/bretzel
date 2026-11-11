@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.primitives.heading import Heading
 from bretzel.core.serialize import serialize
@@ -56,3 +58,18 @@ class TestComponentContent:
                 Heading(Icon("star"), level=2)
             assert len(stack._children) == 1
             assert isinstance(stack._children[0], Heading)
+
+
+class TestLevel:
+    @pytest.mark.parametrize("level", [7, "2", "1><img src=x onerror=alert(1)><h1", True])
+    def test_a_level_outside_one_to_six_is_refused(self, level) -> None:
+        # ``level`` builds the tag (``h{level}``): a string was markup
+        # (2026-11-06), a 7 an ``<h7>``.
+        with render_isolated(), pytest.raises(ValueError, match="1 to 6"):
+            Heading("t", level=level).render()
+
+    @pytest.mark.parametrize("level", [1, 6])
+    def test_one_to_six_are_headings(self, level: int) -> None:
+        with render_isolated():
+            out = serialize(Heading("t", level=level).render())
+        assert out.startswith(f"<h{level}")

@@ -30,7 +30,7 @@ class TooltipPlayground(PageState):
     position:    str  = field(default="top")
     delay:       int  = field(default=150)
     color:       str  = field(default="text")
-    enabled:     bool = field(default=True)
+    disabled:    bool = field(default=False)
     # Escape hatches.
     classes:     str  = field(default="")
     custom_id:   str  = field(default="")
@@ -45,14 +45,14 @@ class TooltipPlayground(PageState):
 class TooltipClient(ClientState, persist="memory"):
     """Mirror of Tooltip's BINDABLE_PROPS = ('text',).
 
-    ``enabled`` is NOT in ``BINDABLE_PROPS`` but accepts a
+    ``disabled`` is NOT in ``BINDABLE_PROPS`` but accepts a
     ``ClientBinding`` anyway (cf. the signature). This bench bound it
     nowhere — which is exactly why its reactivity could die in silence
     for two days. It is bound here, now.
     """
 
     text: str = field(default="Live hint — edit me")
-    enabled: bool = field(default=True)
+    disabled: bool = field(default=False)
 
 
 #: The panel text of the "Inside a zone that refreshes" card. Named
@@ -77,7 +77,7 @@ def bump(state: RefreshedZone) -> None:
     state.clicks += 1
 
 
-@refreshable(deps=[RefreshedZone])
+@refreshable
 def tooltip_in_a_refreshed_zone() -> None:
     """The trigger is INSIDE the zone its own click refreshes.
 
@@ -125,7 +125,7 @@ def build_preview(state: TooltipPlayground) -> dict:
         "position": state.position,
         "delay": int(state.delay or 0),
         "color": state.color,
-        "enabled": state.enabled,
+        "disabled": state.disabled,
     }
     if state.classes:
         kwargs["classes"] = state.classes
@@ -151,7 +151,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[TooltipPlayground])
+@refreshable
 def server_panel() -> None:
     state = TooltipPlayground()
 
@@ -171,8 +171,8 @@ def server_panel() -> None:
             ui.select(value=state.color,
                       options=[(c, c) for c in COLORS],
                       on_change=server_changed)
-        with control("enabled"):
-            ui.switch(checked=state.enabled, on_change=server_changed)
+        with control("disabled"):
+            ui.switch(checked=state.disabled, on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes,
                      placeholder="!max-w-xs",
@@ -263,15 +263,14 @@ def page() -> None:
                                 ui.button(c.title(), color=c,
                                           variant="soft")
 
-                    ui.heading("Enabled (hover/focus reveal gate)",
+                    ui.heading("Disabled (hover/focus reveal gate)",
                                level=3)
                     with ui.hstack(gap="lg"):
-                        with ui.tooltip("You'll see this one",
-                                        enabled=True):
-                            ui.button("enabled=True (default)")
+                        with ui.tooltip("You'll see this one"):
+                            ui.button("disabled=False (default)")
                         with ui.tooltip("You'll never see this",
-                                        enabled=False):
-                            ui.button("enabled=False")
+                                        disabled=True):
+                            ui.button("disabled=True")
 
             # ── Card 2 — Slots ──────────────────────────────────────
             with ui.card():
@@ -450,8 +449,8 @@ def page() -> None:
                         with control("text"):
                             ui.input(value=client.text,
                                      placeholder="Live hint")
-                        with control("enabled (bound)"):
-                            ui.switch(checked=client.enabled)
+                        with control("disabled (bound)"):
+                            ui.switch(checked=client.disabled)
 
                     ui.divider()
 
@@ -459,11 +458,11 @@ def page() -> None:
                                  classes="min-h-24"):
                         with ui.tooltip(client.text, position="top",
                                         color="info",
-                                        enabled=client.enabled):
+                                        disabled=client.disabled):
                             ui.button("Hover me", variant="outline")
 
                     ui.text(
-                        "``enabled`` is re-read on every hover, not at "
+                        "``disabled`` is re-read on every hover, not at "
                         "mount : flip the switch and the very next "
                         "hover obeys it. It shipped frozen for two "
                         "days because it was emitted as a ``bz-data`` "

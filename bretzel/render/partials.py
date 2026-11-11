@@ -2,7 +2,7 @@
 
 Triggered by:
 
-- A zone enqueued during an action — by a ``deps=`` state change or the
+- A zone enqueued during an action — by a change to a state it read or the
   free :func:`refresh` — the pipeline drains
   :attr:`RenderContext.refresh_queue` at end-of-action and emits each
   section as an out-of-band swap.
@@ -22,11 +22,12 @@ import json
 import logging
 import re
 import time
+import warnings
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from bretzel.core import call_without_blocking
+from bretzel.core import IdGenerator, call_without_blocking
 from bretzel.core.serialize import serialize
 from bretzel.core.tree import Element, Node
 from bretzel.render.context import RenderContext, use_context
@@ -36,18 +37,13 @@ from bretzel.render.decorators.refreshable import (
     zone_attrs,
 )
 from bretzel.render.fusion import BZ_ID_ATTR, fuse_or_wrap
+from bretzel.render.shared_parts import shared_part_templates
 from bretzel.render.types import BretzelApp
 from bretzel.render.zone_diff import (
     Fingerprinter,
-    RowPatch,
-    RowsOnly,
-    ZonePrint,
-    ZoneVersion,
-    as_patch,
-    at_position,
-    changed_elements,
-    removal,
-    row_patch,
+    changes,
+    holding,
+    ship,
     stamp_zones,
     stamped,
 )
@@ -103,129 +99,14 @@ async def render_partial(
 ) -> RenderResult:
     """Render refreshable regions and the client-state delta."""
     ctx.is_partial = True
+    pieces = await render_zones(app, (handle, *extra_handles), ctx=ctx)
 
-    # Every refreshable rides as an OOB fragment. The dispatcher
-    # (there is NO custom dispatcher: ``05_bridge.js`` enriches the
-    # headers of a native htmx POST) issues the action POST with
-    # ``swap: 'none'`` — the response body is never swapped into the
-    # trigger, only ``hx-swap-oob`` fragments find their target by id.
-    # If we emitted the primary without ``hx-swap-oob``, it would be
-    # silently dropped. (V1 made the same call: every refresh emits as
-    # OOB, swap-by-id, no trigger-vs-target distinction.)
-    # ── A nested zone ships only ONCE ─────────────────────────────
-    # The parent renders its subtree, child included; if the child is
-    # ALSO in the queue, its fragment goes out a second time and the
-    # morph throws one away. Measured: two zones on the same state, 200
-    # rows in the child → 19.7 KB of which half is useless; at three
-    # levels, the inside goes out THREE times.
-    #
-    # Nesting cannot be known any earlier: ``enqueue_deps`` sees only
-    # declarations, and "parent calls child" is a RENDER fact,
-    # conditional at that. So it is discovered here, once the tree is
-    # built, and it costs nothing more — the tree is already there.
-    #
-    # Both directions, because the queue's order is that of the
-    # decorations: a zone already covered is not rendered AT ALL (we save
-    # the server work too), and if the child came first, its fragment is
-    # removed when the parent covers it.
-    ordered: list[RefreshableHandle] = []
-    seen: set[str] = set()
-    for h in (handle, *extra_handles):
-        if h.id not in seen:
-            seen.add(h.id)
-            ordered.append(h)
-
-    emitted: dict[str, str] = {}
-    covered: set[str] = set()
-    #: What this response ships, by zone — sent back to the client, who
-    #: will present it to us again on the next request.
-    digests: dict[str, str] = {}
-    #: The fingerprint each PATCHED zone was diffed against (cf.
-    #: ``render/zone_diff.py``, "Crossed responses").
-    bases: dict[str, str] = {}
-    # Optional, so not in the ``BretzelApp`` protocol: an app without the
-    # cache (a test rig) still silences unchanged zones, and ships the
-    # others whole.
-    maps = getattr(app, "zone_maps", None)
-    fingerprinter = fingerprinter_for(app)
-    #: ``debug`` only: what each zone cost to render, in ``Server-Timing``
-    #: — the browser's DevTools show it next to the request. Measured
-    #: blind on 2026-10-23: a status change spent 64 of its 110 ms
-    #: re-rendering a 50-row table for one changed row, and nothing in
-    #: the response said so.
-    timings: list[str] = []
-    debug = bool(getattr(app, "debug", False))
-    for h in ordered:
-        if h.id in covered:
-            continue
-        started = time.perf_counter()
-        held = ctx.zone_hashes.get(h.id)
-        # ── Rows only: ``refresh(zone, rows=[…])`` ───────────────────
-        # The zone runs again but its keyed table renders those rows
-        # alone; whatever cannot be done row by row falls through to the
-        # whole render just below (``render/zone_diff.row_patch``).
-        known = maps.get(held) if maps is not None and held else None
-        rows = ctx.zone_rows.get(h.id)
-        if rows and known:
-            patched = await _rows_only(app, h, ctx, rows, known, held, fingerprinter)
-            if patched is not None:
-                if debug:
-                    timings.append(_timing(h, time.perf_counter() - started))
-                maps.put_version(patched.digest, patched.version)
-                emitted[h.id] = _ship(patched.rows, patched.removed, fingerprinter, maps)
-                digests[h.id], bases[h.id] = patched.digest, held
-                continue
-        try:
-            root = await _render_one(app, h, ctx, oob=True)
-        except Exception as exc:  # broad on purpose — see the docstring next door
-            emitted[h.id] = _zone_failure_fragment(app, h, exc)
-            continue
-        if debug:
-            timings.append(_timing(h, time.perf_counter() - started))
-        for zone_id in _zone_ids_inside(root, among=seen):
-            covered.add(zone_id)
-            emitted.pop(zone_id, None)
-            digests.pop(zone_id, None)
-            bases.pop(zone_id, None)
-        # ── Silent, patched or whole ──────────────────────────────────
-        #
-        # The render is already paid for here — it is the shipping, the
-        # gzip and the morph that are saved. A zone whose render has not
-        # moved does not go out (measured on ``examples/messagerie`` on
-        # 2026-09-08: re-clicking an open thread, 9 461 bytes and 50 ms →
-        # 300 bytes and 10 ms); one that moved sends only its changed
-        # elements when the client presents a fingerprint the cache knows.
-        # ``render/zone_diff.py`` holds the how and the guarantees: an
-        # absent, stale or lying fingerprint can only cause a re-ship.
-        printed = fingerprinter.zone(root) if isinstance(root, Element) else None
-        if printed is None:
-            emitted[h.id] = serialize(root)
-            continue
-        digests[h.id] = printed.digest
-        if maps is not None:
-            maps.put(printed)
-        if held == printed.digest:
-            bases[h.id] = held
-            continue
-        patch = changed_elements(printed, root, known.elements) if known else None
-        if patch is not None:
-            emitted[h.id] = _ship(
-                [printed.nodes[k] for k in patch if k not in printed.place], (),
-                fingerprinter, maps, zone_id=h.id, printed=printed,
-                placed=[k for k in patch if k in printed.place])
-            bases[h.id] = held
-            continue
-        inner = Element(root.tag, root.attrs, tuple(stamp_zones(root.children, fingerprinter, maps)))
-        emitted[h.id] = serialize(stamped(inner, printed, maps))
-
-    if digests:
-        ctx.response_headers[HEADER_ZONE_HASHES] = _pairs(digests)
-    if bases:
-        ctx.response_headers[HEADER_ZONE_BASES] = _pairs(bases)
-    if timings:
-        ctx.response_headers["Server-Timing"] = ", ".join(timings)
-
-    pieces: list[str] = list(emitted.values())
+    # A component the zones rendered names its shared part: the page most
+    # likely has it, but a part it has never seen (a new size, new bounds)
+    # must arrive too. Appended to <body>; the runtime keeps one per key.
+    parts = shared_part_templates(ctx, oob=True)
+    if parts:
+        pieces.append(parts)
 
     # Append the delta script tag if any client state mutated.
     delta_html = _render_delta(ctx)
@@ -259,6 +140,135 @@ async def render_partial(
         new_cookies=dict(ctx.new_cookies),
         deleted_cookies=set(ctx.deleted_cookies),
     )
+
+
+async def render_zones(
+    app: BretzelApp,
+    handles: Iterable[RefreshableHandle],
+    *,
+    ctx: RenderContext,
+) -> list[str]:
+    """Render zones as out-of-band fragments, one per zone that moved.
+
+    An action's response (:func:`render_partial`) and a partial
+    navigation's shell zones (``render/pipeline.py``) both ship through
+    here: silenced when unchanged, patched when the client's fingerprint
+    is known, whole otherwise, and the fingerprints sent back in the
+    headers.
+    """
+    # Every refreshable rides as an OOB fragment. The dispatcher
+    # (there is NO custom dispatcher: ``bridge.js`` enriches the
+    # headers of a native htmx POST) issues the action POST with
+    # ``swap: 'none'`` — the response body is never swapped into the
+    # trigger, only ``hx-swap-oob`` fragments find their target by id.
+    # If we emitted the primary without ``hx-swap-oob``, it would be
+    # silently dropped.
+    # ── A nested zone ships only ONCE ─────────────────────────────
+    # The parent renders its subtree, child included; if the child is
+    # ALSO in the queue, its fragment goes out a second time and the
+    # morph throws one away; at three levels, the inside goes out THREE
+    # times.
+    #
+    # Nesting cannot be known any earlier: ``enqueue_readers`` sees only
+    # declarations, and "parent calls child" is a RENDER fact,
+    # conditional at that. So it is discovered here, once the tree is
+    # built, and it costs nothing more — the tree is already there.
+    #
+    # Both directions, because the queue's order is that of the
+    # decorations: a zone already covered is not rendered AT ALL (we save
+    # the server work too), and if the child came first, its fragment is
+    # removed when the parent covers it.
+    ordered: list[RefreshableHandle] = []
+    seen: set[str] = set()
+    for h in handles:
+        if h.id not in seen:
+            seen.add(h.id)
+            ordered.append(h)
+    # The parent first, when the browser said where its zones sit: its
+    # list is in document order, a zone before the zones inside it. In
+    # decoration order the child would come first and be rendered for
+    # nothing. A zone it does not list keeps its place, after the others.
+    rank = {zone_id: i for i, zone_id in enumerate(ctx.zone_order)}
+    ordered.sort(key=lambda h: rank.get(h.id, len(rank)))
+
+    emitted: dict[str, str] = {}
+    covered: set[str] = set()
+    #: What this response ships, by zone — sent back to the client, who
+    #: will present it to us again on the next request.
+    digests: dict[str, str] = {}
+    #: The fingerprint each PATCHED zone was diffed against (cf.
+    #: ``render/zone_diff.py``, "Crossed responses").
+    bases: dict[str, str] = {}
+    # Optional, so not in the ``BretzelApp`` protocol: an app without the
+    # cache (a test rig) still silences unchanged zones, and ships the
+    # others whole.
+    maps = getattr(app, "zone_maps", None)
+    if maps is not None:
+        maps = maps.scoped(ctx.session_id)
+    fingerprinter = fingerprinter_for(app)
+    registry = ctx.state_registry
+    overridden = registry.overridden_fields if registry is not None else set()
+    #: ``debug`` only: what each zone cost to render, in ``Server-Timing``
+    #: — the browser's DevTools show it next to the request. Nothing else
+    #: in the response says where a re-render spent its time.
+    timings: list[str] = []
+    debug = bool(getattr(app, "debug", False))
+    for h in ordered:
+        if h.id in covered:
+            continue
+        started = time.perf_counter()
+        held = ctx.zone_hashes.get(h.id)
+        known = maps.get(held) if maps is not None and held else None
+        try:
+            root = await _render_one(app, h, ctx, oob=True)
+        except Exception as exc:  # broad on purpose — see the docstring next door
+            emitted[h.id] = _zone_failure_fragment(app, h, exc)
+            continue
+        if debug:
+            timings.append(_timing(h, time.perf_counter() - started))
+        for zone_id in _zone_ids_inside(root, among=seen):
+            covered.add(zone_id)
+            emitted.pop(zone_id, None)
+            digests.pop(zone_id, None)
+            bases.pop(zone_id, None)
+        # ── Silent, patched or whole ──────────────────────────────────
+        #
+        # The render is already paid for here — it is the shipping, the
+        # gzip and the morph that are saved. A zone whose render has not
+        # moved does not go out; one that moved sends only its changed
+        # elements when the client presents a fingerprint the cache knows.
+        # ``render/zone_diff.py`` holds the how and the guarantees: an
+        # absent, stale or lying fingerprint can only cause a re-ship.
+        printed = fingerprinter.zone(root) if isinstance(root, Element) else None
+        if printed is None:
+            emitted[h.id] = serialize(root)
+            continue
+        digests[h.id] = printed.digest
+        if maps is not None:
+            maps.put(printed)
+        # The controls an action overrode: the browser shows what was
+        # typed there, not the render its fingerprint describes.
+        stale = holding(printed, root, overridden) if overridden else set()
+        if held == printed.digest and not stale:
+            bases[h.id] = held
+            continue
+        patch = changes(printed, root, known, stale) if known else None
+        if patch is not None:
+            if debug:
+                _warn_slid(h, patch.slid)
+            emitted[h.id] = "".join(map(serialize, ship(h.id, patch, fingerprinter, maps)))
+            bases[h.id] = held
+            continue
+        inner = Element(root.tag, root.attrs, tuple(stamp_zones(root.children, fingerprinter, maps)))
+        emitted[h.id] = serialize(stamped(inner, printed, maps))
+
+    if digests:
+        ctx.response_headers[HEADER_ZONE_HASHES] = _pairs(digests)
+    if bases:
+        ctx.response_headers[HEADER_ZONE_BASES] = _pairs(bases)
+    if timings:
+        ctx.response_headers["Server-Timing"] = ", ".join(timings)
+    return list(emitted.values())
 
 
 def push_title(ctx: RenderContext, title: str) -> None:
@@ -320,17 +330,11 @@ def _zone_identity(handle: RefreshableHandle) -> dict[str, str]:
     source — a fragment copying them would drift, and that has already
     happened (cf. ``_zone_failure_fragment``).
 
-    The subscription attributes are recomputed from the handle rather
-    than guessed: a ``broadcast=[State]`` zone that lost them while
-    failing would also lose its ``EventSource``, hence its real-time
-    behaviour, on top of its refresh.
+    The subscription attributes come from what the zone is known to read:
+    a zone that lost them while failing would also lose its
+    ``EventSource``, hence the other tabs' changes, on top of its refresh.
     """
-    states = handle._broadcast_qualnames()
-    return zone_attrs(
-        handle.id,
-        subscribe_state_qualname=" ".join(states) if states else None,
-        subscribe_url=handle._subscribe_url(states) if states else None,
-    )
+    return zone_attrs(handle.id, subscription=handle.subscription(handle.reads or ()))
 
 
 def _zone_failure_fragment(
@@ -341,13 +345,13 @@ def _zone_failure_fragment(
     """The fragment replacing a zone whose render raised.
 
     **Why isolate rather than let it surface.** A zone raising during the
-    drain took the whole response down as a 500, and three things were
-    lost at once: the other zones — valid, sometimes already rendered —
-    never reached the browser; htmx does not swap on a non-2xx, so the
-    user saw their page do nothing; and since ``commit()`` comes AFTER
-    the drain, the handler's mutations were cancelled. Measured on
-    2026-09-05: a DISPLAY bug in one zone cancelled the requested
-    registration, without a word.
+    drain would take the whole response down as a 500, and three things
+    would be lost at once: the other zones — valid, sometimes already
+    rendered — would never reach the browser; htmx does not swap on a
+    non-2xx, so the user would see their page do nothing; and since
+    ``commit()`` comes AFTER the drain, the handler's mutations would be
+    cancelled: a DISPLAY bug in one zone would undo the write, without a
+    word.
 
     Isolating fixes all three: the drain goes to the end, so the commit
     runs, so the user's action holds.
@@ -391,13 +395,12 @@ def _zone_failure_fragment(
         node = Element("span", {}, [message])
 
     # ⚠️ The SAME wrapping as the nominal render, not a hand-written
-    # ``<div>``. The fragment was composed as an f-string for a day, and
-    # it omitted ``DATA_ZONE``: after an error, the zone dropped out of
-    # the browser's enumeration, the ``X-Bretzel-Zones`` header no longer
-    # carried it, ``enqueue_deps`` filtered it out — it NEVER refreshed
-    # again, until a full reload, and without a word. It also lost the
-    # ``class="contents"`` of ``fuse_or_wrap``, so the failed zone got
-    # back a layout box its healthy twin does not have.
+    # ``<div>``. Without ``DATA_ZONE``, after an error the zone would drop
+    # out of the browser's enumeration, the ``X-Bretzel-Zones`` header
+    # would not carry it, ``enqueue_readers`` would filter it out — it
+    # would NEVER refresh again, until a full reload, and without a word.
+    # Without the ``class="contents"`` of ``fuse_or_wrap``, the failed
+    # zone would get back a layout box its healthy twin does not have.
     return serialize(
         fuse_or_wrap(
             [node],
@@ -407,50 +410,34 @@ def _zone_failure_fragment(
     )
 
 
-async def _rows_only(
-    app: BretzelApp,
-    handle: RefreshableHandle,
-    ctx: RenderContext,
-    rows: set[str],
-    known: ZoneVersion,
-    held: str,
-    fingerprinter: Fingerprinter,
-) -> RowPatch | None:
-    """Render ``handle`` for ``rows`` only and build the row patch, or
-    ``None`` to render it whole (a change that is not row by row). A
-    render that raises is left to the whole render, which isolates it the
-    usual way."""
-    ctx.rows_only = scope = RowsOnly(frozenset(rows))
-    try:
-        await _render_one(app, handle, ctx, oob=True)
-    except Exception:  # the whole render that follows reports it
-        return None
-    finally:
-        ctx.rows_only = None
-    return row_patch(scope.reports, known, held, fingerprinter)
+def _warn_slid(handle: RefreshableHandle,
+               slid: Sequence[tuple[dict[str, str], Element]]) -> None:
+    """``debug``: say when a list with no key moved under a client state.
+
+    A child with no ``key`` is named by its rank: when a neighbour comes
+    or goes, its ids slide (``zone_diff.Patch.slid``). The patch follows,
+    but the runtime keys a component's client state — an open menu, a
+    ticked box, a half-typed text — by ``bz-id``: that state stays with
+    the rank and lands on the neighbour. Only then is a warning worth
+    it: a ``for`` over a fixed list never moves, and a list that moves
+    with no client state inside loses nothing. One warning per list, and
+    Python shows the same text once."""
+    places = {"/".join(filter(None, (where["anchor"], where["path"].replace(".", "/"))))
+              for where, element in slid if _holds_client_state(element)}
+    for place in sorted(places):
+        warnings.warn(
+            f"zone {handle.zone_qualname}: the children of {place} have no key and one "
+            "moved rank; the client state inside it (an open menu, a ticked box, a typed "
+            "text) now follows the rank, not the item. Iterate with "
+            "ui.each(items, key=...).",
+            RuntimeWarning, stacklevel=2)
 
 
-def _ship(
-    changed: Sequence[Element],
-    removed: Sequence[str],
-    fingerprinter: Fingerprinter,
-    maps: Any,
-    *,
-    zone_id: str = "",
-    printed: ZonePrint | None = None,
-    placed: Sequence[str] = (),
-) -> str:
-    """A zone's patch: its changed elements morphed in place (nested zones
-    stamped), its removed rows deleted, and its changed elements with no
-    ``id`` found by position (``zone_diff.at_position``). Those ride in
-    the sink, appended out of band: an action's body lands there, a
-    refetch's is not swapped at all."""
-    pieces = [*(serialize(as_patch(e)) for e in stamp_zones(changed, fingerprinter, maps)),
-              *(serialize(removal(ident)) for ident in removed)]
-    if placed and printed is not None:
-        fresh = stamp_zones([printed.nodes[k] for k in placed], fingerprinter, maps)
-        pieces.append(serialize(at_position(zone_id, printed, list(zip(placed, fresh, strict=True)))))
-    return "".join(pieces)
+def _holds_client_state(node: Node) -> bool:
+    """Does ``node`` hold a component with a client scope (``bz-data``)?"""
+    if not isinstance(node, Element):
+        return False
+    return "bz-data" in node.attrs or any(_holds_client_state(kid) for kid in node.children)
 
 
 def _timing(handle: RefreshableHandle, seconds: float) -> str:
@@ -513,6 +500,13 @@ async def _render_one(
     ctx.root_children = []
     saved_parent_stack = ctx.parent_stack
     ctx.parent_stack = []
+    # Its own id counters too: a zone's ids depend on the zone alone, not
+    # on what this request rendered before it. Rendered on its own, then
+    # again inside a parent zone also queued, it would count on from the
+    # first render — ``…_flex_0_…`` in the page, ``…_flex_1_…`` in the
+    # fragment — and the zone diff would know none of its ids.
+    saved_ids = ctx.id_generator
+    ctx.id_generator = IdGenerator()
 
     # Render under the registry / context already set up by the caller.
     #
@@ -577,6 +571,7 @@ async def _render_one(
     # Restore caller's scope.
     ctx.root_children = saved_root
     ctx.parent_stack = saved_parent_stack
+    ctx.id_generator = saved_ids
 
     extra: dict[str, Any] | None = None
     if oob:

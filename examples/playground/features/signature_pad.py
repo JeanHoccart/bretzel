@@ -197,7 +197,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[SignaturePadPlayground])
+@refreshable
 def server_panel() -> None:
     state = SignaturePadPlayground()
 
@@ -266,7 +266,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[SignaturePadEvents])
+@refreshable
 def events_panel() -> None:
     state = SignaturePadEvents()
 
@@ -523,6 +523,16 @@ def page() -> None:
                 color="muted", size="sm",
             )
             client = SignaturePadClient()
+            # The EXTERNAL control, bound to the same field: the buttons
+            # write it and the pad repaints; drawing writes it and the
+            # byte count below follows (playground-pattern.md § 8). It is
+            # what showed, on 2026-11-06, that the pad only went one way.
+            with ui.hstack(gap="sm", wrap=True):
+                ui.button("Load a signature", variant="outline", size="sm",
+                          on_click=client.sig.set(EXISTING_SIGNATURE),
+                          id="sig-load")
+                ui.button("Write an empty value", variant="ghost", size="sm",
+                          on_click=client.sig.set(""), id="sig-empty")
             ui.signature_pad(value=client.sig)
 
             ui.text(

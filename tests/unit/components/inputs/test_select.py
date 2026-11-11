@@ -19,6 +19,12 @@ from bretzel.state.scopes.client import rendering_scope
 from bretzel.state.scopes.server import _BoundStr
 
 
+def opening_tag(html: str, tag: str, marker: str) -> str:
+    """The opening ``<tag …>`` of the element whose markup holds ``marker``."""
+    start = html.rindex(f"<{tag}", 0, html.index(marker))
+    return html[start:html.index(">", start)]
+
+
 def _synced_keys(out: str) -> set[str]:
     """Les clés réellement re-semées.
 
@@ -98,6 +104,21 @@ class TestOptionShapes:
         # ``role="option"`` count + one of them disabled.
         assert out.count('role="option"') == 2
         assert "disabled" in out
+
+    def test_disabled_values_reach_the_keyboard(self) -> None:
+        """The scope lists the disabled values (``_disabled``) and the
+        keyboard goes through ``_step`` / ``_enterPick``, which skip them
+        — it used to walk ``_options`` whole and pick what it landed on."""
+        with render_isolated():
+            sel = Select(options=[
+                {"value": "a", "label": "Apple"},
+                {"value": "b", "label": "Banana", "disabled": True},
+            ])
+            out = serialize(sel.render())
+        assert "_disabled: [&quot;b&quot;]" in out
+        assert "_step(1)" in out and "_step(-1)" in out
+        assert "_enterPick()" in out
+        assert "_options[_highlight]" not in out
 
 
 class TestPlaceholder:
@@ -357,39 +378,22 @@ class TestImperativeAPI:
     # ── Focus / blur : direct DOM, no dispatch ─────────────────────────
 
     def test_focus_targets_trigger_button_via_querySelector(self) -> None:
+        # The target comes from ``FOCUS_TARGET`` (``base/focus.py``), read
+        # by ``autofocus=`` too; the browser half: tests/runtime_js/test_autofocus.py.
         # The wrapper ``<div>`` carries ``self.id`` but is not
         # focusable ; we reach the trigger via querySelector so the
         # method actually moves keyboard focus.
         with render_isolated():
             sel = Select(options=["a"])
             out = sel.focus()
-        assert "document.getElementById" in out
-        assert sel.id in out
-        assert "querySelector" in out
-        # Trigger selector widened from ``button[role=combobox]`` to
-        # ``[role=combobox]`` because multi mode swaps the trigger
-        # to a ``<div>`` (so it can host pills + nested × buttons
-        # without nested-button invalid HTML). The role= attribute
-        # is the stable selector across both shapes.
-        assert "[role=combobox]" in out
-        assert ".focus()" in out
-        assert "dispatchEvent" not in out
+        assert out == f"$bz.helpers.focusIn('{sel.id}', [\"[role=combobox]\"])"
 
     def test_blur_targets_trigger_button_via_querySelector(self) -> None:
+        # Whatever has the focus INSIDE the component, not only the target.
         with render_isolated():
             sel = Select(options=["a"])
             out = sel.blur()
-        assert "document.getElementById" in out
-        assert sel.id in out
-        assert "querySelector" in out
-        # Trigger selector widened from ``button[role=combobox]`` to
-        # ``[role=combobox]`` because multi mode swaps the trigger
-        # to a ``<div>`` (so it can host pills + nested × buttons
-        # without nested-button invalid HTML). The role= attribute
-        # is the stable selector across both shapes.
-        assert "[role=combobox]" in out
-        assert ".blur()" in out
-        assert "dispatchEvent" not in out
+        assert out == f"$bz.helpers.blurIn('{sel.id}')"
 
     # ── Binding path : write-through ──────────────────────────────────
 
@@ -705,15 +709,17 @@ class TestMultiMode:
         assert "_selectAll()" in out
         assert "_clearAll()" in out
 
-    def test_bulk_actions_header_always_visible(self) -> None:
-        """When ``bulk_actions=True`` the header bar must be
-        visible even with zero picks — Select all has to be
-        discoverable before the user has clicked anything."""
+    def test_bulk_actions_footer_always_visible(self) -> None:
+        """When ``bulk_actions=True`` the footer must be visible even
+        with zero picks — Select all has to be discoverable before the
+        user has clicked anything. It sits UNDER the options."""
         with render_isolated():
             out = serialize(
                 _build_multi(bulk_actions=True).render()
             )
-        assert 'bz-show="true"' in out
+        assert "bz-show" not in opening_tag(out, "div", "sticky bottom-0")
+        assert out.index('role="option"') < out.index(
+            "$event.stopPropagation(); _selectAll()")
 
     def test_bulk_actions_ignored_in_single(self) -> None:
         with render_isolated():
@@ -815,16 +821,19 @@ class TestRenderHatch:
         from bretzel import ui
 
         out = self._html(render=lambda v, label: ui.badge(label="ZZ"))
-        assert out.count("ZZ") == 2, "un corps par option, une seule fois"
+        assert out.count("ZZ") == 4, (
+            "un corps par option dans le panneau, et un par option dans le "
+            "champ fermé (cf. TestRenderInTheTrigger)"
+        )
 
     def test_the_envelope_survives(self) -> None:
-        """`data-value` et l'état sélectionné appartiennent au composant.
+        """`data-bz-value` et l'état sélectionné appartiennent au composant.
         Un rappel qui les avalerait casserait la sélection au premier
         usage."""
         from bretzel import ui
 
         out = self._html(render=lambda v, label: ui.badge(label="ZZ"))
-        assert 'data-value="a"' in out
+        assert 'data-bz-value="a"' in out
         assert 'role="option"' in out
         assert "aria-selected" in out
 
@@ -843,7 +852,8 @@ class TestRenderHatch:
             serialize(Select(options=["A", ("b", "Beta"),
                                       {"value": "c", "label": "Gamma"}],
                              render=spy).render())
-        assert seen == [("A", "A"), ("b", "Beta"), ("c", "Gamma")], (
+        # Twice: the closed field, then the panel.
+        assert seen == [("A", "A"), ("b", "Beta"), ("c", "Gamma")] * 2, (
             "les trois formes d'option doivent arriver normalisées à "
             "l'identique — c'est ce qui rend le rappel écrivable."
         )
@@ -851,3 +861,74 @@ class TestRenderHatch:
     def test_without_the_hatch_the_label_renders(self) -> None:
         out = self._html()
         assert "Alpha" in out and "Beta" in out
+
+
+class TestRenderInTheTrigger:
+    """Le champ fermé montre le corps rendu de ce qui est choisi, pas son
+    seul texte : la pastille d'une couleur, l'avatar d'une personne
+    disparaissaient dès le choix fait."""
+
+    OPTIONS = [("", "Aucune"), ("a", "Alpha"), ("b", "Beta")]
+
+    def _trigger(self, **kwargs) -> str:
+        """Everything before the first option: the closed field (a
+        ``<button>``, a ``<div>`` in multi mode)."""
+        from bretzel import ui
+
+        with render_isolated():
+            out = serialize(Select(
+                options=self.OPTIONS,
+                render=lambda v, label: ui.badge(label=f"ZZ-{label}"),
+                **kwargs,
+            ).render())
+        return out.split('role="option"')[0]
+
+    @staticmethod
+    def _shown(trigger: str) -> list[str]:
+        """The bodies painted at first paint — no ``display:none``."""
+        import re
+
+        return [m.group(2) for m in re.finditer(
+            r'<span ([^>]*)>(?:(?!<span [^>]*bz-show).)*?(ZZ-\w+)', trigger, re.S)
+            if "display:none" not in m.group(1)]
+
+    def test_the_picked_body_is_the_one_shown(self) -> None:
+        trigger = self._trigger(value="b")
+        assert "ZZ-Beta" in trigger and "ZZ-Alpha" in trigger, (
+            "chaque corps est dans le champ : la valeur ne se connaît que "
+            "côté client"
+        )
+        assert self._shown(trigger) == ["ZZ-Beta"]
+        assert "_isPicked(&quot;b&quot;)" in trigger or '_isPicked("b")' in trigger
+
+    def test_no_text_binding_overwrites_the_bodies(self) -> None:
+        """``bz-text`` sur le libellé remplacerait ses enfants au premier
+        effet : les corps disparaîtraient."""
+        assert "bz-text=" not in self._trigger(value="a")
+
+    def test_an_empty_value_option_is_a_pick(self) -> None:
+        """« Du calendrier » vaut ``""`` : c'est un choix, pas l'absence
+        de choix — le texte d'attente reste caché."""
+        trigger = self._trigger(value="", placeholder="Choisir…")
+        assert self._shown(trigger) == ["ZZ-Aucune"]
+        assert 'style="display:none">Choisir…' in trigger
+
+    def test_nothing_picked_shows_the_placeholder(self) -> None:
+        trigger = self._trigger(placeholder="Choisir…")
+        assert self._shown(trigger) == []
+        assert ">Choisir…</span>" in trigger
+        assert 'style="display:none">Choisir…' not in trigger
+
+    def test_multi_shows_the_first_pick_drawn(self) -> None:
+        trigger = self._trigger(value=["b", "a"], multiple=True)
+        assert self._shown(trigger) == ["ZZ-Beta"]
+        assert "_picked()[0]" in trigger
+        assert "slice(0, 1)" not in trigger, (
+            "pas de gabarit : une ligne de bz-for peut être recyclée par le "
+            "morph (traps.md)"
+        )
+
+    def test_without_the_hatch_the_trigger_is_unchanged(self) -> None:
+        with render_isolated():
+            out = serialize(Select(options=self.OPTIONS, value="a").render())
+        assert "bz-text=" in out and "ZZ" not in out

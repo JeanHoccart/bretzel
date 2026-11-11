@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import os
 import re
 import secrets
@@ -95,7 +94,7 @@ def create_project(destination: Path, *, display_name: str) -> list[Path]:
 
 
             def celebrate() -> None:
-                ui.notification("It works!", variant="success")
+                ui.notification("It works!", color="success")
 
 
             @page("/", title="Home")
@@ -158,12 +157,9 @@ def run_project(
 ) -> None:
     """Import a Bretzel app and run it with development defaults."""
     os.environ.setdefault("BRETZEL_MODE", "dev")
-    module_name, separator, attribute = target.partition(":")
-    if not separator or not module_name or not attribute:
-        raise ValueError("invalid target — expected `module:attribute`")
+    from bretzel.introspect._target import load_target
 
-    module = importlib.import_module(module_name)
-    app: Any = getattr(module, attribute, None)
+    app: Any = load_target(target)[0]
     from bretzel import Bretzel
 
     if not isinstance(app, Bretzel):

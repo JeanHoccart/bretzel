@@ -15,9 +15,12 @@ behavior surface is too different :
 - imperative ``.increment()`` / ``.decrement()`` (in addition to the
   standard ``.set / .clear / .focus / .blur``)
 
-Form integration : ``AUTONAME_FROM = "value"``, single hidden value
-on the visible ``<input>`` itself (no separate hidden node ; the
-form-data reads the input directly).
+Form integration : ``AUTONAME_FROM = "value"``. The value travels in an
+``<input type="hidden">`` — « 2.5 » whatever the language — while the
+visible field SHOWS it with the language's decimal mark (« 2,5 » in
+French) and reads it back. If the visible field carried the form data
+itself, it could only hold « 2.5 », and the comma a French user types
+would be refused before it lands.
 
 Imperative API (cf. ``imperative-api.md`` § input-value family) :
 
@@ -42,11 +45,15 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
-    SERVER_ACTION_ATTRS,
-    scope_literal,
-    theme_context,
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.field_wiring import (
+    hidden_carrier_attrs,
+    relocate_aria,
+    relocate_handlers,
 )
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.scope_wiring import scope_literal
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.inputs.number_input.theme import (
     NUMBER_INPUT_THEME,
 )
@@ -54,13 +61,8 @@ from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element, Node
 from bretzel.render import text
 
-# Action attrs land on the root by default, but must move onto the
-# focusable ``<input>`` (the form-data carrier) so the dispatcher reads
-# name+value from the element that actually holds them.
-_ACTION_ATTRS_TO_RELOCATE = SERVER_ACTION_ATTRS
 
-
-class NumberInput(Component):
+class NumberInput(ValueCommands, FocusCommands, Component):
     """Numeric input with vertical ± stepper buttons."""
 
     THEME: ClassVar[dict[str, Any]] = NUMBER_INPUT_THEME
@@ -68,6 +70,10 @@ class NumberInput(Component):
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "clear", "focus", "blur", "increment", "decrement")
+    # Where ``autofocus=`` / ``.focus()`` land: the typed field, not the steppers.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("input[type=text]",)
+    # What a carrier (a second server handler) listens to.
+    DOM_EVENTS: ClassVar[dict[str, str]] = {"change": "bzchange"}
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
@@ -116,26 +122,11 @@ class NumberInput(Component):
 
     # ── Imperative write-only API ─────────────────────────────────────
 
-    def set(self, value: Any) -> str:
-        return self._value_command(value)
-
     def clear(self) -> str:
         """Reset to ``min`` if bounded, else ``0``."""
         min_v = self._reactive_values.get("min")
         target = float(min_v) if min_v is not None else 0.0
         return self.set(target)
-
-    def focus(self) -> str:
-        return (
-            f"document.getElementById('{self.id}')"
-            f".querySelector('input[type=text]').focus()"
-        )
-
-    def blur(self) -> str:
-        return (
-            f"document.getElementById('{self.id}')"
-            f".querySelector('input[type=text]').blur()"
-        )
 
     def increment(self) -> str:
         """Bump the value by ``+step``. Goes through the bz-data's
@@ -146,12 +137,10 @@ class NumberInput(Component):
         """Bump the value by ``-step``."""
         return self._dispatch_command("bz-step", value=-1)
 
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        _theme, slots, sizes, size_key, _color = theme_context(self)
-        size_map = sizes.get(size_key, sizes.get("md", {}))
+        _theme, slots, _sizes, _size_key, _color = theme_context(self)
         disabled = bool(self._reactive_values.get("disabled"))
         required = bool(self._reactive_values.get("required"))
         placeholder = self._reactive_values.get("placeholder") or ""
@@ -163,9 +152,6 @@ class NumberInput(Component):
         min_js = "null" if min_raw is None else json.dumps(float(min_raw))
         max_js = "null" if max_raw is None else json.dumps(float(max_raw))
         step_js = json.dumps(float(step_raw))
-
-        def _resolve(template: str) -> str:
-            return template
 
         # ── Initial value ───────────────────────────────────────────
         raw_initial = self._reactive_values.get("value")
@@ -184,18 +170,12 @@ class NumberInput(Component):
         )
 
         # ── Event relocation ────────────────────────────────────────
-        # The shell wrapper just holds layout — all events live on the
-        # focusable input. Relocate both flavours : a callable handler
-        # (native HTMX action set) and a string handler (``bz-on:<event>``).
+        # The shell wrapper just holds layout. ``focus`` / ``blur`` live
+        # on the visible input, the only one to receive them; a ``change``
+        # on the hidden value carrier, the one the form data reads.
         root_attrs = self.emit_attrs()
         relocated_to_input: dict[str, Any] = {}
-        for ev_attr in (
-            "bz-on:change", "bz-on:focus", "bz-on:blur",
-            *_ACTION_ATTRS_TO_RELOCATE,
-        ):
-            if ev_attr in root_attrs:
-                relocated_to_input[ev_attr] = root_attrs.pop(ev_attr)
-
+        carrier_attrs: dict[str, Any] = {}
         # ── on_change must see the COMMITTED value, not the raw DOM ──
         # The browser fires a NATIVE ``change`` on blur *before* our
         # ``bz-on:blur`` reformats the draft — so a user ``on_change``
@@ -207,21 +187,18 @@ class NumberInput(Component):
         # native ``change`` is left with no listeners. Covers both the
         # string handler (``bz-on:change``) and the callable handler
         # (``hx-trigger="change"`` ± a debounce/throttle modifier).
-        if "bz-on:change" in relocated_to_input:
-            relocated_to_input["bz-on:bzchange"] = relocated_to_input.pop("bz-on:change")
-        # ``hx-trigger`` is ``"change"`` ± a leading-token modifier
-        # (``"change delay:300ms"``) — rewrite only that first token.
-        if trigger := relocated_to_input.get("hx-trigger"):
-            relocated_to_input["hx-trigger"] = trigger.replace("change", "bzchange", 1)
+        relocate_handlers(root_attrs, {
+            "change": (carrier_attrs, "bzchange"),
+            "focus": relocated_to_input,
+            "blur": relocated_to_input,
+        })
+        relocate_aria(root_attrs, relocated_to_input)
 
         # ── Form-data name (autoname) ───────────────────────────────
         name = self._reactive_values.get("name") or self._derive_field_name()
 
         # ── Input attrs ─────────────────────────────────────────────
-        input_class = " ".join(p for p in (
-            slots.get("input", ""),
-            size_map.get("input", ""),
-        ) if p)
+        input_class = self.compose_class("input")
         # ``inputmode="decimal"`` triggers the numeric keyboard on
         # mobile without forcing ``type="number"`` (which has a lot
         # of cross-browser quirks : leading zeros stripped, ``e``
@@ -231,14 +208,10 @@ class NumberInput(Component):
             "inputmode": "decimal",
             "class": input_class,
             "bz-ref": "bzinput",
-            # Capture the carrier so the scope methods (which run bound
-            # to the proxy, with no ``$refs`` / ``$el`` in reach) can
-            # dispatch the synthetic ``change`` from ``_emitChange``.
-            "bz-init": "_carrier = $refs.bzinput || $el",
             # The visible display value : during typing the user
             # sees their raw text (so they can backspace freely) ;
-            # when the input loses focus we re-render the canonical
-            # form from the bound value.
+            # when the input loses focus we re-render the number from
+            # the bound value, with the language's decimal mark.
             "bz-attr:value": (
                 "_focused ? _draft : _displayValue()"
             ),
@@ -249,12 +222,13 @@ class NumberInput(Component):
             # nothing, so a user could type letters into a "number" field.
             # ``beforeinput`` is cancelable for ``insertText`` /
             # ``insertFromPaste`` : we reject any insertion carrying a
-            # char outside ``[0-9.-]`` *before* it lands, so no letter
-            # ever shows and there's no caret-restore dance. ``data`` is
+            # char outside ``[0-9.,-]`` *before* it lands, so no letter
+            # ever shows and there's no caret-restore dance — the comma
+            # is a French decimal mark (``_typed`` reads it). ``data`` is
             # null for deletions / IME composition — left untouched.
             "bz-on:beforeinput": (
                 "if ($event.data != null && "
-                "/[^0-9.-]/.test($event.data)) $event.preventDefault();"
+                "/[^0-9.,-]/.test($event.data)) $event.preventDefault();"
             ),
             "bz-on:input": "_draft = $event.target.value; _commitDraft(false)",
             # NOTE : we do NOT wire ``bz-on:change="_commitDraft(true)"``
@@ -295,15 +269,14 @@ class NumberInput(Component):
             )
         if placeholder:
             input_attrs["placeholder"] = placeholder
-        if name:
-            input_attrs["name"] = name
         if disabled:
             input_attrs["disabled"] = True
+            carrier_attrs["disabled"] = True
         if required:
             input_attrs["required"] = True
         # Combine (don't overwrite) when a user-relocated client-string
         # handler targets the SAME event as the component's own internal
-        # wiring. A blind ``dict.update`` here used to silently destroy
+        # wiring. A blind ``dict.update`` here would silently destroy
         # ``_commitDraft(true)`` on ``on_blur=`` (clamp/snap/commit lost —
         # ``_emitChange`` never fires either, so ``on_change=`` goes dead
         # too) and the draft-reset on ``on_focus=``. Internal logic runs
@@ -325,13 +298,32 @@ class NumberInput(Component):
         # carrier — ``forward_binding`` also handles ClientExpression
         # transparently (it's a ClientBinding subclass).
         self.forward_binding("disabled", input_attrs)
+        self.forward_binding("disabled", carrier_attrs)
 
         input_el = Element(
             tag="input", attrs=input_attrs, children=(),
         )
+        # The value carrier: « 2.5 » whatever the field shows. It also
+        # captures itself as ``_carrier``, from which ``_emitChange``
+        # dispatches ``bzchange`` — the scope methods run bound to the
+        # proxy, with no ``$el`` in reach.
+        # ``dispatch=None``: the ``change`` is the scope's — ``_emitChange``
+        # sends ``bzchange`` once the value is committed, never a raw draft.
+        carrier_attrs.update({
+            **hidden_carrier_attrs(
+                "_canonical()",
+                initial="" if initial_value is None else _canonical(initial_value),
+                ref="bzcarrier",
+                dispatch=None,
+            ),
+            "bz-init": "_carrier = $el",
+        })
+        if name:
+            carrier_attrs["name"] = name
+        carrier_el = Element(tag="input", attrs=carrier_attrs, children=())
 
         # ── Stepper buttons ─────────────────────────────────────────
-        stepper_class = _resolve(slots.get("stepper", ""))
+        stepper_class = slots.get("stepper", "")
         chevron_up = self._render_chevron("chevron-up")
         chevron_down = self._render_chevron("chevron-down")
         up_btn = Element(
@@ -341,7 +333,7 @@ class NumberInput(Component):
                 "class": stepper_class,
                 "tabindex": "-1",
                 "aria-label": text("number_input.increment"),
-                "bz-attr:disabled": "_atMax()",
+                **self._stepper_disabled("_atMax()"),
                 "bz-on:click": "_nudge(_step)",
             },
             children=(chevron_up,),
@@ -353,7 +345,7 @@ class NumberInput(Component):
                 "class": stepper_class,
                 "tabindex": "-1",
                 "aria-label": text("number_input.decrement"),
-                "bz-attr:disabled": "_atMin()",
+                **self._stepper_disabled("_atMin()"),
                 "bz-on:click": "_nudge(-_step)",
             },
             children=(chevron_down,),
@@ -365,10 +357,7 @@ class NumberInput(Component):
         )
 
         # ── Shell (border + focus ring around input + steppers) ────
-        shell_class = " ".join(p for p in (
-            _resolve(slots.get("shell", "")),
-            size_map.get("shell", ""),
-        ) if p)
+        shell_class = self.compose_class("shell")
         shell = Element(
             tag="div",
             attrs={"class": shell_class},
@@ -377,7 +366,7 @@ class NumberInput(Component):
 
         # ── bz-data ─────────────────────────────────────────────────
         # The method bodies live ONCE in ``$bz.numberInput.scope``
-        # (``11_number_input.js``). Besides the value, three client
+        # (``number_input.js``). Besides the value, three client
         # buffers: ``_draft`` (the raw text while typing, so ``"-"`` or
         # ``"1."`` are not clamped mid-keystroke), ``_focused`` (shows the
         # draft while typing, the formatted value once blurred) and
@@ -417,22 +406,35 @@ class NumberInput(Component):
             "_nudge(_step * Number($event.detail.value))"
         )
 
-        children: list[Node] = [shell]
+        children: list[Node] = [carrier_el, shell]
         return Element(
             tag=self._tag, attrs=root_attrs, children=tuple(children),
         )
 
     # ── Helpers ────────────────────────────────────────────────────────
 
+    def _stepper_disabled(self, at_limit: str) -> dict[str, Any]:
+        """The ``disabled`` of a stepper: off at its limit, and whenever
+        the field is off. A literal ``disabled=True`` keeps ``bz-attr``
+        away: it would write ``_atMax()`` over the attribute."""
+        attrs: dict[str, Any] = {}
+        disabled = bool(self._reactive_values.get("disabled"))
+        if disabled:
+            attrs["disabled"] = True
+        binding = self._binding_metadata.get("disabled")
+        if binding is not None:
+            attrs["bz-attr:disabled"] = f"({self.path_of(binding)}) || {at_limit}"
+        elif not disabled:
+            attrs["bz-attr:disabled"] = at_limit
+        return attrs
+
     def _render_chevron(self, name: str) -> Element:
         """A stepper button's glyph, dressed by the ``chevron`` slot.
 
-        The slot was declared in the theme and documented, but never
-        applied (audit F36): an override
+        Applying it is the theme's contract: an override
         ``Theme(components={"number_input": {"slots": {"chevron": …}}})``
-        did nothing. With no visual consequence — the ``shrink-0`` it
-        carries ALREADY comes from Icon's root slot — but the theme's
-        contract was broken.
+        lands here. The default ``shrink-0`` changes nothing visually, it
+        ALREADY comes from Icon's root slot.
         """
         icon = Icon(name, size="xs")
         Component._detach_from_parent(icon)
@@ -440,6 +442,13 @@ class NumberInput(Component):
             icon.render(),
             self._resolved_theme().get("slots", {}).get("chevron", ""),
         )
+
+
+def _canonical(value: float) -> str:
+    """A number as the browser's ``String(n)`` writes it — « 2.5 », « 3 »:
+    the hidden carrier's first value, before the runtime takes over."""
+    text = repr(float(value))
+    return text[:-2] if text.endswith(".0") else text
 
 
 __all__ = ["NumberInput"]

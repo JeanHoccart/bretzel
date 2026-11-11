@@ -17,8 +17,8 @@ The metaclass is the magic that lets users write idiomatic Python ::
 …and have it transparently turned into a typed, tracked, serialisable
 state class. The metaclass walks the class body, REFUSES any declaration
 that does not go through
-:func:`~bretzel.state.fields.descriptor.field` — one single form, decided
-on 2026-09-05 — and collects the
+:func:`~bretzel.state.fields.descriptor.field` — one single form — and
+collects the
 :class:`~bretzel.state.fields.computed.ComputedProperty` and
 :class:`~bretzel.state.fields.validator.Validator` into class registries
 the descriptor and registry layers read back.
@@ -35,6 +35,7 @@ import typing
 from collections.abc import Iterator
 from typing import Any, ClassVar, Final
 
+from bretzel.core.tracking import TRACKER
 from bretzel.state.fields.computed import ComputedProperty
 from bretzel.state.fields.descriptor import MISSING, Field
 from bretzel.state.fields.validator import Validator
@@ -275,12 +276,11 @@ class _StateMeta(type):
                 # ── What the PARENT field said about itself ─────────
                 #
                 # Redeclaring a field to change its DEFAULT must not make
-                # it lose what it otherwise is. The measured case
-                # (2026-08-29): ``DatatableState.sort_key`` carries
-                # ``url="sort"``, an app redeclares it to sort by name
-                # initially — and its URL silently stopped carrying the
-                # sort. Overriding a value is not a renunciation of the
-                # vocabulary.
+                # it lose what it otherwise is: ``DatatableState.sort_key``
+                # carries ``url="sort"``, and an app that redeclares it to
+                # sort by name initially would otherwise silently stop
+                # carrying the sort in its URL. Overriding a value is not
+                # a renunciation of the vocabulary.
                 if existing.url is None:
                     for base in bases:
                         parent = getattr(base, attr_name, None)
@@ -294,9 +294,9 @@ class _StateMeta(type):
 
             if _is_class_var(ann_type):
                 # A class constant is NOT a field, and saying so is
-                # ``ClassVar``'s job. Before this test it was promoted
-                # like the others: persisted, diffed, and sent to the
-                # browser on a ``ClientState``.
+                # ``ClassVar``'s job. Without this test it would be
+                # promoted like the others: persisted, diffed, and sent
+                # to the browser on a ``ClientState``.
                 continue
 
             _refuse_a_bare_declaration(name, attr_name, existing)
@@ -377,6 +377,8 @@ class _StateMeta(type):
         """
         from bretzel.state.registry import current_registry
 
+        # The zone being rendered, if any, now follows this state.
+        TRACKER.note_obtained(cls)
         registry = current_registry()
         if registry is None:
             return super().__call__(*args, **kwargs)
@@ -390,7 +392,7 @@ class _StateMeta(type):
         # memory backend reads directly (``load_sync``); a backend that
         # only reads with ``await`` (Redis) is reached through the
         # registry's thread → loop bridge. ``None`` here therefore means
-        # "nothing stored", no longer "not hydratable": we then fall back
+        # "nothing stored", not "not hydratable": we then fall back
         # on the default values, which is the right answer.
         #
         # ⚠️ From an ``async def`` app body — so on the loop, where the
@@ -505,7 +507,7 @@ class State(metaclass=_StateMeta):
         wasn't form-hydrated.
 
         The handler checks it and decides what to do ; the form zone
-        declares ``deps=[MyForm]`` so it re-renders automatically once a
+        reads ``MyForm``, so it re-renders automatically once a
         validator writes here — no manual call ::
 
             def save(form: MyForm) -> None:
@@ -516,7 +518,11 @@ class State(metaclass=_StateMeta):
         A ``form_field`` displays a field's message via
         ``error=form.errors.get("<field>")``. ``"_"``-prefixed key holds
         whole-form (cross-field) errors.
+
+        The messages of every field at once: a zone that reads them
+        follows the whole state.
         """
+        TRACKER.note_whole(type(self))
         return self.__dict__.get("_bz_errors", {})
 
     # ── Serialisation ────────────────────────────────────────────────────
@@ -529,12 +535,13 @@ class State(metaclass=_StateMeta):
         le registre. Computed properties are excluded ; they are
         derived, not state.
         """
+        # Read from storage, past the descriptors: a zone that shows it
+        # follows the whole state.
+        TRACKER.note_whole(type(self))
         result: dict[str, Any] = {}
         for name, field in type(self)._all_fields().items():
-            if field.has_value(self):
-                value = self.__dict__.get(field._storage_key, MISSING)
-                if value is MISSING:
-                    continue
+            value = self.__dict__.get(field._storage_key, MISSING)
+            if value is not MISSING:
                 result[name] = value
         return result
 

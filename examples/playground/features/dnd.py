@@ -1,6 +1,6 @@
 """``Dropzone`` / ``Draggable`` / ``drag_each`` test bench.
 
-Follows ``.claude/bretzel/playground-pattern.md``'s template. Applicable
+Follows the playground's template. Applicable
 sections: §1 Reference, §2 Edge cases / Composability / A11y (no `Slots`
 — the family has no named slot), §3 Server playground, §4 Server events,
 §6 Client events. **No §5** (`BINDABLE_PROPS` is empty on both sides: a
@@ -306,7 +306,7 @@ def card(label: str) -> None:
 # ───────────────────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[DndPlayground])
+@refreshable
 def server_playground() -> None:
     state = DndPlayground()
 
@@ -364,7 +364,7 @@ def server_playground() -> None:
 # ───────────────────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[DndEvents])
+@refreshable
 def server_events() -> None:
     state = DndEvents()
     with ui.dropzone(name="events", on_move=log_move), ui.vstack(gap="sm"):
@@ -422,7 +422,7 @@ def client_events() -> None:
 # ───────────────────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[Board])
+@refreshable
 def composability() -> None:
     state = Board()
     with ui.grid(cols=2, gap="md"):
@@ -443,7 +443,7 @@ def composability() -> None:
                   variant="ghost", size="sm")
 
 
-@refreshable(deps=[Locked])
+@refreshable
 def edge_cases() -> None:
     state = Locked()
     with ui.grid(cols=3, gap="md"):
@@ -473,7 +473,7 @@ def edge_cases() -> None:
                         size="sm", color="muted")
 
 
-@refreshable(deps=[Preview])
+@refreshable
 def apercu_en_vol() -> None:
     """What the gesture SHOWS: the item in flight becomes a SLOT.
 

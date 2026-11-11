@@ -3,14 +3,14 @@
 Usage ::
 
     ui.week_picker(value=state.week)               # "2026-08-03"
-    ui.week_picker(value=state.week, weekstart=0)  # Sunday weeks
+    ui.week_picker(value=state.week, week_start=0)  # Sunday weeks
 
 **The value is the ISO date of the week's FIRST day.** A week IS its
 first day — it is what most back ends store, and it stays an ordinary
 date: comparable, filterable, displayable, and compatible with anything
 that already eats ISO. Whoever wants the end adds six days.
 
-The starting day follows ``weekstart`` (default Monday). It is not a
+The starting day follows ``week_start`` (default Monday). It is not a
 cosmetic detail: the same date does not belong to the same week
 depending on the setting, so returning the Monday when the user asked
 for Sunday weeks would be a lie about the value.
@@ -33,11 +33,10 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
-    install_open_close_toggle,
-    install_value_commands,
-)
-from bretzel.components.inputs._checkable import sized_slot
+from bretzel.components.base.arguments import reject_attribute_component
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.overlay_wiring import install_open_close_toggle
 from bretzel.components.inputs._picker_field import render_calendar_field, value_expr
 from bretzel.components.inputs._wiring import date_to_iso
 from bretzel.components.inputs.week_picker.theme import WEEK_PICKER_THEME
@@ -54,17 +53,12 @@ from bretzel.render import text
 #: ``{V}`` is the value expression, ``{WS}`` the starting day. The modulo
 #: is doubled for the same reason as in the custom element: JS returns a
 #: NEGATIVE remainder for a negative dividend.
-NORMALISE_TO_WEEK_TEMPLATE = (
-    "(() => {{ const raw = String({V} || '').trim(); "
-    "if (!raw) {{ {V} = ''; return; }} "
-    "const d = new Date(raw); "
-    "if (isNaN(d.getTime())) {{ {V} = ''; return; }} "
-    "const back = (d.getDay() - {WS} + 7) % 7; "
-    "d.setDate(d.getDate() - back); "
-    "const pad = n => String(n).padStart(2, '0'); "
-    "{V} = d.getFullYear() + '-' + pad(d.getMonth() + 1) + "
-    "'-' + pad(d.getDate()); }})()"
-)
+NORMALISE_TO_WEEK_TEMPLATE = "{V} = $bz.dates.typedWeek({V}, {WS})"
+"""A typed date, as the first day of its week — read by ``$bz.dates``,
+the ONE reader of a typed date (``locale.js``). A ``new Date(raw)`` here
+would read ``MM/DD/YYYY`` whatever the language: « 02/07/2027 » would give
+the week of 7 February in French, and « 13/07/2027 » would empty the
+field."""
 
 
 def normalise_to_week_js(value_expr: str, weekstart: int) -> str:
@@ -81,11 +75,13 @@ def _week_to_iso(value: Any) -> str:
     return date_to_iso(value, owner="WeekPicker")
 
 
-class WeekPicker(Component):
+class WeekPicker(ValueCommands, FocusCommands, Component):
     """Render a week field with row-based day selection."""
 
     THEME: ClassVar[dict[str, Any]] = WEEK_PICKER_THEME
     THEME_KEY: ClassVar[str] = "week_picker"
+    #: Retired names, refused with the new one (``attrs.split_kwargs``).
+    RENAMED_PROPS: ClassVar[dict[str, str]] = {"weekstart": "write ``week_start=``."}
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
     #: A picker is BOTH natures at once: an anchored panel (like
@@ -95,6 +91,10 @@ class WeekPicker(Component):
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
+    # Where ``autofocus=`` / ``.focus()`` land. NOT ``"input"``: the first
+    # ``<input>`` is the HIDDEN carrier, where ``.focus()`` does nothing.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("input:not([type=hidden])",)
+    _command_value = staticmethod(_week_to_iso)
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
@@ -112,12 +112,12 @@ class WeekPicker(Component):
 
     def __init__(
         self,
-        value: Any = None,
         *,
-        placeholder: str = "YYYY-MM-DD",
+        value: Any = None,
+        placeholder: str | None = None,
         min: Any = None,
         max: Any = None,
-        weekstart: int = 1,
+        week_start: int = 1,
         marks: Any = None,
         weekday_names: list[str] | None = None,
         month_names: list[str] | None = None,
@@ -133,12 +133,13 @@ class WeekPicker(Component):
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
+        reject_attribute_component(placeholder, owner="WeekPicker", prop="placeholder")
         self._placeholder = placeholder
         # Passed on as is: the same day grid as ``ui.calendar``, so a
         # mark has a cell to land in. ``ui.month_picker`` does not have
         # it: its grid is made of MONTHS.
         self._marks = marks
-        self._weekstart = int(weekstart) % 7
+        self._weekstart = int(week_start) % 7
         self._weekday_names = list(weekday_names) if weekday_names else None
         self._month_names = list(month_names) if month_names else None
         self._clearable = clearable
@@ -150,22 +151,14 @@ class WeekPicker(Component):
             on_change=on_change, on_focus=on_focus, on_blur=on_blur,
             **kwargs,
         )
-        # AFTER `super().__init__`: both installers read
+        # AFTER `super().__init__`: the installer reads
         # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
-        # carrier (`hidden_carrier`), which does not take focus.
-        # Measured — `.focus()` did nothing on all six.
-        install_value_commands(
-            self, focus_selector="input:not([type=hidden])"
-        )
 
 
     def render(self) -> Element:
-        theme = self._resolved_theme()
-        sizes = theme.get("sizes", {})
-        size_key = self._reactive_values.get("size") or "md"
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
+        # The calendar in the panel is drawn at the field's step.
+        size_key = self._size_key() or "md"
         color = self._reactive_values.get("color") or "primary"
 
         raw = self._reactive_values.get("value")
@@ -174,7 +167,7 @@ class WeekPicker(Component):
 
         cal_kwargs: dict[str, Any] = {
             "mode": "week", "color": color, "size": size_key,
-            "weekstart": self._weekstart,
+            "week_start": self._weekstart,
             "marks": self._marks,
         }
         if self._weekday_names:
@@ -189,9 +182,6 @@ class WeekPicker(Component):
             picked.append("open = false")
         cal_kwargs["on_change"] = "; ".join(picked)
 
-        def sized(slot: str) -> str:
-            return sized_slot(self, slot, size_cfg)
-
         # A week's value is a scalar ISO date, so the mirror is EXACTLY
         # DatePicker's — default granularity, including its "only write
         # if it is a complete ISO" guard that avoids erasing the
@@ -200,26 +190,26 @@ class WeekPicker(Component):
             self,
             initial=initial,
             value_expr=val,
-            blur_js=normalise_to_week_js(val, self._weekstart),
+            normalise=lambda v: normalise_to_week_js(v, self._weekstart),
+            shown=lambda v: f"$bz.dates.shownWeek({v}, {self._weekstart})",
             mirror_granularity=None,
             clearable=self._clearable,
             clear_label=text("week_picker.clear"),
             trigger_icon="calendar-range",
             trigger_label=text("week_picker.open"),
+            field_label=text("week_picker.label"),
             calendar_kwargs=cal_kwargs,
             root_css=self.compose_class(
                 "root", apply_variant_size_modifiers=False),
-            # ``sized`` and not ``compose_class``: the step's height
-            # lives on the FRAME, which carries the border (cf. the
-            # theme's note) — otherwise the control renders 2 px too
-            # many.
-            frame_css=sized("input_frame"),
-            panel_css=self.compose_class(
-                "panel", apply_variant_size_modifiers=False),
-            field_css=sized("input_field"),
-            clear_css=sized("clear_button"),
-            trigger_css=sized("trigger_button"),
-            icon_css=sized("button_icon"),
+            # The step's height lives on the FRAME, which carries the
+            # border (cf. the theme's note) — otherwise the control
+            # renders 2 px too many.
+            frame_css=self.compose_class("input_frame"),
+            panel_css=self.compose_class("panel"),
+            field_css=self.compose_class("input_field"),
+            clear_css=self.compose_class("clear_button"),
+            trigger_css=self.compose_class("trigger_button"),
+            icon_css=self.compose_class("button_icon"),
         )
 
 

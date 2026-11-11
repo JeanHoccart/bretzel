@@ -7,7 +7,7 @@ from bretzel.core.escape import (
     escape_js,
     serialize_attrs,
 )
-from bretzel.core.identity import IdGenerator, hash_segment
+from bretzel.core.identity import IdGenerator, hash_segment, key_segment
 from bretzel.core.invoke import call_without_blocking
 from bretzel.core.payload import EventPayload
 from bretzel.core.serialize import VOID_ELEMENTS, serialize
@@ -37,6 +37,7 @@ __all__ = [
     # identity
     "IdGenerator",
     "hash_segment",
+    "key_segment",
     # payload
     "EventPayload",
     # errors

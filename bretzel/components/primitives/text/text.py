@@ -32,7 +32,7 @@ class Text(Component):
     # Curated reactive surface — only the text text. Visual axes
     # (size / weight / color / align / italic / decoration / truncate)
     # are design-time. ``text`` is the first positional arg.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("text",)
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
 
     # All default to ``None`` so a bare ``ui.text("hi")`` carries only the
     # slot's base classes ; modifiers appear only when opted in. All cosmetic
@@ -48,7 +48,7 @@ class Text(Component):
 
     def __init__(
         self,
-        text: Any = None,
+        text: str | Component | ClientBinding | None = None,
         *,
         size: str | None = None,
         weight: str | None = None,
@@ -71,10 +71,9 @@ class Text(Component):
         )
         # Static strings, ClientBindings, ClientExpressions and Components all
         # pass through verbatim — ``render()`` decides how to emit each shape.
-        # ``adopt_slot`` detaches a Component so it doesn't ALSO render as a
-        # sibling. We skip ``text or ""`` because ``ClientBinding.__bool__``
+        # We skip ``text or ""`` because ``ClientBinding.__bool__``
         # raises (it would freeze a reactive value at server-render time).
-        self._text = "" if text is None else Component.adopt_slot(text)
+        self._text = "" if text is None else text
 
     # ── Render ─────────────────────────────────────────────────────────
 
@@ -99,8 +98,8 @@ class Text(Component):
             children: tuple[Any, ...] = ()
         elif isinstance(self._text, Component):
             # Universal contract : every text slot accepts a Component too.
-            # ``adopt_slot`` (in __init__) already detached it, so rendering
-            # it here is the only owner.
+            # The constructor already took it out of its parent
+            # (``adopt_owned_arguments``): rendered here, it is rendered once.
             children = (self._text.render(),)
         else:
             children = (TextNode(str(self._text)),)

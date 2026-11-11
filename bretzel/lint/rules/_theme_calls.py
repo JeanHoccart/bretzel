@@ -9,14 +9,9 @@ protects.
 
 Why the extraction
 ------------------
-All three read the same thing with their own copy. ``_dict_items``
-existed in **two different signatures** — three elements in ``theme`` and
-``shape``, two in ``variant`` — and ``variant`` re-wrote the recognition
-of the ``Theme`` name by hand. It was not yet a bug: all three said the
-same thing. It was the pattern that precedes a bug, the same one
-``theme_vocabulary`` closed on 2026-08-16 — two copies of a loop end up
-no longer saying what the runtime says, and it is the lint one would have
-believed.
+All three read the same thing, so they read it here. A copy per rule is
+the pattern that precedes a bug: two copies of a loop end up no longer
+saying what the runtime says, and it is the lint one would believe.
 
 What it does NOT give the rules
 -------------------------------

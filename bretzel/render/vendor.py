@@ -4,40 +4,23 @@ What it fixes
 -------------
 
 A Bretzel page loads three scripts that do not come from us: htmx, the
-idiomorph extension, and the iconify web component. Measured on
-2026-08-27 on an app in ``prod`` mode, cold cache, minimal page:
-
-===============================  ==========
-resource                         duration
-===============================  ==========
-``unpkg.com/htmx``                  593 ms
-``unpkg.com/idiomorph-ext``         592 ms
-``code.iconify.design/iconify``     489 ms
-``/_bretzel/runtime.js`` (local)     41 ms
-``/_bretzel/style.css`` (local)      21 ms
-===============================  ==========
-
-That page's ``DOMContentLoaded`` lands at **644 ms**: it is held
-entirely by the first three lines. The two resources served by the app
-arrive in 20-40 ms — same connection, already open, already encrypted.
+idiomorph extension, and the iconify web component. From a CDN, on a
+cold cache, they hold ``DOMContentLoaded`` back, whereas a resource served
+by the app arrives over a connection already open, already encrypted.
 Three third-party origins means three DNS resolutions, three TLS
 handshakes and three availabilities that do not depend on us.
 
 They ship inside the wheel
 --------------------------
 
-Since 0.1.0a3 the three scripts and the Lucide icon set (the default
-``ui.icon`` set) live in ``bretzel/render/_vendor/`` and are part of the
-package: a production page talks to no third-party host, with no
-command to run first. Decided on 2026-10-22, after an outside build of a
-helpdesk app found that a production page loaded htmx, idiomorph and
-iconify from CDNs unless ``python -m bretzel.render.vendor`` had been run
-— a command only named in a startup warning — and fetched its glyphs
-from api.iconify.design at runtime. The four files weigh 95 KB gzipped.
+The three scripts and the Lucide icon set (the default ``ui.icon`` set)
+live in ``bretzel/render/_vendor/`` and are part of the package: a
+production page talks to no third-party host, with no command to run
+first.
 
 What still goes through ``./.bretzel/vendor/``, the project cache: the
-dev-only browser CSS compiler (:func:`browser_css_asset`, 276 KB, never
-loaded in production) and the glyphs of icon sets other than Lucide,
+dev-only browser CSS compiler (:func:`browser_css_asset`, never loaded
+in production) and the glyphs of icon sets other than Lucide,
 relayed once by the server then cached. ``python -m bretzel.render.vendor``
 still downloads the first; in DEV the app does it by itself
 (:func:`ensure_vendored`, called on the first ASGI call).
@@ -55,6 +38,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
+import threading
 import urllib.request
 from functools import cache
 from pathlib import Path
@@ -164,8 +150,8 @@ def download(asset: VendoredAsset, *, force: bool = False) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     print(f"[bretzel] Downloading {asset.filename} from {asset.url}")
     # Explicit ``User-Agent``: ``code.iconify.design`` answers **403** to
-    # ``urllib``'s default header (measured on 2026-08-27). unpkg does not
-    # care; setting it for all three avoids having two paths.
+    # ``urllib``'s default header. unpkg does not care; setting it for all
+    # three avoids having two paths.
     request = urllib.request.Request(
         asset.url, headers={"User-Agent": "bretzel-vendor/1.0"}
     )
@@ -201,14 +187,13 @@ def browser_css_asset() -> VendoredAsset:
     say in dev. Putting it in the common list would make it emit in
     production, where the sheet is already compiled.
 
-    ⚠️ **It is the heaviest of the four — 276 KB — and it was the only
-    one that was neither verifiable nor vendorable**, because its URL was
-    a RANGE (``@4``). Consequence measured on 2026-09-13: every dev page
-    made two round trips to unpkg (a 302, then the bundle), and when that
-    third party faltered, *no* sheet was produced — a button's ink went
-    from ``oklab(…)`` to ``rgb(0, 0, 0)``. A whole suite of probes runs
-    in dev: its reliability hung on a third-party site, and its red moved
-    from one probe to another without ever speaking about the code.
+    ⚠️ **It is the heaviest of the four, and its URL must stay exact**: a
+    RANGE (``@4``) can be neither verified nor vendored. Served from
+    there, every dev page makes two round trips to unpkg (a 302, then the
+    bundle), and when that third party falters, *no* sheet is produced —
+    a button's ink goes from ``oklab(…)`` to ``rgb(0, 0, 0)``. A whole
+    suite of probes runs in dev: its reliability must not hang on a
+    third-party site.
     """
     from bretzel.render.shell import (  # casse un cycle : shell → vendor
         DEFAULT_TAILWIND_BROWSER_URL,
@@ -267,8 +252,29 @@ def vendored_assets() -> tuple[VendoredAsset, ...]:
     )
 
 
+def main(argv: list[str] | None = None) -> int:
+    """``bretzel vendor`` (and ``python -m bretzel.render.vendor``).
+
+    Arguments are read, so ``--help`` does not START the download."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="bretzel vendor",
+        description=(
+            "Download the third-party scripts (htmx, idiomorph, iconify) into "
+            "./.bretzel/vendor/, so that no page loads them from a CDN."
+        ),
+    )
+    parser.add_argument("--force", action="store_true",
+                        help="download again, even what is already there")
+    args = parser.parse_args(argv)
+    for path in download_all(force=args.force):
+        print(f"[bretzel] vendored {path}")
+    return 0
+
+
 if __name__ == "__main__":  # pragma: no cover — manual entry point
-    download_all()
+    raise SystemExit(main())
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -277,14 +283,26 @@ if __name__ == "__main__":  # pragma: no cover — manual entry point
 #
 # Vendoring ``iconify-icon.min.js`` only vendors the component. The shell
 # configures the component to call ``/_bretzel/icons``; that route reads
-# the local cache first, then queries the Iconify APIs from the server.
-# The visitor's browser therefore contacts none of those hosts.
+# the sets shipped in the wheel, then the project cache, then queries the
+# Iconify APIs from the server. The visitor's browser therefore contacts
+# none of those hosts.
 #
 # The geometry does not move — a missing icon keeps its box, which the
-# CSS sizes at ``1em``. That is why this third party did not produce the
-# moving reds of ``-m probes`` (that was the CSS compiler), and why it
-# only shows on a screenshot. It remains a network dependency on the
-# first access to a glyph absent from the cache.
+# CSS sizes at ``1em`` — so it only shows on a screenshot. It remains a
+# network dependency on the first access to a glyph absent from the cache.
+#
+# ⚠️ **The route is public and answers ONE request: the component's.**
+# ``/<prefix>.json?icons=a,b``, every word in Iconify's grammar, checked
+# before the prefix touches a path or a name an upstream URL. A route
+# relaying whatever it is given would pay for it three ways: the prefix,
+# joined as it came, would read any ``.json`` of the disk (``..%2F``,
+# ``..\``, ``C:/``) and, on Windows, open an SMB connection to the host a
+# ``\\host\share`` names; every distinct query would write one more file
+# to the cache, forever; and an upstream call on the event loop would let
+# one slow answer freeze every other request of the worker (the route
+# hands it to a thread).
+# The cache is therefore kept by ICON, one set file per prefix: it is
+# bounded by the icons that exist, not by the requests one can invent.
 
 ICON_CACHE_DIRNAME = "icons"
 
@@ -295,6 +313,43 @@ ICON_API_HOSTS: Final[tuple[str, ...]] = (
     "https://api.unisvg.com",
 )
 
+#: Iconify's grammar for a set prefix and for an icon name: lowercase
+#: words joined by single hyphens. Neither a dot, a slash nor a backslash.
+_ICON_WORD = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+#: The component cuts a request at 500 characters of URL: fewer names fit.
+MAX_ICONS_PER_REQUEST: Final[int] = 100
+#: What an upstream answer may say of its icons, set-wide.
+_ICON_DEFAULTS = ("left", "top", "width", "height")
+
+#: One writer at a time on a cached set: two pages asking for two new
+#: glyphs of the same set must both end up in its file.
+_CACHE_WRITING = threading.Lock()
+
+
+class IconRequest(NamedTuple):
+    """The component's request: a set and the names it wants from it."""
+
+    prefix: str
+    names: tuple[str, ...]
+
+
+def icon_request(path: str) -> IconRequest | None:
+    """``/<prefix>.json?icons=a,b`` read, or ``None`` for anything else."""
+    parts = urlsplit(path)
+    file_name = parts.path.lstrip("/")
+    if not file_name.endswith(".json"):
+        return None
+    prefix = file_name[: -len(".json")]
+    query = parse_qs(parts.query, keep_blank_values=True)
+    if not _ICON_WORD.fullmatch(prefix) or list(query) != ["icons"] or len(query["icons"]) != 1:
+        return None
+    names = tuple(dict.fromkeys(n for n in query["icons"][0].split(",") if n))
+    if not 0 < len(names) <= MAX_ICONS_PER_REQUEST:
+        return None
+    if not all(_ICON_WORD.fullmatch(name) for name in names):
+        return None
+    return IconRequest(prefix, names)
+
 
 def icon_cache_dir() -> Path:
     """``./.bretzel/vendor/icons/`` — created on demand."""
@@ -303,47 +358,31 @@ def icon_cache_dir() -> Path:
     return d
 
 
-def _icon_cache_file(path: str) -> Path:
-    """A request's cache file, named by its FINGERPRINT.
-
-    An Iconify request's path carries a list of icons in the query
-    (``lucide.json?icons=check,x``), so it contains characters a file
-    name does not accept, and it can exceed the maximum length of a
-    Windows path. A fingerprint settles both.
-    """
-    digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:32]
-    return icon_cache_dir() / f"{digest}.json"
-
-
 @cache
-def _packaged_icon_set(prefix: str) -> dict | None:
-    """A set shipped in ``_vendor/`` (Iconify JSON), read once: it never changes."""
-    path = PACKAGED_DIR / f"{prefix}.json"
-    if not path.is_file():
-        return None
+def _packaged_icon_set_at(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def packaged_icon_payload(path: str) -> bytes | None:
-    """Answer ``/<prefix>.json?icons=a,b`` from a set shipped in the wheel.
+def _packaged_icon_set(prefix: str) -> dict | None:
+    """A set shipped in ``_vendor/`` (Iconify JSON), read once: it never
+    changes. ``None`` for a prefix outside Iconify's grammar, before any
+    path is built from it."""
+    if not _ICON_WORD.fullmatch(prefix):
+        return None
+    path = PACKAGED_DIR / f"{prefix}.json"
+    if not path.is_file():
+        return None
+    return _packaged_icon_set_at(path)
 
-    Speaks the one endpoint the web component calls, in the shape the
-    Iconify API answers it (``prefix``, ``icons``, ``aliases``,
-    ``not_found``), so the component cannot tell the difference. ``None``
-    when the set is not shipped: the caller then relays as before.
-    """
-    parts = urlsplit(path)
-    name = parts.path.lstrip("/")
-    if not name.endswith(".json"):
-        return None
-    data = _packaged_icon_set(name[: -len(".json")])
-    if data is None:
-        return None
-    wanted = [n for n in parse_qs(parts.query).get("icons", [""])[0].split(",") if n]
+
+def _answer(data: dict, names: tuple[str, ...]) -> dict:
+    """``names`` from a set, in the shape the Iconify API answers them
+    (``prefix``, ``icons``, ``aliases``, ``not_found``): the component
+    cannot tell a shipped or cached set from the API."""
     icons: dict[str, dict] = {}
     aliases: dict[str, dict] = {}
     missing: list[str] = []
-    for icon in wanted:
+    for icon in names:
         if icon in data["icons"]:
             icons[icon] = data["icons"][icon]
         elif icon in data.get("aliases", {}):
@@ -365,37 +404,113 @@ def packaged_icon_payload(path: str) -> bytes | None:
         body["aliases"] = aliases
     if missing:
         body["not_found"] = missing
+    return body
+
+
+def _serialized(body: dict) -> bytes:
     return json.dumps(body, separators=(",", ":")).encode("utf-8")
 
 
-def icon_payload(path: str, *, allow_download: bool = True) -> bytes | None:
-    """Return an Iconify API response body: shipped set, cache, then upstream."""
-    packaged = packaged_icon_payload(path)
-    if packaged is not None:
-        return packaged
-    cached = _icon_cache_file(path)
-    if cached.is_file():
-        return cached.read_bytes()
-    if not allow_download:
+def packaged_icon_payload(path: str) -> bytes | None:
+    """Answer ``/<prefix>.json?icons=a,b`` from a set shipped in the wheel.
+
+    ``None`` when the request is not the component's or the set is not
+    shipped: the caller then looks in the cache, then upstream.
+    """
+    request = icon_request(path)
+    data = _packaged_icon_set(request.prefix) if request else None
+    if request is None or data is None:
         return None
+    return _serialized(_answer(data, request.names))
+
+
+def _cached_icon_set(prefix: str) -> dict:
+    """The icons of ``prefix`` already relayed, by name (empty at first)."""
+    path = icon_cache_dir() / f"{prefix}.json"
+    if path.is_file():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            pass  # a file cut short: its glyphs come back from upstream
+    return {"prefix": prefix, "icons": {}, "aliases": {}}
+
+
+def _fetch_icons(request: IconRequest) -> dict | None:
+    """The upstream answer for ``request``, or ``None`` if no host gives one."""
+    path = f"/{request.prefix}.json?icons={','.join(request.names)}"
     for host in ICON_API_HOSTS:
         req = urllib.request.Request(
             host + path,
             # ⚠️ An explicit ``User-Agent``, and it is not cosmetic:
-            # without it, the API returns **403** (measured on
-            # 2026-09-13), and the diagnosis arrives in the form of
-            # missing icons.
+            # without it, the API returns **403**, and the diagnosis
+            # arrives in the form of missing icons.
             headers={"User-Agent": "bretzel/vendor"},
         )
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
-                body = resp.read()
-        except Exception:  # network, HTTP, DNS — we try the next one
+                data = json.loads(resp.read())
+        except Exception:  # network, HTTP, DNS, not JSON — we try the next one
             continue
-        if body:
-            cached.write_bytes(body)
-            return body
+        if isinstance(data, dict) and data.get("prefix") == request.prefix:
+            return data
     return None
+
+
+def _keep_icons(prefix: str, fetched: dict) -> dict:
+    """Add what upstream sent to the set's cache file; return the set.
+
+    Each icon is kept with the set-wide defaults of ITS answer written on
+    it (``width``, ``height``…): two answers need not share them. Only
+    names in Iconify's grammar, and icons that have a ``body``, are kept.
+    """
+    defaults = {k: fetched[k] for k in _ICON_DEFAULTS if k in fetched}
+    icons = {
+        name: {**defaults, **icon}
+        for name, icon in (fetched.get("icons") or {}).items()
+        if _ICON_WORD.fullmatch(str(name))
+        and isinstance(icon, dict) and isinstance(icon.get("body"), str)
+    }
+    aliases = {
+        name: alias
+        for name, alias in (fetched.get("aliases") or {}).items()
+        if _ICON_WORD.fullmatch(str(name))
+        and isinstance(alias, dict) and isinstance(alias.get("parent"), str)
+    }
+    with _CACHE_WRITING:
+        kept = _cached_icon_set(prefix)
+        if icons or aliases:
+            kept["icons"].update(icons)
+            kept.setdefault("aliases", {}).update(aliases)
+            path = icon_cache_dir() / f"{prefix}.json"
+            aside = path.with_suffix(".part")
+            aside.write_text(json.dumps(kept, separators=(",", ":")), encoding="utf-8")
+            os.replace(aside, path)
+    return kept
+
+
+def icon_payload(path: str, *, allow_download: bool = True) -> bytes | None:
+    """Answer the component's request: shipped set, cache, then upstream.
+
+    ``None`` — a 404, after which the component tries its own hosts —
+    when the request is not the component's, or when a glyph is missing
+    and no upstream host answered. Blocking (a network call): the route
+    runs it on a thread, never on the event loop.
+    """
+    request = icon_request(path)
+    if request is None:
+        return None
+    shipped = _packaged_icon_set(request.prefix)
+    if shipped is not None:
+        return _serialized(_answer(shipped, request.names))
+    kept = _cached_icon_set(request.prefix)
+    known = kept["icons"].keys() | kept.get("aliases", {}).keys()
+    unknown = tuple(name for name in request.names if name not in known)
+    if unknown:
+        fetched = _fetch_icons(IconRequest(request.prefix, unknown)) if allow_download else None
+        if fetched is None:
+            return None
+        kept = _keep_icons(request.prefix, fetched)
+    return _serialized(_answer(kept, request.names))
 
 
 def packaged_glyph(icon: str) -> tuple[str, int, int] | None:

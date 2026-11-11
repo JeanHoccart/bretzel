@@ -25,9 +25,12 @@ BANNER_THEME: dict[str, Any] = {
         # so the Banner looks anchored to its container. Apps that
         # want a rounded Banner inside a Card can override via
         # ``classes="rounded-box"``.
+        # The vertical padding is the STEP's (``sizes``), not the slot's:
+        # a ``py-3`` on the slot, beside the step's ``py-2`` / ``py-4`` on
+        # the same element, would win at ``sm`` by Tailwind's sheet order.
         "root": (
             "relative flex items-center gap-3 w-full "
-            "px-4 py-3 "
+            "px-4 "
             "border-l-(length:--bz-stroke-accent)"
         ),
         "icon": "shrink-0 self-start mt-0.5",
@@ -45,7 +48,7 @@ BANNER_THEME: dict[str, Any] = {
             # dismiss affordance is muted, never invisible.
             "text-(--bz-text-muted) hover:text-(--bz-text) "
             "hover:bg-(--bz-bg) "
-            "transition-colors duration-100"
+            "transition-colors duration-150"
         ),
     },
     # Color-flavoured backgrounds — softer than Alert's so the banner

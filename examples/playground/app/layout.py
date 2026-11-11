@@ -1,12 +1,19 @@
 """The application shell: sidebar on the left, page in the outlet.
 
-The skeleton: ``h-screen`` in the flow, ``sidebar_title`` +
-``sidebar_footer`` + ``sidebar_footer_item``, and the content shifted
-under the mobile top bar through ``max-md:pt-[5.5rem]``.
+The skeleton: ``ui.viewport`` + ``ui.pane``, ``sidebar_title`` +
+``sidebar_footer`` + ``sidebar_footer_item``.
+
+**On a phone** (``Screen().is_mobile``) the sidebar is an ``overlay``,
+closed, opened from a top bar's ``ui.sidebar_trigger`` — the CRM's
+recipe. The sidebar has shipped no mobile bar of its own since
+2026-08-15: the shell is the one that knows it is on a phone. Until
+2026-11-06 this shell still counted on that bar, so at 390 px the
+docked sidebar kept its 256 px and left the page 38.
 """
 
-from bretzel import ui
+from bretzel import Screen, ui
 from bretzel.theme import ColorScheme
+from examples.playground.app.nav import NAV
 
 #: The three modes, in the order they are read.
 THEME_ITEMS: tuple[tuple[str, str, str], ...] = (
@@ -15,7 +22,6 @@ THEME_ITEMS: tuple[tuple[str, str, str], ...] = (
     ("system", 'System theme', "monitor"),
 )
 
-from examples.playground.app.nav import NAV
 
 
 def shell() -> None:
@@ -26,8 +32,13 @@ def shell() -> None:
     # the component's theme:
     # `bretzel/components/layout/viewport/theme.py`. They were copied
     # into nine shells, each free to drift.
+    mobile = Screen().is_mobile
     with ui.viewport():
-        with ui.sidebar(collapsible="rail"):
+        # Desktop: a rail. Phone: an overlay that slides over the page — a
+        # docked sidebar would eat 256 of 390 px for good.
+        sidebar = ui.sidebar(collapsible="overlay" if mobile else "rail",
+                             open=not mobile)
+        with sidebar:
             # ``sidebar_title`` owns the header: logo + title + collapse
             # toggle (and the automatic mobile top bar). No more manual
             # ``hstack``, no more ``pr-12`` nor
@@ -48,8 +59,8 @@ def shell() -> None:
             # never instantiates it); ``ColorScheme.toggle()`` is a pure
             # client expression — zero server round trips.
             with ui.sidebar_footer(
-                name="Jean Hoccart",
-                subtitle="jean.hoccart@gmail.com",
+                name="Alex Martin",
+                subtitle="alex@acme.com",
             ):
                 # Three entries and not a toggle: ``system`` is a state
                 # in its own right — "follow my OS" — and a two-position
@@ -60,6 +71,7 @@ def shell() -> None:
                     ui.sidebar_footer_item(
                         label=label,
                         icon_left=icon,
+                        checked=ColorScheme().mode == value,
                         on_click=ColorScheme.set(value),
                     )
                 # The cross link, symmetrical with the docs'.
@@ -70,15 +82,20 @@ def shell() -> None:
                     label="Docs", icon_left="book-open",
                     href="http://localhost:8006/",
                 )
-        # The REGION: the child pages render HERE (outlet_shell).
-        # ``min-h-0`` lets the flex child shrink below its content height
-        # so ``overflow-y-auto`` triggers a scrollbar instead of pushing
-        # the panel beyond the viewport.
-        # ``max-md:pt-[5.5rem]`` shifts the content under the mobile top
-        # bar (``position: fixed``, h-14 = 3.5rem, frosted
-        # ``bg-surface/80``) — 5.5rem = 3.5rem (the bar) + 2rem of
-        # breathing room. Desktop (md+): no bar, the ``p-8`` takes over.
-        # The same line as flat.
-        with ui.pane(gap="none", padding="lg",
-                     classes="max-md:pt-[5.5rem]"):
-            ui.outlet()
+        # The REGION: the child pages render HERE (outlet_shell), in the
+        # pane that scrolls.
+        if mobile:
+            with ui.pane(gap="none"):
+                # The way back to the sidebar: in ``overlay`` mode it sits
+                # off-screen with its own collapse button (cf. the CRM).
+                with ui.hstack(justify="between", align="center",
+                               classes="sticky top-0 z-20 bg-background "
+                                       "px-4 py-2 border-b border-text/10"):
+                    ui.sidebar_trigger(sidebar, icon="menu")
+                    ui.text("Bretzel · Playground", weight="semibold")
+                    ui.icon("shapes", color="primary")
+                with ui.vstack(gap="none", classes="p-4"):
+                    ui.outlet()
+        else:
+            with ui.pane(gap="none", padding="lg"):
+                ui.outlet()

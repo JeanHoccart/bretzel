@@ -57,3 +57,6 @@ jobs:
         with:
           name: distributions
           path: dist/
+          # Rebuilt from its commit at will; 90 days of them filled the
+          # private storage quota (2026-11-10: 98 copies, 1.8 GB).
+          retention-days: 1

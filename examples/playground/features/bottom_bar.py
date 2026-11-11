@@ -103,8 +103,8 @@ def clear_log() -> None:
 
 def server_changed(state: BottomBarPlayground) -> None:
     # A typed param → the dispatcher hydrates the changed control's
-    # value into ``state`` (coerced + persisted). The panel declares
-    # ``deps=[BottomBarPlayground]``, it re-renders on its own.
+    # value into ``state`` (coerced + persisted). The panel reads that
+    # state, so it re-renders on its own.
     pass
 
 
@@ -173,7 +173,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[BottomBarPlayground])
+@refreshable
 def server_panel() -> None:
     state = BottomBarPlayground()
 
@@ -240,7 +240,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[BottomBarEvents])
+@refreshable
 def events_panel() -> None:
     state = BottomBarEvents()
 

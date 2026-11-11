@@ -9,11 +9,14 @@ SUMMARY = ("An on/off rail for settings that apply at once — in the browser "
 
 
 def setting_row(title: str, description: str, on: bool) -> None:
-    with ui.hstack(gap="lg", justify="between"):
-        with ui.vstack(gap="none"):
-            ui.text(title, weight="medium")
-            ui.text(description, size="sm", color="muted")
-        ui.switch(checked=on, aria_label=title)
+    # The text IS the switch's label: the whole row toggles on click, and a
+    # screen reader names the switch by it. flex-row-reverse puts the rail
+    # on the right.
+    with ui.vstack(gap="none", tag="span") as text:
+        ui.text(title, size="md", weight="medium")
+        ui.text(description, size="sm", color="muted", weight="normal")
+    ui.switch(checked=on, label=text,
+              classes="w-full flex-row-reverse justify-between")
 
 
 def notification_settings() -> None:
@@ -51,7 +54,7 @@ def maintenance_changed(workspace: Workspace) -> None:
     """The typed parameter receives the switch's value; the status follows."""
 
 
-@refreshable(deps=[Workspace])
+@refreshable
 def workspace_status() -> None:
     if Workspace().maintenance:
         ui.alert("Sign-ins are paused. Your customers see the maintenance page.",
@@ -84,9 +87,10 @@ def sizes_and_colors() -> None:
 
 def page() -> None:
     page_header("switch", "Switch", SUMMARY)
-    example("A settings list", notification_settings,
+    example("A settings list", notification_settings, uses=[setting_row],
             note="The usual layout: the setting explained on the left, the "
-                 "switch on the right.")
+                 "switch on the right — and the whole row is the label, so "
+                 "a click anywhere on it toggles.")
     example("Show more options", reveal_options, uses=[ExportOptions],
             note="Bound to a ClientState, the switch shows the extra fields in "
                  "the browser, with no request.")

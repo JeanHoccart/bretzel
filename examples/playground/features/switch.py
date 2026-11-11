@@ -142,7 +142,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[SwitchPlayground])
+@refreshable
 def server_panel() -> None:
     state = SwitchPlayground()
 
@@ -215,7 +215,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[SwitchEvents])
+@refreshable
 def events_panel() -> None:
     state = SwitchEvents()
 

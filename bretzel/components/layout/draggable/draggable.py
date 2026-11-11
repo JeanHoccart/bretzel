@@ -99,7 +99,7 @@ class Draggable(Component):
         destroys the card's subtree, and with it any open menu, focus or
         in-flight animation it contained. Idiomorph pairs on ``id``, so an
         anonymous draggable silently degrades to teardown-and-rebuild.
-        Measured and gated by
+        Gated by
         ``tests/runtime_js/test_morph_preserves_reordered_nodes.py``, whose
         whole premise is that the nodes carry ids.
         """

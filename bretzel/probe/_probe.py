@@ -81,10 +81,9 @@ def say(line: str) -> None:
 
     A probe launched by hand reconfigures its output to UTF-8; a probe
     collected by ``pytest`` has reconfigured nothing at all, and the
-    Windows console is in cp1252. A finding name carrying a "①" then
-    brought the scenario down on a ``UnicodeEncodeError`` — from
+    Windows console is in cp1252. Without this, a finding name carrying
+    a "①" brings the scenario down on a ``UnicodeEncodeError`` — from
     ``print``, that is to say from the line that was meant to REPORT.
-    Measured on 2026-09-11 while porting a bench measurement into a gate.
 
     Replacement is preferable to silence: the verdict stays readable,
     only the character that does not pass becomes a "?".

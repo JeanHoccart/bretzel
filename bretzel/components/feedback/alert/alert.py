@@ -29,10 +29,11 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
+from bretzel.components.base.dismiss import (
     close_handler_wired,
     dismiss_button,
     dismiss_local_scope,
+    split_icon_flag,
 )
 from bretzel.components.feedback.alert.theme import ALERT_THEME
 from bretzel.components.primitives.icon import Icon
@@ -49,12 +50,11 @@ class Alert(Component):
     IS_CONTAINER: ClassVar[bool] = False
     # Reactive surface — only title + message carry live text (bz-text).
     # color / dismissible are design-time.
-    # Cf. .claude/bretzel/client-reactive-surface.md.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("title", "message")
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     EVENTS: ClassVar[tuple[str, ...]] = ("close",)
 
     color: str = reactive_prop(default="info", emit_attr=False)
-    title: str | None = reactive_prop(default=None, emit_attr=False)
+    title: str | Component | None = reactive_prop(default=None, emit_attr=False)
     dismissible: bool = reactive_prop(default=False, emit_attr=False)
 
     def __init__(
@@ -63,7 +63,7 @@ class Alert(Component):
         *,
         color: str | None = None,
         icon: str | Component | bool | None = None,
-        title: str | None = None,
+        title: str | Component | None = None,
         dismissible: bool | None = None,
         on_close: Callable[..., Any] | str | None = None,
         **kwargs: Any,
@@ -74,16 +74,12 @@ class Alert(Component):
             on_close=on_close,
             **kwargs,
         )
-        # ``adopt_slot`` detaches a Component slot from its active parent
-        # so it doesn't render twice (standalone sibling + inside alert),
-        # and does the string→Icon shortcut for ``icon=``.
-        self._message = Component.adopt_slot(message)
+        self._message = message
         # ``icon=False`` is the opt-out for the semantic auto-icon on
         # ``info`` / ``success`` / ``warning`` / ``error`` colours.
         # ``icon=None`` (default) keeps the auto-pick ; an explicit
         # string or Component overrides ; ``False`` suppresses entirely.
-        self._suppress_auto_icon = icon is False
-        icon_value: str | Component | None = None if icon is False else icon
+        icon_value, self._suppress_auto_icon = split_icon_flag(icon)
         self._icon: Component | None = Component.adopt_slot(
             icon_value, icon_shortcut=True
         )
@@ -114,9 +110,7 @@ class Alert(Component):
 
         if icon is not None:
             icon_render = icon.render()
-            icon_class = self.compose_class(
-                "icon", apply_variant_size_modifiers=False
-            )
+            icon_class = self.compose_class("icon")
             icon_render = Element(
                 tag=icon_render.tag,
                 attrs={
@@ -142,10 +136,7 @@ class Alert(Component):
                 Element(
                     tag="div",
                     attrs={
-                        "class": self.compose_class(
-                            "title",
-                            apply_variant_size_modifiers=False,
-                        )
+                        "class": self.compose_class("title")
                     },
                     children=(title_node,),
                 )
@@ -161,10 +152,7 @@ class Alert(Component):
                     Element(
                         tag="div",
                         attrs={
-                            "class": self.compose_class(
-                                "message",
-                                apply_variant_size_modifiers=False,
-                            )
+                            "class": self.compose_class("message")
                         },
                         children=(message_node,),
                     )
@@ -173,10 +161,7 @@ class Alert(Component):
             Element(
                 tag="div",
                 attrs={
-                    "class": self.compose_class(
-                        "content",
-                        apply_variant_size_modifiers=False,
-                    )
+                    "class": self.compose_class("content")
                 },
                 children=tuple(content_children),
             )
@@ -201,10 +186,7 @@ class Alert(Component):
             # alert) AND re-dispatches ``close`` for the server/client
             # ``on_close=``.
             children.append(dismiss_button(
-                button_class=self.compose_class(
-                    "dismiss",
-                    apply_variant_size_modifiers=False,
-                ),
+                button_class=self.compose_class("dismiss"),
                 aria_label=text("alert.dismiss"),
                 icon_size="sm",
             ))

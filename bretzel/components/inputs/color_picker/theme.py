@@ -61,14 +61,18 @@ COLOR_PICKER_THEME: dict[str, Any] = {
             "focus-visible:ring-(--bz-focus) "
             "disabled:cursor-not-allowed"
         ),
-        "button_icon": "",
+        # The glyph of the two buttons. Like the date, month, week and time
+        # pickers': its size comes from the table below, which holds classes
+        # and not Icon TOKENS: a token (``"md"``) would land as a CLASS that
+        # does not exist, and the glyph would inherit the page's size.
+        "button_icon": "inline-flex shrink-0 text-current",
         "panel": (
             "absolute z-50 mt-1 rounded-box border-(length:--bz-stroke) border-text/10 "
             "bg-surface shadow-lg p-3 w-max max-w-[min(20rem,100vw-2rem)] "
             # The enter fade, FIELD cadence (75 ms, half the menus').
             # Mechanism of the three classes: a single copy, in
             # ``overlay/dropdown/theme.py``.
-            "transition-[opacity,display] transition-discrete duration-75 "
+            "transition-opacity duration-75 "
             "starting:opacity-0"
         ),
         "grid": "grid grid-cols-8 gap-1.5",
@@ -89,9 +93,7 @@ COLOR_PICKER_THEME: dict[str, Any] = {
         ),
         "panel_label": "text-xs text-muted mb-2 font-medium",
     },
-    # ``sizes[<step>][<slot>]`` — the CANONICAL shape. The three date
-    # pickers write it inverted and are declared exceptions; a new
-    # component has no reason to imitate them there.
+    # ``sizes[<step>][<slot>]`` — the shape of every table.
     #
     # The scale is the controls' — ``h-7/h-8/h-10/h-12/h-14``, the same
     # as Input's and Select's. A missing step does not raise: the render
@@ -101,27 +103,27 @@ COLOR_PICKER_THEME: dict[str, Any] = {
         "xs": {
             "input_frame": "h-7 px-1.5", "swatch": "h-4 w-4",
             "input_field": "text-xs", "clear_button": "h-4 w-4",
-            "trigger_button": "h-4 w-4", "button_icon": "xs",
+            "trigger_button": "h-4 w-4", "button_icon": "text-xs",
         },
         "sm": {
             "input_frame": "h-8 px-2", "swatch": "h-5 w-5",
             "input_field": "text-sm", "clear_button": "h-5 w-5",
-            "trigger_button": "h-5 w-5", "button_icon": "sm",
+            "trigger_button": "h-5 w-5", "button_icon": "text-sm",
         },
         "md": {
             "input_frame": "h-10 px-2.5", "swatch": "h-6 w-6",
             "input_field": "text-sm", "clear_button": "h-6 w-6",
-            "trigger_button": "h-6 w-6", "button_icon": "md",
+            "trigger_button": "h-6 w-6", "button_icon": "text-base",
         },
         "lg": {
             "input_frame": "h-12 px-3", "swatch": "h-7 w-7",
             "input_field": "text-base", "clear_button": "h-7 w-7",
-            "trigger_button": "h-7 w-7", "button_icon": "md",
+            "trigger_button": "h-7 w-7", "button_icon": "text-lg",
         },
         "xl": {
             "input_frame": "h-14 px-3.5", "swatch": "h-8 w-8",
             "input_field": "text-lg", "clear_button": "h-8 w-8",
-            "trigger_button": "h-8 w-8", "button_icon": "lg",
+            "trigger_button": "h-8 w-8", "button_icon": "text-xl",
         },
     },
 }

@@ -11,6 +11,7 @@ that should follow the link's state).
 
 from __future__ import annotations
 
+import json
 from typing import Any, ClassVar
 
 from bretzel.components.actions.link.theme import LINK_THEME
@@ -25,40 +26,41 @@ class Link(Component):
     state."""
 
     THEME: ClassVar[dict[str, Any]] = LINK_THEME
+    # ``autofocus=`` only: ``.focus()`` would put an id on every
+    # button of every page (cf. ``components/base/focus.py``).
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ()
     THEME_KEY: ClassVar[str] = "link"
     DEFAULT_TAG: ClassVar[str] = "a"
     # with status (counter, dynamic string). href changes when the
     # target depends on state. variant/color are design-time.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("label", "href")
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("href", "disabled")
 
     variant: str = reactive_prop(default="hover", emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
-    href: str | None = reactive_prop(default=None, never_code=True)
+    #: The steps of ``ui.text`` (``"xs"`` … ``"6xl"``); ``None`` keeps
+    #: the parent's size — a link in a sentence reads as the sentence.
+    size: str | None = reactive_prop(default=None, emit_attr=False)
+    href: str | None = reactive_prop(default=None)
+    disabled: bool = reactive_prop(default=False, emit_attr=False)
 
     def __init__(
         self,
-        label: str | ClientBinding | None = None,
+        label: str | Component | ClientBinding | None = None,
         *,
         href: str | ClientBinding | None = None,
         variant: str | None = None,
         color: str | None = None,
+        size: str | None = None,
         external: bool = False,
-        download: bool = False,
-        disabled: bool = False,
+        disabled: Any = None,
         **kwargs: Any,
     ) -> None:
         # Direct forward: the base layer drops reactive ``None`` kwargs.
-        # ``external`` / ``download`` / ``disabled`` are design-time
-        # booleans → handled separately.
-        super().__init__(href=href, variant=variant, color=color, **kwargs)
-        # ``adopt_slot`` detaches a Component passed as a slot
-        # (otherwise it renders twice); string / ClientBinding pass
-        # through intact. Cf. traps.md § "Slot Component stocké sans
-        # `adopt_slot`".
-        self._label = Component.adopt_slot(label)
+        # ``external`` is a design-time boolean → handled separately.
+        super().__init__(href=href, variant=variant, color=color, size=size, disabled=disabled,
+                         **kwargs)
+        self._label = label
         self._external = external
-        self._download = download
-        self._disabled = disabled
 
     def render(self) -> Element:
         # ``compose_class`` reads slots + variant. We add the text's
@@ -75,35 +77,21 @@ class Link(Component):
             attrs.setdefault("target", "_blank")
             attrs.setdefault("rel", "noopener noreferrer")
 
-        # ── Download: this link carries a FILE, not a navigation ─────
-        #
-        # ⚠️ ``hx-boost="false"`` is not an option: the shell sets
-        # ``hx-boost`` on the page, so htmx intercepts EVERY ``<a>``,
-        # fetches the target by XHR and injects it into the document. On
-        # a CSV, that downloads nothing and replaces the page with plain
-        # text — with no error, no failed request, nothing to see on the
-        # server side.
-        #
-        # Measured on 2026-09-02 on the playground's `/meta`, before this
-        # fix: ``resource_type: 'xhr'`` and the URL switched to
-        # ``/meta-demo.csv``. It is the mechanism the datatable's export
-        # already neutralised by hand (`datatable.py:745`); this makes it
-        # available to everybody rather than leaving it to be
-        # rediscovered.
-        #
-        # The HTML ``download`` attribute in addition: it tells the
-        # browser NOT to display the file even if it knows how to render
-        # it (an SVG, a PDF), and it lets the server name it through
-        # ``Content-Disposition``.
-        if self._download:
-            attrs.setdefault("hx-boost", "false")
-            attrs.setdefault("download", True)
-
         # Disabled : suppress ``href`` so keyboard nav can't follow it, mark
         # ``aria-disabled`` (screen readers + the theme's ``aria-disabled:*``
         # CSS) and ``tabindex="-1"`` to skip it in keyboard order.
-        if self._disabled:
-            self.release_root_attr("href", attrs)
+        # Bound, the same three follow the client value.
+        bound = self._binding_metadata.get("disabled")
+        if bound is not None:
+            path = self.path_of(bound)
+            target = attrs.get("bz-attr:href") or json.dumps(attrs.get("href") or "")
+            attrs["bz-attr:href"] = f"({path}) ? null : {target}"
+            self.forward_binding("disabled", attrs, as_attr="aria-disabled")
+            attrs["bz-attr:tabindex"] = f"({path}) ? '-1' : null"
+        if self._reactive_values.get("disabled"):
+            if bound is None:
+                self.release_root_attr("href", attrs)
+            attrs.pop("href", None)
             attrs["aria-disabled"] = "true"
             attrs["tabindex"] = "-1"
 

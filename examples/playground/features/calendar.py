@@ -47,7 +47,7 @@ class CalendarPlayground(PageState):
     mode:        str = field(default="picker")
     color:       str = field(default="primary")
     size:        str = field(default="md")
-    weekstart:   int = field(default=1)
+    week_start:   int = field(default=1)
     locale:      str = field(default="en")
     disabled:    str = field(default="off")
     # Escape hatches (per playground-pattern.md § 4).
@@ -93,7 +93,7 @@ def clear_log() -> None:
 def server_changed(state: CalendarPlayground) -> None:
     # Typed param → the dispatcher hydrates the changed
     # control's value into ``state`` (coerced + persisted).
-    # deps=[CalendarPlayground] on server_panel re-renders automatically.
+    # server_panel reads the state, so it re-renders automatically.
     pass
 
 
@@ -117,7 +117,7 @@ def build_preview(state: CalendarPlayground):
         "mode": state.mode,
         "color": state.color,
         "size": state.size,
-        "weekstart": state.weekstart,
+        "week_start": state.week_start,
     }
     if state.locale == "fr":
         kwargs["weekday_names"] = list(WEEKDAYS_FR)
@@ -150,7 +150,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[CalendarPlayground])
+@refreshable
 def server_panel() -> None:
     state = CalendarPlayground()
     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
@@ -166,15 +166,15 @@ def server_panel() -> None:
         with control("size (xs/sm/md/lg/xl)"):
             ui.select(value=state.size, options=[(s, s) for s in SIZES],
                       on_change=server_changed)
-        with control("weekstart (0=Sun, 1=Mon)"):
-            # ``state.weekstart`` WITHOUT ``str()``: the value carries a
+        with control("week_start (0=Sun, 1=Mon)"):
+            # ``state.week_start`` WITHOUT ``str()``: the value carries a
             # stamp (the field's name) and it is the only thing attesting
             # "the server is authoritative". ``str()`` unwraps it → no
             # ``_serverSync`` → the control stays frozen on its old value
             # after a panel refresh. Select already normalises to a string
             # to match the option keys (measured: the field is "1" with or
             # without the ``str()``), so it protected nothing.
-            ui.select(value=state.weekstart,
+            ui.select(value=state.week_start,
                       options=[("0", "0 (Sunday)"), ("1", "1 (Monday)")],
                       on_change=server_changed)
         with control("locale (FR override)"):
@@ -221,7 +221,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[CalendarPlayground])
+@refreshable
 def events_panel() -> None:
     state = CalendarPlayground()
     with ui.vstack(gap="sm"):
@@ -271,26 +271,26 @@ def page() -> None:
                     with ui.flex(wrap=True, gap="md", align="start"):
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("picker", color="muted", size="xs")
-                            ui.calendar(TODAY, size="sm")
+                            ui.calendar(value=TODAY, size="sm")
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("range", color="muted", size="xs")
                             ui.calendar(
-                                (TODAY + dt.timedelta(days=2),
+                                value=(TODAY + dt.timedelta(days=2),
                                  TODAY + dt.timedelta(days=8)),
                                 mode="range", size="sm",
                             )
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("week", color="muted", size="xs")
-                            ui.calendar(TODAY, mode="week", size="sm")
+                            ui.calendar(value=TODAY, mode="week", size="sm")
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("month", color="muted", size="xs")
-                            ui.calendar(f"{TODAY:%Y-%m}", mode="month",
+                            ui.calendar(value=f"{TODAY:%Y-%m}", mode="month",
                                         size="sm")
 
                     ui.text(
                         'In ``week`` mode, click ANY day: its whole week '
                             'gets selected, and the value returned is its '
-                            'FIRST day (according to ``weekstart``). Two '
+                            'FIRST day (according to ``week_start``). Two '
                             'clicks in the same week therefore give the same '
                             "value. The highlight reuses ``range`` mode's "
                             'band — a week IS a closed range of seven days.',
@@ -318,14 +318,14 @@ def page() -> None:
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("min=2026-03-15  max=2026-09-30",
                                     color="muted", size="xs")
-                            ui.calendar("2026-06", mode="month", size="sm",
+                            ui.calendar(value="2026-06", mode="month", size="sm",
                                         min=dt.date(2026, 3, 15),
                                         max=dt.date(2026, 9, 30))
                         with ui.vstack(gap="xs", align="center"):
                             ui.text('with no value', color="muted", size="xs")
                             ui.calendar(mode="month", size="sm")
 
-                    ui.heading("week × weekstart", level=3)
+                    ui.heading("week × week_start", level=3)
                     ui.text(
                         'The same date does not belong to the same week '
                             'depending on the starting day. Worth comparing '
@@ -333,19 +333,19 @@ def page() -> None:
                         color="muted", size="xs",
                     )
                     with ui.flex(wrap=True, gap="md", align="start"):
-                        for ws, label in ((1, "weekstart=1 (lundi)"),
-                                          (0, "weekstart=0 (dimanche)")):
+                        for ws, label in ((1, "week_start=1 (lundi)"),
+                                          (0, "week_start=0 (dimanche)")):
                             with ui.vstack(gap="xs", align="center"):
                                 ui.text(label, color="muted", size="xs")
-                                ui.calendar(TODAY, mode="week",
-                                            weekstart=ws, size="sm")
+                                ui.calendar(value=TODAY, mode="week",
+                                            week_start=ws, size="sm")
 
                     ui.heading("color (7 paliers)", level=3)
                     with ui.flex(wrap=True, gap="md", align="start"):
                         for c in COLORS:
                             with ui.vstack(gap="xs", align="center"):
                                 ui.text(c, color="muted", size="xs")
-                                ui.calendar(TODAY, color=c, size="sm")
+                                ui.calendar(value=TODAY, color=c, size="sm")
 
                     ui.heading("size (5 paliers xs/sm/md/lg/xl)",
                                level=3)
@@ -353,18 +353,18 @@ def page() -> None:
                         for s in SIZES:
                             with ui.vstack(gap="xs", align="center"):
                                 ui.text(s, color="muted", size="xs")
-                                ui.calendar(TODAY, size=s)
+                                ui.calendar(value=TODAY, size=s)
 
-                    ui.heading("weekstart (0=Sun, 1=Mon)", level=3)
+                    ui.heading("week_start (0=Sun, 1=Mon)", level=3)
                     with ui.flex(wrap=True, gap="md", align="start"):
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("0 (Sunday-first)",
                                     color="muted", size="xs")
-                            ui.calendar(size="sm", weekstart=0)
+                            ui.calendar(size="sm", week_start=0)
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("1 (Monday-first, default)",
                                     color="muted", size="xs")
-                            ui.calendar(size="sm", weekstart=1)
+                            ui.calendar(size="sm", week_start=1)
 
                     ui.heading("min / max bounds", level=3)
                     ui.text("Days outside [today, today+14] disabled.",
@@ -436,13 +436,13 @@ def page() -> None:
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("picker", color="muted", size="xs")
                             ui.calendar(
-                                TODAY + dt.timedelta(days=7),
+                                value=TODAY + dt.timedelta(days=7),
                                 size="sm")
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("range",
                                     color="muted", size="xs")
                             ui.calendar(
-                                (TODAY + dt.timedelta(days=3),
+                                value=(TODAY + dt.timedelta(days=3),
                                  TODAY + dt.timedelta(days=10)),
                                 mode="range", size="sm")
 
@@ -569,7 +569,7 @@ def page() -> None:
                     ui.heading("A11y", level=2)
                     ui.text(
                         "Each day cell is a focusable ``<button>`` "
-                        "with ``data-date`` / ``aria-disabled`` / "
+                        "with ``data-bz-date`` / ``aria-disabled`` / "
                         "reactive ``:tabindex``. Header nav buttons "
                         "carry ``aria-label='Previous month'`` / "
                         "``'Next month'`` so screen readers announce "
@@ -659,7 +659,7 @@ def page() -> None:
                         ):
                             ui.input(value=client.picked,
                                      placeholder="2026-07-15")
-                        ui.calendar(client.picked,
+                        ui.calendar(value=client.picked,
                                     month=client.displayed_month,
                                     min=client.min,
                                     max=client.max,
@@ -683,7 +683,7 @@ def page() -> None:
                         "``bz-attr:max`` / ``bz-attr:disabled`` on the "
                         "custom element reflect the other three.",
                         serialize_html(ui.calendar(
-                            client.picked,
+                            value=client.picked,
                             month=client.displayed_month,
                             min=client.min,
                             max=client.max,
@@ -754,7 +754,7 @@ def page() -> None:
                             ui.text("Picked:", color="muted", size="sm")
                             ui.text(bound.picked, size="sm",
                                     weight="medium")
-                        ui.calendar(bound.picked, month=bound.displayed_month,
+                        ui.calendar(value=bound.picked, month=bound.displayed_month,
                                     size="sm")
                         with ui.hstack(wrap=True, gap="sm"):
                             ui.button(
@@ -784,7 +784,7 @@ def page() -> None:
                         color="muted", size="sm",
                     )
                     both = CalendarClient(key="both")
-                    m3 = ui.calendar(both.picked, month=both.displayed_month,
+                    m3 = ui.calendar(value=both.picked, month=both.displayed_month,
                                      size="sm")
                     with ui.hstack(wrap=True, gap="sm"):
                         ui.button("Set today via m3.set()",
@@ -798,7 +798,7 @@ def page() -> None:
 
                     ui.divider()
 
-                    preview = ui.calendar(bound.picked,
+                    preview = ui.calendar(value=bound.picked,
                                            month=bound.displayed_month)
                     emitted_html_block(
                         "Emitted HTML — Mode 2 (binding only) : "
@@ -854,7 +854,7 @@ def page() -> None:
                     )
                     ui.divider()
                     emitted_html_block(
-                        "Emitted HTML — note ``@change=\"$bz.state."
+                        "Emitted HTML — note ``bz-on:change=\"$bz.state."
                         "CalendarClient.default.client_log.push(...)\"`` "
                         "(pure client-side, no ``hx-post``).",
                         serialize_html(ui.calendar(

@@ -53,7 +53,7 @@ class EmptyStateClient(ClientState, persist="memory"):
 def server_changed(state: EmptyStatePlayground) -> None:
     # Typed param → the dispatcher hydrates the changed
     # control's value into ``state`` (coerced + persisted).
-    # deps=[EmptyStatePlayground] re-renders server_panel automatically.
+    # server_panel reads the state, so it re-renders automatically.
     pass
 
 
@@ -107,7 +107,7 @@ def control(label: str):
 # ── Refreshable ───────────────────────────────────────────────────────
 
 
-@refreshable(deps=[EmptyStatePlayground])
+@refreshable
 def server_panel() -> None:
     state = EmptyStatePlayground()
 

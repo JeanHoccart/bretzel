@@ -19,6 +19,12 @@ from bretzel.state.scopes.client import ClientBinding
 from bretzel.state.scopes.server import _BoundStr
 
 
+def opening_tag(html: str, tag: str, marker: str) -> str:
+    """The opening ``<tag …>`` of the element whose markup holds ``marker``."""
+    start = html.rindex(f"<{tag}", 0, html.index(marker))
+    return html[start:html.index(">", start)]
+
+
 def _synced_keys(out: str) -> set[str]:
     """Les clés réellement re-semées.
 
@@ -348,7 +354,7 @@ class TestSelectedBar:
         # Il passe toujours par ``_togglePick`` et coupe toujours la
         # propagation en ligne (pas de modificateur ``.stop`` en V3).
         assert "$event.stopPropagation()" in out
-        assert "_togglePick(o.getAttribute('data-value'))" in out
+        assert "_togglePick(o.getAttribute('data-bz-value'))" in out
         # Et il n'est PLUS sur les options : une par option serait la
         # duplication qu'on vient de retirer.
         assert 'bz-on:click="$event.stopPropagation(); _togglePick(' not in out
@@ -439,19 +445,47 @@ class TestMultipleMode:
 
 
 class TestHeaderBar:
-    """The unified header at the top of the panel — counter +
-    pills + bulk actions."""
+    """The panel's two strips : the picks on top (pills), the commands
+    under the list (counter + Select all / Clear)."""
 
-    def test_counter_renders_in_multi_mode(self) -> None:
+    def test_counter_renders_in_the_footer_with_bulk_actions(self) -> None:
         with render_isolated():
             cb = Combobox(
                 options=[("a", "A"), ("b", "B"), ("c", "C")],
                 value=["a"],
                 multiple=True,
+                bulk_actions=True,
             )
             out = serialize(cb.render())
         # Counter span has ``bz-text="_picked().length + ' / 3'"``.
         assert "_picked().length + ' / 3'" in out
+
+    def test_the_commands_sit_under_the_options(self) -> None:
+        """Above the list, the commands sat between the search field and
+        the options — the two things the reader goes back and forth
+        between."""
+        with render_isolated():
+            out = serialize(Combobox(
+                options=[("a", "A"), ("b", "B")],
+                multiple=True,
+                bulk_actions=True,
+            ).render())
+        assert out.index('role="option"') < out.index(
+            "$event.stopPropagation(); _selectAll()")
+        assert "sticky bottom-0" in out
+
+    def test_no_counter_without_commands(self) -> None:
+        """A plain multi picker has no footer : its pills already say
+        what is picked."""
+        with render_isolated():
+            out = serialize(Combobox(
+                options=[("a", "A"), ("b", "B")],
+                value=["a"],
+                multiple=True,
+            ).render())
+        assert "_picked().length + " not in out
+        assert "_clearAll()" in out          # the trigger's ×, still there
+        assert "sticky bottom-0" not in out
 
     def test_no_counter_in_single_mode(self) -> None:
         with render_isolated():
@@ -465,8 +499,8 @@ class TestHeaderBar:
             out = serialize(_build_basic(value="b").render())
         assert 'bz-show="_hasPicked()"' in out
 
-    def test_header_always_visible_with_bulk_actions(self) -> None:
-        """When bulk_actions=True, the header must be visible even
+    def test_footer_always_visible_with_bulk_actions(self) -> None:
+        """When bulk_actions=True, the footer must be visible even
         without picks — Select all has to be discoverable."""
         with render_isolated():
             cb = Combobox(
@@ -476,12 +510,12 @@ class TestHeaderBar:
             )
             out = serialize(cb.render())
         assert "Select all" in out
-        # The header has bz-show="true" (always shown).
-        assert 'bz-show="true"' in out
+        footer = opening_tag(out, "div", "sticky bottom-0")
+        assert "bz-show" not in footer
+        assert "display:none" not in footer
 
-    def test_clear_button_disabled_when_no_picks(self) -> None:
-        """Clear button gates on ``!_hasPicked()`` — disabled when
-        nothing to clear."""
+    def test_clear_hides_when_no_picks(self) -> None:
+        """A command that would do nothing hides rather than greys out."""
         with render_isolated():
             cb = Combobox(
                 options=[("a", "A")],
@@ -489,26 +523,82 @@ class TestHeaderBar:
                 bulk_actions=True,
             )
             out = serialize(cb.render())
-        assert 'bz-attr:disabled="!_hasPicked()"' in out
+        clear = opening_tag(out, "button", ">Clear<")
+        assert 'bz-show="_hasPicked()"' in clear
+        assert "display:none" in clear
+        assert "bz-attr:disabled" not in out
 
-    def test_select_all_disabled_when_everything_picked(self) -> None:
-        """Select all disables when the picked count already equals
-        the visible-options count (nothing left to add). The visible
-        count is hoisted into a single ``_visibleCount()`` call to
-        avoid scanning the option list twice per reactive tick."""
+    def test_select_all_hides_when_everything_picked(self) -> None:
+        """Select all hides when the picked count already reaches the
+        visible-options count (nothing left to add), and on a list
+        filtered to empty. ``_visibleCount()`` is hoisted into a single
+        call to avoid scanning the option list twice per reactive tick."""
         with render_isolated():
             cb = Combobox(
                 options=[("a", "A"), ("b", "B")],
+                value=["a", "b"],
                 multiple=True,
                 bulk_actions=True,
             )
             out = serialize(cb.render())
-        # Hoisted form : ``((c) => c > 0 && _picked().length === c)
-        # (_visibleCount())`` — _visibleCount called once.
-        assert "_picked().length === c" in out
-        assert out.count("_visibleCount()") >= 1
-        # The disabled gate still wires onto the Select all button.
-        assert "bz-attr:disabled" in out
+        assert (
+            "bz-show=\"!(((c) =&gt; c === 0 || _picked().length &gt;= c)"
+            "(_visibleCount()))\"" in out
+        )
+        # Everything is picked at SSR : pre-stamped hidden.
+        assert "display:none" in opening_tag(out, "button", ">Select all<")
+
+
+class TestFilterShape:
+    """``trigger=`` + ``multiple`` : the panel a filter opens to tick."""
+
+    @staticmethod
+    def _filter(n: int, **kwargs) -> str:
+        from bretzel.components.actions.button import Button
+        with render_isolated():
+            return serialize(Combobox(
+                options=[f"v{i}" for i in range(n)],
+                multiple=True,
+                trigger=Button("Status"),
+                **kwargs,
+            ).render())
+
+    def test_options_carry_a_checkbox_not_a_tick(self) -> None:
+        out = self._filter(3)
+        assert out.count("group-aria-selected:bg-(--bz-solid)") == 3
+        assert "ms-auto text-(--bz-text)" not in out     # no right tick
+
+    def test_a_short_list_hides_its_search_field(self) -> None:
+        """Five values need no search : the field stays (it holds the
+        keyboard) but invisible and read-only."""
+        out = self._filter(Combobox.SEARCH_ABOVE)
+        field = opening_tag(out, "input", 'bz-ref="bzinput"')
+        assert 'class="sr-only"' in field
+        assert "readonly" in field
+
+    def test_a_long_list_shows_its_search_field(self) -> None:
+        out = self._filter(Combobox.SEARCH_ABOVE + 1)
+        field = opening_tag(out, "input", 'bz-ref="bzinput"')
+        assert "sr-only" not in field
+        assert "readonly" not in field
+
+    def test_clear_is_offered_without_bulk_actions(self) -> None:
+        """A filter is opened to tick and untick : Clear once something
+        is ticked, and no Select all unless asked."""
+        out = self._filter(3)
+        assert "$event.stopPropagation(); _clearAll()" in out
+        assert "$event.stopPropagation(); _selectAll()" not in out
+        assert 'bz-show="_hasPicked()"' in opening_tag(out, "div", "sticky bottom-0")
+
+    def test_a_picker_keeps_its_right_tick(self) -> None:
+        """The checkbox is the filter shape's ; a picker (its own search
+        field as trigger) keeps the tick on the right."""
+        with render_isolated():
+            out = serialize(Combobox(
+                options=["a", "b"], multiple=True,
+            ).render())
+        assert "group-aria-selected" not in out
+        assert "ms-auto text-(--bz-text)" in out
 
     def test_multi_placeholder_suppressed_when_picked_and_closed(
         self,
@@ -610,7 +700,7 @@ class TestClientBindingValue:
         with render_isolated():
             out = serialize(_build_basic(value=binding).render())
         assert 'type="hidden"' in out
-        assert 'name="picked"' in out
+        assert 'name="UI.picked"' in out
 
     def test_multi_hidden_uses_json_stringify(self) -> None:
         binding = self._binding(value="a", multi=True)
@@ -1002,20 +1092,19 @@ class TestImperativeAPI:
         assert "bz-deselect-all" in out
 
     def test_focus_targets_inner_input(self) -> None:
+        # The target comes from ``FOCUS_TARGET`` (``base/focus.py``), read
+        # by ``autofocus=`` too; the browser half: tests/runtime_js/test_autofocus.py.
         with render_isolated():
             cb = _build_basic()
             out = cb.focus()
-        assert "querySelector" in out
-        assert "input[type=text]" in out
-        assert ".focus()" in out
-        assert cb.id in out
+        assert out == f"$bz.helpers.focusIn('{cb.id}', [\"input[type=text]\"])"
 
     def test_blur_targets_inner_input(self) -> None:
+        # Whatever has the focus INSIDE the component, not only the target.
         with render_isolated():
             cb = _build_basic()
             out = cb.blur()
-        assert "querySelector" in out
-        assert ".blur()" in out
+        assert out == f"$bz.helpers.blurIn('{cb.id}')"
 
     def test_needs_identity_is_true(self) -> None:
         with render_isolated():
@@ -1030,7 +1119,9 @@ class TestImperativeAPI:
 
 class TestBindableSurface:
     def test_bindable_props(self) -> None:
-        assert set(Combobox.BINDABLE_PROPS) == {"value", "disabled"}
+        # What Combobox CHOOSES to bind; its displayed contents (the empty
+        # list's words) bind by construction since 2026-11-06.
+        assert set(Combobox.BINDABLE_PROPS) - set(Combobox.__displayed_props__) == {"value", "disabled"}
 
     def test_events_declared(self) -> None:
         assert set(Combobox.EVENTS) == {
@@ -1087,4 +1178,50 @@ class TestRenderHatch:
         out = self._html(render=lambda v, label: ui.badge(label="ZZ"))
         assert "_togglePick" in out
         assert "aria-selected" in out
-        assert 'data-value="a"' in out
+        assert 'data-bz-value="a"' in out
+
+
+class TestCreatable:
+    """``creatable=True`` — the « Create "…" » row.
+    The browser half: ``tests/runtime_js/test_a_combobox_creates_what_is_typed.py``."""
+
+    @staticmethod
+    def _html(**kw) -> str:
+        with render_isolated():
+            return serialize(Combobox(options=["Salle 1", "Musée"], **kw).render())
+
+    def test_no_row_by_default(self) -> None:
+        html = self._html()
+        assert "data-bz-create" not in html.replace("hasAttribute('data-bz-create')", "")
+        assert "_creatable" not in html
+
+    def test_the_row_comes_last_hidden_with_its_words(self) -> None:
+        html = self._html(creatable=True)
+        row = html.index("data-bz-create=")
+        assert html.rfind('role="option"') < html.index(">", row), "the row is not the last option"
+        tag = html[html.rfind("<", 0, row):html.index(">", row)]
+        assert 'bz-show="_createText()"' in tag and "display:none" in tag
+        # The template travels whole, filled in the browser.
+        assert r"Create \&quot;{text}\&quot;" in html
+        assert ".replace('{text}', _createText())" in html
+        assert "_creatable: true" in html
+
+    def test_nothing_to_create_shows_no_results(self) -> None:
+        assert 'bz-show="_visibleCount() === 0 &amp;&amp; !_createText()"' in self._html(creatable=True)
+
+    def test_a_short_filter_keeps_its_field_when_creatable(self) -> None:
+        """Detached, five options hide the search field — but creating
+        needs somewhere to type."""
+        from bretzel import ui
+
+        with render_isolated():
+            plain = serialize(Combobox(options=["a", "b"], trigger=ui.button("T")).render())
+            creatable = serialize(Combobox(options=["a", "b"], trigger=ui.button("T"),
+                                           creatable=True).render())
+        def field_class(html: str) -> str:
+            ref = html.index('bz-ref="bzinput"')
+            tag = html[html.rfind("<input", 0, ref):html.index(">", ref)]
+            return tag.split('class="', 1)[1].split('"', 1)[0]
+
+        assert field_class(plain) == "sr-only"
+        assert field_class(creatable) != "sr-only"

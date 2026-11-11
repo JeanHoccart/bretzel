@@ -78,22 +78,17 @@ class ComponentInfo:
     #: The ``on_<event>=`` actually accepted at the call site. **This is
     #: not ``events`` prefixed.** ``cross_check_events`` guarantees at
     #: class-definition time that every ``EVENTS`` has its parameter, so
-    #: ``events`` ⊆ this; the reverse inclusion is FALSE.
+    #: ``events`` ⊆ this; nothing there guarantees the reverse inclusion.
     #:
-    #: ⚠️ The example that lived here — "``table``, ``datatable``,
-    #: ``bar_chart`` and ``pie_chart`` accept a click without declaring it
-    #: in ``EVENTS``" — was true on 2026-08-16 and no longer is. It was
-    #: not an introspection nuance but a HOLE: undeclared, those ``on_*``
-    #: accepted only a callable, where every framework ``on_*`` also
-    #: accepts a client expression or a list of both. Three of the four
-    #: declare it since 2026-09-06 (cf. ``test_a_wired_event_is_declared``),
-    #: and the fourth, ``datatable``, remains the case that justifies this
-    #: field: it accepts ``on_item_click=`` without appearing in its
-    #: ``EVENTS``. A consumer reading ``events`` alone would get the wrong
-    #: answer, hence this field: it is computed ONCE, here.
+    #: ⚠️ An ``on_*`` parameter left out of ``EVENTS`` is a hole: it accepts
+    #: only a callable, where every framework ``on_*`` also accepts a client
+    #: expression or a list of both. A consumer reading ``events`` alone
+    #: would not see it, hence this field: it is computed ONCE, here.
     handler_kwargs: tuple[str, ...]
     named_slots: tuple[str, ...]  # NAMED_SLOTS
     imperative: tuple[str, ...]  # IMPERATIVE
+    #: ``FOCUS_TARGET``: ``None`` = takes no focus, ``autofocus=`` refused.
+    focus_target: tuple[str, ...] | None
     autoname_from: str | None  # AUTONAME_FROM
     #: The key ``Theme(components={…})`` addresses this component under —
     #: ``THEME_KEY``, **not** ``ui_name``. Eight components differ, and
@@ -104,7 +99,7 @@ class ComponentInfo:
     #: (``fragment``, ``outlet``, ``interval``, ``meta_tag``).
     theme_key: str
     #: The theme's **vocabulary**: ``(group, keys)``, sorted. The values
-    #: — the 102 components' Tailwind class strings — are NOT  count:components
+    #: — the 110 components' Tailwind class strings — are NOT  count:components
     #: in it: what a reader and a lint rule need to know is which names
     #: exist, not what they render (the code is there for that).
     #:

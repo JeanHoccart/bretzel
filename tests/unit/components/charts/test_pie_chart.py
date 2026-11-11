@@ -179,5 +179,7 @@ class TestPieChart:
             )
         assert "Revenue: 1.5k" in out
 
-    def test_no_bindable_props(self) -> None:
-        assert PieChart.BINDABLE_PROPS == ()
+    def test_binds_only_its_displayed_contents(self) -> None:
+        # The data flows through @refreshable; only the displayed contents
+        # (the empty state's words and icon) bind, by construction (2026-11-06).
+        assert set(PieChart.BINDABLE_PROPS) - set(PieChart.__displayed_props__) == set()

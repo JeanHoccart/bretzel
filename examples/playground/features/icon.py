@@ -111,7 +111,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[IconPlayground])
+@refreshable
 def server_panel() -> None:
     state = IconPlayground()
 

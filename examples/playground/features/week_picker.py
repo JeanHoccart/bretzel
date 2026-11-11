@@ -164,7 +164,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[WeekPickerPlayground])
+@refreshable
 def server_panel() -> None:
     state = WeekPickerPlayground()
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
@@ -238,7 +238,7 @@ def server_panel() -> None:
                        serialize_html(ui.week_picker(**kwargs)))
 
 
-@refreshable(deps=[WeekPickerEvents])
+@refreshable
 def events_panel() -> None:
     state = WeekPickerEvents()
     ui.text(
@@ -254,9 +254,9 @@ def events_panel() -> None:
         with control("on_change"):
             ui.week_picker(value=picked.picked, on_change=log_change)
         with control("on_focus"):
-            ui.week_picker(SEED, on_focus=log_focus)
+            ui.week_picker(value=SEED, on_focus=log_focus)
         with control("on_blur"):
-            ui.week_picker(SEED, on_blur=log_blur)
+            ui.week_picker(value=SEED, on_blur=log_blur)
 
     ui.divider()
     with ui.hstack(justify="between", align="center"):
@@ -282,7 +282,7 @@ def page() -> None:
     with ui.container(), ui.vstack():
         ui.heading("Week picker", level=1)
         ui.text('A WEEK field: the value is the ISO date of the FIRST day of the '
-            'week, according to weekstart. Clicking any day picks its week, '
+            'week, according to week_start. Clicking any day picks its week, '
             'and the whole row highlights.', color="muted")
 
         with ui.card(), ui.vstack():
@@ -292,16 +292,16 @@ def page() -> None:
 
             ui.heading("Basic", level=3)
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
-                ui.week_picker(SEED)
+                ui.week_picker(value=SEED)
                 ui.week_picker()
-                ui.week_picker(SEED, clearable=False)
+                ui.week_picker(value=SEED, clearable=False)
 
             ui.heading("min / max", level=3)
             ui.text("The bounds are the calendar's: they grey out days, hence the"
                 ' weeks with no allowed day at all.', color="muted", size="xs")
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
-                ui.week_picker(SEED, min=dt.date(2026, 1, 1), max=dt.date(2026, 12, 31))
-                ui.week_picker(SEED, max=dt.date(2026, 12, 31))
+                ui.week_picker(value=SEED, min=dt.date(2026, 1, 1), max=dt.date(2026, 12, 31))
+                ui.week_picker(value=SEED, max=dt.date(2026, 12, 31))
 
             ui.heading("marks (day load)", level=3)
             ui.text("A dot under the day, and the count in the cell's accessible name. Two call shapes : a list of dates, or a mapping date → int.", color="muted", size="xs")
@@ -309,11 +309,11 @@ def page() -> None:
                 # ⚠️ Inside the SEED's month (August 2026): the panel
                 # opens on the value's week, and a mark set in July
                 # would simply not be shown.
-                ui.week_picker(SEED, marks=[
+                ui.week_picker(value=SEED, marks=[
                     dt.date(2026, 8, 5), dt.date(2026, 8, 6),
                     dt.date(2026, 8, 19),
                 ])
-                ui.week_picker(SEED, marks={
+                ui.week_picker(value=SEED, marks={
                     dt.date(2026, 8, 5): 1,
                     dt.date(2026, 8, 6): 6,
                 })
@@ -323,19 +323,19 @@ def page() -> None:
                 for s in SIZES:
                     with ui.vstack(gap="xs"):
                         ui.text(f"size={s}", color="muted", size="xs")
-                        ui.week_picker(SEED, size=s)
+                        ui.week_picker(value=SEED, size=s)
 
             ui.heading("Colors", level=3)
             with ui.grid(cols={"base": 1, "md": 4}, gap="md"):
                 for c in COLORS:
                     with ui.vstack(gap="xs"):
                         ui.text(c, color="muted", size="xs")
-                        ui.week_picker(SEED, color=c)
+                        ui.week_picker(value=SEED, color=c)
 
 
             ui.heading("i18n + options", level=3)
             ui.text(
-                '``weekstart`` decides which day the week starts on — and'
+                '``week_start`` decides which day the week starts on — and'
                     ' therefore the VALUE returned, not only the display. '
                     '``weekday_names`` / ``month_names`` translate the grid; '
                     '``close_on_pick=False`` keeps the panel open; ``name=`` '
@@ -344,14 +344,14 @@ def page() -> None:
             )
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.vstack(gap="xs"):
-                    ui.text("weekstart=0 (dimanche)", color="muted",
+                    ui.text("week_start=0 (dimanche)", color="muted",
                             size="xs")
-                    ui.week_picker(SEED, weekstart=0)
+                    ui.week_picker(value=SEED, week_start=0)
                 with ui.vstack(gap="xs"):
                     ui.text("FR + close_on_pick=False", color="muted",
                             size="xs")
                     ui.week_picker(
-                        SEED,
+                        value=SEED,
                         weekday_names=["Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa"],
                         month_names=["Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin",
           "Juillet", "Aout", "Septembre", "Octobre",
@@ -362,8 +362,8 @@ def page() -> None:
 
                 ui.heading("disabled / required", level=3)
                 with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
-                    ui.week_picker(SEED, disabled=True)
-                    ui.week_picker(SEED, required=True)
+                    ui.week_picker(value=SEED, disabled=True)
+                    ui.week_picker(value=SEED, required=True)
 
         with ui.card(), ui.vstack():
             ui.heading("Edge cases", level=2)
@@ -378,21 +378,21 @@ def page() -> None:
                 with ui.vstack(gap="xs"):
                     ui.text("cellule etroite", color="muted",
                             size="xs")
-                    ui.week_picker(SEED, size="sm")
+                    ui.week_picker(value=SEED, size="sm")
                 ui.text("Voisine.", color="muted")
 
         with ui.card(), ui.vstack():
             ui.heading("Composability", level=2)
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.form_field(label="Debut", hint="Semaine de livraison"):
-                    ui.week_picker(SEED)
+                    ui.week_picker(value=SEED)
                 with ui.form_field(label="Fin"):
-                    ui.week_picker(SEED)
+                    ui.week_picker(value=SEED)
             ui.heading('Inside a ui.dialog', level=3)
             with ui.dialog(title="Planifier", width="md") as dlg, \
                         ui.vstack():
                 with ui.form_field(label="Quand ?"):
-                    ui.week_picker(SEED)
+                    ui.week_picker(value=SEED)
                 ui.text('The panel is anchored in fixed position, so it escapes '
                     "the dialog's overflow.",
                         color="muted", size="xs")
@@ -404,7 +404,7 @@ def page() -> None:
                 "calendar's: every day is a button, and the selection takes "
                 'the whole row. Escape and a click outside close it.', color="muted", size="sm")
             with ui.flex(classes="max-w-xs"):
-                ui.week_picker(SEED, aria_label="Semaine de livraison")
+                ui.week_picker(value=SEED, aria_label="Semaine de livraison")
 
         with ui.card(), ui.vstack():
             ui.heading("Server playground", level=2)
@@ -546,7 +546,7 @@ def page() -> None:
             cevents = WeekPickerClientEvents()
             _new = ClientExpression("$event.target.value")
             with ui.flex(classes="max-w-xs"):
-                ui.week_picker(SEED, on_change=cevents.log.push(_new))
+                ui.week_picker(value=SEED, on_change=cevents.log.push(_new))
             ui.divider()
             with ui.hstack(justify="between", align="center"):
                 ui.text("Live log (client-reactive)",
@@ -567,6 +567,6 @@ def page() -> None:
                 'Emitted HTML - the bz-on:change handler lives on the '
                     'hidden input, the only carrier with a name and a value.',
                 serialize_html(
-                    ui.week_picker(SEED, on_change=cevents.log.push(_new))
+                    ui.week_picker(value=SEED, on_change=cevents.log.push(_new))
                 ),
             )

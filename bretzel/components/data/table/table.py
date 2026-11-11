@@ -50,7 +50,6 @@ place for inline behaviour.
 
 from __future__ import annotations
 
-import functools
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
@@ -58,21 +57,22 @@ from typing import Any, ClassVar
 from bretzel.components.base import (
     Component,
     ComponentUsageError,
+    call_render,
     coerce_children,
     reactive_prop,
+    reject_component,
 )
-from bretzel.components.base._wiring import activate_keydown
 from bretzel.components.base.events import item_action_attrs
+from bretzel.components.base.field_wiring import activate_keydown
 from bretzel.components.data.table.theme import TABLE_THEME
 from bretzel.components.feedback.empty_state import EmptyState
 from bretzel.components.meta.iteration.each import each
 from bretzel.core.tree import Element, Node
 from bretzel.core.tree import TextNode as TextNode
-from bretzel.render import RowReport
-from bretzel.render.context import current_context, maybe_current_context
+from bretzel.render import text
+from bretzel.render.context import current_context
 from bretzel.render.iteration import (
     current_iteration_key,
-    iteration_key_for,
     key_segment,
 )
 
@@ -95,7 +95,7 @@ _ROW_CLICK_GUARD = " && ".join(
 # Keyboard activation for a focusable clickable row : Enter / Space fire
 # a synthetic click (caught by the row's own ``hx-trigger="click[…]"``).
 # The target guard + the three key names live in
-# ``_wiring.activate_keydown`` — Table was the only one of the three
+# ``base/field_wiring.activate_keydown`` — Table was the only one of the three
 # sites to carry the guard, and the only one to ignore the legacy
 # ``Spacebar``.
 _ROW_CLICK_KEYDOWN = activate_keydown("$el.click();")
@@ -147,6 +147,22 @@ class Column:
     sortable: bool = False
     filter: bool | tuple[str, ...] = False
 
+    def __post_init__(self) -> None:
+        reject_component(
+            self.label,
+            owner="ui.column",
+            prop="label",
+            because=(
+                "the header text also travels where only a string can: "
+                "the CSV export's header row, a Datatable's sort button "
+                "and its filter trigger (``Name · 2/5``)."
+            ),
+            instead=(
+                "For markup in a header, that is "
+                "``ui.table(head_render=lambda col: ...)``."
+            ),
+        )
+
 
 # Convenience factory exposed as ``ui.column(...)`` so user code
 # doesn't need a separate import.
@@ -161,7 +177,13 @@ def column(
     filter: bool | Sequence[str] = False,
 ) -> Column:
     """Build a :class:`Column` — sugar so users can do ``ui.column(...)``
-    instead of importing the dataclass."""
+    instead of importing the dataclass.
+
+    An **empty** ``key`` makes an action column — a delete button, a
+    menu: ``ui.column("", render=delete_cell)``. Its ``render`` receives
+    ``None`` and the whole row (``row["id"]``), and the CSV export leaves
+    it out. A real key there exports that key's values under an empty
+    header."""
     return Column(
         key=key, label=label, align=align, width=width, render=render,
         sortable=sortable,
@@ -200,12 +222,10 @@ class Table(Component):
     THEME_KEY: ClassVar[str] = "table"
     #: The event is DECLARED, and it is not metadata.
     #:
-    #: As long as it was not, `on_item_click=` accepted only a callable:
-    #: the "client expression string" shape, which every framework `on_*`
-    #: accepts, raised a `TypeError` surfaced bare from
+    #: Undeclared, `on_item_click=` would accept only a callable: the
+    #: "client expression string" shape, which every framework `on_*`
+    #: accepts, would raise a `TypeError` surfaced bare from
     #: `functools.partial`, naming neither the component nor the prop.
-    #: Measured on 2026-09-06 on three shipped components
-    #: (commit `28958bf3`, which declared the event and gated it).
     #:
     #: The routing stays MANUAL — the base layer sets a declared event's
     #: `hx-post` on the ROOT, yet here it is each ROW that carries its
@@ -243,9 +263,9 @@ class Table(Component):
         on_item_click: Callable[..., Any] | None = None,
         size: str | None = None,
         color: str | None = None,
-        empty_text: str = "No data.",
-        empty_icon: str | None = "inbox",
-        empty_description: str | None = None,
+        empty_text: str | Component | None = None,
+        empty_icon: str | Component | None = "inbox",
+        empty_description: str | Component | None = None,
         empty: Callable[[], Any] | None = None,
         head_render: Callable[[Column], Any] | None = None,
         **kwargs: Any,
@@ -308,7 +328,7 @@ class Table(Component):
         attrs = item_action_attrs(
             self._item_click,
             event="item_click",
-            bind=lambda fn: functools.partial(fn, raw_key),
+            payload={"key": raw_key},
             owner_id=self.id,
             ctx=current_context(),
             # The DECLARED event is `item_click`, the DOM's is `click`:
@@ -361,6 +381,14 @@ class Table(Component):
         slots = theme.get("slots", {})
         modifiers = theme.get("modifiers", {})
         aligns = theme.get("aligns", {})
+        # A column's ``align=`` off the table would render no alignment,
+        # in silence — the same refusal as ``size=``.
+        for col in self._columns:
+            if col.align not in aligns:
+                raise ComponentUsageError(
+                    f"ui.column({col.key!r}, align={col.align!r}): not in the "
+                    f"theme's table. Known values: {', '.join(aligns)}."
+                )
         sizes = theme.get("sizes", {})
 
         size = self._reactive_values.get("size") or "md"
@@ -409,7 +437,7 @@ class Table(Component):
             # same coercion as body cells so it accepts a Component, a
             # Node or a plain string.
             if self._head_render is not None:
-                children = coerce_children(self._head_render(col))
+                children = coerce_children(call_render(self._head_render, col))
             else:
                 children = (TextNode(col.label),) if col.label else ()
             head_cells.append(
@@ -421,8 +449,7 @@ class Table(Component):
             )
         # Header tint: the background step. The ``<thead>`` descends
         # from the root, so it inherits the bridge the base layer set
-        # there — nothing to say here. (It was ``bg-<color>/5``; the step
-        # is 10 %, cf. phase 3's intended collapse.)
+        # there — nothing to say here.
         head_class = " ".join(
             p for p in (slots.get("head", ""), "bg-(--bz-bg)") if p
         )
@@ -435,17 +462,6 @@ class Table(Component):
         )
 
         # ── Body rows ───────────────────────────────────────────────
-        # ``refresh(zone, rows=[…])``: render only those rows, and file the
-        # fresh list for the zone's drain (``render/zone_diff.row_patch``).
-        # A table that cannot go row by row files that, and renders whole.
-        rows_only = getattr(maybe_current_context(), "rows_only", None)
-        report: RowReport | None = None
-        if rows_only is not None:
-            report = RowReport(supported=bool(self._rows) and self._has_natural_key()
-                               and bool(self.id), prefix=f"{self.id}__row_")
-            rows_only.reports.append(report)
-            if not report.supported:
-                report = None
         if not self._rows:
             body_rows: list[Node] = [self._empty_row(ncols, slots)]
         else:
@@ -456,36 +472,31 @@ class Table(Component):
             # ``id`` / ``pk``) — else ``each`` would warn about positional
             # fallback for every keyless display table. Keyless tables
             # iterate plainly.
+            keyed = self._has_natural_key()
             row_iter = (
-                each(self._rows, key=self._row_key)
-                if self._has_natural_key()
-                else self._rows
+                each(self._rows, key=self._row_key) if keyed else self._rows
             )
             # …and the table pushes ITS own identity above the rows'.
             # Without that segment, a component born in a cell's
             # ``render=`` has NO parent on the stack (it is built during
             # the render, outside any ``with``), so its id is
             # ``root_<kind>_<row key>`` — and two tables showing the same
-            # rows repeat exactly the same sequence. Measured on the
-            # playground's ``/datatable``: NINE elements carried
-            # ``root_dropdown_100``, one per table showing row id 100.
+            # rows repeat exactly the same sequence.
             #
             # ``bz-id`` is the key of TWO mechanisms — the one idiomorph
             # pairs nodes by after a swap, and the one ``scope.absorb``
-            # finds a client scope by. Nine candidates for one target is
+            # finds a client scope by. Several candidates for one target is
             # a menu that opens instead of another and a subtree replaced
             # instead of merged. Guarded by ``test_no_duplicate_bz_id.py``.
             with key_segment(self.id):
-                if report is not None:
-                    report.wanted = {report.prefix + iteration_key_for(key)
-                                     for key in rows_only.keys}
                 for index, row in enumerate(row_iter):
-                    rkey = current_iteration_key()
+                    # A row is named by ITS key, so only a keyed table
+                    # names its rows. Keyless, ``current_iteration_key()``
+                    # is the table's own segment pushed just above — every
+                    # row would take ``<table>__row_<table>``, one id on N
+                    # rows.
+                    rkey = current_iteration_key() if keyed else None
                     row_id = f"{self.id}__row_{rkey}" if self.id and rkey is not None else None
-                    if report is not None:
-                        report.order.append(row_id)
-                        if row_id not in report.wanted:
-                            continue
                     cells: list[Node] = []
                     for col in self._columns:
                         cell_value = self._resolve_cell(row, col)
@@ -510,14 +521,14 @@ class Table(Component):
                         Element(tag="tr", attrs=row_attrs,
                                 children=tuple(cells))
                     )
-                    if report is not None:
-                        report.rendered[row_id] = body_rows[-1]
 
-        tbody = Element(
-            tag="tbody",
-            attrs={"class": slots.get("body", "")},
-            children=tuple(body_rows),
-        )
+        # The body carries an id when the table does: a diff patches its
+        # list of rows — new, gone, reordered — by that id
+        # (``render/zone_diff.py``).
+        body_attrs: dict[str, Any] = {"class": slots.get("body", "")}
+        if self.id:
+            body_attrs["id"] = f"{self.id}__body"
+        tbody = Element(tag="tbody", attrs=body_attrs, children=tuple(body_rows))
 
         # ── Table element ───────────────────────────────────────────
         # Striped + hover are baked into the ``table`` slot (the one
@@ -579,20 +590,18 @@ class Table(Component):
         ``empty_text`` / ``empty_icon`` / ``empty_description`` props.
 
         Both branches go through ``coerce_children`` — it is the SAME
-        normalisation as the cells', and it was copied here. Two effects,
-        measured on 2026-08-18:
+        normalisation as the cells'. Two effects:
 
-        - an ``empty=`` that returns ``None`` gave the string ``"None"``
-          in the cell (the copy fell into its ``str(result)``); it now
-          gives an empty cell;
-        - the detachment had two owners, so the
-          ``test_render_hatch_universal`` gate stayed green on ``empty=``
-          when the base layer's was unplugged."""
+        - an ``empty=`` that returns ``None`` gives an empty cell, not the
+          string ``"None"``;
+        - the detachment has one owner, the base layer's, so the
+          ``test_render_hatch_universal`` gate goes red on ``empty=`` when
+          it is unplugged."""
         if self._empty is not None:
-            return coerce_children(self._empty())
+            return coerce_children(call_render(self._empty))
         return coerce_children(
             EmptyState(
-                self._empty_text,
+                text("table.empty") if self._empty_text is None else self._empty_text,
                 icon=self._empty_icon,
                 description=self._empty_description,
             )
@@ -613,4 +622,4 @@ class Table(Component):
         value ; the callback's return shape is normalised by
         :func:`~bretzel.components.base.coerce_children`.
         """
-        return coerce_children(col.render(value, row) if col.render else value)
+        return coerce_children(call_render(col.render, value, row) if col.render else value)

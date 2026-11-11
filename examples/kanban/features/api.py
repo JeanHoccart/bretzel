@@ -24,7 +24,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from examples.kanban.core.i18n import tr
+from bretzel import t
 from examples.kanban.features.donnees import (
     CLES,
     LIMITES,
@@ -90,7 +90,7 @@ def creer_carte(nouvelle: NouvelleCarte) -> Carte:
     ident = ajouter(
         titre,
         colonne_ouverte(nouvelle.colonne),
-        tr(f"created “{titre}” through the API", f"a créé « {titre} » par l'API"),
+        t("created “{titre}” through the API", titre=titre),
     )
     return vue(carte_par_id(ident))
 
@@ -105,10 +105,7 @@ def deplacer(ident: str, deplacement: Deplacement) -> Carte:
         colonne = colonne_ouverte(deplacement.colonne)
         modifier(
             carte,
-            tr(
-                f"moved “{carte['titre']}” to {libelles()[colonne]} through the API",
-                f"a déplacé « {carte['titre']} » vers {libelles()[colonne]} par l'API",
-            ),
+            t("moved “{title}” to {column} through the API", title=carte['titre'], column=libelles()[colonne]),
             colonne=colonne,
             rang=rang_en_tete(colonne),
         )

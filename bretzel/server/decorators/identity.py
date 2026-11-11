@@ -17,8 +17,7 @@ methods of the app. That is not a style detail: a feature writing
 ``app-structure.md`` § 9 explicitly forbids ("``from myapp.main import
 app`` in a feature. Never."). Like ``@page`` and ``@error_page``, these
 decorators only **mark**; ``app.include(...)`` picks the mark up at
-composition time. Charter anti-rule 4 — "no registration at import time"
-— is thus held by construction.
+composition time: nothing registers at import time, by construction.
 
 """
 

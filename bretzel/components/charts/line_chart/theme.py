@@ -18,7 +18,7 @@ Slot inventory :
   index, drive the hover scope (full-column snap-to-nearest-x, single
   and multi alike).
 
-The value tooltip is the shared floating panel from the ``10_charts.js``
+The value tooltip is the shared floating panel from the ``charts.js``
 runtime slab (follows the active column, anchored above the plot) — it
 is *not* a theme slot, so single and multi read identically.
 
@@ -46,10 +46,12 @@ LINE_CHART_THEME: dict[str, Any] = {
         # ``min-w-0`` lets two charts share a row. It was
         # ``w-fit max-w-full`` while the SVG had a fixed intrinsic width
         # (600): a wide card kept the chart at 600 px on its left.
-        "wrapper":      "relative flex flex-col gap-3 w-full min-w-0",
+        # The focus ring: the chart is one tab stop (``keyboard_attrs``).
+        "wrapper":      "relative flex flex-col gap-3 w-full min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-text/30",
         "svg":          "block overflow-visible",
         # ``transition-[d]`` morphs the path when @refreshable
-        # swaps new data. ``bz-area-entry`` reveals the line left to
+        # swaps new data — ``motion-safe:``, as the entry keyframes wait
+        # for ``prefers-reduced-motion: no-preference``. ``bz-area-entry`` reveals the line left to
         # right on first paint, by clipping — the same keyframe as the
         # area, so the two finish together. It was a dash reveal
         # (``bz-line-entry``, ``pathLength="1"``), which the stretched
@@ -58,7 +60,7 @@ LINE_CHART_THEME: dict[str, Any] = {
         # calibrated to disappear under dark themes.
         "line": (
             "stroke-(--bz-solid) fill-none "
-            "transition-[d] duration-500 ease-out "
+            "motion-safe:transition-[d] duration-500 ease-out "
             "drop-shadow-sm "
             "bz-area-entry"
         ),
@@ -70,7 +72,7 @@ LINE_CHART_THEME: dict[str, Any] = {
         # ``url(#...)`` ; the gradient's colour lives on the
         # ``<linearGradient>`` via ``area_gradient_color``.
         "area": (
-            "transition-[d] duration-500 ease-out "
+            "motion-safe:transition-[d] duration-500 ease-out "
             "bz-area-entry"
         ),
         # Sets ``color`` on the ``<linearGradient>`` so the stops'
@@ -86,7 +88,7 @@ LINE_CHART_THEME: dict[str, Any] = {
         # cursor sweeps columns.
         "dot_active": (
             "fill-(--bz-solid) stroke-background stroke-2 "
-            "transition-[cx,cy] duration-150 ease-out"
+            "motion-safe:transition-[cx,cy] duration-150 ease-out"
         ),
         # Vertical crosshair at the active column. Faint + dashed so it
         # guides the eye without competing with the data ; connects the
@@ -95,16 +97,20 @@ LINE_CHART_THEME: dict[str, Any] = {
         "hit":          "fill-transparent",
         "axis":         "stroke-text/30",
         "axis_label":   "fill-text/60",
+        # The axis titles, level: the vertical axis's above the plot at
+        # its left, the horizontal axis's below it at its right.
+        "title_top":    "self-start text-text/60",
+        "title_bottom": "self-end text-text/60",
         "gridline":     "stroke-text/10",
         # Reference lines (thresholds / goal markers). ``stroke-`` and
         # ``fill-`` substitute with the ref's colour so a goal can pop
         # in ``success`` green while a baseline sits in muted grey.
-        "reference_line":  "stroke-(--bz-solid)/60",
+        "reference_line":  "stroke-(--bz-border-hover)",
         # Painted OVER the data: a halo in the page colour keeps it
         # readable on a curve or an area, and it gives the hover back to
         # what lies beneath.
         "reference_label": (
-            "fill-(--bz-solid)/80 font-medium pointer-events-none "
+            "fill-(--bz-text) font-medium pointer-events-none "
             "stroke-background stroke-3 [paint-order:stroke]"
         ),
         "legend":       "flex flex-wrap items-center justify-center gap-x-4 gap-y-1",
@@ -124,15 +130,25 @@ LINE_CHART_THEME: dict[str, Any] = {
         # render time so each entry gets its own palette colour.
         "legend_dot":   "size-3 rounded-selector shrink-0 bg-(--bz-solid)",
         "legend_label": "text-xs text-text/70",
+        # « Voir les données »: the ``<details>`` and its summary
+        # (``data_table``); the table inside is a ``ui.table``.
+        "data":         "group w-full",
+        "data_toggle":  (
+            "w-fit cursor-pointer select-none text-text/60 "
+            "hover:text-text rounded outline-none "
+            "focus-visible:ring-2 focus-visible:ring-text/30"
+        ),
         "empty":        "fill-text/40 text-sm",
     },
     "sizes": {
         # name → {height, stroke_width, dot_radius, axis_font}
-        "xs": {"h": 140, "stroke": 1.0,  "dot": 2.0, "axis": 10},
-        "sm": {"h": 200, "stroke": 1.25, "dot": 2.5, "axis": 11},
-        "md": {"h": 280, "stroke": 1.5,  "dot": 3.0, "axis": 12},
-        "lg": {"h": 360, "stroke": 1.75, "dot": 3.5, "axis": 13},
-        "xl": {"h": 440, "stroke": 2.0,  "dot": 4.0, "axis": 14},
+        # + the font of the HTML around the plot — axis titles, « Voir les
+        # données » — on the axis labels' step (``titled``, ``data_table``).
+        "xs": {"h": 140, "stroke": 1.0,  "dot_radius": 2.0, "axis_font": 10, "title_top": "text-xs", "title_bottom": "text-xs", "data_toggle": "text-xs"},
+        "sm": {"h": 200, "stroke": 1.25, "dot_radius": 2.5, "axis_font": 11, "title_top": "text-xs", "title_bottom": "text-xs", "data_toggle": "text-xs"},
+        "md": {"h": 280, "stroke": 1.5,  "dot_radius": 3.0, "axis_font": 12, "title_top": "text-xs", "title_bottom": "text-xs", "data_toggle": "text-xs"},
+        "lg": {"h": 360, "stroke": 1.75, "dot_radius": 3.5, "axis_font": 13, "title_top": "text-sm", "title_bottom": "text-sm", "data_toggle": "text-sm"},
+        "xl": {"h": 440, "stroke": 2.0,  "dot_radius": 4.0, "axis_font": 14, "title_top": "text-sm", "title_bottom": "text-sm", "data_toggle": "text-sm"},
     },
     # Gradient stop opacities for the area fill — top (under the line)
     # and bottom (at the baseline). Bottom is intentionally non-zero

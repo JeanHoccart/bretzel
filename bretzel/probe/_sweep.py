@@ -1,8 +1,7 @@
 """The free sweep — what nobody rewrites, so nobody forgets.
 
 It runs when the ``with`` exits, on every window, without a probe having
-to ask for it. The list comes from
-``.claude/bretzel/livrer-une-app.md`` §§ C and D.
+to ask for it.
 
 What it does NOT do, and why: the "distinct colours" and "distinct
 sizes" probes of ``creating-a-component.md`` § 9 compare the VARIANTS of
@@ -27,8 +26,8 @@ Check = Callable[[str, bool, object], None]
 
 #: C1 — "the SMALLEST plausible window, never the largest". Measuring at
 #: 1500×940 validates the size where everything fits. The second size is
-#: not a luxury: the kanban's probe claimed "every column fits" and was
-#: right, at its own size.
+#: not a luxury: a probe's "every column fits" may hold at its own size
+#: only.
 SECOND_SIZE = (1366, 640)
 
 #: ⚠️ A RAW string: the JS below carries regular expressions, and a
@@ -41,11 +40,27 @@ _GEOMETRY_JS = r"""
     const vw = doc.clientWidth, vh = doc.clientHeight;
     const scrollers = [];
     const clipped = [];
+    const scrolls = (el) => /auto|scroll/.test(getComputedStyle(el).overflowY)
+        && el.clientHeight > 0 && el.scrollHeight > el.clientHeight + 1;
+    // A region inside a region that scrolls is CAUGHT when that one, scrolled
+    // to its end, shows its bottom: the page's ``ui.pane`` brings a plan as
+    // tall as the screen into view. Measured at its ancestor's end, not
+    // where the scroll stands: otherwise the verdict goes with wherever
+    // the 20th Tab of ``_tab_order`` left the page.
+    const caught = (el, r) => {
+        let up = el.parentElement;
+        while (up && up !== document.body && !scrolls(up)) up = up.parentElement;
+        if (!up || up === document.body) return false;
+        const left = up.scrollHeight - up.clientHeight - up.scrollTop;
+        const shown = up.getBoundingClientRect().top + up.clientTop + up.clientHeight;
+        return r.bottom - left <= shown + 1;
+    };
     for (const el of document.querySelectorAll('*')) {
         const st = getComputedStyle(el);
         const overflows = el.scrollHeight > el.clientHeight + 1
             && el.clientHeight > 0;
-        if (/auto|scroll/.test(st.overflowY) && overflows) {
+        if (/auto|scroll/.test(st.overflowY) && overflows
+            && !caught(el, el.getBoundingClientRect())) {
             const r = el.getBoundingClientRect();
             scrollers.push({
                 tag: el.tagName.toLowerCase(),
@@ -105,11 +120,9 @@ def sweep(
 ) -> None:
     """Measure every window, at two sizes and in both themes.
 
-    Three waits were removed on 2026-09-10, measured in in-process A/B
-    alternation: the first ``resize`` put the window back to the size it
-    already had (463 ms of floor for nothing), and the two theme toggles
-    mutate no DOM — a screenshot synchronises itself on the render.
-    ~1.75 s per window.
+    The window is already at its first size, so it is not resized before
+    the first measure, and the two theme toggles are not waited for: they
+    mutate no DOM, and a screenshot synchronises itself on the render.
     """
     for window in windows:
         # Once only, to absorb what the scenario left in flight. The
@@ -119,10 +132,10 @@ def sweep(
         _errors_and_requests(check, window)
         _tab_order(check, window)
 
-        _geometry(check, window, f"taille-1 {size[0]}×{size[1]}")
+        _geometry(check, window, f"size-1 {size[0]}×{size[1]}")
         window.resize(SECOND_SIZE)
         window.settle(timeout=2.0, floor=0)
-        _geometry(check, window, f"taille-2 {SECOND_SIZE[0]}×{SECOND_SIZE[1]}")
+        _geometry(check, window, f"size-2 {SECOND_SIZE[0]}×{SECOND_SIZE[1]}")
         window.resize(size)
 
         # C4 — light first: it is the one an author who codes in dark
@@ -159,8 +172,9 @@ def _geometry(check: Check, window: Window, label: str) -> None:
     )
     if not geo["documentScrolls"]:
         # FROZEN document: every scrolling region must end ABOVE the
-        # edge. A region overflowing at the bottom has nothing to catch it
-        # — the kanban paid that with 878 px in a 591 px frame.
+        # edge. A region overflowing at the bottom has nothing to catch it.
+        # One that a scrolling ancestor brings into view is caught, and
+        # left out (``_GEOMETRY_JS``).
         below = [s for s in geo["scrollers"] if s["bottom"] > geo["viewport"][1] + 1]
         check(
             f"[{window.name}] {label} — the regions end above the edge",
@@ -178,14 +192,11 @@ def _geometry(check: Check, window: Window, label: str) -> None:
     # expensive failure mode, because one cannot know one is looking at
     # missing information.
     #
-    # Measured on ``examples/ecole`` on 2026-09-12: a timetable cell
-    # showed its class and nothing else, the room and the link to the
-    # workbook cut clean off. The author's count — "two lines plus the
-    # frame" — was wrong THREE times in a row, because the height is
-    # written in the app and the padding in a component theme, and their
-    # sum lives nowhere.
+    # An author's count of what fits is unreliable: the height is written
+    # in the app and the padding in a component theme, and their sum lives
+    # nowhere.
     #
-    # The cost is nil: the loop above already existed.
+    # The cost is nil: this reuses the loop above.
     check(
         f"[{window.name}] {label} — nothing is clipped without recourse",
         not geo["clipped"],
@@ -208,9 +219,7 @@ def _tab_order(check: Check, window: Window) -> None:
 
     Off-screen is not enough. A closed ``ui.dialog`` is CENTRED: its
     fields sit right in the middle of the viewport, so a control
-    reachable inside a closed dialog passed this sweep green. Measured on
-    2026-09-07 on ``examples/messagerie``, where the page's 2nd tab
-    landed in an invisible file drop.
+    reachable inside a closed dialog would pass this sweep green.
 
     The marker targeted (``data-bz-overlay``) is that of MODAL overlays —
     ``dialog`` and ``drawer``. The anchored ones (``popover``,
@@ -228,10 +237,9 @@ def _tab_order(check: Check, window: Window) -> None:
         "document.documentElement.clientHeight]"
     )
     # The walk starts at the TOP of the document, not where the scenario
-    # left the focus: ended on the page's last control (a sort button),
-    # the first Tab left the document and "tabbing reaches something"
-    # went red on a sound page — measured on 2026-09-26, and blamed on an
-    # innocent ``ui.sidebar_footer`` first. ``blur()`` is not enough:
+    # left the focus: ended on the page's last control, the first Tab
+    # would leave the document and "tabbing reaches something" would go
+    # red on a sound page. ``blur()`` is not enough:
     # Chrome keeps its starting point where the click landed. Focusing a
     # marker at the head of ``<body>`` moves it; ``tabindex=-1`` keeps the
     # marker itself out of the walk.

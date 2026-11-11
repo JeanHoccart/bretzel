@@ -74,13 +74,12 @@ DIAGRAM_THEME: dict[str, Any] = {
     "slots": {
         # It scrolls in X, and IN X ONLY.
         #
-        # `overflow-auto` (both axes) made this component the only one in
-        # the catalogue to scroll vertically — measured: every other
+        # `overflow-auto` (both axes) would make this component the only
+        # one in the catalogue to scroll vertically: every other
         # scrolling container (`table`, `carousel`, `file_upload`) writes
-        # `overflow-x-auto`. The price showed as soon as you put it in a
-        # bounded column: the column scrolled AND the diagram scrolled,
-        # two bars in two different rectangles, one inside the other
-        # outside.
+        # `overflow-x-auto`. In a bounded column, the column would scroll
+        # AND the diagram would scroll, two bars in two different
+        # rectangles, one inside the other outside.
         #
         # A layered layout grows SIDEWAYS, not downwards: the height is
         # that of the fullest layer, and it is up to the parent — the
@@ -128,9 +127,8 @@ DIAGRAM_THEME: dict[str, Any] = {
             "h-full w-full flex items-center gap-2 px-3 rounded-box "
             "border-(length:--bz-stroke) border-(--bz-border) bg-surface "
             "transition-[opacity,background-color,border-color] "
-            # The hover: it had DISAPPEARED when the palette was
-            # neutralised. A clickable node that does not react to the
-            # pointer no longer signals itself as clickable.
+            # The hover: a clickable node that does not react to the
+            # pointer does not signal itself as clickable.
             "hover:bg-(--bz-bg) hover:border-(--bz-border-hover) "
             "focus-visible:outline-none focus-visible:ring-2 "
             "focus-visible:ring-(--bz-focus)"

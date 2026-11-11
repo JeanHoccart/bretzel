@@ -184,10 +184,8 @@ def resolve(name: str) -> ModuleSection | ComponentInfo | HelperInfo | SymbolDet
 
     - a covered module (``bretzel.state``) → its classified surface;
     - **any other PACKAGE** (``bretzel.components.inputs``) → its tree
-      and the docstrings the folders already carry. Added on 2026-09-02:
-      there are 117 packages under ``bretzel/`` and seven were described,
-      because the table is written by hand. The tree, by contrast, reads
-      itself;
+      and the docstrings the folders already carry: the table of covered
+      modules is written by hand, the tree reads itself;
     - a component (``button`` or ``ui.button`` — the real call site
       carries the prefix, requiring it would be needless friction);
     - **any other public symbol** (``page``, ``PageState``,
@@ -303,8 +301,7 @@ def _unknown_message(name: str) -> str:
 def _where_it_lives(symbol: str) -> str:
     """Where the name lives, when it lives somewhere the table ignores.
 
-    Two ways of existing without having a card, and both came up on
-    2026-09-06:
+    Two ways of existing without having a card:
 
     - the CATALOGUE — ``Button`` is ``ui.button``'s class, and
       ``AccordionItem`` ``ui.accordion_item``'s. Substring neighbourhood

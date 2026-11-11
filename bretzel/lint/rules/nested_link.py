@@ -13,9 +13,8 @@ HTML forbids a nested anchor. The parser therefore closes the first
 ``<a>`` the moment it meets the second, and **everything that follows
 lands outside** — out of the card, in the parent's flow.
 
-Measured on ``examples/ecole`` on 2026-09-12: the card rendered 130 px of
-nothing and the room's name appeared in the next hour's cell. No JS
-error, no failed request, and ``TestClient`` returned exactly the right
+A card can render empty space while its text appears in the next cell. No
+JS error, no failed request, and ``TestClient`` returns exactly the right
 document — the fault only exists after the parser. On screen, it does not
 look like a structural flaw: it looks like a spacing problem, which sends
 one looking in the wrong place.

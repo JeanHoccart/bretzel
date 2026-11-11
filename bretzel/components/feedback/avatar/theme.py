@@ -53,7 +53,8 @@ AVATAR_THEME: dict[str, Any] = {
     },
     # ``xs`` is ``h-7``, not ``h-6``: ``text-xs`` is the smallest text
     # step, so the disc is what must leave room for two initials. At
-    # 3 px per step ``h-6`` is 18 px, and "SD" overflowed it.
+    # 3 px per step (a density an app can choose) ``h-6`` is 18 px, and
+    # "SD" overflowed it.
     "sizes": {
         "xs":  {"root": "h-7 w-7 text-xs",   "status": "h-1.5 w-1.5"},
         "sm":  {"root": "h-8 w-8 text-xs",       "status": "h-2 w-2"},

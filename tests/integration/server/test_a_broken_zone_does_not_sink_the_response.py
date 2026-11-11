@@ -28,6 +28,7 @@ from starlette.testclient import TestClient
 from bretzel import Bretzel, page, refreshable, ui
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.state import SessionState, field
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -36,12 +37,12 @@ class Etat(SessionState):
     n: int = field(default=0)
 
 
-@refreshable(deps=[Etat])
+@refreshable
 def zone_saine() -> None:
     ui.text(f"SAINE={Etat().n}")
 
 
-@refreshable(deps=[Etat])
+@refreshable
 def zone_fragile() -> None:
     """Rend bien au chargement, casse au drain.
 
@@ -54,7 +55,7 @@ def zone_fragile() -> None:
     ui.text("FRAGILE=ok")
 
 
-@refreshable(deps=[Etat])
+@refreshable
 def zone_saine_2() -> None:
     ui.text(f"SAINE2={Etat().n}")
 
@@ -78,7 +79,7 @@ def _monter(**kwargs) -> Bretzel:
 
 def _agir(client: TestClient, app: Bretzel):
     action_id = encode_action_id(incrementer)
-    sig = sign_action(app.config._action_key, action_id, "")
+    sig = sign_action(app.config._action_key, action_id, "", session_id=session_of(client))
     return client.post(
         f"/_bretzel/action/{action_id}",
         headers={"X-Bz-Sig": sig},
@@ -192,7 +193,7 @@ def test_the_error_fragment_keeps_the_zone_enumerable() -> None:
     Le fragment de secours a été composé à la main pendant une journée,
     et il omettait ``data-bz-zone``. Conséquence, en chaîne : le pont
     n'énumère que ``[data-bz-zone]``, donc l'en-tête ``X-Bretzel-Zones``
-    perdait la zone, donc ``enqueue_deps`` la filtrait — **elle ne se
+    perdait la zone, donc ``enqueue_readers`` la filtrait — **elle ne se
     rafraîchissait plus jamais**, même une fois le bug d'affichage
     disparu, et jusqu'au rechargement complet.
 

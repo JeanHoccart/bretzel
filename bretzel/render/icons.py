@@ -1,9 +1,9 @@
 """Icons drawn at the first paint, with the text beside them.
 
 ``<iconify-icon>`` draws its glyph once its script has run — the script
-is deferred — and once it has the glyph's data — one more request. Until
-then the host was EMPTY: the label beside it sat one icon to the left and
-jumped when the icon appeared (reported 2026-10-23, with a screenshot).
+is deferred — and once it has the glyph's data — one more request. An
+EMPTY host until then would leave the label beside it one icon to the
+left, and the label would jump when the icon appears.
 
 A full page now carries, for each icon of a set shipped in the wheel:
 

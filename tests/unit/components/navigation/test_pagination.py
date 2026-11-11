@@ -120,11 +120,13 @@ class TestArias:
     def test_aria_label_per_item_includes_page_number(self) -> None:
         with render_isolated():
             out = serialize(Pagination(total_pages=10).render())
-        # Items wire ``bz-attr:aria-label="'Page ' + range()[i]"``. The
-        # serialiser escapes single quotes inside attr values to
-        # ``'`` so we look for the escaped form.
+        # Items fill the table's « Page {n} » in the browser — the
+        # numbers move with the current page — and name the gap « More
+        # pages », never the code's marker ``'ellipsis'``.
         assert "bz-attr:aria-label=" in out
-        assert "'Page '" in out
+        assert "&quot;Page {n}&quot;.replace('{n}', range()[0])" in out
+        assert "&quot;More pages&quot;" in out
+        assert "? 'ellipsis' :" not in out
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -271,7 +273,7 @@ class TestClientBindingValue:
                 Pagination(total_pages=5, value=binding).render()
             )
         assert 'type="hidden"' in out
-        assert 'name="page"' in out
+        assert 'name="ListState.page"' in out
 
     def test_hidden_input_value_attr_seeded_with_initial(self) -> None:
         # SSR fallback : the hidden input carries the literal initial

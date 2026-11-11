@@ -19,6 +19,7 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
+from bretzel.components.base.field_wiring import activate_keydown
 from bretzel.components.layout.card.theme import CARD_THEME
 from bretzel.core.tree import Element
 
@@ -37,7 +38,7 @@ class Card(Component):
     color: str = reactive_prop(default="surface", emit_attr=False)
     padding: str = reactive_prop(default="md", emit_attr=False)
     hoverable: bool | None = reactive_prop(default=None, emit_attr=False)
-    href: str | None = reactive_prop(default=None, never_code=True)
+    href: str | None = reactive_prop(default=None)
 
     def __init__(
         self,
@@ -65,11 +66,9 @@ class Card(Component):
             **kwargs,
         )
         # ── The tag switch is decided HERE, not at render ─────────────
-        # It lived in ``render`` until 2026-08-23, and a new guard
-        # revealed it: ``emit_attrs`` now removes the attributes a tag
-        # cannot carry, and it still saw a ``<div>`` — so it threw away
-        # the ``href`` we had just set. The symptom (a link card with no
-        # destination) was worse than the original defect.
+        # ``emit_attrs`` removes the attributes a tag cannot carry: decided
+        # at render, it would still see a ``<div>`` and throw away the
+        # ``href`` just set, leaving a link card with no destination.
         #
         # Deciding early is more correct anyway: ``self._tag`` is read by
         # introspection and by the gates, and a component whose tag only
@@ -77,6 +76,9 @@ class Card(Component):
         # ``ui.button(href=…)`` does the same.
         if href is not None and "tag" not in kwargs:
             self._tag = "a"
+        # Known here, from the call — not read back from the transport
+        # attributes at render: a component does not speak HTMX.
+        self._acts = on_click is not None
 
     def render(self) -> Element:
         theme = self._resolved_theme()
@@ -112,6 +114,18 @@ class Card(Component):
         # test_no_manual_user_class_append.py.
 
         attrs = self.emit_attrs()
+        # A ``<div>`` card that acts on click is a button to the keyboard
+        # and to a screen reader: role, a place in the Tab order, Enter /
+        # Space — the table row's gesture (``activate_keydown``). Without
+        # it, only a mouse could reach it. An ``<a>`` card is all that
+        # natively.
+        acts = self._acts
+        if self._tag != "a" and acts:
+            attrs.setdefault("role", "button")
+            attrs.setdefault("tabindex", "0")
+            attrs.setdefault("bz-on:keydown", activate_keydown("$el.click()"))
+        if self._tag == "a" or acts:
+            parts.append(theme.get("focusable", ""))
         attrs["class"] = " ".join(p for p in parts if p).strip()
 
         return Element(

@@ -1,9 +1,7 @@
 """``/dialog`` — a modal that asks one question and waits for the answer."""
 
-from functools import partial
-
 from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel.state import ClientState, PageState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A centred modal with backdrop, Escape and focus trap — opened "
@@ -23,46 +21,36 @@ def confirm_delete() -> None:
               icon_left="trash-2", on_click=dialog.open())
 
 
-class ApiKeys(PageState):
-    names: list = field(default_factory=lambda: ["Production", "Staging",
-                                                  "CI pipeline"])
+API_KEYS = ["Production", "Staging", "CI pipeline"]
 
 
-def revoke(name: str) -> None:
+class ApiKeys(ClientState):
+    revoked: list = field(default_factory=list)
+
+
+def revoke_keys() -> None:
     keys = ApiKeys()
-    keys.names = [key for key in keys.names if key != name]
-
-
-def restore_keys() -> None:
-    ApiKeys().names = ["Production", "Staging", "CI pipeline"]
-
-
-@refreshable(deps=[ApiKeys])
-def key_list() -> None:
-    names = list(ApiKeys().names)
     with ui.vstack(gap="sm", classes="w-full max-w-md"):
-        for name in names:
+        for name in API_KEYS:
             dialog = ui.dialog(title=f"Revoke the {name} key?", width="sm")
             with dialog, ui.vstack(gap="md"):
                 ui.text("Apps using it will stop working at once.", color="muted")
                 with ui.hstack(gap="sm", justify="end"):
                     ui.button("Keep it", variant="ghost", on_click=dialog.close())
                     ui.button("Revoke", color="error",
-                              on_click=[partial(revoke, name), dialog.close()])
-            with ui.card(padding="sm"), ui.hstack(justify="between"):
+                              on_click=[keys.revoked.push(name), dialog.close()])
+            with (ui.card(padding="sm", visible=~keys.revoked.contains(name)),
+                  ui.hstack(justify="between")):
                 with ui.hstack(gap="sm"):
                     ui.icon("key-round", color="primary")
                     ui.text(name, weight="medium")
                 ui.button("Revoke", size="sm", variant="soft", color="error",
                           on_click=dialog.open())
-        if not names:
-            ui.text("No active keys.", color="muted", align="center")
+        with ui.vstack(gap="sm", align="center",
+                       visible=keys.revoked.length() == len(API_KEYS)):
+            ui.text("No active keys.", color="muted")
             ui.button("Restore the demo keys", variant="outline",
-                      icon_left="rotate-ccw", on_click=restore_keys)
-
-
-def revoke_keys() -> None:
-    key_list()
+                      icon_left="rotate-ccw", on_click=keys.revoked.clear())
 
 
 class Invite(PageState):
@@ -82,7 +70,7 @@ def send_invite(invite: Invite) -> None:
     invite.email = ""
 
 
-@refreshable(deps=[Team])
+@refreshable
 def member_list() -> None:
     with ui.vstack(gap="sm", classes="w-full"):
         for email, role in list(Team().members):
@@ -148,9 +136,10 @@ def page() -> None:
                  "dialog.open() and every button inside can call "
                  "dialog.close(). No state to declare.")
     example("One confirmation per row", revoke_keys,
-            uses=[ApiKeys, revoke, restore_keys, key_list],
-            note="A list on on_click runs the Python handler AND closes the "
-                 "dialog at once; the list re-renders when the key is gone.")
+            uses=[ApiKeys],
+            note="A list on on_click runs several actions in order: here it "
+                 "marks the key revoked AND closes the dialog, all in the "
+                 "browser.")
     example("A form in a dialog", invite_form,
             uses=[Invite, Team, send_invite, member_list],
             note="persistent=True keeps the close button but ignores Escape "

@@ -15,7 +15,7 @@ import datetime as dt
 import pytest
 
 from bretzel.components.base.attrs import (
-    ComponentDefinitionError,
+    ComponentUsageError,
     ComponentUsageError,
 )
 from bretzel.components.base.testing import render_isolated
@@ -54,7 +54,7 @@ class TestMonthCodec:
         assert month_to_ym(raw) == expected
 
     def test_a_wrong_type_names_the_component(self) -> None:
-        with pytest.raises(ComponentDefinitionError, match="MonthPicker"):
+        with pytest.raises(ComponentUsageError, match="MonthPicker"):
             month_to_ym(42)
 
     def test_the_value_reaches_the_field_and_the_carrier(self) -> None:
@@ -74,8 +74,10 @@ class TestWeekCodec:
         # de DatePicker : sans lui, le champ et la grille diraient deux
         # choses différentes.
         out = _html(WeekPicker, value=dt.date(2026, 8, 3))
-        assert "back = (d.getDay() - 1 + 7) % 7" in out
-        assert "d.setDate(d.getDate() - back)" in out
+        # The ONE reader of a typed date, then the week's first day —
+        # ``$bz.dates.typedWeek`` (locale.js) since 2026-10-27; this
+        # template's own ``new Date(raw)`` read « 02/07/2027 » as 7 February.
+        assert "$bz.dates.typedWeek($el.value, 1)" in out
 
     @pytest.mark.parametrize("weekstart,expected", [(0, "0"), (1, "1"), (6, "6")])
     def test_weekstart_reaches_both_the_snap_and_the_calendar(
@@ -84,8 +86,8 @@ class TestWeekCodec:
         # Le même réglage doit piloter la SAISIE et la GRILLE — les
         # désaccorder rendrait une valeur qui ne correspond pas à la
         # semaine surlignée.
-        out = _html(WeekPicker, value=dt.date(2026, 8, 3), weekstart=weekstart)
-        assert f"back = (d.getDay() - {expected} + 7) % 7" in out
+        out = _html(WeekPicker, value=dt.date(2026, 8, 3), week_start=weekstart)
+        assert f"$bz.dates.typedWeek($el.value, {expected})" in out
         assert f'weekstart="{expected}"' in out
 
 
@@ -117,7 +119,10 @@ class TestPanel:
         out = _html(
             MonthPicker, value="2026-08", close_on_pick=close_on_pick
         )
-        handler = out.split("bz-on:change=")[1].split(">")[0]
+        # Le handler du CALENDRIER : le champ texte porte lui aussi un
+        # ``bz-on:change`` depuis qu'il lit la saisie une fois normalisée
+        # (2026-10-27), et il vient avant dans la page.
+        handler = out.split("<bz-calendar")[1].split("bz-on:change=")[1].split(">")[0]
         assert handler.count("open = false") == expected, handler
 
 
@@ -144,12 +149,12 @@ class TestSharedPlumbing:
         assert "display:none" in out       # anti-FOUC
 
     @pytest.mark.parametrize("cls", [MonthPicker, WeekPicker])
-    def test_disabled_binding_reaches_the_three_carriers(self, cls) -> None:
+    def test_disabled_binding_reaches_the_carriers_and_the_calendar(self, cls) -> None:
         binding = ClientBinding(class_name="F", instance_key="default",
                                 field_name="locked", value=False)
         out = _html(cls, value="2026-08" if cls is MonthPicker else "2026-08-03",
                     disabled=binding)
-        assert out.count("bz-attr:disabled") == 3
+        assert out.count("bz-attr:disabled") == 4
 
     @pytest.mark.parametrize("cls", [MonthPicker, WeekPicker])
     def test_focus_handler_lands_on_the_editable_field(self, cls) -> None:

@@ -52,7 +52,7 @@ def _html(**kwargs) -> str:
 
 class TestNormalizeWeights:
     """``normalize_weights`` est le MIROIR de ``_weights()`` dans
-    ``_src/20_resizable.js`` — les deux décident de la même chose, le
+    ``components/layout/resizable/resizable.js`` — les deux décident de la même chose, le
     serveur pour le premier paint, le runtime pour la suite."""
 
     def test_none_splits_evenly(self) -> None:
@@ -165,26 +165,25 @@ class TestStructure:
         # Deux panneaux ⇒ une poignée, quelle que soit leur provenance.
         assert out.count("data-bz-rz-handle") == 1
 
-    def test_a_refreshable_zone_can_be_a_panel(self) -> None:
-        # Le cas qui a fait retirer la levée : ``@refreshable`` attache
-        # un ``_RefreshableSection`` au parent courant comme n'importe
-        # quel composant. Refuser les enfants étrangers rendait
-        # ``ui.resizable`` incompatible avec la zone de rafraîchissement
-        # — et le message d'erreur citait une classe interne que
-        # l'appelant n'a jamais tapée.
-        @refreshable(deps=[_Zone])
+    def test_a_refreshable_zone_as_a_panel_is_refused(self) -> None:
+        # Une zone panneau a été ACCEPTÉE de 2026-08 au 2026-10-27 : elle
+        # s'affichait, puis perdait sa taille et sa contrainte au premier
+        # rafraîchissement seul (le fragment sort sans ``ui.resizable``).
+        # Le refus nomme le composant que l'appelant a tapé, pas une
+        # classe interne — c'est ce qui avait fait retirer l'ancienne levée.
+        @refreshable
         def pane() -> None:
             with ResizablePanel():
                 Text("gauche")
 
-        with render_isolated():
+        with render_isolated(), pytest.raises(ComponentUsageError) as raised:
             with Resizable() as group:
                 pane()
                 with ResizablePanel():
                     Text("droite")
-            out = serialize(group.render())
-        assert "gauche" in out and "droite" in out
-        assert out.count("data-bz-rz-handle") == 1
+            group.render()
+        assert "AROUND ui.resizable" in str(raised.value)
+        assert "_RefreshableSection" not in str(raised.value)
 
     def test_a_fragment_can_be_a_panel(self) -> None:
         with render_isolated():
@@ -212,7 +211,7 @@ class TestStructure:
 
     def test_unknown_orientation_raises(self) -> None:
         with render_isolated(), pytest.raises(ComponentUsageError):
-            Resizable(orientation="diagonal")
+            Resizable(orientation="diagonal").render()
 
 
 class TestOrientation:
@@ -363,6 +362,6 @@ class TestTheme:
 
     def test_color_lands_on_the_handle_states(self) -> None:
         out = _html(color="success")
-        assert "hover:bg-(--bz-solid)/40" in out
+        assert "hover:bg-(--bz-border)" in out
         assert "bz-c-success" in out
         assert "focus-visible:ring-(--bz-focus)" in out

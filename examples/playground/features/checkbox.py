@@ -152,7 +152,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[CheckboxPlayground])
+@refreshable
 def server_panel() -> None:
     state = CheckboxPlayground()
 
@@ -227,7 +227,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[CheckboxEvents])
+@refreshable
 def events_panel() -> None:
     state = CheckboxEvents()
 

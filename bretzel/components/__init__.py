@@ -8,11 +8,13 @@ from bretzel.components.actions.link import Link
 from bretzel.components.base.events import pending as _pending
 from bretzel.components.charts import Series
 from bretzel.components.charts.bar_chart import BarChart
+from bretzel.components.charts.histogram import Histogram
 from bretzel.components.charts.line_chart import LineChart
 from bretzel.components.charts.pie_chart import PieChart
 from bretzel.components.charts.reference import Reference
 from bretzel.components.charts.scatter_chart import ScatterChart
 from bretzel.components.charts.sparkline import Sparkline
+from bretzel.components.charts.stat import Stat
 from bretzel.components.color_shapes import (
     dynamic_responsive_classes,
 )
@@ -26,6 +28,8 @@ from bretzel.components.data.datatable import (
 from bretzel.components.data.diagram import Diagram, GraphEdge, GraphNode
 from bretzel.components.data.diagram import edge as _edge
 from bretzel.components.data.diagram import node as _node
+from bretzel.components.data.message import Message, MessageList
+from bretzel.components.data.scheduler import Reschedule, Scheduler, SchedulerItem
 from bretzel.components.data.table import Column, Table
 from bretzel.components.data.table import column as _column
 from bretzel.components.data.tree import Tree, TreeNode
@@ -49,6 +53,7 @@ from bretzel.components.inputs.file_upload import FileUpload
 from bretzel.components.inputs.form import Form
 from bretzel.components.inputs.form_field import FormField
 from bretzel.components.inputs.input import Input
+from bretzel.components.inputs.message_input import MessageInput, MessageInputTool
 from bretzel.components.inputs.month_picker import MonthPicker
 from bretzel.components.inputs.number_input import NumberInput
 from bretzel.components.inputs.radio import Radio, RadioGroup
@@ -209,6 +214,8 @@ class _UI:
     file_upload = FileUpload
     form = Form
     form_field = FormField
+    message_input = MessageInput
+    message_input_tool = MessageInputTool
 
     # Feedback
     alert = Alert
@@ -229,6 +236,10 @@ class _UI:
     tree = Tree
     tree_node = TreeNode
     diagram = Diagram
+    scheduler = Scheduler
+    scheduler_item = SchedulerItem
+    message = Message
+    message_list = MessageList
     # Graph descriptors — the same sugar as ``column``: the author is
     # not going to import two dataclasses to describe three nodes.
     node = staticmethod(_node)
@@ -237,9 +248,12 @@ class _UI:
     # Data viz (Tier 8) — server-rendered SVG charts.
     sparkline = Sparkline
     bar_chart = BarChart
+    histogram = Histogram
     line_chart = LineChart
     pie_chart = PieChart
     scatter_chart = ScatterChart
+    # A key figure — its gauge comes from what the app says it means.
+    stat = Stat
 
     # Navigation
     pagination = Pagination
@@ -327,6 +341,7 @@ __all__ = [
     "Draggable",
     "Dropzone",
     "Move",
+    "Reschedule",
     "Checkbox",
     "Code",
     "Column",
@@ -341,6 +356,10 @@ __all__ = [
     "DropdownItem",
     "EmptyState",
     "FileUpload",
+    "Message",
+    "MessageInput",
+    "MessageInputTool",
+    "MessageList",
     "Flex",
     "Form",
     "FormField",
@@ -348,6 +367,7 @@ __all__ = [
     "Grid",
     "HStack",
     "Heading",
+    "Histogram",
     "Html",
     "Iframe",
     # The DEFAULT value of ``ui.iframe(sandbox=)``: an app that wants to
@@ -393,6 +413,7 @@ __all__ = [
     "SidebarTrigger",
     "Skeleton",
     "Sparkline",
+    "Stat",
     "Slider",
     "Spinner",
     "Step",
@@ -402,6 +423,8 @@ __all__ = [
     "Tab",
     "TabPanel",
     "Datatable",
+    "Scheduler",
+    "SchedulerItem",
     "Table",
     "Tabs",
     "Text",

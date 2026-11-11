@@ -31,29 +31,26 @@ CALENDAR_THEME: dict[str, Any] = {
         "root": (
             # ⚠️ NO ``w-fit``: the width comes from the sizes table
             # (``sizes[<size>]["root"]``), and it is a fix, not a
-            # preference. With ``w-fit`` the root was
+            # preference. With ``w-fit`` the root would be
             # ``max(header, grid)`` — yet the month's label is text of
-            # variable width, so "septembre" widened the whole calendar.
-            # Measured on 2026-08-25: 278 px in August, 292.8 px in
-            # September, and **the "next month" arrow moved by 14.8 px**.
-            # You click, the target moves, you have to re-aim. (The
-            # height, for its part, did not move: the grid always
-            # completes its 6 weeks.)
+            # variable width, so a long month would widen the whole
+            # calendar and **move the "next month" arrow**. You click,
+            # the target moves, you have to re-aim. (The height, for its
+            # part, does not move: the grid always completes its 6 weeks.)
             #
             # ⚠️ ``min-w-max``: the table's width is a FLOOR, not a
             # ceiling. It is written in density steps, the text inside
             # in text steps, and only the first follows ``--spacing``:
-            # at 2.4 px a step the columns shrank under their weekday
-            # names and the months grid under "November" (measured on
-            # 2026-09-29, every step overlapping). The root now holds its
-            # content whatever the density — and the content is
+            # at 2.4 px a step the columns would shrink under their
+            # weekday names and the months grid under "November". The root
+            # holds its content whatever the density — and the content is
             # month-independent, the month trigger reserving the widest
             # name (``calendar.py``), so the arrow still does not move.
-            # No ``max-w-full`` any more: ``min-width`` beats it, and
-            # shrinking below the content only made the text collide.
+            # No ``max-w-full``: ``min-width`` beats it, and shrinking
+            # below the content would only make the text collide.
             "bz-calendar inline-flex flex-col gap-2 "
             "h-fit min-w-max "
-            "p-3 rounded-box border-(length:--bz-stroke) border-text/10 bg-interface "
+            "p-3 rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
             "select-none "
             # Disabled feedback : whole grid fades + cursor reflects it.
             "aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
@@ -83,7 +80,7 @@ CALENDAR_THEME: dict[str, Any] = {
             # ``weekday_names=`` can be wider than the column; the column
             # then widens, and the root with it (``min-w-max``), rather
             # than the names running into each other. The default names
-            # are the NARROW ones (``06_locale.js``), which fit any step.
+            # are the NARROW ones (``locale.js``), which fit any step.
             "flex items-center justify-center min-w-fit "
             "font-medium text-text/50 uppercase"
         ),
@@ -114,7 +111,8 @@ CALENDAR_THEME: dict[str, Any] = {
         "month_cell": (
             "inline-flex items-center justify-center px-1.5 rounded-selector "
             "text-text not-disabled:hover:bg-text/5 "
-            "transition-colors duration-150 cursor-pointer "
+            # No fade: a cell lights at once.
+            "cursor-pointer "
             "focus-visible:outline-none focus-visible:ring-2 "
             "focus-visible:ring-inset focus-visible:ring-(--bz-focus) "
             "data-[selected=true]:bg-(--bz-solid) "
@@ -154,15 +152,9 @@ CALENDAR_THEME: dict[str, Any] = {
             # in both cases.
             "aria-disabled:opacity-30 aria-disabled:cursor-not-allowed "
             "aria-disabled:enabled:hover:bg-transparent "
-            "disabled:opacity-30 disabled:cursor-not-allowed "
-            "transition-colors"
+            "disabled:opacity-30 disabled:cursor-not-allowed"
+            # No fade: a day lights at once, as the rows of a list.
         ),
-        # ⚠️ The ``event_dot`` slot was REMOVED on 2026-08-01: nothing
-        # read it (neither ``calendar.py``, nor ``07_calendar.js``, nor
-        # the ``theme_blob``), and this file's docstring attached it to a
-        # "view mode" that does not exist (``_VALID_MODES = ("picker",
-        # "range")``). It will come back with a real
-        # ``ui.event_calendar``.
     },
     # 5 paliers — same scale as every other input (Input / Button /
     # Select / NumberInput / Slider / Combobox / Avatar). Each entry
@@ -225,7 +217,7 @@ CALENDAR_THEME: dict[str, Any] = {
             # ⚠️ Twelve steps (36 px) and not eleven: this button's
             # chevron is a ``ui.icon`` at the ``xl`` step, that is to say
             # ``text-4xl`` — a 32 px glyph, which does not fit in 33 px
-            # minus the border. Measured: 1.5 px outside.
+            # minus the border.
             "nav_button": "w-12! h-12!",
             "month_label": "text-lg",
             "chevron": "text-lg",

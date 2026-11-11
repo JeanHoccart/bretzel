@@ -1,11 +1,11 @@
 """``/stepper`` — a task cut into ordered steps."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("Ordered steps with their panels — horizontal or vertical, a "
-           "failed step in red, and a current step Python can move.")
+           "failed step in red, and a current step any button can move.")
 
 
 def checkout() -> None:
@@ -58,36 +58,22 @@ def sizes_and_colors() -> None:
                 ui.step("Publish")
 
 
-class Setup(PageState):
+class DomainSetup(ClientState):
     step: int = field(default=0)
 
 
-def advance() -> None:
-    setup = Setup()
-    setup.step = min(setup.step + 1, 3)
-
-
-def start_over() -> None:
-    Setup().step = 0
-
-
-@refreshable(deps=[Setup])
-def setup_wizard() -> None:
-    done = int(Setup().step) == 3
+def domain_setup() -> None:
+    step = DomainSetup().step
     with ui.vstack(gap="md", classes="w-full"):
-        with ui.stepper(value=Setup().step, clickable=False):
+        with ui.stepper(value=step, clickable=False):
             ui.step("Domain", description="acme-billing.com")
             ui.step("DNS records", description="3 records to add")
             ui.step("Verification", description="Usually under a minute")
             ui.step("Live", description="Emails sent from your domain")
         with ui.hstack(gap="sm", justify="end"):
-            ui.button("Start over", variant="ghost", on_click=start_over)
-            ui.button("Complete this step", icon_left="check", disabled=done,
-                      on_click=advance)
-
-
-def domain_setup() -> None:
-    setup_wizard()
+            ui.button("Start over", variant="ghost", on_click=step.set(0))
+            ui.button("Complete this step", icon_left="check",
+                      disabled=step == 3, on_click=step.increment())
 
 
 def page() -> None:
@@ -102,7 +88,8 @@ def page() -> None:
     example("A failed step", pipeline, full=True,
             note="status=\"error\" is the one status you set by hand.")
     example("Sizes and colours", sizes_and_colors, full=True)
-    example("Progress driven by Python", domain_setup, full=True,
-            uses=[Setup, advance, start_over, setup_wizard],
-            note="value= reads a server state: each click advances it on the "
-                 "server and the stepper follows.")
+    example("Progress driven by a state", domain_setup, full=True,
+            uses=[DomainSetup],
+            note="value= is bound to a ClientState: each click advances it in "
+                 "the browser and the stepper follows. A server state works "
+                 "the same, through a zone that re-renders.")

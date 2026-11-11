@@ -10,10 +10,10 @@ events. The app only READS it, to show an online / offline indicator ::
     ui.badge("offline", color="muted",   visible=~LiveConnection().connected)
 
 ``connected`` starts at ``False`` and turns ``True`` as soon as the
-runtime's lazy EventSource — opened only when a ``broadcast=[State]`` zone
-is on the page — is established; it drops back to ``False`` on a transient
+runtime's lazy EventSource — opened only when a zone on the page shows a
+state another tab can change — is established; it drops back to ``False`` on a transient
 cut and comes back up on reconnection. Nothing to wire server-side, the
-runtime owns the whole cycle (``bretzel/runtime/_src/00_index.js``,
+runtime owns the whole cycle (``bretzel/runtime/_src/index.js``,
 ``ensureSse``).
 
 """

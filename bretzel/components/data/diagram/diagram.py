@@ -51,9 +51,8 @@ The default view
 ----------------
 ``focus=None`` shows the whole graph: there is nothing to centre on. As
 soon as ``focus`` names a node, the view tightens onto its neighbourhood
-at ``depth`` hops — because a real app's graph is dense (22 nodes and 61
-edges, measured on an app since removed) and a tangle answers no
-question, whereas the neighbourhood answers the one you have: "what
+at ``depth`` hops — because a real app's graph is dense and a tangle
+answers no question, whereas the neighbourhood answers the one you have: "what
 touches this".
 
 The layout itself does not live here:
@@ -63,7 +62,6 @@ import, and that is what makes the hard half testable without a browser.
 
 from __future__ import annotations
 
-import functools
 import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -72,18 +70,18 @@ from typing import Any, ClassVar
 from bretzel.components.base import (
     Component,
     ComponentUsageError,
+    call_render,
     coerce_children,
     reactive_prop,
-)
-from bretzel.components.base._wiring import (
-    activate_keydown,
-    hidden_carrier_attrs,
-    scope_literal,
+    reject_component,
 )
 from bretzel.components.base.events import (
     client_event_attr,
     item_action_attrs,
 )
+from bretzel.components.base.field_wiring import activate_keydown, hidden_carrier_attrs
+from bretzel.components.base.scope_wiring import scope_literal
+from bretzel.components.base.theme_values import refuse_unknown_color
 from bretzel.components.data.diagram.layout import (
     Metrics,
     keys_from_edges,
@@ -92,7 +90,9 @@ from bretzel.components.data.diagram.layout import (
 )
 from bretzel.components.data.diagram.theme import DIAGRAM_THEME
 from bretzel.core.tree import Element, Node, TextNode
+from bretzel.render import text
 from bretzel.render.context import current_context
+from bretzel.theme.bridges import bridge_class
 
 #: A click on an interactive child of a node (a button placed by a
 #: ``render=``, a link) does NOT fire the node's click.
@@ -121,12 +121,17 @@ class GraphNode:
     """Describe one node in a graph."""
 
     key: str
-    label: str = ""
+    label: str | Component = ""
     icon: str | None = None
     color: str | None = None
     badge: str | None = None
     group: str | None = None
     width: float | None = None
+
+    def __post_init__(self) -> None:
+        # The default node draws its label as HTML, so a Component is a
+        # slot like any other: detached now, or it renders twice.
+        Component.adopt_slot(self.label)
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,11 +144,29 @@ class GraphEdge:
     style: str = "solid"
     color: str | None = None
 
+    def __post_init__(self) -> None:
+        if self.style not in _EDGE_STYLES:
+            raise ComponentUsageError(
+                f"ui.edge: style={self.style!r} — expected one of "
+                f"{sorted(_EDGE_STYLES)}."
+            )
+        reject_component(
+            self.label,
+            owner="ui.edge",
+            prop="label",
+            because=(
+                "an edge's label is the ``<title>`` of an SVG path, which "
+                "the browser shows as a plain tooltip and which can only "
+                "hold text."
+            ),
+            instead="Name the relation in words, e.g. ``label=\"uses\"``.",
+        )
+
 
 def node(
     key: str,
     *,
-    label: str = "",
+    label: str | Component = "",
     icon: str | None = None,
     color: str | None = None,
     badge: str | None = None,
@@ -250,9 +273,9 @@ class Diagram(Component):
         | list[Callable[..., Any] | str] | None = None,
         size: str | None = None,
         color: str | None = None,
-        empty_text: str = "No graph.",
-        empty_icon: str | None = "workflow",
-        empty_description: str | None = None,
+        empty_text: str | Component | None = None,
+        empty_icon: str | Component | None = "workflow",
+        empty_description: str | Component | None = None,
         empty: Callable[[], Any] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -314,11 +337,10 @@ class Diagram(Component):
         Same API as ``ui.table`` and ``ui.datatable`` — three convenience
         props plus an escape hatch, and both branches go through
         ``coerce_children``. Without it, an ``empty=`` that returns
-        ``None`` writes the string ``"None"`` on screen; that is the bug
-        ``ui.table`` paid for on 2026-08-18.
+        ``None`` writes the string ``"None"`` on screen.
         """
         if self._empty is not None:
-            return coerce_children(self._empty())
+            return coerce_children(call_render(self._empty))
 
         # `ui.empty_state`, like `ui.table` — not a grey centred text
         # written by hand. It carries the icon, the title hierarchy and
@@ -331,7 +353,7 @@ class Diagram(Component):
         # leaks when the component is detached — cf. traps.md § "Icon
         # construit dans `render()` sans détachement".
         empty = EmptyState(
-            self._empty_text,
+            text("diagram.empty") if self._empty_text is None else self._empty_text,
             icon=self._empty_icon,
             description=self._empty_description,
             # The empty state follows the diagram's step: without that
@@ -391,7 +413,7 @@ class Diagram(Component):
     def _node_body(self, spec: GraphNode, step: dict, slots: dict) -> tuple[Node, ...]:
         """A node's content — the author's ``render=``, or the default."""
         if self._render is not None:
-            return coerce_children(self._render(spec))
+            return coerce_children(call_render(self._render, spec))
 
         from bretzel.components.feedback.badge import Badge
         from bretzel.components.primitives.icon import Icon
@@ -409,7 +431,7 @@ class Diagram(Component):
             Element(
                 tag="span",
                 attrs={"class": label_class},
-                children=(TextNode(spec.label or spec.key),),
+                children=(self.emit_text_slot(spec.label or spec.key),),
             )
         )
         if spec.badge:
@@ -434,14 +456,10 @@ class Diagram(Component):
         renders the three shapes of a framework ``on_*``: a server
         callable, a client expression string, or a list of both.
 
-        ⚠️ This site COPIED that router instead of calling it, and it
-        paid for the two things the router already knew how to do: the
-        trigger rewritten by hand right after ``action_attrs``, and an
-        UNGUARDED client expression — so an ``on_item_click="…"`` also
-        fired when you clicked a button placed by ``render=``, where the
-        same expression on ``ui.table`` does not. Adopted on 2026-09-07;
-        it is the "primitive shipped, never adopted at the call sites"
-        failure mode the coherence audit names.
+        ⚠️ This site CALLS that router and does not copy it: the router
+        rewrites the trigger and guards a client expression, so an
+        ``on_item_click="…"`` does not fire when you click a button placed
+        by ``render=``, as on ``ui.table``.
 
         ``lit`` is the highlighting expression. It comes FIRST so the
         highlight is visible before the request leaves, and it is the
@@ -450,7 +468,7 @@ class Diagram(Component):
         attrs = item_action_attrs(
             self._click,
             event="item_click",
-            bind=lambda fn: functools.partial(fn, key),
+            payload={"key": key},
             owner_id=self.id,
             ctx=current_context(),
             # The DECLARED event is `item_click`, the DOM one is `click`.
@@ -508,7 +526,7 @@ class Diagram(Component):
                 children=self._build_empty(size_key),
             )
             return Element(
-                tag="div",
+                tag=self._tag,
                 attrs=root_attrs,
                 children=(hollow, carrier) if carrier is not None else (hollow,),
             )
@@ -542,9 +560,7 @@ class Diagram(Component):
         paths: list[Node] = []
         for route in placed.routes:
             spec = by_pair.get((route.source, route.target))
-            slot = _EDGE_STYLES.get(
-                spec.style if spec else "solid", "edge"
-            )
+            slot = _EDGE_STYLES[spec.style if spec else "solid"]
             attrs: dict[str, Any] = {
                 "d": route.path,
                 "class": theme.get(slot, theme.get("edge", "")),
@@ -559,8 +575,11 @@ class Diagram(Component):
                     f"{json.dumps(theme.get('edge_dim', 'opacity-15'))}"
                 ),
             }
+            # The stroke reads ``--bz-border``: the edge's own bridge says
+            # of which colour, as a series does on a chart.
             if spec is not None and spec.color:
-                attrs["class"] = f"{attrs['class']} stroke-(--bz-fg)"
+                refuse_unknown_color(self, spec.color)
+                attrs["class"] = f"{attrs['class']} {bridge_class(spec.color)}"
             if spec is not None and spec.label:
                 paths.append(
                     Element(
@@ -698,7 +717,7 @@ class Diagram(Component):
             children=(svg, *node_els),
         )
         return Element(
-            tag="div",
+            tag=self._tag,
             attrs=root_attrs,
             children=(
                 (canvas, carrier) if carrier is not None else (canvas,)
@@ -739,6 +758,7 @@ class Diagram(Component):
 
         return (
             {
+                **self.emit_attrs(),
                 "class": slots.get("root", ""),
                 # The scope lives on the ROOT and not on the canvas: it
                 # is the root that must be able to answer a click that

@@ -116,7 +116,7 @@ class MarkdownPlayground(PageState):
 def server_changed(state: MarkdownPlayground) -> None:
     # Typed param → the dispatcher hydrates the changed
     # control's value into ``state`` (coerced + persisted) ;
-    # ``deps=[MarkdownPlayground]`` re-renders the panel automatically.
+    # the panel reads that state, so it re-renders automatically.
     pass
 
 
@@ -159,7 +159,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[MarkdownPlayground])
+@refreshable
 def server_panel() -> None:
     state = MarkdownPlayground()
 

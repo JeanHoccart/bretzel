@@ -15,23 +15,16 @@ the same height ::
 
 Eight pixels. It is the kind of gap a code review does not see — both
 lines are correct taken separately, and the flaw only exists in their
-*neighbourhood*. Measured on this repository on 2026-08-23: two real
-faults, one of them found by a user on a screenshot and the other never
-seen by anybody.
+*neighbourhood*.
 
 What the rule considers a neighbourhood
 ---------------------------------------
 
 The **row** containers: ``ui.grid``, ``ui.hstack``, ``ui.form``. Not
-``ui.vstack``, and that is measured, not assumed. Over ``examples/`` ::
-
-    {grid, hstack, form}           180 uniform groups,  2 mixed
-    {grid, hstack, form, vstack}   401 uniform groups, 22 mixed
-
-The 20 extra findings are all false positives of the same species:
-``ui.vstack`` is this repository's PAGE container, so a group swallows a
-whole bench card — thirty controls that never touch each other on screen.
-A neighbourhood that contains the whole page is not a neighbourhood.
+``ui.vstack``: it is this repository's PAGE container, so a group would
+swallow a whole bench card — controls that never touch each other on
+screen. A neighbourhood that contains the whole page is not a
+neighbourhood.
 
 The sweep does not descend into a nested container: two distinct rows are
 two groups, not one.
@@ -53,7 +46,7 @@ The family judged
 
 The components of the ``inputs`` family that carry a ``size`` vocabulary
 — **discovered** by :func:`~bretzel.introspect.describe_components`,
-never listed here. A nineteenth field enters on its own. It is the same
+never listed here. A new field enters on its own. It is the same
 refusal :mod:`bretzel.lint.rules.variant` makes to hand-written tables in
 a linter: they drift from the code they judge.
 
@@ -61,15 +54,14 @@ a linter: they drift from the code they judge.
 -----------------------------
 
 That an equal ``size=`` gives an equal height. That is a fact of the
-rendering engine, not of the text — the five pickers rendered 2 px too
-many for the repository's whole life **while writing the same token** as
-the others. No linter can see that; it is
+rendering engine, not of the text — a control can render taller **while
+writing the same token** as the others. No linter can see that; it is
 ``tests/runtime_js/test_form_controls_share_one_height.py`` that guards
 it.
 
 And it has no escape hatch. A deliberate mix — a bench comparing two
 sizes side by side — is frozen in ``test_lint_baseline_on_examples``,
-with its reason, like the playground's six non-literal ``ui.html`` calls.
+with its reason, like the playground's non-literal ``ui.html`` calls.
 """
 
 from __future__ import annotations
@@ -82,7 +74,7 @@ from bretzel.lint.report import Finding
 
 RULE = "mixed-sizes"
 
-#: The ROW containers. The choice is measured — cf. the docstring.
+#: The ROW containers. Why these three: cf. the docstring.
 _ROW_CONTAINERS: frozenset[str] = frozenset({"grid", "hstack", "form"})
 
 
@@ -145,9 +137,9 @@ def _opens_a_row(node: ast.AST) -> bool:
 
     The ``Call`` check above only sees ``ui.hstack(...)`` as an expression;
     written as a ``with``, the container is an ``ast.With`` whose
-    ``_ui_name`` is ``None``, and its body was swept as part of the row
-    above. Measured on the cockpit's atelier (2026-09-27): a textarea and
-    the file picker in the ``hstack`` UNDER it were judged neighbours.
+    ``_ui_name`` is ``None``, and its body would be swept as part of the
+    row above: a textarea and the file picker in the ``hstack`` UNDER it
+    would be judged neighbours.
     """
     return isinstance(node, ast.With) and any(
         _ui_name(item.context_expr) in _ROW_CONTAINERS for item in node.items
@@ -161,11 +153,10 @@ def _controls_in(
     container, which is another row and therefore another group.
 
     Takes the row's BODY, and judges each statement of it before looking
-    inside. It used to be called on each statement and to look only at
-    its CHILDREN: a ``with ui.hstack():`` written directly in a row's
-    body was never itself recognised as a row, so its fields were counted
-    as the outer row's neighbours — the message's own promise (« a nested
-    container is another neighbourhood ») broken on its simplest case.
+    inside. Looking only at a statement's CHILDREN would miss a ``with
+    ui.hstack():`` written directly in a row's body: its fields would
+    count as the outer row's neighbours, against the message's own
+    promise (« a nested container is another neighbourhood »).
     """
     found: list[tuple[ast.Call, str]] = []
     for node in nodes:
@@ -202,10 +193,9 @@ def check(module: Module) -> list[Finding]:
             continue
 
         # Who is at fault? Only when there is a STRICT majority. On a
-        # 1–1 tie — the exact shape of the CRM's fault — naming a culprit
-        # is arbitrary: `most_common` returned the first inserted, so the
-        # rule accused the correct field. We then name both and let the
-        # author decide.
+        # 1–1 tie, naming a culprit is arbitrary: `most_common` returns
+        # the first inserted, which may be the correct field. We then
+        # name both and let the author decide.
         ranked = tally.most_common()
         strict = len(ranked) > 1 and ranked[0][1] > ranked[1][1]
 

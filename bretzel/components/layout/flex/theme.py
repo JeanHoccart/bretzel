@@ -23,14 +23,12 @@ FLEX_THEME: dict[str, Any] = {
     #: :data:`VIEWPORT_THEME`. Centring content taller than its frame
     #: makes it overflow on BOTH sides, and scrolling never goes back
     #: above its origin: the top becomes **unreachable**, not "hard to
-    #: see". Measured on 2026-08-24 on ``examples/auth``'s sign-in page —
-    #: 732 px of content in 600, and at ``scrollTop = 0`` the content
-    #: started at −108 px.
+    #: see".
     #:
     #: This table declares no overflow, and that is precisely why it
-    #: needed it: the scrolling is set at the CALL SITE
-    #: (``ui.vstack(classes="… overflow-y-auto")``, ``outlet``'s recipe
-    #: and one of the CRM's drop zones), so no local reading could bring
+    #: needs it: the scrolling is set at the CALL SITE
+    #: (``ui.vstack(classes="… overflow-y-auto")``, ``outlet``'s recipe),
+    #: so no local reading can bring
     #: the two together. ``safe`` changes NOTHING when the content fits —
     #: so there is no reason to centre without it.
     #:
@@ -54,11 +52,11 @@ FLEX_THEME: dict[str, Any] = {
     },
     "gaps": {
         "none": "gap-0",
-        "xs": "gap-1",
-        "sm": "gap-2",
-        "md": "gap-4",
-        "lg": "gap-6",
-        "xl": "gap-8",
+        "xs": "gap-(--bz-gap-1)",
+        "sm": "gap-(--bz-gap-2)",
+        "md": "gap-(--bz-gap-4)",
+        "lg": "gap-(--bz-gap-6)",
+        "xl": "gap-(--bz-gap-8)",
     },
     "wrap": "flex-wrap",
     #: ``grow=`` — how the direct children share the MAIN axis. Absent
@@ -73,9 +71,8 @@ FLEX_THEME: dict[str, Any] = {
     #: A CLOSED table, and that is what makes it safe: each value is a
     #: WHOLE class, hence visible to the production Tailwind compiler. A
     #: basis assembled in an f-string (``f"*:basis-{n}"``) would render
-    #: identical HTML in dev and no style in prod (memory
-    #: ``project_assembled_tailwind_class_dev_only``). For a value
-    #: outside the table, it is ``classes=`` at the call site — tier 2.
+    #: identical HTML in dev and no style in prod. For a value outside
+    #: the table, it is ``classes=`` at the call site — tier 2.
     "grows": {
         # Strictly equal shares: the basis is zero, so the content does
         # not weigh in the split. It is Mantine's ``<Group grow>``, and

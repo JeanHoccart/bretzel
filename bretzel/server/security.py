@@ -18,12 +18,10 @@ What Bretzel owes itself
 
 - ``'unsafe-eval'``: the directive engine compiles every ``bz-*``
   attribute into a function (``new Function`` in
-  :file:`runtime/_src/02_directives.js` and :file:`03_scope.js`).
-  Measured on 2026-09-05: 29 % of the 134 057 expressions the playground
-  emits fall outside an interpretable subset (arrow functions with
-  statement bodies 17 %, ``if``/``return`` 9.5 %, computed indexing 9 %,
-  ``new X()`` 2.3 %), and it is the framework's directives that write
-  them — ``bz-init`` 97 %, ``bz-on:focus`` 97 %, ``bz-class`` 92 %.
+  :file:`runtime/_src/directives.js` and :file:`scope.js`).
+  Many expressions fall outside an interpretable subset (arrow functions
+  with statement bodies, ``if``/``return``, computed indexing,
+  ``new X()``), and it is the framework's directives that write them.
   Doing without it would require a JS interpreter, not a cleanup pass.
 
   ⚠️ This does NOT cancel the protection: without ``'unsafe-inline'`` in
@@ -34,10 +32,10 @@ What Bretzel owes itself
 
 - **Three fingerprints** rather than a ``nonce``. The inline bodies the
   shell emits (:func:`~bretzel.render.shell.inline_scripts`) are
-  deterministic — measured: 3 distinct fingerprints across 77 pages × 2
-  requests. A ``nonce`` would have forced one value per response (hence
-  an uncacheable page) and one more parameter on every custom shell; the
-  hashes cost nothing and touch no signature.
+  deterministic: the same on every page and every request. A ``nonce``
+  would force one value per response (hence an uncacheable page) and one
+  more parameter on every custom shell; the hashes cost nothing and touch
+  no signature.
 
 - **The icon API hosts.** The current shell configures
   ``<iconify-icon>`` to go through the local ``/_bretzel/icons`` route.
@@ -163,9 +161,9 @@ def _base_policy(
 #: resource is simply blocked, and the only hint is a console line.
 #: Refusing the key at startup costs less.
 CSP_DIRECTIVES: Final[frozenset[str]] = frozenset(
-    # DERIVED from the base policy, no longer copied: two lists to keep
-    # in agreement diverged at the first addition, and the symptom landed
-    # on the developer TRYING to extend the directive, not on the one who
+    # DERIVED from the base policy, not copied: two lists to keep in
+    # agreement diverge at the first addition, and the symptom lands on
+    # the developer TRYING to extend the directive, not on the one who
     # added it.
     _base_policy(hashes=(), js_ext=(), css_ext=())
 ) | frozenset(
@@ -240,12 +238,10 @@ def build_policy(
         # out of that fallback, and what ``default-src`` allowed is lost
         # — it is a NARROWING disguised as an addition.
         #
-        # Measured on 2026-09-05 on the playground:
-        # ``frame-src: ["data:"]`` blocked a SAME-ORIGIN iframe that used
-        # to pass, because ``frame-src`` had until then inherited from
-        # ``default-src 'self'``. So we seed with what the directive
-        # inherited, for "widen, never narrow" to be true and not merely
-        # written.
+        # Unseeded, ``frame-src: ["data:"]`` would block a SAME-ORIGIN
+        # iframe that ``default-src 'self'`` allows. So we seed with what
+        # the directive inherited, for "widen, never narrow" to be true
+        # and not merely written.
         policy.setdefault(name, list(policy["default-src"]))
         for source in added:
             if source not in policy[name]:

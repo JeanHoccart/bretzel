@@ -20,6 +20,7 @@ from starlette.responses import HTMLResponse, Response
 
 from bretzel.render.pipeline import _resolve_layout_chain, render_page
 from bretzel.runtime.protocol import outlet_id_for
+from bretzel.server.navigation import PageRedirectError, redirect_response
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -81,14 +82,37 @@ def _register_one(
         # whole inner sub-chain into the shared ``outlet_shell``).
         hx_request = request.headers.get("HX-Request") == "true"
         hx_target = request.headers.get("HX-Target", "")
-        if hx_request and meta.layout is not None and hx_target:
-            if _match_outlet_in_chain(meta.layout, hx_target) is not None:
-                ctx.is_partial = True
-                ctx.partial_target = hx_target
-
-        result = await render_page(
-            bretzel_app, page_fn, ctx=ctx, path_params=path_params
+        in_chain = (
+            hx_request
+            and meta.layout is not None
+            and bool(hx_target)
+            and _match_outlet_in_chain(meta.layout, hx_target) is not None
         )
+        if in_chain:
+            ctx.is_partial = True
+            ctx.partial_target = hx_target
+        elif hx_request and hx_target.startswith(outlet_id_for("")):
+            # A boosted link into a page that does not live in that
+            # outlet's layout — no layout at all (a full-screen view), or
+            # another chain. The whole document swapped INTO the old
+            # outlet kept the old shell around it: the browser loads the
+            # page itself instead.
+            response = Response(status_code=200)
+            response.headers["HX-Redirect"] = request.url.path + (
+                f"?{request.url.query}" if request.url.query else ""
+            )
+            response.headers.append("Vary", "HX-Request, HX-Target")
+            response.headers["Cache-Control"] = "no-store"
+            return response
+
+        try:
+            result = await render_page(
+                bretzel_app, page_fn, ctx=ctx, path_params=path_params
+            )
+        except PageRedirectError as jump:
+            # ``redirect()`` while the page rendered: an address that only
+            # leads elsewhere. 307 keeps the method.
+            return redirect_response(request, jump.url, status_code=307)
         response = HTMLResponse(content=result.body, status_code=result.status_code)
         # Push pipeline-emitted headers (e.g. ``HX-Trigger`` carrying
         # the new title on a partial nav) onto the response. We skip
@@ -97,6 +121,14 @@ def _register_one(
             if name.lower() in ("content-length", "content-type"):
                 continue
             response.headers[name] = value
+        # The same URL answers a whole document or an outlet fragment,
+        # depending on two request headers. Without ``Vary`` the browser
+        # files the fragment under the page's URL, and Back or a restored
+        # tab shows it raw: no <head>, no CSS, the ``<bz-patch>`` JSON as
+        # text. A fragment is never a document, so it is never stored.
+        response.headers.append("Vary", "HX-Request, HX-Target")
+        if ctx.is_partial:
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     for method in meta.methods:

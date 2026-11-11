@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from bretzel.core.identity import IdGenerator
+from bretzel.core.tree import Element
 from bretzel.render.texts import DEFAULT_TEXTS
 
 if TYPE_CHECKING:
@@ -105,6 +106,11 @@ class RenderContext:
     # ── Auth ─────────────────────────────────────────────────────────────
     user_id: str | None = None
     session_id: str = ""
+
+    #: What each ``ui.file_upload`` of this render accepts, by its native
+    #: input: ``id(element) → (element, limits)``. The form around it signs
+    #: them into its token (``components/inputs/form``).
+    upload_limits: dict[int, tuple[Any, dict[str, Any]]] = field(default_factory=dict)
     csrf_token: str = ""
 
     #: The ``@refreshable`` zones the BROWSER really carries, or
@@ -125,12 +131,30 @@ class RenderContext:
     #: whose fresh render is identical. Empty when the client says
     #: nothing — so the default behaviour is to ship.
     zone_hashes: dict[str, str] = field(default_factory=dict)
+    #: ``{zone id: field ids}`` — what each zone the browser shows READ,
+    #: from the same header (:data:`~bretzel.runtime.protocol.DATA_ZONE_READS`).
+    #: A zone missing here (an older runtime, a fallback fragment) falls
+    #: back on what this process learned.
+    zone_reads: dict[str, frozenset[str]] = field(default_factory=dict)
+    #: The same zones in DOCUMENT order (the runtime lists them with
+    #: ``querySelectorAll``): a zone always comes before the zones inside
+    #: it. The drain renders its queue in this order, so a zone covered by
+    #: its parent is never rendered (``render/partials.py``).
+    zone_order: tuple[str, ...] = ()
 
     #: The tab that issued the current request, or ``""`` when it says
     #: nothing (an older runtime, a call outside a browser). Used to
     #: avoid re-broadcasting to it what it has just received — cf.
     #: :data:`~bretzel.runtime.protocol.HEADER_TAB`.
     tab_id: str = ""
+
+    #: The parts this render's components SHARE with the page: ``{key:
+    #: (template attributes, children)}`` — a calendar picker's header, a
+    #: colour picker's palette. ONE ``<template>`` per page, cloned where
+    #: it is needed (``render/shared_parts.py``). Emitted by the page
+    #: pipeline and by ``render_partial``.
+    shared_parts: dict[str, tuple[dict[str, str], tuple[Any, ...]]] = field(
+        default_factory=dict)
 
     # ── Pipeline state ───────────────────────────────────────────────────
     layout: Callable[..., Any] | None = None
@@ -144,12 +168,11 @@ class RenderContext:
     #: that can only be answered once the page is built: resolving WHICH
     #: bar a ``ui.sidebar_trigger`` with no argument speaks to, and
     #: checking that a collapsible bar does have a way of being reopened
-    #: — otherwise navigation is unreachable, silently (measured on
-    #: 2026-08-24: aside at x=-256, ZERO clickable element on screen,
-    #: page at 200).
+    #: — otherwise navigation is unreachable, silently: the page answers
+    #: 200 with its bar off screen and nothing to bring it back.
     sidebars: list[Any] = field(default_factory=list)
     #: The ``ui.sidebar_trigger`` built during THIS render. Resolved by
-    #: ``base/_wiring.wire_sidebar_triggers`` once the tree is built, not
+    #: ``base/page_checks.wire_sidebar_triggers`` once the tree is built, not
     #: at construction: otherwise a trigger written BEFORE the bar — a
     #: shell that sets down its top bar first — would find nothing, and
     #: the reachability guard would take that for an absence. Same lesson
@@ -158,16 +181,15 @@ class RenderContext:
     sidebar_triggers: list[Any] = field(default_factory=list)
     #: The ``sticky`` bars built during THIS render, each with its call
     #: name and the file:line that wrote it. Filled by
-    #: ``base/_wiring.register_sticky_bar``, emptied by the
+    #: ``base/page_checks.register_sticky_bar``, emptied by the
     #: ``render/pipeline._drain`` pass.
     #:
     #: **Why a list and not a check at construction time**: "am I well
     #: placed?" is a question asked of the TREE, and the tree does not
-    #: exist yet when the bar is built. Two flaws measured on 2026-08-24
-    #: prove it — a bar written BEFORE the ``ui.viewport`` cannot know a
-    #: frame is coming, and a bar wrapped in a ``ui.fragment`` does not
-    #: have its real LAYOUT parent on ``parent_stack``. Both rendered a
-    #: broken page silently.
+    #: exist yet when the bar is built: a bar written BEFORE the
+    #: ``ui.viewport`` cannot know a frame is coming, and a bar wrapped in
+    #: a ``ui.fragment`` does not have its real LAYOUT parent on
+    #: ``parent_stack``. Both would render a broken page silently.
     #:
     #: Empty on the vast majority of renders: only ``ui.bottom_bar`` and
     #: ``ui.navbar(sticky=True)`` register here, so the pass does not
@@ -202,18 +224,16 @@ class RenderContext:
 
     #: The token that makes the page's ``bz-id`` UNIQUE TO THIS PAGE.
     #:
-    #: The flaw it closes, measured on 2026-08-13: the runtime's scope
+    #: The flaw it closes: the runtime's scope
     #: store is a ``Map`` indexed by the ``bz-id`` **string**
-    #: (``03_scope.js``), and an ``hx-boost`` does not reload the
+    #: (``scope.js``), and an ``hx-boost`` does not reload the
     #: runtime. But a ``bz-id`` describes a POSITION in the tree
     #: (``outlet_shell_container_0_…_accordion_0``) and says nothing
-    #: about the page. Two pages of the same shape therefore produced the
-    #: same key: across the playground's 68 pages, **13 collisions**
-    #: outside the shell — one tooltip on 13 pages, one dialog on 7.
-    #: After a navigation, the previous page's scope was found by its id
-    #: and its values won over the server's fresh literal (open the
-    #: accordion on ``/accordion``, go to ``/markdown``, and it arrives
-    #: open; an F5 renders it correctly).
+    #: about the page. Two pages of the same shape would therefore produce
+    #: the same key. After a navigation, the previous page's scope would be
+    #: found by its id and its values would win over the server's fresh
+    #: literal: an accordion opened on one page would arrive open on the
+    #: next, while an F5 renders it correctly.
     #:
     #: ⚠️ It qualifies the id the outlet gives its CHILDREN, never the id
     #: the outlet RENDERS: htmx sends the latter back as ``HX-Target``,
@@ -253,14 +273,6 @@ class RenderContext:
     # to emit OOB swap fragments.
     refresh_queue: list[Any] = field(default_factory=list)
 
-    #: Queued zones refreshed for some ROWS only — ``refresh(zone,
-    #: rows=[…])`` — by zone id, the keys as strings. A zone queued
-    #: whole is absent: a whole refresh wins over rows.
-    zone_rows: dict[str, set[str]] = field(default_factory=dict)
-    #: While a zone renders for some rows: the keys, and what each keyed
-    #: ``ui.table`` files (``render/zone_diff.RowsOnly``).
-    rows_only: Any = None
-
     # ASYNC ``@refreshable`` zones whose body is still to be awaited.
     #
     # A zone is called ``zone()``, with no ``await``, including when its
@@ -282,11 +294,11 @@ class RenderContext:
     # here while we await the first.
     pending_async_zones: list[Any] = field(default_factory=list)
 
-    # The signals to other tabs that a broadcast state changed, held back
+    # The signals to other tabs that a shared state changed, held back
     # by an action until its state is COMMITTED (``routing/actions.py``).
-    # Sent at once, they raced the write: another tab asked again after
-    # its 40 ms window, before the action had rendered and committed, read
-    # the old value, and never saw the change. ``None``: send at once.
+    # Sent at once, they would race the write: another tab would ask again
+    # after its 40 ms window, before the action has rendered and committed,
+    # read the old value, and never see the change. ``None``: send at once.
     deferred_broadcasts: list[Callable[[], None]] | None = None
 
     # Toast notifications queued by ``ui.notification(...)`` during the
@@ -331,8 +343,13 @@ class RenderContext:
         handler: Callable[..., Any],
         component_id: str,
         event: str,
+        field: str | None = None,
     ) -> tuple[str, str, str]:
         """Register a component event handler ; return its wire triplet.
+
+        ``field`` is the control's own ``name``: signed into the blob, it
+        is the one field its request may write into a state on its own
+        (:func:`bretzel.server.handlers.writable_fields`).
 
         Returns ``(action_id, args_blob, sig)`` — the component layer
         turns it into the V3 HTMX attribute set via
@@ -352,21 +369,52 @@ class RenderContext:
         # bound args ride separately via the ``_args`` form field.
         self.action_registry.setdefault(action_id, handler)
 
-        # Bound args (from a ``partial``) → base64-JSON blob. Empty
-        # string for plain callables.
-        args_blob = encode_args(handler)
+        # Bound args (from a ``partial``) and the control's own field →
+        # base64-JSON blob. Empty string when there is neither.
+        args_blob = encode_args(handler, (field,) if field else ())
 
-        # Pre-sign the (id, args_blob) pair at render time. No key
-        # available (test rigs, plain ``RenderContext`` with no app
-        # attached) → empty sig ; the call won't verify but unit tests
-        # don't go through the route either.
+        # Pre-sign the (id, args_blob) pair at render time, for this
+        # session. No key available (test rigs, plain ``RenderContext``
+        # with no app attached) → empty sig ; the call won't verify but
+        # unit tests don't go through the route either.
         action_key = self._action_key()
         sig = (
-            sign_action(action_key, action_id, args_blob, ts=self.render_ts)
+            sign_action(action_key, action_id, args_blob, ts=self.render_ts,
+                        session_id=self.session_id)
             if action_key
             else ""
         )
         return action_id, args_blob, sig
+
+    def refetch_signature(self, zone: str) -> str:
+        """The signature of a zone's refetch URL for this session
+        (:func:`bretzel.server.handlers.sign_refetch`); empty with no key."""
+        # Deferred import — breaks the render→server module cycle.
+        from bretzel.server.handlers import sign_refetch
+
+        action_key = self._action_key()
+        return sign_refetch(action_key, zone, self.session_id) if action_key else ""
+
+    def fields_input(
+        self, names: set[str], uploads: dict[str, dict[str, Any]] | None = None,
+        *, actions: set[str] | frozenset[str] = frozenset(),
+    ) -> Element | None:
+        """The hidden input a form adds to carry the signed list of the
+        controls it renders, what its file fields accept, and the actions
+        rendered under it (:func:`bretzel.server.handlers.fields_token`).
+        ``None`` with no name, or no key to sign with (the test rigs)."""
+        # Deferred import — breaks the render→server module cycle.
+        from bretzel.server.handlers import FIELDS_TOKEN, fields_token
+
+        action_key = self._action_key()
+        if not names or not action_key:
+            return None
+        return Element("input", {
+            "type": "hidden",
+            "name": FIELDS_TOKEN,
+            "value": fields_token(names, action_key, uploads,
+                                  session_id=self.session_id, actions=actions),
+        })
 
     def _action_key(self) -> bytes:
         """Pull the derived action key from ``app.config``, else empty bytes."""

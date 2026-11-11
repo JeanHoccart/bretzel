@@ -65,19 +65,20 @@ class TestImperativeAPI:
 
     # ── Focus / blur : direct DOM, no dispatch ─────────────────────────
 
-    def test_focus_returns_direct_dom_call(self) -> None:
+    def test_focus_returns_its_focus_target(self) -> None:
+        # The target comes from ``FOCUS_TARGET`` (``base/focus.py``), read
+        # by ``autofocus=`` too; the browser half: tests/runtime_js/test_autofocus.py.
         with render_isolated():
             i = Input()
             out = i.focus()
-        assert out == f"document.getElementById('{i.id}').focus()"
-        assert "dispatchEvent" not in out
+        assert out == f"$bz.helpers.focusIn('{i.id}', [])"
 
-    def test_blur_returns_direct_dom_call(self) -> None:
+    def test_blur_returns_what_has_the_focus_inside(self) -> None:
+        # Whatever has the focus INSIDE the component, not only the target.
         with render_isolated():
             i = Input()
             out = i.blur()
-        assert out == f"document.getElementById('{i.id}').blur()"
-        assert "dispatchEvent" not in out
+        assert out == f"$bz.helpers.blurIn('{i.id}')"
 
     # ── Binding path : write-through ──────────────────────────────────
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from bretzel.render.decorators.refreshable import ZoneRegistry
+
 import asyncio
 from collections.abc import Awaitable, Callable
 from types import SimpleNamespace
@@ -44,6 +46,7 @@ class _StubTheme:
 
 
 class _StubApp:
+    zones = ZoneRegistry()
     def __init__(self) -> None:
         self._pages: list[Callable[..., Any]] = []
         self._realtime: dict[str, Any] = {}

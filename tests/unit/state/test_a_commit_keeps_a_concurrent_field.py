@@ -153,8 +153,8 @@ def test_an_untouched_state_writes_nothing() -> None:
     """Un état sale dont aucun champ n'a bougé n'écrit pas.
 
     Le cas arrive quand une mutation revient à sa valeur d'origine dans
-    la même requête. Écrire alors rafraîchirait le TTL d'une session que
-    personne n'a modifiée.
+    la même requête. Seule l'échéance est repoussée, par une fusion vide :
+    un état lu reste vivant (``test_a_state_read_stays_alive.py``).
     """
     backend = MemoryBackend()
     ecritures: list[dict[str, object]] = []
@@ -173,7 +173,7 @@ def test_an_untouched_state_writes_nothing() -> None:
     backend.merge = espion  # type: ignore[method-assign]
     run(requete.commit())
 
-    assert ecritures == [], f"écrit {ecritures} alors que rien n'a changé"
+    assert all(not e for e in ecritures), f"écrit {ecritures} alors que rien n'a changé"
 
 
 def test_a_url_seeded_field_is_persisted() -> None:

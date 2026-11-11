@@ -41,9 +41,8 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Iterable, Sequence
 
-#: The number of sweeps of pass 3. Four is the classic value: measured
-#: on this repository's app graphs (9 to 25 nodes), the gain vanishes
-#: from the third onwards — beyond that you pay without gaining.
+#: The number of sweeps of pass 3. Four is the classic value: the gain
+#: vanishes after a few sweeps — beyond that you pay without gaining.
 _SWEEPS = 4
 
 
@@ -484,8 +483,7 @@ def layout(
     # wrong. A point ends up stuck to a neighbouring node's edge, and the
     # path leaving it bulges into that neighbour's box: an edge THEN
     # PASSES OVER a node, the number-one defect of a layered engine.
-    # Measured by `test_no_edge_passes_through_a_node`, which went red on
-    # exactly that before this fix.
+    # Guarded by `test_no_edge_passes_through_a_node`.
     horizontal = direction != "down"
 
     def _cross_extent(key: str) -> float:
@@ -519,10 +517,9 @@ def layout(
     #: flat along its lane, and only rises or falls in the gap between
     #: two layers, where there is nothing.
     #:
-    #: The point alone placed the ghost's entry at the LEFT edge of the
-    #: layer: the curve leaving it then swept the whole width of the
-    #: neighbouring node on its way down, and went through it. Measured:
-    #: `a→d` entered `b` at x≈408 on the test's diamond.
+    #: A point alone would place the ghost's entry at the LEFT edge of the
+    #: layer: the curve leaving it would then sweep the whole width of the
+    #: neighbouring node on its way down, and go through it.
     ghosts_line: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {}
     for index, layer in enumerate(ordered):
         for key in layer:
@@ -570,11 +567,11 @@ def layout(
 
     # The canvas must contain the EDGES too, not only the boxes.
     #
-    # A ghost is not a box: measuring on `boxes` alone gave a canvas that
-    # was too short, and a long edge — whose lane is precisely OUTSIDE
-    # the occupied layers — left through the bottom of the frame and
-    # disappeared. Invisible to any reading of the HTML, invisible to
-    # probes that only look at the nodes; seen on the screenshot.
+    # A ghost is not a box: measuring on `boxes` alone would give a canvas
+    # too short, and a long edge — whose lane is precisely OUTSIDE
+    # the occupied layers — would leave through the bottom of the frame and
+    # disappear. Invisible to any reading of the HTML, invisible to
+    # probes that only look at the nodes.
     edge_points = [pt for line in ghosts_line.values() for pt in line]
     width = max(
         [b.x + b.width for b in boxes] + [x for x, _y in edge_points],
@@ -599,8 +596,7 @@ def neighbourhood(
     """``focus`` plus what it touches, at ``depth`` hops, both ways.
 
     It is the component's default view. A real app's whole graph is dense
-    — 61 edges for 22 nodes, measured on an app since removed — and a
-    tangle answers no question; the neighbourhood answers the one you
+    and a tangle answers no question; the neighbourhood answers the one you
     actually have: "what touches this".
     """
     reached = {focus}

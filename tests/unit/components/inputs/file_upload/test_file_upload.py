@@ -30,7 +30,7 @@ class TestStructure:
     def test_root_has_runtime_factory_scope(self) -> None:
         html = _render()
         # Component delegates state + behaviour to the runtime factory
-        # (cf. bretzel/runtime/_src/08_file_upload.js) — keeps each
+        # (cf. bretzel/components/inputs/file_upload/file_upload.js) — keeps each
         # instance's bz-data short.
         assert "$bz.fileUpload.makeScope(" in html
 
@@ -46,7 +46,6 @@ class TestStructure:
         # the dropzone / button is purely decorative and dispatches
         # ``input.click()`` via ``openPicker()``.
         assert '<input type="file"' in html
-        assert 'bz-ref="nativeInput"' in html
         # sr-only keeps it in the tab order on screen readers but
         # invisible to sighted users.
         assert "sr-only" in html
@@ -73,8 +72,8 @@ class TestVariants:
         assert "bz-on:drop" not in html
 
     def test_invalid_variant_raises(self) -> None:
-        from bretzel.components.base import ComponentDefinitionError
-        with pytest.raises(ComponentDefinitionError):
+        from bretzel.components.base import ComponentUsageError
+        with pytest.raises(ComponentUsageError):
             FileUpload(variant="oops")
 
     def test_dropzone_keyboard_accessible(self) -> None:
@@ -257,11 +256,6 @@ class TestBindableContract:
         # ``required`` sont de la config qui ne bouge qu'au re-render
         # serveur → @refreshable, donc ∅ (cf. client-reactive-surface.md).
         assert FileUpload.BINDABLE_PROPS == ("disabled",)
-        # Invariant structurel : toute clé de carrier DOIT être bindable,
-        # sinon elle est morte.
-        assert set(FileUpload.BINDABLE_CARRIERS) <= set(
-            FileUpload.BINDABLE_PROPS
-        )
 
     def test_value_not_bindable(self) -> None:
         # File data cannot flow through ClientBinding (browser
@@ -549,9 +543,9 @@ class TestCallableEventRouting:
         sélection de fichier.
         """
         html = _render(on_change=self._handler)
-        native = self._attrs_of_tag_carrying(html, 'bz-ref')
-        assert native.get("type") == "file", "input natif introuvable"
-        assert "stopPropagation" in native.get("bz-on:change", ""), (
+        native = re.search(r'<input\b[^>]*\btype="file"[^>]*>', html)
+        assert native, "input natif introuvable"
+        assert "stopPropagation" in native.group(0), (
             "l'input natif ne stoppe pas son `change` : il bulle vers la "
             "racine qui écoute déjà celui du slab → double POST."
         )
@@ -611,9 +605,9 @@ class TestListPresentations:
                 )
 
     def test_an_unknown_presentation_raises(self) -> None:
-        from bretzel.components.base import ComponentDefinitionError
+        from bretzel.components.base import ComponentUsageError
 
-        with pytest.raises(ComponentDefinitionError, match="zznope"):
+        with pytest.raises(ComponentUsageError, match="zznope"):
             _render(list="zznope")
 
     def test_accept_still_takes_a_python_list(self) -> None:

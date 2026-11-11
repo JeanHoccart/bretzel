@@ -3,10 +3,11 @@
 # Ces contrats remplacent l'ancienne « anti-règle 1 » (aspirationnelle,
 # non-outillée). Ils protègent le VRAI invariant : la base stable ne dépend
 # jamais des couches applicatives, et le socle bas forme un DAG strict. Le
-# couplage bidirectionnel render <-> components/server (imports différés,
-# acyclique au chargement) est assumé et volontairement HORS de ces contrats.
+# contrat `whole-stack` (charte, T1) range toute la pile ; les imports
+# différés qui remontent encore y sont listés un par un, comme une dette.
 #
 # Lancer :  lint-imports   (console script fourni par import-linter)
+# Gardé à chaque pytest par tests/consistency/test_imports_only_go_down.py.
 
 [importlinter]
 root_package = bretzel
@@ -100,3 +101,62 @@ source_modules =
     bretzel.lint
 forbidden_modules =
     bretzel.probe
+
+# ─── La pile entière (charte, T1) ────────────────────────────────────────────
+#
+# On n'importe que vers le bas, milieu de la pile compris. `ignore_imports`
+# liste chaque import qui remonte aujourd'hui : c'est de la dette, même
+# différé, et la liste ne peut que raccourcir. Une ligne qui ne correspond
+# plus à aucun import fait échouer le contrat (`unmatched_ignore_imports_alerting`),
+# et `exhaustive` refuse une couche que ce contrat ne place pas.
+#
+# ``lint : probe`` : même étage, sans ordre entre eux ; leur indépendance est
+# gardée par `lint-stays-extractable` et `probe-is-tooling`.
+#
+# Grimp lit tout l'AST : un import dans une fonction compte comme un autre, un
+# import sous TYPE_CHECKING aussi.
+
+[importlinter:contract:whole-stack]
+name = On n'importe que vers le bas, milieu de la pile compris (charte, T1)
+type = layers
+containers =
+    bretzel
+exhaustive = true
+exhaustive_ignores =
+    __main__
+layers =
+    cli
+    lint : probe
+    introspect
+    server
+    components
+    render
+    theme
+    runtime
+    state
+    core
+unmatched_ignore_imports_alerting = error
+ignore_imports =
+    # render → components
+    bretzel.render.context -> bretzel.components.base.events
+    bretzel.render.decorators.refreshable -> bretzel.components.base
+    bretzel.render.ids -> bretzel.components.base.attrs
+    bretzel.render.partials -> bretzel.components.feedback.alert
+    bretzel.render.partials -> bretzel.components.feedback.notification
+    bretzel.render.pipeline -> bretzel.components.base.page_checks
+    bretzel.render.pipeline -> bretzel.components.meta.outlet.outlet
+    bretzel.render.pipeline -> bretzel.components.overlay.tooltip.tooltip
+    bretzel.render.serialize -> bretzel.components.base
+    bretzel.render.shell -> bretzel.components.feedback.notification.notification
+    bretzel.render.shell -> bretzel.components.feedback.notification.theme
+    # render → server
+    bretzel.render.context -> bretzel.server.handlers
+    bretzel.render.lang -> bretzel.server.auth
+    bretzel.render.lang -> bretzel.server.navigation
+    bretzel.render.partials -> bretzel.server.handlers
+    bretzel.render.partials -> bretzel.server.idempotency
+    # components → server
+    bretzel.components.data.datatable.datatable -> bretzel.server.handlers
+    # server → introspect
+    bretzel.server.lifecycle -> bretzel.introspect
+    bretzel.server.lifecycle -> bretzel.introspect.packages

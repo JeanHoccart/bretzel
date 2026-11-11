@@ -122,7 +122,7 @@ class TestEnvelope:
 
     def test_serialize_defuses_closing_tag_in_values(self) -> None:
         # A value containing ``</bz-envelope>`` must not terminate the
-        # tag early — the serializer escapes ``</`` as ``<\/``.
+        # tag early — the serializer writes ``<`` as ``<``.
         f = FilterState()
         f.sort_by = "</bz-envelope><script>alert(1)</script>"
         raw = serialize_envelope([f], "x")
@@ -134,6 +134,22 @@ class TestEnvelope:
         assert entry["fields"]["sort_by"] == (
             "</bz-envelope><script>alert(1)</script>"
         )
+
+    def test_a_value_is_never_markup_nor_an_entity(self) -> None:
+        # ``<bz-envelope>`` is an ordinary element: the tokenizer reads its
+        # text as HTML. A ``<`` opened a real ``<img onerror>`` (2026-11-06),
+        # and ``&amp;`` came back as ``&`` through ``textContent``.
+        value = "<img src=x onerror=alert(1)> Tom &amp; Jerry > 2"
+        f = FilterState()
+        f.sort_by = value
+        for raw, tag in (
+            (serialize_envelope([f], "x"), protocol.ENVELOPE_TAG_NAME),
+            (serialize_patch([f], include_unchanged=True), protocol.PATCH_TAG_NAME),
+            (error_envelope("reload", value), protocol.PATCH_TAG_NAME),
+        ):
+            body = _strip_tag(raw, tag)
+            assert not set("<>&") & set(body), body
+            assert value in json.dumps(json.loads(body), ensure_ascii=False)
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -305,7 +321,7 @@ class TestErrorEnvelope:
         tag = protocol.PATCH_TAG_NAME
         assert out.startswith(f"<{tag}>") and out.endswith(f"</{tag}>")
         # The bridge extracts the inner JSON and JSON.parses it — so it must
-        # round-trip. ``escape_inline_json`` only defuses ``</`` (none here).
+        # round-trip: ``escape_inline_json`` only writes JSON escapes.
         inner = out[len(f"<{tag}>"):-len(f"</{tag}>")]
         assert json.loads(inner) == {
             "patches": {"_error": {"kind": "reload",

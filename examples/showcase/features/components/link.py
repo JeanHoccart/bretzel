@@ -32,13 +32,10 @@ def in_a_sentence() -> None:
         ui.link("Privacy Policy", href="#", variant="underline")
 
 
-def external_and_download() -> None:
+def external_and_disabled() -> None:
     with ui.vstack(gap="sm", align="start"):
         ui.link("Open the API reference", href="https://docs.bretzel-py.dev",
                 external=True)
-        ui.link("Download invoice INV-2041 (PDF)",
-                href="https://picsum.photos/seed/invoice/800/1100",
-                download=True)
         with ui.link(href="#", color="primary"), ui.hstack(gap="xs"):
             ui.icon("book-open")
             ui.text("Read the getting-started guide")
@@ -70,8 +67,7 @@ def page() -> None:
                  "says it is clickable.")
     example("Colours", colors)
     example("Inside a sentence", in_a_sentence)
-    example("New tab, download, disabled", external_and_download,
-            note="external opens a new tab with rel=noopener; download asks "
-                 "the browser to save the file; disabled drops the href so "
-                 "nothing can follow it.")
+    example("New tab, disabled", external_and_disabled,
+            note="external opens a new tab with rel=noopener; disabled drops "
+                 "the href so nothing can follow it.")
     example("A site footer", site_footer, full=True)

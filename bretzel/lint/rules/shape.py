@@ -14,8 +14,8 @@ judges the keys that **already exist** in the shipped theme, and one
 thing only: their shape. A new key stays exempt — it has no shipped
 counterpart, so there is nothing to contradict.
 
-The two directions, measured on 2026-09-10
-------------------------------------------
+The two directions
+------------------
 
 They do not behave alike, and that is what makes the first one a
 priority ::
@@ -23,8 +23,8 @@ priority ::
     # `button.sizes.md` ships as a STRING — one writes a dict
     Theme(components={"button": {"sizes": {"md": {"root": "h-8 px-3"}}}})
 
-The button loses **all** its size tokens. Measured on its ``class=``:
-``h-10 px-4 text-sm gap-2`` before, nothing after. The page renders 200,
+The button loses **all** its size tokens: its ``class=`` goes from
+``h-10 px-4 text-sm gap-2`` to nothing. The page renders 200,
 the HTML is valid, no test turns red — the button is simply bare, at its
 content's size. That is the family ``check`` exists to catch.
 
@@ -54,15 +54,7 @@ rule has nothing to say about it.
 The shipped shape comes from :func:`~bretzel.introspect.theme_shapes` —
 never from a table written here. A table of names in a linter drifts from
 the code it claims to judge; it is the same refusal ``variant`` and
-``sizes`` make, and the reason ``theme_vocabulary`` was centralised on
-2026-08-16.
-
-⚠️ Debt noted, not paid: this is the **third** rule to read a literal
-``Theme(components={…})`` (with ``theme`` and ``variant``), and each
-carries its version of the same two AST helpers. The package's convention
-is "a rule is pure, it knows neither corpus nor floor", so it was
-followed rather than refactoring two rules that work; the extraction is
-recorded in ``.claude/work/todo.md``.
+``sizes`` make, and the reason ``theme_vocabulary`` is centralised.
 """
 
 from __future__ import annotations

@@ -5,11 +5,9 @@ anchored overlay has neither backdrop nor scroll lock; its panel is
 teleported into ``<body>`` then positioned by ``$bz.helpers.floating``
 against the trigger.
 
-What the measurement showed
-----------------------------
-On 2026-08-19: ``Dropdown.render`` = 99 lines, ``Popover.render`` = 103,
-**75 identical (75 %)**. Both files imported exactly the same eleven
-helpers from ``base/_wiring``, in the same order. The difference fits in
+One render, four values
+------------------------
+``Dropdown`` and ``Popover`` share their render. The difference fits in
 four values:
 
 ======================  ====================  ==============
@@ -21,36 +19,33 @@ panel ``role``          ``menu``              ``dialog``
 close on pick           ``bz-dropdown-pick``  —
 ======================  ====================  ==============
 
-⚠️ As with ``_modal``, the rest of the gap was not code but
-**comments**: the bound-overlay ref trap (with no scope of its own, the
+⚠️ The bound-overlay ref trap (with no scope of its own, the
 teleported panel walks up to the shared ``rootScope`` where every
 ``bztrigger`` tramples the others, and the panel anchors to ANOTHER
-overlay's trigger) was explained twice there, in two wordings. A trap
-documented twice is a trap that will be fixed once.
+overlay's trigger) is explained once, in the render below.
 
 What stays with the caller
 ---------------------------
-The style strings: they arrive **already composed**
-(`feedback_no_shared_style_tokens`), this module never reads a theme.
+The style strings: they arrive **already composed**, this module never
+reads a theme.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from bretzel.components.base import stamp_display_none
-from bretzel.components.base._wiring import (
+from bretzel.components.base.overlay_wiring import (
     anchored_dismiss_init,
-    anchored_panel_effect,
+    anchored_panel,
     anchored_trigger_wrapper,
     dispatch_root_effect,
     expand_fit_wrapper,
     floating_placement,
     imperative_listeners,
-    server_sync_marker,
     teleport_to_body,
     trigger_is_full_width,
 )
+from bretzel.components.base.scope_wiring import server_sync_marker
 from bretzel.core.tree import Element, Node
 
 
@@ -86,26 +81,15 @@ def render_anchored_overlay(
     # ── Panel ────────────────────────────────────────────────────────
     # The placement belongs to ``$bz.helpers.floating``, attached by the
     # panel's ``bz-effect`` on opening — no static position class.
-    panel_attrs: dict[str, Any] = {
-        "class": slots.get("panel", ""),
-        "role": role,
-        "bz-ref": "bzpanel",
-        # Display toggle + attach/detach of the floating, in one effect.
-        "bz-effect": anchored_panel_effect(
-            open_expr, floating_placement(position, align)
-        ),
-    }
-    if close_on_event:
-        panel_attrs[f"bz-on:{close_on_event}"] = f"{open_expr} = false"
-    # FOUC: the floating effect handles the display, but we pre-stamp
-    # the closed state so nothing paints at (0,0) before the boot.
-    if not initial_open:
-        stamp_display_none(panel_attrs)
-
-    panel = Element(
-        tag="div",
-        attrs=panel_attrs,
+    panel = anchored_panel(
+        css=slots.get("panel", ""),
         children=tuple(component._render_children()),
+        open_expr=open_expr,
+        placement=floating_placement(position, align),
+        role=role,
+        attrs={f"bz-on:{close_on_event}": f"{open_expr} = false"} if close_on_event else None,
+        # Pre-stamped closed, so nothing paints at (0,0) before the boot.
+        closed=not initial_open,
     )
 
     # ── Trigger ──────────────────────────────────────────────────────
@@ -156,7 +140,7 @@ def render_anchored_overlay(
 
     # Open/close dispatch (no scroll lock for an anchored panel),
     # imperative API receivers, Escape + click-outside: the shared
-    # anchored wiring (``base/_wiring.py``).
+    # anchored wiring (``base/``).
     attrs["bz-effect"] = dispatch_root_effect(open_expr)
     attrs.update(imperative_listeners(open_expr))
     if dismissible:

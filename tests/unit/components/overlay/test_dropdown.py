@@ -93,7 +93,7 @@ class TestItemStyling:
         with render_isolated():
             out = serialize(DropdownItem(label="Profile", href="/me").render())
         assert "<a " in out and 'href="/me"' in out
-        assert "hover:bg-text" in out           # neutral hover applies
+        assert "hover:bg-interface" in out      # neutral hover applies
         assert "enabled:hover" not in out       # the bug
 
     def test_color_row_hovers_its_own_colour(self) -> None:
@@ -273,9 +273,9 @@ class TestImperativeAPI:
             with Dropdown() as d:
                 DropdownItem(label="A")
             el = d.render()
-        assert el.attrs.get("bz-on:bz-open") == "open = true"
-        assert el.attrs.get("bz-on:bz-close") == "open = false"
-        assert el.attrs.get("bz-on:bz-toggle") == "open = !open"
+        assert el.attrs.get("bz-on:bz-open") == "$event.stopPropagation(); open = true"
+        assert el.attrs.get("bz-on:bz-close") == "$event.stopPropagation(); open = false"
+        assert el.attrs.get("bz-on:bz-toggle") == "$event.stopPropagation(); open = !open"
 
     def test_bz_listeners_present_on_root_bound(self) -> None:
         # Bound case : listeners flip the binding path directly. Both
@@ -294,9 +294,9 @@ class TestImperativeAPI:
                     DropdownItem(label="A")
                 el = d.render()
         path = "$bz.state.UI.default.flag"
-        assert el.attrs.get("bz-on:bz-open") == f"{path} = true"
-        assert el.attrs.get("bz-on:bz-close") == f"{path} = false"
-        assert el.attrs.get("bz-on:bz-toggle") == f"{path} = !{path}"
+        assert el.attrs.get("bz-on:bz-open") == f"$event.stopPropagation(); {path} = true"
+        assert el.attrs.get("bz-on:bz-close") == f"$event.stopPropagation(); {path} = false"
+        assert el.attrs.get("bz-on:bz-toggle") == f"$event.stopPropagation(); {path} = !{path}"
 
     def test_methods_return_str_consumable_by_on_click(self) -> None:
         # Sanity : the returned values are plain strings (same shape as
@@ -323,3 +323,81 @@ class TestImperativeAPI:
         assert el.attrs.get("id") == d.id
         # And the id referenced in `.open()` matches.
         assert d.id in d.open()
+
+
+def test_a_menu_entry_takes_its_label_positionally() -> None:
+    """Like ``ui.button("Save")``: ``ui.dropdown_item("Sign out")`` used to
+    raise a TypeError naming ``MenuItem`` (reported by the comparison's
+    builder, 2026-10-25). By name it still works."""
+    from bretzel import ui
+    from bretzel.components.base.testing import render_isolated
+    from bretzel.core.serialize import serialize
+
+    with render_isolated():
+        positional = serialize(ui.dropdown_item("Sign out").render())
+        named = serialize(ui.dropdown_item(label="Sign out").render())
+    assert "Sign out" in positional
+    assert positional.replace(" ", "")[:40] == named.replace(" ", "")[:40]
+
+
+class TestChoiceRow:
+    """``checked=`` makes a row one choice of a set (« Week ✓ »): the
+    screen reader hears which one, not only the eye (a mark painted with
+    ``icon_right="check"`` says nothing)."""
+
+    def _row(self, **kw):
+        with render_isolated():
+            return DropdownItem("Week", **kw).render()
+
+    def test_a_plain_row_stays_an_action(self) -> None:
+        el = self._row()
+        assert el.attrs.get("role") == "menuitem"
+        assert "aria-checked" not in el.attrs
+        assert "check" not in str(el)
+
+    def test_the_chosen_row_says_so(self) -> None:
+        el = self._row(checked=True)
+        assert el.attrs["role"] == "menuitemradio"
+        assert el.attrs["aria-checked"] == "true"
+
+    def test_the_other_rows_keep_the_mark_room(self) -> None:
+        """Unchecked: the mark is there, hidden — the labels line up."""
+        el = self._row(checked=False)
+        assert el.attrs["role"] == "menuitemradio"
+        assert el.attrs["aria-checked"] == "false"
+        assert "invisible group-aria-checked:visible" in str(el)
+
+    def test_a_bound_choice_follows_the_client(self) -> None:
+        from bretzel.state import ClientState
+        from bretzel.state.scopes.client import rendering_scope
+
+        class View(ClientState, persist="memory"):
+            week: bool = field(default=True)
+
+        with render_isolated(), rendering_scope():
+            el = DropdownItem("Week", checked=View().week).render()
+        assert el.attrs["role"] == "menuitemradio"
+        assert "week" in el.attrs["bz-attr:aria-checked"]
+
+    def test_the_mark_and_a_trailing_icon_are_refused_together(self) -> None:
+        import pytest
+
+        from bretzel.components.base import ComponentUsageError
+
+        with render_isolated(), pytest.raises(ComponentUsageError, match="icon_left"):
+            DropdownItem("Week", checked=True, icon_right="star")
+
+
+def test_a_choice_row_leaves_no_mark_behind() -> None:
+    """The mark was built in ``render()``: rendering a menu while a block
+    was open (the playground's « emitted HTML ») attached a stray check
+    mark to that block (seen in the browser, 2026-11-05)."""
+    from bretzel import ui
+    from bretzel.core.serialize import serialize
+
+    with render_isolated():
+        row = DropdownItem("Week", checked=True)
+        with ui.vstack() as box:
+            row.render()
+        html = serialize(box.render())
+    assert "check" not in html, html

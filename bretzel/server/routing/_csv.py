@@ -1,10 +1,9 @@
 """CSV writing, shared by both download paths.
 
-Extracted from ``routing/datatable.py`` on 2026-09-02, when ``@download``
-became the second consumer. The content does not change: these are the
-two corrections the V1 implementation had already identified and that one
-easily misses — the UTF-8 BOM, and letting ``csv.writer`` decide when to
-quote.
+Used by ``routing/datatable.py`` and ``@download``. It holds the two
+corrections one easily misses — the UTF-8 BOM, and letting ``csv.writer``
+decide when to quote — plus a third: a cell that would run as a formula
+(:func:`cell`).
 
 Why it is here and not in ``core``: it only serves to answer a request.
 Mounting it lower in the DAG would make the base layer carry an HTTP
@@ -15,12 +14,41 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from typing import Any
 
 #: Excel on Windows reads a BOM-less UTF-8 CSV in the system code page,
 #: so every accented name arrives as mojibake. One character repairs it,
 #: and it is the most reported bug of every CSV export ever written.
 BOM = "﻿"
+
+
+#: What a spreadsheet takes for the start of a formula. A cell written by a
+#: user (a ticket title, a contact name) that opens with one of these runs
+#: as a formula when another user opens the export: ``=HYPERLINK(…)``,
+#: ``+cmd|' /C calc'!A0``, ``@SUM(…)``. Tab and CR count: Excel strips them
+#: and reads what follows.
+_FORMULA_START = ("=", "+", "-", "@", chr(9), chr(13))
+
+#: A plain number, sign included — ``-12.5`` stays a number in the sheet.
+_PLAIN_NUMBER = re.compile(r"[+-]?\d+(?:[.,]\d+)?")
+
+
+def cell(value: Any) -> str:
+    """One CSV cell: text that would open a formula gets a leading ``'``,
+    which a spreadsheet shows as text and does not run (OWASP's rule).
+    Numbers — the value's own type, or a signed plain number — pass as they
+    are."""
+    if value is None:
+        return ""
+    text = str(value)
+    if (
+        isinstance(value, str)
+        and text.startswith(_FORMULA_START)
+        and not _PLAIN_NUMBER.fullmatch(text)
+    ):
+        return "'" + text
+    return text
 
 
 def to_csv(rows: Any, columns: list[list[str]], read: Any) -> str:
@@ -37,12 +65,9 @@ def to_csv(rows: Any, columns: list[list[str]], read: Any) -> str:
     """
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\r\n")
-    writer.writerow([label or key for key, label in columns])
+    writer.writerow([cell(label or key) for key, label in columns])
     for row in rows:
-        writer.writerow([
-            "" if (value := read(row, key)) is None else str(value)
-            for key, _label in columns
-        ])
+        writer.writerow([cell(read(row, key)) for key, _label in columns])
     return BOM + buffer.getvalue()
 
 

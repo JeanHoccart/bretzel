@@ -17,7 +17,7 @@ TEXTAREA_THEME: dict[str, Any] = {
             "bz-textarea "  # audit marker — cf. tests/audit/checklist.py
             "block w-full rounded-field border-(length:--bz-stroke) border-text/10 "
             "bg-interface text-text placeholder:text-muted/60 "
-            "outline-none resize-none transition-all duration-200 "
+            "outline-none resize-none transition duration-200 "
             "focus:border-(--bz-solid) "
             "focus:ring-2 focus:ring-(--bz-focus-soft) "
             "focus:ring-offset-2 focus:ring-offset-background "

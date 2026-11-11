@@ -57,7 +57,8 @@ def render_index() -> str:
         "Generated on demand with `bretzel describe`.",
         "",
         "Every component ALSO accepts these universal keyword arguments, omitted",
-        f"below for brevity: {', '.join(RESERVED_KWARGS)}.",
+        f"below for brevity: {', '.join(k for k in RESERVED_KWARGS if k != 'autofocus')}.",
+        "`autofocus` too, on the components that take the focus (their card says so).",
         "",
         "A `click` event is written as `on_click=`. Pass a slot by its name.",
         *textwrap.wrap(SERVER_HANDLER_RULE, 76, break_on_hyphens=False),
@@ -98,7 +99,10 @@ def render_detail(info: ComponentInfo | HelperInfo) -> str:
     return _render_component(info)
 
 
-def _prologue(title: str, doc: str | None, params: tuple[ParamInfo, ...]) -> list[str]:
+def _prologue(
+    title: str, doc: str | None, params: tuple[ParamInfo, ...],
+    *, bindable: tuple[str, ...] = (), two_way: tuple[str, ...] = (),
+) -> list[str]:
     """The card's head, common to components and helpers.
 
     The two halves diverged by a trailing blank line — an oversight, not
@@ -109,15 +113,15 @@ def _prologue(title: str, doc: str | None, params: tuple[ParamInfo, ...]) -> lis
         out.extend([doc, ""])
     if params:
         out.append("Parameters")
-        out.extend(_param_lines(params))
+        out.extend(_param_lines(params, bindable=bindable, two_way=two_way))
         out.append("")
     return out
 
 
 def _row(label: str, values: tuple[str, ...], suffix: str = "") -> str:
     """One contract line. The alignment lives HERE and not in four
-    literals counted by eye — renaming "Imperative" can no longer shift
-    the column silently."""
+    literals counted by eye — renaming "Imperative" cannot shift the
+    column silently."""
     return f"{label:<12}" + (", ".join(values) + suffix if values else "—")
 
 
@@ -130,7 +134,8 @@ def _render_helper(info: HelperInfo) -> str:
 def _render_component(info: ComponentInfo) -> str:
     shape = "container" if info.is_container else "leaf"
     title = f"ui.{info.ui_name} → {info.class_name}   ({info.family}, <{info.tag}>, {shape})"
-    out = _prologue(title, info.doc, info.params)
+    out = _prologue(title, info.doc, info.params,
+                    bindable=info.bindable, two_way=info.two_way)
 
     audited = "" if info.bindable_audited else "   ⚠ not audited (BINDABLE_PROPS missing)"
     out.append(
@@ -145,7 +150,8 @@ def _render_component(info: ComponentInfo) -> str:
         out.append(_row("Autoname", (f"from {info.autoname_from}",)))
     out.extend(_theme_lines(info))
 
-    out.extend(["", f"Accepted universal keyword arguments: {', '.join(RESERVED_KWARGS)}"])
+    universal = [k for k in RESERVED_KWARGS if k != "autofocus" or info.focus_target is not None]
+    out.extend(["", f"Accepted universal keyword arguments: {', '.join(universal)}"])
     return "\n".join(out)
 
 
@@ -186,9 +192,7 @@ def _state_url_lines(state: StateInfo) -> list[str]:
     The question no card could answer. A reader writing
     ``class Issues(DatatableState, addressable=True)`` cannot guess
     ``?sort=&dir=&p=``: the names are written on the PARENT's fields, a
-    file they have no reason to open. Measured on 2026-09-06 — the
-    question was asked, and the answer required reading
-    ``state/datatable/state.py``.
+    file they have no reason to open.
 
     Three states, and distinguishing them IS the information:
 
@@ -315,18 +319,38 @@ def _theme_lines(info: ComponentInfo) -> list[str]:
     return out
 
 
-def _param_lines(params: tuple[ParamInfo, ...]) -> list[str]:
+def _param_lines(
+    params: tuple[ParamInfo, ...],
+    *, bindable: tuple[str, ...] = (), two_way: tuple[str, ...] = (),
+) -> list[str]:
     """The parameters, aligned. A reactive prop is marked: its absence
     from the ``__init__`` is an API decision, not an accident, and the
-    reader must know it goes through ``**kwargs``."""
+    reader must know it goes through ``**kwargs``.
+
+    A BINDABLE parameter is marked on its own line too — ``bindable``, or
+    ``bindable, two-way`` when the client writes it — read from
+    ``BINDABLE_PROPS``, the one declaration the socle enforces. The type
+    annotations do not carry it: copying the fact there would make two
+    places to keep in step, so the card derives it instead."""
     if not params:
         return []
     name_w = max(len(p.name) for p in params) + 2
     type_w = max(len(p.type_label) for p in params) + 2
+
+    def marks(p: ParamInfo) -> str:
+        said = []
+        if p.source == SOURCE_REACTIVE_PROP:
+            said.append("reactive property")
+        if p.name in two_way:
+            said.append("bindable, two-way")
+        elif p.name in bindable:
+            said.append("bindable")
+        return f"   ({', '.join(said)})" if said else ""
+
     return [
         f"{_INDENT}{p.name:<{name_w}}{p.type_label:<{type_w}}"
         f"{f'= {p.default_label}' if p.default_label else ''}"
-        f"{'   (reactive property)' if p.source == SOURCE_REACTIVE_PROP else ''}"
+        f"{marks(p)}"
         for p in params
     ]
 
@@ -370,10 +394,8 @@ def render_modules() -> str:
 def render_kwarg_routing() -> str:
     """Kwarg routing, DERIVED from the base layer's constants.
 
-    This table was written by hand in ``kwarg-routing.md`` and carried
-    three false claims there simultaneously. Generated, it can no longer
-    carry any — it is the only remedy that survived the measurement
-    (three prose gate candidates were set aside, cf.
+    Generated, this table cannot carry a false claim, which a hand-written
+    one ends up making; gates on the prose are no remedy (cf.
     :mod:`bretzel.introspect.routing`).
     """
     from bretzel.introspect.routing import describe_kwarg_routing

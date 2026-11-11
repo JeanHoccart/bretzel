@@ -17,6 +17,7 @@ in-flight animations).
 from __future__ import annotations
 
 import hashlib
+import re
 import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -56,7 +57,7 @@ def current_iteration_key() -> str | None:
 def iteration_key_for(key: Any) -> str:
     """The joined key an ``each`` loop running here would give the item
     keyed ``key`` — the id of a row that is not in the list any more."""
-    return "_".join((*_KEY_STACK.get(), str(key)))
+    return "_".join((*_KEY_STACK.get(), _id_segment(str(key))))
 
 
 @contextmanager
@@ -68,19 +69,17 @@ def key_segment(segment: str) -> Iterator[None]:
     reason this module already states: "without it, an element at
     position 0 of category X collides with the one of category Y".
 
-    The case that produced it: two ``ui.table`` showing the same rows
-    gave their cells IDENTICAL identities. A component born inside a
+    Without it, two ``ui.table`` showing the same rows would give their
+    cells IDENTICAL identities. A component born inside a
     cell's ``render=`` has no parent on the stack (it is built during the
     render, outside any ``with``), so its id is
     ``root_<kind>_<row key>`` — and two tables on the same data repeat
-    exactly the same sequence. Measured on the playground's
-    ``/datatable``: **nine elements sharing ``root_dropdown_100``**, one
-    per table showing the row with id 100.
+    exactly the same sequence.
 
     It matters because ``bz-id`` is the key of TWO mechanisms: the one
     idiomorph pairs nodes with after a swap, and the one
-    ``scope.absorb`` finds a client scope with. Nine candidates for one
-    target means a menu opening instead of another and a subtree replaced
+    ``scope.absorb`` finds a client scope with. Several candidates for one
+    target mean a menu opening instead of another and a subtree replaced
     instead of merged.
     """
     previous = _KEY_STACK.get()
@@ -94,6 +93,22 @@ def key_segment(segment: str) -> Iterator[None]:
 # ───────────────────────────────────────────────────────────────────────────
 # Key extraction — the v1 cascade, preserved
 # ───────────────────────────────────────────────────────────────────────────
+
+
+#: What a key may keep as it is. A DOM id holds no whitespace, and the
+#: zone diff names the children it keeps in a space-separated list
+#: (``<bz-at list="#a #b n">``): a row keyed by a name holding a space
+#: would split in two there, and its patch would miss.
+_SAFE_SEGMENT = re.compile(r"[\w.:-]+")
+
+
+def _id_segment(key: str) -> str:
+    """``key`` as a piece of DOM id: itself when it is one already — an
+    integer, a code, a slug keep the id they always had —, else a digest
+    of it, stable across processes like the one of rule 5 below."""
+    if _SAFE_SEGMENT.fullmatch(key):
+        return key
+    return "k" + hashlib.blake2b(key.encode(), digest_size=8).hexdigest()
 
 
 def _extract_key(
@@ -117,33 +132,32 @@ def _extract_key(
     6. Positional fallback — the loop index. Emits a warning in debug mode
        so the developer notices and supplies an explicit key when needed.
 
-    The returned value is always coerced to ``str`` so it can be embedded
-    in DOM IDs without further escaping.
+    The returned value is a valid DOM id segment (:func:`_id_segment`), so
+    it can be embedded in an id without further escaping.
     """
     # 1. Explicit key argument
     if key_arg is not None:
         if callable(key_arg):
-            return str(key_arg(item))
+            return _id_segment(str(key_arg(item)))
         if isinstance(item, dict):
-            return str(item[key_arg])
-        return str(getattr(item, key_arg))
+            return _id_segment(str(item[key_arg]))
+        return _id_segment(str(getattr(item, key_arg)))
 
     # 2-3. Conventional attributes
     for attr in ("id", "pk"):
         if hasattr(item, attr):
-            return str(getattr(item, attr))
+            return _id_segment(str(getattr(item, attr)))
 
     # 4. Dict with "id" key
     if isinstance(item, dict) and "id" in item:
-        return str(item["id"])
+        return _id_segment(str(item["id"]))
 
     # 5. Hashable primitive. ``hash()`` is NOT stable for a ``str`` (nor a
     # ``tuple`` holding one): Python salts it per process
     # (``PYTHONHASHSEED``), so the same list rendered after a restart, or
-    # by another worker, got other DOM ids, and a partial from one worker
-    # no longer morphed onto the page another one rendered. Found
-    # 2026-10-22 rendering the playground twice: ``vstack_-79869…``, then
-    # ``vstack_-21052…``. An ``int`` hashes to itself: kept as is.
+    # by another worker, would get other DOM ids, and a partial from one
+    # worker would no longer morph onto the page another one rendered. An
+    # ``int`` hashes to itself: kept as is.
     if isinstance(item, (int, bool)):
         return str(hash(item))
     if isinstance(item, (str, tuple)):

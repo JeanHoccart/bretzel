@@ -55,8 +55,8 @@ class DividerClient(ClientState, persist="memory"):
 
 def server_changed(state: DividerPlayground) -> None:
     # Typed param → the dispatcher hydrates the changed
-    # control's value into ``state`` (coerced + persisted). The
-    # ``deps=[DividerPlayground]`` on ``server_panel`` re-renders it.
+    # control's value into ``state`` (coerced + persisted).
+    # ``server_panel`` reads that state, so it re-renders.
     pass
 
 
@@ -104,7 +104,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[DividerPlayground])
+@refreshable
 def server_panel() -> None:
     state = DividerPlayground()
 

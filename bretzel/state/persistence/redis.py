@@ -5,9 +5,9 @@ Strict rules:
 - **One HASH per state, one Redis field per state field.** That is the
   shape Redis offers for an object, and it is what makes partial writes
   native: ``HSET key filter "red"`` reads nothing, overwrites nothing
-  else, and fits in one round trip. The whole-document JSON we used to
-  store forced a re-read, a merge and a full rewrite under an optimistic
-  lock — three round trips and a retry loop to change one field.
+  else, and fits in one round trip. A whole-document JSON would force a
+  re-read, a merge and a full rewrite under an optimistic lock — three
+  round trips and a retry loop to change one field.
 
 - **Every wait is BOUNDED, and the backend is what bounds it.** A state
   read starts from a pool thread (cf. ``StateRegistry._load_via_loop``),
@@ -17,8 +17,7 @@ Strict rules:
   no recovery. Forty parked that way (the ``anyio`` default, cf.
   ``core/invoke.py``) and no synchronous app code runs at all any more.
   Hence ``socket_timeout`` and ``socket_connect_timeout`` set by default
-  here: redis-py leaves both at ``None``, that is to say endless
-  (measured).
+  here: redis-py leaves both at ``None``, that is to say endless.
 
 - **JSON-only serialisation.** Bretzel never falls back to ``pickle`` —
   pickle deserialisation is a documented RCE vector when an attacker
@@ -28,8 +27,8 @@ Strict rules:
 
 - **Logical key composition is the registry's job.** This backend only
   prepends ``{prefix}:{scope}:`` to whatever the registry hands it.
-  The registry is responsible for hashing user IDs (privacy by design,
-  see ``.claude/bretzel/state.md``) and embedding the State class name + instance
+  The registry is responsible for hashing user IDs (privacy by design)
+  and embedding the State class name + instance
   key into the logical key.
 
 - **TTL.** ``save(..., ttl=N)`` sets ``EXPIRE N``; ``ttl=None`` leaves no
@@ -37,13 +36,12 @@ Strict rules:
   expiration when given one, and leaves the one in place alone when
   ``ttl`` is ``None`` — cf. its docstring.
 
-⚠️ **What the hash costs, measured on 2026-09-04** — written here because
-the winning half is already written above:
+⚠️ **What the hash costs** — written here because the winning half is
+already written above:
 
 - the READ decodes field by field, so N ``json.loads`` calls instead of
-  one: **18.3 µs against 3.7** for twenty fields, 63 against 13.7 for
-  fifty. To be compared with the milliseconds of a network round trip,
-  but it is not free;
+  one. Small against the milliseconds of a network round trip, but it is
+  not free;
 - a single field whose JSON exceeds 64 bytes tips the WHOLE hash out of
   Redis's compact encoding (``hash-max-listpack-value``), which costs a
   few dozen bytes per field instead of about fifty for the whole row.
@@ -57,11 +55,12 @@ from __future__ import annotations
 import functools
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
-from typing import Any
+from types import ModuleType
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-from redis import asyncio as redis_asyncio
-from redis import exceptions as redis_exceptions
+if TYPE_CHECKING:
+    from redis import asyncio as redis_asyncio
 
 # Canonical framework error — one class, so a serialisation failure here
 # is caught by the server's ``except BretzelError`` / FastAPI handler
@@ -79,10 +78,30 @@ from bretzel.core.errors import BretzelError
 #:
 #: Changed through the URL (``redis://host?socket_timeout=2``), which
 #: wins over this default: redis-py applies the URL options AFTER the
-#: kwargs (verified on 2026-09-04 — a ``socket_timeout=9`` kwarg lost
-#: against the URL's ``1.5``). That is indeed the direction we want: the
-#: framework's value is a default, the operator's wins.
+#: kwargs. That is indeed the direction we want: the framework's value
+#: is a default, the operator's wins.
 _DEFAULT_TIMEOUT_SECONDS = 5.0
+
+def require_redis() -> ModuleType:
+    """The ``redis`` package, imported on first use.
+
+    It is an extra (``pip install 'bretzel[redis]'``): only an app running
+    several workers needs it, and ``import bretzel`` must not. An app that
+    sets ``redis_url`` without it is told so at startup, in a sentence.
+    """
+    try:
+        import redis
+        import redis.asyncio
+        import redis.exceptions
+    except ImportError as exc:
+        raise BretzelError(
+            "redis_url is set, and the redis package is not installed: "
+            "pip install 'bretzel[redis]'. Redis only serves an app that runs "
+            "several workers; with one, leave redis_url unset and the state "
+            "stays in memory."
+        ) from exc
+    return redis
+
 
 def _bounded[T](
     method: Callable[..., Awaitable[T]],
@@ -104,7 +123,7 @@ def _bounded[T](
     async def wrapper(self: RedisBackend, *args: Any, **kwargs: Any) -> T:
         try:
             return await method(self, *args, **kwargs)
-        except redis_exceptions.TimeoutError as exc:
+        except require_redis().exceptions.TimeoutError as exc:
             raise BretzelError(
                 f"Redis did not answer {method.__name__!r} within the "
                 f"allotted time ({exc}). The wait is bounded ON PURPOSE: a "
@@ -113,7 +132,7 @@ def _bounded[T](
                 f"legitimately slow, loosen the ceiling in the URL "
                 f"(`redis://…?socket_timeout=15`)."
             ) from exc
-        except redis_exceptions.ConnectionError as exc:
+        except require_redis().exceptions.ConnectionError as exc:
             raise BretzelError(
                 f"Redis is unreachable during {method.__name__!r} ({exc}). "
                 f"This request's state could not be read or written."
@@ -173,7 +192,7 @@ class RedisBackend:
                 f"Unsupported Redis URL scheme {scheme!r} : "
                 "expected one of 'redis', 'rediss', 'unix'."
             )
-        client = redis_asyncio.Redis.from_url(url, **client_kwargs)
+        client = require_redis().asyncio.Redis.from_url(url, **client_kwargs)
         return cls(client, prefix=prefix)
 
     # ── Key composition ─────────────────────────────────────────────────
@@ -229,7 +248,7 @@ class RedisBackend:
         composed = self._compose(scope, key)
         try:
             raw = await self._client.hgetall(composed)
-        except redis_exceptions.ResponseError as exc:
+        except require_redis().exceptions.ResponseError as exc:
             if "WRONGTYPE" not in str(exc).upper():
                 raise
             # A row written by the PREVIOUS version (a whole-document
@@ -316,9 +335,13 @@ class RedisBackend:
         business deciding the fate of a duration it did not set, and the
         two scopes concerned (``user``, ``app``) never have one anyway.
         """
-        if not changes and not add:
-            return
         composed = self._compose(scope, key)
+        if not changes and not add:
+            # Nothing to write: only the expiration moves. ``EXPIRE`` on
+            # an absent key does nothing, so no row is created.
+            if ttl is not None:
+                await self._client.expire(composed, ttl)
+            return
         mapping = self._mapping(changes, scope, key) if changes else {}
         # One command stays one command: no pipeline when there is
         # nothing else to put in it.
@@ -382,7 +405,7 @@ class RedisBackend:
             pipe.delete(key)
             try:
                 await pipe.execute()
-            except redis_exceptions.WatchError:
+            except require_redis().exceptions.WatchError:
                 # Somebody touched the key while we were looking: our
                 # lock was therefore no longer ours. Do nothing.
                 return

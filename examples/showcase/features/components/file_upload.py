@@ -51,7 +51,7 @@ class ImportResult(PageState):
 def import_contacts(contacts=None) -> None:
     """``contacts`` is the file_upload's ``name=``: the upload arrives here."""
     if contacts is None or not hasattr(contacts, "read"):
-        ui.notification("Drop a CSV file first.", variant="warning")
+        ui.notification("Drop a CSV file first.", color="warning")
         return
     text = contacts.file.read().decode("utf-8", errors="replace")
     result = ImportResult()
@@ -59,7 +59,7 @@ def import_contacts(contacts=None) -> None:
     result.rows = max(len(text.splitlines()) - 1, 0)
 
 
-@refreshable(deps=[ImportResult])
+@refreshable
 def import_summary() -> None:
     result = ImportResult()
     if result.file_name:

@@ -28,7 +28,8 @@ from typing import Any
 
 PIE_CHART_THEME: dict[str, Any] = {
     "slots": {
-        "wrapper":      "flex flex-col gap-3 items-center",
+        # The focus ring: the chart is one tab stop (``keyboard_attrs``).
+        "wrapper":      "flex flex-col gap-3 items-center rounded outline-none focus-visible:ring-2 focus-visible:ring-text/30",
         # ``group/pie`` enables the slice ``group-hover/pie:opacity-80``
         # dim-others polish (the hovered slice keeps full opacity via
         # ``hover:!opacity-100`` on its own class).
@@ -48,15 +49,25 @@ PIE_CHART_THEME: dict[str, Any] = {
         "legend":       "flex flex-wrap items-center justify-center gap-x-4 gap-y-1",
         "legend_dot":   "size-3 rounded-selector shrink-0 bg-(--bz-solid)",
         "legend_label": "text-xs text-text/70",
+        # « Voir les données »: the ``<details>`` and its summary
+        # (``data_table``); the table inside is a ``ui.table``.
+        "data":         "group w-full",
+        "data_toggle":  (
+            "w-fit cursor-pointer select-none text-text/60 "
+            "hover:text-text rounded outline-none "
+            "focus-visible:ring-2 focus-visible:ring-text/30"
+        ),
         "empty":        "fill-text/40 text-sm",
     },
     "sizes": {
         # name → {h, label, center}
-        "xs": {"h": 140, "label": 10, "center": 14},
-        "sm": {"h": 200, "label": 11, "center": 18},
-        "md": {"h": 280, "label": 12, "center": 22},
-        "lg": {"h": 360, "label": 13, "center": 28},
-        "xl": {"h": 440, "label": 14, "center": 34},
+        # + the font of the HTML around the plot — axis titles, « Voir les
+        # données » — on the axis labels' step (``titled``, ``data_table``).
+        "xs": {"h": 140, "label": 10, "center": 14, "data_toggle": "text-xs"},
+        "sm": {"h": 200, "label": 11, "center": 18, "data_toggle": "text-xs"},
+        "md": {"h": 280, "label": 12, "center": 22, "data_toggle": "text-xs"},
+        "lg": {"h": 360, "label": 13, "center": 28, "data_toggle": "text-sm"},
+        "xl": {"h": 440, "label": 14, "center": 34, "data_toggle": "text-sm"},
     },
     # The auto-cycle when a series carries no ``color=``. BRAND colours
     # first, then status colours, ``error`` last. The identity's author

@@ -16,16 +16,23 @@ Slots :
 - ``clear``    : the inline ``×`` to clear the whole picked value
 - ``chevron``  : the trailing chevron icon
 - ``panel``    : the absolute dropdown holding the filtered options.
-                 Its ``max-h`` AND, when a custom ``trigger=`` detaches it
-                 from the trigger's width, its ``min-w`` floor
-                 (``sizes[<size>]["panel_free"]``) live in the size table
-- ``header_bar`` : the sticky panel header (counter + pills + bulk actions)
-- ``header_btn_primary`` / ``header_btn_muted`` : the bulk-action buttons
+                 Its ``max-h`` lives in the size table ; when a custom
+                 ``trigger=`` detaches it from the trigger's width,
+                 ``sizes[<size>]["panel_free"]`` replaces that row with
+                 a ``min-w`` floor and a taller ``max-h``
+- ``header_bar`` : the sticky panel header (the picks as pills, or the
+                 relocated search field of a custom ``trigger=``)
+- ``footer_bar`` : the sticky panel footer (counter + Select all / Clear)
+- ``footer_btn_primary`` / ``footer_btn_muted`` : its two commands
 - ``option``   : each option button — base + size scaling
 - ``option_active``   : highlighted-state modifier (hover / keyboard)
+- ``option_current``  : the current value's tint (single mode only)
 - ``option_check``    : the ✓ marking a PICKED option (multi only) —
-                 the affordance ``option_selected``'s accent alone
-                 cannot carry, since ``option_active`` is accented too
+                 the affordance ``option_selected``'s accent text
+                 alone cannot carry (colour only, WCAG 1.4.1)
+- ``option_box`` : the checkbox drawn on the LEFT of each option in the
+                 filter shape (multi + custom ``trigger=``), in place
+                 of ``option_check``
 - ``option_selected`` : selected-state modifier (matches the value)
 - ``empty``    : the "no results" placeholder shown when filter
                  returns 0 matches
@@ -45,7 +52,7 @@ COMBOBOX_THEME: dict[str, Any] = {
             "flex items-center w-full rounded-field border-(length:--bz-stroke) "
             "border-text/10 bg-interface text-text "
             "cursor-text outline-none "
-            "transition-all duration-200 "
+            "transition duration-200 "
             "focus-within:border-(--bz-solid) "
             "focus-within:ring-2 focus-within:ring-(--bz-focus-soft) "
             "focus-within:ring-offset-2 "
@@ -82,7 +89,13 @@ COMBOBOX_THEME: dict[str, Any] = {
         ),
         "chevron": (
             "shrink-0 ml-2 text-muted pointer-events-none "
-            "transition-transform duration-200"
+            # Turned by the trigger's OPEN state (``aria-expanded``, an
+            # ancestor: ``in-``), the transition with it — it turns
+            # opening, snaps back closing with the panel. Static and variant-
+            # prefixed: a ``bz-class`` duration would fight the icon's own
+            # ``duration-150`` (gate test_bz_class_never_repeats_static_tokens).
+            "in-aria-expanded:rotate-180 in-aria-expanded:transition-[rotate] "
+            "in-aria-expanded:duration-200"
         ),
         # Positioned by ``$bz.helpers.floating`` (fixed + inline top/left,
         # min-width pinned to the trigger via ``match_width``). NO ``left-0
@@ -102,7 +115,7 @@ COMBOBOX_THEME: dict[str, Any] = {
         # Guarded by ``tests/consistency/test_anchored_panels_match.py``.
         "panel": (
             "absolute z-40 mt-1 overflow-y-auto "
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface "
+            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
             "shadow-lg "
             # The enter fade, at the FIELD cadence — half the menus'.
             # The mechanism of the three classes is explained in a single
@@ -111,82 +124,107 @@ COMBOBOX_THEME: dict[str, Any] = {
             # Why 75 and not 150: a menu is a DETOUR (you open it, you
             # look, you choose) and 150 ms read there as care; a field is
             # on the PATH, often filled in series, and the same duration
-            # reads there as latency. Reported from use on 2026-09-04, on
-            # both at once — so it is indeed the CLASS of component that
+            # reads there as latency. It is the CLASS of component that
             # decides, not the component.
-            "transition-[opacity,display] transition-discrete duration-75 "
+            "transition-opacity duration-75 "
             "starting:opacity-0"
         ),
-        # **Header bar** — unified strip at the top of the panel.
-        # Three zones, in flex-row :
-        #   - LEFT : counter "N / total" (multi mode only)
-        #   - MIDDLE : current picks rendered as removable pills
-        #     (flex-wrap so long lists wrap gracefully without
-        #     pushing the actions out of view)
-        #   - RIGHT : Select all / Clear action buttons (only when
-        #     ``bulk_actions=True`` AND multi mode)
-        # Sticky top so it stays visible while scrolling long option
-        # lists. Visible when there's something to show
-        # (``_hasPicked()`` OR bulk-actions on) — completely hidden
-        # otherwise (no chrome for nothing).
+        # **Header bar** — the strip at the top of the panel. It
+        # carries the current picks as removable pills (flex-wrap, so a
+        # long list wraps instead of overflowing), or — when a custom
+        # ``trigger=`` evicted the search field — that field. Sticky top
+        # so it stays visible while the options scroll. With nothing
+        # picked and no field, it is hidden (no chrome for nothing).
         "header_bar": (
             "flex flex-wrap items-center gap-2 px-2 py-1.5 "
             "border-b-(length:--bz-stroke) border-text/10 sticky top-0 "
-            "bg-interface/95 backdrop-blur z-10"
+            "bg-surface/95 backdrop-blur z-10"
         ),
         # Counter — "3 / 29" tabular-style. Subtle, secondary
         # information : muted text + small + tabular-nums so the
         # digits don't dance as the count changes.
-        # The text size lives in ``sizes[<size>]["header_counter"]`` — do
+        # The text size lives in ``sizes[<size>]["footer_counter"]`` — do
         # NOT put it back here: the slot and the table would overwrite
         # each other in an order Tailwind decides (traps.md).
-        "header_counter": (
+        "footer_counter": (
             "shrink-0 text-muted tabular-nums"
         ),
-        # Pills container — takes the remaining horizontal space
-        # so the actions snap to the right edge. ``min-w-0`` lets
-        # pills wrap correctly without overflowing.
+        # Pills container — ``min-w-0`` lets pills wrap correctly
+        # without overflowing.
         "header_pills": (
             "flex flex-wrap items-center gap-1 flex-1 min-w-0"
         ),
+        # **Footer bar** — the commands, UNDER the list: counter on the
+        # left, Select all / Clear on the right. Above the options they
+        # sat between the search field and the list, the two things the
+        # reader goes back and forth between. Sticky bottom, the mirror
+        # of the header.
+        "footer_bar": (
+            "flex items-center gap-2 px-2 py-1.5 "
+            "border-t-(length:--bz-stroke) border-text/10 sticky bottom-0 "
+            "bg-surface/95 backdrop-blur z-10"
+        ),
         # Actions container — right-aligned, small gap.
-        "header_actions": (
+        "footer_actions": (
             "shrink-0 inline-flex items-center gap-1 ms-auto"
         ),
         # Select all — primary action. Subtle by default (no
         # background), primary tint on hover so the constructive
         # nature reads at a glance.
-        "header_btn_primary": (
+        "footer_btn_primary": (
             "inline-flex items-center px-2 py-1 rounded-selector "
             "font-medium text-(--bz-text) "
-            "not-disabled:hover:bg-(--bz-bg) cursor-pointer "
+            "hover:bg-(--bz-bg) cursor-pointer "
             "outline-none focus-visible:ring-2 "
-            "focus-visible:ring-(--bz-focus) "
-            "disabled:opacity-50 disabled:cursor-not-allowed"
+            "focus-visible:ring-(--bz-focus)"
         ),
         # Clear — destructive action. Muted by default so it
         # doesn't compete visually with Select all ; error tint on
         # hover so the destructive intent is clear before clicking.
-        "header_btn_muted": (
+        "footer_btn_muted": (
             "inline-flex items-center px-2 py-1 rounded-selector "
             "font-medium text-muted "
-            "not-disabled:hover:bg-error/10 not-disabled:hover:text-error "
+            "hover:bg-error/10 hover:text-error "
             "cursor-pointer outline-none focus-visible:ring-2 "
-            "focus-visible:ring-error/40 "
-            "disabled:opacity-50 disabled:cursor-not-allowed"
+            "focus-visible:ring-error/40"
         ),
         "option": (
             "flex items-center w-full text-start "
             "px-3 py-2 cursor-pointer outline-none "
-            "transition-colors duration-100 "
+            # No fade: a row lights at once and goes out at once — sliding
+            # down a list, the previous row would trail behind the pointer.
+            # As in a native menu.
             "disabled:opacity-50 disabled:cursor-not-allowed"
         ),
-        "option_active": "bg-(--bz-bg) text-(--bz-text)",
+        # Neutral : the hovered / keyboard row wears a control's
+        # ``interface`` against the panel's ``surface``. An accent here
+        # read as "picked" — hovered and picked looked alike.
+        "option_active": "bg-interface",
+        # Single mode only : the current value's tint. Keyed on
+        # ``aria-selected`` so the variant outranks ``option_active``'s
+        # plain ``bg-interface`` when the cursor sits on it. Multi mode
+        # leaves it out — its tick (or box) already says "picked", and a
+        # list picked through would read as one tinted block.
+        "option_current": "aria-selected:bg-(--bz-bg)",
         # A picked option's tick (multi mode). ``ml-auto`` pushes it to
         # the right edge without touching the label's alignment. The
         # glyph's size lives in ``sizes[<size>]["check_icon_size"]`` — an
         # icon is sized in ``text-*``, never in ``w-``/``h-`` (traps.md).
         "option_check": "shrink-0 ms-auto text-(--bz-text)",
+        # The filter shape's checkbox (multi + custom ``trigger=``). Same
+        # recipe as ``ui.checkbox``'s box, keyed on the option's
+        # ``aria-selected`` (``group`` is on the option) instead of a
+        # native ``:checked`` — the option, not the box, is the control.
+        # The glyph inside is ``text-transparent`` until picked. Its size
+        # lives in ``sizes[<size>]["option_box"]``.
+        "option_box": (
+            "shrink-0 inline-flex items-center justify-center me-2 "
+            "rounded-selector border-(length:--bz-stroke) border-text/25 "
+            "bg-interface text-transparent transition-colors duration-150 "
+            "group-aria-selected:bg-(--bz-solid) "
+            "group-aria-selected:border-(--bz-solid) "
+            "group-aria-selected:text-(--bz-on-solid)"
+        ),
         "option_selected": "font-semibold text-(--bz-text)",
         # No-results placeholder.
         "empty": (
@@ -211,12 +249,14 @@ COMBOBOX_THEME: dict[str, Any] = {
             "input": "text-xs",
             "option": "text-xs",
             "check_icon_size": "xs",
+            "option_box": "size-3",
+            "box_icon_size": "xs",
             "panel": "max-h-48",
-            "panel_free": "min-w-44",
+            "panel_free": "min-w-44 max-h-76",
             "empty": "text-xs",
-            "header_counter": "text-xs",
-            "header_btn_primary": "text-xs",
-            "header_btn_muted": "text-xs",
+            "footer_counter": "text-xs",
+            "footer_btn_primary": "text-xs",
+            "footer_btn_muted": "text-xs",
             "pill_size": "xs",
             "chevron_size": "xs",
             "clear_icon_size": "xs",
@@ -226,12 +266,14 @@ COMBOBOX_THEME: dict[str, Any] = {
             "input": "text-sm",
             "option": "text-sm",
             "check_icon_size": "xs",
+            "option_box": "size-3.5",
+            "box_icon_size": "xs",
             "panel": "max-h-52",
-            "panel_free": "min-w-48",
+            "panel_free": "min-w-48 max-h-84",
             "empty": "text-sm",
-            "header_counter": "text-xs",
-            "header_btn_primary": "text-xs",
-            "header_btn_muted": "text-xs",
+            "footer_counter": "text-xs",
+            "footer_btn_primary": "text-xs",
+            "footer_btn_muted": "text-xs",
             "pill_size": "xs",
             "chevron_size": "xs",
             "clear_icon_size": "xs",
@@ -241,12 +283,14 @@ COMBOBOX_THEME: dict[str, Any] = {
             "input": "text-sm",
             "option": "text-sm",
             "check_icon_size": "sm",
+            "option_box": "size-4",
+            "box_icon_size": "xs",
             "panel": "max-h-60",
-            "panel_free": "min-w-56",
+            "panel_free": "min-w-56 max-h-96",
             "empty": "text-sm",
-            "header_counter": "text-xs",
-            "header_btn_primary": "text-xs",
-            "header_btn_muted": "text-xs",
+            "footer_counter": "text-xs",
+            "footer_btn_primary": "text-xs",
+            "footer_btn_muted": "text-xs",
             "pill_size": "sm",
             "chevron_size": "sm",
             "clear_icon_size": "xs",
@@ -256,12 +300,14 @@ COMBOBOX_THEME: dict[str, Any] = {
             "input": "text-base",
             "option": "text-base",
             "check_icon_size": "md",
+            "option_box": "size-5",
+            "box_icon_size": "sm",
             "panel": "max-h-72",
-            "panel_free": "min-w-64",
+            "panel_free": "min-w-64 max-h-96",
             "empty": "text-base",
-            "header_counter": "text-sm",
-            "header_btn_primary": "text-sm",
-            "header_btn_muted": "text-sm",
+            "footer_counter": "text-sm",
+            "footer_btn_primary": "text-sm",
+            "footer_btn_muted": "text-sm",
             "pill_size": "md",
             "chevron_size": "md",
             "clear_icon_size": "sm",
@@ -271,12 +317,14 @@ COMBOBOX_THEME: dict[str, Any] = {
             "input": "text-lg",
             "option": "text-lg",
             "check_icon_size": "lg",
+            "option_box": "size-6",
+            "box_icon_size": "md",
             "panel": "max-h-80",
-            "panel_free": "min-w-72",
+            "panel_free": "min-w-72 max-h-104",
             "empty": "text-lg",
-            "header_counter": "text-base",
-            "header_btn_primary": "text-base",
-            "header_btn_muted": "text-base",
+            "footer_counter": "text-base",
+            "footer_btn_primary": "text-base",
+            "footer_btn_muted": "text-base",
             "pill_size": "lg",
             "chevron_size": "lg",
             "clear_icon_size": "sm",

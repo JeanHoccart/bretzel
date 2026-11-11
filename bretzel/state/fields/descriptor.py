@@ -139,14 +139,12 @@ def _coerce_composite(value: Any, type_: Any) -> Any:
     (``resizable``). No `<input>` carries anything but a string, so they
     all serialise with ``JSON.stringify`` into a hidden field.
 
-    Without this decoding, a ``list`` field received the STRING
-    ``'["a","b"]'`` and stored it as-is. The next render did ``list(...)``
-    on it and displayed fourteen characters; the mush was re-posted, and
-    it **survived the reload**. No error anywhere — exactly the failure
-    mode scalar coercion exists to remove on ``bool``/``int``, applied one
-    notch higher.
-
-    Measured on 2026-08-19 on the CRM's Settings screen.
+    Without this decoding, a ``list`` field would receive the STRING
+    ``'["a","b"]'`` and store it as-is. The next render would do
+    ``list(...)`` on it and display its characters; the mush would be
+    re-posted, and it would **survive the reload**. No error anywhere —
+    exactly the failure mode scalar coercion exists to remove on
+    ``bool``/``int``, applied one notch higher.
 
     Rules:
 
@@ -244,9 +242,8 @@ def _coerce_to(value: Any, type_: Any) -> Any:
     """A form value in its declared type: scalar, then container, then
     business type (a ``date`` arrives as ``"2026-03-04"``).
 
-    Fast exit on ``decode_value``: 99 % of types are ``str``/``int``/
-    ``bool``, and it cost them four calls to do nothing — measured on
-    2026-09-06, +16 % on every field write.
+    Fast exit on ``decode_value``: nearly every type is ``str``/``int``/
+    ``bool``, and the call would do nothing for them on every field write.
     """
     value = _coerce_scalar(value, type_)
     if isinstance(value, _SkipAssignment):
@@ -471,7 +468,9 @@ class Field:
 
     def has_value(self, instance: object) -> bool:
         """``True`` iff ``instance`` has an explicitly stored value for this
-        field (defaults aren't materialised by this check)."""
+        field (defaults aren't materialised by this check). A read of the
+        field, for whoever is tracking."""
+        TRACKER.track_access(instance, self.name)
         return self._storage_key in instance.__dict__
 
     def __repr__(self) -> str:
@@ -499,12 +498,10 @@ def field(
 ) -> Any:
     """Declare a typed state field."""
     if isinstance(default, list | dict | set):
-        # The guard MOVED here on 2026-09-05, together with the
-        # obligation to go through ``field()``: it used to live in the
-        # metaclass, on the bare-default path, which no longer exists.
-        # Without that move ``field(default=[])`` passed — the literal is
-        # then SHARED by every instance, and mutating one mutates the
-        # others.
+        # The guard lives here because every declaration goes through
+        # ``field()``. Without it ``field(default=[])`` would pass — the
+        # literal is then SHARED by every instance, and mutating one
+        # mutates the others.
         raise ValueError(
             f"field(default={default!r}): a mutable literal would be "
             f"shared by every instance of the state. Write "

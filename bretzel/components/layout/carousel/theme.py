@@ -83,9 +83,8 @@ CAROUSEL_THEME: dict[str, Any] = {
         # ``bz-no-scrollbar`` is a hook of the FRAMEWORK CSS, not a
         # Tailwind utility (cf. ``theme/css.py`` ``_NO_SCROLLBAR``, and
         # the same choice at Sidebar with ``bz-rail-scroll``).
-        # ⚠️ The reason changed on 2026-08-29: the equivalent arbitrary
-        # variants compile perfectly well in PROD (checked against the
-        # binary) — it is the dev mode's browser compiler that does not
+        # ⚠️ The equivalent arbitrary variants compile perfectly well in
+        # PROD — it is the dev mode's browser compiler that does not
         # handle them. The hook stays because it works on both sides.
         "track": (
             "bz-no-scrollbar flex overflow-x-auto snap-x snap-mandatory"
@@ -132,11 +131,11 @@ CAROUSEL_THEME: dict[str, Any] = {
     # `gap="md"` must mean the same thing everywhere.
     "gaps": {
         "none": "gap-0",
-        "xs": "gap-1",
-        "sm": "gap-2",
-        "md": "gap-4",
-        "lg": "gap-6",
-        "xl": "gap-8",
+        "xs": "gap-(--bz-gap-1)",
+        "sm": "gap-(--bz-gap-2)",
+        "md": "gap-(--bz-gap-4)",
+        "lg": "gap-(--bz-gap-6)",
+        "xl": "gap-(--bz-gap-8)",
     },
     # The classes ``_dots_hidden_class`` returns PREFIXED by a
     # breakpoint (``md:hidden``). In the theme and not hard-coded in the

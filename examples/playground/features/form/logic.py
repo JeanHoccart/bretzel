@@ -12,7 +12,7 @@ The 3 scenario handlers follow the same V2-native pattern :
 3. Write the resulting errors into a ClientState — the delta carries
    them back to the client and FormField updates reactively via
    bz-show + bz-text. No manual refresh needed for the error path.
-4. The card declares ``deps=[FormModel]``, so mutating the form on
+4. The card reads ``FormModel``, so mutating the form on
    success (reset / saved_at) re-renders it automatically and the
    success branch shows (Alert / Notification / ✓ Logged in text).
 """
@@ -65,7 +65,7 @@ def account_submit(form: AccountForm) -> None:
     form.username = ""
     form.email = ""
     ui.notification(
-        f"Account '{name}' created!", title="Welcome", variant="success",
+        f"Account '{name}' created!", title="Welcome", color="success",
     )
 
 
@@ -85,7 +85,7 @@ def signup_submit(form: SignupForm) -> None:
     if form.errors:
         return
     ui.notification(
-        "Account created!", title="Welcome", variant="success",
+        "Account created!", title="Welcome", color="success",
     )
 
 

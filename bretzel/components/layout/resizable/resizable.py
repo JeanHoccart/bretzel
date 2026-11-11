@@ -18,8 +18,7 @@ Usage ::
 **A single component under this name, and it is the split pane.** The
 ecosystem's other "resizable" — a box with a corner grip, freely resized
 in pixels — is not here: the browser does it natively with ``resize:
-both``, so a component would add nothing but an API to maintain
-(decision 2026-08-13, cf. the roadmap).
+both``, so a component would add nothing but an API to maintain.
 
 **Every direct child IS a panel**, as every direct child of a
 :class:`Carousel` is a slide. ``ui.resizable_panel`` is not a toll gate:
@@ -44,18 +43,17 @@ stating it would contradict each other as soon as you write both
 overlap.
 
 **``gap=`` belongs to the GROUP**, and it is the only possible place. A
-padding set on an ancestor does reach the group — measured on 2026-08-23
-on the CRM shell, parent at ``p-8``: the panel started at x=32, not at 0.
-But no ancestor padding can create space **inside**, between a panel and
+padding set on an ancestor does reach the group, but no ancestor padding
+can create space **inside**, between a panel and
 the handle; only the panels' parent knows where it is. The scale is that
 of ``ui.flex`` / ``ui.hstack`` / ``ui.grid``, step for step, and the
 agreement of the tables is gated by
 ``test_a_flex_container_spaces_its_children``.
 
 The gutter is **transparent to the gesture**: the pixel → weight
-conversion sums PANEL widths (``totalPx``) and never assumed they filled
-the container. Measured: +100 px of mouse give +100 px of panel, with
-gutter and without.
+conversion sums PANEL widths (``totalPx``) and never assumes they fill
+the container: +100 px of mouse give +100 px of panel, with gutter and
+without.
 
 **Persistence: nothing to declare here.** ``sizes`` accepts a
 :class:`ClientBinding`, so a ``ClientState(persist="local")`` makes the
@@ -63,8 +61,8 @@ split survive F5 without one more prop. And there is **no flash** to
 correct: the root carries a ``bz-data``, so it stays
 ``visibility:hidden`` until ``html.bz-ready`` (``render/shell.py``
 § ``_ANTI_FLASH_STYLE``), and the runtime's boot hydrates the store from
-localStorage BEFORE the scan that sets the sizes — measured in
-``00_index.js`` (register → scan → ``.bz-ready``). A pre-paint script
+localStorage BEFORE the scan that sets the sizes — the order of
+``index.js`` (register → scan → ``.bz-ready``). A pre-paint script
 like ``ColorScheme``'s would be a second mechanism for a problem the
 first already solves.
 
@@ -104,14 +102,12 @@ from collections.abc import Callable, Sequence
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
-    hidden_carrier_attrs,
-    pop_change_handler,
-    scope_literal,
-    unwrap_transparent,
-)
 from bretzel.components.base.attrs import ComponentUsageError
+from bretzel.components.base.composition import unwrap_transparent
+from bretzel.components.base.field_wiring import hidden_carrier_attrs, relocate_handlers
 from bretzel.components.base.responsive import responsive_classes
+from bretzel.components.base.scope_wiring import scope_literal
+from bretzel.components.base.universals import finish_render
 from bretzel.components.layout.resizable.theme import (
     RESIZABLE_PANEL_THEME,
     RESIZABLE_THEME,
@@ -126,7 +122,7 @@ ORIENTATIONS: tuple[str, ...] = ("horizontal", "vertical")
 def normalize_weights(raw: Any, count: int) -> list[float]:
     """Raw ``sizes`` → ``count`` percentages summing to 100.
 
-    ⚠️ **The mirror of ``_weights()`` in ``_src/20_resizable.js``**, and
+    ⚠️ **The mirror of ``_weights()`` in ``components/layout/resizable/resizable.js``**, and
     the two must agree: the server sets the first paint's styles, the
     runtime sets them again on every tick. A divergence would show as a
     layout jump at hydration, without any render test failing.
@@ -253,9 +249,12 @@ class ResizablePanel(Component):
         # added.
         if own_class:
             attrs["class"] = f"{chrome['class']} {own_class}"
-        return Element(
+        # ``finish_render``: the group draws the panel instead of calling
+        # its ``render()``, so the two passes of the metaclass wrap
+        # (``classes=``, ``style=``, ``slots={"root"}``…) happen here.
+        return finish_render(self, Element(
             tag=self._tag, attrs=attrs, children=tuple(self._render_children())
-        )
+        ))
 
 
 class Resizable(Component):
@@ -263,6 +262,9 @@ class Resizable(Component):
 
     THEME: ClassVar[dict[str, Any]] = RESIZABLE_THEME
     THEME_KEY: ClassVar[str] = "resizable"
+    #: Draws its children itself: a zone among them is refused
+    #: (``base/composition.unwrap_transparent``).
+    _COMPOSES_CHILDREN: ClassVar[bool] = True
     #: The group's only graded prop, and the table it goes through — so
     #: the only one whose classes can come out as ``md:gap-6``. Written
     #: and not inferred: the prop → table correspondence is what the
@@ -279,7 +281,9 @@ class Resizable(Component):
         writes=True,
         names_field=True,
     )
-    orientation: str = reactive_prop(default="horizontal", emit_attr=False)
+    orientation: str = reactive_prop(
+        default="horizontal", emit_attr=False, steps=ORIENTATIONS,
+    )
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     #: ``Any`` and not ``str``: as with :class:`~bretzel.components.layout.flex.Flex`,
     #: the value accepts a breakpoint dict
@@ -316,20 +320,6 @@ class Resizable(Component):
             on_change=on_change,
             **kwargs,
         )
-        # ⚠️ AFTER ``super()``, never before. Testing ``orientation not
-        # in ORIENTATIONS`` on the RAW kwarg evaluates a
-        # ``ClientBinding`` in a boolean context if the caller passes one
-        # — and that raises a ``ReactivityError`` about reactivity
-        # instead of the "non-bindable prop" ``ComponentUsageError`` the
-        # universal contract promises. The base layer does that check; we
-        # then read the value it resolved, which is necessarily a
-        # literal.
-        resolved = self._reactive_values.get("orientation")
-        if resolved not in ORIENTATIONS:
-            raise ComponentUsageError(
-                f"ui.resizable(orientation={resolved!r}) — attendu "
-                f"{' ou '.join(repr(o) for o in ORIENTATIONS)}."
-            )
 
     # ── Imperative API ─────────────────────────────────────────────────
 
@@ -376,21 +366,19 @@ class Resizable(Component):
         # ``min_size``. A bare child gets the same box, with a minimum of
         # zero.
         #
-        # The version that RAISED on a foreign child was removed the same
-        # day, measured: it made ``ui.resizable`` incompatible with
-        # ``@refreshable`` and ``ui.fragment``, whose nodes attach to the
-        # current parent like any component. The error message then cited
-        # ``_RefreshableSection``, an internal class the caller never
-        # typed. No other container in the repository refuses its
+        # A foreign child does not raise: that would make
+        # ``ui.resizable`` incompatible with ``@refreshable`` and
+        # ``ui.fragment``, whose nodes attach to the current parent like
+        # any component. No other container in the repository refuses its
         # children (Tabs, Stepper, Accordion, ToggleGroup, Sidebar all
-        # let them through) — and once the box is set by the group, the
-        # objection falls by itself: a wrapped child IS a ``basis-0``.
+        # let them through), and once the box is set by the group, a
+        # wrapped child IS a ``basis-0``.
         # ``unwrap_transparent``: a WRAPPED panel — a ``@refreshable``
         # zone, a ``ui.fragment`` — is not an instance of
-        # ``ResizablePanel``, so it lost its THREE constraints in
-        # silence. Measured on 2026-08-23: ``_mins`` went from ``[25, 0]``
-        # to ``[0, 0]``, and ``max_size`` / ``collapsible`` with it.
-        unwrapped = [unwrap_transparent(c) for c in self._children]
+        # ``ResizablePanel``, so without it the panel would lose its
+        # THREE constraints in silence: ``min_size``, ``max_size`` and
+        # ``collapsible``.
+        unwrapped = [unwrap_transparent(c, self) for c in self._children]
         panels = [c for c, _ in unwrapped]
         rewraps = [r for _, r in unwrapped]
         weights = normalize_weights(
@@ -464,8 +452,7 @@ class Resizable(Component):
                 # The weight as an inline style, from the SSR onwards:
                 # the layout is right at the first paint, before the
                 # runtime takes over. A continuous value cannot go
-                # through a class (none would exist in the compiled CSS —
-                # memory ``project_assembled_tailwind_class_dev_only``).
+                # through a class (none would exist in the compiled CSS).
                 "style": f"flex-grow:{_num(weights[index])}",
             }
             if isinstance(panel, ResizablePanel):
@@ -514,7 +501,8 @@ class Resizable(Component):
 
         # ── Hidden input — form data + source of the ``change`` ──────
         root_attrs = self.emit_attrs()
-        relocated = pop_change_handler(root_attrs)
+        relocated: dict[str, Any] = {}
+        relocate_handlers(root_attrs, {"change": relocated})
         # ``JSON.stringify`` and not the bare list: an input's value is
         # a string, and that is also what ``change_emit_effect`` compares
         # to decide that something changed (the ``Accordion`` multiple
@@ -533,10 +521,8 @@ class Resizable(Component):
         # ── Assembly ─────────────────────────────────────────────────
         # The GUTTER, between each panel and its handle. It is an
         # ordinary flex ``gap``, so the gesture is insensitive to it: the
-        # drag maths sums PANEL WIDTHS (``totalPx``) and never assumed
-        # they filled the container. Measurement of 2026-08-23: +100 px
-        # of mouse => +100 px of panel, with gutter and without, to the
-        # unit.
+        # drag maths sums PANEL WIDTHS (``totalPx``) and does not assume
+        # they fill the container.
         gap_table = theme.get("gaps", {})
         gap_class = responsive_classes(
             self._reactive_values.get("gap") or "none",

@@ -13,9 +13,8 @@ python -m pip install -e ".[dev]"
 python -m pytest
 ```
 
-The default test command excludes the browser, end-to-end, probe and visual
-audit suites. Their explicit commands are documented in `README.md` and
-`pyproject.toml`.
+The default test command excludes the end-to-end suite: `python -m pytest -m e2e`
+runs it.
 
 Before proposing a change, run the smallest relevant test first, then:
 

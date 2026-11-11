@@ -1,57 +1,113 @@
 """The shared mechanics of the *picker fields* — editable field + popover.
 
-Three components have exactly the same silhouette: a wrapper ``<div>``
+The picker fields have exactly the same silhouette: a wrapper ``<div>``
 carrying the scope, a frame with a single focus ring containing a
 typable ``<input>`` and one or two icon buttons, a form-data-carrying
 ``<input type=hidden>``, and an anchored panel. Only the **value codec**,
 the **blur normaliser** and the **panel's content** change.
 
-  DatePicker · DateRangePicker · TimePicker
-
 This module extracts what is identical — and nothing else. In
-particular it does **not** touch the class strings: they stay
-per-component (`feedback_no_shared_style_tokens`), and the three do not
-even have the same size-table shape (the two date pickers index
-`sizes[slot][size]`, the inverted shape still in debt in
-``test_size_reaches_slots._INVERTED_SHAPE``; TimePicker uses the
-canonical shape). The factories below therefore take **already
-composed** classes, never a theme.
+particular it does **not** touch the class strings: each component
+keeps its own, they are harmonised, not factored. The factories below
+therefore take **already composed** classes, never a theme.
 
-Why extract now: the repository's threshold ("twice is a coincidence,
-three times is a pattern") was crossed on 2026-08-02 with TimePicker. And
-the next arrival counts — three pickers remain to be written (month /
-week / date_time), which would otherwise inherit the same copied blocks.
-
-⚠️ **The lesson that motivated the split.** While writing TimePicker I
-took DatePicker as a template and copied by hand two blocks the base
-layer had ALREADY extracted since (``hidden_carrier_attrs``,
-``relocate_server_action``) — because DatePicker predates those
-primitives and nobody migrated it. Two gates refused it. That is exactly
-what this module stops from happening again: the template and the shared
-code are now the same object.
+⚠️ **Why the split.** A picker copied from another by hand misses what
+the base layer has extracted since (``hidden_carrier_attrs``,
+``relocate_handlers``). Here the template and the shared code are the
+same object.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 from bretzel.components.base import Component, stamp_display_none
-from bretzel.components.base._wiring import (
-    anchored_dismiss_init,
-    anchored_panel_effect,
-    bool_attr,
-    calendar_value_mirror,
+from bretzel.components.base.field_wiring import (
     hidden_carrier_attrs,
-    imperative_listeners,
-    relocate_server_action,
-    server_sync_marker,
+    relocate_aria,
+    relocate_handlers,
 )
+from bretzel.components.base.overlay_wiring import (
+    anchored_dismiss_init,
+    anchored_panel,
+    imperative_listeners,
+)
+from bretzel.components.base.scope_wiring import bool_attr, server_sync_marker
 from bretzel.core.tree import Element, Node
+from bretzel.render import text
+
+#: The pattern of a COMPLETE value, by picker granularity.
+#:
+#: It is the only thing that set MonthPicker's mirror apart from its
+#: three neighbours' — and it is for that one-character gap that it
+#: carried a fourth copy written by hand. The guard they encode is the
+#: same everywhere: write ONLY what is complete, otherwise a typing in
+#: progress ("2026-0") would erase the calendar's selection.
+_COMPLETE_VALUE_RE: dict[str, str] = {
+    "day": "/^\\d{4}-\\d{2}-\\d{2}$/",
+    "month": "/^\\d{4}-\\d{2}$/",
+}
+
+
+def calendar_value_mirror(
+    value_expr: str, *, is_range: bool, granularity: str = "day"
+) -> str:
+    """``bz-effect`` body mirroring ``value_expr`` onto a child
+    ``<bz-calendar>``'s observed ``value`` ATTRIBUTE.
+
+    V3 ``bz-attr:value`` on a custom element writes the JS *property*,
+    which skips ``attributeChangedCallback`` — so the date pickers do
+    an explicit ``setAttribute`` from the wrapper instead. The body :
+
+    - captures ``value_expr`` ONCE (so a bound store path is read a
+      single time per tick, not 2-3×) ;
+    - pushes the empty string to clear, a clean value (single) / JSON
+      pair (range) to set, and ``null`` (no write) while the user is
+      mid-typing a partial one ;
+    - only ``setAttribute`` when the attribute actually differs.
+
+    Shared by DatePicker and WeekPicker (``is_range=False``, scalar
+    ISO), MonthPicker (``granularity="month"``, ``"YYYY-MM"``) and
+    DateRangePicker (``is_range=True``, the body's caller prepends its
+    own store-push fragment before this in the same single
+    ``bz-effect``). Returns the inner statements — the caller wraps
+    them in its ``(() => { … })()`` effect shell.
+
+    ``granularity`` exists because MonthPicker kept a hand-written copy:
+    the helper hard-coded ``YYYY-MM-DD``, so the only picker with a
+    ``YYYY-MM`` value could not use it. A parameter rather than a
+    divergence — it was the 4th copy of a trap that has its own entry in
+    ``traps.md``, the worst category to leave duplicated.
+    """
+    iso_re = _COMPLETE_VALUE_RE[granularity]
+    if is_range:
+        # ``value_expr`` is a ``[start, end]`` pair expression ; the
+        # caller addresses ``vstart`` / ``vend`` locals, so the mirror
+        # reads them directly rather than re-capturing.
+        return (
+            "const cal = $el.querySelector('bz-calendar'); "
+            "if (!cal) return; "
+            "let _v = null; "
+            "if (!vstart && !vend) _v = ''; "
+            f"else if ({iso_re}.test(vstart) && {iso_re}.test(vend)) "
+            "_v = JSON.stringify([vstart, vend]); "
+            "if (_v !== null && cal.getAttribute('value') !== _v) "
+            "cal.setAttribute('value', _v); "
+        )
+    return (
+        "const cal = $el.querySelector('bz-calendar'); "
+        "if (!cal) return; "
+        f"const _val = ({value_expr}); "
+        f"const _v = !_val ? '' : ({iso_re}.test(_val) ? _val : null); "
+        "if (_v !== null && cal.getAttribute('value') !== _v) "
+        "cal.setAttribute('value', _v); "
+    )
+
 
 #: The two events declared by the three pickers that DO NOT BUBBLE.
 #: It is the whole reason for :func:`relocate_field_events`.
-_NON_BUBBLING = ("focus", "blur")
 
 
 def value_expr(component: Any, *, local: str | None = None) -> str:
@@ -62,20 +118,11 @@ def value_expr(component: Any, *, local: str | None = None) -> str:
     identifier resolves there.
 
     ``local`` by default = the key DECLARED on the prop
-    (``reactive_prop(scope_keys=)``, read by ``_scope_keys``). It was
-    hard-coded to ``"val"``, which made this helper a SECOND source for
-    an already declared fact: a picker that changed key would have
-    emitted a literal under one name and directives under the other —
-    silently, since both exist. The parameter stays, for a caller
-    addressing a scope variable that is NOT the prop's value.
-
-    ⚠️ These two lines were written **five times**, one per picker, and
-    what differed was not the code — it was the docstrings: four
-    explanations of the same mechanism, one absence. It is exactly what
-    `creating-a-component.md` holds against unfactored renders, "what
-    stopped you knowing whether the two behaved the same without
-    re-reading both". The five ALREADY called this family's helpers: it
-    was 90 % factored, these two lines had stayed behind.
+    (``reactive_prop(scope_keys=)``, read by ``_scope_keys``), so this
+    helper is no second source for it: a picker that changes key emits
+    its literal and its directives under the same name. The parameter
+    stays, for a caller addressing a scope variable that is NOT the
+    prop's value.
     """
     binding = component._binding_metadata.get("value")
     if binding is not None:
@@ -97,29 +144,29 @@ def relocate_field_events(
 
     - ``focus`` / ``blur`` do **not bubble**. A handler left on the root
       can structurally NEVER fire — there is no path by which the event
-      would reach it. (``change``, for its part, bubbles natively from
-      the input, hence the different treatment.)
+      would reach it.
     - the SERVER action bundle must be routed according to what the
       handler really listens to: a ``change`` towards the value carrier
       (otherwise the FormData leaves empty), a ``focus`` towards the
-      focusable element. It is ``relocate_server_action`` that decides,
+      focusable element. It is ``relocate_handlers`` that decides,
       by reading ``hx-trigger`` — written by hand, it is the Slider bug
       coming back (a callable ``on_focus`` set on a hidden input, which
       fires on the change).
-    - the STRING version of those handlers (``bz-on:focus``) must follow
-      the same path as the callable version, otherwise the two shapes of
-      the same prop behave differently.
+    - the STRING version of those handlers must follow the same path as
+      the callable version, otherwise the two shapes of the same prop
+      behave differently: on the root, a client ``change`` also hears the
+      visible field's own ``change``, and runs twice for one entry.
+    - what ``ui.form_field`` stamped (label, error, validity) names the
+      focusable element: on the ``<div>``, a screen reader never reads it.
 
     Both dictionaries are filled IN PLACE; the caller pours them onto
     its elements. ``root_attrs`` is emptied of the moved keys.
     """
-    for event in _NON_BUBBLING:
-        key = f"bz-on:{event}"
-        if key in root_attrs:
-            focusable[key] = root_attrs.pop(key)
-    relocate_server_action(
-        root_attrs, value_carrier=value_carrier, focusable=focusable
+    relocate_handlers(
+        root_attrs,
+        {"change": value_carrier, "focus": focusable, "blur": focusable},
     )
+    relocate_aria(root_attrs, focusable)
 
 
 def detach_wrapper_carriers(component: Any, root_attrs: dict[str, Any]) -> str:
@@ -169,14 +216,13 @@ def hidden_carrier(
     typed. The visible field only gets an ``aria-required``.
 
     ⚠️ **``change_emit_effect`` is not decorative — without it the picker
-    is INERT.** ``relocate_server_action`` routes the ``on_change=``
+    is INERT.** ``relocate_handlers`` routes the ``on_change=``
     bundle HERE, because it is this carrier the FormData must find; yet a
     hidden input never fires ``change`` by itself, and the panel's
     ``<bz-calendar>`` writes the value **programmatically** — a write of
-    ``.value`` emits no event. The five pickers therefore lived without
-    any server ``on_change`` ever firing, with no error and no warning
-    (measured on 2026-08-21: "the period does not filter"). It is the
-    SAME dispatcher as the catalogue's eleven other hidden carriers, and
+    ``.value`` emits no event. Without it no server ``on_change`` ever
+    fires, with no error and no warning. It is the
+    SAME dispatcher as the catalogue's other hidden carriers, and
     the class is gated by
     ``tests/consistency/test_a_relocated_change_reaches_its_carrier.py``.
     """
@@ -189,6 +235,78 @@ def hidden_carrier(
     if extra:
         attrs.update(extra)
     return Element(tag="input", attrs=attrs, children=())
+
+
+def typed_field_attrs(value_expr: str, normalise: Callable[[str], str],
+                      shown: Callable[[str], str] | None = None) -> dict[str, str]:
+    """The editable text of a picker: it SHOWS the value, and WRITES it
+    only once normalised — at ``change`` (Enter, or leaving a changed
+    field) and at ``blur``.
+
+    ⚠️ Not ``bz-model``: every keystroke would go into the value, and
+    every value change leaves for the server (the hidden carrier's
+    ``change``). ``on_change=`` would receive the text half-typed and
+    un-normalised — « 11/02/2026 », « 2 » — before the blur turns it
+    into ISO, and a handler that reads it with ``date.fromisoformat``
+    would crash. The normaliser runs on the field's own text
+    (``$el.value``), and the value receives the result in one write:
+    ISO, or empty.
+    """
+    if shown is None:
+        commit = (
+            f"{normalise('$el.value')}; "
+            f"if (({value_expr}) !== $el.value) {value_expr} = $el.value"
+        )
+        return {"bz-attr:value": value_expr, "bz-on:change": commit, "bz-on:blur": commit}
+    # ``shown``: the field SHOWS the value in the page's language
+    # (« mar. 3 nov. 2026 ») and the value stays ISO. Its text
+    # is read back only when it was changed — leaving it untouched is not
+    # typing it again — then the field shows the value it now holds.
+    # A text that names no day (« 31/02/2026 ») is KEPT, marked
+    # ``aria-invalid``, and the value does not move: the person's typing
+    # is not lost.
+    # ``data-bz-typo`` says the mark is this field's own: a server error
+    # stamped ``aria-invalid`` too (``ui.form_field``), and leaving the
+    # field untouched must not erase it.
+    display = shown(value_expr)
+    clear_mark = (
+        "if ($el.hasAttribute('data-bz-typo')) { "
+        "$el.removeAttribute('data-bz-typo'); $el.removeAttribute('aria-invalid') }"
+    )
+    commit = (
+        f"if ($el.value !== ({display})) {{ let typed = $el.value; "
+        f"{normalise('$el.value')}; "
+        f"if ($el.value === '' && typed.trim() !== '') {{ "
+        f"$el.value = typed; $el.setAttribute('aria-invalid', 'true'); "
+        f"$el.setAttribute('data-bz-typo', '') }} "
+        f"else {{ {clear_mark}; "
+        f"if (({value_expr}) !== $el.value) {value_expr} = $el.value; "
+        f"$el.value = {display} }} }} "
+        f"else {{ {clear_mark} }}"
+    )
+    return {"bz-attr:value": display, "bz-on:change": commit, "bz-on:blur": commit}
+
+
+def typed_hint(placeholder: str | None, *, month: bool = False) -> dict[str, str]:
+    """The ``placeholder`` of a date field: the author's, or the numeric
+    form one types, in the page's order — « JJ/MM/AAAA » in French,
+    « MM/DD/YYYY » in American English (``$bz.dates.pattern``).
+
+    The order is the browser's (``Intl``), the letters the framework's
+    texts. A fixed « YYYY-MM-DD » would hang over a field that shows and
+    reads « 16/10/2026 » — the browser's own date field, MUI's and the
+    like all ask for the form the field reads.
+    """
+    if placeholder is not None:
+        return {"placeholder": placeholder}
+    month_letters, year_letters = text("date.typed_month"), text("date.typed_year")
+    if month:
+        call = (f"$bz.dates.patternMonth({json.dumps(month_letters)}, "
+                f"{json.dumps(year_letters)})")
+    else:
+        call = (f"$bz.dates.pattern({json.dumps(text('date.typed_day'))}, "
+                f"{json.dumps(month_letters)}, {json.dumps(year_letters)})")
+    return {"bz-attr:placeholder": call}
 
 
 def calendar_picker_scope(
@@ -209,8 +327,7 @@ def calendar_picker_scope(
       ONLY when the value is server-backed (a pure literal keeps its
       client value).
 
-    Used by DatePicker and by :func:`render_calendar_field` for
-    MonthPicker and WeekPicker. DateRangePicker carries two variables
+    Used by :func:`render_calendar_field`. DateRangePicker carries two variables
     (``vstart`` / ``vend``), so it keeps its own.
     """
     if component._binding_metadata.get("value") is not None:
@@ -240,16 +357,16 @@ def panel_calendar(owner: Any, cal_kwargs: dict[str, Any]) -> Element:
 
     Yet the ``bz-id`` indexes the runtime's scope store, a ``Map`` that
     SURVIVES an ``hx-boost`` navigation (the runtime is not reloaded).
-    Two different picker pages therefore claimed the same scope: after a
-    click in the sidebar, the new page's calendar found the old page's
-    scope, whose parent is the PREVIOUS page's picker. The ``on_change``
-    handler then wrote its value into a dead scope — highlighted grid,
-    empty field, and an F5 to get out of it. The old page's ``year`` /
-    ``month`` leaked by the same path, which made the calendar appear on
-    a year nobody had chosen.
+    Without an explicit ``id``, two different picker pages would claim
+    the same scope: after a click in the sidebar, the new page's calendar
+    would find the old page's scope, whose parent is the PREVIOUS page's
+    picker. The ``on_change`` handler would then write its value into a
+    dead scope — highlighted grid, empty field, and an F5 to get out of
+    it. The old page's ``year`` / ``month`` would leak by the same path,
+    and the calendar would appear on a year nobody chose.
 
     Deriving the ``id`` from the picker makes it unique per page, so the
-    two scopes no longer merge. ``setdefault``: a caller who passes their
+    two scopes do not merge. ``setdefault``: a caller who passes their
     own ``id=`` stays in charge.
 
     The complementary hardening is on the runtime side — ``ensureScope``
@@ -261,15 +378,18 @@ def panel_calendar(owner: Any, cal_kwargs: dict[str, Any]) -> Element:
     from bretzel.components.inputs.calendar import Calendar
 
     cal_kwargs.setdefault("id", f"{owner.id}_calendar")
+    # The panel's pick is the PICKER's business: it writes the value, and
+    # the picker then tells its own ``change`` — the one its caller hears.
+    # Let through, the calendar's would bubble up to the picker's root
+    # too, and an ``on_change`` expression would run twice per pick.
+    if isinstance(cal_kwargs.get("on_change"), str):
+        cal_kwargs["on_change"] = "$event.stopPropagation(); " + cal_kwargs["on_change"]
     # ── The displayed month follows the VALUE, not today's date ──────
     # ``Calendar`` already knows how to derive its initial month from
     # ``value`` (``calendar.py``: explicit ``month=``, else the value's
-    # month, else today). It still has to RECEIVE the value: the four
-    # pickers did not pass it, so a
-    # ``ui.date_picker(value=date(2026, 6, 15))`` opened on the CURRENT
-    # month, with the selected day invisible because off grid. Measured
-    # on 2026-08-19 on all four: ``month="2026-08-01"`` for a June value,
-    # and no ``value`` attribute at all on the ``<bz-calendar>``.
+    # month, else today). It still has to RECEIVE the value: otherwise a
+    # ``ui.date_picker(value=date(2026, 6, 15))`` opens on the CURRENT
+    # month, with the selected day invisible because off grid.
     #
     # Only a LITERAL value is passed on: a ``ClientBinding`` has no value
     # at SSR, and it is the mirror ``bz-effect`` that will set it on the
@@ -277,7 +397,7 @@ def panel_calendar(owner: Any, cal_kwargs: dict[str, Any]) -> Element:
     # ⚠️ The seed is UNSTAMPED before being passed. A value backed by a
     # ``ServerState`` is not a bare ``date``: it is a ``_BoundDate`` (a
     # ``date`` subclass) carrying its field's name, and from there the
-    # nested calendar DERIVED its own ``name=`` — two
+    # nested calendar would DERIVE its own ``name=`` — two
     # ``name="appointment"`` in the same page, so a stray field in the
     # FormData. Caught by ``test_autoname_from_server_state_field``.
     def _plain(v: object) -> object:
@@ -295,6 +415,9 @@ def panel_calendar(owner: Any, cal_kwargs: dict[str, Any]) -> Element:
         ):
             cal_kwargs["value"] = [_plain(v) for v in seed]
     inner = Calendar(**cal_kwargs)
+    # The panel's calendar is hidden until the picker opens: it shares
+    # the page's header and clones it then (cf. ``Calendar.render``).
+    inner._shared_chrome_when = "open"
     # The calendar is a RENDER child, not a tree child: without this
     # detachment it would stay in ``root_children`` and render a second
     # time as an orphan.
@@ -407,49 +530,20 @@ def clear_button(
     )
 
 
-def anchored_panel(
-    *,
-    css: str,
-    children: tuple[Node, ...],
-    placement: str = "bottom-start",
-    open_expr: str = "open",
-    extra_effect: str = "",
-) -> Element:
-    """The popover: anchored by ``$bz.helpers.floating``, closed at SSR.
-
-    ``bz-ref="bzpanel"`` is not decorative — the root's ``clickOutside``
-    resolves it on EVERY click to know what counts as "inside". Without
-    it, a click on the panel's padding (or on a disabled cell, which
-    dispatches nothing) would close the popover. Guarded by
-    ``test_dismiss_scope_owns_its_panel``.
-
-    The ``display:none`` pre-stamp is the anti-FOUC: the panel starts
-    closed, and without it it appears for a frame before the first effect
-    runs.
-    """
-    effect = anchored_panel_effect(open_expr, placement)
-    if extra_effect:
-        effect = f"{effect}; {extra_effect}"
-    attrs: dict[str, Any] = {
-        "class": css,
-        "bz-ref": "bzpanel",
-        "bz-effect": effect,
-    }
-    stamp_display_none(attrs)
-    return Element(tag="div", attrs=attrs, children=children)
-
-
 def render_calendar_field(
     component: Any,
     *,
     initial: str,
     value_expr: str,
-    blur_js: str,
+    normalise: Callable[[str], str],
+    shown: Callable[[str], str] | None = None,
     mirror_granularity: str | None,
     clearable: bool,
     clear_label: str,
     trigger_icon: str,
     trigger_label: str,
+    field_label: str,
+    month_hint: bool = False,
     calendar_kwargs: dict[str, Any],
     root_css: str,
     frame_css: str,
@@ -461,27 +555,22 @@ def render_calendar_field(
 ) -> Element:
     """The WHOLE render of a picker with a ``<bz-calendar>`` panel.
 
-    Measured on 2026-08-19: ``MonthPicker.render`` and
-    ``WeekPicker.render`` were 130 and 125 lines, of which **107
-    identical** — 82 %. They are not two components that resemble each
-    other, it is one component written twice, whose differences fit in
-    seven values: the initial value's format, the mirror's granularity,
-    the blur-normalisation JS, two labels, an icon, and the calendar's
-    kwargs.
+    ``MonthPicker`` and ``WeekPicker`` are not two components that
+    resemble each other, they are one component, whose differences fit
+    in seven values: the initial value's format, the mirror's
+    granularity, the blur-normalisation JS, two labels, an icon, and the
+    calendar's kwargs.
 
     This module's factories (``hidden_carrier``, ``trigger_button``…)
-    already covered the PIECES; what remained copied was their
-    ORCHESTRATION — the order of the calls, the routing of the handlers
-    to the right carrier, the blur chaining. That is where divergences
+    cover the PIECES; this function is their ORCHESTRATION — the order
+    of the calls, the routing of the handlers to the right carrier, the
+    blur chaining. That is where divergences
     hurt: a picker that forgets to chain the user's ``on_blur=`` loses
     their callback without breaking anything visible.
 
     ⚠️ **The classes arrive COMPOSED, never a theme** — this module's
-    rule (`feedback_no_shared_style_tokens`), and a technical necessity:
-    the two date pickers index their size table in the inverted shape
-    (``sizes[slot][size]``), the others in the canonical shape. A
-    function that read the theme itself would have to know both, and
-    would get one of the two wrong.
+    rule: each picker composes its own slots (``compose_class``), sizes
+    included.
     """
     root_attrs = component.emit_attrs()
     hidden_extra: dict[str, Any] = {}
@@ -534,15 +623,20 @@ def render_calendar_field(
 
     field_attrs: dict[str, Any] = {
         "type": "text",
-        "placeholder": component._placeholder,
+        **typed_hint(component._placeholder, month=month_hint),
         "class": field_css,
         "value": initial,
-        "bz-model": value_expr,
-        "bz-on:blur": blur_js,
+        # The typed text is read once, normalised, then written — never
+        # ``bz-model``, which would send every keystroke to ``on_change``
+        # half typed.
+        **typed_field_attrs(value_expr, normalise, shown),
         "autocomplete": "off",
         "inputmode": "numeric",
         "spellcheck": "false",
-        "aria-label": component._placeholder,
+        # The field's name, not its hint: a screen reader announced
+        # « YYYY-MM-DD ». A ``ui.form_field`` label still wins
+        # (``aria-labelledby``).
+        "aria-label": field_label,
     }
     if disabled:
         field_attrs["disabled"] = True
@@ -582,7 +676,10 @@ def render_calendar_field(
         children=tuple(frame_children),
     )
 
-    if disabled:
+    disabled_binding = component._binding_metadata.get("disabled")
+    if disabled_binding is not None:
+        calendar_kwargs["disabled"] = disabled_binding
+    elif disabled:
         calendar_kwargs["disabled"] = True
 
     return Element(
@@ -600,7 +697,6 @@ def render_calendar_field(
 
 
 __all__ = [
-    "anchored_panel",
     "clear_button",
     "detach_wrapper_carriers",
     "hidden_carrier",

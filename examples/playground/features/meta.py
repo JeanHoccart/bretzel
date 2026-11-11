@@ -75,7 +75,7 @@ def meta_tag_changed(state: MetaTagPlayground) -> None:
 # ── Title panel ──────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[TitlePlayground])
+@refreshable
 def title_panel() -> None:
     state = TitlePlayground()
     # ⚠️ Side effect : changing the text below ACTUALLY updates the
@@ -104,7 +104,7 @@ def title_panel() -> None:
 # ── MetaTag panel ────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[MetaTagPlayground])
+@refreshable
 def meta_tag_panel() -> None:
     state = MetaTagPlayground()
     # Side effect : actually appends a <meta> to this page's head.
@@ -552,7 +552,7 @@ def page() -> None:
                         )
                     ui.interval(
                         seconds=1.0,
-                        active=ticker.running,
+                        disabled=~ticker.running,
                         on_tick=ticker.ticks.increment(),
                     )
 
@@ -568,7 +568,7 @@ def page() -> None:
                         "Emitted HTML (Interval)",
                         serialize_html(
                             ui.interval(seconds=1.0,
-                                        active=ticker.running,
+                                        disabled=~ticker.running,
                                         on_tick=ticker.ticks.increment())
                         ),
                     )
@@ -741,12 +741,8 @@ def page() -> None:
                             '(``tests/probes/probe_download.py``).',
                         color="muted", size="sm",
                     )
-                    # ``download=True`` is MANDATORY here, and it is
-                    # not decoration: without it the shell swallows the
-                    # link in ``hx-boost`` and injects the CSV into the
-                    # page instead of downloading it. Measured.
                     ui.link('Download the fruits (CSV)',
-                            href="/meta-demo.csv", download=True,
+                            href="/meta-demo.csv",
                             id="meta-download-link")
                     ui.text(
                         'The function returns a ``list[dict]`` and the '
@@ -767,7 +763,7 @@ def page() -> None:
                             'used. There the API is ``undefined``, and a bare'
                             ' call would do nothing, without a word. Hence '
                             'the fallback to ``document.execCommand`` in '
-                            '``22_verbs.js``: deprecated, and the only route '
+                            '``verbs.js``: deprecated, and the only route '
                             'that exists there.',
                         color="muted", size="sm",
                     )

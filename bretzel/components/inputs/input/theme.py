@@ -2,7 +2,7 @@
 
 Identity : soft border ``border-text/10``, generous ``rounded-field``,
 focus ring tinted ``ring-(--bz-focus-soft)`` over the page
-``ring-offset-background``, ``transition-all duration-200`` so the
+``ring-offset-background``, ``transition duration-200`` so the
 focus state slides in instead of snapping.
 
 Two roots — the input has TWO architectures depending on whether the
@@ -20,18 +20,21 @@ Slot ``clear_button`` : the ``×`` of ``clearable=True``, on the same
 right edge as ``icon_right``.
 
 Icon slots ``icon_left`` / ``icon_right`` overlay the input absolute-
-positioned and shift their colour on ``group-focus-within`` so the
-icon "lights up" in the colour as the field gets focus.
+positioned and take the text's ink on ``group-focus-within``: the icon
+comes forward as the field gets focus, in neutral ink — the colour is the
+focus ring's.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-#: The two icons' overlay — absolute, muted, lit up on focus.
+#: The two icons' overlay — absolute, muted, inked on focus. The ink, not
+#: the field's colour: the focus ring already says the field is active, and
+#: a second accent is no signal (``components.md`` § R1).
 _ICON_OVERLAY = (
     "absolute text-muted/60 "
-    "group-focus-within:text-(--bz-text-muted) "
+    "group-focus-within:text-text "
     "transition-colors pointer-events-none "
     "flex items-center justify-center"
 )
@@ -126,11 +129,9 @@ INPUT_THEME: dict[str, Any] = {
     #
     # ⚠️ The icon follows the step too — its SIZE (``icon_size``, one
     # notch above the text, cf. ``ICON_SIZE_ABOVE``) and its OFFSET
-    # (``icon_left`` / ``icon_right``, the field's own ``px``). Until
-    # 2026-09-27 a named icon kept Icon's ``md`` (16 px) at ``left-3``
-    # whatever the step: 25 px of icon where the text of an ``xs`` field
-    # starts at 21 — the glyph sat ON the placeholder. The pad is now
-    # offset + icon + ~5 px, measured on ``/ladder``.
+    # (``icon_left`` / ``icon_right``, the field's own ``px``). An icon of
+    # a fixed size at a fixed offset would sit ON the placeholder of a
+    # small field. The pad is offset + icon + ~5 px.
     "sizes": {
         "xs": {
             "input": "h-7 px-2 text-xs",

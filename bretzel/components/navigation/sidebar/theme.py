@@ -13,7 +13,7 @@ Responsive model :
   to a 64px icon strip, ``"drawer"`` collapses to width 0.
 - Responsive mobile navigation is the app layout's responsibility
   (``if Screen().is_mobile:``), NOT built into this component — the
-  sidebar no longer ships a mobile drawer / topbar / hamburger.
+  sidebar ships no mobile drawer / topbar / hamburger.
 
 Slots :
 - ``sidebar.root``        : the ``<aside>`` flex column
@@ -42,11 +42,10 @@ SIDEBAR_THEME: dict[str, Any] = {
             # ``relative`` and ``fixed`` are two utilities of the SAME
             # specificity, so the winner is the last one in the Tailwind
             # sheet, not the last one in the ``class`` attribute.
-            # Measured on 2026-08-15: with ``relative`` on the root, the
-            # ``overlay`` mode rendered ``position: relative`` and
-            # ``transform: none`` — the sidebar stayed in the flow and did
-            # not close. Exactly the same trap as ``h-screen`` against
-            # ``h-full``, met the same day.
+            # With ``relative`` on the root, the ``overlay`` mode could
+            # render ``position: relative`` and ``transform: none``: the
+            # sidebar would stay in the flow and not close. Same trap as
+            # ``h-screen`` against ``h-full``.
             "group/sidebar shrink-0 flex flex-col h-screen "
             # ⚠️ NEITHER ``position`` NOR ``z-index`` here — both live in
             # the ``collapse`` table, one entry per mode. Same reason, and
@@ -56,9 +55,7 @@ SIDEBAR_THEME: dict[str, Any] = {
             # the sidebar dropped to the dimmed backdrop's level and found
             # itself BLURRED under its own backdrop.
             "p-2 gap-1 bg-surface "
-            # The border used to live in a two-entry ``sides`` table,
-            # removed along with the ``side=`` prop on 2026-08-15: a side
-            # nav is on the left, so the border is on the right.
+            # A side nav is on the left, so the border is on the right.
             "border-r-(length:--bz-stroke) border-text/10 "
             # NO ``overflow-y-auto`` here — the scroll lives on the
             # ``scroll`` slot (the middle region) so an overflowing nav
@@ -69,7 +66,7 @@ SIDEBAR_THEME: dict[str, Any] = {
             # horizontal jitter during the rail width-collapse animation.
             "overflow-x-hidden "
             # ``width`` covers the desktop rail collapse animation.
-            "transition-[width] duration-300 ease-in-out "
+            "transition-[width] duration-200 ease-in-out "
             # (The position is in ``collapse``, cf. above.)
             ""
         ),
@@ -80,8 +77,8 @@ SIDEBAR_THEME: dict[str, Any] = {
         # load-bearing — a flex child defaults to ``min-height:auto`` and
         # would refuse to shrink below its content, so the ``overflow``
         # never triggers and the footer gets pushed off-screen (the exact
-        # bug this fixes ; cf. traps.md). ``flex flex-col gap-1`` keeps the
-        # same inter-section rhythm the aside used to give as the direct
+        # bug this fixes ; cf. traps.md). ``flex flex-col gap-1`` gives the
+        # same inter-section rhythm as if the aside were the direct
         # parent. ``overflow-x-hidden`` mirrors the aside so the rail
         # collapse doesn't show a horizontal bar.
         # ``bz-rail-scroll`` is a CSS hook (not a Tailwind utility) : the
@@ -93,9 +90,9 @@ SIDEBAR_THEME: dict[str, Any] = {
         # ⚠️ ``-mx-1.5 px-1.5``: ROOM FOR THE FOCUS RING, not a decorative
         # margin. The ring is a ``box-shadow`` that overflows by 4px
         # (offset 2 + ring 2) and an ancestor with a non-visible
-        # ``overflow`` clips its descendants' shadows. Measured on
-        # 2026-08-15: the row was at 0px from both edges of this box, so
-        # the ring was shaved on the left AND on the right, in ALL states
+        # ``overflow`` clips its descendants' shadows. The row is at 0px
+        # from both edges of this box, so the ring would be shaved on the
+        # left AND on the right, in ALL states
         # (not only in the rail). The negative margin takes back the 6px
         # the padding adds: the row keeps exactly its position and its
         # width, only the clipping box widens. 6px for a 4px ring = 2px of
@@ -114,12 +111,9 @@ SIDEBAR_THEME: dict[str, Any] = {
         # between this ``gap-0.5`` and the ``mt-4`` of ``section_label``.
         # The rows' focus ring is INSET, so no gap can be too small for it.
         "section": "flex flex-col gap-0.5",
-        # ``font-semibold``, not ``font-bold``: surveyed on 2026-08-15,
-        # the catalogue's four micro-capitals are ``divider.label``
-        # (semibold), this sidebar's ``avatar`` (semibold) and
-        # ``calendar.weekday`` (medium). The ``bold`` here was the only
-        # one, and in a file that already uses semibold for its other
-        # capital.
+        # ``font-semibold``, not ``font-bold``: the catalogue's other
+        # micro-capitals are ``divider.label`` (semibold), this sidebar's
+        # ``avatar`` (semibold) and ``calendar.weekday`` (medium).
         "section_label": (
             "text-xs font-semibold text-muted uppercase tracking-wide "
             "px-2 pt-1 pb-1.5 mt-4 "
@@ -148,65 +142,8 @@ SIDEBAR_THEME: dict[str, Any] = {
         "section_divider": (
             "hidden px-2 group-data-[open=false]/sidebar:block"
         ),
-        # ── Rail tooltip: ONE shared panel for the whole sidebar ─────
-        # In the collapsed rail each entry's label is ``hidden``, so we
-        # bring it back on hover. A SINGLE panel, moved onto the hovered
-        # entry, instead of a ``ui.tooltip`` per entry: 62 pre-rendered
-        # panels weighed 94 kB, that is a third of the sidebar, for an
-        # affordance that only ever shows one (measured 2026-07-27).
-        #
-        # Visibility is ENTIRELY in CSS — no ``bz-show``, which would set
-        # an inline ``display`` and overwrite the rail's gate. Two
-        # conditions composed as variants, like the entries themselves:
-        # ``group-data-[open=false]/sidebar:`` = collapsed rail, and
-        # ``data-[tip=on]`` = something is hovered.
-        # ``position: fixed`` + ``top``/``left`` set from the entry's
-        # rect: no assumption about the rail's width nor about the side.
-        # ⚠️ The surface tokens are those of ``TOOLTIP_THEME["panel"]``,
-        # literally — ``bg-text text-text-foreground``, ``px-2.5
-        # py-1.5``, ``rounded-selector``, ``text-xs font-medium leading-tight``,
-        # ``shadow-md``, ``max-w-xs``. This panel is NOT a ``ui.tooltip``
-        # (a single shared panel instead of 62, cf. above), but it must
-        # differ from one by nothing visible. Measured on 2026-08-25,
-        # before alignment: the text pulled towards ``text-background``
-        # (248,250,252) against (244,245,245) for the real tooltip, and
-        # the panel had NO arrow at all.
-        #
-        # ``whitespace-nowrap`` is the ONLY accepted divergence: a rail
-        # entry carries a short label, and folding it onto two lines next
-        # to a 40 px icon reads badly.
-        "rail_tip": (
-            "fixed z-50 px-2.5 py-1.5 rounded-box "
-            "text-xs font-medium leading-tight whitespace-nowrap "
-            # The STEPS, and the ``bz-c-text`` bridge set on the node at
-            # render time: it is exactly what a ``ui.tooltip``'s panel
-            # writes, and the two are read side by side in the same app
-            # (``test_rail_tip_looks_like_a_tooltip``).
-            "bg-(--bz-solid) text-(--bz-on-solid) shadow-md "
-            "max-w-xs break-words pointer-events-none "
-            # ``top`` receives the hovered entry's vertical CENTRE; the
-            # half offset is done here, not in JS with a guessed panel
-            # height.
-            "-translate-y-1/2 "
-            "opacity-0 invisible transition-opacity duration-150 "
-            "group-data-[open=false]/sidebar:data-[tip=on]:opacity-100 "
-            "group-data-[open=false]/sidebar:data-[tip=on]:visible"
-        ),
-        # The rail panel's arrow. ONE set of classes, not the four sides
-        # of ``TOOLTIP_THEME["arrow"]``: a side nav lives on the left
-        # (``Sidebar._CUT["side"]``) and the panel anchors on
-        # ``aside.right + 8``, so it is ALWAYS to the right of the entry.
-        # The arrow is therefore always on its left edge.
-        # ``right-full`` = ``right: 100%``, which pushes the square
-        # entirely out of the panel to the left; ``-mr-1`` brings it back
-        # 4 px so it blends into the corner.
-        #
-        # The parent is ``fixed``, so it is already a containing block for
-        # an ``absolute`` child — no ``relative`` to add.
-        "rail_tip_arrow": (
-            "absolute h-2 w-2 rotate-45 bg-(--bz-solid) "
-            "right-full top-1/2 -translate-y-1/2 -mr-1"
-        ),
+        # The collapsed rail's labels show in the PAGE's one tooltip panel
+        # (``tip.js``, ``TOOLTIP_THEME``). One panel, one look.
         # ── The clickable EDGE ───────────────────────────────────────
         # The aside's right border (``border-r border-text/10``) is
         # already painted permanently: all we do is make it REACHABLE.
@@ -235,17 +172,14 @@ SIDEBAR_THEME: dict[str, Any] = {
             # content during the width animation), so a ``-right-3``
             # CUTS the outer half: the strip ends up ~12 px usable,
             # off-centre, and you can only aim at it from the left.
-            # Reported like this — "I have to click to the millimetre",
-            # "I can overshoot on the left but not on the right".
             # ⚠️ ``w-4`` = 16 px, and it is a TRADE-OFF, not a setting.
-            # 24 px (the WCAG 2.2 § 2.5.8 target floor) covered the right
-            # 13 px of the rail's nav icons — measured: they had only
-            # 28 clickable px of 40 left, and it showed. 16 px take only
-            # 4 (the icons keep 36 px) while staying far more aimable
-            # than the clipped version's ~12 usable px.
+            # 24 px (the WCAG 2.2 § 2.5.8 target floor) would cover too
+            # much of the rail's nav icons. 16 px leave them nearly whole
+            # while staying far more aimable than the clipped version's
+            # ~12 usable px.
             #
-            # What we lose: the strip alone no longer meets the touch
-            # floor. It stays as tall as the whole bar — so a 16 × 600 px
+            # What we lose: the strip alone does not meet the touch
+            # floor. It stays as tall as the whole bar — so a long
             # target, comfortable with a mouse — and on a bar WITH a
             # title the header's 40 px button stays a command in its own
             # right. It is written in the gate, which tells the two
@@ -298,14 +232,11 @@ SIDEBAR_THEME: dict[str, Any] = {
         "title_brand": (
             "flex flex-row items-center gap-2 min-w-0 flex-1 "
             "text-text font-bold no-underline "
-            # ⚠️ Fade AND release of the width, both. This block carried
-            # ``hidden``: ``display:none`` does remove the space but
-            # kills any transition, so the title JUMPED (measured:
-            # ``display:none`` at 60 ms, opacity still at 1.00). A plain
-            # ``opacity-0`` does the opposite — it fades, but keeps its
-            # place in the row, and the logo then overflows the 64 px
-            # strip by 8 px (also measured, by the probe, while writing
-            # this fix).
+            # ⚠️ Fade AND release of the width, both. ``hidden``
+            # (``display:none``) would remove the space but kills any
+            # transition, so the title would JUMP. A plain ``opacity-0``
+            # does the opposite — it fades, but keeps its place in the
+            # row, and the logo then overflows the 64 px strip.
             #
             # So both are needed: the opacity animates, ``w-0`` +
             # ``flex-none`` give the space back to the rail's centred
@@ -329,11 +260,6 @@ SIDEBAR_THEME: dict[str, Any] = {
         # (``Icon(size="lg")`` in an IconButton ``size="md"``, an
         # ``h-10 w-10`` box) is indeed 40 px like the rail's logo.
         #
-        # ⚠️ The original comment said "matches the rail toggle's 40px
-        # box" and named a ``title_rail_toggle`` slot. It does not exist,
-        # nor does the button it pointed at: the auto floating chevron
-        # was removed on 2026-08-21. Corrected on 2026-08-29.
-        #
         # Logo glyph — sized by FONT-SIZE (iconify-icon renders at 1em ;
         # w-7/h-7 would only grow the box and leave a small glyph top-left),
         # the same convention as the Icon primitive.
@@ -344,13 +270,11 @@ SIDEBAR_THEME: dict[str, Any] = {
         ),
         # Title text — ``text-2xl`` (matches the logo + rail glyph) ; bold
         # comes from ``title_brand``. Hides on desktop collapse.
-        # ⚠️ The fade, and why it is NOT ``hidden``. This slot carried
-        # ``transition-opacity duration-200`` AND
-        # ``group-data-[open=false]:hidden``: ``display:none`` is not
-        # animatable, so the transition was DECLARED AND DEAD. Measured
-        # frame by frame on 2026-08-18 — the text jumped to
-        # ``display:none`` in 60 ms, opacity still at 1.00, then the
-        # strip shrank for 300 ms over an already empty box.
+        # ⚠️ The fade, and why it is NOT ``hidden``: ``display:none`` is
+        # not animatable, so a ``transition-opacity`` next to
+        # ``group-data-[open=false]:hidden`` would be DECLARED AND DEAD.
+        # The text would jump to ``display:none`` at once, then the strip
+        # would shrink over an already empty box.
         #
         # ``visibility`` accompanies the opacity (``ui.drawer``'s theme
         # pattern): it switches at the END of the duration, so the text
@@ -373,25 +297,14 @@ SIDEBAR_THEME: dict[str, Any] = {
         ),
         # The collapsed rail's LOGO — visible only in the desktop rail.
         #
-        # ⚠️ Until 2026-08-26, this comment described the mechanism the
-        # block below explains it REMOVED: "a single button : logo by
-        # default, swapped to a chevron on hover ; ``group/railtoggle``
-        # drives the icon swap". Two neighbouring paragraphs therefore
-        # told two opposite designs — and it was the stale one you read
-        # first. ``probe_sidebar`` looked for
-        # ``button[class*="railtoggle"]`` for five days, found nothing,
-        # and concluded that Tailwind was not compiling.
-        #
         # ``grid place-items-center`` (and not flex) centres the glyph in
         # the single cell, whatever its size.
-        # The logo, in the collapsed rail. It used to be a collapse
-        # BUTTON carrying the logo and turning into a chevron ON HOVER —
-        # so, on a machine without hover, a logo that never announced it
-        # collapsed anything. The gesture existed and nobody could
-        # discover it (finding [29], 2026-08-21).
         #
-        # It is now a LINK, leading where the expanded logo leads
-        # (``href=``, ``/`` by default): the logo stops changing job
+        # It is a LINK, leading where the expanded logo leads
+        # (``href=``, ``/`` by default), and not a collapse button that
+        # turns into a chevron ON HOVER: on a machine without hover, such
+        # a logo would never announce that it collapses anything, and it
+        # would change job
         # depending on the bar's state. The collapse, for its part, has
         # its edge (``rail_edge``) — visible in both states.
         "title_rail_brand": (
@@ -405,37 +318,30 @@ SIDEBAR_THEME: dict[str, Any] = {
         ),
     },
     # Desktop EXPANDED width preset. In ``rem``, not in spacing steps: a
-    # step follows the density (3 px by default), and a frame's width is
-    # not a control's — ``w-64`` rendered 192 px instead of 256.
+    # step follows the density, which an app can set, and a frame's width
+    # is not a control's — at 3 px per step ``w-64`` rendered 192 px, not 256.
     "widths": {
         "sm": "w-[12rem]",
         "md": "w-[16rem]",
         "lg": "w-[20rem]",
     },
     # ── A SINGLE axis: what "collapsed" means ────────────────────────
-    # Replaces the 2026-08-15 pair ``variant=`` (rail/drawer) +
-    # ``collapsible=`` (True/False). Two props, four combinations, one of
-    # them absurd (``collapsible=False`` + drawer = a sidebar you can
-    # neither collapse nor reach). One axis, four values, zero illegal
-    # combination — shadcn's split, plus ``overlay``.
+    # One axis, four values, zero illegal combination — shadcn's split,
+    # plus ``overlay``. A look prop plus an on/off prop would allow an
+    # absurd combination: a sidebar you can neither collapse nor reach.
     #
     # ⚠️ NO ``md:`` gate on any of the four modes, and that is a
-    # decision. They all had one until 2026-08-15 — a legacy of the time
-    # when the sidebar was "desktop chrome" and had to refuse to collapse
-    # on a small screen.
-    #
-    # That is no longer true: it is the DEV who chooses the mode, in
+    # decision: it is the DEV who chooses the mode, in
     # their ``if Screen().is_mobile``. The CSS has no business
-    # contradicting them. As long as it did, two bugs lived together —
-    # collapsing below 768px did NOTHING (measured: 256px → 256px), and
-    # it was enough for the ``bz_screen`` cookie to be one render late (a
-    # resize, a first load) to end up with an open sidebar impossible to
-    # close.
+    # contradicting them. With such a gate, collapsing below 768px would
+    # do NOTHING, and it would be enough for the ``bz_screen`` cookie to
+    # be one render late (a resize, a first load) to end up with an open
+    # sidebar impossible to close.
     #
     # Each mode also carries its ``position`` AND its ``z-index``: these
     # are utilities whose two values compete at equal specificity, so
-    # leaving them on ``root`` made the winner depend on the Tailwind
-    # sheet's order. Both got caught the same day.
+    # leaving them on ``root`` would make the winner depend on the
+    # Tailwind sheet's order.
     "collapse": {
         # The three IN-FLOW modes carry ``relative`` (an ordinary layout
         # column); ``overlay`` carries ``fixed``. One position utility
@@ -451,20 +357,20 @@ SIDEBAR_THEME: dict[str, Any] = {
         # when closed. ``z-50`` goes in front of the dimmed backdrop
         # (``z-40``). The translation rather than a ``display:none``: it
         # animates, and it keeps the node mounted so the client scope
-        # survives.
+        # survives. It slides IN and closes at once: the transition lives
+        # on the open state (the why: ``overlay/dialog/theme.py``).
         "overlay": (
             "fixed inset-y-0 left-0 z-50 shadow-2xl "
-            "transition-transform duration-300 ease-in-out "
+            "data-[open=true]:transition-transform data-[open=true]:duration-200 data-[open=true]:ease-out "
             "data-[open=false]:-translate-x-full"
         ),
         "none": "relative z-40",
     },
-    # The dimmed backdrop of ``overlay`` mode, teleported under
-    # ``<body>`` by ``Sidebar.render`` — otherwise it would live INSIDE
-    # the aside, so above itself and below nothing at all.
+    # The dimmed backdrop of ``overlay`` mode: a sibling of the aside,
+    # not a child (cf. ``_render_backdrop``).
     "backdrop": (
         "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm "
-        "transition-opacity duration-300 "
+        "data-[open=true]:transition-opacity data-[open=true]:duration-200 "
         "data-[open=false]:opacity-0 data-[open=false]:invisible "
         "data-[open=false]:pointer-events-none"
     ),
@@ -474,17 +380,12 @@ SIDEBAR_THEME: dict[str, Any] = {
 SIDEBAR_ITEM_THEME: dict[str, Any] = {
     "slots": {
         "root": (
-            # ⚠️ ``text-sm`` DECLARED. It was missing, and a nav row with
-            # no size inherits the browser's ``text-base``: measured on
-            # 2026-08-15 at the bench, ``fontSize: 16`` on the row,
-            # against 14 for ``navbar_item`` AND for
-            # ``sidebar_footer_item`` — the other kind of row in the SAME
-            # file. So it was not a choice, it was the omission that made
-            # that one row stick out of the repository's whole
-            # typographic scale. Intended side effect: the line height
-            # goes from 40 to 36px (the leading follows the size), which
-            # tightens the rhythm without touching the padding and keeps
-            # a correct touch target.
+            # ⚠️ ``text-sm`` DECLARED: a nav row with no size inherits the
+            # browser's ``text-base``, which would make it stick out next
+            # to ``navbar_item`` and ``sidebar_footer_item`` — the other
+            # kind of row in the SAME file. The leading follows the size,
+            # which tightens the rhythm without touching the padding and
+            # keeps a correct touch target.
             "group/row relative flex flex-row items-center gap-2 w-full "
             "shrink-0 px-2 py-2 rounded-box cursor-pointer text-sm "
             # Desktop collapse : turn the row into a FIXED ``w-10 h-10``
@@ -502,15 +403,18 @@ SIDEBAR_ITEM_THEME: dict[str, Any] = {
             "group-data-[open=false]/sidebar:mx-auto "
             "group-data-[open=false]/sidebar:p-0 "
             "group-data-[open=false]/sidebar:gap-0 "
-            # Motion + tactile feedback — aligned with Button. ``-all``
-            # so the bg/text transition AND the click scale animate
-            # together. ``active:scale-[0.97]`` is a touch gentler than
+            # Tactile feedback: the click's scale animates; the hover
+            # does NOT fade — a row of a list lights at once, or sliding
+            # down the nav the previous one would trail. Not
+            # ``transition-all``, which would animate everything, bg
+            # included.
+            # ``active:scale-[0.97]`` is a touch gentler than
             # Button's 0.95 — rows are full-width so the inset reads as
             # "pressed" without making neighbors visually shift. On a
             # locked row it is ``aria-disabled:active:scale-100`` that
             # cancels it; the inertness itself comes from the runtime
             # base layer.
-            "transition-all duration-200 ease-out "
+            "transition-[scale] duration-150 ease-out "
             "active:scale-[0.97] "
             "overflow-hidden whitespace-nowrap "
             "outline-none text-muted "
@@ -547,17 +451,15 @@ SIDEBAR_ITEM_THEME: dict[str, Any] = {
         # The root's ``text-muted`` and a BARE ``text-(--bz-on-solid)`` are
         # two utilities of the SAME specificity (0,1,0): the winner is the
         # last one in the Tailwind sheet, and the order of the ``class=``
-        # attribute changes nothing. Measured on `bottom_bar`, which
-        # carried the same shape: two colours out of six rendered GREY in
-        # dev — and in the generated `@theme` (`theme/tailwind.py`),
-        # ``muted`` comes LAST of the eleven semantic colours, so a
-        # compiled build would most likely lose them all. The variant
-        # raises the specificity to (0,2,0): the verdict no longer depends
-        # on any order.
+        # attribute changes nothing. In the generated `@theme`
+        # (`theme/tailwind.py`), ``muted`` comes LAST of the semantic
+        # colours, so a compiled build would most likely keep the root's
+        # grey on the active item. The variant raises the specificity to
+        # (0,2,0): the verdict does not depend on any order.
         # Guarded by `tests/consistency/test_active_layer_outranks_root.py`.
         "active": (
             "bg-(--bz-solid) data-[active=true]:text-(--bz-on-solid) font-medium "
-            "data-[active=true]:hover:bg-(--bz-solid)/90"
+            "data-[active=true]:hover:bg-(--bz-solid-hover)"
         ),
         # Icon slot — fixed 1.25rem square, sits before the label.
         "icon": (
@@ -566,21 +468,17 @@ SIDEBAR_ITEM_THEME: dict[str, Any] = {
         ),
         # Label — it FADES on collapse, exactly like ``title_brand``.
         #
-        # ⚠️ It carried ``hidden`` until 2026-09-01, and the comment of
-        # the time presented that as a trade-off: "we swap the fade for
-        # an unconditional centring". The swap had no reason to be —
+        # ⚠️ Not ``hidden``: the fade costs the centring nothing.
         # ``w-0`` + ``flex-none`` give the space back AS completely as
         # ``display:none``, so the flex row still holds nothing but the
         # icon and ``justify-center`` puts it in the centre of the
-        # ``w-10 h-10`` square, whatever the label's length. The centring
-        # costs the fade nothing; both simply had to be written.
+        # ``w-10 h-10`` square, whatever the label's length.
         #
         # The three classes go together, and none is decorative:
         # ``opacity-0`` animates, ``w-0`` gives the space back,
         # ``flex-none`` stops the expanded state's ``flex-1`` from
         # re-inflating the box despite ``w-0``. A plain ``opacity-0``
-        # keeps its place and makes the row overflow the 64 px strip —
-        # measured on ``title_brand``, which got there the same way.
+        # keeps its place and makes the row overflow the 64 px strip.
         #
         # No ``invisible`` here, unlike ``title_brand``: this ``<span>``
         # is not focusable, there is no tab order to protect. The
@@ -602,14 +500,10 @@ SIDEBAR_ITEM_THEME: dict[str, Any] = {
             "group-data-[open=false]/sidebar:hidden"
         ),
         # NB: the collapsed rail's tooltip (the item's name on hover)
-        # comes from the SHARED ``rail_tip`` panel — a single node, last
-        # child of the aside, that each item moves by writing
-        # ``rail_tip`` / ``rail_tip_x`` / ``rail_tip_y`` into the aside's
-        # scope.
-        # ⚠️ This comment announced a ``ui.tooltip(...)`` per item until
-        # 2026-08-01: ``sidebar.py`` neither imports nor instantiates
-        # Tooltip (zero occurrences). A single moved panel costs one node
-        # instead of N; it is a choice, not a lapse of dogfooding.
+        # comes from the page's shared tooltip panel (``tip.js``), which
+        # each item triggers through ``data-bz-tip``. A single moved panel
+        # costs one node instead of N; it is a choice, not a lapse of
+        # dogfooding.
     },
 }
 
@@ -665,15 +559,17 @@ SIDEBAR_FOOTER_THEME: dict[str, Any] = {
         # The popover menu. ``$bz.helpers.floating`` flips it to
         # ``position:fixed`` on open, so it ESCAPES the sidebar's
         # ``overflow-y-auto`` clip. Same card identity as the Dropdown
-        # panel ; ``z-50`` sits above the aside (z-40).
+        # panel — no vertical padding, ``overflow-hidden``, a hovered row
+        # fills it to its edge (the why: ``overlay/dropdown/theme.py``);
+        # ``z-50`` sits above the aside (z-40).
         "panel": (
-            "min-w-[14rem] py-1 z-50 "
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface "
+            "min-w-[14rem] overflow-hidden z-50 "
+            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
             # The enter fade. The three classes go together and none
             # serves alone — the why is in a single copy in
             # ``overlay/dropdown/theme.py``.
             "shadow-lg "
-            "transition-[opacity,display] transition-discrete duration-150 "
+            "transition-opacity duration-150 "
             "starting:opacity-0"
         ),
     },
@@ -682,7 +578,7 @@ SIDEBAR_FOOTER_THEME: dict[str, Any] = {
 
 # Rows inside the SidebarFooter popover — same look + slot contract as
 # DropdownItem (both are :class:`MenuItem` shells), kept here so the
-# sidebar doesn't reach into the overlay group for a theme (anti-rule 5).
+# sidebar doesn't reach into the overlay group for a theme.
 SIDEBAR_FOOTER_ITEM_THEME: dict[str, Any] = {
     "slots": {
         # hover/focus bg lives in ``colors`` (incl. ``neutral``), not root —
@@ -692,9 +588,11 @@ SIDEBAR_FOOTER_ITEM_THEME: dict[str, Any] = {
         # inert by stripping the handlers). Same contract as
         # DROPDOWN_ITEM_THEME (both are MenuItem).
         "root": (
-            "flex items-center gap-2 w-full text-start "
+            "group flex items-center gap-2 w-full text-start "
             "px-3 py-1.5 text-sm cursor-pointer outline-none "
-            "transition-colors duration-100 "
+            # No fade: a row lights at once and goes out at once — sliding
+            # down a list, the previous row would trail behind the
+            # pointer. As in a native menu.
             "aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
         ),
         # ``opacity-70`` so the icon inherits the row's tint (a ``color=``
@@ -702,10 +600,14 @@ SIDEBAR_FOOTER_ITEM_THEME: dict[str, Any] = {
         "icon_left": "shrink-0 opacity-70",
         "label": "flex-1 truncate",
         "icon_right": "shrink-0 opacity-70",
+        # The mark of a ``checked=`` row: always there, shown on the
+        # chosen one (``aria-checked="true"``, fixed or bound), so the
+        # labels of a choice menu line up.
+        "check": "shrink-0 invisible group-aria-checked:visible",
         "shortcut": "shrink-0 ms-auto text-xs text-muted/70 tabular-nums",
     },
     "colors": {
-        "neutral": "hover:bg-text/[0.06] focus:bg-text/[0.06]",
+        "neutral": "hover:bg-interface focus:bg-interface",
         "error":   "text-error hover:bg-error/10 focus:bg-error/10",
         "warning": "text-warning hover:bg-warning/10 focus:bg-warning/10",
         "success": "text-success hover:bg-success/10 focus:bg-success/10",

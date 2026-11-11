@@ -13,12 +13,11 @@ Two pieces, the *bottom of screen* counterpart of the Navbar trio:
   ``NavbarItem`` (horizontal pill, content width) — the behaviour, for
   its part, is shared word for word through ``navigation/_wiring``.
 
-Composition rule (it carries two measured corrections, cf. the comments
-in place): **a CSS property is declared by one layer only**, and any
-class that must BEAT a root class carries a state variant, never the bare
-form. The component no longer having any axis (neither ``variant`` nor
-``sticky`` — both cut, cf. the component), everything fits in ``slots``
-and the rule reads at a glance.
+Composition rule (cf. the comments in place): **a CSS property is
+declared by one layer only**, and any class that must BEAT a root class
+carries a state variant, never the bare form. The component has no axis
+(neither ``variant`` nor ``sticky``, cf. the component), so everything
+fits in ``slots`` and the rule reads at a glance.
 
 Slots :
 - ``bottom_bar.root``     : the ``<nav>`` — geometry only
@@ -82,19 +81,16 @@ BOTTOM_BAR_THEME: dict[str, Any] = {
         # larger than the default (``icon=ui.icon(…, size="xl")`` → 36px)
         # plus the gap plus the label exceed the available room, and the
         # ``overflow:hidden`` that ``truncate`` sets on the label clips it
-        # VERTICALLY — the text shrinks to a sliver of glyphs. Seen by eye
-        # on a screenshot, invisible to measurement: ``scrollWidth ==
-        # clientWidth`` (nothing overflows horizontally) and the label has
-        # its normal width. The repository settles this case on the
-        # framework side: a component never clips its own content, it is
-        # an invariant, not a trade-off left to the app (cf. todo.md
-        # § A-ter, "Containment").
+        # VERTICALLY — the text shrinks to a sliver of glyphs. A horizontal
+        # measurement does not see it: ``scrollWidth == clientWidth``
+        # (nothing overflows horizontally) and the label has its normal
+        # width. A component never clips its own content: it is an
+        # invariant, not a trade-off left to the app.
         "inner": "flex flex-row items-stretch min-h-14 w-full",
     },
-    # ⚠️ NO ``variants`` table — and it is deliberate (decision
-    # 2026-08-09). A rounded pill detached from the edges (the iOS 17 /
-    # Material 3 idiom) existed here as ``variant="floating"`` for a day,
-    # then was cut: it fails the four criteria of the opinionation rule,
+    # ⚠️ NO ``variants`` table — and it is deliberate. A rounded pill
+    # detached from the edges (the iOS 17 / Material 3 idiom) fails the
+    # four criteria of the opinionation rule,
     # and first of all the decisive one — "would we have this component
     # in TWO shapes in the SAME app?". No: an app has a single tab bar,
     # and the choice of look is made once. An axis you set only once per
@@ -126,8 +122,7 @@ BOTTOM_BAR_ITEM_THEME: dict[str, Any] = {
         # mouse hover, and it is a component made for the finger.
         #
         # No ``hover:bg-*`` here, unlike NavbarItem: on mobile hover does
-        # not exist (memory `user_browser_has_no_fine_pointer` recalls it
-        # even on desktop), and a background the full width of the tab is
+        # not exist, and a background the full width of the tab is
         # visually heavy. Hover only changes the text's colour.
         #
         # ``focus-visible:ring-inset`` and not ``ring-offset-2``: the bar
@@ -137,7 +132,7 @@ BOTTOM_BAR_ITEM_THEME: dict[str, Any] = {
             "group/tab relative flex flex-1 min-w-0 flex-col "
             "items-center justify-center gap-1 px-1 py-1.5 "
             "cursor-pointer select-none "
-            "transition-all duration-200 ease-out "
+            "transition duration-200 ease-out "
             "active:scale-[0.94] "
             "outline-none text-muted "
             "focus-visible:ring-2 focus-visible:ring-(--bz-focus) "
@@ -163,22 +158,14 @@ BOTTOM_BAR_ITEM_THEME: dict[str, Any] = {
         # sheet, and the order of the ``class=`` attribute changes
         # NOTHING.
         #
-        # Seen in the browser: with the bare form, ``color=error`` and
-        # ``color=info`` rendered GREY (the four others passed). Do not
-        # trust that particular split to infer a rule: in dev, Tailwind
-        # runs in the browser and emits its rules **in the order it meets
-        # the classes in the DOM** — so which side loses depends on the
-        # page. The only stable order is that of the generated `@theme`
-        # (`bretzel/theme/tailwind.py`), where ``muted`` comes **last** of
-        # the eleven semantic colours: in a compiled build, the bare form
-        # would most likely lose for ALL SIX colours. There is no
-        # compiled build today to assert it (cf. memory
-        # `reference_css_build_reality`), and that is precisely the
-        # argument: the variant raises the specificity to (0,2,0), so the
-        # verdict no longer depends on an order — neither the dev's nor a
-        # future build's.
-        #
-        # The ``navbar`` and ``sidebar`` siblings still carry the bare form.
+        # In dev, Tailwind runs in the browser and emits its rules **in
+        # the order it meets the classes in the DOM**, so which side loses
+        # depends on the page. The only stable order is that of the
+        # generated `@theme` (`bretzel/theme/tailwind.py`), where ``muted``
+        # comes **last** of the semantic colours: in a compiled build, the
+        # bare form would most likely lose for every colour. The variant
+        # raises the specificity to (0,2,0), so the verdict depends on no
+        # order — neither the dev's nor the build's.
         "active": "data-[active=true]:text-(--bz-text) font-semibold",
         # Relative icon + badge container: it is what anchors the chip
         # to the ICON's corner, not to the tab's (which is far wider than
@@ -194,14 +181,10 @@ BOTTOM_BAR_ITEM_THEME: dict[str, Any] = {
         # ⚠️ ``leading-tight`` and NOT ``leading-none``. ``truncate``
         # implies ``overflow: hidden``; with ``line-height: 1``, the line
         # box is exactly the font size (11px) while the glyphs ask for
-        # ~13 — so the descenders of "g" / "p" were clipped on EVERY
-        # label. Measured: ``scrollHeight`` 13 vs ``clientHeight`` 11 on
-        # the bench page's 100 tabs.
-        #
-        # The instrumentation trap was worth the lesson: the containment
-        # probe only read the HORIZONTAL axis (``scrollWidth``), so it
-        # was green while the text was cut off vertically. A clipping
-        # defect is measured on both axes.
+        # ~13 — so the descenders of "g" / "p" would be clipped on EVERY
+        # label. A clipping defect is measured on both axes: the
+        # HORIZONTAL one alone (``scrollWidth``) does not see a text cut
+        # off vertically.
         "label": "max-w-full truncate text-xs leading-tight",
         # ⚠️ The badge is in TWO slots, and the split is load-bearing.
         #
@@ -213,13 +196,11 @@ BOTTOM_BAR_ITEM_THEME: dict[str, Any] = {
         #
         # ``badge_pill`` = the default LOOK, applied ONLY when the value
         # is a scalar — the only case where the framework has to invent a
-        # visual. Measured before this split: a Component passed as badge
-        # came out with ``bg-error`` AND ``bg-success/15``,
-        # ``text-[10px]`` twice, and two competing text colours. It
-        # rendered green in dev by luck of sheet order; ``error`` being
-        # generated AFTER ``success`` in the `@theme`, a compiled build
-        # would have turned it red. A component decides its look; the
-        # parent only places it.
+        # visual. Without this split, a Component passed as badge would
+        # come out with ``bg-error`` AND ``bg-success/15``,
+        # ``text-[10px]`` twice, and two competing text colours, the
+        # winner depending on the sheet's order. A component decides its
+        # look; the parent only places it.
         #
         # ``text-error-foreground`` and not ``text-white``: the framework
         # emits a ``-foreground`` companion for every semantic colour

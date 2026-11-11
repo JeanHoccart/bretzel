@@ -68,7 +68,7 @@ def cheatsheet_page() -> None:
 
             section(
                 'Reactivity — mutate → re-render',
-                'from bretzel import refreshable, ui\n\n@refreshable(deps=[Cart])          # declarative: re-render when Cart changes\ndef cart_view() -> None:\n    for it in ui.each(Cart().items, key="id"):\n        ui.text(it["label"])\n\nfrom bretzel import refresh\nrefresh(cart_view)                 # imperative, from a handler\n# refresh on a broadcast=[…] zone → SSE fan-out to the other tabs\n',
+                'from bretzel import refreshable, ui\n\n@refreshable          # declarative: re-render when Cart changes\ndef cart_view() -> None:\n    for it in ui.each(Cart().items, key="id"):\n        ui.text(it["label"])\n\nfrom bretzel import refresh\nrefresh(cart_view)                 # imperative, from a handler\n',
             )
 
             with ui.card(color="surface"):

@@ -119,7 +119,7 @@ def build_preview(state: ButtonPlayground):
     return ui.button(state.label, **kwargs)
 
 
-@refreshable(deps=[ButtonPlayground])
+@refreshable
 def server_panel() -> None:
     state = ButtonPlayground()
 
@@ -211,7 +211,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[ButtonEvents])
+@refreshable
 def events_panel() -> None:
     state = ButtonEvents()
 
@@ -496,16 +496,19 @@ def page() -> None:
                     ui.heading("Client playground", level=2)
                     ui.text(
                         "Mirror of Button's BINDABLE_PROPS contract : "
-                        "label / disabled / loading. These are the three "
-                        "props that genuinely change during a button's "
-                        "lifecycle. Visual configuration (variant / size "
-                        "/ color) stays static — set at design time. "
+                        "disabled / loading, and its displayed contents — "
+                        "the label and the icons. Every displayed content "
+                        "(a parameter typed str | Component: a label, a "
+                        "title, an icon…) binds like these, on EVERY "
+                        "component: this card shows it once for all. "
+                        "Visual configuration (variant / size / color) "
+                        "stays static — set at design time. "
                         "the runtime mutates the store in-browser and the "
                         "button re-renders without a network round-trip.",
                         color="muted", size="sm",
                     )
                     client = ButtonClient()
-                    with ui.grid(cols={"base": 1, "sm": 3}, gap="md"):
+                    with ui.grid(cols={"base": 1, "sm": 4}, gap="md"):
                         with control("label"):
                             ui.input(value=client.label,
                                      placeholder="Click me")
@@ -513,12 +516,24 @@ def page() -> None:
                             ui.switch(checked=client.disabled)
                         with control("loading"):
                             ui.switch(checked=client.loading)
+                        with control("icon_left"):
+                            ui.select(value=client.glyph,
+                                      options=[("play", "play"), ("pause", "pause"),
+                                               ("heart", "heart"), ("star", "star")])
                     ui.divider()
-                    with ui.flex(justify="center", align="center"):
+                    with ui.flex(justify="center", align="center", gap="md"):
                         ui.button(
                             client.label,
                             disabled=client.disabled,
                             loading=client.loading,
+                            icon_left=client.glyph,
+                        )
+                        # The play / pause button: it WRITES the field its
+                        # own icon reads — the select above follows too.
+                        ui.icon_button(
+                            client.glyph, aria_label="Play / pause",
+                            on_click=client.glyph.set(ClientExpression(
+                                "$bz.state.ButtonClient.default.glyph === 'play' ? 'pause' : 'play'")),
                         )
 
                     ui.divider()
@@ -527,14 +542,14 @@ def page() -> None:
                         "Emitted HTML — bz-text on the label span, "
                         "bz-attr:disabled on the <button>, "
                         "loading mutex via bz-show + a pre-stamped "
-                        "display:none between spinner and icon "
-                        "(icon_left is design-time so "
-                        "no reactive icon swap here).",
+                        "display:none between spinner and icon, "
+                        "bz-attr:icon on the bound glyph.",
                         serialize_html(
                             ui.button(
                                 client.label,
                                 disabled=client.disabled,
                                 loading=client.loading,
+                                icon_left=client.glyph,
                             )
                         ),
                     )

@@ -99,17 +99,17 @@ def display_global() -> None:
     ui.text(str(global_count), size="3xl", weight="bold")
 
 
-@refreshable(deps=[AppCounter])
+@refreshable
 def display_app() -> None:
     ui.text(str(AppCounter().count), size="3xl", weight="bold")
 
 
-@refreshable(deps=[SessionCounter])
+@refreshable
 def display_session() -> None:
     ui.text(str(SessionCounter().count), size="3xl", weight="bold")
 
 
-@refreshable(deps=[PageCounter])
+@refreshable
 def display_page() -> None:
     ui.text(str(PageCounter().count), size="3xl", weight="bold")
 
@@ -117,7 +117,7 @@ def display_page() -> None:
 # ── Handlers ───────────────────────────────────────────────────────────────
 #
 # The module-variable row is the only one needing an explicit ``refresh``:
-# a plain global has no ``deps`` for the framework to track.
+# a plain global is no state for the framework to track.
 
 
 def global_inc() -> None:

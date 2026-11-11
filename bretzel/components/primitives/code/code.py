@@ -16,10 +16,10 @@ Reactive contract :
 **``text=Component`` is REJECTED** (``ComponentUsageError``), unlike the
 generic ``str | Component | ClientBinding`` slot contract most other
 components honour. ``text`` is the SOURCE Pygments highlights, not a
-content slot — a Component there used to be silently stringified to
-its Python ``repr()`` and syntax-highlighted as nonsense. Same class of bug, same
-fix shape, as :class:`Markdown`'s ``ComponentUsageError`` on
-``ClientBinding``. To compose Code with other components, wrap them :
+content slot — a Component there would be silently stringified to its
+Python ``repr()`` and syntax-highlighted as nonsense. Same refusal as
+:class:`Markdown`'s ``ComponentUsageError`` on ``ClientBinding``. To
+compose Code with other components, wrap them :
 ``with ui.vstack(): ui.code(src) ; ui.button("Copy")``.
 
 The ``.bz-code`` marker class on the wrapper is the hook the global
@@ -45,6 +45,7 @@ from bretzel.components.base import (
 from bretzel.components.primitives.code.theme import CODE_THEME
 from bretzel.core.escape import escape_html
 from bretzel.core.tree import Element, HtmlNode
+from bretzel.runtime.protocol import DATA_BZ_REPLACE
 from bretzel.state.scopes.client import ClientBinding
 
 # Reused across every Code render. ``nowrap=True`` skips Pygments'
@@ -107,9 +108,8 @@ class Code(Component):
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(lang=lang, **kwargs)
         # ``ClientBinding.__bool__`` raises — same pattern as Text /
-        # Heading. Keep ``None`` → ``""``. Component already rejected
-        # above ; adopt_slot is a pass-through for str/ClientBinding.
-        self._text = "" if text is None else Component.adopt_slot(text)
+        # Heading. Keep ``None`` → ``""``.
+        self._text = "" if text is None else text
 
     def render(self) -> Element:
         cls = self.compose_class("root", apply_variant_size_modifiers=False)
@@ -128,4 +128,8 @@ class Code(Component):
         text = str(self._text)
         lang = self._reactive_values.get("lang") or "python"
         inner_html = f"<code>{highlight_code(text, lang)}</code>"
+        # Replaced whole by a swap, never morphed span by span — cf.
+        # ``DATA_BZ_REPLACE``. Not on the reactive path: there the runtime
+        # owns a ``bz-text`` inside, and replacing would unbind it.
+        attrs = {**attrs, DATA_BZ_REPLACE: ""}
         return Element(tag=self._tag, attrs=attrs, children=(HtmlNode(inner_html),))

@@ -11,7 +11,7 @@ from bretzel.components import ui
 try:
     __version__ = _pkg_version("bretzel")
 except PackageNotFoundError:  # raw source tree, not installed as a distribution
-    __version__ = "0.1.0a4"
+    __version__ = "0.1.0a5"
 from bretzel.render import Language
 from bretzel.render.decorators import (
     download,
@@ -22,6 +22,7 @@ from bretzel.render.decorators import (
     refreshable,
 )
 from bretzel.render.screen import Screen
+from bretzel.render.translations import t
 from bretzel.runtime.verbs import (
     copy,
     fullscreen,
@@ -70,6 +71,7 @@ __all__ = [
     "redirect",
     "push_url",
     "Language",
+    "t",
     "reload",
     "background",
     "copy",

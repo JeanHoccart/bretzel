@@ -5,13 +5,9 @@ Why this module exists
 
 The ``xs|sm|md|lg|xl`` scale is the controls' grammar:
 ``bretzel describe`` announces it as a **closed enum** on Button, Input,
-Select, Badge, Avatar, Icon, Spinner, Progress… And yet it was copied
-**five times in ``tests/`` and zero times in ``bretzel/``** (measured on
-2026-08-16) — ``test_size_enum_is_complete``,
-``test_size_reaches_slots``, ``test_sizes_are_distinct``,
-``test_playground_demos_the_api``, ``probes/bench_switch``. An enum
-declared closed that exists nowhere in the code is not closed: it is a
-convention, and a convention can refuse nothing.
+Select, Badge, Avatar, Icon, Spinner, Progress… An enum declared closed
+that exists nowhere in the code is not closed: it is a convention, and a
+convention can refuse nothing. So the scale is declared here.
 
 ⚠️ What the scale is NOT
 ------------------------
@@ -20,7 +16,7 @@ It is not "every value a component accepts". Three families go beyond
 it, and that is **intended**:
 
 - ``Text`` and ``Heading`` carry the **typographic** scale (``xs`` to
-  ``8xl``, measured) — a heading is not a button's size, and
+  ``8xl``) — a heading is not a button's size, and
   ``bretzel describe`` says so: "do not confuse them";
 - ``Avatar`` extends to ``2xl`` (portrait visual);
 - ``Icon`` likewise.
@@ -113,9 +109,9 @@ def size_vocabulary(theme: Mapping[str, Any] | None) -> frozenset[str]:
 #: this table only generalises that intention to labels that are NOT
 #: 16 px.
 #:
-#: ``Icon``'s default was calibrated against body text (``text-lg`` over
-#: ``text-base``). The items have smaller labels, and using it as-is gave
-#: up to 1.50 there (``breadcrumb_item``, measured on 2026-08-18).
+#: ``Icon``'s default is calibrated against body text (``text-lg`` over
+#: ``text-base``). The items have smaller labels, so it would be too large
+#: for them.
 #:
 #: ``Icon``'s scale has a hole (``sm`` = ``text-sm``, 14 px, then ``md``
 #: = ``text-lg``, 18 px — nothing at 16): "the step above" is therefore

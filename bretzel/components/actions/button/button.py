@@ -14,7 +14,7 @@ therefore use ``href=`` rather than a manual tag change.
 suppresses ``icon_right``, and forces the rendered ``<button>`` into the
 disabled state (50 % opacity, ``cursor-not-allowed`` via the root slot's
 ``disabled:`` variant) so the click is blocked while in flight. No separate
-``loading`` modifier — that would reintroduce a source-order race against
+``loading`` modifier — that would add a source-order race against
 ``disabled:cursor-not-allowed``.
 """
 
@@ -53,12 +53,13 @@ class Button(Component):
         "mouseenter",
         "mouseleave",
     )
+    # ``autofocus=`` only: ``.focus()`` would put an id on every
+    # button of every page (cf. ``components/base/focus.py``).
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ()
     # Reactive surface : props that change during the button's lifecycle
     # (label, disabled, loading). variant / size / color / type / icons are
     # design-time — conditional render covers the rest.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = (
-        "label", "disabled", "loading", "href",
-    )
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("disabled", "loading", "href")
 
     # Cosmetic props (consumed by ``_compose_classes`` only — kept off
     # the DOM via ``emit_attr=False``). ``type`` and ``disabled`` are
@@ -67,13 +68,13 @@ class Button(Component):
     size: str = reactive_prop(default="md", emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
     loading: bool = reactive_prop(default=False, emit_attr=False)
-    type: str = reactive_prop(default="button")
+    type: str = reactive_prop(default="button", steps=("button", "submit", "reset"))
     disabled: bool = reactive_prop(default=False)
-    href: str | None = reactive_prop(default=None, never_code=True)
+    href: str | None = reactive_prop(default=None)
 
     def __init__(
         self,
-        label: str | ClientBinding | None = None,
+        label: str | Component | ClientBinding | None = None,
         *,
         variant: str | None = None,
         size: str | None = None,
@@ -112,11 +113,7 @@ class Button(Component):
             on_mouseleave=on_mouseleave,
             **kwargs,
         )
-        # ``adopt_slot`` detaches a Component passed as label from the parent
-        # its own ``__init__`` auto-registered into — else it renders twice
-        # (standalone in the parent flow AND inside this Button). Strings /
-        # ClientBindings / None flow through unchanged.
-        self._label = Component.adopt_slot(label)
+        self._label = label
         self._external = external
 
         anchor_tag(self, href=href, on_click=on_click, type=type,

@@ -9,7 +9,7 @@ scope continuity (and teleported panels) inside a ``@refreshable``.
 from __future__ import annotations
 
 from bretzel import ui
-from bretzel.components.base.component import _ensure_scope_identity
+from bretzel.components.base.universals import _ensure_scope_identity
 from bretzel.components.base.testing import render_isolated
 from bretzel.core.tree import Element
 
@@ -42,12 +42,14 @@ def test_noop_without_bzdata() -> None:
     assert "id" not in out.attrs
 
 
-def test_tooltip_renders_with_an_id() -> None:
-    # End-to-end : a real overlay's rendered root carries id + bz-id.
+def test_an_overlay_renders_with_an_id() -> None:
+    # End-to-end : a real overlay's rendered root carries id + bz-id. It was
+    # the tooltip until 2026-10-27; the tooltip has no scope any more (a
+    # ``data-bz-tip`` wrapper and the page's shared panel).
     with render_isolated():
-        tip = ui.tooltip("HINT")
+        tip = ui.popover(trigger=ui.button("trigger"))
         with tip:
-            ui.button("trigger")
+            ui.text("HINT")
         node = tip.render()
     assert node.attrs.get("id")
     assert node.attrs.get("bz-id") == node.attrs.get("id")

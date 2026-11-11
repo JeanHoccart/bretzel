@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -35,11 +36,6 @@ from bretzel.state.fields.descriptor import Field
 #   "memory" (default) : JS RAM. Lost on reload (F5) and on close.
 #   "session"          : sessionStorage. Survives reload, lost on close.
 #   "local"            : localStorage. Survives everything.
-#
-# The runtime (04_persistence.js) attaches no storage adapter for
-# "memory": the value stays in JS RAM (volatile behaviour), lost on
-# reload. The "page" mode and the TTL were removed (runtime AND API
-# side) — they were V2 leftovers with no effect.
 # ───────────────────────────────────────────────────────────────────────────
 
 PERSISTS: Final[tuple[str, ...]] = ("memory", "session", "local")
@@ -490,6 +486,11 @@ class ClientExpression(ClientBinding):
 # ───────────────────────────────────────────────────────────────────────────
 
 
+#: What a ``ClientState`` key may be: a JS name, since it is one in
+#: ``$bz.state.<Class>.<key>.<field>``.
+_CLIENT_KEY: Final = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
 class ClientState(State):
     """Typed state mirrored into the browser by the runtime."""
 
@@ -525,6 +526,21 @@ class ClientState(State):
                     f"{cls.__name__} : expected True or False."
                 )
             cls.__send_to_server__ = send_to_server
+
+    def __init__(self, *, key: str = "default") -> None:
+        # ⚠️ The key is pasted into the browser's code: every binding of
+        # this instance reads ``$bz.state.<Class>.<key>.<field>``. A key
+        # that is not a JS name breaks that path (``task-12``, ``12``); one
+        # made from a user's words would run them — ``Notes(key=folder)``
+        # with a folder named ``a,alert(1),$el``.
+        if not isinstance(key, str) or not _CLIENT_KEY.fullmatch(key):
+            raise ValueError(
+                f"{type(self).__name__}(key={key!r}): a ClientState key is a "
+                "name — letters, digits and ``_``, not starting with a digit — "
+                "because it is written into the browser's code. Build it from "
+                "an id (``f\"task_{task_id}\"``), never from text."
+            )
+        super().__init__(key=key)
 
     # ── Render-flag-aware attribute access ─────────────────────────────
 

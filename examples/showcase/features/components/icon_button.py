@@ -1,9 +1,7 @@
 """``/icon-button`` — the button that is only an icon."""
 
-from functools import partial
-
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A square button for toolbars and table rows: one icon, a tooltip "
@@ -77,46 +75,31 @@ TEAM = [
 ]
 
 
-class Roster(PageState):
-    members: list = field(default_factory=lambda: [m["name"] for m in TEAM])
-
-
-def remove_member(name: str) -> None:
-    roster = Roster()
-    roster.members = [m for m in roster.members if m != name]
-
-
-def restore_team() -> None:
-    Roster().members = [m["name"] for m in TEAM]
-
-
-@refreshable(deps=[Roster])
-def roster_list() -> None:
-    members = Roster().members
-    with ui.card(padding="sm", classes="w-full max-w-md"), ui.vstack(gap="xs"):
-        for person in TEAM:
-            if person["name"] not in members:
-                continue
-            with ui.hstack(gap="sm", justify="between"):
-                with ui.hstack(gap="sm"):
-                    ui.avatar(src=f"https://i.pravatar.cc/96?u={person['name']}",
-                              name=person["name"], size="sm")
-                    with ui.vstack(gap="none"):
-                        ui.text(person["name"], weight="medium")
-                        ui.text(person["role"], size="sm", color="muted")
-                ui.icon_button("user-minus", variant="ghost", color="error",
-                               size="sm", tooltip=f"Remove {person['name']}",
-                               aria_label=f"Remove {person['name']}",
-                               on_click=partial(remove_member, person["name"]))
-        if not members:
-            ui.text("Nobody left on the project.", color="muted",
-                    classes="self-center")
-        ui.button("Restore team", icon_left="rotate-ccw", variant="ghost",
-                  size="sm", on_click=restore_team, classes="self-end")
+class Roster(ClientState):
+    removed: list = field(default_factory=list)
 
 
 def row_actions() -> None:
-    roster_list()
+    removed = Roster().removed
+    with ui.card(padding="sm", classes="w-full max-w-md"), ui.vstack(gap="xs"):
+        for person in TEAM:
+            name = person["name"]
+            with ui.hstack(gap="sm", justify="between",
+                           visible=~removed.contains(name)):
+                with ui.hstack(gap="sm"):
+                    ui.avatar(src=f"https://i.pravatar.cc/96?u={name}",
+                              name=name, size="sm")
+                    with ui.vstack(gap="none"):
+                        ui.text(name, weight="medium")
+                        ui.text(person["role"], size="sm", color="muted")
+                ui.icon_button("user-minus", variant="ghost", color="error",
+                               size="sm", tooltip=f"Remove {name}",
+                               aria_label=f"Remove {name}",
+                               on_click=removed.push(name))
+        ui.text("Nobody left on the project.", color="muted",
+                classes="self-center", visible=removed.length() == len(TEAM))
+        ui.button("Restore team", icon_left="rotate-ccw", variant="ghost",
+                  size="sm", on_click=removed.clear(), classes="self-end")
 
 
 def states() -> None:
@@ -141,8 +124,8 @@ def page() -> None:
     example("An editor toolbar", editor_toolbar,
             note="Ghost buttons stay quiet until hovered — the right weight "
                  "for a row of formatting tools.")
-    example("Row actions that run Python", row_actions,
-            uses=[Roster, remove_member, restore_team, roster_list],
-            note="functools.partial binds each row's name to the handler; the "
-                 "list re-renders when the roster changes.")
+    example("Row actions", row_actions, uses=[Roster],
+            note="Each row's button writes its name to a ClientState, and the "
+                 "row hides itself in the browser. For a removal the server "
+                 "must make, bind the name with functools.partial.")
     example("Loading and disabled", states)

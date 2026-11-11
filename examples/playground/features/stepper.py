@@ -140,7 +140,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[StepperPlayground])
+@refreshable
 def server_panel() -> None:
     state = StepperPlayground()
 
@@ -232,7 +232,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[StepperEvents])
+@refreshable
 def events_panel() -> None:
     state = StepperEvents()
 

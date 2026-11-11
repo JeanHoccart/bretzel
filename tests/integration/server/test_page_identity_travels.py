@@ -136,7 +136,7 @@ def _runtime_src(name: str) -> str:
 
 
 def test_the_runtime_reads_the_page_id_off_the_envelope() -> None:
-    src = _runtime_src("00_index.js")
+    src = _runtime_src("index.js")
     assert re.search(r"\$bz\._pageId\s*=\s*config\.page_id", src), (
         "le boot ne lit pas `page_id` dans l'envelope — `$bz._pageId` "
         "reste nul et la ligne du pont ne fait rien. C'est l'état dans "
@@ -145,7 +145,7 @@ def test_the_runtime_reads_the_page_id_off_the_envelope() -> None:
 
 
 def test_the_bridge_puts_it_on_every_request() -> None:
-    src = _runtime_src("05_bridge.js")
+    src = _runtime_src("bridge.js")
     assert HEADER_PAGE_ID in src, (
         f"le pont ne pose plus {HEADER_PAGE_ID}. L'en-tête est le seul "
         f"chemin qui survit à la téléportation d'un panneau hors du "

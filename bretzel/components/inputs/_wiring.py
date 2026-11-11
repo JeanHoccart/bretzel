@@ -20,10 +20,8 @@ Two flavours, one per control family :
 to the root scope (bare names resolve to JS globals, and these
 expressions only touch ``$el`` / ``$event``).
 
-Group-internal module (``inputs/``). The old anti-rule 5 ("no
-cross-group import") was **relaxed on 2026-06-23** to "no cycles":
-another group MAY import from here as long as it introduces no cycle
-(cf. CLAUDE.md anti-rule 5). In practice these helpers stay
+Group-internal module (``inputs/``). Another group MAY import from here
+as long as it introduces no cycle. In practice these helpers stay
 input-specific; if a shared need emerges, promoting it into
 ``components/base`` remains the right reflex — not out of prohibition,
 but because that is the common base layer.
@@ -33,11 +31,62 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+from collections.abc import Callable
 from typing import Any
 
-from bretzel.components.base import ComponentDefinitionError
-from bretzel.components.base._wiring import server_sync_marker
+from bretzel.components.base import ComponentUsageError
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.scope_wiring import server_sync_marker
 from bretzel.core.tree import Element
+
+
+def refuse_on_a_single(component: Any, command: str) -> None:
+    """A bulk command on a control that holds one value: said, not ignored."""
+    if not component._reactive_values.get("multiple"):
+        raise ComponentUsageError(
+            f"{type(component).__name__}.{command}() is multi-only — set "
+            f"multiple=True on the control, or write its one value with "
+            f".set(value)."
+        )
+
+
+class ChoiceCommands(ValueCommands):
+    """``.set()`` / ``.clear()`` / ``.select_all()`` / ``.deselect_all()`` of a
+    control holding one choice, or several with ``multiple=True``.
+
+    ``.set()`` takes a scalar in single mode, a list in multi.
+    """
+
+    _reactive_values: dict[str, Any]
+    _dispatch_command: Callable[..., str]
+
+    def clear(self) -> str:
+        """Empty the choice: ``""`` in single mode, ``[]`` in multi."""
+        return self.set([] if self._reactive_values.get("multiple") else "")
+
+    def select_all(self) -> str:
+        """Pick every option one could pick now: neither the disabled ones
+        nor those a search hides. Multi mode only."""
+        refuse_on_a_single(self, "select_all")
+        return self._dispatch_command("bz-select-all")
+
+    def deselect_all(self) -> str:
+        """Drop every pick. Multi mode only: a single value is ``.clear()``."""
+        refuse_on_a_single(self, "deselect_all")
+        return self._dispatch_command("bz-deselect-all")
+
+
+class CheckedCommands:
+    """``.set(bool)`` / ``.toggle()`` of a control carrying ``checked``."""
+
+    _value_command: Callable[..., str]
+    _toggle_command: Callable[..., str]
+
+    def set(self, value: bool) -> str:
+        return self._value_command(bool(value), prop="checked")
+
+    def toggle(self) -> str:
+        return self._toggle_command()
 
 
 def add_local_value_scope(
@@ -175,9 +224,8 @@ def false_companion_input(name: str, *, disabled: bool = False) -> Element:
     would be written ``False`` at the first save: exactly the failure
     this function exists to prevent, inverted.
 
-    Measured on 2026-08-19 on the CRM's Settings screen: a ``ui.switch``
-    with no ``on_change`` unticked itself on screen and came back ticked
-    after "Save".
+    Without it, a ``ui.switch`` with no ``on_change``, unticked on screen,
+    comes back ticked after the form is saved.
     """
     attrs: dict[str, Any] = {"type": "hidden", "name": name, "value": "false"}
     if disabled:
@@ -238,9 +286,7 @@ def date_to_iso(value: Any, *, owner: str) -> str:
     message so the author sees WHICH component rejected the value.
 
     Single-sourced for the date family (Calendar, DatePicker,
-    DateRangePicker), which each carried a byte-identical private copy
-    differing only in that message (audit F50) — three copies of the
-    same coercion drifting independently.
+    DateRangePicker, WeekPicker).
     """
     if value is None:
         return ""
@@ -248,7 +294,7 @@ def date_to_iso(value: Any, *, owner: str) -> str:
         return value.isoformat()
     if isinstance(value, str):
         return value
-    raise ComponentDefinitionError(
+    raise ComponentUsageError(
         f"{owner} value must be date / None / str, "
         f"got {type(value).__name__}: {value!r}"
     )

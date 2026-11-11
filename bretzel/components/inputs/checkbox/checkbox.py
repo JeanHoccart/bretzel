@@ -17,7 +17,9 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.inputs._checkable import render_checkable, sized_slot
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.inputs._checkable import render_checkable
+from bretzel.components.inputs._wiring import CheckedCommands
 from bretzel.components.inputs.checkbox.theme import CHECKBOX_THEME
 from bretzel.core.tree import Element
 
@@ -26,7 +28,7 @@ from bretzel.core.tree import Element
 _CHECK_PATH = "M20 6 9 17l-5-5"
 
 
-class Checkbox(Component):
+class Checkbox(CheckedCommands, FocusCommands, Component):
     """Boolean toggle input with optional inline label."""
 
     THEME: ClassVar[dict[str, Any]] = CHECKBOX_THEME
@@ -35,7 +37,9 @@ class Checkbox(Component):
     IS_CONTAINER: ClassVar[bool] = False
     # Curated reactive surface — the boolean toggle + lock flag.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("checked", "disabled")
-    IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "toggle")
+    IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "toggle", "focus", "blur")
+    # Where ``autofocus=`` / ``.focus()`` land: the native ``<input>`` carries the id.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ()
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     checked: bool | Any = reactive_prop(default=False, writes=True, names_field=True)
@@ -48,11 +52,11 @@ class Checkbox(Component):
 
     def __init__(
         self,
+        label: str | Component | None = None,
         *,
         checked: Any = None,
         name: str | None = None,
         value: str | None = None,
-        label: str | None = None,
         disabled: bool | None = None,
         required: bool | None = None,
         color: str | None = None,
@@ -72,42 +76,18 @@ class Checkbox(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # ``adopt_slot`` + ``emit_text_slot`` are a COUPLE (cf.
-        # emit_text_slot's docstring): the 1st detaches the Component
-        # (otherwise rendered twice), the 2nd RENDERS it (otherwise it
-        # goes into TextNode() which expects a string → `'Text' object
-        # has no attribute 'replace'` at serialize). Doing one without
-        # the other swaps one bug for another.
-        self._label = Component.adopt_slot(label)
-
-    # ── Imperative write-only API ─────────────────────────────────────
-    #
-    # Methods returning client JS for ``on_click=``. Write-through when
-    # ``checked=`` carries a binding ; else DOM dispatch on the input
-    # listener. ``.set(bool)`` sets, ``.toggle()`` flips. Cf. `imperative-api.md`.
-
-    def set(self, value: bool) -> str:
-        return self._value_command(bool(value), prop="checked")
-
-    def toggle(self) -> str:
-        return self._toggle_command()
-
+        self._label = label
 
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        size_key = self._reactive_values.get("size") or "md"
-        size_map: dict[str, str] = (
-            self._resolved_theme().get("sizes", {}).get(size_key) or {}
-        )
-
         # The tick SVG — a single stroke, lucide style. Width/height
         # inherit the icon classes; the stroke comes from
         # ``currentColor``, set by the slot's ``--bz-on-solid`` step.
         svg = Element(
             tag="svg",
             attrs={
-                "class": sized_slot(self, "icon", size_map),
+                "class": self.compose_class("icon"),
                 "viewBox": "0 0 24 24",
                 "fill": "none",
                 "stroke": "currentColor",
@@ -121,11 +101,10 @@ class Checkbox(Component):
 
         return render_checkable(
             self,
-            size_map=size_map,
             visuals=(
                 Element(
                     tag="div",
-                    attrs={"class": sized_slot(self, "box", size_map)},
+                    attrs={"class": self.compose_class("box")},
                     children=(),
                 ),
                 svg,

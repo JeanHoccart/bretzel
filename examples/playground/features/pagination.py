@@ -99,7 +99,7 @@ def clear_log() -> None:
 def server_changed(state: PaginationPlayground) -> None:
     # Typed param → the dispatcher hydrates the changed
     # control's value into ``state`` (coerced + persisted).
-    # deps=[PaginationPlayground] re-renders server_panel automatically.
+    # server_panel reads the state, so it re-renders automatically.
     pass
 
 
@@ -188,7 +188,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[PaginationPlayground])
+@refreshable
 def server_panel() -> None:
     state = PaginationPlayground()
 
@@ -265,7 +265,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[PaginationEvents])
+@refreshable
 def events_panel() -> None:
     state = PaginationEvents()
 
@@ -728,7 +728,7 @@ def page() -> None:
                     ui.divider()
 
                     emitted_html_block(
-                        "Emitted HTML — @change relocated onto the "
+                        "Emitted HTML — the ``change`` handler relocated onto the "
                         "hidden input ; setActive dispatches change, "
                         "the client expression pushes the new page "
                         "number (as string).",

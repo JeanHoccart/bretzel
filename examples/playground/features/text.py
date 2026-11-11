@@ -108,7 +108,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[TextPlayground])
+@refreshable
 def server_panel() -> None:
     state = TextPlayground()
 

@@ -144,7 +144,11 @@ class TestBullet:
 
     def test_clickable_renders_buttons_that_move_the_index(self) -> None:
         out = _html(value=0, clickable=True)
-        assert out.count('bz-on:click="goTo(') == 3
+        # Three steps, each reached by its bullet AND its label; the
+        # bullet is named after the step (2026-10-29).
+        assert out.count('<button') == 3
+        assert out.count('bz-on:click="goTo(') == 6
+        assert 'aria-label="Step 1"' in out
 
     def test_disabled_step_is_inert_even_when_clickable(self) -> None:
         with render_isolated():
@@ -153,8 +157,10 @@ class TestBullet:
                 Step("B", disabled=True)
             out = serialize(s.render())
         assert "disabled" in out
-        # Le bouton désactivé n'embarque pas le geste.
-        assert out.count('bz-on:click="goTo(') == 1
+        # Le bouton désactivé n'embarque pas le geste — ni son libellé.
+        # L'étape A le porte deux fois : son rond et son libellé.
+        assert out.count('bz-on:click="goTo(') == 2
+        assert 'bz-on:click="goTo(1)"' not in out
 
 
 class TestPanels:
@@ -283,8 +289,11 @@ class TestAxes:
     def test_orientations_render_differently(self) -> None:
         assert _html(value=0, orientation="horizontal") != _html(value=0, orientation="vertical")
 
-    def test_unknown_orientation_falls_back_to_horizontal(self) -> None:
-        assert _html(value=0, orientation="sideways") == _html(value=0, orientation="horizontal")
+    def test_an_unknown_orientation_is_refused(self) -> None:
+        """It fell back on ``horizontal`` in silence until 2026-11-06: the
+        refusal off the table did not read ``orientations`` (R6)."""
+        with pytest.raises(ComponentUsageError, match="orientation='sideways'"):
+            _html(value=0, orientation="sideways")
 
     @pytest.mark.parametrize(
         "left,right",

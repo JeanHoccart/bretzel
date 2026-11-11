@@ -8,20 +8,14 @@ Component themes are plain dicts of the shape ::
         "sizes":    {"sm": "...", "md": "..."},
     }
 
-The values are **complete** Tailwind class strings. They have been since
-2026-08-30: until then they carried ``{bg_color}`` / ``{fg_color}``
-holes, filled at render time against the component's ``color=``. That
-mechanism was dropped with phase 5 of the colour-token project — themes
-now read STEPS (``bg-(--bz-bg)``), and it is the bridge class set on the
-root that says which colour it is (cf. :mod:`bretzel.theme.bridges`).
+The values are **complete** Tailwind class strings: themes read STEPS
+(``bg-(--bz-bg)``), and it is the bridge class set on the root that says
+which colour it is (cf. :mod:`bretzel.theme.bridges`). A template hole
+such as ``{bg_color}`` is **not a class**: the compiler cannot see it, so
+its closure would have to be computed for every shape × every colour. A
+step is a complete class.
 
-What the removal deleted, and why it was the right moment:
-``resolve_slot``, ``resolve_slot_or_keyword``, ``PLACEHOLDER_NAMES`` and
-``SHAPE_TOKEN_RE``. A hole is **not a class**: the compiler cannot see
-it, so its CLOSURE had to be computed — every shape × every colour,
-3 791 classes, 80 % of ``style.css``. A step is a complete class.
-
-This module now exposes:
+This module exposes:
 
 - :func:`merge_component_themes`: non-mutating deep merge of the user's
   overrides onto a base theme.
@@ -45,7 +39,7 @@ from bretzel.theme.palette import Palette, ThemeError
 #: This set is read in TWO places that must agree — the BRIDGE generator
 #: (``theme/bridges.py``, which decides which bridge classes exist in the
 #: CSS) and the base layer's refusal
-#: (``components/base/_wiring._refuse_unknown_color``, which decides
+#: (``base/theme_values.refuse_unknown_color``, which decides
 #: which names the render may emit). Making them read the SAME constant
 #: is what forbids a colour from being emitted without a bridge: what
 #: has no rule here is refused there.
@@ -182,7 +176,7 @@ def validate_component_overrides(
                 raise ThemeError(
                     f"Theme(components={{{name!r}: {{{group!r}: …}}}}) : "
                     f"`{name}` has no `{group}` group. Its groups: "
-                    f"{', '.join(sorted(groups)) or '(aucun)'}."
+                    f"{', '.join(sorted(groups)) or '(none)'}."
                 )
             if group != CLOSED_GROUP or not isinstance(entries, Mapping):
                 continue
@@ -190,7 +184,7 @@ def validate_component_overrides(
             if unknown:
                 raise ThemeError(
                     f"Theme(components={{{name!r}: {{'slots': …}}}}) : "
-                    f"`{name}` ne compose aucun slot {unknown}. Ses slots : "
+                    f"`{name}` composes no slot {unknown}. Its slots: "
                     f"{', '.join(sorted(groups[group])) or '(none)'}. A "
                     f"slot is composed by the component's code, so a name "
                     f"it does not know is dead: nothing in the app can "

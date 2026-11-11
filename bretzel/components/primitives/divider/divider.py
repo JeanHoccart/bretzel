@@ -22,25 +22,22 @@ class Divider(Component):
     THEME: ClassVar[dict[str, Any]] = DIVIDER_THEME
     THEME_KEY: ClassVar[str] = "divider"
     IS_CONTAINER: ClassVar[bool] = False
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("label",)
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
 
     orientation: str = reactive_prop(default="horizontal", emit_attr=False)
     color: str = reactive_prop(default="muted", emit_attr=False)
 
     def __init__(
         self,
+        label: str | Component | ClientBinding | None = None,
         *,
         orientation: str | None = None,
-        label: str | ClientBinding | None = None,
         color: str | None = None,
         **kwargs: Any,
     ) -> None:
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(orientation=orientation, color=color, **kwargs)
-        # ``adopt_slot`` + ``emit_text_slot`` go together : the 1st detaches a
-        # Component (else rendered 2×), the 2nd RENDERS it (else it hits
-        # ``TextNode()`` which expects a string → crash at serialize).
-        self._label = Component.adopt_slot(label)
+        self._label = label
 
     def render(self) -> Element:
         theme = self._resolved_theme()

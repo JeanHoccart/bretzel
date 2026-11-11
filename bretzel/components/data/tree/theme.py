@@ -10,7 +10,7 @@ grammar is deliberately close to a file explorer :
   loses to the ``<iconify-icon>`` baked-in ``inline-flex`` AND matches
   *any* ancestor ``.group`` in a recursive tree (a node's chevron would
   react to its parents). ``bz-show`` sets inline ``display`` keyed to
-  *this* node's ``isOpen(id)``. Cf. ``.claude/bretzel/traps.md``.
+  *this* node's ``isOpen(id)``.
 - **indicator cell** — the chevron (branch) and the leaf placeholder
   share ONE fixed-width cell so branch labels and leaf labels line up.
   The ``<iconify-icon>`` glyph is font-size-sized (~1em), so a bare
@@ -25,7 +25,7 @@ grammar is deliberately close to a file explorer :
   the initially-selected node and kept reactive via
   ``bz-attr:data-selected`` (SSR-first, no flash). The mark is an accent
   BAR on the row's left edge, drawn by ``::before``: the tint alone
-  measured 1.03 to 1.19:1 against the page or a card, and the coloured
+  barely stands out against the page or a card, and the coloured
   bold label is no indicator a glance can find. The bar is in
   ``--bz-text``, the step held readable on both themes, like the toggle
   group's underline.
@@ -48,10 +48,8 @@ TREE_THEME: dict[str, Any] = {
         # text (dragging a selection across a tree is never intended).
         # No ``w-full``: a block-level ``flex`` already fills a column or
         # a block, and in an ``hstack`` the tree takes its nodes' width
-        # instead of the whole row — where ``w-full`` also fought a
-        # caller's ``classes="w-60"`` at equal specificity. Measured over
-        # the example apps on 2026-09-29: one tree in thirty changed, in
-        # a centred row, for the better.
+        # instead of the whole row — where ``w-full`` would also fight a
+        # caller's ``classes="w-60"`` at equal specificity.
         "root": "flex flex-col text-text select-none",
         # Nested <ul role="group"> — same column, no extra chrome (the
         # indent lives on each row, not on the group).
@@ -61,7 +59,7 @@ TREE_THEME: dict[str, Any] = {
         # ``data-[selected=true]`` selectors read the row's OWN attribute.
         "row": (
             "relative flex items-center gap-1.5 w-full rounded-selector "
-            "cursor-pointer outline-none transition-colors duration-150 "
+            "cursor-pointer outline-none "  # no fade: a row lights at once
             # The selection bar — every row carries the pseudo-element,
             # only the selected one paints it.
             # Gate: ``tests/runtime_js/test_a_selection_is_visible.py``.
@@ -69,7 +67,7 @@ TREE_THEME: dict[str, Any] = {
             # indent grows from, which flips in a right-to-left language.
             "before:absolute before:start-0 before:inset-y-1 "
             "before:w-(length:--bz-stroke-strong) before:rounded-full "
-            "data-[selected=true]:before:bg-(--bz-text) "
+            "data-[selected=true]:before:bg-(--bz-solid) "
             "focus-visible:ring-2 focus-visible:ring-inset "
             "focus-visible:ring-(--bz-focus) "
             "hover:bg-text/5 "
@@ -106,8 +104,8 @@ TREE_THEME: dict[str, Any] = {
         # Optional per-node leading icon.
         "icon": "shrink-0 text-muted",
         # Label — truncates rather than wrapping (rows stay one line).
-        # ``min-w-0``: the ellipsis needs a bound, and it is no longer the
-        # root's ``w-full`` — the row's flex item must be allowed to give.
+        # ``min-w-0``: the ellipsis needs a bound — the row's flex item
+        # must be allowed to give.
         "label": "truncate min-w-0",
     },
     # Per-size : row padding + font, icon / chevron glyph size, the shared

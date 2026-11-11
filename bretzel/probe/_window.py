@@ -103,7 +103,7 @@ class Window:
         if not request.url.startswith(self._base):
             return
         # `eventsource` is deliberately excluded: the SSE stream of a
-        # `broadcast=` zone never closes, and counting it would make any
+        # page showing a shared state never closes, and counting it would make any
         # per-gesture count lie.
         if request.resource_type not in ("fetch", "xhr", "document"):
             return
@@ -117,14 +117,13 @@ class Window:
             # Without this refusal, Playwright returns "Cannot navigate
             # to invalid URL" with the full stack. The case happens for
             # real: under Git Bash, a `--route /x` is rewritten to a
-            # Windows path before even reaching Python (measured on
-            # 2026-09-10).
+            # Windows path before even reaching Python.
             raise ValueError(
                 f"a route starts with \"/\" — got {path!r}. Under Git "
                 "Bash, prefix the command with MSYS_NO_PATHCONV=1."
             )
-        # `wait_until="load"` and not `networkidle`: a page carrying a
-        # `broadcast=` zone opens an EventSource, so network idleness
+        # `wait_until="load"` and not `networkidle`: a page showing a
+        # shared state opens an EventSource, so network idleness
         # never happens and the goto expires at 30 s.
         self.page.goto(self._base + path, wait_until="load")
         # `load` has already passed: nothing is debouncing, so the
@@ -159,15 +158,22 @@ class Window:
         # moves on the spot, which the engine absorbs.
         cx, cy = self.box(dst).center
         self._glide(bx, by, cx, cy)
-        self._assert_landed(dst)
+        self._assert_landed(dst, cx, cy)
         mouse.up()
+        # The runtime swallows the click that ends a drag, for a moment
+        # (``$bz.gesture.SWALLOW_MS``): a browser may fire none, and the
+        # NEXT click would go. No hand clicks again within it; a script
+        # does — a click sent at once after a drop is eaten and posts
+        # nothing. Give the window back.
+        self.page.wait_for_timeout(self.page.evaluate(
+            "() => (window.$bz && $bz.gesture && $bz.gesture.SWALLOW_MS) || 0") + 50)
 
     #: Where the element being dragged is, at this instant. The engine
     #: sets ``data-bz-dragging`` when the gesture opens and removes it on
     #: release, so that window is the only one where the question has an
     #: answer.
     _LANDED_JS = """
-    (sel) => {
+    ([sel, x, y]) => {
         const item = document.querySelector('[data-bz-dragging]');
         // No NODE drag in progress: a slider's thumb, a `ui.resizable`
         // handle… Nothing to check, and above all nothing to refuse.
@@ -175,6 +181,18 @@ class Window:
         const target = document.querySelector(sel);
         if (!target) return null;
         const zone = item.closest('[data-bz-dropzone]');
+        // A terminal zone (archive, delete) never hosts the card: over
+        // it, the engine hides the card where it came from and only the
+        // floating preview remains. Landed = the card has stepped aside
+        // AND the pointer is over the target.
+        if (target.hasAttribute('data-bz-terminal')) {
+            const r = target.getBoundingClientRect();
+            return {
+                ok: item.style.display === 'none'
+                    && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom,
+                zone: zone ? zone.getAttribute('data-bz-dropzone') : null,
+            };
+        }
         return {
             ok: target.contains(item),
             zone: zone ? zone.getAttribute('data-bz-dropzone') : null,
@@ -182,7 +200,7 @@ class Window:
     }
     """
 
-    def _assert_landed(self, dst: str) -> None:
+    def _assert_landed(self, dst: str, x: float, y: float) -> None:
         """Just before releasing: is the element INSIDE the target?
 
         Re-aiming is not enough to guarantee it. It is provable for
@@ -198,7 +216,7 @@ class Window:
         is the half re-aiming was missing, and it already existed by hand
         in ``probe_kanban``.
         """
-        landed = self.page.evaluate(self._LANDED_JS, dst)
+        landed = self.page.evaluate(self._LANDED_JS, [dst, x, y])
         if landed is None or landed["ok"]:
             return
         self.page.mouse.up()  # never leave a button held down behind us
@@ -274,10 +292,8 @@ class Window:
 
         ``count()`` is a snapshot, and a probe nearly always acts on
         something a previous gesture has just brought up. Refusing
-        immediately forced every caller to precede its click with a
-        hand-written wait: measured while porting ``probe_messagerie`` on
-        2026-09-11, six times in a single file, for a button that arrived
-        200 ms later.
+        immediately would force every caller to precede its click with a
+        hand-written wait.
 
         It really is a STATE wait, not a duration: it hands back as soon
         as the node is attached. The ceiling is only there to say "it is

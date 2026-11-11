@@ -14,12 +14,14 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.inputs._checkable import render_checkable, sized_slot
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.inputs._checkable import render_checkable
+from bretzel.components.inputs._wiring import CheckedCommands
 from bretzel.components.inputs.switch.theme import SWITCH_THEME
 from bretzel.core.tree import Element
 
 
-class Switch(Component):
+class Switch(CheckedCommands, FocusCommands, Component):
     """Boolean toggle rendered as a sliding rail."""
 
     THEME: ClassVar[dict[str, Any]] = SWITCH_THEME
@@ -28,7 +30,9 @@ class Switch(Component):
     IS_CONTAINER: ClassVar[bool] = False
     # Curated reactive surface — the boolean toggle + lock flag.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("checked", "disabled")
-    IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "toggle")
+    IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "toggle", "focus", "blur")
+    # Where ``autofocus=`` / ``.focus()`` land: the native ``<input>`` carries the id.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ()
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     checked: bool | Any = reactive_prop(default=False, writes=True, names_field=True)
@@ -40,11 +44,11 @@ class Switch(Component):
 
     def __init__(
         self,
+        label: str | Component | None = None,
         *,
         checked: Any = None,
         name: str | None = None,
         value: str | None = None,
-        label: str | None = None,
         disabled: bool | None = None,
         color: str | None = None,
         size: str | None = None,
@@ -62,45 +66,20 @@ class Switch(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # ``adopt_slot`` + ``emit_text_slot`` are a COUPLE (cf.
-        # emit_text_slot's docstring): the 1st detaches the Component
-        # (otherwise rendered twice), the 2nd RENDERS it (otherwise it
-        # goes into TextNode() which expects a string → `'Text' object
-        # has no attribute 'replace'` at serialize). Doing one without
-        # the other swaps one bug for another.
-        self._label = Component.adopt_slot(label)
-
-    # ── Imperative write-only API ─────────────────────────────────────
-    #
-    # Same contract as Checkbox — see ``Checkbox._imperative_*`` and
-    # `imperative-api.md`. Switch is a visual variant of the same
-    # bool toggle, so the API stays uniform.
-
-    def set(self, value: bool) -> str:
-        return self._value_command(bool(value), prop="checked")
-
-    def toggle(self) -> str:
-        return self._toggle_command()
-
+        self._label = label
 
     def render(self) -> Element:
-        size_key = self._reactive_values.get("size") or "md"
-        size_map: dict[str, str] = (
-            self._resolved_theme().get("sizes", {}).get(size_key) or {}
-        )
-
         return render_checkable(
             self,
-            size_map=size_map,
             visuals=(
                 Element(
                     tag="div",
-                    attrs={"class": sized_slot(self, "track", size_map)},
+                    attrs={"class": self.compose_class("track")},
                     children=(),
                 ),
                 Element(
                     tag="span",
-                    attrs={"class": sized_slot(self, "thumb", size_map)},
+                    attrs={"class": self.compose_class("thumb")},
                     children=(),
                 ),
             ),

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.charts.line_chart.line_chart import LineChart
 from bretzel.components.charts.series import Series
@@ -82,7 +84,7 @@ class TestLineChart:
         with render_isolated():
             default = serialize(LineChart(SAMPLE).render())
             sharp = serialize(LineChart(SAMPLE, smooth=False).render())
-        # Smooth default emits a Catmull-Rom path (cubic Béziers).
+        # Smooth default emits a monotone cubic path (Béziers).
         # Look for the ``C`` Bézier command inside a path's ``d=``
         # attribute — anchoring on the leading ``"d="`` keeps the
         # check robust against the word ``currentColor`` appearing
@@ -231,15 +233,18 @@ class TestLineChart:
         assert "bz-c-secondary" in out
         assert "bz-c-info" in out
 
-    def test_multi_series_with_mismatched_x_raises(self) -> None:
-        import pytest
+    def test_multi_series_on_different_x_draw_side_by_side(self) -> None:
+        # Until 2026-11-07 this raised (« must share the same x values »):
+        # a stock and an index with different holidays could not be
+        # drawn together. Each series now keeps its own x (cf.
+        # test_line_chart_gaps.py).
         series = [
             Series(name="A", data=[(0, 1), (1, 2)]),
-            Series(name="B", data=[(0, 3), (5, 4)]),  # mismatched x
+            Series(name="B", data=[(0, 3), (5, 4)]),
         ]
         with render_isolated():
-            with pytest.raises(ValueError, match="same x values"):
-                LineChart(series).render()
+            out = serialize(LineChart(series).render())
+        assert out.count("<path") >= 2
 
     def test_y_format_currency_in_tooltip_displays(self) -> None:
         with render_isolated():
@@ -249,15 +254,17 @@ class TestLineChart:
         assert "$" in out
         assert "data-bz-display=" in out
 
-    def test_no_bindable_props(self) -> None:
-        assert LineChart.BINDABLE_PROPS == ()
+    def test_binds_only_its_displayed_contents(self) -> None:
+        # The data flows through @refreshable; only the displayed contents
+        # (the empty state's words and icon) bind, by construction (2026-11-06).
+        assert set(LineChart.BINDABLE_PROPS) - set(LineChart.__displayed_props__) == set()
 
     def test_reference_lines_render_threshold_and_label(self) -> None:
         from bretzel.components.charts.reference import Reference
         with render_isolated():
             out = serialize(LineChart(
                 SAMPLE,
-                reference_lines=[Reference(value=10, label="Goal",
+                y_reference_lines=[Reference(value=10, label="Goal",
                                            color="success")],
             ).render())
         # Refs ride in a dedicated ``<g class="bz-line-refs">`` so
@@ -289,6 +296,35 @@ class TestLineChart:
         # Sub-day span → "HH:MM" formatter.
         assert "00:00" in out or "12:00" in out
 
+    def test_the_last_24_hours_read_in_hours(self) -> None:
+        """A point at each end of the day: the span is 24 h exactly, and
+        it read the same day under every tick until 2026-11-07."""
+        from datetime import datetime, timedelta
+        end = datetime(2026, 11, 7, 20, 30)
+        data = [(end - timedelta(minutes=5 * i), 1.0 + (i % 7) / 10) for i in range(289)]
+        with render_isolated():
+            out = serialize(LineChart(data).render())
+        assert re.search(r">\d\d:\d\d<", out), "the ticks of a 24-hour window are not hours"
+
+    def test_a_day_is_graduated_on_whole_hours(self) -> None:
+        """Nice numbers of SECONDS read « 22h20, 3h53, 9h26 » on a day;
+        a time axis stops on whole hours (2026-11-07)."""
+        from datetime import datetime, timedelta
+        from bretzel.components.charts._svg import compute_time_ticks
+        end = datetime(2026, 11, 7, 20, 30)
+        ticks = compute_time_ticks((end - timedelta(hours=24)).timestamp(), end.timestamp())
+        moments = [datetime.fromtimestamp(t) for t in ticks]
+        assert 3 <= len(moments) <= 6
+        assert all(m.minute == 0 and m.hour % 6 == 0 for m in moments), moments
+
+    def test_a_week_is_graduated_on_midnights(self) -> None:
+        from datetime import datetime, timedelta
+        from bretzel.components.charts._svg import compute_time_ticks
+        end = datetime(2026, 11, 7, 20, 30)
+        ticks = compute_time_ticks((end - timedelta(days=7)).timestamp(), end.timestamp())
+        assert all(datetime.fromtimestamp(t).hour == 0 for t in ticks)
+        assert 3 <= len(ticks) <= 6
+
     def test_explicit_x_format_wins_over_date_auto_detect(self) -> None:
         from datetime import date
         data = [(date(2026, 1, i + 1), i) for i in range(5)]
@@ -307,7 +343,7 @@ class TestLineChart:
         with render_isolated():
             out = serialize(LineChart(
                 SAMPLE,
-                reference_lines=[(8, "Baseline"), (15, "Target", "warning")],
+                y_reference_lines=[(8, "Baseline"), (15, "Target", "warning")],
             ).render())
         assert ">Baseline" in out
         assert ">Target" in out
@@ -326,13 +362,11 @@ class TestLineChart:
     def test_x_ticks_clamped_to_data_domain(self) -> None:
         # compute_ticks(0, 11) returns [0, 5, 10, 15] — the 15 used to
         # render past plot_right as an orphan x-label. The filter in
-        # _render_x_axis_labels keeps only ticks inside [xmin, xmax].
+        # render_x_axis_labels keeps only ticks inside [xmin, xmax].
         # Y stays in a small range so the y-axis can't add a "15" label
         # back via its own (snapped) tick bracket.
-        from bretzel.components.charts.line_chart.line_chart import (
-            _render_x_axis_labels,
-        )
-        ticks_html_in = _render_x_axis_labels(
+        from bretzel.components.charts._layers import render_x_axis_labels
+        ticks_html_in = render_x_axis_labels(
             slot=lambda _name: "",
             xmin=0, xmax=11, x_scale=lambda v: v,
             plot_bottom=200, axis_font=12, x_format=None,

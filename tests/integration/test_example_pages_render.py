@@ -33,54 +33,21 @@ handlers marchent. C'est le plancher, et il n'existait pas.
 
 from __future__ import annotations
 
-import importlib
-import pkgutil
 import re
 from collections import Counter
 
 import pytest
-from starlette.testclient import TestClient
 
-
-def _playground_paths() -> list[str]:
-    """Les chemins déclarés par les features, découverts et non listés.
-
-    Une liste écrite à la main ne couvrirait que ce qu'on a pensé à y
-    mettre — et la page suivante naîtrait hors gate.
-    """
-    import examples.playground.features as features
-
-    paths: set[str] = set()
-    for mod_info in pkgutil.iter_modules(features.__path__):
-        module = importlib.import_module(
-            f"examples.playground.features.{mod_info.name}"
-        )
-        path = getattr(module, "PATH", None)
-        if isinstance(path, str):
-            paths.add(path)
-    return sorted(paths)
-
-
-PLAYGROUND_PATHS = _playground_paths()
-
-
-@pytest.fixture(scope="module")
-def playground_client():
-    from examples.playground.main import app
-
-    # ``raise_server_exceptions=False`` : on veut le CODE, pas une
-    # exception qui interrompt le paramétrage au premier échec. Sans ça
-    # la première page cassée masque toutes les suivantes, et on répare
-    # en aveugle, une par une.
-    with TestClient(app, raise_server_exceptions=False) as client:
-        yield client
+# Discovered and rendered ONCE per process, for this file and the two
+# gates that read the same pages (``tests/_playground_pages.py``).
+from tests._playground_pages import PLAYGROUND_PATHS, page
 
 
 @pytest.mark.parametrize("path", PLAYGROUND_PATHS)
-def test_playground_page_renders(playground_client, path: str) -> None:
-    response = playground_client.get(path)
-    assert response.status_code == 200, (
-        f"{path} renvoie {response.status_code}. Une page du playground "
+def test_playground_page_renders(path: str) -> None:
+    status = page(path).status
+    assert status == 200, (
+        f"{path} renvoie {status}. Une page du playground "
         f"qui ne rend pas n'est vue par AUCUNE autre suite : les tests "
         f"d'import s'arrêtent à l'import, les gates de surface lisent "
         f"l'AST, et les suites navigateur tournent à part. Lance "
@@ -125,8 +92,8 @@ _BZ_ID = re.compile(r'(?<![\w:-])bz-id="([^"]+)"')
 
 
 @pytest.mark.parametrize("path", PLAYGROUND_PATHS)
-def test_page_has_no_duplicate_bz_id(playground_client, path: str) -> None:
-    html = playground_client.get(path).text
+def test_page_has_no_duplicate_bz_id(path: str) -> None:
+    html = page(path).html
     dupes = {k: n for k, n in Counter(_BZ_ID.findall(html)).items() if n > 1}
     assert not dupes, (
         f"{path} : {len(dupes)} valeur(s) de `bz-id` en double — "
@@ -149,13 +116,16 @@ _HTML_ID = re.compile(r'(?<![\w:-])id="([^"]+)"')
 #: Dette MESURÉE le 2026-08-15 : 1 page sur 74. L'id se répète sur trois
 #: lignes d'une table — même famille que le défaut ``key_segment`` déjà
 #: documenté plus haut (un conteneur qui ne pousse pas son identité), et
-#: antérieure à cette gate. Déclarée plutôt que tolérée en silence :
-#: chantier dans ``.claude/work/todo.md``.
-_HTML_ID_DEBT: dict[str, int] = {"/sparkline": 1}
+#: antérieure à cette gate. Déclarée plutôt que tolérée en silence.
+_HTML_ID_DEBT: dict[str, int] = {}
+# ``/sparkline`` left the debt on 2026-11-06: a KEYLESS table named every
+# row ``<table>__row_<table>`` (``Table.render`` read its own segment as
+# the row key). Since then a page renders no id twice in dev
+# (``render/ids.py``), on every app, not only the playground.
 
 
 @pytest.mark.parametrize("path", PLAYGROUND_PATHS)
-def test_page_has_no_duplicate_html_id(playground_client, path: str) -> None:
+def test_page_has_no_duplicate_html_id(path: str) -> None:
     """Le pendant du test ci-dessus, sur l'``id`` HTML — et il manquait.
 
     ``bz-id`` et ``id`` sont DEUX identités, gardées par deux mécanismes.
@@ -175,7 +145,7 @@ def test_page_has_no_duplicate_html_id(playground_client, path: str) -> None:
     d'ouvrir le menu, deux fois de suite, et AUCUNE gate ne l'a vu : celle
     des ``bz-id`` ne couvre pas les ``id``, et rien ne cliquait.
     """
-    html = playground_client.get(path).text
+    html = page(path).html
     dupes = {k: n for k, n in Counter(_HTML_ID.findall(html)).items() if n > 1}
     allowed = _HTML_ID_DEBT.get(path, 0)
     assert len(dupes) <= allowed, (

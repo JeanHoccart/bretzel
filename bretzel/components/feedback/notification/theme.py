@@ -1,7 +1,7 @@
 """Default theme for the ``ui.notification`` toast helper.
 
 Notification is the only feedback component whose visible DOM is
-managed by the runtime (``bretzel/runtime/_src/09_notification.js``)
+managed by the runtime (``bretzel/components/feedback/notification/notification.js``)
 rather than Python — there's no ``Component`` to mount, no render()
 to call. The runtime owns the per-toast chrome.
 
@@ -20,10 +20,9 @@ runtime via :func:`runtime_payload` and injected into the shell as
 reads from there instead of carrying its own hardcoded maps.
 
 Four variants — ``info`` / ``success`` / ``warning`` / ``error`` —
-mirror the Alert family. The notification's API uses ``variant=``
-rather than ``color=`` because the JIT constraint forbids dynamic
-``bg-{color}/10`` substitution at runtime ; the four variants are
-the pre-compiled set the framework ships. App developers can
+mirror the Alert family, and are the only values ``color=`` takes: the
+JIT constraint forbids dynamic ``bg-{color}/10`` substitution at runtime ;
+the four are the pre-compiled set the framework ships. App developers can
 override individual entries in the theme to customise the look or
 add app-specific variants — Tailwind picks them up at the next
 rebuild because the strings still live in ``.py`` files.
@@ -87,9 +86,9 @@ NOTIFICATION_THEME: dict[str, Any] = {
     # them here makes per-app tweaks possible without touching the
     # runtime JS.
     "slots": {
-        # No animation classes here — the enter / leave keyframes live in
-        # the shell (``_NOTIFICATION_ANIM_STYLE``) and are applied via
-        # ``bz-toast-enter`` / ``bz-toast-leave`` in ``notification.py``.
+        # No animation classes here — the enter keyframe lives in the
+        # shell (``_NOTIFICATION_ANIM_STYLE``) and is applied via
+        # ``bz-toast-enter`` in ``notification.py``; the leave is instant.
         # ``border`` gives the 1px stroke on all sides ; its colour comes
         # from the variant string (``border-{c}/40``) merged on top.
         "root": (
@@ -130,6 +129,7 @@ NOTIFICATION_THEME: dict[str, Any] = {
 # sync with ``NOTIFICATION_THEME["variants"]`` keys — the helper
 # validates against this so a typo surfaces immediately.
 VARIANTS: tuple[str, ...] = tuple(NOTIFICATION_THEME["variants"].keys())
+POSITIONS: tuple[str, ...] = tuple(NOTIFICATION_THEME["positions"].keys())
 
 
 def runtime_payload() -> dict[str, Any]:

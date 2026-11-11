@@ -1,7 +1,7 @@
 """``/skeleton`` — the shape of what is about to load."""
 
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("Grey shapes that hold the layout while data loads — lines, "
@@ -46,45 +46,27 @@ def still() -> None:
                             animated=False)
 
 
-class Article(PageState):
+class Article(ClientState):
     loaded: bool = field(default=False)
 
 
-def load_article() -> None:
-    Article().loaded = True
-
-
-def unload_article() -> None:
-    Article().loaded = False
-
-
-@refreshable(deps=[Article])
-def article() -> None:
+def loading_then_loaded() -> None:
     loaded = Article().loaded
     with ui.vstack(gap="md", classes="w-full max-w-md"):
-        with ui.card(padding="md"), ui.vstack(gap="sm"):
-            if loaded:
+        with ui.card(padding="md"):
+            with ui.vstack(gap="sm", visible=loaded):
                 ui.heading("Closing the books in three days", level=3,
                            size="md")
                 ui.text("How the finance team at Atlas Freight cut its "
                         "month-end from nine days to three, with one shared "
                         "checklist and no new software.", color="muted")
-            else:
+            with ui.vstack(gap="sm", visible=~loaded):
                 ui.skeleton(variant="text", width="70%", height="1.5rem")
                 ui.skeleton(variant="text", width="100%")
                 ui.skeleton(variant="text", width="85%")
-        if loaded:
-            ui.button("Show the skeleton", variant="ghost", size="sm",
-                      icon_left="rotate-ccw", on_click=unload_article,
-                      classes="self-center")
-        else:
-            ui.button("Load the article", variant="soft", size="sm",
-                      icon_left="download", on_click=load_article,
-                      classes="self-center")
-
-
-def loading_then_loaded() -> None:
-    article()
+        ui.button(loaded.then_else("Show the skeleton", "Load the article"),
+                  variant="soft", size="sm", on_click=loaded.toggle(),
+                  classes="self-center")
 
 
 def page() -> None:
@@ -99,6 +81,7 @@ def page() -> None:
     example("Without the shimmer", still,
             note="animated=False for places where movement would distract.")
     example("Swapped for the real content", loading_then_loaded,
-            uses=[Article, load_article, unload_article, article],
-            note="The same zone renders the placeholder or the article, "
-                 "depending on a server state.")
+            uses=[Article],
+            note="visible= follows a ClientState flag: the placeholder and "
+                 "the article swap in the browser. In an app, the article "
+                 "arrives when its zone re-renders.")

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bretzel"
-version = "0.1.0a4"
+version = "0.1.0a5"
 description = "Full-stack Python web framework: server-driven UI, typed state, 100+ components, zero npm."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -39,7 +39,6 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "watchfiles>=0.24",           # dev watcher (bretzel/server/_dev.py)
     "pydantic>=2.9",
-    "redis[hiredis]>=5.2",
     "starlette>=0.41",
     "itsdangerous>=2.2",          # session signing
     "python-multipart>=0.0.20",   # form parsing
@@ -58,6 +57,8 @@ dev = [
     "mypy>=1.13",
     "fakeredis>=2.26",
     "pre-commit>=4.0",
+    "beautifulsoup4>=4.12",      # tests/integration/server/test_a_zone_inside_a_composing_parent_is_refused.py
+    "lxml>=5.0",                 # its parser
 ]
 # Compilateur Tailwind — nécessaire pour ``css="build"`` (le défaut en
 # prod). Sans lui, l'app retombe sur le compilateur navigateur en le
@@ -69,6 +70,14 @@ dev = [
 # l'extra de la 0.1.0a2 ne s'installait pas.
 css = [
     "tailwindcss-bin>=4.1",
+]
+# Plusieurs workers d'une même app : état, relais SSE, verrous et
+# ``@idempotent`` partagés par Redis (``redis_url``). Extra et non
+# dépendance : avec un seul processus tout reste en mémoire, et aucune
+# app du dépôt ne règle ``redis_url`` (2026-11-11). Importé seulement
+# quand il sert (``state/persistence/redis.require_redis``).
+redis = [
+    "redis[hiredis]>=5.2",
 ]
 # ``bretzel probe`` — le framework pilote sa propre app dans un vrai
 # navigateur. Extra et jamais dépendance d'exécution : Playwright
@@ -114,7 +123,7 @@ target-version = "py312"
 # ``ruff check .`` nu illisible (3 795 constats dont 88 % intouchables),
 # donc jamais lancé. Ceux de bretzel/ sont gelés par
 # ``tests/consistency/_ruff_baseline.txt`` ; tests/ n'a pas de base.
-extend-exclude = [".venv", "__pycache__", "examples", "archive"]
+extend-exclude = [".venv", "__pycache__", "examples", "archive", "product"]
 
 [tool.ruff.lint]
 select = [
@@ -213,6 +222,12 @@ testpaths = ["tests"]
 # warning when it isn't installed).
 addopts = [
     "--strict-markers",
+    # Parallel by default: 10–13 min on one process, 3 min 21 s on 8
+    # (2026-11-03). ``loadfile`` keeps a file on one worker, so its
+    # module fixtures are paid once; the ceiling and the heavy suites'
+    # single process live in ``tests/conftest.py``. ``-n 0`` to debug.
+    "-n", "auto",
+    "--dist", "loadfile",
     "--tb=short",
     # Default invocation = fast unit + integration. The e2e suite holds
     # an event loop alive on the main thread (Playwright's sync bridge)
@@ -220,7 +235,7 @@ addopts = [
     # ``asyncio.new_event_loop().run_until_complete()`` pattern unit
     # tests use. Run them in a separate invocation :
     #
-    #   pytest                       # fast feedback (this file), ~3 min
+    #   pytest                       # fast feedback (this file), ~3.5 min on 8 processes
     #   pytest -m e2e                # full-stack with browser (tests/e2e/), ~2 min
     #   pytest -m browser            # runtime_js WITHOUT the audit, ~10 min
     #   pytest -m audit -n 4         # the per-component visual audit, ~9 min

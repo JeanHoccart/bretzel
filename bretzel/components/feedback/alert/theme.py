@@ -15,8 +15,7 @@ Slots :
 - ``title``    : semibold heading line
 - ``message``  : the actual prose
 - ``dismiss``  : slot of the closing ``×`` ``<button>`` — built by
-  ``dismiss_button`` (``base/_wiring.py``), **no longer** by a ghost
-  IconButton as it once was
+  ``dismiss_button`` (``base/``)
 """
 
 from __future__ import annotations
@@ -32,18 +31,15 @@ ALERT_THEME: dict[str, Any] = {
         "root": (
             "flex items-center gap-3 w-full "
             "rounded-box border-(length:--bz-stroke) px-4 py-3 "
-            # ⚠️ It carried ``transition-opacity duration-200``, which
-            # animated nothing: the dismiss sets ``bz-show``, so a
-            # ``display:none`` — measured on 2026-09-04, opacity 1 until
-            # it disappeared, in two frames.
+            # ⚠️ No ``transition-opacity``: it would animate nothing, the
+            # dismiss sets ``bz-show``, so a ``display:none``.
             #
-            # The panels' remedy (``starting:opacity-0`` +
-            # ``transition-discrete``) does NOT hold here: an alert is IN
+            # The panels' remedy (``starting:opacity-0``, an entry
+            # fade) does NOT hold here: an alert is IN
             # the flow, so a fade with no height collapse would leave a
-            # hole during the animation. The class goes. The day we want
-            # the exit animated, it is the HEIGHT that must be treated,
-            # not the opacity.
-            "bg-(--bz-bg) border-(--bz-solid)/20 text-(--bz-text)"
+            # hole during the animation. An animated exit has to treat
+            # the HEIGHT, not the opacity.
+            "bg-(--bz-bg) border-(--bz-border) text-(--bz-text)"
         ),
         # ``leading-none`` neutralises the icon font's line-height so the
         # wrapper hugs the glyph and the centering math works out.

@@ -189,7 +189,8 @@ class TestReactiveText:
 
 class TestBindableSurface:
     def test_bindable_props(self) -> None:
-        assert set(EmptyState.BINDABLE_PROPS) == {"title", "description"}
+        # The icon too since 2026-11-06 (every icon slot of the catalogue).
+        assert set(EmptyState.BINDABLE_PROPS) == {"title", "description", "icon"}
 
     def test_is_container(self) -> None:
         assert EmptyState.IS_CONTAINER is True

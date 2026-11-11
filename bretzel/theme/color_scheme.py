@@ -7,7 +7,7 @@ icons, …). The framework guarantees the state exists in the browser :
 
 - the FOUC script (``bretzel/render/shell.py``) applies the initial
   ``.dark`` class from localStorage before first paint ;
-- the runtime (``bretzel/runtime/_src/00_index.js`` boot) always
+- the runtime (``bretzel/runtime/_src/index.js`` boot) always
   registers the ``local`` persistence adapter, seeds the default, and
   runs the effect that keeps ``<html>.dark`` in sync **live** — on every
   mode change AND on OS-preference change while ``mode == "system"``.
@@ -79,13 +79,10 @@ class ColorScheme(ClientState, persist="local"):
         to ``"light"`` on a dark OS, and to ``"dark"`` on a light one:
         the first click always changes something on screen.
 
-        ⚠️ It compared the TOKEN until 2026-09-04
-        (``mode === 'dark' ? 'light' : 'dark'``), and that was defensible
-        in writing — "strictly two states". But a user on ``"system"``
-        with a dark OS saw their first click write ``"dark"``, which is
-        *already* what is painted: the control did nothing one time in
-        two. Reported as "the button does not work". Measured on both
-        demo apps.
+        ⚠️ Comparing the TOKEN (``mode === 'dark' ? 'light' : 'dark'``)
+        would be wrong: a user on ``"system"`` with a dark OS would see
+        their first click write ``"dark"``, which is *already* what is
+        painted, and the control would do nothing.
 
         It stays two-state: after a click, ``mode`` is ``"light"`` or
         ``"dark"``, and there is no going back to ``"system"``. To offer

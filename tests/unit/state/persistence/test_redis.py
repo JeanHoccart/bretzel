@@ -101,7 +101,7 @@ class TestFromUrl:
         def fake_from_url(url: str, **kwargs: object) -> object:
             return _fake_client()
 
-        monkeypatch.setattr(r_mod.redis_asyncio.Redis, "from_url", fake_from_url)
+        monkeypatch.setattr(r_mod.require_redis().asyncio.Redis, "from_url", fake_from_url)
         backend = RedisBackend.from_url(url)
         assert isinstance(backend, RedisBackend)
 

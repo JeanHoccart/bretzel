@@ -1,25 +1,22 @@
 """kanban/tableau — the columns, the cards, and the activity feed.
 
-Two refreshable regions show changes to the current session's board:
-
-- ``deps=`` answers "what makes ME re-render" — the answer arrives in the
-  response to my action, one round trip.
-The board and the filters are in ``deps``. This public demo uses
+Two refreshable regions show changes to the current session's board.
+They read the board and the filters, so my own action re-renders them
+in its response, one round trip. This public demo uses
 ``SessionState``, so one visitor does not change another's board.
 
 **The column that scrolls IS the drop zone**, not a container around it.
 Putting the ``dropzone`` inside the scrolling block would make its box
 slide with the cards: its frame would cut the middle of the column, and
 the "here, you can let go" highlight would leave the screen at the
-precise moment it is useful (measured on ``examples/crm``).
+precise moment it is useful.
 """
 
 from __future__ import annotations
 
 from functools import partial
 
-from bretzel import Feature, page, refreshable, ui
-from examples.kanban.core.i18n import tr
+from bretzel import Feature, page, refreshable, t, ui
 from examples.kanban.features.donnees import (
     COUL_ETIQUETTE,
     COULEURS,
@@ -139,18 +136,14 @@ def colonne(cle: str, libelle: str, limite: int | None) -> None:
                     size="sm", variant="soft",
                     color="warning" if saturee else "muted",
                     tooltip=(
-                        tr(f"Work-in-progress limit: {limite} cards",
-                           f"Limite d'en-cours : {limite} cartes")
+                        t("Work-in-progress limit: {limite} cards", limite=limite)
                         if limite else
-                        tr("No work-in-progress limit",
-                           "Pas de limite d'en-cours")
+                        t("No work-in-progress limit")
                     ),
                 )
             if len(cartes) != dedans:
                 montrees = len(cartes)
-                ui.text(tr(f"{montrees} shown",
-                           f"{montrees} affichée"
-                           + ("s" if montrees > 1 else "")),
+                ui.text(t("{n} shown", n=montrees, plural="{n} shown"),
                         size="xs", color="muted")
 
         # ⚠️ It is the ZONE that scrolls. ``min-h-0`` is what lets a
@@ -164,8 +157,7 @@ def colonne(cle: str, libelle: str, limite: int | None) -> None:
             for carte in ui.drag_each(cartes, group=GROUPE, key="id"):
                 vignette(carte)
             if not cartes:
-                ui.text(tr("Nothing here. Drop a card.",
-                           "Rien ici. Lâche une carte."),
+                ui.text(t("Nothing here. Drop a card."),
                         size="xs", color="muted",
                         classes="px-1 py-6 text-center")
 
@@ -195,17 +187,17 @@ def bande_archive() -> None:
                 "data-[bz-drop-ok=true]:pointer-events-auto",
     ):
         ui.icon("archive", size="sm", color="error")
-        ui.text(tr("Drop here to archive", "Lâche ici pour archiver"),
+        ui.text(t("Drop here to archive"),
                 size="sm", color="error")
 
 
-@refreshable(deps=[Tableau, Filtres], broadcast=[Tableau])
+@refreshable
 def plateau() -> None:
     """The four columns of the current session's board.
 
-    ``broadcast=[Tableau]``: a second window of the same visitor follows
-    the first. ``Tableau`` is a ``SessionState``, so the signal stays in
-    this session — other visitors are neither reached nor re-rendered.
+    A second window of the same visitor follows the first. ``Tableau``
+    is a ``SessionState``, so the signal stays in this session — other
+    visitors are neither reached nor re-rendered.
     """
     with ui.vstack(gap="sm",
                    classes="flex-1 min-h-0 min-w-0 px-5 pt-5 pb-3"):
@@ -216,7 +208,7 @@ def plateau() -> None:
         bande_archive()
 
 
-@refreshable(deps=[Tableau], broadcast=[Tableau])
+@refreshable
 def activite() -> None:
     """The current board's history, newest at the top.
 
@@ -254,31 +246,26 @@ def activite() -> None:
                            classes="flex-1 min-w-0 overflow-hidden "
                                    "whitespace-nowrap"):
                 ui.icon("history", size="sm", color="muted")
-                ui.heading(tr("Activity", "Activité"), level=2, size="sm",
+                ui.heading(t("Activity"), level=2, size="sm",
                            weight="semibold")
             with ui.hstack(visible=affichage.activite, classes="shrink-0"):
                 ui.icon_button("panel-right-close", variant="ghost",
                                size="sm",
                                on_click=affichage.activite.set(False),
-                               tooltip=tr("Hide the activity",
-                                          "Cacher l'activité"))
+                               tooltip=t("Hide the activity"))
             with ui.hstack(visible=~affichage.activite, classes="shrink-0"):
                 ui.icon_button("panel-right-open", variant="ghost",
                                size="sm",
                                on_click=affichage.activite.set(True),
-                               tooltip=tr("Show the activity",
-                                          "Montrer l'activité"))
+                               tooltip=t("Show the activity"))
         with ui.pane(padding="md", gap="md", visible=affichage.activite,
                      classes="flex-1 min-h-0 w-[18rem]"):
             if not tableau.journal:
                 ui.empty_state(
                     icon="mouse-pointer-click", size="sm",
-                    title=tr("Nothing yet", "Rien pour l'instant"),
-                    description=tr(
-                        "Drag a card to another column. Every move is "
-                        "logged here, and can be undone.",
-                        "Glisse une carte dans une autre colonne. Chaque "
-                        "geste s'inscrit ici, et peut être annulé."),
+                    title=t("Nothing yet"),
+                    description=t("Drag a card to another column. Every move is "
+                        "logged here, and can be undone."),
                 )
             for rang, entree in reversed(list(enumerate(tableau.journal))):
                 defaite = rang >= tableau.curseur
@@ -293,7 +280,7 @@ def activite() -> None:
                             ui.text(depuis(entree["t"]), size="xs",
                                     color="muted")
                             if defaite:
-                                ui.badge(tr("undone", "annulé"),
+                                ui.badge(t("undone"),
                                          size="xs", variant="soft",
                                          color="muted")
                         ui.text(entree["texte"], size="sm",

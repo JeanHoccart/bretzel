@@ -27,16 +27,22 @@ variable carries them, so no knob can move them without recompiling.
 The relief (``--shadow-*``) is in the same case today.
 """
 
+import hashlib
 import json
 
 from bretzel.state import ClientState, field
-from bretzel.theme import SHAPE_SLOT_NAMES
+from bretzel.theme import (
+    DEFAULT_SHAPE,
+    DEFAULT_SPACING,
+    DEFAULT_STROKE,
+    SHAPE_SLOT_NAMES,
+)
 
 #: The eleven semantic slots: (name, role, light default, dark default).
 #: The order is the reading one — the accents first, the planes next.
 SLOTS: list[tuple[str, str, str, str]] = [
-    ("primary",    "the brand accent",               "#682747", "#682747"),
-    ("secondary",  "the second accent",              "#3a52b0", "#3a52b0"),
+    ("primary",    "the brand accent",               "#682747", "#b9467f"),
+    ("secondary",  "the second accent",              "#3a52b0", "#566dc7"),
     ("success",    "what succeeded",                 "#2f9e64", "#2f9e64"),
     ("warning",    "what needs attention",           "#f0a91b", "#f0a91b"),
     ("error",      "what failed",                    "#e5484d", "#e5484d"),
@@ -76,15 +82,32 @@ FONTS: list[tuple[str, str]] = [
              "'Liberation Mono', monospace"),
 ]
 
-#: The knobs that are not colours. The radii, stroke and density are the
-#: framework's shipped values; the font is Tailwind's stack, which is
+def length(token: str, unit: str) -> float:
+    """``"0.625rem"`` → ``0.625`` : a shipped token as a slider's number."""
+    if not token.endswith(unit):
+        raise ValueError(f"{token!r} is not in {unit}: the slider reads {unit}.")
+    return float(token.removesuffix(unit))
+
+
+#: The shipped spacing step, in rem. The identities write their spacing
+#: as multiples of it, so they keep their character when it moves.
+STEP = length(DEFAULT_SPACING, "rem")
+
+#: The knobs that are not colours, READ from the framework's tokens: a
+#: copy here drifted for three days when the shipped scale moved from
+#: 3 px to Tailwind's 4 px (2026-10-23), and the showcase kept painting
+#: the old theme over every page. The font is Tailwind's stack, which is
 #: what an app gets when its theme says nothing.
 SLIDER_DEFAULTS: dict[str, float | str] = {
-    "box": 0.75,
-    "field_": 0.75,
-    "selector": 0.375,
-    "stroke": 1.0,
-    "spacing": 0.1875,
+    "box": length(DEFAULT_SHAPE["box"], "rem"),
+    "field_": length(DEFAULT_SHAPE["field"], "rem"),
+    "selector": length(DEFAULT_SHAPE["selector"], "rem"),
+    "stroke": length(DEFAULT_STROKE, "px"),
+    "spacing": STEP,
+    # The two other spacing families start where the controls' is: an
+    # untouched theme follows ``field`` (``Theme(spacing=…)``, 2026-10-26).
+    "space_box": STEP,
+    "space_gap": STEP,
     "font": FONTS[0][1],
 }
 
@@ -92,6 +115,14 @@ SLIDER_DEFAULTS: dict[str, float | str] = {
 #: the SAME source as the class's defaults — so the button cannot bring
 #: things back to a third state.
 SHIPPED_DEFAULTS: dict[str, str | float] = {**COLOR_DEFAULTS, **SLIDER_DEFAULTS}
+
+#: A fingerprint of the shipped values. The store persists in the
+#: visitor's browser, so a setting saved before the shipped theme moved
+#: would repaint every page with a theme that no longer exists: when the
+#: fingerprint kept beside it differs, :func:`repaint_effect` resets once.
+SHIPPED_FINGERPRINT = hashlib.sha1(
+    json.dumps(SHIPPED_DEFAULTS, sort_keys=True).encode()
+).hexdigest()[:12]
 
 
 class Studio(ClientState, persist="local"):
@@ -123,6 +154,8 @@ class Studio(ClientState, persist="local"):
     d_muted:      str = field(default=COLOR_DEFAULTS["d_muted"])
 
     spacing: float = field(default=SLIDER_DEFAULTS["spacing"])
+    space_box: float = field(default=SLIDER_DEFAULTS["space_box"])
+    space_gap: float = field(default=SLIDER_DEFAULTS["space_gap"])
     box: float = field(default=SLIDER_DEFAULTS["box"])
     field_: float = field(default=SLIDER_DEFAULTS["field_"])
     selector: float = field(default=SLIDER_DEFAULTS["selector"])
@@ -181,6 +214,7 @@ if (!window.bzFg) {
     };
     return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
   };
+  window.bzLum = lum;
   window.bzFg = function (hex) {
     var m = /^#([0-9a-f]{6})$/i.exec(String(hex || '').trim());
     if (!m) return '';
@@ -206,6 +240,57 @@ if (!window.bzFg) {
   };
 }
 """
+
+
+#: The TEXT STEPS of a colour, mirrored from ``bridges.readable_step_pct``.
+#:
+#: The bridge of a colour writes ``--bz-text`` / ``--bz-text-muted`` as a
+#: mix of the colour and the text, at the percentage of hue that stays
+#: readable over the page, a panel and the colour's own tint — measured
+#: per colour and per MODE by the server. The studio rewrote the colours
+#: and kept the server's percentages: a colour set here kept those of the
+#: colour it replaced, and the preview could show a label browner (or less
+#: readable) than the app that receives the exported palette (2026-10-26).
+#: Its numbers are the server's; ``test_foreground_algebra_is_mirrored``
+#: holds them equal.
+STEPS_JS = """
+if (!window.bzSteps) {
+  var hexRgb = function (hex) {
+    var n = parseInt(String(hex).replace('#', ''), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  var mix = function (a, b, part) {
+    return a.map(function (x, i) { return Math.round(part * x + (1 - part) * b[i]); });
+  };
+  var ratio = function (a, b) {
+    var la = window.bzLum(a[0], a[1], a[2]), lb = window.bzLum(b[0], b[1], b[2]);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+  };
+  var pct = function (src, text, grounds, base, target) {
+    for (var p = base; p >= 25; p -= 5) {
+      var m = mix(src, text, p / 100);
+      if (Math.min.apply(null, grounds.map(function (g) { return ratio(m, g); })) >= target) return p;
+    }
+    return 25;
+  };
+  // The two declarations of a colour's bridge, in this mode's colours.
+  window.bzSteps = function (srcHex, textHex, pageHex, surfaceHex) {
+    var src = hexRgb(srcHex), text = hexRgb(textHex), surface = hexRgb(surfaceHex);
+    var grounds = [hexRgb(pageHex), surface, mix(src, surface, 0.10)];
+    var t = pct(src, text, grounds, 100, 4.5);
+    var muted = pct(src, text, grounds, Math.max(70, t), 3.0);
+    return '--bz-text-muted:color-mix(in srgb, var(--bz-src) ' + muted + '%, var(--color-text));'
+      + '--bz-text:color-mix(in srgb, var(--bz-src) ' + t + '%, var(--color-text));';
+  };
+}
+"""
+
+#: The slots whose bridge carries measured text steps — the planes keep
+#: the server's (``bridges._SURFACE_SLOTS``).
+STEPPED_SLOTS: tuple[str, ...] = tuple(
+    name for name, _role, _light, _dark in SLOTS
+    if name not in ("background", "surface", "interface")
+)
 
 
 #: ``(radius family, store field)``. The families come from
@@ -272,20 +357,45 @@ def repaint_effect() -> str:
     # theme's own `calc()`.
     stroke = f"'--bz-stroke:' + {path('stroke')} + 'px;'"
     font = f"'--font-sans:' + {path('font')} + ';'"
+    # Kept beside the store, not in it: every store field is a knob the
+    # export carries. Wrapped, because a private window may refuse storage.
+    upgrade = (
+        "try { if (localStorage.getItem('bz-studio-shipped') !== "
+        f"{json.dumps(SHIPPED_FINGERPRINT)}) {{ {reset_expression()};"
+        " localStorage.setItem('bz-studio-shipped', "
+        f"{json.dumps(SHIPPED_FINGERPRINT)}); }} }} catch (e) {{}}"
+    )
+    def steps(prefix: str, scope: str) -> str:
+        # One rule per stepped colour, in this mode's own colours.
+        return " + ".join(
+            f"'{scope}.bz-c-{name}{{' + window.bzSteps({path(prefix + name)}, "
+            f"{path(prefix + 'text')}, {path(prefix + 'background')}, "
+            f"{path(prefix + 'surface')}) + '}}'"
+            for name in STEPPED_SLOTS
+        )
+
     return (
         FOREGROUND_JS
+        + STEPS_JS
+        + upgrade
         + "let s = document.getElementById('bz-studio');"
         " if (!s) { s = document.createElement('style');"
         " s.id = 'bz-studio'; document.head.appendChild(s); }"
         " s.textContent = ':root{' + "
         + block("")
-        + f" + '--spacing:' + {path('spacing')} + 'rem;' + "
+        + f" + '--spacing:' + {path('spacing')} + 'rem;'"
+        + f" + '--bz-space-box:' + {path('space_box')} + 'rem;'"
+        + f" + '--bz-space-gap:' + {path('space_gap')} + 'rem;' + "
         + radius
         + " + " + stroke
         + " + " + font
         + " + '}.dark{' + "
         + block("d_")
-        + " + '}';"
+        + " + '}' + "
+        + steps("", "")
+        + " + "
+        + steps("d_", ".dark ")
+        + ";"
     )
 
 
@@ -326,9 +436,13 @@ def export_expression() -> str:
         + shape
         + " + '},\\n    stroke=\"' + "
         + rounded("stroke")
-        + " + 'px\",\\n    spacing=\"' + "
+        + " + 'px\",\\n    spacing={\"field\": \"' + "
         + rounded("spacing")
-        + " + 'rem\",\\n    fonts={\"sans\": \"' + "
+        + " + 'rem\", \"box\": \"' + "
+        + rounded("space_box")
+        + " + 'rem\", \"gap\": \"' + "
+        + rounded("space_gap")
+        + " + 'rem\"},\\n    fonts={\"sans\": \"' + "
         + path("font")
         + " + '\"},\\n)'"
     )

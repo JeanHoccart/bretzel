@@ -74,64 +74,19 @@ Notes :
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import install_open_close_toggle
+from bretzel.components.overlay._base import ModalOverlay
 from bretzel.components.overlay._modal import render_modal_overlay
 from bretzel.components.overlay.dialog.theme import DIALOG_THEME
 from bretzel.core.tree import Element
 
 
-class Dialog(Component):
+class Dialog(ModalOverlay):
     """Centered modal with backdrop + escape + scroll lock."""
 
     THEME: ClassVar[dict[str, Any]] = DIALOG_THEME
     THEME_KEY: ClassVar[str] = "dialog"
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("open",)
-    IMPERATIVE: ClassVar[tuple[str, ...]] = ("open", "close", "toggle")
-    EVENTS: ClassVar[tuple[str, ...]] = ("open", "close")
-    # ``open`` AND ``close`` both fire on the root, so a single dialog can
-    # wire on_open + on_close to the server (the second rides a hidden
-    # carrier — cf. ``Component.ALLOW_MULTI_SERVER_EVENTS``).
-    ALLOW_MULTI_SERVER_EVENTS: ClassVar[bool] = True
-
-    open: Any = reactive_prop(default=False, emit_attr=False, writes=True)
-    title: str | None = reactive_prop(default=None, emit_attr=False)
-    width: str = reactive_prop(default="md", emit_attr=False)
-    dismissible: bool = reactive_prop(default=True, emit_attr=False)
-    persistent: bool = reactive_prop(default=False, emit_attr=False)
-
-    def __init__(
-        self,
-        *,
-        open: Any = None,
-        title: str | None = None,
-        width: str | None = None,
-        dismissible: bool | None = None,
-        persistent: bool | None = None,
-        on_open: Callable[..., Any] | str | None = None,
-        on_close: Callable[..., Any] | str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
-        super().__init__(
-            open=open,
-            title=title,
-            width=width,
-            dismissible=dismissible,
-            persistent=persistent,
-            on_open=on_open,
-            on_close=on_close,
-            **kwargs,
-        )
-        # Write-only imperative API ``.open()`` / ``.close()`` /
-        # ``.toggle()`` — installed as instance attributes (shadowing the
-        # ``open`` descriptor) by the base helper, identical on the 4
-        # open-driven overlays. Cf. `imperative-api.md`.
-        install_open_close_toggle(self)
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:

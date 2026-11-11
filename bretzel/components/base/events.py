@@ -30,7 +30,8 @@ from __future__ import annotations
 
 import inspect
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from functools import partial
 from typing import Any
 
 from bretzel.components.base.attrs import (
@@ -172,7 +173,7 @@ def client_event_attr(event: str) -> str:
 
 def auto_busy(owner: str, value: Any, *, declared: bool) -> bool:
     """Whether the runtime may show this component's triggers as busy
-    (:data:`~bretzel.runtime.protocol.DATA_BZ_BUSY`, ``05_bridge.js``)
+    (:data:`~bretzel.runtime.protocol.DATA_BZ_BUSY`, ``bridge.js``)
     while their request is unanswered — the default.
 
     ``loading=False`` turns it off. A component that declares ``loading``
@@ -246,9 +247,17 @@ def action_attrs(
         trigger_parts.append(modifier)
     if from_id:
         trigger_parts.append(f"from:#{from_id}")
+    trigger = " ".join(trigger_parts)
+    if event == "input" and modifier and modifier.startswith("delay:"):
+        # Leaving the field sends at once what the pause was holding.
+        # ``delay:`` drops its request with its element: type, click a
+        # tab that redraws the zone, and the last words would be lost.
+        # htmx clears an element's pending delay when another of its
+        # triggers fires, so this sends ONCE.
+        trigger += ", change" + (f" from:#{from_id}" if from_id else "")
     attrs = {
         "hx-post": f"{ROUTE_ACTION}/{action_id}",
-        "hx-trigger": " ".join(trigger_parts),
+        "hx-trigger": trigger,
         "hx-target": f"#{SINK_ELEMENT_ID}",
         "hx-swap": "innerHTML",
     }
@@ -261,13 +270,24 @@ def action_attrs(
     return attrs
 
 
+def posted_action(attrs: Mapping[str, Any]) -> str | None:
+    """The action id these attributes post (:func:`action_attrs`'s
+    ``hx-post``), or ``None``. Read here, next to where it is written."""
+    post = attrs.get("hx-post")
+    prefix = f"{ROUTE_ACTION}/"
+    if isinstance(post, str) and post.startswith(prefix):
+        return post[len(prefix):]
+    return None
+
+
 def item_action_attrs(
     handler: Any,
     *,
     event: str,
-    bind: Callable[[Callable[..., Any]], Callable[..., Any]],
     owner_id: str,
     ctx: Any,
+    payload: dict[str, Any] | None = None,
+    bind: Callable[[Callable[..., Any]], Callable[..., Any]] | None = None,
     dom_event: str | None = None,
     guard: str | None = None,
     modifier: str | None = None,
@@ -281,13 +301,11 @@ def item_action_attrs(
     node. Each must bind its own data into the call, so none can go
     through the base layer.
 
-    All four copied the same ``partial`` + ``register_action``, and all
-    four had the same hole: only a CALLABLE worked. A client expression
-    string — the second of the three shapes any framework ``on_*``
-    accepts — raised a ``TypeError`` surfaced bare from
-    ``functools.partial``, naming neither the component nor the prop.
-    Measured on 2026-09-06 on the three shipped components
-    (commit ``28958bf3``, which declared the event and gated it).
+    A bare ``partial`` + ``register_action`` in each would make only a
+    CALLABLE work: a client expression string — the second of the three
+    shapes any framework ``on_*`` accepts — would raise a ``TypeError``
+    surfaced bare from ``functools.partial``, naming neither the component
+    nor the prop.
 
     ``bind`` receives the callable and returns the version bound to THIS
     element — it is the only piece that differs from one caller to the
@@ -311,11 +329,26 @@ def item_action_attrs(
     respects the same filter as the server part — a click on a button
     INSIDE a row must fire neither.
 
+    ``payload`` is the element's data, NAMED — ``{"key": 12}`` for a
+    row, ``{"label": "Jan", "value": 3}`` for a bar — and it serves both
+    sides: its values, in order, are the server handler's arguments (the
+    ``bind`` it replaces), and the whole dict is the ``detail`` of a real
+    ``CustomEvent`` named after the declared event, which the client
+    expression reads as ``$event.detail.key``. On the DOM's ``click``,
+    ``$event.detail`` would be the browser's click count. A
+    ``CustomEvent``'s ``detail`` is the DOM's own convention, the one
+    Bretzel's commands use (``$event.detail.value``).
+
     Returns the attributes to merge onto the element: ``hx-post`` and its
     signature for the server part, ``bz-on:<event>`` for the client part.
     Both coexist — a ``[callable, "expr"]`` list wires them both, in the
     order written.
     """
+    if bind is None:
+        values = tuple((payload or {}).values())
+
+        def bind(fn: Callable[..., Any]) -> Callable[..., Any]:
+            return partial(fn, *values)
     handlers = list(handler) if isinstance(handler, (list, tuple)) else [handler]
     attrs: dict[str, Any] = {}
     client: list[str] = []
@@ -349,24 +382,105 @@ def item_action_attrs(
             )
         )
         if guard:
-            # The guard applies to BOTH parts. `ui.table` set it by
-            # hand right after this call, overwriting `hx-trigger` — a
-            # local repair of a router that already knew, in its client
-            # part, what it was not doing in its own.
+            # The guard applies to BOTH parts.
             #
-            # ⚠️ And the overwrite took the MODIFIER with it:
-            # `debounce=` on a per-element action was accepted then
-            # lost. The guard and the delay coexist in HTMX's syntax —
-            # `click[filter] delay:300ms` — they just had to be written
-            # both (2026-09-07).
+            # ⚠️ A caller overwriting `hx-trigger` after this call would
+            # take the MODIFIER with it: `debounce=` on a per-element
+            # action would be accepted then lost. The guard and the delay
+            # coexist in HTMX's syntax — `click[filter] delay:300ms`.
             trigger = f"{dom_event or event}[{guard}]"
             attrs["hx-trigger"] = f"{trigger} {modifier}" if modifier else trigger
     if client:
         body = "; ".join(client)
+        if payload is not None and dom_event and dom_event != event:
+            # The browser's event (``click``) re-fires the DECLARED one as a
+            # ``CustomEvent`` carrying the element's data; the expression
+            # listens to that one. Not bubbling: a row inside a row, or a
+            # node inside a group, would hand its parent an event it never
+            # asked for.
+            attrs["data-bz-detail"] = json.dumps(payload)
+            fire = (f"$el.dispatchEvent(new CustomEvent('{event}', "
+                    "{detail: JSON.parse($el.dataset.bzDetail)}))")
+            attrs[client_event_attr(dom_event)] = f"if ({guard}) {{ {fire} }}" if guard else fire
+            attrs[client_event_attr(event)] = body
+            return attrs
         if guard:
             body = f"if ({guard}) {{ {body} }}"
         attrs[client_event_attr(dom_event or event)] = body
     return attrs
+
+
+#: An event that does not bubble, and the one that does — for a carrier
+#: listening FROM the root: a component whose focusable sits INSIDE its
+#: root (a select's trigger) would never tell it.
+_BUBBLING = {"focus": "focusin", "blur": "focusout"}
+
+#: Roots whose children are not theirs to keep: void or text-only
+#: elements, and ``<bz-calendar>``, which repaints its own content and
+#: erased a carrier put inside it. Their carriers go right after them.
+_NO_CHILD = frozenset({"input", "textarea", "img", "br", "hr", "select", "bz-calendar"})
+
+
+def fields_of(root_id: str) -> str:
+    """The ``hx-include`` that brings a component's fields — save a file
+    input. Posted outside a multipart form, a file arrives as the text
+    ``[object File]`` (the file itself travels by ``upload_url``). The
+    root, whole, when it holds none (htmx takes an element AND its
+    fields); its other fields one by one when it does. A flat list:
+    htmx splits ``hx-include`` on its commas — ``:is(a, b)`` is cut."""
+    return (f"#{root_id}:not(:has(input[type=file])), #{root_id} input:not([type=file]), "
+            f"#{root_id} select, #{root_id} textarea")
+
+
+def carrier_attrs(
+    event: str, action_id: str, args_blob: str, sig: str, *,
+    root_id: str, dom_event: str | None = None, modifier: str | None = None,
+) -> dict[str, Any]:
+    """A hidden carrier for a component's SECOND (third…) server handler.
+
+    A root carries one ``hx-post``; each further ``on_<event>`` gets an
+    element of its own that listens FROM the root (``from:#root``) — one
+    server handler PER EVENT, on every component. ``dom_event`` is the name the DOM knows it by
+    (``Component.DOM_EVENTS``); a stable id keeps idiomorph matching it
+    across refreshes; ``hx-include`` brings the component's fields, as
+    the root's own handler has them.
+    """
+    attrs = action_attrs(
+        dom_event or _BUBBLING.get(event, event), action_id, args_blob, sig,
+        modifier=modifier, from_id=root_id,
+    )
+    attrs["id"] = f"{root_id}__on{event}"
+    attrs["hidden"] = True
+    # The carrier first: a list that matches nothing is an htmx error in
+    # the console (a file_upload holds no other field).
+    attrs["hx-include"] = f"#{attrs['id']}, {fields_of(root_id)}"
+    return attrs
+
+
+def with_carriers(component: Any, node: Any) -> Any:
+    """The rendered root with its carriers — placed here, once, for every
+    component: inside the root, or right after it when the root keeps no
+    child. A carrier the component placed itself (the overlays) is left."""
+    from dataclasses import replace
+
+    from bretzel.core.tree import Element, FragmentNode
+
+    if not getattr(component, "_event_carriers", None) or not isinstance(node, Element):
+        return node
+    carriers = component._event_carrier_nodes()
+    placed: set[str] = set()
+    stack = [node]
+    while stack:
+        one = stack.pop()
+        if getattr(one, "attrs", None) and "id" in one.attrs:
+            placed.add(one.attrs["id"])
+        stack.extend(getattr(one, "children", None) or ())
+    missing = [c for c in carriers if c.attrs.get("id") not in placed]
+    if not missing:
+        return node
+    if node.tag in _NO_CHILD:
+        return FragmentNode(children=(node, *missing))
+    return replace(node, children=(*node.children, *missing))
 
 
 def pending(

@@ -8,11 +8,10 @@ both measurements.
 
 Where you write it
 -------------------
-Anywhere a zone must scroll while its neighbours stay put. Measured on
-the repository as of 2026-08-23: seventeen sites, thirteen apps, and
-**four outside a shell** — ``examples/chat``'s message thread,
-``examples/crm``'s two master-detail columns (list + record), a pipeline
-column. So it is not shell furniture.
+Anywhere a zone must scroll while its neighbours stay put, outside a
+shell as well as inside: a message thread, the two columns of a
+master-detail page (list + record), a pipeline column. So it is not
+shell furniture.
 
 What it expects from its parent
 --------------------------------
@@ -31,8 +30,8 @@ compute — it is a property of the block, not of the component.
 Why no ``wrap``
 ----------------
 :class:`VStack` exposes it, it does not. A column that scrolls does not
-wrap — and ``wrap`` is very exactly the prop that produced finding [4]
-(an item whose basis is 100 % can never share a wrapped line).
+wrap — and ``wrap`` carries a trap of its own (an item whose basis is
+100 % can never share a wrapped line).
 
 """
 
@@ -59,9 +58,9 @@ class Pane(VStack):
     SEALED_REASONS: ClassVar[dict[str, str]] = {
         "wrap": (
             "ui.pane does not wrap: a column that SCROLLS has no lines "
-            "to distribute. It is also the prop that produced finding [4] "
-            "— an item whose basis is 100 % can never share a wrapped "
-            "line. Put a ui.flex(wrap=True) INSIDE the pane."
+            "to distribute, and an item whose basis is 100 % can never "
+            "share a wrapped line. Put a ui.flex(wrap=True) INSIDE the "
+            "pane."
         ),
     }
 

@@ -49,11 +49,8 @@ BADGE_THEME: dict[str, Any] = {
         "root": (
             # ``min(16rem,100%)`` and not ``max-w-[16rem]`` alone: a
             # FIXED ceiling does not know its container, so it lets the
-            # chip out of it as soon as the column is narrower than it.
-            # Measured on 2026-08-25 in a 240 px cell: 256 px rendered,
-            # **17 px outside**, over the neighbour. The catalogue's six
-            # other capped roots write ``max-w-full``; this one was the
-            # only one not to.
+            # chip out of it, over the neighbour, as soon as the column is
+            # narrower than it.
             #
             # ONE class, not two: ``max-w-full max-w-[16rem]`` both set
             # ``max-width`` and the winner depends on the SHEET's order,
@@ -62,9 +59,6 @@ BADGE_THEME: dict[str, Any] = {
             # and proportional digits do not have the same width — the
             # "1" is narrower than the "8". So the chip changes width at
             # every increment, and the line containing it jitters.
-            # Adopted from ``examples/kanban``'s theme on 2026-09-13,
-            # where it lived as an app override: the need has nothing
-            # specific to a board of cards.
             "inline-flex w-fit items-center gap-1 max-w-[min(16rem,100%)] "
             "rounded-selector font-medium leading-normal tabular-nums "
             "whitespace-nowrap "
@@ -76,7 +70,7 @@ BADGE_THEME: dict[str, Any] = {
             "rounded-selector cursor-pointer "
             "outline-none "
             "focus-visible:ring-2 focus-visible:ring-(--bz-focus) "
-            "transition-colors duration-100"
+            "transition-colors duration-150"
         ),
     },
     # Multi-slot variants — each variant tweaks both the root AND
@@ -92,18 +86,16 @@ BADGE_THEME: dict[str, Any] = {
         "solid": {
             "root": "bg-(--bz-solid) text-(--bz-on-solid)",
             "close": (
-                "text-(--bz-on-solid)/80 hover:text-(--bz-on-solid) "
+                "text-(--bz-on-solid) opacity-80 hover:opacity-100 "
                 "hover:bg-black/10"
             ),
         },
         "outline": {
-            # ``/50`` : in an outline badge the border IS the
-            # container, so it has to read at the same weight as
-            # the label. Measured on the 6-alpha bench, ``/40``
-            # reads visibly paler than the text and the box looks
-            # unfinished ; past ``/60`` the 2 px stroke drowns it.
-            # ``/50`` is also the repo's dominant border strength.
-            "root": "border-(length:--bz-stroke-strong) border-(--bz-border-hover) text-(--bz-text)",
+            # The border is the colour itself, as on a button's outline:
+            # one colour for the frame and its label, the label being the
+            # colour made readable — the colour itself wherever it reads
+            # (``bridges.readable_step_pct``).
+            "root": "border-(length:--bz-stroke-strong) border-(--bz-solid) text-(--bz-text)",
             "close": (
                 "text-(--bz-text-muted) hover:text-(--bz-text) "
                 "hover:bg-(--bz-bg)"

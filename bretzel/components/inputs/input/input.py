@@ -24,6 +24,8 @@ from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
 from bretzel.components.base.attrs import ComponentUsageError
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.focus import FocusCommands
 from bretzel.components.inputs._picker_field import icon_button
 from bretzel.components.inputs._wiring import (
     add_local_value_scope,
@@ -58,7 +60,7 @@ _NATIVE_PICKER_TYPES: dict[str, str] = {
 }
 
 
-class Input(Component):
+class Input(ValueCommands, FocusCommands, Component):
     """Render a text input with distinct input and change events."""
 
     THEME: ClassVar[dict[str, Any]] = INPUT_THEME
@@ -75,6 +77,8 @@ class Input(Component):
         "value", "disabled", "readonly",
     )
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "clear", "focus", "blur")
+    # Where ``autofocus=`` / ``.focus()`` land: the ``<input>`` carries the id, frame or not.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ()
 
     type: str = reactive_prop(default="text")
     name: str | None = reactive_prop(default=None)
@@ -171,13 +175,10 @@ class Input(Component):
             on_keyup=on_keyup,
             **kwargs,
         )
-        # ``adopt_slot`` auto-converts string shortcuts
-        # (``icon_left="search"`` → ``Icon("search")``) and detaches
-        # Component values from the active parent so they don't ALSO
-        # render as siblings. ``prefix`` / ``suffix`` are plain text
-        # affixes, so no icon shortcut for them.
-        self._prefix = Component.adopt_slot(prefix)
-        self._suffix = Component.adopt_slot(suffix)
+        # ``adopt_slot`` turns ``icon_left="search"`` into ``Icon("search")``.
+        # ``prefix`` / ``suffix`` are plain text affixes: no icon shortcut.
+        self._prefix = prefix
+        self._suffix = suffix
         # A shortcut icon (a name or a binding) is built at the step's
         # ``icon_size`` — as Badge does; left to Icon's own ``md`` it
         # overlapped the text of an ``xs`` field. A caller's Icon instance
@@ -201,36 +202,13 @@ class Input(Component):
         # global change for a gain that only exists on search fields.
         self._clearable = bool(clearable)
 
-    # ── Imperative write-only API ─────────────────────────────────────
-    #
-    # Methods returning client JS for ``on_click=`` (or any ``on_*``).
-    # ``.set`` write-throughs the binding if any, else DOM dispatch ;
-    # ``.focus`` / ``.blur`` are direct DOM commands. Cf. `imperative-api.md`.
-
-    def set(self, value: Any) -> str:
-        return self._value_command(value)
-
-    def clear(self) -> str:
-        # ``.clear()`` is sugar for ``.set("")`` — empty string covers
-        # the text-input case. NumberInput / Slider override if they
-        # need a different reset value (0, min, etc.).
-        return self.set("")
-
-    def focus(self) -> str:
-        return f"document.getElementById('{self.id}').focus()"
-
-    def blur(self) -> str:
-        return f"document.getElementById('{self.id}').blur()"
-
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def _size_map(self) -> dict[str, str]:
-        """The theme's row for this field's step (``md`` by default)."""
-        size_key = self._reactive_values.get("size")
-        return self._resolved_theme().get("sizes", {}).get(
-            size_key if isinstance(size_key, str) else "md"
-        ) or {}
+        """The theme's row for this field's step: its settings
+        (``icon_size``, ``icon_pad_*``) — its slot classes reach the
+        slots through ``compose_class``."""
+        return self._size_row() or {}
 
     def render(self) -> Element:
         size_map = self._size_map()
@@ -258,7 +236,7 @@ class Input(Component):
 
         **The click goes through the same EVENTS as a human keystroke.**
         Writing ``.value = ''`` is not enough: ``bz-model`` subscribes to
-        ``input`` (cf. ``02_directives.js``), so without this dispatch
+        ``input`` (cf. ``directives.js``), so without this dispatch
         the signal would keep the old text and rewrite it at the next
         tick; and a server handler listens for ``change``, which the DOM
         does not emit either for a programmatic write. Both events
@@ -273,9 +251,7 @@ class Input(Component):
         return icon_button(
             icon="x",
             css=" ".join(p for p in (
-                self.compose_class(
-                    "clear_button", apply_variant_size_modifiers=False,
-                ),
+                self.compose_class("clear_button"),
             ) if p),
             icon_css=Component.render_detached(
                 Icon("x", size=size_map.get("clear_icon_size", "sm")),
@@ -302,10 +278,7 @@ class Input(Component):
         input_class = " ".join(
             p
             for p in (
-                self.compose_class(
-                    "input", apply_variant_size_modifiers=False
-                ),
-                size_map.get("input", ""),
+                self.compose_class("input"),
                 size_map.get("icon_pad_left", "")
                 if self._icon_left is not None
                 else "",
@@ -350,12 +323,10 @@ class Input(Component):
         # Icons → wrap in ``root`` with absolute-positioned overlays.
         children: list[Any] = []
         if self._icon_left is not None:
-            children.append(self._slot_element(
-                "icon_left", self._icon_left, size_map.get("icon_left", "")))
+            children.append(self._slot_element("icon_left", self._icon_left))
         children.append(input_el)
         if self._icon_right is not None:
-            children.append(self._slot_element(
-                "icon_right", self._icon_right, size_map.get("icon_right", "")))
+            children.append(self._slot_element("icon_right", self._icon_right))
         # AFTER the input: ``peer-*`` only looks at a PRECEDING sibling.
         if self._clearable:
             children.append(self._clear_button(size_map))
@@ -375,15 +346,13 @@ class Input(Component):
         # The frame + ring move to the wrapper ; the input goes
         # transparent (``input_inner`` slot) and sits between the
         # affix spans.
-        wrapper_class = self.compose_class(
-            "prefix_root", apply_variant_size_modifiers=False
-        )
+        wrapper_class = self.compose_class("prefix_root")
+        # The bare field takes the ``input`` step on purpose: the same
+        # text and height with or without affixes.
         input_inner_class = " ".join(
             p
             for p in (
-                self.compose_class(
-                    "input_inner", apply_variant_size_modifiers=False
-                ),
+                self.compose_class("input_inner"),
                 size_map.get("input", ""),
                 "peer" if self._clearable else "",
             )
@@ -432,11 +401,10 @@ class Input(Component):
 
     # ── helpers ────────────────────────────────────────────────────────
 
-    def _slot_element(self, slot: str, content: Any, sized: str = "") -> Element:
+    def _slot_element(self, slot: str, content: Any) -> Element:
         """Build the ``<span>`` (or pre-rendered Component) for a
-        decorative slot. ``sized``: the step's classes for that slot
-        (the icons' offset)."""
-        slot_class = self.slot_class(slot, sized)
+        decorative slot, sized by the base composer (the icons' offset)."""
+        slot_class = self.compose_class(slot)
         if isinstance(content, Component):
             # Component author : render as-is and stamp the slot class
             # on its root attrs.
@@ -444,8 +412,12 @@ class Input(Component):
             return Component.with_slot_class(  # type: ignore[return-value]
                 node, slot_class
             )
+        # Through ``emit_text_slot``: a bound affix becomes a live
+        # ``bz-text`` span instead of crashing on ``str(binding)``. An
+        # empty string still keeps its empty span.
+        text = self.emit_text_slot(content)
         return Element(
             tag="span",
             attrs={"class": slot_class},
-            children=(TextNode(str(content)),),
+            children=(text if text is not None else TextNode(""),),
         )

@@ -1,9 +1,7 @@
 """``/badge`` — a status, a count, a tag."""
 
-import functools
-
-from bretzel import refreshable, ui
-from bretzel.state import PageState, field
+from bretzel import ui
+from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("Status pills, counters and removable filter chips — three "
@@ -67,39 +65,21 @@ def counters() -> None:
                      icon_right="flask-conical")
 
 
-def default_filters() -> list[str]:
-    return ["Status: Open", "Owner: Ada", "Label: Billing", "Due this week"]
+FILTERS = ["Status: Open", "Owner: Ada", "Label: Billing", "Due this week"]
 
 
-class Filters(PageState):
-    active: list[str] = field(default_factory=default_filters)
-
-
-def remove_filter(label: str) -> None:
-    filters = Filters()
-    filters.active = [f for f in filters.active if f != label]
-
-
-def reset_filters() -> None:
-    Filters().active = default_filters()
-
-
-@refreshable(deps=[Filters])
-def filter_chips() -> None:
-    active = Filters().active
-    with ui.hstack(gap="sm", wrap=True, justify="center"):
-        for label in active:
-            ui.badge(label, variant="soft", color="primary", dismissible=True,
-                     on_close=functools.partial(remove_filter, label))
-        if not active:
-            ui.text("No filters — showing all 248 tickets.", color="muted",
-                    size="sm")
-        ui.button("Reset", size="xs", variant="ghost", icon_left="rotate-ccw",
-                  on_click=reset_filters)
+class FilterChips(ClientState):
+    removed: int = field(default=0)
 
 
 def filter_bar() -> None:
-    filter_chips()
+    chips = FilterChips()
+    with ui.hstack(gap="sm", wrap=True, justify="center"):
+        for label in FILTERS:
+            ui.badge(label, variant="soft", color="primary", dismissible=True,
+                     on_close=chips.removed.increment())
+        ui.text("No filters — showing all 248 tickets.", color="muted",
+                size="sm", visible=chips.removed == len(FILTERS))
 
 
 def page() -> None:
@@ -113,6 +93,6 @@ def page() -> None:
                  "over the row.")
     example("Counters and tags", counters)
     example("Removable filters", filter_bar,
-            uses=[default_filters, Filters, remove_filter, reset_filters, filter_chips],
-            note="dismissible adds the ×; on_close runs Python with the chip "
-                 "it came from, and the zone re-renders.")
+            uses=[FilterChips],
+            note="dismissible adds the × and closes the chip in the browser; "
+                 "on_close counts what is left, without a round trip.")

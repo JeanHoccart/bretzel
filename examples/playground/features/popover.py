@@ -41,6 +41,34 @@ class PopoverEvents(PageState):
     log: list = field(default_factory=list)
 
 
+class PopoverServerOpen(PageState):
+    """The popover a SERVER handler opens — the « new event » shape."""
+
+    open: bool = field(default=False)
+
+
+def open_from_server() -> None:
+    PopoverServerOpen().open = True
+
+
+def closed_by_the_reader() -> None:
+    PopoverServerOpen().open = False
+
+
+@refreshable
+def server_opened() -> None:
+    with ui.popover(
+        trigger=ui.button("Anchor (not clicked)", variant="outline"),
+        open=PopoverServerOpen().open,
+        on_close=closed_by_the_reader,
+    ):
+        with ui.vstack():
+            with ui.form_field(label="Title"):
+                ui.input(placeholder="Already under the cursor", autofocus=True)
+            ui.button("Create", color="primary")
+    ui.button("Open it from the server", on_click=open_from_server)
+
+
 class PopoverClient(ClientState, persist="memory"):
     open: bool = field(default=False)
 
@@ -112,7 +140,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[PopoverPlayground])
+@refreshable
 def server_panel() -> None:
     state = PopoverPlayground()
 
@@ -184,7 +212,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[PopoverEvents])
+@refreshable
 def events_panel() -> None:
     state = PopoverEvents()
 
@@ -485,9 +513,23 @@ def page() -> None:
                     ):
                         with ui.vstack():
                             with ui.form_field(label="Recipient email"):
-                                ui.input(type="email", placeholder="ada@example.com")
+                                # ``autofocus=``: the cursor is in the
+                                # field as soon as the panel opens.
+                                ui.input(type="email", placeholder="ada@example.com",
+                                         autofocus=True)
                             ui.checkbox(label="Notify by email")
                             ui.button("Share", color="primary")
+
+                    ui.heading("Opened by the server — autofocus=", level=3)
+                    ui.text(
+                        "A server handler renders the popover open; its "
+                        "``autofocus=True`` field takes the cursor at once. "
+                        "Without the mark, the focus stays on the trigger: "
+                        "a popover is not modal.",
+                        color="muted", size="sm",
+                    )
+                    with ui.hstack(gap="sm", align="center"):
+                        server_opened()
 
                     ui.heading("Confirmation prompt (light dialog)",
                                level=3)

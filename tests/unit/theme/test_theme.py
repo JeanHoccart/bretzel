@@ -229,3 +229,40 @@ def test_default_theme_is_consistent_with_bundled_palette() -> None:
     # All semantic slots resolve to the bundled hex.
     for slot in SEMANTIC_COLOR_NAMES:
         assert p.resolve(slot).bg_hex == DEFAULT_SEMANTIC_LIGHT[slot]
+
+
+
+class TestSpacingFamilies:
+    """``spacing=`` — one length, or the three families (2026-10-26)."""
+
+    @staticmethod
+    def _lines(theme) -> list[str]:
+        return [line.strip() for line in theme.generate_css().splitlines()
+                if "--bz-space-" in line or line.strip().startswith("--spacing:")]
+
+    def test_nothing_said_the_families_follow_the_controls(self) -> None:
+        lines = self._lines(Theme())
+        assert "--bz-space-box: var(--spacing);" in lines
+        assert "--bz-space-gap: var(--spacing);" in lines
+
+    def test_a_single_length_still_moves_everything(self) -> None:
+        lines = self._lines(Theme(spacing="3px"))
+        assert "--spacing: 3px;" in lines
+        assert "--bz-space-gap: var(--spacing);" in lines
+
+    def test_a_family_moves_alone(self) -> None:
+        lines = self._lines(Theme(spacing={"gap": "2px", "box": "0.15rem"}))
+        assert "--bz-space-gap: 2px;" in lines and "--bz-space-box: 0.15rem;" in lines
+        assert "--spacing: 0.25rem;" in lines          # the controls did not move
+
+    def test_a_base_theme_passes_its_families_on(self) -> None:
+        base = Theme(spacing={"gap": "2px"})
+        assert "--bz-space-gap: 2px;" in self._lines(Theme(base=base))
+
+    def test_an_unknown_family_is_refused(self) -> None:
+        with pytest.raises(ThemeError, match="unknown family 'margin'"):
+            Theme(spacing={"margin": "1px"})
+
+    def test_an_empty_family_is_refused(self) -> None:
+        with pytest.raises(ThemeError, match="non-empty CSS"):
+            Theme(spacing={"gap": " "})

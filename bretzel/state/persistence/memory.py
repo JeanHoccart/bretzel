@@ -10,15 +10,14 @@ suite (``MemoryBackend`` removes the need for a live Redis in CI).
 What becomes of an expired entry
 --------------------------------
 
-It is removed on READ-BACK, and — since 2026-09-04 — by an **amortised
-sweep on write**. Read-back alone was not enough, and the reason fits in
-one sentence: *an abandoned entry is by definition never read again*. A
-session nobody resumes, a ``PageState`` whose tab is closed, a fresh page
-key on every F5 — their deadline passed with nobody looking, and nothing
-else touched them (``scan`` and ``clear_scope`` purge too, but **no
-framework code calls them**: zero sites, verified). The store therefore
-tracked the number of pages loaded since startup, not the number of
-active users.
+It is removed on READ-BACK and by an **amortised sweep on write**.
+Read-back alone is not enough: *an abandoned entry is by definition never
+read again*. A session nobody resumes, a ``PageState`` whose tab is
+closed, a fresh page key on every F5 — their deadline passes with nobody
+looking, and nothing else touches them (``scan`` and ``clear_scope``
+purge too, but **no framework code calls them**). Without the sweep, the
+store would track the number of pages loaded since startup, not the
+number of active users.
 
 The sweep is **on the write**, and that is deliberate: what makes a store
 grow is writes. No write, no growth, so nothing to sweep — and above all
@@ -29,7 +28,7 @@ inside a development process.
 ``user`` and ``app`` scopes carry ``ttl=None`` by choice (cf.
 ``DEFAULT_TTLS``): they never expire, so nothing removes them. The store
 is bounded by "known users + live sessions + pages seen in the last
-hour", which is the size of the app's data — no longer by the process
+hour", which is the size of the app's data — not by the process
 uptime.
 """
 
@@ -116,13 +115,12 @@ class MemoryBackend:
         metaclass.
 
         Redis (and any future I/O-backed backend) won't expose this
-        method. Its absence NO LONGER prevents hydration since
-        2026-09-04: the registry then has the async ``load`` executed by
-        the loop from the pool thread. It is therefore a shortcut — it
-        avoids a thread round trip when the read costs nothing — and no
-        longer a capability that changes behaviour. The only case it
-        still covers ALONE is the call made outside any loop (script,
-        synchronous test).
+        method. Its absence does not prevent hydration: the registry then
+        has the async ``load`` executed by the loop from the pool thread.
+        It is therefore a shortcut — it avoids a thread round trip when
+        the read costs nothing — and not a capability that changes
+        behaviour. The only case it covers ALONE is the call made outside
+        any loop (script, synchronous test).
         """
         full_key = f"{scope}:{key}"
         entry = self._data.get(full_key)
@@ -195,9 +193,16 @@ class MemoryBackend:
         for Redis's ``HINCRBY``: in both cases it is the store that sums,
         never the caller.
         """
-        if not changes and not add:
-            return
         full_key = f"{scope}:{key}"
+        if not changes and not add:
+            # Nothing to write: only the expiration moves, and only on a
+            # row that exists — Redis's ``EXPIRE`` on an absent key does
+            # nothing either.
+            if ttl is not None:
+                with self._write_lock:
+                    if self.load_sync(scope, key) is not None:
+                        self._data[full_key].expires_at = time.time() + ttl
+            return
         with self._write_lock:
             self._sweep_if_due()
             document = self.load_sync(scope, key) or {}

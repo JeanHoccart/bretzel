@@ -49,11 +49,10 @@ def serialize_html(component: Component) -> str:
     # *component*'s ``render()`` (a close ×, a chevron, a themed icon
     # from a string) registers itself with the active parent and LEAKS
     # onto ``root_children``: it renders a 2nd time, orphaned, in the
-    # page that called ``serialize_html``. That is the root of the
-    # playground's stray × (2026-07-18) — a caller rendering outside
-    # render mode, not a faulty component. Save/restore like
-    # ``_render_children``: a 2nd serialize in the same request must not
-    # find the flag stuck.
+    # page that called ``serialize_html``. The fault would be the
+    # caller's, rendering outside render mode, not a component's.
+    # Save/restore like ``_render_children``: a 2nd serialize in the same
+    # request must not find the flag stuck.
     ctx = maybe_current_context()
     previous = ctx.is_rendering if ctx is not None else None
     if ctx is not None:

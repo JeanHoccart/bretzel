@@ -117,7 +117,7 @@ def generate_scrollbar_css(scrollbar: ScrollbarConfig, palette: Palette) -> str:
 # ───────────────────────────────────────────────────────────────────────────
 
 
-# Carry-over from v1 : Chromium and Safari swap autofilled inputs to
+# Chromium and Safari swap autofilled inputs to
 # their own yellowish background AND their own whitish border, both
 # ignoring Tailwind classes. Our fix **restores the input default**
 # without changing the design :
@@ -197,12 +197,12 @@ _BUTTON_CURSOR = """\
 
 
 # ``ui.viewport`` takes its frame out of the flow (``fixed inset-0``, cf.
-# its theme), so a shell page left ``<body>`` with NO in-flow content and
-# a box 0 px tall: a click on ``body`` was refused by Playwright ("not
-# visible"), and anything reading the body's size read zero. Found by an
-# outside build on 2026-10-22. A body at least as tall as the window
-# changes nothing for a normal page (it grows past it) and does not
-# inflate ``html.scrollHeight``, which is what ``fixed`` protects.
+# its theme), so a shell page would leave ``<body>`` with NO in-flow content
+# and a box 0 px tall: a click on ``body`` would be refused by Playwright
+# ("not visible"), and anything reading the body's size would read zero. A
+# body at least as tall as the window changes nothing for a normal page (it
+# grows past it) and does not inflate ``html.scrollHeight``, which is what
+# ``fixed`` protects.
 _BODY_FILLS_THE_WINDOW = """\
 /* body fills the window — a viewport shell leaves it no in-flow content */
 @layer base {
@@ -271,13 +271,10 @@ textarea:-webkit-autofill::selection {
 # theme ``scroll`` slot). ``scrollbar-width:none`` covers Firefox + Chromium
 # 121+; ``::-webkit-scrollbar{display:none}`` is the Safari (< 18.2) fallback.
 #
-# ⚠️ The attribute is ``data-collapse``, not ``data-variant``. This selector
-# targeted the second one for the whole time the Sidebar emitted the first
-# (``sidebar.py``: "``data-collapse`` replaces ``data-variant``"): the rule
-# matched NOTHING any more, and the collapsed rail rendered its scrollbar —
-# measured in the browser, ``scrollbar-width: thin`` instead of ``none``.
-# Nothing raises when a CSS selector stops matching: it is the
-# ``test_css_selectors_match_the_catalogue`` gate that says so now.
+# ⚠️ The attribute is ``data-collapse``, the one the Sidebar emits; on any
+# other, the rule would match NOTHING and the collapsed rail would render
+# its scrollbar. Nothing raises when a CSS selector stops matching: the
+# ``test_css_selectors_match_the_catalogue`` gate says so.
 _RAIL_SCROLL = """\
 /* collapsed rail : hidden scrollbar (centred icon column, no reserved gutter) */
 @media (min-width: 768px) {
@@ -298,29 +295,17 @@ _RAIL_SCROLL = """\
 # element that provides its own navigation.
 #
 # ⚠️ Why a real CSS class and not an arbitrary Tailwind utility
-# (``[scrollbar-width:none] [&::-webkit-scrollbar]:hidden``) — and the
-# reason was CORRECTED on 2026-08-29, because the old one was wrong.
+# (``[scrollbar-width:none] [&::-webkit-scrollbar]:hidden``): the production
+# binary emits both forms, but the dev mode's BROWSER compiler handles
+# neither. In **DEV**, neither rule would exist in the page's sheets: the
+# ``* { scrollbar-width: thin }`` above would win, and the bar would stay
+# visible on platforms that draw a classic one (Windows, Linux) — invisible
+# in headless Chromium, which uses overlay bars. The arbitrary variant's
+# ``&`` is furthermore escaped as ``&amp;`` in the HTML attribute.
 #
-# What stays true, measured: in **DEV**, neither rule exists in the
-# page's sheets. The ``* { scrollbar-width: thin }`` above wins, and the
-# bar stays visible on platforms that draw a classic one (Windows,
-# Linux) — invisible in headless Chromium, which uses overlay bars. The
-# arbitrary variant's ``&`` is furthermore escaped as ``&amp;`` in the
-# HTML attribute.
-#
-# What was FALSE: "the JIT does not compile them", stated as a property
-# of Tailwind. Re-measured on 2026-08-29 by passing both forms to the
-# production binary (``.bretzel/bin/tailwindcss-*``): it emits BOTH,
-# ``.[scrollbar-width\:none] { scrollbar-width: none }`` and the
-# ``&::-webkit-scrollbar`` variant. It is the dev mode's BROWSER compiler
-# that does not handle them, not Tailwind — same family as the
-# ``project_tailwind_browser_breaks_transitions`` memory.
-#
-# The class stays, and for a reason that still holds: it works on BOTH
-# sides, where the arbitrary form only exists in production. A class that
-# applies only half the time depending on the mode is worse than a named
-# hook. The comment on Sidebar's ``scroll`` slot already said it: "CSS
-# hook (not a Tailwind utility)".
+# The class works on BOTH sides, where the arbitrary form only exists in
+# production. A class that applies only half the time depending on the mode
+# is worse than a named hook.
 _NO_SCROLLBAR = """\
 /* scrolls without showing its bar (the component provides its navigation) */
 .bz-no-scrollbar {
@@ -339,12 +324,10 @@ _NO_SCROLLBAR = """\
 # ───────────────────────────────────────────────────────────────────────────
 #
 # A CSS hook, not a theme slot, and the reason is structural: this node
-# is **created by the runtime** (``19_dnd.js`` clones the grabbed item),
-# so no Python render ever goes through it. Composing a Tailwind class
-# for it from JS would fall back into the measured trap of the
-# ``project_assembled_tailwind_class_dev_only`` memory — a class
-# assembled outside the scanner exists only in dev and disappears in
-# production.
+# is **created by the runtime** (``dnd.js`` clones the grabbed item),
+# so no Python render ever goes through it. A Tailwind class composed
+# for it from JS would be assembled outside the scanner: it would exist
+# only in dev and disappear in production.
 #
 # The positioning (``left`` / ``top`` / ``width``) stays inline: it is
 # recomputed on every ``pointermove`` and has no business in a sheet.
@@ -366,6 +349,20 @@ _DRAG_PREVIEW = """\
 }
 @media (prefers-reduced-motion: reduce) {
   .bz-drag-preview { transform: none; }
+}
+"""
+
+
+_REDUCED_MOTION = """\
+/* "Reduce motion" (the system setting): no transition anywhere — every
+   state lands at once. ONE rule, here, rather than a motion-safe: on
+   each of ~90 transitions: until 2026-11-05 the charts, the toasts, the
+   busy state and the drag preview honoured the setting, while dialogs,
+   drawers, accordions, the sidebar and every panel's fade ignored it.
+   The keyframes that say "working" (spinner, skeleton, busy) are not
+   transitions and keep turning: a still spinner says nothing. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 }
 """
 
@@ -392,19 +389,26 @@ iconify-icon[icon]:not([icon=""]) {
 #: A small spinner for a text field: a background image, so it needs no
 #: element of its own. Grey at mid-opacity reads on both themes; an image
 #: cannot take ``currentColor``.
+#: The busy states draw ``ui.spinner``'s ring — one look for « waiting ».
+#: Held by ``tests/consistency/test_busy_draws_the_spinner.py``.
+#: ``ui.spinner``'s ``animate-spin``: Tailwind's ``spin``, 1 s, linear.
+SPINNER_TURN = "1s linear infinite"
+#: A field draws its ring as a BACKGROUND image, which cannot read the
+#: theme's colours: a neutral grey, three quarters of the ring, the top
+#: quarter left open (``border-t-transparent``: from 10:30 to 1:30).
 _FIELD_SPINNER = quote(
     "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' "
-    "stroke='#888' stroke-width='3'><circle cx='12' cy='12' r='9' stroke-opacity='.3'/>"
-    "<path d='M21 12a9 9 0 0 0-9-9' stroke-linecap='round'><animateTransform "
-    "attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' dur='.7s' "
-    "repeatCount='indefinite'/></path></svg>",
+    "stroke='#888' stroke-width='3'><circle cx='12' cy='12' r='9' "
+    "stroke-dasharray='42.41 14.14'><animateTransform attributeName='transform' "
+    "type='rotate' from='-45 12 12' to='315 12 12' dur='1s' "
+    "repeatCount='indefinite'/></circle></svg>",
     safe="",
 )
 
 _BUSY = f"""\
 /* The automatic busy state: the runtime sets the bz-busy class on a
    trigger whose request is still unanswered after 200 ms, and on a zone
-   it asks again (runtime 05_bridge.js). Each shape keeps its size, so
+   it asks again (runtime bridge.js). Each shape keeps its size, so
    nothing around it moves. ``loading=False`` renders "off" instead. */
 @keyframes bz-busy-spin {{ to {{ transform: rotate(360deg); }} }}
 @keyframes bz-busy-pulse {{ 50% {{ opacity: .4; }} }}
@@ -427,10 +431,10 @@ button.bz-busy::after {{
   margin: auto;
   width: 1em;
   height: 1em;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
+  border: var(--bz-stroke-strong) solid currentColor;
+  border-top-color: transparent;
   border-radius: 9999px;
-  animation: bz-busy-spin .7s linear infinite;
+  animation: bz-busy-spin {SPINNER_TURN};
 }}
 /* A text field: a spinner at the end of its TEXT area — the content box,
    so a clear button sitting in its right padding stays visible. */
@@ -480,7 +484,7 @@ def strip_safelist(theme_css: str) -> str:
     Both exist only for the PRODUCTION compiler, which reads source
     files. The dev mode's browser compiler reads the live DOM, where the
     classes are already resolved: the safelist changes nothing in what it
-    produces and weighs down every page (69 KB measured), and a **disk**
+    produces and weighs down every page, and a **disk**
     root literally makes no sense in a browser — ignored at best, a
     compilation error in the page at worst.
 
@@ -520,6 +524,7 @@ def generate_theme_css_full(
     text: Mapping[str, str] | None = None,
     shape: Mapping[str, str] | None = None,
     stroke: str | None = None,
+    spacing_layout: Mapping[str, str] | None = None,
     extra_css: str = "",
 ) -> str:
     """Assemble the full ``theme.css`` Lightning CSS will ingest.
@@ -566,11 +571,10 @@ def generate_theme_css_full(
     ``extra_css`` is **the last section, and that is the subject**. All
     those above belong to the framework; this one belongs to the app, so
     it must win the cascade at equal specificity — an escape hatch that
-    loses against what it is meant to correct escapes nothing. That is
-    exactly the illness measured on ``classes=`` on 2026-08-16
-    (``bg-black`` losing against a theme's ``bg-surface`` because
-    Tailwind orders its utilities itself): here the order is ours, so it
-    is decided instead of suffered.
+    loses against what it is meant to correct escapes nothing. Utilities
+    have that illness when Tailwind orders them itself (``bg-black``
+    losing against a theme's ``bg-surface``): here the order is ours, so
+    it is decided instead of suffered.
 
     It goes through the **same** pipeline as the rest — so it is
     compiled, minified, and above all **covered by the sha256
@@ -595,6 +599,7 @@ def generate_theme_css_full(
             text=text,
             shape=shape,
             stroke=stroke,
+            spacing_layout=spacing_layout,
         ).rstrip(),
         "",
         generate_color_bridges(palette),
@@ -608,6 +613,7 @@ def generate_theme_css_full(
         _DRAG_PREVIEW,
         _ICON_BOX,
         _BUSY,
+        _REDUCED_MOTION,
     ]
     if scrollbar is not None:
         # AFTER the two hiding rules: the global block sets a

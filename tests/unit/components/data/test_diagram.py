@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import pytest
 
-from bretzel import ui
+from starlette.testclient import TestClient
+
+from bretzel import Bretzel, ui
 from bretzel.components.base import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.data.diagram import Diagram
 from bretzel.core.tree import Element
+from bretzel.render import page
 
 EDGES = [("a", "b"), ("b", "c"), ("a", "c")]
 
@@ -35,6 +38,37 @@ def _render(**kwargs) -> Element:
 
 def _nodes(root: Element) -> list[Element]:
     return [e for e in _walk(root) if "data-bz-node" in e.attrs]
+
+
+def test_the_root_keeps_what_the_caller_gave_it() -> None:
+    root = _render(edges=EDGES, attrs={"data-x": "1"}, aria_label="Flow", tag="section")
+    assert root.tag == "section"
+    assert root.attrs["data-x"] == "1"
+    assert root.attrs["aria-label"] == "Flow"
+
+
+def test_an_edge_wears_its_own_colour() -> None:
+    root = _render(edges=[ui.edge("a", "b", color="error"), ui.edge("b", "c")])
+    paths = [e for e in _walk(root) if e.tag == "path" and "marker-end" in e.attrs]
+    assert ["bz-c-error" in e.attrs["class"] for e in paths].count(True) == 1
+    assert not any("stroke-(--bz-fg)" in e.attrs["class"] for e in paths)
+
+
+def test_an_unknown_edge_style_is_refused() -> None:
+    with pytest.raises(ComponentUsageError, match="dotted"):
+        ui.edge("a", "b", style="dotted")
+
+
+def test_an_unknown_edge_colour_is_refused() -> None:
+    app = Bretzel(secret_key="v" * 32, mode="dev")
+
+    @page("/")
+    def home() -> None:
+        ui.diagram(edges=[ui.edge("a", "b", color="neutral")])
+
+    app.include(home)
+    with TestClient(app) as client, pytest.raises(ComponentUsageError, match="neutral"):
+        client.get("/")
 
 
 # ── Le partage HTML / SVG ──────────────────────────────────────────────

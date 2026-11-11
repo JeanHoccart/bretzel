@@ -27,13 +27,14 @@ from typing import TYPE_CHECKING
 
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from bretzel.core import call_without_blocking
+from bretzel.render import zones_reachable_from
 from bretzel.runtime.protocol import ROUTE_STATIC_DIR
 from bretzel.server.errors import BretzelError
 from bretzel.server.middleware.auth import AuthMiddleware
 from bretzel.server.middleware.csrf import CSRFMiddleware
+from bretzel.server.middleware.host import HostMiddleware
 from bretzel.server.middleware.render_context import RenderContextMiddleware
 from bretzel.server.middleware.security import SecurityHeadersMiddleware
 from bretzel.server.middleware.session import SessionMiddleware
@@ -65,10 +66,9 @@ _log = logging.getLogger("bretzel.server.lifecycle")
 async def _check_state_backend(app: Bretzel) -> None:
     """Fail FAST when the state backend is unreachable.
 
-    The ``StateBackend.health()`` contract had announced "Called once at
-    app startup" forever — with no caller at all (verified 2026-08-01). A
-    wrong Redis URL therefore produced an obscure error on the FIRST user
-    request, instead of a readable refusal to start.
+    Without this call to ``StateBackend.health()``, a wrong Redis URL
+    produces an obscure error on the FIRST user request, instead of a
+    readable refusal to start.
 
     We do NOT raise on a backend answering ``False`` without an
     exception: a negative ``health`` can be transient (Redis restarting),
@@ -128,11 +128,10 @@ async def bretzel_startup(app: Bretzel) -> None:
     stack on the first ASGI call, lifespan included, so a startup hook
     arrives too late.
 
-    ⚠️ The opposite conclusion — "so the constructor calls it" — was
-    written here and applied until 2026-08-15. It froze the stack BEFORE
-    user code could run, since one writes ``@app.middleware`` after
-    ``app = Bretzel(...)``. Result: ``@app.middleware`` was a **complete
-    no-op**. Building is now deferred to ``Bretzel.__call__``, the only
+    ⚠️ The constructor must not do it either: that would freeze the stack
+    BEFORE user code can run, since one writes ``@app.middleware`` after
+    ``app = Bretzel(...)``, and make ``@app.middleware`` a **complete
+    no-op**. Building is deferred to ``Bretzel.__call__``, the only
     moment when the user module is imported and Starlette has frozen
     nothing.
     """
@@ -146,6 +145,7 @@ async def bretzel_startup(app: Bretzel) -> None:
     await app._sse_broker.start()
     _build_idempotency_store(app)
     _register_routes(app)
+    _collect_zones(app)
     await _run_user_hooks(app, getattr(app, "_startup_hooks", []) or [])
     app._is_ready = True
 
@@ -237,9 +237,9 @@ def _resolve_theme(app: Bretzel) -> None:
     - ``_theme_css_inline`` — without the safelist. That is the
       ``<style type="text/tailwindcss">`` block inlined into EVERY page
       in dev, where the browser compiler scans the DOM and therefore has
-      no need of the safelist. Leaving it there cost 69 KB per page
-      (66 % of the document) and as many rules to generate before the
-      first styled render.
+      no need of the safelist. Leaving it there would weigh down every
+      page and add as many rules to generate before the first styled
+      render.
     """
     from bretzel.components import (
         dynamic_responsive_classes,
@@ -271,7 +271,7 @@ def _build_state_backend(app: Bretzel) -> None:
 
 
 def _build_sse_broker(app: Bretzel) -> None:
-    """Wire the SSE broker for ``@refreshable(deps=[…], broadcast=[State])``.
+    """Wire the SSE broker that tells the other tabs a state they show changed.
 
     Redis URL set → cross-worker :class:`RedisBroker` (Pub/Sub fanout of
     the ``state-dirty`` signal) ; otherwise the in-process
@@ -309,13 +309,7 @@ def _build_idempotency_store(app: Bretzel) -> None:
 def _mount_static_dir(app: Bretzel) -> None:
     """Mount ``config.static_dir`` at ``/static``, if the app declares one.
 
-    ``static_dir`` was accepted in ``Bretzel(...)``'s signature, stored
-    in the config, and documented as "mounted at ``/static`` on the
-    underlying FastAPI" — with no ``.mount()`` existing anywhere in the
-    repository (verified 2026-08-01). A user passing it therefore
-    received **nothing**, silently: worse than an absent kwarg, which
-    would have raised for them. Wired rather than removed — serving a
-    favicon or a logo is a battery one asks for on day one.
+    Serving a favicon or a logo is a battery one asks for on day one.
 
     A declared but missing folder **raises at startup**: it is a path
     typo, and it does not repair itself.
@@ -339,6 +333,16 @@ def _mount_static_dir(app: Bretzel) -> None:
         StaticFiles(directory=directory, check_dir=False),
         name="bretzel_static",
     )
+
+
+def _collect_zones(app: Bretzel) -> None:
+    """Enter every zone the app can reach, whichever worker renders first:
+    a browser's zones are known here before this process has drawn them."""
+    declarations = [*app._pages, *app._downloads, *app._error_handlers.values()]
+    for feature in app._features:
+        declarations.extend(feature.provides)
+    for zone in zones_reachable_from(declarations):
+        app.zones.add(zone)
 
 
 def _register_routes(app: Bretzel) -> None:
@@ -478,13 +482,14 @@ def build_middleware_stack(app: Bretzel) -> None:
         # request.
         secure=config.secure_cookies,
         session_key=config._session_key,
+        bretzel_app=app,
     )
 
-    # Optional CORS / TrustedHost. Both are no-ops without config.
+    # Host check (``middleware/host.py``) — dev mode always has a list
+    # (the local names), prod only when the app declares one. CORS is a
+    # no-op without config.
     if config.trusted_hosts:
-        app.fastapi.add_middleware(
-            TrustedHostMiddleware, allowed_hosts=list(config.trusted_hosts)
-        )
+        app.fastapi.add_middleware(HostMiddleware, allowed=tuple(config.trusted_hosts))
     if config.cors_origins:
         app.fastapi.add_middleware(
             CORSMiddleware,
@@ -499,15 +504,10 @@ def build_middleware_stack(app: Bretzel) -> None:
     #
     # Bretzel's HTML is repetitive BY CONSTRUCTION: the same Tailwind
     # class string on every instance of a component, the same ``bz-*``
-    # expression on every control of the same kind. Measured on the
-    # playground's ``/datatable`` (2026-08-07): 9 085 ``class``
-    # attributes for 328 distinct strings, so 97 % duplicates — and
-    # ``class=`` + ``bz-*`` together make up ~80 % of a page's bytes.
-    # That is exactly what a compressor eats: 1 334 KB → 91 KB.
+    # expression on every control of the same kind. That is exactly what
+    # a compressor eats.
     #
-    # Level 6 and not 9 (Starlette's default): 5.9 ms of CPU for this
-    # page against 113 ms to render it, and 9 only gains 2 KB more. The
-    # scale is flat beyond 6.
+    # Level 6 and not 9 (Starlette's default): the scale is flat beyond 6.
     #
     # ⚠️ The SSE stream must NEVER be compressed — ``apply_compression``
     # only flushes its zlib buffer on the last chunk, and a stream has
@@ -539,10 +539,9 @@ def build_middleware_stack(app: Bretzel) -> None:
     #
     # ``reversed`` because ``add_middleware`` registers innermost-first
     # (the LAST added is the outermost). Walking the list in order, the
-    # last ``@app.middleware`` written became the outermost — the
+    # last ``@app.middleware`` written would become the outermost — the
     # opposite of what ``decorators/middleware.py`` promises: "first
-    # registered = outermost". Nobody had seen it because no user
-    # middleware ran at all before 2026-08-15.
+    # registered = outermost".
     #
     # It is the promise we hold, not the implementation's accident: it is
     # the convention of a list written top to bottom (Django's

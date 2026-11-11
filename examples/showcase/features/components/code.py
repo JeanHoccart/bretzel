@@ -20,7 +20,7 @@ def add_to_cart() -> None:
     Cart().items += 1
 
 
-@refreshable(deps=[Cart])
+@refreshable
 def cart_button() -> None:
     ui.button(f"Cart · {Cart().items}", on_click=add_to_cart)''',
             lang="python", classes="w-full")

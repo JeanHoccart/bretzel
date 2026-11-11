@@ -51,3 +51,14 @@ class TestForm:
 
     def test_no_bindable_props(self) -> None:
         assert Form.BINDABLE_PROPS == ()
+
+    def test_a_client_submit_does_not_also_leave_natively(self) -> None:
+        """A gesture in the page keeps the page: no native GET reload."""
+        with render_isolated():
+            out = serialize(Form(on_submit="console.log(1)").render())
+        assert 'bz-on:submit="$event.preventDefault(); console.log(1)"' in out
+
+    def test_a_server_submit_is_left_to_htmx(self) -> None:
+        with render_isolated():
+            out = serialize(Form(on_submit=_submit_handler).render())
+        assert "preventDefault" not in out

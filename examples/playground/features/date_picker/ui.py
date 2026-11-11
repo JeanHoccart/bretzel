@@ -27,7 +27,6 @@ from examples.playground.features.date_picker.state import (
     COLORS,
     DatePickerClient,
     DatePickerPlayground,
-    LOCALES,
     MONTHS_FR,
     SIZES,
     WEEKDAYS_FR,
@@ -76,10 +75,10 @@ def build_preview(state: DatePickerPlayground):
     preview reflects every axis exposed in the controls grid.
     """
     kwargs: dict = {
-        "placeholder": state.placeholder or "YYYY-MM-DD",
+        "placeholder": state.placeholder or None,
         "color": state.color,
         "size": state.size,
-        "weekstart": state.weekstart,
+        "week_start": state.week_start,
         "clearable": state.clearable == "on",
         "close_on_pick": state.close_on_pick == "on",
     }
@@ -140,7 +139,7 @@ def control(label: str):
 # ─────────────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[DatePickerPlayground])
+@refreshable
 def server_panel() -> None:
     state = DatePickerPlayground()
     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
@@ -166,7 +165,7 @@ def server_panel() -> None:
                      on_change=server_changed)
         with control("placeholder"):
             ui.input(value=state.placeholder,
-                     placeholder="YYYY-MM-DD",
+                     placeholder="the typed form, in the page's order",
                      on_change=server_changed)
         with control("color (7 paliers)"):
             ui.select(value=state.color,
@@ -176,15 +175,15 @@ def server_panel() -> None:
             ui.select(value=state.size,
                       options=[(s, s) for s in SIZES],
                       on_change=server_changed)
-        with control("weekstart (0=Sun, 1=Mon)"):
-            # ``state.weekstart`` WITHOUT ``str()``: the value carries a
+        with control("week_start (0=Sun, 1=Mon)"):
+            # ``state.week_start`` WITHOUT ``str()``: the value carries a
             # stamp (the field's name) and it is the only thing attesting
             # "the server is authoritative". ``str()`` unwraps it → no
             # ``_serverSync`` → the control stays frozen on its old value
             # after a panel refresh. Select already normalises to a string
             # to match the option keys (measured: the field is "1" with or
             # without the ``str()``), so it protected nothing.
-            ui.select(value=state.weekstart,
+            ui.select(value=state.week_start,
                       options=[("0", "0 (Sunday)"),
                                ("1", "1 (Monday)")],
                       on_change=server_changed)
@@ -250,7 +249,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[DatePickerPlayground])
+@refreshable
 def events_panel() -> None:
     state = DatePickerPlayground()
     with ui.vstack(gap="sm"):
@@ -304,7 +303,7 @@ def page() -> None:
 
                     ui.heading("Pre-selected value", level=3)
                     with ui.flex(justify="start"):
-                        ui.date_picker(TODAY + dt.timedelta(days=3))
+                        ui.date_picker(value=TODAY + dt.timedelta(days=3))
 
                     ui.heading("Custom placeholder", level=3)
                     with ui.flex(justify="start"):
@@ -316,7 +315,7 @@ def page() -> None:
                             with ui.vstack(gap="xs", align="center"):
                                 ui.text(c, color="muted", size="xs")
                                 ui.date_picker(
-                                    TODAY + dt.timedelta(days=2),
+                                    value=TODAY + dt.timedelta(days=2),
                                     color=c, size="sm",
                                 )
 
@@ -326,20 +325,20 @@ def page() -> None:
                             with ui.vstack(gap="xs", align="center"):
                                 ui.text(s, color="muted", size="xs")
                                 ui.date_picker(
-                                    TODAY + dt.timedelta(days=2),
+                                    value=TODAY + dt.timedelta(days=2),
                                     size=s,
                                 )
 
-                    ui.heading("weekstart (0=Sun, 1=Mon)", level=3)
+                    ui.heading("week_start (0=Sun, 1=Mon)", level=3)
                     with ui.flex(wrap=True, gap="md", align="start"):
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("0 (Sunday-first)",
                                     color="muted", size="xs")
-                            ui.date_picker(weekstart=0)
+                            ui.date_picker(week_start=0)
                         with ui.vstack(gap="xs", align="center"):
                             ui.text("1 (Monday-first, default)",
                                     color="muted", size="xs")
-                            ui.date_picker(weekstart=1)
+                            ui.date_picker(week_start=1)
 
                     ui.heading("min + max bounds", level=3)
                     ui.text("Calendar days outside [today, today+30] "
@@ -377,7 +376,7 @@ def page() -> None:
                     ui.heading("disabled (whole picker)", level=3)
                     with ui.flex(justify="start"):
                         ui.date_picker(
-                            TODAY + dt.timedelta(days=3),
+                            value=TODAY + dt.timedelta(days=3),
                             disabled=True,
                         )
 
@@ -399,7 +398,7 @@ def page() -> None:
                             color="muted", size="xs")
                     with ui.flex(justify="start"):
                         ui.date_picker(
-                            TODAY + dt.timedelta(days=3),
+                            value=TODAY + dt.timedelta(days=3),
                             clearable=False,
                         )
 
@@ -441,7 +440,7 @@ def page() -> None:
                             color="muted", size="xs")
                     with ui.flex(justify="start"):
                         ui.date_picker(
-                            TODAY + dt.timedelta(days=20),
+                            value=TODAY + dt.timedelta(days=20),
                             min=TODAY,
                             max=TODAY + dt.timedelta(days=10),
                         )
@@ -556,10 +555,11 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("A11y", level=2)
                     ui.text(
-                        "The editable field exposes a typed-date hint "
-                        "via ``placeholder`` + ``aria-label`` (default "
-                        "mirrors the placeholder so screen readers "
-                        "announce the expected format). The calendar "
+                        "The editable field's hint is the form it reads, "
+                        "in the page's language (« MM/DD/YYYY », "
+                        "« JJ/MM/AAAA » in French) ; its ``aria-label`` "
+                        "is its name, « Date », unless a "
+                        "``ui.form_field`` labels it. The calendar "
                         "trigger has "
                         "``aria-label=\"Open date picker\"`` + "
                         "``:aria-expanded`` toggling with the popover. "
@@ -568,13 +568,13 @@ def page() -> None:
                         "(``bz-show=\"val\"``) when no value is set so "
                         "screen readers don't announce it. Inside the "
                         "calendar : each day cell is a focusable "
-                        "``<button>`` with ``data-date`` / "
+                        "``<button>`` with ``data-bz-date`` / "
                         "``aria-disabled`` / reactive ``:tabindex``.",
                         color="muted", size="sm",
                     )
                     with ui.flex(justify="start"):
                         ui.date_picker(
-                            TODAY + dt.timedelta(days=3),
+                            value=TODAY + dt.timedelta(days=3),
                         )
 
             # ── Card 6 — Server playground ──────────────────────────
@@ -635,12 +635,22 @@ def page() -> None:
                     )
                     client = DatePickerClient()
                     with ui.vstack(gap="md", align="center"):
-                        ui.date_picker(client.picked)
+                        ui.date_picker(value=client.picked)
                         with ui.hstack(gap="sm", align="center"):
                             ui.text("Picked:", color="muted",
                                     size="sm")
                             ui.text(client.picked,
                                     size="sm", weight="medium")
+                        # The EXTERNAL control: these buttons write the
+                        # same field, and the picker follows — the other
+                        # half of « two-way » (playground-pattern.md § 8).
+                        with ui.hstack(gap="sm", wrap=True, justify="center"):
+                            ui.button("1 Jan 2027", variant="outline", size="sm",
+                                      on_click=client.picked.set("2027-01-01"))
+                            ui.button("25 Dec 2026", variant="outline", size="sm",
+                                      on_click=client.picked.set("2026-12-25"))
+                            ui.button("Clear", variant="ghost", size="sm",
+                                      on_click=client.picked.set(""))
                     ui.divider()
                     emitted_html_block(
                         "Emitted HTML — no watcher : the text field "
@@ -651,7 +661,7 @@ def page() -> None:
                         "and the calendar a ``bz-on:change`` that "
                         "writes the pick back — so external state "
                         "mutations reflect in the field.",
-                        serialize_html(ui.date_picker(client.picked)),
+                        serialize_html(ui.date_picker(value=client.picked)),
                     )
 
             # ── Card 9 — Client events ──────────────────────────────
@@ -790,7 +800,7 @@ def page() -> None:
                     ui.divider()
                     emitted_html_block(
                         "Emitted HTML — note "
-                        "``@change=\"$bz.state.DatePickerClient.default"
+                        "``bz-on:change=\"$bz.state.DatePickerClient.default"
                         ".client_log.push(...)\"`` (pure client-side, no "
                         "``hx-post``).",
                         serialize_html(ui.date_picker(

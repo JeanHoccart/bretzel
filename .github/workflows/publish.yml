@@ -35,6 +35,9 @@ jobs:
         with:
           name: python-distributions
           path: dist/
+          # Only carries the build to the publish job below; one day is
+          # plenty (2026-11-10: 90 days of CI copies filled the quota).
+          retention-days: 1
 
   publish:
     needs: build

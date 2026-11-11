@@ -21,7 +21,7 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from bretzel.components.base import reactive_prop
-from bretzel.components.base._wiring import reject_sealed
+from bretzel.components.base.arguments import reject_sealed
 from bretzel.components.layout.flex.flex import Flex
 
 

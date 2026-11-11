@@ -4,7 +4,7 @@ What it repairs
 ---------------
 
 The per-field commit (cf. ``registry.commit``) saves what combines: two
-requests writing DIFFERENT fields no longer erase each other, and a field
+requests writing DIFFERENT fields do not erase each other, and a field
 declared ``merge="add"`` sums. What remains is what does not combine — a
 gesture that COMPUTES from what it read ::
 
@@ -38,13 +38,12 @@ protected nothing.
 ``with`` and not ``async with``
 -------------------------------
 
-The handlers of this framework are written ``def`` (measured: 1 659
-against 16), because a synchronous body is offloaded to a thread and
-freezes nothing. An ``async with`` would force them all into ``async
-def``, that is to say onto the loop, where the slightest blocking call
-costs the whole worker. The same object accepts both forms — ``async
-with`` works in an ``async def`` body — but the normal one is
-synchronous.
+The handlers of this framework are written ``def``, because a
+synchronous body is offloaded to a thread and freezes nothing. An
+``async with`` would force them all into ``async def``, that is to say
+onto the loop, where the slightest blocking call costs the whole
+worker. The same object accepts both forms — ``async with`` works in
+an ``async def`` body — but the normal one is synchronous.
 
 What a time-bounded lock cannot do
 ----------------------------------

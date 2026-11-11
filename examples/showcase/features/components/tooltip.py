@@ -62,9 +62,9 @@ def toggle_hints() -> None:
     hints = Hints()
     with ui.vstack(gap="md", align="center"):
         with ui.hstack(gap="sm"):
-            with ui.tooltip("Archive this conversation", enabled=hints.shown):
+            with ui.tooltip("Archive this conversation", disabled=~hints.shown):
                 ui.button("Archive", icon_left="archive", variant="soft")
-            with ui.tooltip("Snooze until tomorrow, 9:00", enabled=hints.shown):
+            with ui.tooltip("Snooze until tomorrow, 9:00", disabled=~hints.shown):
                 ui.button("Snooze", icon_left="alarm-clock", variant="soft")
         ui.switch(checked=hints.shown, label="Show hints on hover")
 

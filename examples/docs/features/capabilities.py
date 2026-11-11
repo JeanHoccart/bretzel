@@ -7,8 +7,7 @@ can deduce it.
 
 Serving a file, for instance, is ``render/decorators/download.py`` +
 ``server/routing/downloads.py`` + ``server/routing/_csv.py`` + the
-``download=`` of ``components/actions/link`` + the export of
-``components/data/datatable``. Five folders, five docstrings, none
+export of ``components/data/datatable``. Four files, four docstrings, none
 saying "Bretzel can serve a file".
 
 How it cannot lie in spite of that
@@ -37,7 +36,7 @@ from examples.docs.features.shell import shell
 PATH = "/capabilities"
 
 
-class Filtre(ClientState):
+class CapabilitySearch(ClientState):
     """The text searched — ON THE CLIENT, and that is the point.
 
     The 19 capabilities amount to a few tens of kilobytes. Rendering them
@@ -49,7 +48,7 @@ class Filtre(ClientState):
     here, and the cards are HIDDEN, not removed.
     """
 
-    cherche: str = field(default="")
+    query: str = field(default="")
 
 
 def matiere(cap: Capability) -> str:
@@ -104,7 +103,7 @@ def carte(cap: Capability) -> None:
 @page(PATH, layout=shell, title="What Bretzel can do · Bretzel docs",
       description="Everything the Bretzel Python web framework can do, searchable: each capability with the chapter that teaches it and its CLI equivalent.")
 def capabilities_page() -> None:
-    filtre = Filtre()
+    search = CapabilitySearch()
 
     with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
@@ -133,7 +132,7 @@ def capabilities_page() -> None:
             )
 
             ui.input(
-                value=filtre.cherche,
+                value=search.query,
                 placeholder='Filter — “csv”, “dark”, “realtime”…',
                 clearable=True,
             )
@@ -148,7 +147,7 @@ def capabilities_page() -> None:
             with ui.vstack(gap="md"):
                 for cap in ui.filter_each(
                     CAPABILITIES,
-                    query=filtre.cherche,
+                    query=search.query,
                     text=matiere,
                     key=lambda c: c.name,
                     empty=lambda: ui.text(

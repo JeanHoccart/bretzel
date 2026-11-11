@@ -64,7 +64,7 @@ def note_changed(note: Note) -> None:
     """Typing hydrates ``Note.text``; the preview re-renders."""
 
 
-@refreshable(deps=[Note])
+@refreshable
 def note_preview() -> None:
     ui.markdown(Note().text)
 

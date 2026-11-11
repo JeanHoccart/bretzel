@@ -5,17 +5,17 @@ early, lock the button during the async window, and mutex the spinner
 against the leading icon — and only the dressing around differs (Button
 inserts a label and a right icon, IconButton has only a glyph).
 
-These three pieces lived in duplicate (audit F09). The mutex wrapper
-itself (``Component._cloak_show``) was already a base-layer primitive:
-what was left unshared is the early construction of the spinner, the
-``loading || disabled`` OR-combine, and the glue that assembles them.
+The mutex wrapper itself (``Component._cloak_show``) is a base-layer
+primitive: what this module shares is the early construction of the
+spinner, the ``loading || disabled`` OR-combine, and the glue that
+assembles them.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from bretzel.components.base import Component
+from bretzel.components.base import Component, ComponentUsageError
 from bretzel.components.primitives.spinner import Spinner
 from bretzel.core.tree import Node
 from bretzel.runtime.protocol import BZ_ATTR_PREFIX
@@ -120,13 +120,13 @@ def anchor_tag(component: Component, *, href: Any, on_click: Any, type: Any,
     if "tag" not in kwargs:
         component._tag = "a"
     if on_click is not None:
-        raise TypeError(
+        raise ComponentUsageError(
             f"ui.{name} does not take `href=` AND `on_click=`: they are two "
             f"jobs (navigate / act) on one target, and nothing would "
             f"announce which applies. Choose — or place two controls."
         )
     if type is not None:
-        raise TypeError(
+        raise ComponentUsageError(
             f"ui.{name}(href=…) renders an `<a>`, where `type=` names the "
             f"target's MIME type and not a button's nature. Remove `type=`."
         )

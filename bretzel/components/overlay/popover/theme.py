@@ -22,12 +22,14 @@ POPOVER_THEME: dict[str, Any] = {
         "root": "relative inline-flex w-fit h-fit",
         "panel": (
             "absolute z-40 min-w-[12rem] "
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-interface "
+            # ``bg-surface``: a popover holds content, fields included —
+            # the fill of a control is ``interface`` (cf. dialog).
+            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
             "p-3 shadow-lg "
             # The enter fade. The three classes go together and none
             # serves alone — the why is in a single copy in
             # ``overlay/dropdown/theme.py``.
-            "transition-[opacity,display] transition-discrete duration-150 "
+            "transition-opacity duration-150 "
             "starting:opacity-0"
         ),
     },

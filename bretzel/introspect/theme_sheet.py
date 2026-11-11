@@ -4,8 +4,8 @@ Why it exists
 -------------
 The normal card names the keys one is allowed to write in
 ``Theme(components={…})``, and stops just short of the question one
-really asks. Measured on 2026-09-10 while writing the kanban's preset:
-**about ten ``theme.py`` opened by hand** while ``describe`` was running.
+really asks: without this card, writing a theme means opening
+``theme.py`` files by hand.
 
 The two lines it returned for ``button`` and for ``select`` were
 IDENTICAL although the two shapes are incompatible — ``button`` expects
@@ -27,9 +27,9 @@ The three gaps, and what each one costs
 
 What it refuses to do
 ---------------------
-Vomit the table. ``select`` has 18 slots, ``datatable`` far more, and
-70 855 characters of Tailwind classes across the catalogue: an output
-printing them all is no longer readable, so it no longer answers. The
+Vomit the table. A component can carry many slots, and the catalogue
+holds a great mass of Tailwind classes: an output printing them all is
+not readable, so it does not answer. The
 card therefore shows ONE step in full — the one the component takes by
 DEFAULT, read from its signature — and merely names the others.
 
@@ -70,7 +70,7 @@ def _value_lines(value: Any) -> list[str]:
     if not isinstance(value, dict):
         return [f"      {value}"]
     # A COMPUTED width, not a fixed one: `select` carries a
-    # `header_btn_primary` of 18 characters, and a column of 16 glued the
+    # `footer_btn_primary` of 18 characters, and a column of 16 glued the
     # name to its value.
     width = max(len(str(sub)) for sub in value) + 2
     return [

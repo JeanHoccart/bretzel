@@ -173,7 +173,7 @@ def control(label: str):
 ON_OFF = [("on", "True"), ("off", "False")]
 
 
-@refreshable(deps=[VideoPlayground])
+@refreshable
 def server_panel() -> None:
     state = VideoPlayground()
 

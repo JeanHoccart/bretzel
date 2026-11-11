@@ -12,6 +12,10 @@ Data shape :
   across the index range, but tuple form keeps a future ``time`` axis
   option open without changing the API.
 
+A ``None`` y is a HOLE, as on ``ui.line_chart`` : the line stops and
+starts again, a point alone between two holes is a dot, and the last
+dot (``show_last_dot``) is only drawn when the last point has a value.
+
 A11y : the SVG carries ``role="img"`` and an auto-generated
 ``aria-label`` summarising the trend (``"Sparkline — 12 points, min 4,
 max 21"``). Apps can override via ``aria_label=`` on the kwargs.
@@ -25,7 +29,7 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import theme_context
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.charts._svg import (
     _fmt,
     area_path,
@@ -33,32 +37,35 @@ from bretzel.components.charts._svg import (
     linear_scale,
     smooth_path,
 )
+from bretzel.components.charts.series import bad_point, gap_y, runs_between_holes
 from bretzel.components.charts.sparkline.theme import SPARKLINE_THEME
 from bretzel.core.tree import Element
 from bretzel.render import text
 
 
-def _coerce_points(data: Any) -> list[tuple[float, float]]:
-    """Normalise ``data=`` into a list of ``(x, y)`` floats.
+def _coerce_points(data: Any) -> list[tuple[float, float | None]]:
+    """Normalise ``data=`` into a list of ``(x, y)`` floats, ``y`` None
+    for a hole.
 
-    Accepts ``list[number]`` (x = index) or ``list[tuple]``. Invalid
-    entries are silently dropped — an empty result triggers the empty
-    state instead of raising mid-render.
+    Accepts ``list[number]`` (x = index) or ``list[(x, y)]``. A point that
+    is neither raises — the other charts do too: a dropped point bent the
+    trend without a word.
     """
     if not data:
         return []
-    points: list[tuple[float, float]] = []
+    points: list[tuple[float, float | None]] = []
     for i, item in enumerate(data):
-        if isinstance(item, (tuple, list)) and len(item) >= 2:
-            try:
-                points.append((float(item[0]), float(item[1])))
-            except (TypeError, ValueError):
-                continue
-        else:
-            try:
-                points.append((float(i), float(item)))
-            except (TypeError, ValueError):
-                continue
+        try:
+            if isinstance(item, (tuple, list)) and len(item) == 2:
+                points.append((float(item[0]), gap_y(item[1])))
+            elif not isinstance(item, (tuple, list, dict, str)):
+                points.append((float(i), gap_y(item)))
+            else:
+                raise bad_point("Sparkline", item,
+                                "a number, or an (x, y) pair (None for a hole)")
+        except (TypeError, ValueError):
+            raise bad_point("Sparkline", item,
+                            "a number, or an (x, y) pair (None for a hole)") from None
     return points
 
 
@@ -130,27 +137,21 @@ class Sparkline(Component):
         if "aria-label" not in attrs:
             attrs["aria-label"] = _aria_summary(points)
 
-        if not points:
+        known = [y for _, y in points if y is not None]
+        if not known:
             return Element(tag=self._tag, attrs=attrs, children=())
 
-        # Single-pass min/max — folded so dense series only walk once.
-        xmin = xmax = points[0][0]
-        ymin = ymax = points[0][1]
-        for x, y in points:
-            if x < xmin:
-                xmin = x
-            elif x > xmax:
-                xmax = x
-            if y < ymin:
-                ymin = y
-            elif y > ymax:
-                ymax = y
+        xs = [x for x, _ in points]
+        xmin, xmax = min(xs), max(xs)
+        ymin, ymax = min(known), max(known)
 
         pad = stroke_w
         x_scale = linear_scale(xmin, xmax, pad, width - pad)
         # Flip y so larger values render higher on screen.
         y_scale = linear_scale(ymin, ymax, height - pad, pad)
-        scaled = [(x_scale(x), y_scale(y)) for x, y in points]
+        # One run per stretch between two holes (cf. ``ui.line_chart``).
+        runs = [[(x_scale(x), y_scale(y)) for x, y in run]
+                for run in runs_between_holes(points)]
         baseline_y = height - pad
 
         children_list: list = []
@@ -172,10 +173,7 @@ class Sparkline(Component):
                             # Colour class on the gradient itself :
                             # ``<stop currentColor>`` inherits from
                             # its parent, not from the painted path.
-                            "class": self.compose_class(
-                                "area_gradient_color",
-                                apply_variant_size_modifiers=False,
-                            ),
+                            "class": self.compose_class("area_gradient_color"),
                             "x1": "0", "y1": "0", "x2": "0", "y2": "1",
                         },
                         children=(
@@ -196,13 +194,10 @@ class Sparkline(Component):
             children_list.append(Element(
                 tag="path",
                 attrs={
-                    "class": self.compose_class(
-                        "area",
-                        apply_variant_size_modifiers=False,
-                    ),
+                    "class": self.compose_class("area"),
                     "fill": f"url(#{gradient_id})",
-                    "d": area_path(scaled, baseline_y=baseline_y,
-                                   smooth=smooth),
+                    "d": "".join(area_path(run, baseline_y=baseline_y, smooth=smooth)
+                                 for run in runs if len(run) > 1),
                 },
                 children=(),
             ))
@@ -210,11 +205,9 @@ class Sparkline(Component):
         children_list.append(Element(
             tag="path",
             attrs={
-                "class": self.compose_class(
-                    "line",
-                    apply_variant_size_modifiers=False,
-                ),
-                "d": smooth_path(scaled) if smooth else line_path(scaled),
+                "class": self.compose_class("line"),
+                "d": "".join(smooth_path(run) if smooth else line_path(run)
+                             for run in runs if len(run) > 1),
                 "stroke-width": str(stroke_w),
                 "stroke-linecap": "round",
                 "stroke-linejoin": "round",
@@ -227,15 +220,17 @@ class Sparkline(Component):
             children=(),
         ))
 
-        if show_last_dot:
-            last_x, last_y = scaled[-1]
+        # A point alone between two holes has no segment : it is a dot.
+        dots = [run[0] for run in runs if len(run) == 1]
+        # The last dot says « where it is now » : not when the series
+        # ends on a hole.
+        if show_last_dot and points[-1][1] is not None and runs[-1][-1] not in dots:
+            dots.append(runs[-1][-1])
+        for last_x, last_y in dots:
             children_list.append(Element(
                 tag="circle",
                 attrs={
-                    "class": self.compose_class(
-                        "dot",
-                        apply_variant_size_modifiers=False,
-                    ),
+                    "class": self.compose_class("dot"),
                     "cx": _fmt(last_x),
                     "cy": _fmt(last_y),
                     "r": str(dot_r),
@@ -246,18 +241,14 @@ class Sparkline(Component):
         return Element(tag=self._tag, attrs=attrs, children=tuple(children_list))
 
 
-def _aria_summary(points: list[tuple[float, float]]) -> str:
-    if not points:
+def _aria_summary(points: list[tuple[float, float | None]]) -> str:
+    known = [y for _, y in points if y is not None]
+    if not known:
         return text("chart.sparkline_empty")
-    ymin = ymax = points[0][1]
-    for _, y in points:
-        if y < ymin:
-            ymin = y
-        elif y > ymax:
-            ymax = y
+    ymin, ymax = min(known), max(known)
     return text(
         "chart.sparkline_summary",
-        n=len(points),
+        n=len(known),
         low=f"{round(ymin, 2):g}",
         high=f"{round(ymax, 2):g}",
     )

@@ -20,6 +20,7 @@ import inspect
 from bretzel import page, ui
 from bretzel.theme import (
     DEFAULT_PALETTE_NAMES,
+    DEFAULT_SPACING,
     FONT_SLOT_NAMES,
     SEMANTIC_COLOR_NAMES,
     SHAPE_SLOT_NAMES,
@@ -57,9 +58,13 @@ ROLES: dict[str, str] = {
                   'one.',
     "fonts": f"The {len(FONT_SLOT_NAMES)} families "
              f"({', '.join(FONT_SLOT_NAMES)}) → `--font-<slot>`.",
-    "spacing": 'The step the whole spacing scale derives from: `h-10` is '
-               "ten notches, like `p-4` or `gap-2`. Omitted, Tailwind's "
-               '(`0.25rem`) holds.',
+    "spacing": 'The spacing step: one length for everything, or three '
+               'families named like the radii — `field` (the controls: '
+               '`h-10` is ten notches), `box` (the padding inside a card '
+               'or a pane), `gap` (the space between blocks). `box` and '
+               '`gap` follow `field` unless given, so a page can tighten '
+               "without shrinking its buttons. Omitted, Tailwind's "
+               f"`{DEFAULT_SPACING}` holds.",
     "text": f"The {len(TEXT_SLOT_NAMES)} text steps → `--text-<step>`. "
             f"The middle one is called `base`, not `md` — `md` is a `size=` name.",
     "shape": f"The {len(SHAPE_SLOT_NAMES)} radius families "
@@ -233,7 +238,7 @@ def theme_page() -> None:
                     )
                     swatches(DEFAULT_PALETTE_NAMES)
                     ui.code(
-                        '# 1) through color= — the framework rewrites with the ui- prefix\nui.badge("New", color="green")\n#    → bg-ui-green text-ui-green-foreground\n\n# 2) through classes= directly (the explicit form)\nui.badge("New", classes="bg-ui-green text-ui-green-foreground")\n',
+                        '# 1) through color= — the component wears the colour\'s bridge\nui.badge("New", color="green")\n#    → class="… bz-c-green": its own classes read --bz-bg, --bz-text…\n\n# 2) through classes= directly (the explicit form)\nui.badge("New", classes="bg-ui-green text-ui-green-foreground")\n',
                         lang="python",
                     )
                     ui.text(

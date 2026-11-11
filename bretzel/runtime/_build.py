@@ -1,4 +1,4 @@
-"""Assemble the ``_src/[0-9]*_*.js`` sources in the order of their names.
+"""Assemble the runtime sources in the order declared by :data:`~bretzel.runtime.sources.MODULES`.
 
 ``python -m bretzel.runtime._build`` produces ``runtime.js`` and
 ``runtime.min.js``. The ``--check`` option verifies that the two committed
@@ -10,7 +10,6 @@ provided by :mod:`bretzel.runtime._minify`.
 
 The server serves the readable bundle in dev mode and its reduced form in
 production. Bundle freshness is tested; no size budget is enforced.
-See ``.claude/bretzel/runtime.md`` for the runtime contract.
 """
 
 from __future__ import annotations
@@ -19,49 +18,50 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent          # bretzel/runtime
-SRC = HERE / "_src"
 PROJECT = HERE.parent.parent                    # repo root
 sys.path.insert(0, str(PROJECT))
 
 from bretzel.runtime._minify import minify  # noqa: E402
 from bretzel.runtime.protocol import (  # noqa: E402
+    ADDRESSABLE_ID,
     AT_TAG_NAME,
     BUSY_CLASS,
+    DATA_BZ_BASE,
     DATA_BZ_BUSY,
+    DATA_BZ_REPLACE,
+    DATA_NAV_HREF,
     ENVELOPE_TAG_NAME,
     NAV_PENDING_KEY,
     PATCH_TAG_NAME,
     PROTOCOL_VERSION,
-    REFETCH_ROWS_PARAM,
     ROUTE_ACTION,
     SCREEN_SYNC_FN,
     SINK_ELEMENT_ID,
-    SSE_EVENT_ZONE_ROWS,
     TITLE_EVENT,
 )
+from bretzel.runtime.sources import COMPONENTS, MODULES, SOURCES, SRC  # noqa: E402,F401
 
 _TOKENS = {
     "__PROTOCOL_VERSION__": PROTOCOL_VERSION,
     "__ENVELOPE_TAG__": ENVELOPE_TAG_NAME,
     "__PATCH_TAG__": PATCH_TAG_NAME,
     "__AT_TAG__": AT_TAG_NAME,
+    "__ADDRESSABLE_ID__": ADDRESSABLE_ID,
     "__BUSY_ATTR__": DATA_BZ_BUSY,
     "__BUSY_CLASS__": BUSY_CLASS,
+    "__REPLACE_ATTR__": DATA_BZ_REPLACE,
+    "__NAV_ATTR__": DATA_NAV_HREF,
     "__SINK_ID__": SINK_ELEMENT_ID,
     "__SCREEN_SYNC_FN__": SCREEN_SYNC_FN,
     "__ROUTE_ACTION__": ROUTE_ACTION,
+    "__BASE_ATTR__": DATA_BZ_BASE,
     "__NAV_PENDING_KEY__": NAV_PENDING_KEY,
     "__TITLE_EVENT__": TITLE_EVENT,
-    "__ZONE_ROWS_EVENT__": SSE_EVENT_ZONE_ROWS,
-    "__ROWS_PARAM__": REFETCH_ROWS_PARAM,
 }
 
 
 def _bundle() -> str:
-    parts = [
-        source.read_text(encoding="utf-8")
-        for source in sorted(SRC.glob("[0-9]*_*.js"))
-    ]
+    parts = [source.read_text(encoding="utf-8") for source in SOURCES]
     bundle = "\n\n".join(parts)
     for token, value in _TOKENS.items():
         bundle = bundle.replace(token, value)
@@ -80,9 +80,8 @@ def build() -> Path:
     READABLE.write_text(bundle, encoding="utf-8", newline="\n")
     small = minify(bundle)
     MINIFIED.write_text(small, encoding="utf-8", newline="\n")
-    count = len(list(SRC.glob("[0-9]*_*.js")))
     print(
-        f"Built {READABLE} - {len(bundle):,} chars from {count} modules "
+        f"Built {READABLE} - {len(bundle):,} chars from {len(SOURCES)} modules "
         f"(+ {MINIFIED.name}, {len(small):,} chars)."
     )
     return READABLE

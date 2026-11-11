@@ -24,6 +24,8 @@ PATH = "/link"
 VARIANTS = ["hover", "underline", "text"]
 COLORS   = ["primary", "secondary", "success", "warning",
             "error", "info", "muted"]
+#: The steps of ``ui.text`` — "" keeps the parent's size.
+SIZES    = ["", "xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl", "5xl", "6xl"]
 
 
 class LinkPlayground(PageState):
@@ -31,6 +33,7 @@ class LinkPlayground(PageState):
     href:        str  = field(default="/button")
     variant:     str  = field(default="hover")
     color:       str  = field(default="primary")
+    size:        str  = field(default="")
     external:    bool = field(default=False)
     disabled:    bool = field(default=False)
     # Escape hatches.
@@ -73,6 +76,7 @@ def build_preview(state: LinkPlayground):
         "href": state.href,
         "variant": state.variant,
         "color": state.color,
+        "size": state.size or None,
         "external": state.external,
         "disabled": state.disabled,
     }
@@ -102,7 +106,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[LinkPlayground])
+@refreshable
 def server_panel() -> None:
     state = LinkPlayground()
 
@@ -120,6 +124,10 @@ def server_panel() -> None:
         with control("color"):
             ui.select(value=state.color,
                       options=[(c, c) for c in COLORS],
+                      on_change=server_changed)
+        with control("size"):
+            ui.select(value=state.size,
+                      options=[(s, s or "the parent's") for s in SIZES],
                       on_change=server_changed)
         with control("external"):
             ui.switch(checked=state.external, on_change=server_changed)

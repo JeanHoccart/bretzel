@@ -39,6 +39,7 @@ from fastapi.testclient import TestClient
 from bretzel import Bretzel, auth, page, ui
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.server.navigation import redirect_response
+from tests._session import session_of
 
 _SECRET = "u" * 32
 _PUBLIC = {"/login"}
@@ -99,7 +100,7 @@ def client() -> TestClient:
 
 def _sign_in(client: TestClient) -> None:
     action_id = encode_action_id(sign_me_in)
-    sig = sign_action(_app.config._action_key, action_id, "")
+    sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
     response = client.post(
         f"/_bretzel/action/{action_id}",
         headers={"X-Bz-Sig": sig, "HX-Request": "true"},

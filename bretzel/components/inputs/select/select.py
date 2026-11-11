@@ -38,8 +38,9 @@ Runtime notes :
   ``preventDefault()`` / ``stopPropagation()``.
 - The anchored panel rides the shared overlay wiring
   (``anchored_panel_effect`` + ``dispatch_root_effect`` +
-  ``anchored_dismiss_init``). No open/close imperative listeners —
-  Select's imperative surface is value-bearing (``bz-set``).
+  ``anchored_dismiss_init``), with the open/close/toggle receivers of
+  ``imperative_listeners``. The value-bearing surface (``bz-set``) is
+  wired directly.
 - Scope methods can't reach ``$refs`` / ``$el``, so pick/set just
   ``_write`` the value ; the SINGLE change dispatcher is a
   ``_change_emit_effect`` on the hidden input (a hidden input fires no
@@ -59,32 +60,30 @@ from bretzel.components.base import (
     reactive_prop,
     stamp_display_none,
 )
-from bretzel.components.base._wiring import (
-    ARIA_OF_THE_FOCUSABLE,
-    SERVER_ACTION_ATTRS,
+from bretzel.components.base.field_wiring import change_emit_effect as _change_emit_effect
+from bretzel.components.base.field_wiring import relocate_aria, relocate_handlers
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.overlay_wiring import (
     anchored_dismiss_init,
-    anchored_panel_effect,
-    bool_attr,
+    anchored_panel,
     dispatch_root_effect,
     imperative_listeners,
     install_open_close_toggle,
-    relocate_server_action,
-    scope_literal,
-    theme_context,
 )
-from bretzel.components.base._wiring import (
-    change_emit_effect as _change_emit_effect,
-)
+from bretzel.components.base.scope_wiring import bool_attr, scope_literal
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.feedback.badge.theme import BADGE_THEME
 from bretzel.components.inputs._picker import (
+    build_footer_bar,
     build_header_bar,
     has_picks,
     normalise_option,
     option_body,
     option_check,
+    option_classes,
     render_x_icon,
-    sized_slot,
 )
+from bretzel.components.inputs._wiring import ChoiceCommands
 from bretzel.components.inputs.select.theme import SELECT_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element, Node
@@ -92,17 +91,8 @@ from bretzel.core.tree import TextNode as TextNode
 from bretzel.render import text
 from bretzel.state.scopes.client import ClientBinding
 
-# Native HTMX action attrs a callable handler lands on the root via
-# ``emit_attrs`` ; relocated wholesale to the hidden input that holds
-# name+value (the dispatcher reads form-data from there). The
-# ``hx-trigger`` in this bundle says WHICH event fires the POST — for
-# the change handler it is pinned to ``change`` below, and a hidden
-# input only emits a (synthetic) ``change`` thanks to the
-# ``_change_emit_effect`` posted on it.
-_ACTION_ATTRS = SERVER_ACTION_ATTRS
 
-
-class Select(Component):
+class Select(ChoiceCommands, FocusCommands, Component):
     """Styled combobox built on a button trigger + dropdown panel."""
 
     THEME: ClassVar[dict[str, Any]] = SELECT_THEME
@@ -113,36 +103,28 @@ class Select(Component):
     #: nowhere to put their markup — hence ``render=``, their only entry
     #: point.
     #:
-    #: ⚠️ Declared ``"client"`` by mistake on 2026-08-18, on a TRUNCATED
-    #: reading of a ``combobox.py`` comment ("built once server-side so
-    #: the JS filter only does a…"), read as "the client owns the list"
-    #: while it says the opposite. The JS filter is a ``bz-show``: it
-    #: HIDES already rendered buttons, it creates none. The distinction
-    #: reads in one word of vocabulary — ``bz-for`` clones (that is
-    #: ``file_upload``), ``bz-show`` hides.
+    #: ⚠️ Not ``"client"``: a JS filter, as on the combobox, is a
+    #: ``bz-show``, it HIDES already rendered buttons and creates none.
+    #: The distinction reads in one word of vocabulary — ``bz-for`` clones
+    #: (that is ``file_upload``), ``bz-show`` hides.
     #: Cf. ``Component.COLLECTION_OWNER``.
     COLLECTION_OWNER: ClassVar[str | None] = "component"
     IS_CONTAINER: ClassVar[bool] = False
     # Curated reactive surface — selected value + lock flag.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
-    #: ⚠️ ``open`` / ``close`` / ``toggle`` added on 2026-09-03, last of
-    #: the NINE components of this shape. Select is an anchored panel
-    #: carrying a value — like the six pickers and like Combobox — and it
-    #: had only the field half. The shape is now UNIFORM: same nature,
-    #: same surface.
+    #: ``open`` / ``close`` / ``toggle``: Select is an anchored panel
+    #: carrying a value — like the six pickers and like Combobox — and
+    #: the shape is UNIFORM: same nature, same surface.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle",
         "set", "clear", "focus", "blur",
         "select_all", "deselect_all",
     )
-    # ``disabled`` is wired by hand in ``render()`` (NOT via
-    # ``BINDABLE_CARRIERS``) : the single trigger ``<button>`` already
-    # owns the one ``bz-ref`` an element gets (``bztrigger``, the
-    # floating anchor) so a second ``bzSingleTrigger`` carrier ref can't
-    # coexist — the auto-walk would never find it. Both trigger shapes
-    # therefore ``forward_binding`` the ``disabled`` binding explicitly :
-    # the single ``<button>`` as the real ``disabled`` attr, the multi
-    # ``<div>`` as ``aria-disabled`` (a ``<div>`` ignores ``disabled``).
+    # Where ``autofocus=`` / ``.focus()`` land: the trigger, single (``<button>``) or multiple (``<div tabindex=0>``).
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("[role=combobox]",)
+    # ``disabled`` is forwarded in ``render()`` onto the trigger, whose shape
+    # picks the attribute: the real ``disabled`` on the single ``<button>``,
+    # ``aria-disabled`` on the multi ``<div>`` (a ``<div>`` ignores ``disabled``).
     EVENTS: ClassVar[tuple[str, ...]] = (
         "change", "focus", "blur",
     )
@@ -192,71 +174,18 @@ class Select(Component):
         # AFTER `super().__init__`: the installer reads `_binding_metadata`.
         install_open_close_toggle(self)
 
-    # ── Imperative write-only API ─────────────────────────────────────
-    #
-    # Six methods returning client source ready to plug into
-    # ``on_click=`` (or any ``on_*``). Write-through when ``value=``
-    # carries a :class:`ClientBinding` ; DOM dispatch otherwise.
-    # ``.focus()`` / ``.blur()`` are pure DOM commands — Select's
-    # focusable surface is the trigger ``<button>`` (the wrapper
-    # ``<div>`` carries ``self.id`` but is not focusable). We reach
-    # the trigger via ``querySelector('[role=combobox]')`` on the
-    # rooted wrapper. Cf. `imperative-api.md`.
-
-    def set(self, value: Any) -> str:
-        """In single mode ``value`` is a scalar string ; in multi
-        mode it should be a list of strings. The binding handles the
-        type either way."""
-        return self._value_command(value)
-
-    def clear(self) -> str:
-        """Single → ``""`` ; multi → ``[]`` (same dispatch contract
-        Combobox uses)."""
-        is_multi = bool(self._reactive_values.get("multiple"))
-        return self.set([] if is_multi else "")
-
-    def focus(self) -> str:
-        # The focusable element depends on the trigger shape :
-        # - single mode → ``<button role=combobox>`` (default)
-        # - multi mode  → ``<div role=combobox tabindex=0>`` (so
-        #   the trigger can host pills + still receive keyboard).
-        # Both carry ``role=combobox`` so a single querySelector
-        # works ; ``.focus()`` works on any focusable element.
-        return (
-            f"document.getElementById('{self.id}')"
-            f".querySelector('[role=combobox]').focus()"
-        )
-
-    def blur(self) -> str:
-        return (
-            f"document.getElementById('{self.id}')"
-            f".querySelector('[role=combobox]').blur()"
-        )
-
-    def select_all(self) -> str:
-        """Pick EVERY non-disabled option. Multi mode only — single
-        mode silently no-ops (you can't pick more than one)."""
-        return self._dispatch_command("bz-select-all")
-
-    def deselect_all(self) -> str:
-        """Clear every pick. Sugar over ``.clear()`` — kept distinct
-        so the bulk-actions header button can call it directly."""
-        return self._dispatch_command("bz-deselect-all")
-
-
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        _theme, slots, sizes, size_key, _color = theme_context(self)
+        _theme, slots, _sizes, _size_key, _color = theme_context(self)
         placeholder = self._reactive_values.get("placeholder")
         disabled = bool(self._reactive_values.get("disabled"))
         required = bool(self._reactive_values.get("required"))
         is_multi = bool(self._reactive_values.get("multiple"))
         bulk_actions = bool(self._reactive_values.get("bulk_actions"))
-        size_map = sizes.get(size_key, sizes.get("md", {}))
-
-        def _resolve(template: str) -> str:
-            return template
+        # The row's settings (glyph tokens); its classes reach the slots
+        # through ``compose_class``.
+        size_map = self._size_row() or {}
 
         # ── Resolve value : literal vs binding ───────────────────────
         # The binding lives in ``_binding_metadata`` ; ``_reactive_values``
@@ -315,28 +244,15 @@ class Select(Component):
         value_label_map = {str(v): str(label) for v, label, _ in normalised}
 
         # ── Trigger button ───────────────────────────────────────────
-        trigger_class = " ".join(
-            p
-            for p in (
-                self.compose_class(
-                    "trigger",
-                    apply_variant_size_modifiers=False,
-                ),
-                size_map.get("trigger", ""),
-            )
-            if p
-        )
+        trigger_class = self.compose_class("trigger")
 
         # The label inside the trigger : reactive lookup through
         # ``_labelOf``, the scope method that reads the baked ``_labels``
         # map. ``bz-text`` so the label updates whenever the bound value
         # changes (or the placeholder shows when nothing is picked).
         #
-        # ⚠️ The two expressions below INLINED the whole map — two more
-        # copies, on top of the ``bz-data``'s and the pill template's. On
-        # a 20-option select that was four times the same table in a
-        # single component. The scope method replaces them all
-        # (2026-08-28).
+        # ⚠️ The two expressions below call that method and do not inline
+        # the map, which would repeat the same table in a single component.
         labels_js = json.dumps(value_label_map, ensure_ascii=False)
         ph_js = json.dumps(placeholder or "", ensure_ascii=False)
         label_bz_text = f"_labelOf({value_expr}) || {ph_js}"
@@ -347,19 +263,44 @@ class Select(Component):
             f"!_labelOf({value_expr}) ? '{placeholder_class}' : ''"
         )
 
-        # ``with_slot_class``: clone a rendered child to PREPEND the
-        # slot's class to it, without overwriting the one it composed for
-        # itself. This clone-and-merge lived inline here and in combobox
-        # — the two call sites audit F56 had missed. ``bz-class`` MERGES
-        # the rotation onto the static classes (``bz-attr:class`` would
-        # REPLACE them).
+        def picked_bodies(shown_js: str, initial: Any, wrapper: str) -> list[Element]:
+            """The trigger's display of a pick when ``render=`` draws it.
+
+            The panel shows the rendered option (a colour's dot, a
+            person's avatar), and the closed field must too, or the
+            very thing ``render=`` is asked to draw goes missing once
+            picked. The value is only
+            known client-side, so every option's body is rendered once
+            here and ``bz-show`` keeps the picked one. ``shown_js`` maps an
+            option's value (a JS literal) to "is this the one displayed".
+            No ``bz-for``: a server node after a template can be recycled
+            into a row (traps.md § "Un morph peut recycler une ligne de
+            `bz-for`").
+            """
+            bodies: list[Element] = []
+            for opt_value, opt_label, _ in normalised:
+                body_attrs: dict[str, Any] = {
+                    "class": wrapper,
+                    "bz-show": shown_js.format(json.dumps(str(opt_value))),
+                }
+                if initial is None or str(initial) != str(opt_value):
+                    stamp_display_none(body_attrs)
+                bodies.append(Element(
+                    tag="span", attrs=body_attrs,
+                    children=option_body(self._render, opt_value, opt_label),
+                ))
+            return bodies
+
         chevron = Icon(
             "chevron-down", size=size_map.get("chevron_size", "sm"),
         )
+        # ``with_slot_class``: clone a rendered child to PREPEND the
+        # slot's class to it, without overwriting the one it composed for
+        # itself. The rotation is in the slot (``in-aria-expanded:``), not
+        # in a ``bz-class``.
         chevron_render = Component.with_slot_class(
             Component.render_detached(chevron),
             slots.get("chevron", ""),
-            **{"bz-class": "open ? 'rotate-180' : ''"},
         )
 
         # ── Resolve event relocations BEFORE building trigger / hidden.
@@ -379,32 +320,14 @@ class Select(Component):
         root_attrs = self.emit_attrs()
         relocated_to_hidden: dict[str, Any] = {}
         relocated_to_trigger: dict[str, Any] = {}
-        # Event routing. The string ``change`` handler rides the hidden
-        # input (it carries the value). The callable's HTMX bundle is
-        # routed by the event it ACTUALLY fires on : a ``change`` bundle
-        # rides the hidden input (which dispatches a value-carrying
-        # synthetic ``change`` via ``_change_emit_effect``) ; a ``focus`` /
-        # ``blur`` bundle rides the TRIGGER (the only focusable element),
-        # keeping its native trigger.
-        if "bz-on:change" in root_attrs:
-            relocated_to_hidden["bz-on:change"] = root_attrs.pop("bz-on:change")
-        # The routing itself lives in the base layer:
-        # ``relocate_server_action`` reads ``hx-trigger`` and chooses the
-        # carrier. This block was the ONLY one in the repository to do it
-        # correctly — hence its extraction.
-        relocate_server_action(
-            root_attrs,
-            value_carrier=relocated_to_hidden,
-            focusable=relocated_to_trigger,
-        )
-        for ev_attr in ("bz-on:focus", "bz-on:blur"):
-            if ev_attr in root_attrs:
-                relocated_to_trigger[ev_attr] = root_attrs.pop(ev_attr)
+        relocate_handlers(root_attrs, {
+            "change": relocated_to_hidden,
+            "focus": relocated_to_trigger,
+            "blur": relocated_to_trigger,
+        })
         # Name, description and validity name the FOCUSABLE element: on
         # the wrapper ``<div>`` a screen reader never reads them.
-        for aria in ARIA_OF_THE_FOCUSABLE:
-            if aria in root_attrs:
-                relocated_to_trigger[aria] = root_attrs.pop(aria)
+        relocate_aria(root_attrs, relocated_to_trigger)
 
         # Common keyboard handler — Enter picks/toggles depending on
         # mode ; ArrowDown/Up navigate, Space opens, Escape closes.
@@ -412,18 +335,12 @@ class Select(Component):
         # fused into ONE ``bz-on:keydown`` with explicit ``$event.key``
         # guards + inlined ``preventDefault()``. Reused for both single
         # (button) and multi (div) triggers — same keyboard contract.
-        if is_multi:
-            enter_action = (
-                "if (open && _highlight >= 0) "
-                "{ _togglePick(_options[_highlight]); } "
-                "else { open = true; _highlightFromValue(); }"
-            )
-        else:
-            enter_action = (
-                "if (open && _highlight >= 0) "
-                "{ _pick(_options[_highlight]); } "
-                "else { open = true; _highlightFromValue(); }"
-            )
+        # ``_enterPick`` / ``_step`` live in ``$bz.select`` and skip the
+        # disabled options (``_disabled``), like the mouse does.
+        enter_action = (
+            "if (open && _highlight >= 0) { _enterPick(); } "
+            "else { open = true; _highlightFromValue(); }"
+        )
         keydown_handler = (
             "const k = $event.key; "
             "if (k === ' ' || k === 'Spacebar') { "
@@ -434,11 +351,10 @@ class Select(Component):
             "else if (k === 'ArrowDown') { "
             "$event.preventDefault(); "
             "if (!open) { open = true; _highlightFromValue(); } "
-            "else { _highlight = Math.min("
-            "_highlight + 1, _options.length - 1); } } "
+            "else { _step(1); } } "
             "else if (k === 'ArrowUp') { "
             "$event.preventDefault(); "
-            "if (open) { _highlight = Math.max(_highlight - 1, 0); } } "
+            "if (open) { _step(-1); } } "
             "else if (k === 'Escape') { open = false; }"
         )
         common_trigger_attrs: dict[str, Any] = {
@@ -493,7 +409,9 @@ class Select(Component):
             # The first pick as plain text, then the count — the trigger
             # keeps its height in a toolbar. The removable pills are in
             # the panel's header bar; the trigger's own × clears all.
-            pills_template = Element(
+            n_picked = (len(initial_value)
+                        if isinstance(initial_value, (list, tuple, set)) else 0)
+            first_pick: list[Element] = [Element(
                 tag="template",
                 attrs={"bz-for": "v in _picked().slice(0, 1) :key=v"},
                 children=(Element(
@@ -502,9 +420,13 @@ class Select(Component):
                            "bz-text": "_labelOf(v) || v"},
                     children=(),
                 ),),
-            )
-            n_picked = (len(initial_value)
-                        if isinstance(initial_value, (list, tuple, set)) else 0)
+            )]
+            if self._render is not None:
+                first_pick = picked_bodies(
+                    "String(_picked()[0]) === {}",
+                    next(iter(initial_value)) if n_picked else None,
+                    slots.get("pills_first", ""),
+                )
             more_attrs: dict[str, Any] = {
                 "class": slots.get("pills_more", ""),
                 "bz-show": "_picked().length > 1",
@@ -537,11 +459,11 @@ class Select(Component):
             pills_row = Element(
                 tag="div",
                 attrs={"class": slots.get("pills_row", "")},
-                children=(pills_template, more_span, placeholder_span),
+                children=(*first_pick, more_span, placeholder_span),
             )
             clear_attrs: dict[str, Any] = {
                 "type": "button",
-                "class": _resolve(slots.get("clear", "")),
+                "class": slots.get("clear", ""),
                 "aria-label": text("select.clear"),
                 "tabindex": "-1",
                 "bz-on:click": "$event.stopPropagation(); _clearAll()",
@@ -584,43 +506,46 @@ class Select(Component):
                 self.forward_binding(
                     "disabled", trigger_attrs, as_attr="disabled",
                 )
+            label_attrs: dict[str, Any] = {
+                "class": label_class,
+                # MERGE the placeholder modifier onto the static label
+                # class (bz-class, not bz-attr:class which would replace
+                # it).
+                "bz-class": label_bind_class,
+                "bz-text": label_bz_text,
+            }
+            label_children: tuple[Node, ...] = ()
+            if self._render is not None:
+                # ``bz-text`` would overwrite the bodies: the placeholder
+                # becomes a branch of its own.
+                del label_attrs["bz-text"]
+                placeholder_attrs: dict[str, Any] = {
+                    "bz-show": f"!_labelOf({value_expr})",
+                }
+                # The lookup, as the runtime does it: an option may be
+                # ``""`` (« Du calendrier »), a pick all the same.
+                if initial_value is not None and str(initial_value) in value_label_map:
+                    stamp_display_none(placeholder_attrs)
+                label_children = (
+                    Element(tag="span", attrs=placeholder_attrs,
+                            children=(TextNode(placeholder or ""),)),
+                    *picked_bodies("_isPicked({})", initial_value, "contents"),
+                )
             trigger_button = Element(
                 tag="button",
                 attrs=trigger_attrs,
                 children=(
-                    Element(
-                        tag="span",
-                        attrs={
-                            "class": label_class,
-                            # MERGE the placeholder modifier onto the
-                            # static label class (bz-class, not
-                            # bz-attr:class which would replace it).
-                            "bz-class": label_bind_class,
-                            "bz-text": label_bz_text,
-                        },
-                        children=(),
-                    ),
+                    Element(tag="span", attrs=label_attrs, children=label_children),
                     chevron_render,
                 ),
             )
 
         # ── Option panel ─────────────────────────────────────────────
-        option_class_base = " ".join(
-            p
-            for p in (
-                slots.get("option", ""),
-                size_map.get("option", ""),
-            )
-            if p
+        option_class_base = option_classes(
+            self, is_multi=is_multi,
         )
-        option_active_cls = self.compose_class(
-            "option_active",
-            apply_variant_size_modifiers=False,
-        )
-        option_selected_cls = self.compose_class(
-            "option_selected",
-            apply_variant_size_modifiers=False,
-        )
+        option_active_cls = self.compose_class("option_active")
+        option_selected_cls = self.compose_class("option_selected")
 
         option_nodes: list[Any] = []
         for index, (opt_value, opt_label, opt_disabled) in enumerate(
@@ -652,7 +577,7 @@ class Select(Component):
                 # harnesses, accessibility scanners) need the value
                 # without parsing the click handler. Standard ARIA
                 # listbox pattern.
-                "data-value": str(opt_value),
+                "data-bz-value": str(opt_value),
                 "class": option_class_base,
                 # Two sources of "active" : keyboard highlight or
                 # mouse hover. Selected = via _isPicked (mode-aware).
@@ -683,7 +608,7 @@ class Select(Component):
             )
             if is_multi:
                 opt_children += (option_check(
-                    slots=slots, size_map=size_map, resolve=_resolve,
+                    self,
                     picked_js=f"_isPicked({opt_v_js})",
                     initially_picked=str(opt_value) in (
                         [str(v) for v in initial_value]
@@ -698,48 +623,38 @@ class Select(Component):
                 )
             )
 
-        # Panel children : optional header_bar (multi mode) + options.
-        # Header sits above the options, sticky so it stays visible
-        # while scrolling. Hidden via bz-show when nothing to show
-        # (no picks AND no bulk-actions) so single-mode and empty-
-        # multi don't get any extra chrome.
+        # Panel children, multi mode : the header (the picks as pills,
+        # sticky top, hidden while nothing is picked), the options, and
+        # with ``bulk_actions`` the footer (counter + Select all / Clear,
+        # sticky bottom). Single mode gets no extra chrome.
         panel_children: list[Node] = []
         if is_multi:
-            panel_children.append(
-                self._build_header_bar(
-                    slots=slots,
-                    size_map=size_map,
-                    resolve=_resolve,
-                    show_bulk=bulk_actions,
-                    total_options=len(normalised),
-                    initial_value=initial_value,
-                )
-            )
+            panel_children.append(build_header_bar(
+                self,
+                badge_theme=self._resolved_theme("badge", BADGE_THEME),
+                initial_value=initial_value, is_multi=True,
+            ))
         panel_children.extend(option_nodes)
+        if is_multi and bulk_actions:
+            panel_children.append(self._build_footer_bar(
+                normalised=normalised,
+                initial_value=self._normalise_multi_initial(initial_value),
+            ))
 
         # ── Anchored panel ───────────────────────────────────────────
         # ``bz-ref="bzpanel"`` + the shared ``anchored_panel_effect``
         # toggles display + attaches ``$bz.helpers.floating`` against
         # the ``bztrigger`` ref. FOUC pre-stamp keeps it hidden before
         # the runtime boots (the panel is open=false at SSR).
-        panel_attrs: dict[str, Any] = {
-            "class": sized_slot(slots, size_map, "panel", _resolve),
-            "role": "listbox",
-            "bz-ref": "bzpanel",
-            # ``bottom-end`` : the panel's RIGHT edge pins to the
-            # trigger's right edge and it grows leftward when an option
-            # is wider than the trigger — "starts at the right, extends
-            # left". ``match_width`` keeps it at least as wide as the
-            # trigger so a short option list never looks cramped.
-            "bz-effect": anchored_panel_effect(
-                "open", "bottom-end", match_width=True,
-            ),
-        }
-        stamp_display_none(panel_attrs)
-        panel = Element(
-            tag="div",
-            attrs=panel_attrs,
+        # ``bottom-end``: the panel's RIGHT edge pins to the trigger's right
+        # edge and it grows leftward when an option is wider than the
+        # trigger. ``match_width`` keeps it at least as wide as the trigger.
+        panel = anchored_panel(
+            css=self.compose_class("panel"),
             children=tuple(panel_children),
+            placement="bottom-end",
+            role="listbox",
+            match_width=True,
         )
 
         # ── Hidden input — form integration + change dispatch target.
@@ -812,8 +727,15 @@ class Select(Component):
         options_js = json.dumps(
             [str(v) for v, _, _ in normalised], ensure_ascii=False
         )
+        # The values the keyboard and « select all » must skip. The mouse
+        # cannot pick them (a ``disabled`` button dispatches no click), but
+        # the arrows would walk ``_options`` whole, Enter would pick
+        # ``_options[_highlight]`` and ``_selectAll`` would copy the list.
+        disabled_js = json.dumps(
+            [str(v) for v, _, off in normalised if off], ensure_ascii=False
+        )
         # The methods live ONCE in ``$bz.select.single`` / ``.multi``
-        # (``13_select.js``); this instance emits only its data. Single
+        # (``select.js``); this instance emits only its data. Single
         # holds a scalar, multi an array (read back through ``_value()``
         # / ``_picked()`` — the factory null-guards a bound ``null`` to
         # ``[]``).
@@ -834,7 +756,8 @@ class Select(Component):
             binding_path=value_expr if value_binding is not None else None,
             server_synced=value_server_backed,
             fields={"open": "false", "_highlight": "-1"},
-            config={"_options": options_js, "_labels": labels_js},
+            config={"_options": options_js, "_labels": labels_js,
+                    "_disabled": disabled_js},
         )
         root_attrs["bz-data"] = bz_data
 
@@ -845,10 +768,10 @@ class Select(Component):
         #   trap the page).
         # - ``anchored_dismiss_init`` registers Escape + click-outside
         #   dismiss.
-        # No open/close imperative listeners : Select's imperative surface
-        # is value-bearing (``bz-set`` below ; ``.clear()`` sends ``bz-set``
-        # with ``""`` / ``[]``), wired directly. ``change`` is dispatched by
-        # the hidden input's ``_change_emit_effect``, not by a scope method.
+        # The value-bearing imperative surface (``bz-set`` below ;
+        # ``.clear()`` sends ``bz-set`` with ``""`` / ``[]``) is wired
+        # directly. ``change`` is dispatched by the hidden input's
+        # ``_change_emit_effect``, not by a scope method.
         # The open/close/toggle receivers — without them, `.open()` would
         # dispatch an event nobody listens to.
         for _ev, _handler in imperative_listeners("open").items():
@@ -889,26 +812,23 @@ class Select(Component):
 
     # ── Helpers ────────────────────────────────────────────────────────
 
-    def _build_header_bar(
+    def _build_footer_bar(
         self,
         *,
-        slots: dict[str, str],
-        size_map: dict[str, str],
-        resolve: Callable[[str], str],
-        show_bulk: bool,
-        total_options: int,
-        initial_value: Any,
+        normalised: list[tuple[Any, Any, bool]],
+        initial_value: list[str],
     ) -> Element:
-        """The shared header. Select only builds it in multi (hence
-        ``is_multi=True``) and compares against the TOTAL options: it has
-        no query, so nothing is ever hidden."""
-        return build_header_bar(
-            slots=slots, size_map=size_map, resolve=resolve,
-            badge_theme=self._resolved_theme("badge", BADGE_THEME),
-            is_multi=True, show_bulk=show_bulk,
-            total_options=total_options, initial_value=initial_value,
-            select_all_disabled_js=(
-                "_picked().length === _options.length"
+        """The shared footer. Select compares against the TOTAL options:
+        it has no query, so nothing is ever hidden."""
+        return build_footer_bar(
+            self,
+            total_options=len(normalised),
+            initial_value=initial_value,
+            usable_values=[str(v) for v, _label, off in normalised if not off],
+            select_all=True,
+            # « All » is done when every USABLE option is picked.
+            select_all_done_js=(
+                "_options.every(v => !_usable(v) || _isPicked(v))"
             ),
         )
 

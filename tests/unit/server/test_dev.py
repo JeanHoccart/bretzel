@@ -61,10 +61,18 @@ class TestRunDevServer:
 
         from bretzel.server._dev import _run_uvicorn, run_dev_server
 
+        # A free port: the server refuses a taken one before calling
+        # watchfiles, and 8000 is often held (a dev server, acer).
+        import socket
+
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            free_port = probe.getsockname()[1]
+
         run_dev_server(
             target="my_app.main:app",
             host="127.0.0.1",
-            port=8000,
+            port=free_port,
             log_level="info",
             watch_dirs=["/tmp/app", "/tmp/bretzel"],
         )
@@ -73,7 +81,7 @@ class TestRunDevServer:
         assert captured["paths"] == ("/tmp/app", "/tmp/bretzel")
         assert captured["kwargs"]["target"] is _run_uvicorn
         assert captured["kwargs"]["args"] == (
-            "my_app.main:app", "127.0.0.1", 8000, "info",
+            "my_app.main:app", "127.0.0.1", free_port, "info",
         )
         assert captured["kwargs"]["target_type"] == "function"
 

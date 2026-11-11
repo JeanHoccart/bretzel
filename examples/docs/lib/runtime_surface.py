@@ -57,15 +57,15 @@ from pathlib import Path
 
 import bretzel.runtime as _runtime
 from bretzel.introspect import CATEGORY_UNCLASSIFIED
+from bretzel.runtime import RUNTIME_MODULES as MODULES
+from bretzel.runtime import RUNTIME_SOURCES as SOURCES
 
 _RUNTIME_DIR = Path(_runtime.__file__).resolve().parent
 _SRC = _RUNTIME_DIR / "_src"
 _PROTOCOL = _RUNTIME_DIR / "protocol.py"
 
-#: The number from which a bundle module is no longer the base layer but
-#: a component's engine. Derived from the file's prefix, so a module 22+
-#: files itself.
-_CORE_MAX = 6
+#: The kernel, ahead of the component engines in the declared order.
+_CORE = {f"{name}.js" for name in MODULES[:MODULES.index("inputs/calendar/calendar")]}
 
 
 # ── Reading the sources ────────────────────────────────────────────────
@@ -84,7 +84,7 @@ _JS_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 def strip_js_comments(source: str) -> str:
     """The JS stripped of its comments.
 
-    Indispensable: ``02_directives.js``'s header *documents* the 13
+    Indispensable: ``directives.js``'s header *documents* the 13
     directives in prose. So sweeping the raw file would find the
     documentation, and a directive documented but never wired would pass
     for implemented — the exact false positive this page exists to make
@@ -95,7 +95,7 @@ def strip_js_comments(source: str) -> str:
 
 @dataclass(frozen=True)
 class _Source:
-    name: str    # "02_directives.js"
+    name: str    # "directives.js"
     raw: str     # the file as it is (the header is a comment)
     code: str    # comments stripped
 
@@ -114,7 +114,7 @@ def read_sources() -> tuple[_Source, ...]:
         _Source(name=path.name,
                 raw=(text := path.read_text(encoding="utf-8")),
                 code=strip_js_comments(text))
-        for path in sorted(_SRC.glob("[0-9]*_*.js"))
+        for path in SOURCES
     )
 
 
@@ -265,7 +265,7 @@ def describe_directives() -> tuple[DirectiveOp, ...]:
 
     ``implemented`` is looked for in ALL of ``_src/``'s modules, not in
     the directives engine alone: ``bz-data`` is materialised by
-    ``03_scope.js``, and moving another piece of wiring from one module
+    ``scope.js``, and moving another piece of wiring from one module
     to another is a legitimate refactor that must not trigger a false
     alarm.
     """
@@ -386,14 +386,52 @@ _API_DISPLAY: dict[str, tuple[str, str]] = {
     "helpers": ('shared helpers',
                 'The bricks shared by the overlays and by the pointer-drag'
                 ' family.'),
+    "tip": ('shared helpers',
+            "The page's one tooltip panel: ``open(anchor, opts)`` / "
+            '``close()``. Every ``tooltip=`` shows it, and so do the '
+            'collapsed sidebar rail and the charts.'),
     "num": ('shared helpers',
             'Pure numeric primitives: precision implied by a step.'),
+    "parts": ('shared helpers',
+              "The parts a page carries once — a calendar picker's header, "
+              "a colour picker's palette: ``fill(host)`` clones the "
+              '``<template data-bz-part>`` the host names into it.'),
+    "fold": ('shared helpers',
+             "The one form a search compares: lowercase, no accents, "
+             "``ß`` as ``ss`` — twin of Python's ``bretzel.core.text.fold``, "
+             'used by the combobox, ``filter_each`` and the datatable.'),
+    "gesture": ("gesture engine",
+                'The pointer gesture rules shared by drag-and-drop and the '
+                "scheduler: when a press becomes a drag, the end-of-drag "
+                'click swallowed, a dropped item that waits while the server '
+                'asks.'),
+    "dates": ('shared helpers',
+              'The one date reader of the pickers: ``typed(text)`` reads a '
+              'typed date in the page language\'s order (22/11/2026 is '
+              'November 22nd in French), ``typedWeek``, and local-time '
+              '``iso`` / ``addDays`` / ``addMonths`` / ``weekStartOf``.'),
+    "times": ('shared helpers',
+              'The one clock: ``shown(hhmm)`` writes an "HH:MM" as the '
+              'page language does (« 14h30 » in French, « 2:30 PM » in '
+              'American English), ``typed(text)`` reads it back, '
+              '``pattern()`` is the empty field\'s hint, ``twelve()`` says '
+              'whether the language counts its hours by twelve. Used by '
+              'the time picker and the scheduler.'),
+    "reportError": ('shared helpers',
+                    'How the runtime reports an error it contains — a '
+                    'directive or an effect that throws: ``console.error`` '
+                    'naming what failed, then ``window.reportError``, so '
+                    'whoever listens for uncaught errors still hears it. '
+                    'The rest of the page goes on.'),
     "multiSelect": ('shared helpers',
                     'The membership algebra of a multiple selection, '
                     'shared by Select and Combobox.'),
     "dnd": ("gesture engine",
             'The Pointer Events drag-and-drop engine, shared by draggable '
             'and dropzone.'),
+    "scheduler": ("gesture engine",
+                  'Dragging a scheduler card to another time and pulling its '
+                  'bottom edge; the card waits while a dialog asks.'),
     "verbs": ('shared helpers',
               'The client half of the VERBS (``bretzel.copy`` …): a '
               'browser action triggered from an ``on_*=``. Only ``copy`` '
@@ -532,12 +570,12 @@ class RuntimeModuleOp:
 @lru_cache(maxsize=None)
 def describe_runtime_modules() -> tuple[RuntimeModuleOp, ...]:
     """The modules concatenated into ``runtime.js``, in load order (the
-    numeric prefix IS the topological order: signals before directives
+    declared order is the topological one: signals before directives
     before scope).
 
-    The title comes from the first header line — hence from the RAW text,
-    the header being a comment — and the category from the number. A
-    module added appears here, classified, with no edit.
+    The title comes from the first header line, hence from the RAW text,
+    the header being a comment. A module added appears here, classified,
+    with no edit.
     """
     ops: list[RuntimeModuleOp] = []
     for source in read_sources():
@@ -545,8 +583,7 @@ def describe_runtime_modules() -> tuple[RuntimeModuleOp, ...]:
         title = header.group("title").rstrip("*/ ").strip() if header else ""
         ops.append(RuntimeModuleOp(
             name=source.name,
-            category=("core" if int(source.name[:2]) <= _CORE_MAX
-                      else "component engine"),
+            category=("core" if source.name in _CORE else "component engine"),
             title=title,
             lines=len(source.raw.splitlines()),
         ))

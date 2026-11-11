@@ -97,7 +97,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[StackPlayground])
+@refreshable
 def server_panel() -> None:
     state = StackPlayground()
     valid_aligns = H_ALIGNS if state.shortcut == "hstack" else V_ALIGNS

@@ -66,7 +66,7 @@ class TestDeadAlpinePrefixes:
     """Le refus bruyant sur ``:`` / ``@`` / ``x-``.
 
     Le moteur de directives V3 ne scanne que ``bz-attr:`` et ``bz-on:``
-    (``02_directives.js``). Un attribut Alpine était donc émis dans le DOM,
+    (``directives.js``). Un attribut Alpine était donc émis dans le DOM,
     valide, et jamais lu : zéro erreur, zéro warning, zéro effet.
 
     ⚠️ Retirer les préfixes de ``_PASSTHROUGH_PREFIXES`` ne suffisait PAS —

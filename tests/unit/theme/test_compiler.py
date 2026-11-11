@@ -64,6 +64,27 @@ class TestFindBinary:
         )
         assert find_lightning_binary() == fake
 
+    def test_the_wheel_script_is_found_where_pip_put_it(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # A system Python on Windows: the script in ``Scripts\``, not
+        # beside ``python.exe`` — the wheel's file list says where.
+        from importlib.metadata import PackagePath
+
+        from bretzel.theme import compiler as mod
+
+        script = tmp_path / "Scripts" / "tailwindcss.exe"
+        script.parent.mkdir()
+        script.write_text("")
+        script.chmod(0o755)
+        site = tmp_path / "Lib" / "site-packages"
+        wheel = MagicMock()
+        wheel.files = [PackagePath("../../Scripts/tailwindcss.exe"),
+                       PackagePath("tailwindcss_bin/__init__.py")]
+        wheel.locate_file = lambda file: site / file
+        monkeypatch.setattr("importlib.metadata.distribution", lambda name: wheel)
+        assert mod._find_wheel_binary() == script.resolve()
+
     def test_nothing_found_raises_with_install_hints(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

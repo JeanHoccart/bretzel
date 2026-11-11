@@ -14,7 +14,7 @@ framework ships the schema and the app subclasses it ::
     class Issues(DatatableState):
         per_page: int = field(default=25)          # override a default, or add nothing
 
-    @refreshable(deps=[Issues, IssueStore])
+    @refreshable
     def issues_table() -> None:
         ui.datatable(state=Issues, columns=COLUMNS, rows=IssueStore().items)
 
@@ -85,10 +85,11 @@ class DatatableState(ServerState, scope="page"):
     #: scope="session")`` and the filter crosses navigations, server-side,
     #: exposing nothing.
     #
-    # Per-column narrowing : ``{column_key: [kept values]}``. A key only
-    # appears once the reader has UNTICKED something — "everything ticked"
-    # and "no filter" are the same view, and storing the full domain would
-    # make the state grow with the data.
+    # Per-column narrowing : ``{column_key: [shown values]}``. A key only
+    # appears while the reader has ticked SOME values of the column :
+    # ticking none and ticking all are both "no filter" — the same view —
+    # so neither is stored (the full domain would make the state grow with
+    # the data). An empty list is never stored.
     filters: dict = field(default_factory=dict)
 
     def to_query(self, *, for_export: bool = False) -> Query:
@@ -111,15 +112,16 @@ class DatatableState(ServerState, scope="page"):
             # ``Query.offset`` already returns 0 in that mode, so the
             # value has no effect — but it is serialised into the signed
             # URL of the CSV button, and a URL that changes on every
-            # pagination makes the toolbar different on every page
-            # change. That is what forbade preserving it (cf.
-            # ``Datatable._toolbar_can_be_preserved``).
+            # pagination would make the toolbar differ on every page
+            # change — and the zone diff ship it again each time.
             page=1 if for_export else int(self.page),
             per_page=max(1, int(self.per_page)),
             search=str(self.search),
+            # An empty list never leaves : it would read as "match nothing"
+            # in a callable's ``.in_(values)``, and here it means no filter.
             filters={
                 str(key): [str(v) for v in values]
-                for key, values in self.filters.items()
+                for key, values in self.filters.items() if values
             },
             for_export=for_export,
         )
@@ -131,31 +133,18 @@ class DatatableState(ServerState, scope="page"):
         ONE action on close (``set_filter``). Kept as public surface of
         ``DatatableState``: a user handler may want to toggle a value
         from elsewhere (a click on a row badge, a shortcut). If nobody
-        uses it by 2.0, it goes with ``toggle_all_filter``.
+        uses it by 2.0, it goes.
 
-        ``domain`` is the column's full set of values: needed because the
-        first untick has to materialise "all of them except this one" from
-        a state that, until now, said nothing about this column at all.
-        Ticking the last missing one drops the key again, so an untouched
-        column leaves no trace.
+        The first tick on an untouched column shows that value alone ;
+        unticking the last one — or ticking the last missing one — drops
+        the key, so the column filters nothing again.
         """
-        current = list(self.filters.get(key, domain))
+        current = list(self.filters.get(key, ()))
         if value in current:
             current.remove(value)
         else:
-            # Re-insert in domain order, not at the end — the panel lists
-            # the domain, and a value that jumped position on every
-            # toggle would read as the list reshuffling itself.
-            current = [v for v in domain if v in current or v == value]
-        # dict field : reassign, never mutate in place, or the snapshot
-        # diff sees no change and the zone never re-renders.
-        updated = dict(self.filters)
-        if set(current) == set(domain):
-            updated.pop(key, None)
-        else:
-            updated[key] = current
-        self.filters = updated
-        self.page = 1
+            current.append(value)
+        self.set_filter(key, current, domain)
 
     def clear_filter(self, key: str) -> None:
         """Drop ``key``'s filter — the column stops narrowing anything."""
@@ -165,28 +154,22 @@ class DatatableState(ServerState, scope="page"):
         self.page = 1
 
     def set_filter(self, key: str, values: list[str], domain: list[str]) -> None:
-        """Replace ``key``'s kept set outright.
+        """Show only ``values`` of column ``key`` — none or all of them
+        means no filter.
 
-        Ticking everything is stored as NO filter rather than as the full
-        domain — the two views are identical, and one of them grows with
-        the data.
+        Neither is stored : ticking nothing and ticking everything both
+        show every row, and the full domain would make the state grow with
+        the data. The kept values follow ``domain`` order — the panel
+        lists the domain, and a value that jumped position on every toggle
+        would read as the list reshuffling itself.
         """
+        # dict field : reassign, never mutate in place, or the snapshot
+        # diff sees no change and the zone never re-renders.
         updated = dict(self.filters)
-        if set(values) == set(domain):
+        if not values or set(values) == set(domain):
             updated.pop(key, None)
         else:
             updated[key] = [v for v in domain if v in values]
-        self.filters = updated
-        self.page = 1
-
-    def toggle_all_filter(self, key: str, domain: list[str]) -> None:
-        """Toggle all values for the filter identified by ``key``."""
-        current = list(self.filters.get(key, domain))
-        updated = dict(self.filters)
-        if set(current) == set(domain):
-            updated[key] = []
-        else:
-            updated.pop(key, None)
         self.filters = updated
         self.page = 1
 

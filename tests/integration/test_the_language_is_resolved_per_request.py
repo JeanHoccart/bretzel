@@ -50,7 +50,7 @@ app = Bretzel(
     secret_key=_SECRET,
     lang="en",
     languages=["en", "fr"],
-    texts={"fr": {"alert.dismiss": _FR_DISMISS}},
+    translations={"fr": {"alert.dismiss": _FR_DISMISS}},
     mode="dev",
 )
 

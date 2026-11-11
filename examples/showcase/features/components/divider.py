@@ -8,11 +8,11 @@ SUMMARY = ("A horizontal or vertical rule, optionally with a label — to "
 
 
 def setting_row(title: str, text: str, checked: bool) -> None:
-    with ui.hstack(gap="md", justify="between"):
-        with ui.vstack(gap="none"):
-            ui.text(title, weight="medium")
-            ui.text(text, size="sm", color="muted")
-        ui.switch(checked=checked, name=title.lower().replace(" ", "_"))
+    with ui.vstack(gap="none", tag="span") as label:
+        ui.text(title, size="md", weight="medium")
+        ui.text(text, size="sm", color="muted", weight="normal")
+    ui.switch(checked=checked, name=title.lower().replace(" ", "_"), label=label,
+              classes="w-full flex-row-reverse justify-between")
 
 
 def sections() -> None:

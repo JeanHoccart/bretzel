@@ -33,11 +33,10 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
-    install_open_close_toggle,
-    install_value_commands,
-)
-from bretzel.components.inputs._checkable import sized_slot
+from bretzel.components.base.arguments import reject_attribute_component
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.overlay_wiring import install_open_close_toggle
 from bretzel.components.inputs._picker_field import render_calendar_field, value_expr
 from bretzel.components.inputs.month_picker.theme import MONTH_PICKER_THEME
 from bretzel.core.tree import Element
@@ -53,7 +52,7 @@ def month_to_ym(value: Any, *, owner: str = "MonthPicker") -> str:
     else is a usage error, raised with ``owner`` so the author sees WHO
     refused — same contract as ``date_to_iso`` and ``time_to_hhmm``.
     """
-    from bretzel.components.base.attrs import ComponentDefinitionError
+    from bretzel.components.base.attrs import ComponentUsageError
 
     if value is None:
         return ""
@@ -61,29 +60,19 @@ def month_to_ym(value: Any, *, owner: str = "MonthPicker") -> str:
         return f"{value.year:04d}-{value.month:02d}"
     if isinstance(value, str):
         return value[:7]
-    raise ComponentDefinitionError(
+    raise ComponentUsageError(
         f"{owner} value must be str / date / None, "
         f"got {type(value).__name__}: {value!r}"
     )
 
 
-#: Blur normalisation: free input becomes ``YYYY-MM``, or empties.
-#: Templated on ``{V}`` so that bound and literal modes share the same
-#: parser — same shape as at DatePicker and TimePicker.
-NORMALISE_TO_YM_TEMPLATE = (
-    "(() => {{ const raw = String({V} || '').trim(); "
-    "if (!raw) {{ {V} = ''; return; }} "
-    # ``2026-08`` / ``2026/08`` / ``08-2026`` / ``08/2026`` — a single
-    # pattern, then we decide which is the year by the group's LENGTH.
-    "const m = raw.match(/^(\\d{{1,4}})[^\\d](\\d{{1,4}})/); "
-    "if (!m) {{ {V} = ''; return; }} "
-    "let y, mo; "
-    "if (m[1].length === 4) {{ y = +m[1]; mo = +m[2]; }} "
-    "else {{ mo = +m[1]; y = +m[2]; }} "
-    "if (mo < 1 || mo > 12 || y < 1) {{ {V} = ''; return; }} "
-    "{V} = String(y).padStart(4, '0') + '-' + "
-    "String(mo).padStart(2, '0'); }})()"
-)
+#: Blur normalisation: free input becomes ``YYYY-MM``, or empties —
+#: digits (``2026-08``, ``08/2026``) or the month's name in the page's
+#: language (« novembre 2026 », what the field shows). The reader is
+#: ``$bz.dates.typedMonth`` (``locale.js``), once, not recopied into
+#: every field. Templated on ``{V}`` so that bound and literal modes
+#: share it.
+NORMALISE_TO_YM_TEMPLATE = "{V} = $bz.dates.typedMonth({V})"
 
 
 def normalise_to_ym_js(value_expr: str) -> str:
@@ -91,7 +80,7 @@ def normalise_to_ym_js(value_expr: str) -> str:
     return NORMALISE_TO_YM_TEMPLATE.format(V=value_expr)
 
 
-class MonthPicker(Component):
+class MonthPicker(ValueCommands, FocusCommands, Component):
     """Render a month field with a year-grid popover."""
 
     THEME: ClassVar[dict[str, Any]] = MONTH_PICKER_THEME
@@ -105,6 +94,10 @@ class MonthPicker(Component):
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
+    # Where ``autofocus=`` / ``.focus()`` land. NOT ``"input"``: the first
+    # ``<input>`` is the HIDDEN carrier, where ``.focus()`` does nothing.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("input:not([type=hidden])",)
+    _command_value = staticmethod(month_to_ym)
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
@@ -122,9 +115,9 @@ class MonthPicker(Component):
 
     def __init__(
         self,
-        value: Any = None,
         *,
-        placeholder: str = "YYYY-MM",
+        value: Any = None,
+        placeholder: str | None = None,
         min: Any = None,
         max: Any = None,
         month_names: list[str] | None = None,
@@ -140,6 +133,7 @@ class MonthPicker(Component):
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
+        reject_attribute_component(placeholder, owner="MonthPicker", prop="placeholder")
         self._placeholder = placeholder
         self._month_names = list(month_names) if month_names else None
         self._clearable = clearable
@@ -151,22 +145,14 @@ class MonthPicker(Component):
             on_change=on_change, on_focus=on_focus, on_blur=on_blur,
             **kwargs,
         )
-        # AFTER `super().__init__`: both installers read
+        # AFTER `super().__init__`: the installer reads
         # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
-        # carrier (`hidden_carrier`), which does not take focus.
-        # Measured — `.focus()` did nothing on all six.
-        install_value_commands(
-            self, focus_selector="input:not([type=hidden])"
-        )
 
 
     def render(self) -> Element:
-        theme = self._resolved_theme()
-        sizes = theme.get("sizes", {})
-        size_key = self._reactive_values.get("size") or "md"
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
+        # The calendar in the panel is drawn at the field's step.
+        size_key = self._size_key() or "md"
         color = self._reactive_values.get("color") or "primary"
 
         initial = month_to_ym(self._reactive_values.get("value"))
@@ -189,33 +175,31 @@ class MonthPicker(Component):
             picked.append("open = false")
         cal_kwargs["on_change"] = "; ".join(picked)
 
-        def sized(slot: str) -> str:
-            return sized_slot(self, slot, size_cfg)
-
         return render_calendar_field(
             self,
             initial=initial,
             value_expr=val,
-            blur_js=normalise_to_ym_js(val),
+            normalise=normalise_to_ym_js,
+            shown=lambda v: f"$bz.dates.shownMonth({v})",
             mirror_granularity="month",
             clearable=self._clearable,
             clear_label=text("month_picker.clear"),
             trigger_icon="calendar",
             trigger_label=text("month_picker.open"),
+            field_label=text("month_picker.label"),
+            month_hint=True,
             calendar_kwargs=cal_kwargs,
             root_css=self.compose_class(
                 "root", apply_variant_size_modifiers=False),
-            # ``sized`` and not ``compose_class``: the step's height
-            # lives on the FRAME, which carries the border (cf. the
-            # theme's note) — otherwise the control renders 2 px too
-            # many.
-            frame_css=sized("input_frame"),
-            panel_css=self.compose_class(
-                "panel", apply_variant_size_modifiers=False),
-            field_css=sized("input_field"),
-            clear_css=sized("clear_button"),
-            trigger_css=sized("trigger_button"),
-            icon_css=sized("button_icon"),
+            # The step's height lives on the FRAME, which carries the
+            # border (cf. the theme's note) — otherwise the control
+            # renders 2 px too many.
+            frame_css=self.compose_class("input_frame"),
+            panel_css=self.compose_class("panel"),
+            field_css=self.compose_class("input_field"),
+            clear_css=self.compose_class("clear_button"),
+            trigger_css=self.compose_class("trigger_button"),
+            icon_css=self.compose_class("button_icon"),
         )
 
 

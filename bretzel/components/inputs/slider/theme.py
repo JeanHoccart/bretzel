@@ -53,7 +53,7 @@ SLIDER_THEME: dict[str, Any] = {
             # is dead to clicks — the track guards on
             # ``$event.target === $el`` and the fill would be the target.
             "pointer-events-none "
-            "transition-[width,left] duration-100 ease-out "
+            "transition-[width,left] duration-150 ease-out "
             "data-[dragging=true]:transition-none"
         ),
         # The handle : the circular grip the user drags. Positioned
@@ -67,7 +67,7 @@ SLIDER_THEME: dict[str, Any] = {
             "border-(length:--bz-stroke-strong) border-background "
             "cursor-grab active:cursor-grabbing "
             "outline-none "
-            "transition-[left,top] duration-100 ease-out "
+            "transition-[left,top] duration-150 ease-out "
             "data-[dragging=true]:transition-none "
             "focus-visible:ring-4 focus-visible:ring-(--bz-focus-soft) "
             "hover:scale-110 active:scale-110 "

@@ -14,12 +14,10 @@ Slots :
                   so the element cannot inherit a stray flex/grid slot.
 
 ⚠️ **No ``hover:`` variant anywhere in this file, on purpose.** The drop
-affordance must be visible to a touch user : the target browser of record
-reports ``any-hover: none`` with 10 touch points, so a hover-gated
-highlight would simply never appear (memory
-``project_user_browser_has_no_fine_pointer``). The highlight is therefore
-gated on ``data-bz-drop-ok=true``, which the runtime sets from the *gesture*,
-not from the pointer's resting position.
+affordance must be visible to a touch user : a touch browser reports
+``any-hover: none``, so a hover-gated highlight would simply never
+appear. The highlight is therefore gated on ``data-bz-drop-ok=true``, which
+the runtime sets from the *gesture*, not from the pointer's resting position.
 """
 
 from __future__ import annotations

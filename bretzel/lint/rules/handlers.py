@@ -4,8 +4,8 @@ The framework addresses a handler by its ``module::qualname`` and
 re-resolves it through ``sys.modules`` when the action arrives — that is
 what lets the client carry only a signed identifier rather than a
 reference. A lambda has no addressable name, so ``encode_handler_id``
-**raises** (``HandlerError: Lambda handlers are forbidden``). Verified on
-2026-08-16: lambda and closure refused, top-level function accepted.
+**raises** (``HandlerError: Lambda handlers are forbidden``): lambda and
+closure are refused, a top-level function is accepted.
 
 So it is a **certain** failure, not a heuristic — and it shows
 statically, before the app is even started. The form is natural to write

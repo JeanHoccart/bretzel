@@ -126,15 +126,19 @@ def build_preview(state: SidebarPlayground):
                     ui.sidebar_item(label, href=href, **treated)
                 else:
                     ui.sidebar_item(label, icon=icon, href=href)
-        with ui.sidebar_footer(name="Jean Hoccart",
-                               subtitle="jean@acme.com"):
+        with ui.sidebar_footer(name="Alex Martin",
+                               subtitle="alex@acme.com"):
+            # A choice of a set: ``checked=`` marks the one in force.
+            for lang, name in (("en", "English"), ("fr", "Français")):
+                ui.sidebar_footer_item(label=name, checked=lang == "en")
+            ui.divider(classes="my-1")
             ui.sidebar_footer_item(label="Settings", icon_left="settings")
             ui.sidebar_footer_item(label="Log out", icon_left="log-out",
                                    color="error")
     return box
 
 
-@refreshable(deps=[SidebarPlayground])
+@refreshable
 def server_panel() -> None:
     state = SidebarPlayground()
 
@@ -212,7 +216,7 @@ def server_panel() -> None:
     emitted_html_block("Emitted HTML", serialize_html(build_preview(state)))
 
 
-@refreshable(deps=[SidebarEvents])
+@refreshable
 def events_panel() -> None:
     state = SidebarEvents()
 
@@ -233,7 +237,7 @@ def events_panel() -> None:
                 ui.sidebar_item("Issues", icon="bug", on_click=log_issues)
                 ui.sidebar_item("Settings", icon="settings",
                                 on_click=log_settings)
-            with ui.sidebar_footer(name="Jean Hoccart", subtitle="compte"):
+            with ui.sidebar_footer(name="Alex Martin", subtitle="compte"):
                 ui.sidebar_footer_item(label="Log out", icon_left="log-out",
                                        color="error", on_click=log_logout)
         with ui.vstack(classes="flex-1 min-w-0 p-4"):
@@ -318,8 +322,8 @@ def page() -> None:
                                     ui.sidebar_item(label, icon=icon,
                                                     href=href)
                             with ui.sidebar_footer(
-                                name="Jean Hoccart",
-                                subtitle="jean@acme.com",
+                                name="Alex Martin",
+                                subtitle="alex@acme.com",
                             ):
                                 ui.sidebar_footer_item(
                                     label="Settings", icon_left="settings")
@@ -562,7 +566,7 @@ def page() -> None:
                                level=3)
                     ui.text(
                         'With no ``avatar``, the initials are derived '
-                            'from the ``name`` (“Jean Hoccart” → “JH”).',
+                            'from the ``name`` (“Alex Martin” → “AM”).',
                         color="muted", size="xs",
                     )
                     with ui.grid(cols={"base": 1, "lg": 3}, gap="md"):
@@ -583,8 +587,8 @@ def page() -> None:
                                             ui.sidebar_item("Home",
                                                             icon="home")
                                         with ui.sidebar_footer(
-                                            name="Jean Hoccart",
-                                            subtitle="jean@acme.com",
+                                            name="Alex Martin",
+                                            subtitle="alex@acme.com",
                                             **kw,
                                         ):
                                             ui.sidebar_footer_item(
@@ -631,7 +635,7 @@ def page() -> None:
                                 for i in range(1, 31):
                                     ui.sidebar_item(f"'Entry '{i}",
                                                     icon="circle")
-                            with ui.sidebar_footer(name="Jean Hoccart",
+                            with ui.sidebar_footer(name="Alex Martin",
                                                    subtitle='pinned'):
                                 ui.sidebar_footer_item(label="Log out",
                                                        icon_left="log-out",
@@ -666,7 +670,7 @@ def page() -> None:
                     ui.text(
                         'An ``href`` with a scheme (``https:`` / '
                             '``mailto:`` / ``tel:``) steps outside the guard:'
-                            ' ``target=_blank``, no ``hx-get`` injected.',
+                            ' ``target=_blank``, no ``hx-target`` injected.',
                         color="muted", size="xs",
                     )
                     with frame("h-[200px]"):
@@ -709,8 +713,8 @@ def page() -> None:
                             with ui.sidebar_section(label="ACCOUNT"):
                                 ui.sidebar_item("Settings", icon="settings")
                                 ui.sidebar_item("Billing", icon="credit-card")
-                            with ui.sidebar_footer(name="Jean Hoccart",
-                                                   subtitle="jean@acme.com",
+                            with ui.sidebar_footer(name="Alex Martin",
+                                                   subtitle="alex@acme.com",
                                                    color="secondary"):
                                 ui.sidebar_footer_item(
                                     label="Profile", icon_left="user",

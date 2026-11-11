@@ -28,6 +28,7 @@ from bretzel.runtime import HEADER_PAGE_ID
 from bretzel.server.handlers import sign_action
 from bretzel.server.middleware.render_context import _is_navigation
 from bretzel.state import PageState, field
+from tests._session import session_of
 
 _SECRET = "n" * 32
 
@@ -46,7 +47,7 @@ def plus() -> None:
     Compteur().n += 1
 
 
-@refreshable(deps=[Compteur, Vue])
+@refreshable
 def etat() -> None:
     ui.text(f"n={Compteur().n} fil=[{Vue().fil}]")
 
@@ -64,7 +65,7 @@ ETAT = re.compile(r"n=\d+ fil=\[[^\]]*\]")
 
 
 def _page_id(html: str) -> str:
-    match = re.search(r'data-bretzel-page-id="([^"]+)"', html)
+    match = re.search(r'data-bz-page-id="([^"]+)"', html)
     assert match, "le shell doit publier l'id de page"
     return match.group(1)
 
@@ -75,7 +76,7 @@ def _plus(client: TestClient, html: str, page_id: str, current: str):
     assert match, "pas d'action « plus » sur la page"
     url, args = match.group(1), ""  # « plus » ne prend pas d'argument
     return client.post(url, data={"_args": args}, headers={
-        "X-Bz-Sig": sign_action(_app.config._action_key, url.rsplit("/", 1)[-1], args),
+        "X-Bz-Sig": sign_action(_app.config._action_key, url.rsplit("/", 1)[-1], args, session_id=session_of(client)),
         HEADER_PAGE_ID: page_id, "HX-Request": "true", "HX-Current-URL": current})
 
 

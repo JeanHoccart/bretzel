@@ -103,7 +103,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[HeadingPlayground])
+@refreshable
 def server_panel() -> None:
     state = HeadingPlayground()
 

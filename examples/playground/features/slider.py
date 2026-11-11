@@ -163,7 +163,7 @@ def control(label: str):
 # ──────────────────────────────────────────────────────────────────────
 
 
-@refreshable(deps=[SliderPlayground])
+@refreshable
 def server_panel() -> None:
     state = SliderPlayground()
 
@@ -238,7 +238,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[SliderEvents])
+@refreshable
 def events_panel() -> None:
     state = SliderEvents()
 

@@ -188,6 +188,7 @@ def shell() -> None:
                     ui.sidebar_footer_item(
                         label=label,
                         icon_left=icon,
+                        checked=ColorScheme().mode == value,
                         on_click=ColorScheme.set(value),
                     )
                 ui.divider(classes="my-1")

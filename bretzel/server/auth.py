@@ -47,6 +47,9 @@ _INTERNAL = [
     "verify_auth_cookie",
     # ``middleware/session.py`` reads the key of :func:`session_key`.
     "verify_session_key",
+    # … and the session cookie, signed.
+    "session_cookie",
+    "session_of_cookie",
     # The identity chain, played on a raw request. ``AuthMiddleware``
     # calls it on every request and ``user_id(request)`` is its public
     # door — so an app never has to name it.
@@ -184,9 +187,17 @@ def login(user_id: str) -> None:
     ctx = current_context()
     max_age_days = _session_max_age_days(ctx)
     expires_at = int(time.time()) + max_age_days * 86400
-    cookie_value = _sign_until(_derived_key(ctx, "_auth_key"), user_id, expires_at)
-
     secure = _ctx_cookie_secure(ctx)
+
+    # Anti-fixation : rotate session id at every privilege change — and
+    # revoke the one left behind (``_revoke_session``).
+    _revoke_session(ctx)
+    ctx.session_id = secrets.token_hex(16)
+
+    # The auth cookie is signed FOR this session (``sid|user``): it opens
+    # nothing without it, and a revoked session takes it down.
+    cookie_value = _sign_until(_derived_key(ctx, "_auth_key"),
+                               f"{ctx.session_id}{_BOUND}{user_id}", expires_at)
     ctx.set_cookie(
         COOKIE_AUTH,
         cookie_value,
@@ -195,12 +206,9 @@ def login(user_id: str) -> None:
         samesite="lax",
         secure=secure,
     )
-
-    # Anti-fixation : rotate session id at every privilege change.
-    ctx.session_id = secrets.token_hex(16)
     ctx.set_cookie(
         COOKIE_SESSION,
-        ctx.session_id,
+        _signed_session(ctx),
         max_age=max_age_days * 86400,
         httponly=True,
         samesite="lax",
@@ -214,6 +222,44 @@ def login(user_id: str) -> None:
     _attach_user(ctx, AuthUser(id=user_id))
 
 
+#: Kept apart from the session KEYS of :func:`session_key`, signed with the
+#: same derived key: a cookie is not a key, and a key is not a cookie.
+_COOKIE_DOMAIN = "session-cookie|"
+
+
+def session_cookie(session_id: str, key: bytes) -> str:
+    """The value of the session cookie: the id and its signature.
+
+    ⚠️ Unsigned, the cookie would be whatever the client sent: a script
+    could invent a new session on every request, and the per-session
+    stream ceiling of SSE would count nothing. A signed id is one THIS
+    server minted.
+    No key (a rig that builds the middleware by hand): the bare id.
+    """
+    if not key:
+        return session_id
+    return f"{session_id}.{_crypto_sign(key, _COOKIE_DOMAIN + session_id)}"
+
+
+def session_of_cookie(value: str | None, key: bytes) -> str | None:
+    """The session id a cookie carries, or ``None`` when this server did
+    not sign it (invented, altered, or from before the signature)."""
+    if not value:
+        return None
+    if not key:
+        return value
+    session_id, _, sig = value.rpartition(".")
+    if not session_id or not _crypto_verify(key, _COOKIE_DOMAIN + session_id, sig):
+        return None
+    return session_id
+
+
+def _signed_session(ctx: Any) -> str:
+    """``ctx.session_id`` as its cookie carries it."""
+    config = getattr(getattr(ctx, "app", None), "config", None)
+    return session_cookie(ctx.session_id, getattr(config, "_session_key", b"") or b"")
+
+
 def logout() -> None:
     """Clear the auth cookie + rotate the session id.
 
@@ -222,12 +268,16 @@ def logout() -> None:
     ctx = current_context()
     ctx.delete_cookie(COOKIE_AUTH)
     # Rotate session so anything tied to the previous one (e.g.,
-    # cart contents, in-flight forms) starts fresh on the next page.
+    # cart contents, in-flight forms) starts fresh on the next page —
+    # and REVOKE that one server-side: deleting the cookie only tells this
+    # browser, and a copy taken before (a shared computer) would keep the
+    # account open.
+    _revoke_session(ctx)
     ctx.session_id = secrets.token_hex(16)
     secure = _ctx_cookie_secure(ctx)
     ctx.set_cookie(
         COOKIE_SESSION,
-        ctx.session_id,
+        _signed_session(ctx),
         max_age=_session_max_age_days(ctx) * 86400,
         httponly=True,
         samesite="lax",
@@ -322,7 +372,10 @@ def _verify_until(value: str, key: bytes) -> str | None:
         return None
     try:
         payload, supplied_sig = value.rsplit(".", 1)
-        subject, expires_at_str = payload.split(":", 1)
+        # ``rsplit``: the subject may hold a ``:`` (``tenant:42``), the
+        # expiry never does. ``split`` would cut at the first one and
+        # refuse such an id for ever, in silence.
+        subject, expires_at_str = payload.rsplit(":", 1)
         expires_at = int(expires_at_str)
     except (ValueError, IndexError):
         return None
@@ -397,9 +450,7 @@ def resolve_identity(request: Any, bretzel: Any = None) -> str | None:
     browser sessions — by far the largest population — and because it is
     the only one the framework signed itself. An exception raised by a
     source **surfaces**: an identity read that breaks is an incident, not
-    an anonymous visitor, and swallowing it would do exactly what this
-    repository spent an audit removing (eleven sites catching a
-    construction silently).
+    an anonymous visitor, and swallowing it would pass one for the other.
     """
     scope = getattr(request, "scope", None)
     if isinstance(scope, dict) and _MEMO in scope:
@@ -464,7 +515,40 @@ def _from_signed_cookie(request: Any, bretzel: Any) -> str | None:
         # read the header back ourselves rather than assume.
         jar = parse_cookies_from_scope(getattr(request, "scope", {}) or {})
     cookie = jar.get(COOKIE_AUTH, "")
-    return verify_auth_cookie(cookie, key) if cookie else None
+    subject = verify_auth_cookie(cookie, key) if cookie else None
+    if not subject or _BOUND not in subject:
+        return None  # absent, forged, or signed before the binding
+    bound_session, user = subject.split(_BOUND, 1)
+    return user if bound_session == _request_session(request, bretzel, jar) else None
+
+
+#: Between the session and the user in an auth cookie's subject. A
+#: session id is hex: it never holds one.
+_BOUND = "|"
+
+#: The scope key under which ``login`` / ``logout`` leave the session
+#: they revoke, for ``SessionMiddleware`` to record once the request is
+#: done (``auth.py`` cannot await the store).
+REVOKED_SESSIONS = "bretzel.revoked_sessions"
+
+
+def _revoke_session(ctx: Any) -> None:
+    """Hand the session being left to ``SessionMiddleware``, which records
+    it revoked: the request it carried opens nothing any more."""
+    scope = getattr(getattr(ctx, "request", None), "scope", None)
+    if isinstance(scope, dict) and getattr(ctx, "session_id", None):
+        scope.setdefault(REVOKED_SESSIONS, []).append(ctx.session_id)
+
+
+def _request_session(request: Any, bretzel: Any, jar: dict) -> str | None:
+    """The session this request works in: what ``SessionMiddleware``
+    settled (a revoked one already replaced), else — in an app middleware,
+    which runs before it — the signed cookie read here."""
+    settled = getattr(getattr(request, "state", None), "session_id", None)
+    if settled:
+        return settled
+    key = getattr(getattr(bretzel, "config", None), "_session_key", b"") or b""
+    return session_of_cookie(jar.get(COOKIE_SESSION), key)
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -511,11 +595,17 @@ def _forget_identity(ctx: object) -> None:
     """Forget the memoised identity — the identity has just changed.
 
     Without it, a read after ``login()`` in the same request would return
-    the previous identity.
+    the previous identity — and the state registry, built with the
+    identity the request arrived with, would keep writing the PRE-login
+    session (``StateRegistry.rebind``).
     """
     scope = getattr(getattr(ctx, "request", None), "scope", None)
     if isinstance(scope, dict):
         scope.pop(_MEMO, None)
+    registry = getattr(ctx, "state_registry", None)
+    if registry is not None:
+        registry.rebind(session_id=getattr(ctx, "session_id", None),
+                        user_id=getattr(ctx, "user_id", None))
 
 
 def _attach_user(ctx: object, user: AuthUser | None) -> None:

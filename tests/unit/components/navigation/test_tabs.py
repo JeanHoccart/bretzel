@@ -183,7 +183,7 @@ class TestClientBindingValue:
 
     def test_binding_directives_read_store_directly_no_getter(self) -> None:
         # Regression : a ``get active()`` scope getter is FROZEN by
-        # ``absorb`` (03_scope.js evaluates each declared key once and
+        # ``absorb`` (scope.js evaluates each declared key once and
         # bakes the result into a dead local signal), so tab/panel
         # directives reading it never react to a store write — a click or
         # a Select bound to the same field would move the store while the
@@ -210,7 +210,7 @@ class TestClientBindingValue:
         with render_isolated():
             out = serialize(_build_basic_tabs(value=binding).render())
         assert 'type="hidden"' in out
-        assert 'name="tab"' in out
+        assert 'name="UI.tab"' in out
 
 
 class TestEvents:

@@ -57,7 +57,7 @@ def change_period(report: Report) -> None:
     """The new period is already in ``report``; the figures re-render."""
 
 
-@refreshable(deps=[Report])
+@refreshable
 def revenue_figures() -> None:
     start, end = (date.fromisoformat(day) for day in Report().period)
     days = (end - start).days + 1

@@ -16,6 +16,17 @@ class TestElementSerialize:
     def test_empty_div(self) -> None:
         assert serialize(Element("div")) == "<div></div>"
 
+    @pytest.mark.parametrize("tag", ["h1><img src=x onerror=alert(1)><h1", "h 1", "", "1h", "a/b"])
+    def test_a_tag_that_is_not_a_name_is_refused(self, tag: str) -> None:
+        # ``ui.heading(level=…)`` built ``h{level}``: the tag was markup
+        # (2026-11-06). Every element passes here.
+        with pytest.raises(ValueError, match="not an HTML tag name"):
+            serialize(Element(tag))
+
+    @pytest.mark.parametrize("tag", ["h6", "bz-calendar", "iconify-icon", "foreignObject"])
+    def test_real_tags_pass(self, tag: str) -> None:
+        assert serialize(Element(tag)) == f"<{tag}></{tag}>"
+
     def test_with_attrs(self) -> None:
         out = serialize(Element("a", {"href": "/x", "class": "btn"}))
         assert out == '<a href="/x" class="btn"></a>'

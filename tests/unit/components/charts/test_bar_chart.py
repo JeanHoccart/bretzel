@@ -87,6 +87,13 @@ class TestBarChart:
             )
         assert "$1,200.00" in out
 
+    def test_counts_get_whole_ticks(self) -> None:
+        with render_isolated():
+            counts = serialize(BarChart([("0", 0), ("1", 1), ("2", 1)]).render())
+            shares = serialize(BarChart([("a", 0.2), ("b", 1)]).render())
+        assert ">0.5<" not in counts
+        assert ">0.5<" in shares
+
     def test_y_format_abbreviated(self) -> None:
         with render_isolated():
             out = serialize(
@@ -250,7 +257,7 @@ class TestBarChart:
         with render_isolated():
             out = serialize(BarChart(
                 _SAMPLE_SINGLE, orientation="horizontal",
-                reference_lines=[Reference(value=15, label="Goal",
+                y_reference_lines=[Reference(value=15, label="Goal",
                                            color="success")],
             ).render())
         # Reference line group is emitted ; the line uses x1==x2
@@ -316,7 +323,7 @@ class TestBarChart:
         # ``.bz-bar-hit`` overlay (widened target), NOT the visible bar.
         # The overlay spans the full plot height so a tiny bar is still
         # easy to hover ; the runtime re-anchors the tooltip on the
-        # sibling ``.bz-bar-fill`` (see 10_charts.js).
+        # sibling ``.bz-bar-fill`` (see charts.js).
         import re
         with render_isolated():
             out = serialize(BarChart([("Jan", 1), ("Feb", 40)]).render())
@@ -339,5 +346,7 @@ class TestBarChart:
             assert "data-bz-display" not in r
             assert "bz-on:mouseenter" not in r
 
-    def test_no_bindable_props(self) -> None:
-        assert BarChart.BINDABLE_PROPS == ()
+    def test_binds_only_its_displayed_contents(self) -> None:
+        # The data flows through @refreshable; only the displayed contents
+        # (the empty state's words and icon) bind, by construction (2026-11-06).
+        assert set(BarChart.BINDABLE_PROPS) - set(BarChart.__displayed_props__) == set()

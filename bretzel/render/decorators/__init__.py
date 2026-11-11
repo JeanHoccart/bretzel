@@ -11,10 +11,11 @@ from bretzel.render.decorators.layout import LayoutMeta, layout
 from bretzel.render.decorators.page import PageMeta, page
 from bretzel.render.decorators.refreshable import (
     RefreshableHandle,
+    ZoneRegistry,
     refresh,
     refreshable,
     state_qualname,
-    zone_ids_watching,
+    zones_reachable_from,
 )
 
 __all__ = [
@@ -24,11 +25,12 @@ __all__ = [
     "LayoutMeta",
     "PageMeta",
     "RefreshableHandle",
+    "ZoneRegistry",
+    "zones_reachable_from",
     "error_page",
     "layout",
     "page",
     "refresh",
     "refreshable",
-    "zone_ids_watching",
     "state_qualname",
 ]

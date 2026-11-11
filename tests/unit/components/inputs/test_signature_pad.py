@@ -162,9 +162,11 @@ class TestBinding:
         assert "value: " not in out.split("bz-data=")[1].split("bz-init=")[0]
 
     def test_binding_on_a_non_bindable_prop_raises(self) -> None:
+        # ``placeholder`` binds since 2026-11-06 (a displayed content); a
+        # design prop still refuses.
         with render_isolated(), rendering_scope():
             with pytest.raises(ComponentUsageError):
-                SignaturePad(placeholder=Draft().sig)
+                SignaturePad(size=Draft().sig)
 
 
 class TestImperative:

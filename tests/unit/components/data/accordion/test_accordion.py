@@ -352,7 +352,7 @@ class TestClientBindingValue:
                 _build_basic_accordion(value=binding).render()
             )
         assert 'type="hidden"' in out
-        assert 'name="expanded"' in out
+        assert 'name="UI.expanded"' in out
 
     def test_multiple_hidden_value_is_json_stringify(self) -> None:
         binding = ClientBinding(
@@ -643,7 +643,9 @@ class TestBindableSurface:
     def test_autoname_from_is_value(self) -> None:
         assert Accordion.AUTONAME_FROM == "value"
 
-    def test_item_has_no_bindable_props(self) -> None:
-        # AccordionItem fields are design-time — the parent's
-        # value= drives every expansion decision.
-        assert AccordionItem.BINDABLE_PROPS == ()
+    def test_item_binds_only_its_displayed_contents(self) -> None:
+        # AccordionItem chooses to bind nothing — the parent's value=
+        # drives every expansion decision. Its displayed contents (label,
+        # icon) bind by construction since 2026-11-06.
+        assert set(AccordionItem.BINDABLE_PROPS) - set(AccordionItem.__displayed_props__) == set()
+        assert {"label", "icon"} <= set(AccordionItem.BINDABLE_PROPS)

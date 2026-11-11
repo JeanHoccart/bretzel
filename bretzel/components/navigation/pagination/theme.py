@@ -21,7 +21,7 @@ producing: a shared token is removed from the static ``class=`` at the
 same time. ``ellipsis`` re-declared ``flex items-center justify-center``
 + ``w-10 text-sm`` — the button that stopped being an ellipsis collapsed
 from 40 px to 8 px, its height intact. The runtime now protects its
-baseline (``02_directives.js``), and
+baseline (``directives.js``), and
 ``test_bz_class_never_repeats_static_tokens`` keeps the rule on the theme
 side.
 """
@@ -37,7 +37,7 @@ PAGINATION_THEME: dict[str, Any] = {
         ),
         "item": (
             "flex items-center justify-center rounded-field font-medium "
-            "transition-all duration-200 ease-out cursor-pointer "
+            "transition duration-200 ease-out cursor-pointer "
             "not-disabled:hover:bg-text/5 not-disabled:active:scale-95 "
             "focus-visible:ring-2 focus-visible:ring-offset-2 "
             "focus-visible:ring-offset-background "
@@ -46,7 +46,7 @@ PAGINATION_THEME: dict[str, Any] = {
         ),
         "active": (
             "bg-(--bz-solid) text-(--bz-on-solid) shadow-sm scale-110 z-10 "
-            "not-disabled:hover:!bg-(--bz-solid)/80"
+            "not-disabled:hover:!bg-(--bz-solid-hover)"
         ),
         # Composed on top of ``item``: no flex/centring and no size here.
         "ellipsis": "text-muted pointer-events-none",

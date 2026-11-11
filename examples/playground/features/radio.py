@@ -173,7 +173,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[RadioPlayground])
+@refreshable
 def server_panel() -> None:
     state = RadioPlayground()
 
@@ -249,7 +249,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[RadioEvents])
+@refreshable
 def events_panel() -> None:
     state = RadioEvents()
 
@@ -643,6 +643,8 @@ def page() -> None:
                                   on_click=m1.set("b"))
                         ui.button("Set C", variant="outline",
                                   on_click=m1.set("c"))
+                        ui.button("Clear", variant="ghost",
+                                  on_click=m1.clear())
 
                     ui.divider()
 
@@ -786,7 +788,7 @@ def page() -> None:
                         ui.radio(value="a", label="A")
                         ui.radio(value="b", label="B")
                     emitted_html_block(
-                        "Emitted HTML — @change on the group ; the "
+                        "Emitted HTML — the ``change`` handler on the group ; the "
                         "bubbled event from the picked radio carries "
                         "its value, the client expression pushes it.",
                         serialize_html(preview),

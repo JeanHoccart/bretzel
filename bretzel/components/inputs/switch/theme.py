@@ -1,6 +1,6 @@
 """Default :class:`Switch` theme.
 
-Same ``peer sr-only`` idiom as the checkbox, but the visual is a rail
+Same invisible ``peer`` input idiom as the checkbox, but the visual is a rail
 (``track``) with a sliding pill (``thumb``).
 The slide is animated via ``transition-transform`` on the thumb's
 ``translate-x-N`` triggered by ``peer-checked``.
@@ -30,36 +30,36 @@ SWITCH_THEME: dict[str, Any] = {
             "has-[:disabled]:cursor-not-allowed"
         ),
         "container": "relative inline-flex items-center shrink-0",
-        "input": "peer sr-only",
+        "input": "peer absolute inset-0 m-0 opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed",
         "track": (
             "block rounded-full border-(length:--bz-stroke) border-text/10 bg-interface "
-            "transition-all duration-200 ease-out "
+            "transition duration-200 ease-out "
             "peer-checked:bg-(--bz-solid) peer-checked:border-(--bz-solid) "
             "peer-focus-visible:ring-2 peer-focus-visible:ring-(--bz-focus) "
             "peer-focus-visible:ring-offset-2 "
             "peer-focus-visible:ring-offset-background"
         ),
-        # ``left-[2px] top-[2px]`` so the thumb sits inside the rail's
-        # border AND is vertically centred : the thumb is ``absolute`` and
-        # the track is ``block`` (out of the thumb's flow), so without an
-        # explicit ``top`` the thumb falls to the bottom of the rail. Every
-        # size keeps ``track − thumb = 4px``, so a uniform 2px inset
-        # centres it on all of them. ``transition-transform`` so the slide
+        # The thumb is ``absolute`` and the track is ``block`` (out of the
+        # thumb's flow), so without an explicit ``top`` the thumb falls to
+        # the bottom of the rail. ``transition-transform`` so the slide
         # is the only animated property — colour swaps stay in their lane.
         # Inset by HALF A STEP, not by a pixel literal. Every size is a
         # track one step taller than its thumb and ``thumb + travel + 1``
         # steps wide, so half a step on each side centres the thumb at
-        # any density. ``left-[2px] top-[2px]`` was that half step when a
-        # step was 4 px; at 3 px it sat the thumb 0.5 px low and 1 px
-        # from the far end against 2 px from the near one.
+        # any density; a pixel literal is half a step at one density only.
         # ``test_the_switch_thumb_is_centred_by_construction`` holds it.
+        # Vertically, centred on the CONTAINER (``top-1/2
+        # -translate-y-1/2``), where the track is centred too: beside a
+        # label the container is at least one line high (``min-h-[1lh]``),
+        # taller than an ``xs`` rail, and ``top-0.5`` would sit the thumb
+        # low.
         "thumb": (
-            "absolute start-0.5 top-0.5 inline-block rounded-full "
+            "absolute start-0.5 top-1/2 -translate-y-1/2 inline-block rounded-full "
             "bg-white shadow-sm "
             "transition-transform duration-200 ease-out"
         ),
         "label": (
-            "font-medium text-text transition-all duration-200 "
+            "font-medium text-text transition duration-200 "
             "group-has-[input:not(:disabled)]:group-hover:opacity-70"
         ),
     },

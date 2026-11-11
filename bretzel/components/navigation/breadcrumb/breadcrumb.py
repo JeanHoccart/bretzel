@@ -46,12 +46,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import theme_context, unwrap_transparent
+from bretzel.components.base import Component, ComponentUsageError, reactive_prop
+from bretzel.components.base.composition import unwrap_transparent
+from bretzel.components.base.theme_values import theme_context
+from bretzel.components.base.universals import finish_render
 from bretzel.components.navigation.breadcrumb.theme import BREADCRUMB_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element, Node
 from bretzel.core.tree import TextNode as TextNode
+from bretzel.render import text
+from bretzel.state.scopes.client import ClientBinding
 
 
 class Breadcrumb(Component):
@@ -59,6 +63,9 @@ class Breadcrumb(Component):
 
     THEME: ClassVar[dict[str, Any]] = BREADCRUMB_THEME
     THEME_KEY: ClassVar[str] = "breadcrumb"
+    #: Draws its children itself: a zone among them is refused
+    #: (``base/composition.unwrap_transparent``).
+    _COMPOSES_CHILDREN: ClassVar[bool] = True
     DEFAULT_TAG: ClassVar[str] = "nav"
     # Container — it is the base layer's default, so not redeclared
     # here: the author writes their ``for``, they need somewhere to put
@@ -96,13 +103,9 @@ class Breadcrumb(Component):
                 for entry in items:
                     label, href, icon = _normalise_item(entry)
                     BreadcrumbItem(label, href=href, icon=icon)
-        # ``adopt_slot`` (no ``icon_shortcut`` — a string separator may be a
-        # literal "/" as much as an icon name, ``_render_separator`` decides)
-        # detaches a Component NOW, at construction. Detaching in render() is
-        # TOO LATE : the parent walks its children in order and has already
-        # rendered the auto-registered component as a SIBLING before it
-        # reaches this Breadcrumb (the double-render orphan).
-        self._separator: str | Component = Component.adopt_slot(separator)
+        # A string separator may be a literal "/" as much as an icon
+        # name: ``_render_separator`` decides.
+        self._separator: str | Component = separator
 
     # ── Render ─────────────────────────────────────────────────────────
 
@@ -130,32 +133,35 @@ class Breadcrumb(Component):
 
         # ``unwrap_transparent``: a WRAPPED segment — a
         # ``@refreshable`` zone, a ``ui.fragment`` — is not an instance
-        # of ``BreadcrumbItem``, so it DISAPPEARED from the breadcrumb.
-        # Measured on 2026-08-23: 723 → 192 characters, with no error.
+        # of ``BreadcrumbItem``, so without this it would DISAPPEAR from
+        # the breadcrumb, with no error.
         segments = [
             (child, rewrap)
-            for child, rewrap in (unwrap_transparent(c) for c in self._children)
+            for child, rewrap in (unwrap_transparent(c, self) for c in self._children)
             if isinstance(child, BreadcrumbItem)
         ]
         children: list[Element] = []
         for index, (seg, rewrap) in enumerate(segments):
             if children:
                 children.append(
-                    _render_separator(self._separator, separator_class)
+                    _render_separator(self._separator, separator_class, self)
                 )
+            # ``finish_render`` here, at the call, and not in
+            # ``_render_segment``: the segment's own ``render()`` reuses
+            # that method and already goes through the metaclass wrap.
             children.append(
-                rewrap(seg._render_segment(
+                rewrap(finish_render(seg, seg._render_segment(
                     is_last=index == len(segments) - 1,
                     item_class=item_class,
                     current_class=current_class,
-                ))
+                )))
             )
 
         root_attrs = self.emit_attrs()
-        root_attrs["class"] = self.compose_class(
+        root_attrs["class"] = " ".join(p for p in (self.compose_class(
             "root", apply_variant_size_modifiers=False
-        )
-        root_attrs.setdefault("aria-label", "Breadcrumb")
+        ), size_class) if p)
+        root_attrs.setdefault("aria-label", text("breadcrumb.label"))
         return Element(
             tag=self._tag, attrs=root_attrs, children=tuple(children)
         )
@@ -175,25 +181,24 @@ class BreadcrumbItem(Component):
 
     def __init__(
         self,
-        label: Any = None,
+        label: str | Component | None = None,
         *,
-        icon: Any = None,
+        icon: str | Component | None = None,
         href: str | None = None,
         **kwargs: Any,
     ) -> None:
         # ⚠️ An ``icon="book"`` is NOT handed to ``ICON_SLOTS``: the
         # base layer would wrap it as ``ui.icon(name)`` at the default
         # size (``md`` = 18 px), calibrated for 16 px body text. A
-        # breadcrumb's label is 12 px — the icon was therefore at 1.50
-        # times its text, the catalogue's worst gap (measured on
-        # 2026-08-18). We keep the NAME and build the Icon at render,
+        # breadcrumb's label is 12 px, so the icon would dwarf its text.
+        # We keep the NAME and build the Icon at render,
         # when the label's size is finally known.
         #
         # A Component passed by hand keeps ITS size: the author chose it,
         # it is not the component's business to correct it.
         self._icon_name = icon if isinstance(icon, str) else None
         super().__init__(icon=None if self._icon_name else icon, **kwargs)
-        self._label = Component.adopt_slot(label)
+        self._label = label
         self._href = href
 
     # ── Internal render — called by Breadcrumb ────────────────────────
@@ -277,13 +282,13 @@ def _normalise_item(item: Any) -> tuple[Any, str | None, Any]:
             return item[0], None, None
     if isinstance(item, str):
         return item, None, None
-    raise TypeError(
+    raise ComponentUsageError(
         f"Unsupported breadcrumb item shape : {type(item).__name__}"
     )
 
 
 def _render_separator(
-    separator: str | Component, separator_class: str
+    separator: str | Component, separator_class: str, owner: Component
 ) -> Element:
     """Render a single separator node between two items.
 
@@ -305,16 +310,23 @@ def _render_separator(
             children=(node,),
         )
 
-    text = str(separator)
+    # A bound separator follows the client value; its SERVER value
+    # decides text vs icon, as for a plain string.
+    bound = separator if isinstance(separator, ClientBinding) else None
+    text = str(bound.value if bound is not None else separator)
     if len(text) <= 2:
         return Element(
             tag="span",
             attrs={"class": separator_class, "aria-hidden": "true"},
-            children=(TextNode(text),),
+            children=(
+                owner.emit_text_slot(bound) if bound is not None
+                else TextNode(text),
+            ),
         )
 
-    # Iconify name — wrap in an Icon, render, stamp the slot class.
-    icon = Icon(text, size="xs")
+    # Iconify name — wrap in an Icon, render, stamp the slot class. A
+    # binding goes to the Icon as is: it emits the live ``bz-attr:icon``.
+    icon = Icon(bound if bound is not None else text, size="xs")
     Component._detach_from_parent(icon)
     rendered = icon.render()
     existing = rendered.attrs.get("class", "")

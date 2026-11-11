@@ -21,7 +21,7 @@ there is no single store scalar the two inputs can both address) ::
   ``setAttribute`` (``bz-attr:value`` on a custom element writes the
   property, not the attribute — cf. traps.md) and writes the pair back
   on ``change`` (``[start, end]`` once the user closes the range — the
-  popover auto-closes when ``close_on_close=True``).
+  popover auto-closes when ``close_on_pick=True``).
 - **Bound** (``value=client_state.range_v``) : ``vstart`` / ``vend``
   seed from the store list at SSR ; a wrapper ``bz-effect`` pushes
   ``[vstart, vend]`` back into ``$bz.state.X.y`` on every endpoint
@@ -40,27 +40,33 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
+from bretzel.components.base.arguments import reject_attribute_component
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.field_wiring import keep_own_name
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.overlay_wiring import (
     anchored_dismiss_init,
-    calendar_value_mirror,
+    anchored_panel,
     imperative_listeners,
     install_open_close_toggle,
-    install_value_commands,
-    server_sync_marker,
-    theme_context,
 )
+from bretzel.components.base.scope_wiring import server_sync_marker
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.inputs._picker_field import (
-    anchored_panel,
+    calendar_value_mirror,
     clear_button,
     detach_wrapper_carriers,
     hidden_carrier,
     panel_calendar,
     relocate_field_events,
     trigger_button,
+    typed_field_attrs,
+    typed_hint,
 )
 from bretzel.components.inputs._wiring import date_to_iso
 from bretzel.components.inputs.date_picker.date_picker import (
     normalise_to_iso_js,
+    shown_date_js,
 )
 from bretzel.components.inputs.date_range_picker.theme import (
     DATE_RANGE_PICKER_THEME,
@@ -71,16 +77,32 @@ from bretzel.render import text
 
 def _date_to_iso(value: Any) -> str:
     """``DateRangePicker``'s date coercion — the shared one, bound to
-    this component's name for the error message (audit F50: the three
-    components of the date family each carried an identical copy)."""
+    this component's name for the error message."""
     return date_to_iso(value, owner="DateRangePicker")
 
+def _pair_to_iso(value: Any) -> list[str]:
+    """``.set()``'s argument: a ``(start, end)`` pair, each end as ``value=``."""
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        from bretzel.components.base.attrs import ComponentUsageError
 
-class DateRangePicker(Component):
+        raise ComponentUsageError(
+            f"DateRangePicker.set() takes a (start, end) pair, got {value!r}"
+        )
+    return [_date_to_iso(value[0]), _date_to_iso(value[1])]
+
+
+
+class DateRangePicker(ValueCommands, FocusCommands, Component):
     """Start + end date input with shared calendar popover."""
 
     THEME: ClassVar[dict[str, Any]] = DATE_RANGE_PICKER_THEME
     THEME_KEY: ClassVar[str] = "date_range_picker"
+    #: Retired names, refused with the new one (``attrs.split_kwargs``).
+    RENAMED_PROPS: ClassVar[dict[str, str]] = {
+        "close_on_close": "write ``close_on_pick=``, as on the other pickers "
+                          "— picking a range is picking its end.",
+        "weekstart": "write ``week_start=``.",
+    }
     IS_CONTAINER: ClassVar[bool] = False
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = (
         "value", "min", "max", "disabled",
@@ -89,9 +111,15 @@ class DateRangePicker(Component):
     #: `dialog`) and a field carrying a value (like `input`). Its surface
     #: is therefore the union of the two vocabularies already fixed by
     #: its neighbours — nothing invented here.
+    EMPTY_VALUE: ClassVar[list[str]] = ["", ""]
+    _command_value = staticmethod(_pair_to_iso)
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
+    # Where ``autofocus=`` / ``.focus()`` land: the start field. NOT
+    # ``"input"``: the first ``<input>`` is the HIDDEN carrier, where
+    # ``.focus()`` does nothing.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("input:not([type=hidden])",)
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
@@ -109,15 +137,15 @@ class DateRangePicker(Component):
 
     def __init__(
         self,
-        value: Any = None,
         *,
-        placeholder_start: str = "Start",
-        placeholder_end: str = "End",
-        separator: str = "→",
+        value: Any = None,
+        placeholder_start: str | None = None,
+        placeholder_end: str | None = None,
+        separator: str | Component = "→",
         min: Any = None,
         max: Any = None,
         disabled_dates: list[_dt.date] | None = None,
-        weekstart: int = 1,
+        week_start: int = 1,
         marks: Any = None,
         weekday_names: list[str] | None = None,
         month_names: list[str] | None = None,
@@ -126,22 +154,20 @@ class DateRangePicker(Component):
         disabled: bool | None = None,
         required: bool | None = None,
         clearable: bool = True,
-        close_on_close: bool = True,
+        close_on_pick: bool = True,
         name: str | None = None,
         on_change: Callable[..., Any] | str | None = None,
         on_focus: Callable[..., Any] | str | None = None,
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
+        reject_attribute_component(placeholder_start, owner="DateRangePicker",
+                                   prop="placeholder_start", attribute="placeholder")
+        reject_attribute_component(placeholder_end, owner="DateRangePicker",
+                                   prop="placeholder_end", attribute="placeholder")
         self._placeholder_start = placeholder_start
         self._placeholder_end = placeholder_end
-        # ``adopt_slot`` + ``emit_text_slot`` are a COUPLE (cf.
-        # emit_text_slot's docstring): the 1st detaches the Component
-        # (otherwise rendered twice), the 2nd RENDERS it (otherwise it
-        # goes into TextNode() which expects a string → `'Text' object
-        # has no attribute 'replace'` at serialize). Doing one without
-        # the other swaps one bug for another.
-        self._separator = Component.adopt_slot(separator)
+        self._separator = separator
         # ``None`` = "let the browser name them", from ``<html lang>``.
         # Freezing English here forced every app to pass the 19 strings
         # again at every mount. Cf. ``ui.calendar``.
@@ -153,9 +179,9 @@ class DateRangePicker(Component):
         # ``ui.month_picker`` does not have it: its grid is made of
         # MONTHS, not days.
         self._marks = marks
-        self._weekstart = weekstart
+        self._weekstart = week_start
         self._clearable = clearable
-        self._close_on_close = close_on_close
+        self._close_on_pick = close_on_pick
 
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
@@ -168,35 +194,13 @@ class DateRangePicker(Component):
             on_blur=on_blur,
             **kwargs,
         )
-        # AFTER `super().__init__`: both installers read
+        # AFTER `super().__init__`: the installer reads
         # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
-        # carrier (`hidden_carrier`), which does not take focus.
-        # Measured — `.focus()` did nothing on all six.
-        install_value_commands(
-            self, focus_selector="input:not([type=hidden])"
-        )
 
     def render(self) -> Element:
-        theme, slots, _sizes, size_key, color = theme_context(self)
-        size_map = theme.get("sizes", {})
+        _theme, slots, _sizes, size_key, color = theme_context(self)
 
-
-        def sz(group: str) -> str:
-            """Per-size lookup — cf. date_picker.render for rationale."""
-            row = size_map.get(group, {})
-            return row.get(size_key) or row.get("md") or ""
-
-        def slot_with_size(slot: str) -> str:
-            # ``compose_class`` resolves the slot's ``{bg_color}`` against
-            # ``color=`` (the same seam ``ui.input`` uses for its multi-slot
-            # theme) so ``color=`` reaches the frame ring + trigger icon, not
-            # just the calendar popover. The per-slot size map stays local.
-            return " ".join(filter(None, [
-                self.compose_class(slot, apply_variant_size_modifiers=False),
-                sz(slot),
-            ]))
         disabled = bool(self._reactive_values.get("disabled"))
         required = bool(self._reactive_values.get("required"))
 
@@ -279,10 +283,13 @@ class DateRangePicker(Component):
         # Sidebar, Dialog and Select.
         for _ev, _handler in imperative_listeners("open").items():
             root_attrs.setdefault(_ev, _handler)
-        # Two variables, so no scalar `bz-set`: `.set()` sets the
-        # range's START.
+        # The value is a pair, so `bz-set` writes both ends. ``[].concat``
+        # reads a lone date as a start with no end, where indexing the
+        # string would keep its first two characters.
         root_attrs.setdefault(
-            "bz-on:bz-set", "vstart = $event.detail.value"
+            "bz-on:bz-set",
+            "vstart = [].concat($event.detail.value || [])[0] || ''; "
+            "vend = [].concat($event.detail.value || [])[1] || ''",
         )
         # Single ``bz-effect`` (one per element) doing two jobs :
         # 1. (bound only) push ``[vstart, vend]`` back into the store on
@@ -291,12 +298,25 @@ class DateRangePicker(Component):
         # 2. Mirror the (vstart, vend) pair onto the inner
         #    ``<bz-calendar>``'s observed ``value`` ATTRIBUTE, shared
         #    with DatePicker via ``calendar_value_mirror``.
+        #
+        # ⚠️ BOTH ways, and which way is decided by what MOVED. An effect
+        # that only pushed would write the fields into the store whenever
+        # they differ, so a value written from OUTSIDE (another control on
+        # the same ClientState) would be put back at once and the range
+        # would never show it. The node keeps the last pair
+        # both sides agreed on (``$el._bzSynced``, a node property and not
+        # a signal: the effect writes it, a signal would re-run it): the
+        # store differs from it → the store moved, pull; otherwise the
+        # fields moved, push.
         push_store = ""
         if store is not None:
             push_store = (
                 f"const _cur = {store} || ['', '']; "
-                f"if (_cur[0] !== vstart || _cur[1] !== vend) "
-                f"{store} = [vstart, vend]; "
+                f"const _s = JSON.stringify([_cur[0] || '', _cur[1] || '']); "
+                f"if (_s !== JSON.stringify([vstart, vend])) {{ "
+                f"if (_s !== $el._bzSynced) {{ vstart = _cur[0] || ''; vend = _cur[1] || ''; }} "
+                f"else {{ {store} = [vstart, vend]; }} }} "
+                f"$el._bzSynced = JSON.stringify([vstart, vend]); "
             )
         root_attrs["bz-effect"] = (
             "(() => { "
@@ -321,24 +341,26 @@ class DateRangePicker(Component):
         # ── Visible editable start / end inputs ───────────────────
         def _make_field(
             varname: str,
-            placeholder: str,
+            placeholder: str | None,
+            label: str,
             extra_class: str = "",
         ) -> Element:
-            cls = slot_with_size("input_field")
+            cls = self.compose_class("input_field")
             if extra_class:
                 cls = f"{cls} {extra_class}"
             initial = initial_start if varname == "vstart" else initial_end
             attrs: dict[str, Any] = {
                 "type": "text",
-                "placeholder": placeholder,
+                **typed_hint(placeholder),
                 "class": cls,
                 "value": initial,
-                "bz-model": varname,
-                "bz-on:blur": normalise_to_iso_js(varname),
+                # Shows the end in the page's language, writes it once
+                # normalised into ISO.
+                **typed_field_attrs(varname, normalise_to_iso_js, shown_date_js),
                 "autocomplete": "off",
                 "inputmode": "numeric",
                 "spellcheck": "false",
-                "aria-label": placeholder,
+                "aria-label": label,
             }
             if disabled:
                 attrs["disabled"] = True
@@ -352,6 +374,10 @@ class DateRangePicker(Component):
                     f"{attrs['bz-on:blur']}; {merged['bz-on:blur']}"
                 )
             attrs.update(merged)
+            if required:
+                attrs["aria-required"] = "true"
+            # One label over two fields: each keeps saying which end it is.
+            keep_own_name(attrs, f"{self.id}_{varname}")
             # Reactive ``disabled`` → both editable fields, not the
             # wrapper. The frame greys out by itself with them
             # (``has-[input:disabled]`` in the theme).
@@ -361,9 +387,11 @@ class DateRangePicker(Component):
         start_input_el = _make_field(
             "vstart",
             self._placeholder_start,
+            text("date_range_picker.start"),
             slots.get("input_field_start", ""),
         )
-        end_input_el = _make_field("vend", self._placeholder_end)
+        end_input_el = _make_field("vend", self._placeholder_end,
+                                   text("date_range_picker.end"))
 
         # ``emit_text_slot`` returns ``None`` for an empty slot (``separator=""``)
         # and its contract requires the caller to skip it — dropping ``None`` into
@@ -371,7 +399,7 @@ class DateRangePicker(Component):
         sep_text = self.emit_text_slot(self._separator)
         separator_node = Element(
             tag="span",
-            attrs={"class": slot_with_size("separator")},
+            attrs={"class": self.compose_class("separator")},
             children=tuple(c for c in (sep_text,) if c is not None),
         )
 
@@ -384,8 +412,8 @@ class DateRangePicker(Component):
         # ── Clear button ──────────────────────────────────────────
         if self._clearable:
             clear_btn = clear_button(
-                css=slot_with_size("clear_button"),
-                icon_css=slot_with_size("button_icon"),
+                css=self.compose_class("clear_button"),
+                icon_css=self.compose_class("button_icon"),
                 aria_label=text("date_range_picker.clear"),
                 clear_js="vstart = ''; vend = ''",
                 show_when="vstart || vend",
@@ -398,8 +426,8 @@ class DateRangePicker(Component):
         # ── Calendar trigger button ───────────────────────────────
         trigger_btn = trigger_button(
             icon="calendar",
-            css=slot_with_size("trigger_button"),
-            icon_css=slot_with_size("button_icon"),
+            css=self.compose_class("trigger_button"),
+            icon_css=self.compose_class("button_icon"),
             aria_label=text("date_range_picker.open"),
             disabled=disabled,
         )
@@ -411,12 +439,11 @@ class DateRangePicker(Component):
         input_frame = Element(
             tag="div",
             attrs={
-                # ``slot_with_size`` and not ``compose_class``: the
-                # step's height lives on the FRAME, which carries the
-                # border — otherwise the control renders 2 px more than
-                # ``ui.input`` at the same ``size=`` (cf. the theme's
-                # note).
-                "class": slot_with_size("input_frame"),
+                # The step's height lives on the FRAME, which carries
+                # the border — otherwise the control renders 2 px more
+                # than ``ui.input`` at the same ``size=`` (cf. the
+                # theme's note).
+                "class": self.compose_class("input_frame"),
                 "bz-ref": "bztrigger",
             },
             children=tuple(children_in_frame),
@@ -427,7 +454,7 @@ class DateRangePicker(Component):
             "mode": "range",
             "color": color,
             "size": size_key,
-            "weekstart": self._weekstart,
+            "week_start": self._weekstart,
             "marks": self._marks,
             "weekday_names": list(self._weekday_names)
             if self._weekday_names else None,
@@ -456,7 +483,7 @@ class DateRangePicker(Component):
             "vstart = ($event.detail.value || [])[0] || ''",
             "vend = ($event.detail.value || [])[1] || ''",
         ]
-        if self._close_on_close:
+        if self._close_on_pick:
             on_change_parts.append("open = false")
         cal_kwargs["on_change"] = "; ".join(on_change_parts)
 
@@ -470,7 +497,7 @@ class DateRangePicker(Component):
 
         # ``bz-ref="bzpanel"`` + shared ``anchored_panel_effect`` : floating
         # best-fit (``bottom-start``, flip / clamp to the viewport) instead of
-        # the old static ``absolute top-full left-0`` that clipped at the edge.
+        # a static ``absolute top-full left-0`` that would clip at the edge.
         panel_node = anchored_panel(
             css=slots.get("panel", ""),
             children=(cal_el,),

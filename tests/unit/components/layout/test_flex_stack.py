@@ -23,8 +23,8 @@ class TestFlexDefaults:
         out = serialize(f.render())
         # ``flex`` (root), ``flex-row`` (default direction),
         # ``items-stretch`` (align), ``justify-start`` (justify),
-        # ``gap-4`` (md gap).
-        for cls in ("flex", "flex-row", "items-stretch", "justify-start", "gap-4"):
+        # ``gap-(--bz-gap-4)`` (md gap).
+        for cls in ("flex", "flex-row", "items-stretch", "justify-start", "gap-(--bz-gap-4)"):
             assert cls in out
 
     def test_defaults_no_wrap(self) -> None:
@@ -82,11 +82,11 @@ class TestFlexProps:
         ("gap", "expected"),
         [
             ("none", "gap-0"),
-            ("xs", "gap-1"),
-            ("sm", "gap-2"),
-            ("md", "gap-4"),
-            ("lg", "gap-6"),
-            ("xl", "gap-8"),
+            ("xs", "gap-(--bz-gap-1)"),
+            ("sm", "gap-(--bz-gap-2)"),
+            ("md", "gap-(--bz-gap-4)"),
+            ("lg", "gap-(--bz-gap-6)"),
+            ("xl", "gap-(--bz-gap-8)"),
         ],
     )
     def test_gap(self, gap: str, expected: str) -> None:
@@ -135,7 +135,7 @@ class TestVStack:
         with render_isolated():
             v = VStack()
         out = serialize(v.render())
-        assert "gap-4" in out
+        assert "gap-(--bz-gap-4)" in out
         assert "items-stretch" in out
 
     def test_is_a_flex_subclass(self) -> None:
@@ -169,7 +169,7 @@ class TestHStack:
     def test_gap_xl(self) -> None:
         with render_isolated():
             h = HStack(gap="xl")
-        assert "gap-8" in serialize(h.render())
+        assert "gap-(--bz-gap-8)" in serialize(h.render())
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -210,8 +210,8 @@ class TestFlexResponsive:
         with render_isolated():
             f = Flex(gap={"base": "sm", "md": "lg"})
         out = serialize(f.render())
-        assert "gap-2" in out
-        assert "md:gap-6" in out
+        assert "gap-(--bz-gap-2)" in out
+        assert "md:gap-(--bz-gap-6)" in out
 
     def test_both_axes_at_once(self) -> None:
         with render_isolated():
@@ -219,8 +219,8 @@ class TestFlexResponsive:
         out = serialize(f.render())
         assert "flex-col" in out
         assert "lg:flex-row" in out
-        assert "gap-1" in out
-        assert "2xl:gap-8" in out
+        assert "gap-(--bz-gap-1)" in out
+        assert "2xl:gap-(--bz-gap-8)" in out
 
     def test_scalar_still_works(self) -> None:
         # Regression : the dict path must not disturb the scalar path.
@@ -228,7 +228,7 @@ class TestFlexResponsive:
             f = Flex(direction="col", gap="lg")
         out = serialize(f.render())
         assert "flex-col" in out
-        assert "gap-6" in out
+        assert "gap-(--bz-gap-6)" in out
         assert ":" not in out.split('class="')[1].split('"')[0]
 
     @pytest.mark.parametrize("prop", ["align", "justify"])
@@ -262,5 +262,5 @@ class TestFlexResponsive:
         with render_isolated():
             s = cls(gap={"base": "sm", "md": "lg"})
         out = serialize(s.render())
-        assert "gap-2" in out
-        assert "md:gap-6" in out
+        assert "gap-(--bz-gap-2)" in out
+        assert "md:gap-(--bz-gap-6)" in out

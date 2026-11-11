@@ -3,9 +3,8 @@
 It is the catalogue's anti-rust column: adding a prop, wiring an event,
 shipping an imperative method is reflected here on the next call, with no
 edit. A hand-copied API catalogue doubles ``bretzel describe``'s output,
-so it drifts faster than it serves — that is the lesson of the
-``bretzel-api`` skill, deleted on 2026-08-01 for naming two non-existent
-components and omitting six shipped ones.
+so it drifts faster than it serves: it ends up naming components that do
+not exist and omitting shipped ones.
 
 ⚠️ **A component's source of truth is ``__reactive_props__`` minus
 ``SEALED_PROPS``, never ``inspect.signature(__init__)``.** See
@@ -20,7 +19,7 @@ import inspect
 from functools import cache
 
 from bretzel.components.base import size_vocabulary
-from bretzel.components.base.component import RESERVED_KWARGS
+from bretzel.components.base.metaclass import RESERVED_KWARGS
 from bretzel.introspect._signature import (
     REQUIRED_LABEL,
     default_label,
@@ -34,24 +33,17 @@ from bretzel.introspect.model import (
     ParamInfo,
 )
 
-# ``RESERVED_KWARGS`` is a RE-EXPORT, not a copy. This list existed in
-# five copies until 2026-08-16 and two had drifted; the source is now
-# single, in the base layer. The universal kwargs are deliberately absent
-# from the cards — repeating them on 104 entries would be noise, and the
-# rule is "no universal kwargs in an API signature" (the
-# ``feedback_no_universal_kwargs_in_signature`` memory). The text emitter
-# announces them **once**, at the head of the index.
+# ``RESERVED_KWARGS`` is a RE-EXPORT, not a copy: the source is single, in
+# the base layer. The universal kwargs are deliberately absent from the
+# cards — repeating them on every entry would be noise, and the rule is
+# "no universal kwargs in an API signature". The text emitter announces
+# them **once**, at the head of the index.
 __all__ = ("RESERVED_KWARGS",)
 
 # The nature of a ``ui.*`` symbol that is NOT a component.
 #
-# ⚠️ It was a hand-copied table of 8 names until 2026-08-16, and it had
-# ALREADY drifted at birth: ``drag_each`` was missing (classified as a
-# "helper" although it is in the same family as the five listed) and
-# ``abort`` was a dead key (there is no ``ui.abort`` — ``abort`` lives in
-# ``bretzel.server.errors``). In the module whose docstring cites the
-# skill deleted for "two non-existent names, six omitted". The iteration
-# family is now DERIVED from its ``__all__``.
+# ⚠️ The iteration family is DERIVED from its ``__all__``: a hand-copied
+# table of names drifts, missing a member or keeping a dead key.
 _ITERATION_KIND = "iteration"
 
 _DECLARED_HELPER_KINDS: dict[str, str] = {
@@ -193,13 +185,11 @@ def _handler_kwargs(params: tuple[ParamInfo, ...], events: tuple[str, ...]) -> t
 def _theme_vocabulary(cls: type) -> tuple[tuple[str, tuple[str, ...]], ...]:
     """The names ``Theme(components={<key>: …})`` accepts for ``cls``.
 
-    The **fifth** introspectable contract, and the last to arrive: the
-    other four (``BINDABLE_PROPS``, ``EVENTS``, ``NAMED_SLOTS``,
-    ``IMPERATIVE``) had been read here from the start, the theme had not
-    — hence the impossibility, until 2026-08-16, of writing any rule
-    saying "``crad`` is not a component" or "``rooot`` is not a slot".
+    The **fifth** introspectable contract, with ``BINDABLE_PROPS``,
+    ``EVENTS``, ``NAMED_SLOTS`` and ``IMPERATIVE``: it is what lets a rule
+    say "``crad`` is not a component" or "``rooot`` is not a slot".
 
-    A group whose value is not a dict is **scalar** (16 measured cases):
+    A group whose value is not a dict is **scalar**:
     it is listed with zero keys, which distinguishes it from an empty
     table and avoids looking for keys where there are none.
     """
@@ -210,11 +200,10 @@ def _theme_vocabulary(cls: type) -> tuple[tuple[str, tuple[str, ...]], ...]:
         # ``str(k)`` and not ``k``: a group key is not always a string.
         # ``Heading.THEME["level_sizes"]`` is indexed by the INTEGERS
         # 1..6 (``level=`` is an int, cf. ``bretzel describe``: "accepts
-        # int, NOT string"). Without the coercion, this field announced
-        # ``tuple[str, ...]`` while carrying ints, and
-        # ``bretzel describe heading`` raised a ``TypeError`` at the
-        # ``", ".join`` — shipped broken on 2026-08-16, caught the same
-        # day by the gate that renders all 104 cards.
+        # int, NOT string"). Without the coercion, this field would
+        # announce ``tuple[str, ...]`` while carrying ints, and
+        # ``bretzel describe heading`` would raise a ``TypeError`` at the
+        # ``", ".join``.
         (group, tuple(sorted(map(str, value))) if isinstance(value, dict) else ())
         for group, value in sorted(theme.items())
     )
@@ -249,10 +238,9 @@ def theme_vocabulary() -> dict[str, dict[str, frozenset[str]]]:
 
     Three consumers, one single derivation: the lint rule judging the
     vocabulary, the one judging ``variant=``'s values, and the startup
-    validation that RAISES. The two rules each built it on their own side
-    before 2026-08-16 — two copies of the same loop, hence two ways of
-    ending up no longer saying what the runtime says, and it is the lint
-    one would have believed.
+    validation that RAISES. Two copies of the same loop would be two ways
+    of ending up no longer saying what the runtime says, and it is the
+    lint one would believe.
 
     Indexed by ``THEME_KEY`` and not by the ``ui.*`` name: eight
     components differ, and three write under ANOTHER's key
@@ -281,7 +269,7 @@ def theme_shapes() -> dict[str, dict[str, dict[str, str]]]:
     deliberately exempts the groups addressed by a value (adding a key
     there is the supported way of declaring one's own variant).
 
-    What the shape decides, measured on 2026-09-10 on ``ui.button``:
+    What the shape decides:
 
     - writing a **dict** where the theme ships a **string** makes ALL the
       step's tokens disappear (``h-10 px-4 text-sm gap-2`` → nothing).
@@ -347,6 +335,7 @@ def describe_component(ui_name: str, cls: type) -> ComponentInfo:
         handler_kwargs=_handler_kwargs(params, events),
         named_slots=tuple(getattr(cls, "NAMED_SLOTS", ()) or ()),
         imperative=tuple(getattr(cls, "IMPERATIVE", ()) or ()),
+        focus_target=getattr(cls, "FOCUS_TARGET", None),
         autoname_from=getattr(cls, "AUTONAME_FROM", None),
         theme_key=getattr(cls, "THEME_KEY", "") or "",
         theme=_theme_vocabulary(cls),

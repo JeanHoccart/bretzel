@@ -57,9 +57,7 @@ def rule_summaries() -> MappingProxyType[str, str]:
     """What each rule refuses, in one sentence — ITS OWN.
 
     The readable counterpart of :func:`available_rules`: that one says
-    what is covered, this one says what against. Added on 2026-09-06 for
-    the living documentation, which listed twelve bare names for want of
-    being able to reach the sentence.
+    what is covered, this one says what against.
 
     **Read from the module carrying the rule, never copied here.** A
     hand-written summary drifts faster than it serves — this repository

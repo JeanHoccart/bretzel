@@ -1,10 +1,10 @@
 """``ui.notification`` — toast helper, V1 idiom.
 
-Server-side, ``ui.notification("Saved!", variant="success")`` is fire-
+Server-side, ``ui.notification("Saved!", color="success")`` is fire-
 and-forget : it appends a payload to the request's notification
 queue. The partial-renderer drains the queue at end-of-action into
 a single ``<bz-patch>{"patches": {"_notifications": […]}}`` tag ;
-the bridge (``05_bridge.js``) recognises that reserved key and
+the bridge (``bridge.js``) recognises that reserved key and
 forwards each entry to ``$bz.notify`` (a ``bz:notify`` DOM event),
 which the toaster's ``bz-init`` subscription pushes through
 ``show``. The toaster DOM auto-mounts in ``<body>`` on the first toast.
@@ -13,14 +13,11 @@ There is no ``NotificationContainer`` to mount. The runtime owns the
 visible DOM and lazily inserts the six corner stacks the very first
 time a toast is shown — same UX as V1.
 
-API note : we expose ``variant=`` rather than ``color=``. The four
-semantic variants (``info`` / ``success`` / ``warning`` / ``error``)
-are pre-compiled in the theme (cf. ``notification/theme.py``) — they
-cover the standard message-priority axis and stay in sync with the
-runtime's class map. Arbitrary ``color="primary"`` etc. isn't
-supported because the toaster DOM is built in JS where Tailwind JIT
-can't see dynamically-assembled class strings ; the variants are
-the framework's curated alternative.
+``color=`` takes the four semantic colours (``info`` / ``success`` /
+``warning`` / ``error``), pre-compiled in the theme
+(``notification/theme.py``) and in sync with the runtime's class map. Any
+other colour is refused: the toaster DOM is built in JS, where the Tailwind
+compiler cannot see assembled class strings.
 """
 
 from __future__ import annotations
@@ -28,10 +25,15 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from bretzel.components.base import ComponentUsageError, reject_component
 from bretzel.components.feedback.notification.theme import (
     NOTIFICATION_THEME,
+    POSITIONS,
     VARIANTS,
 )
+from bretzel.core.serialize import serialize
+from bretzel.core.tree import Element
+from bretzel.render import text
 
 # ───────────────────────────────────────────────────────────────────────────
 # Public helper — ``ui.notification(...)``
@@ -41,12 +43,13 @@ from bretzel.components.feedback.notification.theme import (
 def notification(
     message: str,
     *,
-    variant: str = "info",
+    color: str = "info",
     title: str | None = None,
     duration_ms: int = 4000,
     position: str = "top-right",
     dismissible: bool = True,
     icon: str | bool | None = None,
+    **retired: Any,
 ) -> None:
     """Queue a toast to fire at end-of-request.
 
@@ -54,24 +57,50 @@ def notification(
     render context is active. Out-of-context calls are a no-op
     (mirrors how the free :func:`refresh` degrades).
 
-    ``variant`` must be one of ``"info"`` / ``"success"`` / ``"warning"``
+    ``color`` must be one of ``"info"`` / ``"success"`` / ``"warning"``
     / ``"error"`` — these are the four semantic states the framework
     ships with pre-compiled Tailwind classes. Anything else raises
-    :class:`ValueError`. App theme overrides can add new variants ;
+:class:`ComponentUsageError`, as does a ``position`` the theme's
+    ``positions`` table does not list. App theme overrides can add new variants ;
     add their names to ``notification/theme.py`` and they'll be
     accepted automatically.
 
     ``icon`` :
-    - ``None`` (default) → use the variant's default icon.
+    - ``None`` (default) → use the colour's default icon.
     - ``"rocket"`` (string) → override with a specific Iconify glyph
       from the lucide set.
     - ``False`` → render the toast without any icon at all.
     """
 
-    if variant not in VARIANTS:
-        raise ValueError(
-            f"Unknown notification variant {variant!r}. "
-            f"Expected one of {sorted(VARIANTS)}."
+    if retired:
+        name = next(iter(retired))
+        raise ComponentUsageError(
+            f"ui.notification({name}=…): "
+            + ("write ``color=``." if name == "variant" else "no such argument.")
+        )
+
+    for prop, value, known in (("color", color, VARIANTS),
+                               ("position", position, POSITIONS)):
+        if value not in known:
+            raise ComponentUsageError(
+                f"ui.notification: {prop}={value!r} — expected one of "
+                f"{sorted(known)}."
+            )
+
+    for prop, value in (("message", message), ("title", title)):
+        reject_component(
+            value,
+            owner="ui.notification",
+            prop=prop,
+            because=(
+                "the toast is built in the browser from a JSON payload and "
+                "its texts are written with ``bz-text``, which only sets "
+                "characters."
+            ),
+            instead=(
+                "For rich content that stays on screen, that is "
+                "``ui.alert`` or a ``ui.dialog``."
+            ),
         )
 
     from bretzel.render.context import maybe_current_context
@@ -81,7 +110,7 @@ def notification(
         return
     payload: dict[str, Any] = {
         "message": message,
-        "variant": variant,
+        "variant": color,
         "duration_ms": int(duration_ms),
         "position": position,
         "dismissible": bool(dismissible),
@@ -125,10 +154,9 @@ def skeleton_html() -> str:
     All Tailwind classes from the theme appear as **literal attribute
     values** in the HTML — Tailwind scans them on the SSR pass so the
     CSS is ready before the first toast appears. Enter animation is
-    pure CSS (the ``bz-toast-enter`` keyframe fires on mount) ; leave is
-    a two-phase dismiss — ``09_notification.js`` flips ``t._leaving`` so
-    the ``bz-toast-leave`` keyframe plays, then splices after its
-    duration. Both keyframes live in the shell (``_NOTIFICATION_ANIM_STYLE``).
+    pure CSS (the ``bz-toast-enter`` keyframe fires on mount, in the
+    shell's ``_NOTIFICATION_ANIM_STYLE``) ; leave is immediate — what
+    disappears does not linger.
     """
 
     theme = NOTIFICATION_THEME
@@ -136,6 +164,23 @@ def skeleton_html() -> str:
     variant_map = _js_object_literal(theme["variants"])
     accent_map = _js_object_literal(theme["accents"])
     neutral = theme["neutral"]
+    # Elements and not ``dismiss_button``: the shell also draws pages with
+    # no render context (an error page), where no ``Icon`` can be built.
+    dismiss = serialize(Element(
+        tag="button",
+        attrs={
+            "type": "button",
+            "bz-show": "t.dismissible",
+            "bz-on:click": "dismiss(t.id)",
+            "class": slots["dismiss"],
+            "aria-label": text("notification.dismiss"),
+        },
+        children=(Element(
+            tag="iconify-icon",
+            attrs={"icon": "lucide:x", "style": "font-size: 1rem"},
+            children=(),
+        ),),
+    ))
 
     stacks: list[str] = []
     for position, position_classes in theme["positions"].items():
@@ -151,12 +196,10 @@ def skeleton_html() -> str:
             # variant classes onto the static ``root`` slot (a plain
             # ``bz-attr:class`` would wipe it — cf. traps.md). The static
             # ``bz-toast-enter`` fires the enter keyframe on mount (bz-for
-            # is keyed on ``t.id`` so only new toasts animate) ; the merged
-            # ``bz-toast-leave`` is added when the two-phase dismiss flips
-            # ``t._leaving`` (cf. ``09_notification.js`` + shell keyframes).
+            # is keyed on ``t.id`` so only new toasts animate). No leave
+            # class: a dismissed toast goes at once.
             f'<div class="{slots["root"]} bz-toast-enter" '
-            f'bz-class="(({variant_map})[t.variant] || \'{neutral}\')'
-            f' + (t._leaving ? \' bz-toast-leave\' : \'\')" '
+            f'bz-class="(({variant_map})[t.variant] || \'{neutral}\')" '
             f'role="status" bz-attr:id="t.id">'
             # Icon (only when ``t.icon`` is set)
             f'<iconify-icon class="{slots["icon"]}" '
@@ -172,14 +215,7 @@ def skeleton_html() -> str:
             f'<div class="{slots["message"]}" bz-text="t.message"></div>'
             f'</div>'
             # Dismiss button
-            f'<button type="button" '
-            f'bz-show="t.dismissible" '
-            f'bz-on:click="dismiss(t.id)" '
-            f'class="{slots["dismiss"]}" '
-            f'aria-label="Dismiss notification">'
-            f'<iconify-icon icon="lucide:x" style="font-size: 1rem">'
-            f'</iconify-icon>'
-            f'</button>'
+            f"{dismiss}"
             f'</div>'
             f'</template>'
             f'</div>'
@@ -215,7 +251,7 @@ def serialise_pending(notifications: list[dict[str, Any]]) -> str:
     render can append it unconditionally without trailing whitespace.
 
     Output shape : one ``<bz-patch>{"patches":{"_notifications":[…]}}``
-    tag. The bridge (``05_bridge.js``) recognises the reserved
+    tag. The bridge (``bridge.js``) recognises the reserved
     ``_notifications`` key and forwards each entry to ``$bz.notify`` (a
     ``bz:notify`` DOM event), which the toaster's ``bz-init``
     subscription catches and pushes through ``show``. Replaces the V2

@@ -3,7 +3,7 @@
 The ClientState mechanics are covered in ``scopes/test_client.py`` — this
 locks the ``LiveConnection``-specific surface : the persist mode, the default
 ``connected`` value, and the canonical binding path the runtime writes
-(``00_index.js`` ``ensureSse``) and apps bind a live/offline badge to.
+(``index.js`` ``ensureSse``) and apps bind a live/offline badge to.
 """
 
 from __future__ import annotations

@@ -15,7 +15,7 @@ from datetime import date, timedelta
 from bretzel import refreshable, ui
 from bretzel.components import Reference, Series
 from bretzel.render import serialize_html
-from bretzel.state import PageState, field
+from bretzel.state import ClientExpression, ClientState, PageState, field
 
 from examples.playground.features.inspection import emitted_html_block
 
@@ -58,6 +58,25 @@ TWO_CLUSTERS = [
 ]
 
 
+class ScatterChartClientEvents(ClientState, persist="memory"):
+    """The Client events card's log — on the browser side."""
+
+    log: list = field(default_factory=list)
+
+
+class ScatterChartEvents(PageState):
+    log: list = field(default_factory=list)
+
+
+def log_click(x, y) -> None:
+    state = ScatterChartEvents()
+    state.log = ([f"click → x={x}, y={y}"] + state.log)[:10]
+
+
+def clear_log() -> None:
+    ScatterChartEvents().log = []
+
+
 class ScatterChartPlayground(PageState):
     color:          str  = field(default="primary")
     size:           str  = field(default="md")
@@ -65,6 +84,15 @@ class ScatterChartPlayground(PageState):
     show_axis:      bool = field(default=True)
     show_gridlines: bool = field(default=True)
     show_legend:    bool = field(default=True)
+    # The base of 2026-10-29: the bounds (empty = none), the axis
+    # titles, the table behind the drawing.
+    y_min:          str  = field(default="")
+    y_max:          str  = field(default="")
+    x_min:          str  = field(default="")
+    x_max:          str  = field(default="")
+    x_label:        str  = field(default="")
+    y_label:        str  = field(default="")
+    show_data:      bool = field(default=False)
     y_format:       str  = field(default="")
     x_format:       str  = field(default="")
     y_unit:         str  = field(default="")
@@ -152,7 +180,28 @@ def build_preview(state: ScatterChartPlayground):
         data = []
     else:
         data = TWO_CLUSTERS if state.multi else SAMPLE
+    kwargs["show_data"] = state.show_data
+    if bound(state.y_min) is not None:
+        kwargs["y_min"] = bound(state.y_min)
+    if bound(state.y_max) is not None:
+        kwargs["y_max"] = bound(state.y_max)
+    if bound(state.x_min) is not None:
+        kwargs["x_min"] = bound(state.x_min)
+    if bound(state.x_max) is not None:
+        kwargs["x_max"] = bound(state.x_max)
+    if state.x_label:
+        kwargs["x_label"] = state.x_label
+    if state.y_label:
+        kwargs["y_label"] = state.y_label
     return ui.scatter_chart(data, **kwargs)
+
+
+def bound(typed: str) -> float | None:
+    """A bound typed in its field: a number, or none."""
+    try:
+        return float(typed)
+    except ValueError:
+        return None
 
 
 def control(label: str):
@@ -162,7 +211,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[ScatterChartPlayground])
+@refreshable
 def server_panel() -> None:
     state = ScatterChartPlayground()
 
@@ -215,6 +264,26 @@ def server_panel() -> None:
             ui.switch(checked=state.multi, on_change=server_changed)
         with control("empty (0 points)"):
             ui.switch(checked=state.empty, on_change=server_changed)
+        with control("show_data (« Show the data »)"):
+            ui.switch(checked=state.show_data, on_change=server_changed)
+        with control("y_min (empty = none)"):
+            ui.input(value=state.y_min, placeholder="20",
+                     on_change=server_changed)
+        with control("y_max (empty = none)"):
+            ui.input(value=state.y_max, placeholder="20",
+                     on_change=server_changed)
+        with control("x_min (empty = none)"):
+            ui.input(value=state.x_min, placeholder="20",
+                     on_change=server_changed)
+        with control("x_max (empty = none)"):
+            ui.input(value=state.x_max, placeholder="20",
+                     on_change=server_changed)
+        with control("x_label"):
+            ui.input(value=state.x_label, placeholder="Month",
+                     on_change=server_changed)
+        with control("y_label"):
+            ui.input(value=state.y_label, placeholder="Orders",
+                     on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes, placeholder="border rounded-xl p-4",
                      on_change=server_changed)
@@ -251,6 +320,57 @@ def server_panel() -> None:
     emitted_html_block(
         "Emitted HTML",
         serialize_html(build_preview(state)),
+    )
+
+
+@refreshable
+def events_panel() -> None:
+    state = ScatterChartEvents()
+    with ui.vstack():
+        ui.text(
+            "Click a point — or Tab to the chart, the arrows, Enter. Each "
+            "point carries its own signed action token, (x, y) bound "
+            "(on_item_click, since 2026-10-29).",
+            color="muted", size="sm",
+        )
+        with ui.flex(justify="center"):
+            ui.scatter_chart([(1, 12), (2, 18), (3, 9), (4, 15)], on_item_click=log_click, width=480)
+        ui.divider()
+        with ui.hstack(justify="between", align="center"):
+            ui.text("Server log (latest 10)", color="muted", size="xs")
+            ui.button("Clear", variant="ghost", size="xs", on_click=clear_log)
+        if not state.log:
+            ui.text("No clicks yet.", color="muted", size="sm")
+        for entry in state.log:
+            ui.text(entry, size="sm")
+        ui.divider()
+        emitted_html_block(
+            "Emitted HTML (representative — two points)",
+            serialize_html(ui.scatter_chart([(1, 12), (2, 18)], on_item_click=log_click)),
+        )
+
+
+def client_events_panel() -> None:
+    """The SAME event on a client expression: the log is a ClientState,
+    no request leaves."""
+    events = ScatterChartClientEvents()
+    ui.text("``on_item_click`` wired to a client expression that pushes onto "
+            "a ClientState. Zero requests.", color="muted", size="sm")
+    clicked = ClientExpression("new Date().toLocaleTimeString() + ' — ' + 'x=' + $event.detail.x + ', y=' + $event.detail.y")
+    ui.scatter_chart(data=[(1, 12), (2, 18), (3, 9), (4, 15)], on_item_click=events.log.push(clicked), width=480)
+    ui.divider()
+    with ui.hstack(justify="between", align="center"):
+        ui.text("Live log (client-side — no refresh)", color="muted", size="sm")
+        ui.button("Clear", variant="ghost", size="xs", on_click=events.log.clear())
+    log_text = ClientExpression(
+        "($bz.state.ScatterChartClientEvents.default.log || []).join('\\n') ||"
+        " '(no events yet — click the demo above)'"
+    )
+    ui.text(log_text, color="muted", size="sm", classes="font-mono whitespace-pre")
+    ui.divider()
+    emitted_html_block(
+        "Emitted HTML (click client)",
+        serialize_html(ui.scatter_chart(data=[(1, 12), (2, 18)], on_item_click=events.log.push(clicked))),
     )
 
 
@@ -300,20 +420,25 @@ def page() -> None:
                     )
                     ui.scatter_chart(TWO_CLUSTERS, width=560, size="md")
 
-                    ui.heading("Reference lines (thresholds)", level=3)
+                    ui.heading("Reference lines (thresholds and moments)",
+                               level=3)
                     ui.text(
-                        "Same ``reference_lines=`` kwarg as the rest "
-                        "of the family — dashed thresholds behind the "
-                        "dots with a right-edge label.",
+                        "Same kwargs as ``ui.line_chart`` — "
+                        "``y_reference_lines=`` draws dashed thresholds "
+                        "behind the dots with a right-edge label, "
+                        "``x_reference_lines=`` vertical lines at an x "
+                        "(a number or a date) with the label on top.",
                         color="muted", size="xs",
                     )
                     ui.scatter_chart(
                         SAMPLE, width=560, size="md",
-                        reference_lines=[
+                        y_reference_lines=[
                             Reference(value=20, label="Outlier band",
                                       color="warning"),
                             Reference(value=10, label="Median"),
                         ],
+                        x_reference_lines=[(SAMPLE[len(SAMPLE) // 2][0],
+                                            "change of method", "primary")],
                     )
 
                     ui.heading("Date axis (auto-detect)", level=3)
@@ -453,3 +578,15 @@ def page() -> None:
                         color="muted", size="sm",
                     )
                     server_panel()
+
+            # ── Server events (on_item_click, 2026-10-29) ──────────
+            with ui.card():
+                with ui.vstack():
+                    ui.heading("Server events", level=2)
+                    events_panel()
+
+            # -- Client events --------------------------------------
+            with ui.card():
+                with ui.vstack():
+                    ui.heading("Client events", level=2)
+                    client_events_panel()

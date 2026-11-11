@@ -30,7 +30,7 @@ def register_manifest_route(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
     if pwa is None:
         return
 
-    body = pwa.as_json()
+    body = pwa.as_json(bretzel_app.config.base_path)
 
     @fastapi.get(MANIFEST_ROUTE, include_in_schema=False)
     async def _manifest() -> Response:

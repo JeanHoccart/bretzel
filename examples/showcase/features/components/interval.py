@@ -4,7 +4,7 @@ import random
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from bretzel import refreshable, ui
+from bretzel import refresh, refreshable, ui
 from bretzel.state import ClientState, PageState, field
 from examples.showcase.lib.example import example, page_header
 
@@ -12,19 +12,15 @@ SUMMARY = ("An invisible timer that calls Python every few seconds — "
            "pausable from the browser, stopped for free when the tab closes.")
 
 
-class Clock(PageState):
-    ticks: int = field(default=0)
-
-
 def tick() -> None:
-    Clock().ticks += 1
+    refresh(world_clock)
 
 
 OFFICES = [("Paris", "Europe/Paris"), ("New York", "America/New_York"),
            ("Tokyo", "Asia/Tokyo")]
 
 
-@refreshable(deps=[Clock])
+@refreshable
 def world_clock() -> None:
     with ui.grid(cols=3, gap="md", classes="w-full max-w-lg"):
         for city, zone in OFFICES:
@@ -55,7 +51,7 @@ def sample_traffic() -> None:
     traffic.samples = [*traffic.samples[1:], random.randint(40, 80)]
 
 
-@refreshable(deps=[Traffic])
+@refreshable
 def traffic_card() -> None:
     samples = Traffic().samples
     with ui.hstack(gap="lg", justify="between", align="end"):
@@ -73,7 +69,7 @@ def traffic_demo() -> None:
             ui.badge("api-gateway · eu-west", variant="soft", size="sm")
             ui.switch(checked=live.on, label="Live", size="sm")
         traffic_card()
-    ui.interval(on_tick=sample_traffic, seconds=2, active=live.on)
+    ui.interval(on_tick=sample_traffic, seconds=2, disabled=~live.on)
 
 
 class Resend(ClientState):
@@ -90,17 +86,17 @@ def countdown_demo() -> None:
                                               "Resend code"),
                   variant="outline", disabled=resend.left > 0,
                   on_click=resend.left.set(30))
-    ui.interval(on_tick=resend.left.decrement(1), seconds=1, active=resend.left > 0)
+    ui.interval(on_tick=resend.left.decrement(1), seconds=1, disabled=resend.left <= 0)
 
 
 def page() -> None:
     page_header("interval", "Interval", SUMMARY)
-    example("A world clock", clock_demo, uses=[Clock, tick, world_clock],
-            note="Every second the browser calls tick(); the state changes and "
-                 "only the clock zone is re-rendered.")
+    example("A world clock", clock_demo, uses=[tick, world_clock],
+            note="Every second the browser calls tick(), and only the clock "
+                 "zone is re-rendered.")
     example("Live traffic, pausable", traffic_demo,
             uses=[Traffic, Live, sample_traffic, traffic_card],
-            note="active= takes a ClientState field: the switch stops the timer "
+            note="disabled= takes a ClientState field: the switch stops the timer "
                  "in the browser, with no server task to cancel.")
     example("A countdown with no server at all", countdown_demo, uses=[Resend],
             note="on_tick= also takes a client action. The timer counts down "

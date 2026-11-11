@@ -14,7 +14,7 @@ ICON_BUTTON_THEME: dict[str, Any] = {
         "root": (
             "inline-flex items-center justify-center "
             "rounded-field font-medium "
-            "transition-all duration-200 ease-out "
+            "transition duration-200 ease-out "
             "not-disabled:active:scale-[0.95] "
             "focus-visible:outline-none focus-visible:ring-2 "
             "focus-visible:ring-offset-2 focus-visible:ring-offset-background "

@@ -113,7 +113,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[CodePlayground])
+@refreshable
 def server_panel() -> None:
     state = CodePlayground()
 

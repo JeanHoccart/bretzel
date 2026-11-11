@@ -27,7 +27,7 @@ def rota() -> None:
         with ui.form_field(label="Store rota",
                            hint="Weeks start on Sunday. A dot marks your "
                                 "shifts."):
-            ui.week_picker(value=monday - timedelta(days=1), weekstart=0,
+            ui.week_picker(value=monday - timedelta(days=1), week_start=0,
                            marks=shifts, color="secondary")
         with ui.form_field(label="Payroll week",
                            hint="Closed weeks cannot be reopened."):
@@ -55,7 +55,7 @@ def plan_sprint(sprint: Sprint) -> None:
     """The picked week is already in ``sprint``; the plan re-renders."""
 
 
-@refreshable(deps=[Sprint])
+@refreshable
 def sprint_plan() -> None:
     start = date.fromisoformat(Sprint().week)
     end = start + timedelta(days=4)
@@ -85,7 +85,7 @@ def page() -> None:
             note="Click any day: the row lights up and the value snaps to "
                  "its Monday. A typed date snaps the same way.")
     example("Rota and payroll", rota, uses=[this_week],
-            note="weekstart=0 for Sunday weeks, marks on the days that "
+            note="week_start=0 for Sunday weeks, marks on the days that "
                  "matter, and a disabled field.")
     example("Sizes", sizes, uses=[this_week])
     example("Plan a sprint", plan_a_sprint,

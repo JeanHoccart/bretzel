@@ -52,7 +52,7 @@ class _Case:
     # The binding's serialized path that should appear in x-model.
     expected_path: str = "draft.default.field"
     # Field name autoname should derive (None = component opts out).
-    expected_name: str | None = "field"
+    expected_name: str | None = "draft.field"
 
 
 def _binding() -> ClientBinding:
@@ -91,7 +91,7 @@ CASES: list[_Case] = [
         # Autoname is on the GROUP root ; the radio's <input> picks
         # up ``name`` from the group via render-time inheritance, but
         # only if the group derived one. Asserted separately below.
-        expected_name="field",
+        expected_name="draft.field",
     ),
 ]
 
@@ -148,6 +148,10 @@ class TestBindingProducesXModel:
             out = serialize(comp.render())
         for tag in ("<input", "<textarea"):
             for fragment in _iter_open_tags(out, tag):
+                # A radio group's hidden FIELD carrier is not a control the
+                # user writes: it follows the store by design.
+                if 'type="hidden"' in fragment:
+                    continue
                 assert "bz-attr:value" not in fragment, fragment
                 assert "bz-attr:checked" not in fragment, fragment
 

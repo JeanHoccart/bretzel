@@ -78,10 +78,8 @@ TABLE_THEME: dict[str, Any] = {
         # at render time so the header follows the ``color`` prop.
         "head": "",
         # Padding is added per-size at render time (see ``sizes``).
-        # ⚠️ NORMAL case, and it is a measured choice. The header was in
-        # ``text-xs uppercase tracking-wide``: at 12 px, spaced capitals
-        # read markedly slower than an ordinary word, and V1's DataTable
-        # spec already asked to replace them for that reason. What
+        # ⚠️ NORMAL case: at 12 px, spaced capitals read markedly slower
+        # than an ordinary word. What
         # separates a header from data is the WEIGHT and the colour — the
         # convention of current libraries.
         #
@@ -90,18 +88,18 @@ TABLE_THEME: dict[str, Any] = {
         # aligns with its static neighbour. Changing one without the
         # other breaks that alignment.
         # No text alignment here: every ``<th>`` gets its column's from
-        # ``aligns`` below. A ``text-start`` in this slot competed with
-        # it at equal specificity and won by sheet order — a column set
-        # ``align="right"`` kept a left-aligned header over right-aligned
-        # figures.
+        # ``aligns`` below. A ``text-start`` in this slot would compete
+        # with it at equal specificity and win by sheet order — a column
+        # set ``align="right"`` would keep a left-aligned header over
+        # right-aligned figures.
         "head_cell": (
             "text-sm font-semibold "
             "text-text/70 border-b-(length:--bz-stroke) border-text/10 whitespace-nowrap"
         ),
         "body": "",
-        "row": (
-            "transition-colors duration-100"
-        ),
+        # No fade on a row: sliding down a table, the previous row would
+        # trail behind the pointer.
+        "row": "",
         # Padding is added per-size at render time (see ``sizes``).
         "cell": (
             "border-b-(length:--bz-stroke) border-text/5 align-middle"

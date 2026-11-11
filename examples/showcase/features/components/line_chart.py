@@ -72,7 +72,7 @@ def threshold() -> None:
                      size="sm", icon_left="triangle-alert")
         ui.line_chart(data=latency(), color="warning", smooth=False,
                       show_dots=True, y_unit="ms", size="sm",
-                      reference_lines=[Reference(300, "SLO", "error")])
+                      y_reference_lines=[Reference(300, "SLO", "error")])
 
 
 def active_users() -> list[Series]:
@@ -90,6 +90,34 @@ def comparison() -> None:
         ui.text("Monthly active users, in thousands", size="sm", color="muted")
         ui.line_chart(data=active_users(), show_gridlines=False, y_unit="k",
                       size="sm")
+
+
+def releases() -> list[tuple[date, float]]:
+    weeks = [date(2026, 7, 6) + timedelta(weeks=i) for i in range(8)]
+    return list(zip(weeks, [12, 9, 15, 7, 18, 11, 14, 20], strict=True))
+
+
+class Release(PageState):
+    week: str = field(default="")
+
+
+def pick_week(week: str, issues: float) -> None:
+    Release().week = week
+
+
+@refreshable
+def release_detail() -> None:
+    week = Release().week
+    ui.text(f"Week of {week}: the changelog opens here." if week
+            else "Click a week to open its changelog.", size="sm", color="muted")
+
+
+def clickable() -> None:
+    with ui.card(padding="md"), ui.vstack(gap="sm"):
+        ui.text("Issues closed per week · click a point", size="sm", color="muted")
+        ui.line_chart(data=releases(), show_dots=True, y_min=0,
+                      y_label="Issues closed", on_item_click=pick_week, size="sm")
+        release_detail()
 
 
 class Traffic(PageState):
@@ -110,7 +138,7 @@ def visits(days: int) -> list[tuple[date, float]]:
     return points
 
 
-@refreshable(deps=[Traffic])
+@refreshable
 def traffic_chart() -> None:
     days = int(Traffic().period)
     ui.line_chart(data=visits(days), color="info", area_fill=True,
@@ -144,6 +172,11 @@ def page() -> None:
             full=True,
             note="Pin the comparison series to muted so the current one "
                  "carries the colour.")
+    example("A point that runs Python", clickable,
+            uses=[releases, Release, pick_week, release_detail], full=True,
+            note="on_item_click receives the point's x and y — a date as its "
+                 "ISO text. One series: a column of several would not say "
+                 "which point.")
     example("A range that reloads the chart", live_range,
             uses=[Traffic, change_period, visits, traffic_chart], full=True,
             note="The toggle writes the period to a server state; only the "

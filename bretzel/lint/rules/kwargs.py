@@ -1,13 +1,11 @@
 """Rule: a kwarg passed to ``ui.*`` that the component does not accept.
 
-**Why this rule still exists although the base layer refuses.** Until
-2026-08-16, ``split_kwargs`` had a mute catch-all: an unknown kwarg went
-into the DOM as an inert attribute. Measured over ``examples/`` on
-2026-08-01: **44 dead kwargs, 10 families**, including
-``ui.input(label="…")`` on **22 sites** rendering
-``<input label="Display name">`` — no label displayed at all.
+**Why this rule still exists although the base layer refuses.** An
+unknown kwarg that reached the DOM would be an inert attribute:
+``ui.input(label="…")`` would render ``<input label="Display name">``,
+with no label displayed at all.
 
-The base layer now **raises** (cf. ``attrs.py`` § declared escape
+The base layer **raises** (cf. ``attrs.py`` § declared escape
 hatch), which makes this rule redundant… at runtime only. It keeps one
 reason to exist, and it counts: **it sees without executing.** A
 component in a branch never taken, a rarely rendered page, a path behind
@@ -17,9 +15,8 @@ there. The rule reads the call site, so it sees it straight away.
 ⚠️ It does NOT judge the anchor family (``href`` / ``target`` / ``rel`` /
 ``download``): those are declared raw attributes, legitimate with
 ``tag="a"``, and whether they land on a link depends on the rendered
-tag. This docstring claimed the opposite until 2026-09-29, while
-``ui.icon_button(href=…)`` went through it clean. The render refuses it
-now (``component._refuse_stray_anchor_attrs``), gated by
+tag. The render refuses a stray one
+(``component._refuse_stray_anchor_attrs``), gated by
 ``test_a_link_attribute_lands_on_a_link``.
 
 The rule is **pure**: it takes a module and the API index, it knows
@@ -37,7 +34,7 @@ RULE = "unknown-kwarg"
 
 #: The raw HTML escape hatch is NOT redeclared here: it is read from the
 #: base layer (:func:`bretzel.components.base.attrs.is_declared_raw_attr`),
-#: which enforces it at runtime since 2026-08-16. One table, one
+#: which enforces it at runtime. One table, one
 #: behaviour — otherwise the lint and the runtime would end up no longer
 #: saying the same thing, and it is the lint one would believe.
 #:
@@ -82,6 +79,9 @@ def _accepted_by_name() -> dict[str, frozenset[str] | object]:
             | set(info.handler_kwargs)
             | set(info.named_slots)
         )
+        # ``autofocus`` is reserved (the socle reads it) but refused where
+        # the component declares no ``FOCUS_TARGET``: said here before run.
+        - ({"autofocus"} if info.focus_target is None else set())
         if isinstance(info, ComponentInfo)
         else _NOT_JUDGED
         for name, info in catalogue().items()

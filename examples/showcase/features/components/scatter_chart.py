@@ -50,7 +50,7 @@ def goal_line() -> None:
             ui.heading("12 campaigns · $52.6k spent", level=3, size="xl")
         ui.scatter_chart(data=campaigns(), color="secondary", size="sm",
                          x_format=dollars, y_unit="conv.",
-                         reference_lines=[Reference(100, "Monthly goal",
+                         y_reference_lines=[Reference(100, "Monthly goal",
                                                     "success")])
 
 
@@ -93,7 +93,7 @@ def usage(plan: str) -> list[Series]:
     return list(teams.values()) if plan == "all" else [teams[plan]]
 
 
-@refreshable(deps=[Cohort])
+@refreshable
 def usage_chart() -> None:
     ui.scatter_chart(data=usage(Cohort().plan), x_unit="seats", size="sm")
 
@@ -120,7 +120,8 @@ def page() -> None:
             note="Pairs of (x, y) for a single series; x_format and y_unit "
                  "label both axes.")
     example("Spot the outlier", outliers, uses=[requests], full=True,
-            note="Hover a point to read its exact values.")
+            note="Hover a point to read its exact values — or Tab to the "
+                 "chart and walk its points with the arrows.")
     example("A filter that reloads the chart", live_filter,
             uses=[Cohort, change_plan, usage, usage_chart], full=True,
             note="The toggle writes the plan to a server state; only the "

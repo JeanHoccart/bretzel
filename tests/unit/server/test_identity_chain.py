@@ -39,12 +39,17 @@ def make_request(app: Bretzel, cookies: dict[str, str] | None = None) -> SimpleN
     """Une requête réduite à ce que la chaîne lit vraiment."""
     return SimpleNamespace(
         app=SimpleNamespace(state=SimpleNamespace(bretzel=app)),
-        state=SimpleNamespace(cookies=cookies or {}),
+        # The session ``SessionMiddleware`` settled: the auth cookie is
+        # signed for one, and opens nothing in another (2026-11-07).
+        state=SimpleNamespace(cookies=cookies or {}, session_id=_SESSION),
         # Un dict FRAIS par requête : c'est lui qui porte le mémo
         # d'identité, et le partager ferait passer une gate pour verte.
         scope={},
         headers={},
     )
+
+
+_SESSION = "0123456789abcdef0123456789abcdef"
 
 
 def signed_cookie_for(app: Bretzel, user_id: str) -> str:
@@ -53,7 +58,7 @@ def signed_cookie_for(app: Bretzel, user_id: str) -> str:
 
     from bretzel.server.crypto import sign
 
-    payload = f"{user_id}:{int(time.time()) + 600}"
+    payload = f"{_SESSION}|{user_id}:{int(time.time()) + 600}"
     return f"{payload}.{sign(app.config._auth_key, payload)}"
 
 

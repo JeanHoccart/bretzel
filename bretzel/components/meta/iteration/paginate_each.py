@@ -33,9 +33,9 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 
-from bretzel.components.meta.iteration._ref import window_ref
-from bretzel.render.iteration import _KEY_STACK, _extract_key
-from bretzel.state.scopes.client import ClientBinding, ClientExpression
+from bretzel.components.base.attrs import ComponentUsageError
+from bretzel.components.meta.iteration._window import shown_while, window_ref
+from bretzel.state.scopes.client import ClientBinding
 
 
 def paginate_each(
@@ -50,23 +50,12 @@ def paginate_each(
     See the module docstring. ``page`` is a 1-indexed ``ClientBinding`` (or
     a literal ``int``) ; ``per_page`` is the window size (``>= 1``).
     """
-    from bretzel.components import ui  # lazy : ui namespace is this package
-
     if per_page < 1:
-        raise ValueError("paginate_each: per_page must be >= 1")
+        raise ComponentUsageError("paginate_each: per_page must be >= 1")
 
     pref = window_ref(page)
-    for index, item in enumerate(items):
-        item_key = _extract_key(item, key, index)
+    yield from shown_while(
+        items, key,
         # (page - 1) * per_page <= index < page * per_page
-        expr = ClientExpression(
-            f"{index} >= ({pref} - 1) * {per_page} "
-            f"&& {index} < {pref} * {per_page}"
-        )
-        previous = _KEY_STACK.get()
-        token = _KEY_STACK.set((*previous, item_key))
-        try:
-            with ui.vstack(visible=expr, gap="none"):
-                yield item
-        finally:
-            _KEY_STACK.reset(token)
+        lambda index, _: f"{index} >= ({pref} - 1) * {per_page} && {index} < {pref} * {per_page}",
+    )

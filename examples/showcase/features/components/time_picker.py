@@ -43,7 +43,7 @@ def book_slot(booking: Booking) -> None:
     """The picked time is already in ``booking``; the confirmation follows."""
 
 
-@refreshable(deps=[Booking])
+@refreshable
 def booking_summary() -> None:
     start = Booking().start
     if not start:

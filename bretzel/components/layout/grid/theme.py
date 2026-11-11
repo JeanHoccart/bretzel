@@ -22,23 +22,16 @@ GRID_THEME: dict[str, Any] = {
     #: rest. Precedent: Chakra's ``minChildWidth``, which translates
     #: exactly into this.
     #:
-    #: The defect it closes, measured on 2026-08-25 on the CRM's
-    #: "Display" row, in a 1024 px container — the real content width,
-    #: side bar deducted ::
-    #:
-    #:     cols={"base":1,"md":2,"xl":4}   4 columns, 244 px cells,
-    #:                                     the toggle_group (256) 11.9 outside
-    #:     min_col="16rem"                 3 columns of 331 px, nothing outside
-    #:
-    #: And the half you do not see: an ``xl:`` prefix reads the WINDOW's
-    #: width, not the grid's. Shrinking the window to 700 px turned the
-    #: grid into ONE column of 1024 — the container had not moved.
-    #: ``auto-fit`` reads the real room, so it does not have that offset.
+    #: Breakpoint columns (``cols={"base":1,"md":2,"xl":4}``) can leave a
+    #: cell narrower than its content, and an ``xl:`` prefix reads the
+    #: WINDOW's width, not the grid's: shrinking the window can drop the
+    #: grid to ONE column while the container has not moved. ``auto-fit``
+    #: reads the real room, so it does not have that offset.
     #:
     #: A CLOSED table, like ``grows``: each value is a WHOLE class, hence
     #: visible to the production Tailwind compiler. A width assembled in
     #: an f-string would render identical HTML in dev and no rule at all
-    #: in prod (memory ``project_assembled_tailwind_class_dev_only``).
+    #: in prod.
     #:
     #: ``auto-fit`` and not ``auto-fill``: the first collapses empty
     #: tracks, so the present columns share all the room. With
@@ -54,10 +47,10 @@ GRID_THEME: dict[str, Any] = {
     # match without surprise.
     "gaps": {
         "none": "gap-0",
-        "xs": "gap-1",
-        "sm": "gap-2",
-        "md": "gap-4",
-        "lg": "gap-6",
-        "xl": "gap-8",
+        "xs": "gap-(--bz-gap-1)",
+        "sm": "gap-(--bz-gap-2)",
+        "md": "gap-(--bz-gap-4)",
+        "lg": "gap-(--bz-gap-6)",
+        "xl": "gap-(--bz-gap-8)",
     },
 }

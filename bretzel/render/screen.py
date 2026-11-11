@@ -39,9 +39,9 @@ single navigation, in both directions, indefinitely.
 
 A **boosted** navigation corrects too : ``hx-boost`` swaps only
 ``[data-bz-outlet]``, so this ``if`` would otherwise keep painting the previous
-shape forever. ``_src/05_bridge.js`` therefore re-syncs before a boosted GET and
+shape forever. ``_src/bridge.js`` therefore re-syncs before a boosted GET and
 hands the navigation back to the browser when the shape changed — a full load
-rebuilds the layout. Cf. ``.claude/bretzel/screen-responsive-nav.md``.
+rebuilds the layout.
 
 Cookie wire format : ``bz_screen = "{mobile},{touch}"`` where each flag is
 ``"1"`` / ``"0"``, e.g. ``"1,0"`` = mobile, fine-pointer. Missing or malformed

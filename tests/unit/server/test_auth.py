@@ -195,7 +195,8 @@ class TestVerifyAuthCookie:
         with use_context(ctx):
             login("user-42")
         cookie = ctx.new_cookies[COOKIE_AUTH]["value"]
-        assert verify_auth_cookie(cookie, _AUTH_KEY) == "user-42"
+        # Signed FOR the rotated session (``sid|user``, 2026-11-07).
+        assert verify_auth_cookie(cookie, _AUTH_KEY) == f"{ctx.session_id}|user-42"
 
     def test_missing_signature_rejected(self) -> None:
         assert verify_auth_cookie("user:0", _AUTH_KEY) is None

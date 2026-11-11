@@ -13,9 +13,9 @@ does not fit in a folder.** Serving a file is
 link`` + the export of ``components/data/datatable``. Five folders, five
 docstrings, and not one saying "Bretzel can serve a file".
 
-Hence a cross-cutting list, written by a human. It is exactly the form
-that got the ``bretzel-api`` skill deleted on 2026-08-01 — a hand-copied
-catalogue naming two non-existent components.
+Hence a cross-cutting list, written by a human. That form has a known
+failure: a hand-copied catalogue ends up naming components that do not
+exist.
 
 What makes this one different
 -----------------------------
@@ -41,14 +41,9 @@ This list is an INDEX. It serves to know that a thing exists and where
 one enters it — not to learn it. What explains *why* and *how* lives in a
 chapter of ``examples/docs``, written by hand, and **in one place only**.
 
-The rule was set on 2026-09-03 because there were four surfaces
-answering "what can Bretzel do" — this list, the package tree, the
-``ui.*`` catalogue, the cheat sheet — and no rule saying which one was
-authoritative. Measured: the chapters do NOT duplicate each other (only
-three pairs share four symbols, and those are ``Bretzel``, ``page``,
-``ui.button``, which every snippet needs). The disorder was therefore not
-repetition, it was the absence of a rule about *where one writes* when
-one adds something.
+Four surfaces answer "what can Bretzel do" — this list, the package tree,
+the ``ui.*`` catalogue, the cheat sheet. What keeps them in order is a
+rule about *where one writes* when one adds something.
 
 Hence:
 
@@ -100,13 +95,12 @@ class Capability:
     #: **It is the "an index lists, a chapter teaches" rule.** A
     #: capability fits in one sentence and a snippet; what explains why
     #: and how lives in a hand-written chapter, in one place only.
-    #: Without this field, there were four surfaces answering "what can
-    #: it do" and no rule saying which one was authoritative.
+    #: Without this field, several surfaces would answer "what can it do"
+    #: and no rule would say which one is authoritative.
     #:
     #: Empty = **no chapter yet**, and that is a VISIBLE debt: the page
     #: displays it in clear, and ``test_a_capability_is_anchored`` holds
-    #: a ratchet that does not go back up. Measured when it was set: 8
-    #: out of 19.
+    #: a ratchet that does not go back up.
     chapter: str = field(default="")
 
 
@@ -115,10 +109,8 @@ def _code(text: str) -> str:
     return textwrap.dedent(text).strip("\n")
 
 
-#: ⚠️ **The list is not exhaustive.** Nineteen capabilities on
-#: 2026-09-03; what is still missing is tracked in
-#: ``.claude/work/todo.md``. Do not read the absence of a line as
-#: "Bretzel cannot do it".
+#: ⚠️ **The list is not exhaustive.** Do not read the absence of a line
+#: as "Bretzel cannot do it".
 CAPABILITIES: tuple[Capability, ...] = (
     # ── Leaving the app: files, device, installation, identity ───────
     Capability(
@@ -137,16 +129,14 @@ CAPABILITIES: tuple[Capability, ...] = (
             async def customers_csv() -> list[dict]:
                 return [{"name": "Ada Lovelace", "city": "London"}]
 
-            # The link must say it carries a FILE, otherwise the shell
-            # swallows it: `hx-boost` intercepts every <a> and swaps the
-            # CSV into the page.
-            ui.link("Export", href="/customers.csv", download=True)
+            # Any component with an href: a @download route never navigates.
+            ui.link("Export", href="/customers.csv")
             """
         ),
         caveat=(
-            "Without `download=True`, the link is intercepted by "
-            "`hx-boost` and the file arrives as HTML in the outlet — "
-            "with no sign at all on the server side."
+            "Only a `@download` route is recognised. A link to a file "
+            "served by any other route needs `attrs={\"download\": \"\"}`, "
+            "or the shell swaps the file into the page."
         ),
     ),
     Capability(
@@ -283,9 +273,9 @@ CAPABILITIES: tuple[Capability, ...] = (
         does=(
             "Mark a region as depending on a typed state: any mutation "
             "of that state re-renders it, alone, without the rest of the "
-            "page moving and without writing a single network call. With "
-            "`broadcast=`, the same region re-renders on ALL open pages, "
-            "over SSE."
+            "page moving and without writing a single network call. The "
+            "other open pages showing it follow too, over SSE, as far as "
+            "the state's scope allows."
         ),
         entry=("bretzel.refreshable",),
         snippet=_code(
@@ -293,7 +283,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             class Cart(SessionState):
                 lines: list[str] = field(default_factory=list)
 
-            @refreshable(deps=[Cart])
+            @refreshable
             def summary() -> None:
                 ui.text(f"{len(Cart().lines)} item(s)")
 
@@ -304,8 +294,8 @@ CAPABILITIES: tuple[Capability, ...] = (
         caveat=(
             "The region is TRANSPARENT to layout but is not an instance "
             "of what it carries — a container inspecting its children "
-            "must unwrap it. And `broadcast=` is not a separate "
-            "capability: it is a mode of that same decorator."
+            "must unwrap it. A `PageState` stays in its tab: only a "
+            "session, user or app state, or a `Topic`, reaches the others."
         ),
     ),
     Capability(
@@ -361,14 +351,15 @@ CAPABILITIES: tuple[Capability, ...] = (
                 active: bool = field(default=True)
 
             live = Live()
-            ui.interval(on_tick=reload_rows, seconds=5, active=live.active)
+            ui.interval(on_tick=reload_rows, seconds=5, disabled=~live.active)
             ui.switch("Follow live", value=live.active)
             """
         ),
         caveat=(
             "This is PULL: the page asks. For PUSH — the server telling "
-            "it — use `@refreshable(broadcast=[…])`, which goes over SSE "
-            "and wakes only the pages concerned."
+            "it — show a shared state or a `Topic` in a `@refreshable` "
+            "zone: its change goes over SSE and wakes only the pages "
+            "concerned."
         ),
     ),
     # ── Lists: iterate, tabulate, move ───────────────────────────────
@@ -626,7 +617,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             """
             app = Bretzel(
                 lang="fr", languages=["fr", "en"],
-                texts={"fr": {"alert.dismiss": "Fermer"}},
+                translations={"fr": {"alert.dismiss": "Fermer"}},
             )
 
             # In a page, read the language resolved for THIS request:

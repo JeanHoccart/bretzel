@@ -37,10 +37,10 @@ class DatePickerPlayground(PageState):
     max:            str = field(default="")
     disabled_dates: str = field(default="")  # comma-separated ISO dates
     marks:          str = field(default="")  # comma-separated ISO dates
-    placeholder:    str = field(default="YYYY-MM-DD")
+    placeholder:    str = field(default="")
     color:          str = field(default="primary")
     size:           str = field(default="md")
-    weekstart:      int = field(default=1)
+    week_start:      int = field(default=1)
     locale:         str = field(default="en")
     clearable:      str = field(default="on")
     close_on_pick:  str = field(default="on")

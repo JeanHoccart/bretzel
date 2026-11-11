@@ -269,10 +269,73 @@ class TestTablesByLanguage:
         """Un dict qui contient une phrase ET une table n'a pas de
         lecture juste : deviner rangerait la moitié des clés dans une
         langue nommée « alert.dismiss »."""
-        with pytest.raises(TextsError, match="mixes"):
+        with pytest.raises(TextsError, match="mix the two forms"):
             self._resolve({"alert.dismiss": "Fermer", "fr": {"x": "y"}})
 
     def test_overriding_an_undeclared_language_raises(self) -> None:
         """Une table que rien ne peut sélectionner est du travail perdu."""
         with pytest.raises(TextsError, match="undeclared"):
             self._resolve({"de": {"alert.dismiss": "Schliessen"}})
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Le français livré avec le framework, et le pluriel de chaque langue
+# ───────────────────────────────────────────────────────────────────────────
+#
+# Jusqu'au 2026-10-28 le framework ne livrait que l'anglais : chaque app
+# française recopiait la même table, et le pluriel était celui de l'anglais partout, d'où
+# « 0 résultats » dans une app française.
+
+
+class TestShippedLanguages:
+    def test_french_ships_with_the_framework(self) -> None:
+        tables = LanguageTables(None, languages=(), default="fr")
+        assert tables.for_language("fr")["datatable.clear_filters"] == "Effacer les filtres"
+
+    def test_a_regional_french_takes_the_french(self) -> None:
+        tables = LanguageTables(None, languages=("fr-CA", "en"), default="fr-CA")
+        assert tables.for_language("fr-CA")["alert.dismiss"] == "Fermer l'alerte"
+        assert tables.for_language("en")["alert.dismiss"] == "Dismiss alert"
+
+    def test_the_app_still_has_the_last_word(self) -> None:
+        tables = LanguageTables({"sidebar.toggle": "Ouvrir le menu"}, languages=(),
+                                default="fr")
+        table = tables.for_language("fr")
+        assert table["sidebar.toggle"] == "Ouvrir le menu"
+        assert table["modal.close"] == "Fermer"
+
+    def test_an_unshipped_language_is_english(self) -> None:
+        assert resolve_texts(None, lang="de") is DEFAULT_TEXTS
+
+
+class TestPluralByLanguage:
+    @pytest.mark.parametrize(("count", "said"), [(0, "0 résultat"), (1, "1 résultat"),
+                                                 (2, "2 résultats")])
+    def test_french_counts_zero_with_the_singular(self, count: int, said: str) -> None:
+        with in_context(texts=resolve_texts(None, lang="fr"), lang="fr"):
+            assert plural("datatable.results", count) == said
+
+    def test_english_does_not(self) -> None:
+        with in_context(lang="en"):
+            assert plural("datatable.results", 0) == "0 results"
+
+    @pytest.mark.parametrize(("count", "form"), [(1, "one"), (21, "one"), (3, "few"),
+                                                 (24, "few"), (5, "many"), (12, "many"),
+                                                 (14, "many")])
+    def test_russian_has_three_forms(self, count: int, form: str) -> None:
+        table = resolve_texts({"datatable.results_one": "{n} one",
+                               "datatable.results_few": "{n} few",
+                               "datatable.results_many": "{n} many",
+                               "datatable.results_other": "{n} other"}, lang="ru")
+        with in_context(texts=table, lang="ru"):
+            assert plural("datatable.results", count) == f"{count} {form}"
+
+    def test_a_form_the_table_lacks_falls_back_on_other(self) -> None:
+        """A language declared before being translated: English's
+        ``_other`` rather than a missing key on the page."""
+        with in_context(lang="ru"):
+            assert plural("datatable.results", 3) == "3 results"
+
+    def test_an_extra_form_keeps_the_holes_of_its_sentence(self) -> None:
+        with pytest.raises(TextsError, match="holes"):
+            resolve_texts({"datatable.results_few": "{count} few"}, lang="ru")

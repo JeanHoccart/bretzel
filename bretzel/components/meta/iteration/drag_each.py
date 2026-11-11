@@ -26,7 +26,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 
-from bretzel.render.iteration import _KEY_STACK, _extract_key
+from bretzel.render.iteration import _extract_key, key_segment
 
 
 def drag_each(
@@ -48,15 +48,10 @@ def drag_each(
 
     for index, item in enumerate(items):
         item_key = _extract_key(item, key, index)
-        previous = _KEY_STACK.get()
-        token = _KEY_STACK.set((*previous, item_key))
-        try:
-            with ui.draggable(
-                key=str(item_key),
-                group=group,
-                handle=handle,
-                disabled=bool(disabled(item)) if disabled else False,
-            ):
-                yield item
-        finally:
-            _KEY_STACK.reset(token)
+        with key_segment(item_key), ui.draggable(
+            key=str(item_key),
+            group=group,
+            handle=handle,
+            disabled=bool(disabled(item)) if disabled else False,
+        ):
+            yield item

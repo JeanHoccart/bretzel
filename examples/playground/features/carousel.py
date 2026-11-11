@@ -168,7 +168,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[CarouselPlayground])
+@refreshable
 def server_panel() -> None:
     state = CarouselPlayground()
 
@@ -256,7 +256,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[CarouselEvents])
+@refreshable
 def events_panel() -> None:
     state = CarouselEvents()
 

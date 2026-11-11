@@ -96,8 +96,8 @@ class TestThemeCss:
         out = generate_theme_css(palette)
         # Find the dark block.
         dark_section = out.split(".dark {", 1)[1].split("}", 1)[0]
-        # ``primary`` is NOT overridden in DEFAULT_SEMANTIC_DARK.
-        assert "--color-primary:" not in dark_section
+        # ``success`` is NOT overridden in DEFAULT_SEMANTIC_DARK.
+        assert "--color-success:" not in dark_section
         # ``background`` IS overridden.
         assert "--color-background:" in dark_section
 

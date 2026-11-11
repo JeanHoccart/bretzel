@@ -1,25 +1,21 @@
 """Kwarg routing — derived from the base layer, never copied.
 
 **Why this section exists, and why it is generated.**
-``kwarg-routing.md`` carried a hand-written table describing
-``split_kwargs``'s five buckets. On 2026-08-16, it contained **three
-false claims**: the Alpine prefixes announced as "passthrough" (false
-since 2026-07-30, so two and a half weeks), bucket 6 called "catch-all"
-(closed that very day), and a warning claiming ``bz-*`` does not go
-through it (measured: six do).
+A hand-written table describing ``split_kwargs``'s buckets ends up making
+false claims about what goes where.
 
-Three documentation gates already existed and none of them could see
-those: they check paths, symbols, inventories — **decidable** things.
-"Does this paragraph still describe the behaviour?" is not.
+The documentation gates cannot see those: they check paths, symbols,
+inventories — **decidable** things. "Does this paragraph still describe
+the behaviour?" is not.
 
-Three gate candidates were measured and then **set aside**:
+Three gate candidates are **set aside**:
 
-- a gate on the constants cited with their value → a population of 3, and
-  three false positives out of three (quotes, placeholders);
-- extending the Alpine vocabulary gate to the funnel → ~60 exceptions to
-  write, nearly all of them legitimate narrative (``traps.md`` TELLS
+- a gate on the constants cited with their value → a tiny population, and
+  nothing but false positives (quotes, placeholders);
+- extending the Alpine vocabulary gate to the funnel → dozens of exceptions
+  to write, nearly all of them legitimate narrative (``traps.md`` TELLS
   stories);
-- a freshness gate by git co-change → 9 docs out of 11 permanently
+- a freshness gate by git co-change → nearly every doc permanently
   "behind". A signal that is always on is not a signal.
 
 What remains, and works: **not writing the decidable part**. A table
@@ -50,7 +46,7 @@ def describe_kwarg_routing() -> tuple[Bucket, ...]:
         _RAW_HTML_NAMES,
         _RAW_HTML_PREFIXES,
     )
-    from bretzel.components.base.component import RESERVED_KWARGS
+    from bretzel.components.base.metaclass import RESERVED_KWARGS
 
     star = tuple(f"{p}*" for p in _PASSTHROUGH_PREFIXES)
     dead = tuple(f"{p}*" for p in _DEAD_ALPINE_PREFIXES)

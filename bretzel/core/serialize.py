@@ -6,6 +6,8 @@ function : no I/O, no mutation, no side-effects.
 
 from __future__ import annotations
 
+import re
+
 from bretzel.core.escape import escape_html, serialize_attrs
 from bretzel.core.tree import Element, FragmentNode, HtmlNode, Node, TextNode
 
@@ -32,6 +34,11 @@ VOID_ELEMENTS: frozenset[str] = frozenset(
 )
 
 
+#: An element's name: a letter, then letters, digits or ``-`` (custom
+#: elements: ``bz-calendar``, ``iconify-icon``).
+_TAG_NAME = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
+
+
 def serialize(node: Node) -> str:
     """Render a ``Node`` tree to an HTML string.
 
@@ -48,6 +55,11 @@ def serialize(node: Node) -> str:
     the framework with new node kinds requires updating this dispatcher.
     """
     if isinstance(node, Element):
+        # ⚠️ The tag is written as is: it must be a NAME, or a tag built
+        # from a value such as ``"h1><img onerror=…><h1"`` writes a real
+        # ``<img>``. Every element passes here.
+        if not _TAG_NAME.fullmatch(node.tag):
+            raise ValueError(f"{node.tag!r} is not an HTML tag name.")
         attrs = serialize_attrs(node.attrs)
         if node.tag in VOID_ELEMENTS:
             return f"<{node.tag}{attrs}/>"

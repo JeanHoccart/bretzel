@@ -118,7 +118,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[GridPlayground])
+@refreshable
 def server_panel() -> None:
     state = GridPlayground()
 

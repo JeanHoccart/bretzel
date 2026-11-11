@@ -1,32 +1,185 @@
-"""core/i18n — the app's own words, in both languages.
+"""core/i18n — the app's own words in French.
 
-The split is the one ``examples/docs`` states and the framework
-enforces: **Bretzel translates ITS sentences** — the drag-and-drop
-announcements, the file-upload limits, the pagination labels — and the
-app translates ITS OWN. Bretzel does not know them and never will; what
-it provides is the seam, :class:`~bretzel.Language`.
+English is the source language: the code says ``t("Create")`` and this
+table gives the French, the sentence written in the code as its key — the
+framework's ``t()`` reads it for a French visitor (``Bretzel(translations=…)``).
+Until 2026-10-28 every call carried both languages, ``tr("Create",
+"Créer")``: adding a third meant editing every line. ``bretzel
+translations examples.kanban.main:app`` lists what this table lacks, and
+what no call says any more.
 
-One function, and it is deliberately the whole surface:
-
-    ui.button(tr("Create", "Créer"))
-
-No catalogue, no key, no `.po`. The English is the source text and the
-French sits beside it, so a sentence and its translation are never two
-files apart — which is the only way they cannot drift. The cost is
-real and accepted: a third language would make this shape untenable,
-and that is the moment to reach for a real i18n library.
-
-⚠️ :func:`tr` reads the request's language, so it needs a render
-context. A module-level constant cannot call it — which is why the
-board's column labels and the team's names are FUNCTIONS
-(:func:`~examples.kanban.features.donnees.colonnes`) rather than tuples.
-The key stays a stable identifier (``"a_faire"``); only the label
-travels.
+⚠️ :func:`bretzel.t` reads the request's language: a module-level constant
+cannot call it — which is why the board's column labels and the team's
+names are FUNCTIONS (:func:`~examples.kanban.features.donnees.colonnes`)
+rather than tuples. The key stays a stable identifier (``"a_faire"``);
+only the label travels.
 """
 
-from bretzel import Language
-
-
-def tr(en: str, fr: str) -> str:
-    """Return the copy for the language resolved for this request."""
-    return fr if Language().code.startswith("fr") else en
+FR: dict[str, str | dict[str, str]] = {
+    "created “{titre}” through the API": "a créé « {titre} » par l'API",
+    "moved “{title}” to {column} through the API": "a déplacé « {title} » vers {column} par l'API",
+    "{n} d ago": "il y a {n} j",
+    "{ecart} s ago": "il y a {ecart} s",
+    "{n} min ago": "il y a {n} min",
+    "{n} h ago": "il y a {n} h",
+    "Today": "Aujourd'hui",
+    "To do": "À faire",
+    "In progress": "En cours",
+    "In review": "En revue",
+    "Done": "Terminé",
+    "Sign-in screen: forgotten password": "Écran de connexion : mot de passe oublié",
+    "The link exists but returns a 404 since the routing was reworked. To be rewired onto the new single-use token flow.": "Le lien existe mais renvoie une 404 depuis la refonte du routage. À rebrancher sur le nouveau flux de jetons à usage unique.",
+    "Audit log exportable as CSV": "Journal d'audit exportable en CSV",
+    "The large accounts ask for it for their internal audits. One row per action, the export runs as a background task.": "Les clients grands comptes le demandent pour leurs audits internes. Une ligne par action, l'export tourne en tâche de fond.",
+    "Fix the VAT computation on credit notes": "Corriger le calcul de TVA sur les avoirs",
+    "A credit note issued after a rate change applies the day's rate, not the original invoice's.": "Un avoir émis après un changement de taux applique le taux du jour, pas celui de la facture d'origine.",
+    "Rework the pricing page": "Refonte de la page de tarifs",
+    "Three plans instead of five, and the comparison goes below the fold. Mock-ups approved, the integration is left.": "Trois plans au lieu de cinq, et le comparatif passe sous le pli. Maquettes validées, reste l'intégration.",
+    "Drop the moment.js dependency": "Retirer la dépendance à moment.js",
+    "68 kB to format three dates. Native formatting is enough now that the old browsers are no longer supported.": "68 Ko pour formater trois dates. Le formatage natif suffit depuis qu'on ne supporte plus les vieux navigateurs.",
+    "A ten-minute getting-started guide": "Guide de démarrage en dix minutes",
+    "The sign-up drop-off rate is decided in the first five minutes. A written walkthrough, tested on three people.": "Le taux d'abandon à l'inscription se joue dans les cinq premières minutes. Un parcours écrit, testé sur trois personnes.",
+    "Merge duplicate accounts": "Fusion des comptes en double",
+    "Two accounts created with the same address in upper and in lower case. They must be merged without losing the history.": "Deux comptes créés avec la même adresse en majuscules et en minuscules. Il faut fusionner sans perdre l'historique.",
+    "Dashboard caching": "Cache des tableaux de bord",
+    "The dashboard recomputes twelve aggregates at every load. A five-minute cache is enough, invalidated on write.": "Le tableau de bord recalcule douze agrégats à chaque chargement. Un cache de cinq minutes suffit, invalidé à l'écriture.",
+    "Date picker accessibility": "Accessibilité du sélecteur de dates",
+    "The calendar cannot be reached from the keyboard, and the screen reader announces \"button\" without saying which date.": "Impossible d'atteindre le calendrier au clavier, et le lecteur d'écran annonce « bouton » sans dire quelle date.",
+    "Rate limiting on the public API": "Limitation de débit sur l'API publique",
+    "A hundred requests per minute per token, with the standard headers so the clients know where they stand.": "Cent requêtes par minute et par jeton, avec les en-têtes standard pour que les clients sachent où ils en sont.",
+    "Spanish translation of the interface": "Traduction espagnole de l'interface",
+    "1 240 strings reviewed by a native translator. The overflows on long labels are left to check.": "1 240 chaînes relues par une traductrice native. Reste à vérifier les débordements sur les libellés longs.",
+    "Migration to the new billing engine": "Migration vers le nouveau moteur de facturation",
+    "Switched over on a Sunday morning, no visible outage. The old engine stays readable read-only until December.": "Bascule faite un dimanche matin, aucune interruption visible. L'ancien moteur reste lisible en lecture seule jusqu'en décembre.",
+    "Sign in with Google and Microsoft": "Connexion par Google et Microsoft",
+    "Both providers wired, the existing account is attached by the verified address.": "Les deux fournisseurs branchés, le compte existant est rattaché par l'adresse vérifiée.",
+    "Fix the PDF export truncated beyond 40 pages": "Corriger l'export PDF tronqué au-delà de 40 pages",
+    "The generator cut off at the fortieth page without a word. The buffer was flushed too early.": "Le générateur coupait à la quarantième page sans rien dire. Le tampon était vidé trop tôt.",
+    "Cookie consent banner": "Bandeau de consentement aux cookies",
+    "Refused by default, no tracker before the click. Approved by the firm.": "Refus par défaut, aucun traceur avant le clic. Validé par le cabinet.",
+    "Tomorrow": "Demain",
+    "Yesterday": "Hier",
+    "Rewire the route": "Rebrancher la route",
+    "Email template": "Gabarit de courriel",
+    "30-minute expiry": "Expiration à 30 min",
+    "Paginated query": "Requête paginée",
+    "Writing the file": "Écriture du fichier",
+    "Button and notification": "Bouton et notification",
+    "Document the format": "Documenter le format",
+    "Reproduce on real data": "Reproduire sur un jeu réel",
+    "Fix": "Corriger",
+    "Reported by two clients this week, to be prioritised.": "Signalé par deux clients cette semaine, à prioriser.",
+    "Duplicate detection": "Détection des doublons",
+    "Merge screen": "Écran de fusion",
+    "Replaying the history": "Rejeu de l'historique",
+    "The detection runs, 412 pairs found in the database.": "La détection tourne, 412 paires trouvées en base.",
+    "I am taking the merge screen, ready tomorrow.": "Je prends l'écran de fusion, dispo demain.",
+    "Choosing the cache key": "Choisir la clé de cache",
+    "Invalidation": "Invalidation",
+    "Tab order": "Ordre de tabulation",
+    "ARIA labels": "Étiquettes ARIA",
+    "Screen-reader test": "Test au lecteur d'écran",
+    "In-memory counter": "Compteur en mémoire",
+    "Quota headers": "En-têtes de quota",
+    "Documentation": "Documentation",
+    "Reviewed, only the expired-token case is missing.": "Relu, il manque juste le cas du jeton expiré.",
+    "Extracting the strings": "Extraction des chaînes",
+    "Review": "Relecture",
+    "Check the overflows": "Vérifier les débordements",
+    "Dual writing": "Double écriture",
+    "Switch over": "Bascule",
+    "Clean-up": "Nettoyage",
+    "Google": "Google",
+    "Microsoft": "Microsoft",
+    "Attaching": "Rattachement",
+    "Reproduce": "Reproduire",
+    "Regression test": "Test de non-régression",
+    "Labels": "Étiquettes",
+    "Comments": "Commentaires",
+    "Save": "Enregistrer",
+    "Subtasks": "Sous-tâches",
+    "Title": "Titre",
+    "The card's title": "Titre de la carte",
+    "Description": "Description",
+    "What one needs to know to take it": "Ce qu'il faut savoir pour la prendre",
+    "Assignee": "Assigné",
+    "Add a subtask": "Ajouter une sous-tâche",
+    "Add": "Ajouter",
+    "Write a comment": "Écrire un commentaire",
+    "Comment": "Commenter",
+    "Card": "Carte",
+    "Archive this card": "Archiver cette carte",
+    "Due date": "Échéance",
+    "Points": "Points",
+    " of {total}": " sur {total}",
+    "Remove this subtask": "Retirer cette sous-tâche",
+    "moved “{title}” to {column}": "a déplacé « {title} » vers {column}",
+    "reordered “{title}”": "a réordonné « {title} »",
+    "archived “{title}”": "a archivé « {title} »",
+    "edited “{title}”": "a modifié « {title} »",
+    "removed the {label} label": "a retiré l'étiquette {label}",
+    "set the {label} label": "a posé l'étiquette {label}",
+    "{verbe} on “{title}”": "{verbe} sur « {title} »",
+    "added “{texte}” to “{title}”": "a ajouté « {texte} » à « {title} »",
+    "marked “{subtask}” {etat}": "a marqué « {subtask} » {etat}",
+    "removed a subtask from “{title}”": "a retiré une sous-tâche de « {title} »",
+    "commented on “{title}”": "a commenté « {title} »",
+    "created “{titre}”": "a créé « {titre} »",
+    "“{column}” is at its limit of {limit} cards. One has to come out before another is accepted.": "« {column} » est à sa limite de {limit} cartes. Il faut en sortir une avant d'en accepter une autre.",
+    "“{column}” is at its limit of {limit} cards.": "« {column} » est à sa limite de {limit} cartes.",
+    "Drop refused": "Dépôt refusé",
+    "Creation refused": "Création refusée",
+    "New card": "Nouvelle carte",
+    "Switch to dark": "Passer en sombre",
+    "Switch to light": "Passer en clair",
+    "This board's API": "L'API de ce tableau",
+    "Run this command in a terminal: the card lands on THIS board, and the windows you have open follow, live.": "Lance cette commande dans un terminal : la carte arrive sur CE tableau, et tes fenêtres ouvertes suivent, en direct.",
+    "Every route, to try in the browser": "Toutes les routes, à essayer dans le navigateur",
+    "The key opens your session: your board, nobody else's. Keep it to yourself.": "La clé ouvre ta session : ton tableau, celui de personne d'autre. Garde-la pour toi.",
+    "API": "API",
+    "Search a card": "Rechercher une carte",
+    "Live — your other windows follow": "En direct — tes autres fenêtres suivent",
+    "Stream interrupted": "Flux interrompu",
+    "Cancel": "Annuler",
+    "Create": "Créer",
+    "All": "Tous",
+    "The whole team": "Toute l'équipe",
+    "What there is to do": "Ce qu'il y a à faire",
+    "Column": "Colonne",
+    "Nothing to undo": "Rien à annuler",
+    "Nothing to redo": "Rien à rétablir",
+    "{nom}'s cards": "Les cartes de {nom}",
+    "All labels": "Toutes étiquettes",
+    "Who you are on this board": "Qui tu es sur ce tableau",
+    "Language": "Langue",
+    "Undo: ": "Annuler : ",
+    "Redo: ": "Rétablir : ",
+    "Client portal rework": "Refonte du portail client",
+    "Copy the command": "Copier la commande",
+    "Drop here to archive": "Lâche ici pour archiver",
+    "Nothing here. Drop a card.": "Rien ici. Lâche une carte.",
+    "Activity": "Activité",
+    "Hide the activity": "Cacher l'activité",
+    "Show the activity": "Montrer l'activité",
+    "Nothing yet": "Rien pour l'instant",
+    "Drag a card to another column. Every move is logged here, and can be undone.": "Glisse une carte dans une autre colonne. Chaque geste s'inscrit ici, et peut être annulé.",
+    "Work-in-progress limit: {limite} cards": "Limite d'en-cours : {limite} cartes",
+    "No work-in-progress limit": "Pas de limite d'en-cours",
+    "undone": "annulé",
+    "Jan": "janv.",
+    "Feb": "févr.",
+    "Mar": "mars",
+    "Apr": "avr.",
+    "May": "mai",
+    "Jun": "juin",
+    "Jul": "juil.",
+    "Aug": "août",
+    "Sep": "sept.",
+    "Oct": "oct.",
+    "Nov": "nov.",
+    "Dec": "déc.",
+    "{month} {day}": "{day} {month}",
+    "done": "faite",
+    "to do again": "à refaire",
+    "{n} shown": {"one": "{n} affichée", "other": "{n} affichées"},
+}

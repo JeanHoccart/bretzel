@@ -108,7 +108,7 @@ def show_all() -> None:
     Explorer().focus = ""
 
 
-@refreshable(deps=[Explorer])
+@refreshable
 def dependency_graph() -> None:
     focus = Explorer().focus
     with ui.hstack(justify="between", align="center", wrap=True):

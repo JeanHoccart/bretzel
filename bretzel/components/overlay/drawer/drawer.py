@@ -21,7 +21,7 @@ Usage ::
         ui.text("Sidebar content goes here.")
 
 The implementation reuses the Dialog approach via the shared overlay
-wiring (``base/_wiring.py``) : backdrop click to dismiss, escape
+wiring (``base/``) : backdrop click to dismiss, escape
 key, focus trap, scroll lock, imperative receivers are identical —
 only the per-side layout (container alignment, panel border) differs.
 
@@ -38,41 +38,24 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import install_open_close_toggle
+from bretzel.components.overlay._base import ModalOverlay
 from bretzel.components.overlay._modal import render_modal_overlay
 from bretzel.components.overlay.drawer.theme import DRAWER_THEME
 from bretzel.core.tree import Element
 
 
-class Drawer(Component):
+class Drawer(ModalOverlay):
     """Side-anchored sliding panel."""
 
     THEME: ClassVar[dict[str, Any]] = DRAWER_THEME
     THEME_KEY: ClassVar[str] = "drawer"
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("open",)
-    IMPERATIVE: ClassVar[tuple[str, ...]] = ("open", "close", "toggle")
-    EVENTS: ClassVar[tuple[str, ...]] = ("open", "close")
-    # ``open`` AND ``close`` both fire on the root, so a single drawer can
-    # wire on_open + on_close to the server (the second rides a hidden
-    # carrier — cf. ``Component.ALLOW_MULTI_SERVER_EVENTS``).
-    ALLOW_MULTI_SERVER_EVENTS: ClassVar[bool] = True
-
-    open: Any = reactive_prop(default=False, emit_attr=False, writes=True)
-    title: str | None = reactive_prop(default=None, emit_attr=False)
     side: str = reactive_prop(default="right", emit_attr=False)
-    # ``width`` clamps the panel's dimension perpendicular to its
-    # anchor edge — width for ``left``/``right`` drawers, height for
-    # ``top``/``bottom``. Naming aligned with Container / Dialog /
-    # Popover for API consistency across overlays.
-    width: str = reactive_prop(default="md", emit_attr=False)
-    dismissible: bool = reactive_prop(default=True, emit_attr=False)
-    persistent: bool = reactive_prop(default=False, emit_attr=False)
 
     def __init__(
         self,
         *,
         open: Any = None,
-        title: str | None = None,
+        title: str | Component | None = None,
         side: str | None = None,
         width: str | None = None,
         dismissible: bool | None = None,
@@ -81,7 +64,6 @@ class Drawer(Component):
         on_close: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             open=open,
             title=title,
@@ -93,12 +75,6 @@ class Drawer(Component):
             on_close=on_close,
             **kwargs,
         )
-        # Write-only imperative API ``.open()`` / ``.close()`` /
-        # ``.toggle()`` — installed as instance attributes (shadowing the
-        # ``open`` descriptor) by the base helper, identical on the 4
-        # open-driven overlays. Cf. `imperative-api.md`.
-        install_open_close_toggle(self)
-
 
     # ── Render ─────────────────────────────────────────────────────────
 

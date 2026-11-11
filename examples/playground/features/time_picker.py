@@ -26,15 +26,15 @@ class TimePickerPlayground(PageState):
     step:        int  = field(default=15)
     min:         str  = field(default="")
     max:         str  = field(default="")
-    placeholder: str  = field(default="HH:MM")
+    placeholder: str  = field(default="")
     color:       str  = field(default="primary")
     size:        str  = field(default="md")
     disabled:    bool = field(default=False)
     required:    bool = field(default=False)
     clearable:   bool = field(default=True)
     close_on_pick: bool = field(default=True)
-    hour_label:  str  = field(default="H")
-    minute_label: str = field(default="M")
+    hour_label:  str  = field(default="")
+    minute_label: str = field(default="")
     name:        str  = field(default="")
     # Escape hatches.
     classes:     str  = field(default="")
@@ -116,15 +116,15 @@ def build_preview(state: TimePickerPlayground) -> dict:
     kwargs: dict = {
         "value": state.value,
         "step": state.step,
-        "placeholder": state.placeholder,
+        "placeholder": state.placeholder or None,
         "color": state.color,
         "size": state.size,
         "disabled": state.disabled,
         "required": state.required,
         "clearable": state.clearable,
         "close_on_pick": state.close_on_pick,
-        "hour_label": state.hour_label,
-        "minute_label": state.minute_label,
+        "hour_label": state.hour_label or None,
+        "minute_label": state.minute_label or None,
     }
     # An empty string = do not pass the kwarg.
     if state.min:
@@ -166,7 +166,7 @@ def control(label: str):
     return block
 
 
-@refreshable(deps=[TimePickerPlayground])
+@refreshable
 def server_panel() -> None:
     state = TimePickerPlayground()
 
@@ -254,7 +254,7 @@ def server_panel() -> None:
     )
 
 
-@refreshable(deps=[TimePickerEvents])
+@refreshable
 def events_panel() -> None:
     state = TimePickerEvents()
 
@@ -280,9 +280,9 @@ def events_panel() -> None:
         with control("on_change"):
             ui.time_picker(value=picked.picked, on_change=log_change)
         with control("on_focus"):
-            ui.time_picker(dt.time(10, 0), on_focus=log_focus)
+            ui.time_picker(value=dt.time(10, 0), on_focus=log_focus)
         with control("on_blur"):
-            ui.time_picker(dt.time(11, 0), on_blur=log_blur)
+            ui.time_picker(value=dt.time(11, 0), on_blur=log_blur)
 
     ui.divider()
 
@@ -334,9 +334,9 @@ def page() -> None:
 
             ui.heading("Basic", level=3)
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
-                ui.time_picker(dt.time(9, 30))
+                ui.time_picker(value=dt.time(9, 30))
                 ui.time_picker()               # vide
-                ui.time_picker(dt.time(23, 45))
+                ui.time_picker(value=dt.time(23, 45))
 
             ui.heading("step", level=3)
             ui.text(
@@ -348,7 +348,7 @@ def page() -> None:
                 for s in (1, 5, 15):
                     with ui.vstack(gap="xs"):
                         ui.text(f"step={s}", color="muted", size="xs")
-                        ui.time_picker(dt.time(10, 0), step=s)
+                        ui.time_picker(value=dt.time(10, 0), step=s)
 
             ui.heading("min / max", level=3)
             ui.text(
@@ -362,42 +362,42 @@ def page() -> None:
                 with ui.vstack(gap="xs"):
                     ui.text("min=09:00 max=18:00",
                             color="muted", size="xs")
-                    ui.time_picker(dt.time(9, 0),
+                    ui.time_picker(value=dt.time(9, 0),
                                    min="09:00", max="18:00")
                 with ui.vstack(gap="xs"):
                     ui.text("min=09:30 (09:45 doit rester actif)",
                             color="muted", size="xs")
-                    ui.time_picker(dt.time(9, 45), min="09:30")
+                    ui.time_picker(value=dt.time(9, 45), min="09:30")
                 with ui.vstack(gap="xs"):
                     ui.text("max=12:00", color="muted", size="xs")
-                    ui.time_picker(dt.time(8, 0), max="12:00")
+                    ui.time_picker(value=dt.time(8, 0), max="12:00")
 
             ui.heading("Sizes", level=3)
             with ui.grid(cols={"base": 1, "md": 5}, gap="md"):
                 for s in SIZES:
                     with ui.vstack(gap="xs"):
                         ui.text(f"size={s}", color="muted", size="xs")
-                        ui.time_picker(dt.time(14, 15), size=s)
+                        ui.time_picker(value=dt.time(14, 15), size=s)
 
             ui.heading("Colors", level=3)
             with ui.grid(cols={"base": 1, "md": 4}, gap="md"):
                 for c in COLORS:
                     with ui.vstack(gap="xs"):
                         ui.text(c, color="muted", size="xs")
-                        ui.time_picker(dt.time(14, 15), color=c)
+                        ui.time_picker(value=dt.time(14, 15), color=c)
 
             ui.heading("disabled / required / clearable", level=3)
             with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
                 with ui.vstack(gap="xs"):
                     ui.text("disabled", color="muted", size="xs")
-                    ui.time_picker(dt.time(9, 0), disabled=True)
+                    ui.time_picker(value=dt.time(9, 0), disabled=True)
                 with ui.vstack(gap="xs"):
                     ui.text("required", color="muted", size="xs")
-                    ui.time_picker(dt.time(9, 0), required=True)
+                    ui.time_picker(value=dt.time(9, 0), required=True)
                 with ui.vstack(gap="xs"):
                     ui.text('clearable=False (no ×)',
                             color="muted", size="xs")
-                    ui.time_picker(dt.time(9, 0), clearable=False)
+                    ui.time_picker(value=dt.time(9, 0), clearable=False)
 
             ui.heading("close_on_pick", level=3)
             ui.text(
@@ -411,11 +411,11 @@ def page() -> None:
                 with ui.vstack(gap="xs"):
                     ui.text("close_on_pick=True", color="muted",
                             size="xs")
-                    ui.time_picker(dt.time(9, 0))
+                    ui.time_picker(value=dt.time(9, 0))
                 with ui.vstack(gap="xs"):
                     ui.text("close_on_pick=False", color="muted",
                             size="xs")
-                    ui.time_picker(dt.time(9, 0),
+                    ui.time_picker(value=dt.time(9, 0),
                                    close_on_pick=False)
 
         # ── Card 2 — Slots ──────────────────────────────────────
@@ -431,11 +431,11 @@ def page() -> None:
                 with ui.vstack(gap="xs"):
                     ui.text('default (H / M)', color="muted",
                             size="xs")
-                    ui.time_picker(dt.time(9, 30))
+                    ui.time_picker(value=dt.time(9, 30))
                 with ui.vstack(gap="xs"):
                     ui.text('i18n: placeholder + headers',
                             color="muted", size="xs")
-                    ui.time_picker(dt.time(9, 30),
+                    ui.time_picker(value=dt.time(9, 30),
                                    placeholder="Heure…",
                                    hour_label="Heures",
                                    minute_label="Min")
@@ -458,17 +458,17 @@ def page() -> None:
 
             ui.heading("Midnight and 23:59", level=3)
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
-                ui.time_picker(dt.time(0, 0))
-                ui.time_picker(dt.time(23, 59), step=1)
+                ui.time_picker(value=dt.time(0, 0))
+                ui.time_picker(value=dt.time(23, 59), step=1)
 
             ui.heading('step=60 (a single possible minute)',
                        level=3)
             with ui.flex(classes="max-w-xs"):
-                ui.time_picker(dt.time(14, 0), step=60)
+                ui.time_picker(value=dt.time(14, 0), step=60)
 
             ui.heading('min == max (a single slot)', level=3)
             with ui.flex(classes="max-w-xs"):
-                ui.time_picker(dt.time(12, 0),
+                ui.time_picker(value=dt.time(12, 0),
                                min="12:00", max="12:00")
 
             ui.heading("Valeur hors bornes", level=3)
@@ -476,12 +476,12 @@ def page() -> None:
                 'rewritten.',
                     color="muted", size="xs")
             with ui.flex(classes="max-w-xs"):
-                ui.time_picker(dt.time(3, 0),
+                ui.time_picker(value=dt.time(3, 0),
                                min="09:00", max="18:00")
 
             ui.heading('Inside a narrow cell', level=3)
             with ui.grid(cols={"base": 1, "md": 4}, gap="md"):
-                ui.time_picker(dt.time(9, 30))
+                ui.time_picker(value=dt.time(9, 30))
                 ui.text("Voisine.", color="muted")
                 ui.text("Voisine.", color="muted")
                 ui.text("Voisine.", color="muted")
@@ -496,9 +496,9 @@ def page() -> None:
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
                 with ui.form_field(label='Start time',
                                    hint='Slot opening'):
-                    ui.time_picker(dt.time(9, 0), min="08:00")
+                    ui.time_picker(value=dt.time(9, 0), min="08:00")
                 with ui.form_field(label="Heure de fin"):
-                    ui.time_picker(dt.time(18, 0), max="20:00")
+                    ui.time_picker(value=dt.time(18, 0), max="20:00")
 
             ui.heading('One slot, two fields', level=3)
             ui.text(
@@ -508,9 +508,9 @@ def page() -> None:
                 color="muted", size="xs",
             )
             with ui.hstack(gap="sm", align="center"):
-                ui.time_picker(dt.time(9, 0), size="sm")
+                ui.time_picker(value=dt.time(9, 0), size="sm")
                 ui.text("→", color="muted")
-                ui.time_picker(dt.time(17, 30), size="sm")
+                ui.time_picker(value=dt.time(17, 30), size="sm")
 
             ui.heading('explicit name= (escape hatch)', level=3)
             ui.text(
@@ -521,13 +521,13 @@ def page() -> None:
                 color="muted", size="xs",
             )
             with ui.flex(classes="max-w-xs"):
-                ui.time_picker(dt.time(9, 0), name="start_at")
+                ui.time_picker(value=dt.time(9, 0), name="start_at")
 
             ui.heading('Inside a ui.dialog', level=3)
             with ui.dialog(title="Planifier", width="md") as dlg, \
                             ui.vstack():
                 with ui.form_field(label='At what time?'):
-                    ui.time_picker(dt.time(14, 0))
+                    ui.time_picker(value=dt.time(14, 0))
                 ui.text(
                     'The panel is anchored in fixed position, so it '
                         "escapes the dialog's overflow.",
@@ -550,7 +550,7 @@ def page() -> None:
                 color="muted", size="sm",
             )
             with ui.flex(classes="max-w-xs"):
-                ui.time_picker(dt.time(9, 30),
+                ui.time_picker(value=dt.time(9, 30),
                                min="09:00", max="18:00",
                                aria_label='Appointment time')
 
@@ -719,7 +719,7 @@ def page() -> None:
             _new_value = ClientExpression("$event.target.value")
             with ui.flex(classes="max-w-xs"):
                 ui.time_picker(
-                    dt.time(9, 0),
+                    value=dt.time(9, 0),
                     on_change=cevents.log.push(_new_value),
                 )
 
@@ -750,7 +750,7 @@ def page() -> None:
                     ' value.',
                 serialize_html(
                     ui.time_picker(
-                        dt.time(9, 0),
+                        value=dt.time(9, 0),
                         on_change=cevents.log.push(_new_value),
                     )
                 ),

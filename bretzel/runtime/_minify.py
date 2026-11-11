@@ -4,11 +4,10 @@ Why a home-made minifier, and why such a modest one
 ---------------------------------------------------
 
 The charter forbids npm in production; a minifier from the JS world
-would need either npm or one more binary to download. And the
-measurement of 2026-08-27 says ambition buys nothing here: on
-``runtime.js``, **stripping only the comments and the indentation**
-gives 286 758 → 107 395 bytes, and 90 563 → **31 581 bytes gzipped**
-(−65 %). Renaming local variables, on the other hand, is paid for in
+would need either npm or one more binary to download. And ambition buys
+nothing here: on ``runtime.js``, **stripping only the comments and the
+indentation** does most of the work. Renaming local variables, on the
+other hand, is paid for in
 risk and would return only a few kilobytes once gzipped — gzip already
 encodes a repeated identifier as a reference.
 

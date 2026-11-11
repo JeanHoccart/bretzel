@@ -20,6 +20,13 @@ from bretzel.components.primitives.icon.theme import ICON_THEME
 from bretzel.core import escape_js
 from bretzel.core.tree import Element
 
+#: A set's everyday name → its Iconify prefix, when the two differ.
+#: Iconify knows Phosphor as ``ph``: ``phosphor:heart`` answers 404
+#: everywhere, so ``set="phosphor"`` drew nothing at all.
+ICONIFY_PREFIX: dict[str, str] = {"phosphor": "ph"}
+#: The sets whose glyph names carry a style suffix (``-bold``, ``-fill``…).
+STYLED_SETS = frozenset({"ph", "tabler"})
+
 
 class Icon(Component):
     """Inline icon. ``name`` accepts ``"save"`` (resolved against the
@@ -42,12 +49,10 @@ class Icon(Component):
     # universal kwargs ``Component.__init__`` absorbs (classes / id /
     # attrs / visible / tooltip / style / tag). It ``pop`` them BEFORE
     # the routing to the reactive_prop, so a prop named ``style`` can
-    # never receive a value. As long as this parameter was called
-    # ``style``, it was dead on both sides: the Iconify suffix never
-    # reached the glyph, and the value left as invalid inline CSS
-    # (``style="bold"``). The playground exercised it on 4 Phosphor
-    # icons, with no effect. Audit F27; gated by
-    # ``test_no_universal_kwarg_shadowing``.
+    # never receive a value. Called ``style``, this parameter would be
+    # dead on both sides: the Iconify suffix would never reach the glyph,
+    # and the value would leave as invalid inline CSS (``style="bold"``).
+    # Gated by ``test_no_universal_kwarg_shadowing``.
     icon_style: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
@@ -71,6 +76,9 @@ class Icon(Component):
         explicit_set = self._reactive_values.get("set")
         explicit_style = self._reactive_values.get("icon_style")
         default_set = explicit_set or theme.get("set", "lucide")
+        # Translated BEFORE it is baked into the page: the runtime's
+        # resolver (``$bz._resolveIcon``) then only ever sees the prefix.
+        default_set = ICONIFY_PREFIX.get(default_set, default_set)
         default_style = explicit_style or theme.get("style")
 
         cls_string = self.compose_class("root")
@@ -124,9 +132,11 @@ class Icon(Component):
         if not name:
             return ""
         if ":" in name:
-            # Full form — caller already chose a set.
-            return name
+            # Full form — caller already chose a set; only its everyday
+            # name becomes the prefix Iconify knows (``phosphor:x``).
+            prefix, _, rest = name.partition(":")
+            return f"{ICONIFY_PREFIX.get(prefix, prefix)}:{rest}"
         full = f"{default_set}:{name}"
-        if default_style and default_set in ("phosphor", "tabler"):
+        if default_style and default_set in STYLED_SETS:
             full = f"{full}-{default_style}"
         return full

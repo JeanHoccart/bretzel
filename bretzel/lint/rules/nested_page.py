@@ -4,7 +4,7 @@ The silence it closes
 ---------------------
 
 ``@page`` **marks** the function, it registers nothing — that is
-anti-rule 4, and it is what makes import order irrelevant. Registration
+what makes import order irrelevant. Registration
 comes from ``include``, which sweeps a module's **top-level** callables.
 A function defined inside another's body is an attribute of no module:
 the sweep cannot see it.
@@ -25,14 +25,12 @@ The app starts, says nothing, and returns **404 on all its pages**. And
 404 is exactly what a typo in the path returns: one re-reads one's
 ``@page``, one's prefix, one's ``include`` — and everything is correct.
 
-A real case, in this repository
--------------------------------
+Why a green suite does not say so
+---------------------------------
 
-``tests/unit/server/test_protocol_compat_gate.py`` has declared a ``/``
-page this way since 2026-08-01. Measured on 2026-09-10: ``GET /``
-returns **404** and ``home`` is not an attribute of the module. The tests
-pass because they POST to the action route and never visit the page — so
-nothing has ever reported it.
+``GET /`` returns **404** and ``home`` is not an attribute of the module.
+Tests that POST to the action route and never visit the page still pass,
+so nothing reports it.
 
 The three LEGITIMATE forms, and why the rule spares them
 --------------------------------------------------------
@@ -53,9 +51,8 @@ it never is. The criterion is therefore not "nested", it is "nested AND
 never taken up again": a page no expression names can be harvested by
 nobody.
 
-Measured over ``tests/`` (75 nested declarations), that is what separates
-the real case above from the vast majority, which pass the function to
-``include``.
+That is what separates the real case above from the vast majority, which
+pass the function to ``include``.
 
 ``error_page`` is judged the same way: ``include`` sweeps it through the
 same path, and a mute error page is even more discreet — one only visits

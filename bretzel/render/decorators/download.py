@@ -1,7 +1,6 @@
 """``@download`` — the routable that returns a FILE, not a page.
 
-Settled in session (``these-portee-2026-08-19.md`` § 7), shipped on
-2026-09-02 ::
+Usage ::
 
     @download("/customers.csv")
     async def customers_csv() -> list[dict]:
@@ -57,6 +56,7 @@ decision, not housekeeping.
 from __future__ import annotations
 
 import inspect
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -67,7 +67,7 @@ from bretzel.core.errors import BretzelError
 class DownloadAlreadyMarkedError(BretzelError):
     """Two ``@download`` on the SAME function — the second would erase the first.
 
-    Same refusal, same reason and same measurement as
+    Same refusal and same reason as
     :class:`~bretzel.render.decorators.page.PageAlreadyMarkedError`: the
     mark lives on the function object, so a second decoration makes the
     first route unreachable, as a 404, without a word.
@@ -95,6 +95,40 @@ def _filename_of(path: str) -> str:
     return last or "download"
 
 
+#: ``{name}`` or ``{name:converter}`` in a route path.
+_PATH_PARAM = re.compile(r"\{(\w+)(?::\w+)?\}")
+
+
+def path_params_of(path: str) -> list[str]:
+    """The parameter names a route path declares, in order."""
+    return _PATH_PARAM.findall(path)
+
+
+def _refuse_unbound_parameters(path: str, fn: Callable[..., Any]) -> None:
+    """Every path parameter must reach the function, and every required
+    parameter of the function must come from the path — decided here, at
+    import, rather than as a 500 at the first click."""
+    declared = set(path_params_of(path))
+    params = inspect.signature(fn).parameters
+    missing = sorted(declared - set(params))
+    required = sorted(
+        name for name, p in params.items()
+        if p.default is inspect.Parameter.empty
+        and p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
+        and name not in declared
+    )
+    if missing or required:
+        name = getattr(fn, "__qualname__", fn)
+        raise TypeError(
+            f"@download({path!r}) on {name}: "
+            + (f"the path declares {missing} but the function takes no such "
+               f"parameter. " if missing else "")
+            + (f"the function requires {required}, which the path does not "
+               f"declare — they would never receive a value. " if required else "")
+            + "A download receives its path parameters by name, and nothing else."
+        )
+
+
 def download(
     path: str,
     *,
@@ -110,6 +144,7 @@ def download(
         )
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        _refuse_unbound_parameters(path, fn)
         meta = DownloadMeta(
             path=path,
             filename=filename or _filename_of(path),

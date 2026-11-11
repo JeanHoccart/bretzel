@@ -13,14 +13,14 @@ Two value shapes :
   Picks render as removable pills inside the trigger ; pills can
   be removed by the inline ``×`` or by hitting Backspace on an
   empty input. Optional ``bulk_actions=True`` adds Select-all /
-  Deselect-all buttons to the panel header.
+  Clear buttons to the panel footer, under the list.
 
 ``trigger=`` — the widget without its text field :
 
   By default the search field IS the trigger (that is what a
   type-ahead is). Pass ``trigger=`` any component and the roles
   split : your component opens the panel, and the search field
-  moves to the top of the panel, above the header bar ::
+  moves to the top of the panel ::
 
       ui.combobox(STATUSES, value=picked, multiple=True,
                   bulk_actions=True,
@@ -31,11 +31,32 @@ Two value shapes :
   panel, same list, same bulk actions ; only the way in changes.
   In this mode the panel drops the trigger pills (the caller's
   trigger says what is picked) and no longer matches the trigger's
-  width (a 80px button would give a 80px panel).
+  width (a 80px button would give a 80px panel). In multi mode each
+  option carries a checkbox on its left — a list you tick reads as
+  one — and the panel offers Clear as soon as something is picked.
+  The search field only shows past ``SEARCH_ABOVE`` options : five
+  values need no search, and the field would sit between the
+  reader and the list for nothing.
+
+``creatable=True`` — a value not in the list :
+
+  Typing a text no option says (label or value, case and accents
+  folded) offers a last row « Create "…" ». Picking it — a click, or
+  Enter when it is highlighted or no option is left — makes the typed
+  text the value (a pill in multi mode), and ``on_change`` fires as for
+  any pick. Enter keeps its meaning: it picks the first filtered option
+  first. A value in no option then shows as itself (only in this mode:
+  an unknown id does not show in clear). What to do with a new value —
+  store it as a place, a tag — is the app's: the server receives the
+  text ::
+
+      ui.combobox(places, value=event.location, name="location",
+                  creatable=True)
 
 Filter strategy (v1, non-configurable) :
-- Normalise both query and (label + value) : lowercase + Unicode NFD
-  + strip combining marks (diacritics-insensitive).
+- Fold both query and (label + value) with the framework's one ``fold``
+  (``bretzel/core/text.py``, browser twin ``$bz.fold``): case- and
+  accent-insensitive.
 - Split the normalised query on whitespace → tokens.
 - An option matches iff EVERY token is a substring of its
   normalised haystack.
@@ -103,7 +124,6 @@ Runtime notes (twin of Select) :
 from __future__ import annotations
 
 import json
-import unicodedata
 from collections.abc import Callable, Iterable
 from typing import Any, ClassVar
 
@@ -112,63 +132,54 @@ from bretzel.components.base import (
     reactive_prop,
     stamp_display_none,
 )
-from bretzel.components.base._wiring import (
-    ARIA_OF_THE_FOCUSABLE,
+from bretzel.components.base.arguments import has_content, shown
+from bretzel.components.base.field_wiring import change_emit_effect as _change_emit_effect
+from bretzel.components.base.field_wiring import (
+    relocate_aria,
+    relocate_handlers,
+    retrigger,
+    trigger_event,
+)
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.overlay_wiring import (
     CHANGED_FLAG,
-    ROOT_DISPATCHED_EVENTS,
-    SERVER_ACTION_ATTRS,
+    FILL_WIDTH_RE,
     anchored_dismiss_init,
-    anchored_panel_effect,
+    anchored_panel,
     anchored_trigger_wrapper,
-    bool_attr,
     changed_since_open_effect,
     dispatch_root_effect,
     imperative_listeners,
     install_open_close_toggle,
-    retrigger,
-    scope_literal,
-    shrink_fit_wrapper,
-    theme_context,
-    trigger_asks_full_width,
-    trigger_event,
+    trigger_is_full_width,
 )
-from bretzel.components.base._wiring import (
-    change_emit_effect as _change_emit_effect,
-)
+from bretzel.components.base.scope_wiring import bool_attr, scope_literal
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.feedback.badge.theme import BADGE_THEME
 from bretzel.components.inputs._picker import (
     badge_pill_classes,
+    build_footer_bar,
     build_header_bar,
     build_pills_template,
     has_picks,
     normalise_option,
     option_body,
     option_check,
+    option_classes,
     render_x_icon,
-    sized_slot,
 )
+from bretzel.components.inputs._wiring import ChoiceCommands
 from bretzel.components.inputs.combobox.theme import COMBOBOX_THEME
 from bretzel.components.primitives.icon import Icon
+from bretzel.core.text import fold
 from bretzel.core.tree import Element, Node
-from bretzel.render import text
+from bretzel.render import template, text
 from bretzel.state.scopes.client import ClientBinding
 
-# Native HTMX action attrs a callable handler lands on the root via
-# ``emit_attrs`` ; relocated wholesale to the hidden input that holds
-# name+value for ``change``, or onto the search input for ``search``.
-_ACTION_ATTRS = SERVER_ACTION_ATTRS
-
-
-def _normalise_text(text: str) -> str:
-    """Lowercase + Unicode NFD + strip combining marks.
-
-    Used server-side to pre-bake the per-option haystack. The
-    client-side JS uses the equivalent recipe (``toLowerCase``,
-    ``normalize('NFD')``, ``replace(/\\p{M}/gu, '')``) — same
-    contract so server-baked haystacks match runtime queries.
-    """
-    nfd = unicodedata.normalize("NFD", text)
-    return "".join(c for c in nfd if not unicodedata.combining(c)).lower()
+#: Pre-bakes the per-option haystack: the framework's one ``fold``
+#: (``bretzel/core/text.py``), whose browser twin ``$bz.fold`` folds the
+#: query — same string on both sides, or a typed word misses its option.
+_normalise_text = fold
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -176,7 +187,43 @@ def _normalise_text(text: str) -> str:
 # ───────────────────────────────────────────────────────────────────────────
 
 
-class Combobox(Component):
+def shrink_fit_wrapper(root_cls: str) -> str:
+    """The other direction : a ``w-full`` root that must hug its trigger.
+
+    :func:`expand_fit_wrapper` serves the overlays, whose root defaults to
+    ``w-fit`` and must GROW for a full-width trigger. A form control
+    defaults to ``w-full`` (a field fills its row) and has the symmetric
+    problem the day it stops being a field : ``ui.combobox(trigger=…)``
+    wraps the caller's « Status » button, and ``w-full`` stretches it
+    across the toolbar.
+
+    SUBSTITUTED, never appended, for the same reason the sibling strips :
+    ``w-full w-fit`` resolves in an order Tailwind does not promise, so
+    the loser is decided by stylesheet position rather than by intent.
+    """
+    return root_cls.replace("w-full", "w-fit")
+
+
+def trigger_asks_full_width(component: Any, triggers: list[Any]) -> bool:
+    """Does anything ask this wrapper to fill its row ?
+
+    Two sources, and BOTH matter — that is the whole point of the helper.
+    :func:`trigger_is_full_width` reads the trigger ; a caller can also
+    ask on the wrapper itself, and does so through two different doors :
+    ``classes="w-full"`` (``_user_classes_str``) and ``class_=`` /
+    ``attrs={"class": …}`` (``_raw_class_str``, appended after render by
+    the universal-modifier pass). Checking only the first silently shrank
+    a combobox whose caller had used the second.
+    """
+    for source in (component._user_classes_str(), component._raw_class_str):
+        # Same word, same trap: a caller who writes
+        # ``classes="max-w-full"`` asks for a CEILING, not a width.
+        if FILL_WIDTH_RE.search(source or ""):
+            return True
+    return trigger_is_full_width(triggers)
+
+
+class Combobox(ChoiceCommands, FocusCommands, Component):
     """Search-as-you-type select with single / multi modes."""
 
     THEME: ClassVar[dict[str, Any]] = COMBOBOX_THEME
@@ -187,45 +234,53 @@ class Combobox(Component):
     #: nowhere to put their markup — hence ``render=``, their only entry
     #: point.
     #:
-    #: ⚠️ Declared ``"client"`` by mistake on 2026-08-18, on a TRUNCATED
-    #: reading of a ``combobox.py`` comment ("built once server-side so
-    #: the JS filter only does a…"), read as "the client owns the list"
-    #: while it says the opposite. The JS filter is a ``bz-show``: it
-    #: HIDES already rendered buttons, it creates none. The distinction
-    #: reads in one word of vocabulary — ``bz-for`` clones (that is
-    #: ``file_upload``), ``bz-show`` hides.
+    #: ⚠️ Not ``"client"``, despite the JS filter: the filter is a
+    #: ``bz-show``, it HIDES already rendered buttons and creates none.
+    #: The distinction reads in one word of vocabulary — ``bz-for`` clones
+    #: (that is ``file_upload``), ``bz-show`` hides.
     #: Cf. ``Component.COLLECTION_OWNER``.
     COLLECTION_OWNER: ClassVar[str | None] = "component"
     IS_CONTAINER: ClassVar[bool] = False
     # Curated reactive surface — picked value + lock flag.
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value", "disabled")
-    #: ⚠️ ``open`` / ``close`` / ``toggle`` added on 2026-09-03, AT THE
-    #: SAME TIME as on the six pickers. Combobox is an anchored panel
-    #: carrying a value — exactly their shape — and it exposed only the
-    #: field half. Giving it to them without giving it to this one would
-    #: have made two conventions for a single shape.
+    #: ``open`` / ``close`` / ``toggle``, as on the six pickers: Combobox
+    #: is an anchored panel carrying a value — exactly their shape — and a
+    #: single shape has a single convention.
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle",
         "set", "clear", "focus", "blur",
         "select_all", "deselect_all",
     )
+    # Where ``autofocus=`` / ``.focus()`` land: the search field.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("input[type=text]",)
     EVENTS: ClassVar[tuple[str, ...]] = (
         "change", "focus", "blur", "search", "close",
     )
     # Debounce (ms) for a callable ``on_search=`` server handler so a
     # POST doesn't fire on every keystroke. A subclass can override.
     SEARCH_DEBOUNCE_MS: ClassVar[int] = 200
+    # What a carrier (a second server handler) listens to: the search, as
+    # its own handler would — a typed query, after a pause.
+    DOM_EVENTS: ClassVar[dict[str, str]] = {
+        "search": f"input changed delay:{SEARCH_DEBOUNCE_MS}ms"}
+    # A detached panel (``trigger=``) shows its search field only past
+    # this many options. Below, the field stays in the DOM, invisible and
+    # read-only : it still holds the keyboard (arrows, Enter, Escape).
+    SEARCH_ABOVE: ClassVar[int] = 8
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
     value: Any = reactive_prop(default=None, emit_attr=False, writes=True, names_field=True)
     placeholder: str | None = reactive_prop(default=None, emit_attr=False)
     multiple: bool = reactive_prop(default=False, emit_attr=False)
     bulk_actions: bool = reactive_prop(default=False, emit_attr=False)
+    # Typing a value no option says offers « Create « … » » — the value
+    # becomes the typed text.
+    creatable: bool = reactive_prop(default=False, emit_attr=False)
     # ``None`` and not the English sentence: a ``reactive_prop``
     # default is evaluated at the module's IMPORT, so before an app has
     # declared its language — it would freeze English. The value is read
     # at render.
-    empty_text: str | None = reactive_prop(default=None, emit_attr=False)
+    empty_text: str | Component | None = reactive_prop(default=None, emit_attr=False)
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -239,7 +294,8 @@ class Combobox(Component):
         value: Any = None,
         multiple: bool | None = None,
         bulk_actions: bool | None = None,
-        empty_text: str | None = None,
+        creatable: bool | None = None,
+        empty_text: str | Component | None = None,
         name: str | None = None,
         placeholder: str | None = None,
         trigger: Component | None = None,
@@ -260,6 +316,7 @@ class Combobox(Component):
             placeholder=placeholder,
             multiple=multiple,
             bulk_actions=bulk_actions,
+            creatable=creatable,
             empty_text=empty_text,
             disabled=disabled, required=required,
             color=color, size=size,
@@ -272,71 +329,37 @@ class Combobox(Component):
         )
         self._options = list(options)
         self._render = render
-        # Detached from the parent stack at CONSTRUCTION — a component
-        # registers with the active parent in its own ``__init__``, and
-        # without that it would paint once as a sibling before we adopt
-        # it (cf. ``test_slot_adoption``). Same gesture as
-        # Popover.trigger.
-        self._trigger: Component | None = Component.adopt_slot(trigger)
+        self._trigger: Component | None = trigger
         # AFTER `super().__init__`: the installer reads `_binding_metadata`.
         install_open_close_toggle(self)
-
-    # ── Imperative write-only API ─────────────────────────────────────
-
-    def set(self, value: Any) -> str:
-        """Write the picked value. In multi mode, ``value`` should be
-        a list ; in single mode, a scalar."""
-        return self._value_command(value)
-
-    def clear(self) -> str:
-        """Clear the picked value(s). Single → ``""`` ; multi → ``[]``."""
-        is_multi = bool(self._reactive_values.get("multiple"))
-        return self.set([] if is_multi else "")
-
-    def focus(self) -> str:
-        return (
-            f"document.getElementById('{self.id}')"
-            ".querySelector('input[type=text]').focus()"
-        )
-
-    def blur(self) -> str:
-        return (
-            f"document.getElementById('{self.id}')"
-            ".querySelector('input[type=text]').blur()"
-        )
-
-    def select_all(self) -> str:
-        """Pick every CURRENTLY-VISIBLE option. Multi mode only ;
-        single-mode picks no-op (you can't pick more than one)."""
-        return self._dispatch_command("bz-select-all")
-
-    def deselect_all(self) -> str:
-        """Clear every pick. Sugar over ``.clear()`` — kept distinct
-        for symmetry with ``.select_all()`` (and so the bulk-actions
-        buttons can call it directly)."""
-        return self._dispatch_command("bz-deselect-all")
-
 
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        _theme, slots, sizes, size_key, _color = theme_context(self)
-        size_map = sizes.get(size_key, sizes.get("md", {}))
+        _theme, slots, _sizes, _size_key, _color = theme_context(self)
+        # The row's settings (glyph and pill tokens, ``panel_free``); its
+        # classes reach the slots through ``compose_class``.
+        size_map = self._size_row() or {}
         is_multi = bool(self._reactive_values.get("multiple"))
         bulk_actions = bool(self._reactive_values.get("bulk_actions"))
         disabled = bool(self._reactive_values.get("disabled"))
         required = bool(self._reactive_values.get("required"))
         placeholder = self._reactive_values.get("placeholder") or ""
-        empty_text = (
-            self._reactive_values.get("empty_text") or text("combobox.empty")
-        )
+        # ``shown``: a bound empty text is drawn live; ``has_content``
+        # because a binding refuses ``or``.
+        empty_text = shown(self, "empty_text")
+        if not has_content(empty_text):
+            empty_text = text("combobox.empty")
         # ``trigger=`` splits the two roles the text field plays by
         # default (open the panel / type to filter) : the caller's
         # component opens, and the field moves INTO the panel.
         detached = self._trigger is not None
-
-        def _resolve(template: str) -> str:
-            return template
+        # Detached, a short list keeps its field out of sight (cf.
+        # ``SEARCH_ABOVE``).
+        creatable = bool(self._reactive_values.get("creatable"))
+        # ``creatable`` needs somewhere to type: it keeps the field.
+        searchable = (not detached or creatable
+                      or len(self._options) > self.SEARCH_ABOVE)
 
         # ── Resolve options + pre-bake the normalised haystack ──────
         # Each option becomes (value, label, disabled, haystack)
@@ -410,81 +433,31 @@ class Combobox(Component):
         relocated_to_hidden: dict[str, Any] = {}
         relocated_to_input: dict[str, Any] = {}
         relocated_to_input_search: dict[str, Any] = {}
-        # A single server handler lands ONE HTMX bundle on the root
-        # (the base enforces one ``hx-post`` per element) ; its
-        # ``hx-trigger`` names the event it serves. Pop the whole
-        # bundle once and route it by event — ``change`` → hidden
-        # input, ``search`` → search input (re-pinned to ``input``).
-        # The EVENT, not the string: ``hx-trigger`` carries the
-        # modifiers of a ``debounce=`` / ``throttle=``. Comparing the
-        # whole string made the three tests below fail as soon as a
-        # ``debounce=`` was set, and the bundle popped below was then
-        # re-stamped NOWHERE — ``hx-post`` lost, ``on_change`` dead in
-        # silence.
         server_event = trigger_event(root_attrs)
-        action_bundle: dict[str, Any] = {}
-        # ``close`` is the exception : it is dispatched ON the root by
-        # ``dispatch_root_effect``, so its bundle is already where it
-        # belongs. Popping it here would strip the ``hx-post`` and put
-        # it back nowhere — a silently dead ``on_close=``. The set is the
-        # framework's (``_wiring.ROOT_DISPATCHED_EVENTS``), not a local
-        # whitelist of what DOES move : the whitelist form has to be
-        # extended by hand for every new event, and forgetting is exactly
-        # the silent death it guards against.
-        if ("hx-post" in root_attrs
-                and server_event not in ROOT_DISPATCHED_EVENTS):
-            for ev_attr in _ACTION_ATTRS:
-                if ev_attr in root_attrs:
-                    action_bundle[ev_attr] = root_attrs.pop(ev_attr)
-        # change handler — string form rides ``bz-on:change``, the
-        # callable's bundle rides the hidden input pinned to ``change``
-        # (the only event a hidden input fires, via
-        # ``_change_emit_effect``).
-        if "bz-on:change" in root_attrs:
-            relocated_to_hidden["bz-on:change"] = root_attrs.pop(
-                "bz-on:change"
-            )
-        if server_event == "change":
-            # ``hx-trigger`` travels IN ``action_bundle``: the re-pin
-            # that lived here rewrote it to a bare ``"change"`` and threw
-            # away the caller's ``debounce=``.
-            relocated_to_hidden.update(action_bundle)
-        for ev_attr in ("bz-on:focus", "bz-on:blur"):
-            if ev_attr in root_attrs:
-                relocated_to_input[ev_attr] = root_attrs.pop(ev_attr)
         # ``on_search=`` is exposed as a native ``input`` event on the
-        # inner text field — fires on every keystroke so the caller can
-        # mirror the query into state, log analytics, trigger a fetch
-        # in a future async v2, etc. The string form rides
-        # ``bz-on:input`` ; the callable form re-pins its ``hx-trigger``
-        # to ``input`` (with the debounce HTMX understands) so it POSTs
-        # per keystroke.
+        # inner text field, so the caller can mirror the query into state
+        # or trigger a fetch.
+        relocate_handlers(root_attrs, {
+            "change": relocated_to_hidden,
+            "focus": relocated_to_input,
+            "blur": relocated_to_input,
+            "search": (relocated_to_input_search, "input"),
+        })
         # Name, description and validity name the FOCUSABLE element (the
         # search input), not the wrapper.
-        for aria in ARIA_OF_THE_FOCUSABLE:
-            if aria in root_attrs:
-                relocated_to_input[aria] = root_attrs.pop(aria)
-        if "bz-on:search" in root_attrs:
-            relocated_to_input_search["bz-on:input"] = root_attrs.pop(
-                "bz-on:search"
-            )
+        relocate_aria(root_attrs, relocated_to_input)
         if server_event == "search":
-            relocated_to_input_search.update(action_bundle)
-            # ``search`` changes EVENT (``search`` → native ``input``),
-            # so here the trigger really is rewritten. The caller's
-            # debounce beats the component's default — otherwise
-            # ``debounce=`` was accepted then ignored, which is worse
-            # than refused.
+            # A POST per keystroke, debounced: the caller's ``debounce=``
+            # beats the component's default.
             relocated_to_input_search["hx-trigger"] = "input changed " + (
                 self._trigger_modifier or f"delay:{self.SEARCH_DEBOUNCE_MS}ms"
             )
-        # focus / blur callable → the focusable search input (the base
-        # emitted ``hx-trigger="focus"``/``"blur"`` ; keep it). Without
-        # this the bundle was popped off the root above and only re-applied
-        # for change / search, so a callable ``on_focus`` / ``on_blur`` was
-        # silently DROPPED (no hx-post anywhere on the component).
-        if server_event in ("focus", "blur"):
-            relocated_to_input.update(action_bundle)
+            # The search input has no name and sits in no form: this brings
+            # the ``query`` mirror and the value, as ``on_close=`` brings the
+            # value below.
+            relocated_to_input_search["hx-include"] = (
+                f"#{self.id} input[bz-ref=bzquery], #{self.id} input[bz-ref=bzhidden]"
+            )
 
         # ── Hidden inputs — form integration + change dispatch ──────
         # For multi the picked value ships as JSON-stringified array.
@@ -554,7 +527,7 @@ class Combobox(Component):
 
         # ── bz-data : state + filter + pick helpers ─────────────────
         # The ~30 normalise / filter / nav / pick methods live ONCE in
-        # ``14_combobox.js``: a shared ``$bz.combobox.common`` (filter +
+        # ``combobox.js``: a shared ``$bz.combobox.common`` (filter +
         # nav) plus the mode's ``.single`` / ``.multi``. The instance
         # emits its data; ``_options`` (each entry carries its label and
         # its pre-normalised haystack) is server config, re-seeded so a
@@ -571,22 +544,13 @@ class Combobox(Component):
             server_synced=value_server_backed,
             bound_read=f"v == null ? {empty_js} : v",
             fields={"open": "false", "query": "''", "_highlight": "-1"},
-            config={"_options": options_js},
+            config={"_options": options_js,
+                    **({"_creatable": "true"} if creatable else {})},
         )
 
         # ── Trigger : pills (multi only) + input + clear + chevron ──
-        trigger_class = " ".join(
-            p for p in (
-                _resolve(slots.get("trigger", "")),
-                size_map.get("trigger", ""),
-            ) if p
-        )
-        input_class = " ".join(
-            p for p in (
-                slots.get("input", ""),
-                size_map.get("input", ""),
-            ) if p
-        )
+        trigger_class = self.compose_class("trigger")
+        input_class = self.compose_class("input")
 
         # Trigger pills (multi only, CLOSED state). When the panel is
         # open the picks move to the panel header (the ``header_bar``
@@ -606,7 +570,7 @@ class Combobox(Component):
             # color recipe) and the Combobox pills inherit it for
             # free — no duplicate maintenance burden.
             badge_pill_class, badge_remove_class = badge_pill_classes(
-                _resolve, size=size_map.get("pill_size", "sm"),
+                size=size_map.get("pill_size", "sm"),
                 badge_theme=self._resolved_theme("badge", BADGE_THEME),
             )
             pill_template = build_pills_template(
@@ -651,8 +615,8 @@ class Combobox(Component):
             # binding path) — a method works in any surface, unlike a
             # bare ``value`` which only resolves the local field in
             # literal mode. ``_labelOf`` reads the label in
-            # ``_options`` — which already carries it, hence the
-            # disappearance of the ``_labels`` map (2026-08-28).
+            # ``_options``, which already carries it, so there is no
+            # ``_labels`` map.
             value_display_expr = "open ? query : _labelOf(_value())"
         # Keyboard handler — every per-key handler is fused into ONE
         # ``bz-on:keydown`` with explicit ``$event.key`` guards + inlined
@@ -680,7 +644,10 @@ class Combobox(Component):
         )
         input_attrs: dict[str, Any] = {
             "type": "text",
-            "class": input_class,
+            # Unsearchable : out of sight and read-only, so typing filters
+            # nothing the reader cannot see — but still focused on open,
+            # so the arrows, Enter and Escape keep working.
+            "class": input_class if searchable else "sr-only",
             "bz-attr:value": value_display_expr,
             "bz-on:input": "query = $event.target.value; open = true",
             "bz-ref": "bzinput",
@@ -696,7 +663,13 @@ class Combobox(Component):
             # it (after a Tab out and back) would wipe a query the reader
             # is still using. Only the click guard remains, so a click on
             # the field isn't read as a click-outside dismiss.
-            input_attrs["bz-on:focus"] = "open = true; query = ''"
+            #
+            # Not when the PAGE gives the focus (``autofocus=``, a dialog
+            # opening on it): the list would cover what follows before
+            # anyone asked for it (``$bz.helpers.pageGivesFocus``).
+            input_attrs["bz-on:focus"] = (
+                "if (!$bz.helpers.pageGivesFocus()) { open = true; query = '' }"
+            )
             input_attrs["bz-on:click"] = (
                 "$event.stopPropagation(); open = true; query = ''"
             )
@@ -724,6 +697,8 @@ class Combobox(Component):
                 )
             elif placeholder:
                 input_attrs["placeholder"] = placeholder
+        if not searchable:
+            input_attrs["readonly"] = True
         if disabled:
             input_attrs["disabled"] = True
         if required:
@@ -731,9 +706,9 @@ class Combobox(Component):
         # Combine (don't overwrite) when a user-relocated client-string
         # ``on_focus=`` handler targets the same event as the input's
         # own internal "open panel + clear search buffer" wiring. A
-        # blind ``dict.update`` here used to silently destroy
+        # blind ``dict.update`` here would silently destroy
         # ``open = true; query = ''`` — the panel would never open on
-        # focus once a user handler was wired to the same event.
+        # focus once a user handler is wired to the same event.
         # Internal logic runs FIRST so the panel state is consistent
         # before the caller's expression sees it. Server callables
         # never collide here — they route through ``hx-*``/
@@ -744,6 +719,15 @@ class Combobox(Component):
                 f"{input_attrs['bz-on:focus']}; {relocated_to_input['bz-on:focus']}"
             )
         input_attrs.update(relocated_to_input)
+        # Same rule for the search: if the caller's ``on_search`` expression
+        # replaced the component's own ``query = …; open = true``, the
+        # query would stop following the typing, the list would stop
+        # filtering and the server would receive « query= ». The
+        # component's first, then the caller's.
+        if "bz-on:input" in relocated_to_input_search and "bz-on:input" in input_attrs:
+            relocated_to_input_search["bz-on:input"] = (
+                f"{input_attrs['bz-on:input']}; {relocated_to_input_search['bz-on:input']}"
+            )
         input_attrs.update(relocated_to_input_search)
         # Reactive disabled : route the binding to the actual input.
         # ``forward_binding`` handles ClientBinding — the runtime's
@@ -759,12 +743,13 @@ class Combobox(Component):
             # ``trigger`` slot IS that shell, and it follows the widget
             # into the panel with its border, its focus ring and its
             # size row intact — including the ``w-full`` that makes it
-            # claim its own line in the flex-wrap header bar.
-            search_row = Element(
-                tag="div",
-                attrs={"class": trigger_class},
-                children=(search_field,),
-            )
+            # span the header bar.
+            if searchable:
+                search_row = Element(
+                    tag="div",
+                    attrs={"class": trigger_class},
+                    children=(search_field,),
+                )
             # Shared ``contents`` wrapper (Popover / Dropdown use the
             # same one) : ``anchored_panel_effect`` probes that display
             # to anchor on the caller's real box rather than on a
@@ -793,7 +778,7 @@ class Combobox(Component):
             # Clear button — only meaningful when there's a value.
             clear_attrs: dict[str, Any] = {
                 "type": "button",
-                "class": _resolve(slots.get("clear", "")),
+                "class": slots.get("clear", ""),
                 "aria-label": text("combobox.clear"),
                 "tabindex": "-1",
                 "bz-on:click": "$event.stopPropagation(); _clearAll()",
@@ -846,61 +831,52 @@ class Combobox(Component):
             children=trigger_children,
         )
 
-        # ── Panel : header bar + options + empty ────────────────────
-        # Single sticky header at the top of the panel that hosts
-        # (left → right) :
-        #   - the relocated search field, on its own line, when the
-        #     caller took the trigger over
-        #   - counter ``N / total`` in multi mode
-        #   - picks rendered as removable pills
-        #   - bulk actions (Select all / Clear) when opt-in
-        # Hidden entirely when nothing to show.
+        # ── Panel : header + options + empty + footer ──────────────
+        # The header (sticky top) carries the picks as pills — or, when
+        # the caller took the trigger over, the relocated search field :
+        # the field rides INSIDE the header rather than above it so the
+        # panel keeps ONE sticky block at the top. A detached panel too
+        # short to search keeps its invisible field, and no header.
         #
-        # The search field rides INSIDE the header rather than above it
-        # so the panel keeps ONE sticky block : two ``sticky top-0``
-        # siblings would pin to the same line and one would slide under
-        # the other as the option list scrolls.
+        # The footer (sticky bottom) carries the commands : the counter,
+        # Select all with ``bulk_actions``, and Clear — which a detached
+        # multi panel offers on its own, since a filter is opened to tick
+        # and untick.
         panel_children: list[Node] = []
-        show_bulk = is_multi and bulk_actions
-        total_options = len(options_data)
-        panel_children.append(
-            self._build_header_bar(
-                slots=slots,
-                size_map=size_map,
-                resolve=_resolve,
-                is_multi=is_multi,
-                show_bulk=show_bulk,
-                total_options=total_options,
-                initial_value=initial_value,
+        if not searchable:
+            panel_children.append(search_field)
+        else:
+            panel_children.append(build_header_bar(
+                self,
+                badge_theme=self._resolved_theme("badge", BADGE_THEME),
+                initial_value=initial_value, is_multi=is_multi,
                 lead=search_row,
-            )
+            ))
+        # The filter shape's checkbox : one node, the same for every
+        # option (its checked state is CSS off the option's
+        # ``aria-selected``), so it is built once.
+        option_box = (
+            self._render_option_box(size_map)
+            if is_multi and detached else None
         )
 
-        option_class_base = " ".join(
-            p for p in (
-                slots.get("option", ""),
-                size_map.get("option", ""),
-            ) if p
+        option_class_base = option_classes(
+            self, is_multi=is_multi,
         )
-        option_active_cls = self.compose_class(
-            "option_active",
-            apply_variant_size_modifiers=False,
-        )
-        option_selected_cls = self.compose_class(
-            "option_selected",
-            apply_variant_size_modifiers=False,
-        )
+        if option_box is not None:
+            # ``group`` : the option's ``aria-selected`` paints its box.
+            option_class_base = f"{option_class_base} group"
+        option_active_cls = self.compose_class("option_active")
+        option_selected_cls = self.compose_class("option_selected")
 
         for index, opt in enumerate(options_data):
             opt_v_js = json.dumps(opt["value"])
             haystack_js = json.dumps(opt["haystack"])
             label_str = opt["label"]
-            # ⚠️ FOUR directives left this option on 2026-09-02 —
-            # ``bz-class``, ``bz-attr:aria-selected`` and the two
-            # ``bz-on:``. They now live ONCE on the panel: one effect
-            # that repaints, two delegated listeners. Measured before:
-            # 461 B per option, of which 177 for those directives alone,
-            # copied identically N times.
+            # ⚠️ ``bz-class``, ``bz-attr:aria-selected`` and the two
+            # ``bz-on:`` are not on this option, where they would be
+            # copied identically N times. They live ONCE on the panel:
+            # one effect that repaints, two delegated listeners.
             #
             # ``bz-show`` STAYS per option: it is the search filter, and
             # the runtime has its own hiding machinery (anti-FOUC guard
@@ -918,7 +894,7 @@ class Combobox(Component):
                 "role": "option",
                 # The form-data value the option represents — distinct
                 # from the user-facing label. Standard ARIA listbox.
-                "data-value": opt["value"],
+                "data-bz-value": opt["value"],
                 # The index, read by the delegated hover to set
                 # ``_highlight``. The keyboard already uses it.
                 "data-bz-i": str(index),
@@ -929,15 +905,16 @@ class Combobox(Component):
             if opt["disabled"]:
                 opt_attrs["disabled"] = True
             # Multi: a tick on the right says "picked". The accent
-            # alone is not enough — ``option_active`` (hover / keyboard)
-            # is accented too, and a whole open list that is picked (the
-            # normal case of a column filter) no longer reads.
+            # text alone is colour only, and a list picked through
+            # would read as no selection at all.
             opt_children: tuple[Node, ...] = option_body(self._render,
                 opt["value"], label_str
             )
-            if is_multi:
+            if option_box is not None:
+                opt_children = (option_box, *opt_children)
+            elif is_multi:
                 opt_children += (option_check(
-                    slots=slots, size_map=size_map, resolve=_resolve,
+                    self,
                     picked_js=f"_isPicked({opt_v_js})",
                     initially_picked=opt["value"] in (
                         initial_value if isinstance(initial_value, list) else []
@@ -951,11 +928,39 @@ class Combobox(Component):
                 )
             )
 
-        # Empty state — shown when filter returns 0 visible options.
+        # ``creatable`` — the « Create « … » » row, LAST of the options:
+        # ``paintOptions`` lights the n-th ``[role=option]`` for
+        # ``_highlight === n``, and the scope puts it at
+        # ``_options.length``. Shown while ``_createText()`` says what
+        # would be created (nothing typed, or an option already says it:
+        # hidden). Its words travel as a template, filled in the browser.
+        if creatable:
+            create_attrs: dict[str, Any] = {
+                "type": "button",
+                "role": "option",
+                "data-bz-create": "",
+                "class": option_class_base,
+                "aria-selected": "false",
+                "bz-show": "_createText()",
+            }
+            stamp_display_none(create_attrs)
+            create_js = json.dumps(template("combobox.create"), ensure_ascii=False)
+            panel_children.append(Element(
+                tag="button",
+                attrs=create_attrs,
+                children=(Element(
+                    tag="span",
+                    attrs={"bz-text": f"{create_js}.replace('{{text}}', _createText())"},
+                    children=(),
+                ),),
+            ))
+
+        # Empty state — shown when filter returns 0 visible options (and,
+        # ``creatable``, nothing to create: the row above takes its place).
         # Hidden at SSR (every option visible with an empty query).
         empty_attrs: dict[str, Any] = {
-            "class": sized_slot(slots, size_map, "empty", _resolve),
-            "bz-show": "_visibleCount() === 0",
+            "class": self.compose_class("empty"),
+            "bz-show": "_visibleCount() === 0 && !_createText()",
         }
         stamp_display_none(empty_attrs)
         panel_children.append(
@@ -965,6 +970,11 @@ class Combobox(Component):
                 children=(self.emit_text_slot(empty_text),),
             )
         )
+        if is_multi and (bulk_actions or detached):
+            panel_children.append(self._build_footer_bar(
+                options_data=options_data, initial_value=initial_value,
+                select_all=bulk_actions,
+            ))
 
         # ── Anchored panel ───────────────────────────────────────────
         # ``bz-ref="bzpanel"`` + the shared ``anchored_panel_effect``
@@ -975,55 +985,55 @@ class Combobox(Component):
         # when the trigger IS the field, wrong when it's a small button
         # (an 80px « Status » would give an 80px panel). Detached, the
         # panel sizes itself off a ``min-w`` floor instead.
-        panel_class = sized_slot(slots, size_map, "panel", _resolve)
-        if detached:
-            panel_class = " ".join(
-                p for p in (panel_class, size_map.get("panel_free", "")) if p
-            )
-        panel_attrs: dict[str, Any] = {
-            "class": panel_class,
-            "role": "listbox",
-            "bz-ref": "bzpanel",
-            # Two effects composed with ``;`` — the anchoring, then the
-            # painting of the options. The picker already composes like
-            # that (``_picker_field.anchored_panel(extra_effect=…)``).
-            "bz-effect": anchored_panel_effect(
-                "open", "bottom-start", match_width=not detached,
-            ) + (
-                "; $bz.combobox.paintOptions("
-                "$el, _highlight, (v) => _isPicked(v))"
-            ),
-            # The two class strings travel ONCE here, instead of being
-            # copied into each option's ``bz-class``.
-            "data-bz-opt-active": option_active_cls,
-            "data-bz-opt-picked": option_selected_cls,
-            # The click ALWAYS goes through ``_togglePick``, in both
-            # modes: multi flips membership in the array, single
-            # deselects when you re-click the already picked option. It
-            # is the use one expects of a stateful selection control.
-            # Enter (keyboard) calls ``_pick`` in single mode — Enter
-            # CONFIRMS the highlighted one, it does not toggle.
-            #
-            # The click and the hover, DELEGATED. ⚠️ ``mouseover`` and
-            # not ``mouseenter``: the latter DOES NOT BUBBLE, so it
-            # cannot be delegated — a ``bz-on:mouseenter`` on the panel
-            # would never see the options.
-            "bz-on:click": (
-                "((o) => { if (o) { $event.stopPropagation(); "
-                "_togglePick(o.getAttribute('data-value')); } })"
-                "($bz.combobox.optionOf($event))"
-            ),
-            "bz-on:mouseover": (
-                "((o) => { if (o) _highlight = "
-                "+o.getAttribute('data-bz-i'); })"
-                "($bz.combobox.optionOf($event))"
-            ),
-        }
-        stamp_display_none(panel_attrs)
-        panel = Element(
-            tag="div",
-            attrs=panel_attrs,
+        # Detached, ``panel_free`` REPLACES the size row rather than adding
+        # to it : it carries its own ``max-h``, tall enough for
+        # ``SEARCH_ABOVE`` options plus the footer — a five-value filter
+        # that scrolls hides its last value under the footer. Two ``max-h``
+        # on one element would be settled by Tailwind's order, not ours.
+        panel_class = (
+            " ".join(p for p in (
+                self.compose_class("panel", apply_variant_size_modifiers=False),
+                size_map.get("panel_free", ""),
+            ) if p)
+            if detached else self.compose_class("panel")
+        )
+        # Two effects composed: the anchoring, then the painting of the options.
+        panel = anchored_panel(
+            css=panel_class,
             children=tuple(panel_children),
+            role="listbox",
+            match_width=not detached,
+            extra_effect="$bz.combobox.paintOptions($el, _highlight, (v) => _isPicked(v))",
+            attrs={
+                # The two class strings travel ONCE here, instead of being
+                # copied into each option's ``bz-class``.
+                "data-bz-opt-active": option_active_cls,
+                "data-bz-opt-picked": option_selected_cls,
+                # The click ALWAYS goes through ``_togglePick``, in both
+                # modes: multi flips membership in the array, single
+                # deselects when you re-click the already picked option. It
+                # is the use one expects of a stateful selection control.
+                # Enter (keyboard) calls ``_pick`` in single mode — Enter
+                # CONFIRMS the highlighted one, it does not toggle.
+                #
+                # The click and the hover, DELEGATED. ⚠️ ``mouseover`` and
+                # not ``mouseenter``: the latter DOES NOT BUBBLE, so it
+                # cannot be delegated — a ``bz-on:mouseenter`` on the panel
+                # would never see the options.
+                # The « Create » row (``creatable``) answers the same two.
+                "bz-on:click": (
+                    "((o) => { if (o) { $event.stopPropagation(); "
+                    "if (o.hasAttribute('data-bz-create')) _create(); "
+                    "else _togglePick(o.getAttribute('data-bz-value')); } })"
+                    "($bz.combobox.optionOf($event))"
+                ),
+                "bz-on:mouseover": (
+                    "((o) => { if (o) _highlight = "
+                    "o.hasAttribute('data-bz-create') ? _options.length "
+                    ": +o.getAttribute('data-bz-i'); })"
+                    "($bz.combobox.optionOf($event))"
+                ),
+            },
         )
 
         # ── Root assembly ───────────────────────────────────────────
@@ -1117,40 +1127,51 @@ class Combobox(Component):
 
     def _render_chevron(self, chevron_class: str, icon_size: str) -> Element:
         # ``with_slot_class``: clones + prepends the slot class without
-        # overwriting the child's. Same as select — the last two call
-        # sites of the inline clone-and-merge (audit F56).
-        # ``bz-class`` MERGES the rotation; ``bz-attr:class`` would
-        # REPLACE it.
+        # overwriting the child's. Same as select. The rotation is in the
+        # slot (``in-aria-expanded:``), not in a ``bz-class``.
         return Component.with_slot_class(
             Component.render_detached(Icon("chevron-down", size=icon_size)),
             chevron_class,
-            **{"bz-class": "open ? 'rotate-180' : ''"},
         )
 
-    def _build_header_bar(
+    def _render_option_box(self, size_map: dict[str, str]) -> Element:
+        """The filter shape's checkbox, on the left of an option.
+
+        Painted by CSS alone (``group-aria-selected:``) off the option's
+        ``aria-selected``, which SSR stamps and ``paintOptions`` repaints
+        — no directive per option, and no flicker before the runtime
+        boots. ``aria-hidden`` : the option already says it is selected.
+        """
+        return Element(
+            tag="span",
+            attrs={
+                "class": self.compose_class("option_box"),
+                "aria-hidden": "true",
+            },
+            children=(Component.render_detached(
+                Icon("check", size=size_map.get("box_icon_size", "xs")),
+            ),),
+        )
+
+    def _build_footer_bar(
         self,
         *,
-        slots: dict[str, str],
-        size_map: dict[str, str],
-        resolve: Callable[[str], str],
-        is_multi: bool,
-        show_bulk: bool,
-        total_options: int,
-        initial_value: Any,
-        lead: Element | None = None,
+        options_data: list[dict[str, Any]],
+        initial_value: list[str],
+        select_all: bool,
     ) -> Element:
-        """The shared header. Combobox compares against the VISIBLE
-        options: the query hides some, so "select all" stays active as
-        long as one visible unpicked one remains (and inactive on a list
-        filtered to empty, hence the ``c > 0`` guard)."""
-        return build_header_bar(
-            slots=slots, size_map=size_map, resolve=resolve,
-            badge_theme=self._resolved_theme("badge", BADGE_THEME),
-            is_multi=is_multi, show_bulk=show_bulk,
-            total_options=total_options, initial_value=initial_value,
-            lead=lead,
-            select_all_disabled_js=(
-                "((c) => c > 0 && _picked().length === c)(_visibleCount())"
+        """The shared footer. Combobox compares against the VISIBLE
+        options: the query hides some, so "select all" stays offered as
+        long as one visible unpicked one remains — and not on a list
+        filtered to empty, hence the ``c === 0`` term."""
+        return build_footer_bar(
+            self,
+            total_options=len(options_data), initial_value=initial_value,
+            usable_values=[o["value"] for o in options_data
+                           if not o["disabled"]],
+            select_all=select_all,
+            select_all_done_js=(
+                "((c) => c === 0 || _picked().length >= c)(_visibleCount())"
             ),
         )
 

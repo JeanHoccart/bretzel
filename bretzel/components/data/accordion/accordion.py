@@ -57,17 +57,13 @@ import json
 from collections.abc import Callable
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
-    bool_attr,
-    hidden_carrier_attrs,
-    scope_literal,
-    theme_context,
-    unwrap_transparent,
-)
-from bretzel.components.base._wiring import (
-    pop_change_handler as _pop_change_handler,
-)
+from bretzel.components.base import Component, ComponentUsageError, reactive_prop
+from bretzel.components.base.arguments import shown
+from bretzel.components.base.composition import unwrap_transparent
+from bretzel.components.base.field_wiring import hidden_carrier_attrs, relocate_handlers
+from bretzel.components.base.scope_wiring import bool_attr, scope_literal
+from bretzel.components.base.theme_values import theme_context
+from bretzel.components.base.universals import finish_render
 from bretzel.components.data.accordion.theme import ACCORDION_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element, Node
@@ -90,6 +86,9 @@ class Accordion(Component):
 
     THEME: ClassVar[dict[str, Any]] = ACCORDION_THEME
     THEME_KEY: ClassVar[str] = "accordion"
+    #: Draws its children itself: a zone among them is refused
+    #: (``base/composition.unwrap_transparent``).
+    _COMPOSES_CHILDREN: ClassVar[bool] = True
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("value",)
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("expand", "collapse", "toggle", "expand_all", "collapse_all")
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
@@ -101,6 +100,10 @@ class Accordion(Component):
     collapsible: bool = reactive_prop(default=True, emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
+    # The form field's name — as on Tabs, Pagination, Carousel, Stepper:
+    # derived from a bound ``value=state.x``, or given for a literal one
+    # that a server handler must still read.
+    name: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
         self,
@@ -110,13 +113,14 @@ class Accordion(Component):
         collapsible: bool | None = None,
         size: str | None = None,
         color: str | None = None,
+        name: str | None = None,
         on_change: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
         # Guard: without it an old ``type="multiple"`` would slip into
         # **kwargs → a dead HTML attribute → a silently single accordion.
         if "type" in kwargs:
-            raise TypeError(
+            raise ComponentUsageError(
                 "Accordion(type='single'|'multiple') has been replaced "
                 "by multiple=True|False — the same API as Select / "
                 "Combobox / FileUpload / ToggleGroup."
@@ -128,6 +132,7 @@ class Accordion(Component):
             collapsible=collapsible,
             size=size,
             color=color,
+            name=name,
             on_change=on_change,
             **kwargs,
         )
@@ -159,9 +164,7 @@ class Accordion(Component):
     def _imperative_collapse(self, item_value: str) -> str:
         # Always the dispatcher, binding or not: knowing whether the
         # item to collapse IS the open one is not decided on the server,
-        # only the runtime knows the live value. (There was a
-        # binding/multiple/collapsible branch here whose two arms
-        # returned the SAME expression — audit F33.)
+        # only the runtime knows the live value.
         return self._dispatch_command("bz-collapse", value=str(item_value))
 
     def _imperative_toggle(self, item_value: str) -> str:
@@ -179,15 +182,12 @@ class Accordion(Component):
     # ── Render ─────────────────────────────────────────────────────────
 
     def render(self) -> Element:
-        _theme, slots, sizes, size_key, _color = theme_context(self)
+        _theme, slots, _sizes, _size_key, _color = theme_context(self)
 
         is_multiple = bool(self._reactive_values.get("multiple"))
         collapsible = bool(self._reactive_values.get("collapsible", True))
 
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
-
-        def _resolve(template: str) -> str:
-            return template
+        size_cfg = self._size_row() or {}
 
         # ── Resolve binding for ``value`` ────────────────────────────
         value_binding = self._binding_metadata.get("value")
@@ -220,15 +220,14 @@ class Accordion(Component):
         # ── Walk children, collect AccordionItem ids ─────────────────
         # The ``(item, rewrap)`` pairs: a WRAPPED item — a
         # ``@refreshable`` zone, a ``ui.fragment`` — is not an instance
-        # of ``AccordionItem``, so sorting by type missed it. It then
-        # fell into the "foreign child" branch, whose bare render is a
-        # ``<div>`` with the BODY and nothing else: no more header, no
-        # more label, no more toggle. Measured on 2026-08-23: two header
-        # buttons → one, and the label gone.
+        # of ``AccordionItem``, so sorting by type would miss it. It would
+        # then fall into the "foreign child" branch, whose bare render is
+        # a ``<div>`` with the BODY and nothing else: no header, no label,
+        # no toggle.
         item_children: list[tuple[AccordionItem, Any]] = []
         passthrough: list[Element] = []
         for raw in self._children:
-            child, rewrap = unwrap_transparent(raw)
+            child, rewrap = unwrap_transparent(raw, self)
             if isinstance(child, AccordionItem):
                 item_children.append((child, rewrap))
             else:
@@ -242,7 +241,7 @@ class Accordion(Component):
         ]
 
         # The methods live once in ``$bz.accordion.single`` / ``.multi``
-        # (``16_accordion.js``). Two slabs rather than one parameterised:
+        # (``accordion.js``). Two slabs rather than one parameterised:
         # single carries a STRING, multi an ARRAY — merging them would
         # make every method re-test the type (same reason as Select).
         #
@@ -265,23 +264,17 @@ class Accordion(Component):
 
         # ── Build item nodes ─────────────────────────────────────────
         # Compose per-item class once — the internal divider (from the
-        # ``item`` slot). Header / body classes are composed per item to
-        # fold in the size overrides.
+        # ``item`` slot). Header and body take their size through the
+        # base composer.
         item_class = slots.get("item", "")
-        header_base = _resolve(slots.get("header", ""))
-        header_size = size_cfg.get("header", "")
-        header_class = " ".join(p for p in (
-            header_base, header_size,
-        ) if p)
+        header_class = self.compose_class("header")
         label_class = slots.get("label", "")
         icon_size = size_cfg.get("icon_size", "sm")
         chevron_size = size_cfg.get("chevron_size", "sm")
         chevron_class = slots.get("chevron", "")
         body_class = slots.get("body", "")
         body_clip_class = slots.get("body_clip", "")
-        body_inner_class = " ".join(p for p in (
-            slots.get("body_inner", ""), size_cfg.get("body_inner", ""),
-        ) if p)
+        body_inner_class = self.compose_class("body_inner")
 
         def _is_initially_open(item_value: str) -> bool:
             if is_multiple:
@@ -316,7 +309,8 @@ class Accordion(Component):
         # (callable → ``hx-post`` set ; string → ``bz-on:change``) and
         # carry them onto the hidden input below.
         root_attrs = self.emit_attrs()
-        relocated_change = _pop_change_handler(root_attrs)
+        relocated_change: dict[str, Any] = {}
+        relocate_handlers(root_attrs, {"change": relocated_change})
 
         name = self._reactive_values.get("name") or self._derive_field_name()
 
@@ -401,15 +395,15 @@ class AccordionItem(Component):
     ICON_SLOTS: ClassVar[tuple[str, ...]] = ("icon",)
 
     value: str = reactive_prop(default="", emit_attr=False)
-    label: Any = reactive_prop(default="", emit_attr=False)
+    label: str | Component | None = reactive_prop(default="", emit_attr=False)
     disabled: bool = reactive_prop(default=False, emit_attr=False)
 
     def __init__(
         self,
-        value: str = "",
+        value: str,
         *,
-        label: Any = None,
-        icon: Any = None,
+        label: str | Component | None = None,
+        icon: str | Component | None = None,
         disabled: bool | None = None,
         **kwargs: Any,
     ) -> None:
@@ -443,7 +437,9 @@ class AccordionItem(Component):
         initially_open: bool,
     ) -> Element:
         item_value = str(self._reactive_values.get("value") or "")
-        label_value = self._reactive_values.get("label")
+        # ``shown``: the binding when ``label`` is bound (a displayed
+        # content), else the resolved value.
+        label_value = shown(self, "label")
         disabled = bool(self._reactive_values.get("disabled"))
         value_js = json.dumps(item_value)
 
@@ -472,25 +468,15 @@ class AccordionItem(Component):
             Component._detach_from_parent(icon)
             header_children.append(icon.render())
 
-        # Label — string, Component (already adopted), or ClientBinding
-        # passing through the standard emit_text_slot helper.
-        label_span_attrs: dict[str, Any] = {"class": label_class}
-        # No ClientBinding branch: ``label`` is not bindable and a
-        # binding lives in ``_binding_metadata``, never
-        # ``_reactive_values``.
-        if isinstance(label_value, Component):
-            label_span: Node = Element(
-                tag="span",
-                attrs=label_span_attrs,
-                children=(label_value.render(),),
-            )
-        else:
-            text = str(label_value) if label_value is not None else ""
-            label_span = Element(
-                tag="span",
-                attrs=label_span_attrs,
-                children=(TextNode(text),),
-            )
+        # Label — string, Component (already adopted), or ClientBinding,
+        # all through ``emit_text_slot``. The span always exists (an empty
+        # label keeps an empty text node, as before).
+        label_text = self.emit_text_slot(label_value)
+        label_span: Node = Element(
+            tag="span",
+            attrs={"class": label_class},
+            children=(label_text if label_text is not None else TextNode(""),),
+        )
         header_children.append(label_span)
 
         # Chevron — lucide icon rotated by data-open CSS.
@@ -539,10 +525,10 @@ class AccordionItem(Component):
         #
         # ⚠️ Both row classes must live EXCLUSIVELY in ``bz-class`` : the
         # handler only manages its own dynamic set and never touches the
-        # static ``class=`` (02_directives.js), so a row class baked into
+        # static ``class=`` (directives.js), so a row class baked into
         # ``class`` would survive forever and clash with the active one.
         # No FOUC : the runtime keeps each ``bz-data`` subtree hidden until
-        # its first scan applies the effects (00_index.js ``bz-ready``).
+        # its first scan applies the effects (index.js ``bz-ready``).
         # (A ``@refreshable`` morph strips this dynamic class back to the
         # SSR baseline, then the afterSwap rescan re-applies it — the
         # per-BIND managed set in the ``bz-class`` handler makes that
@@ -587,11 +573,14 @@ class AccordionItem(Component):
         # anchored panel (those are ``position: fixed`` at open time) ; the
         # body's animation-clip lives one element deeper.
         wrapper_attrs: dict[str, Any] = {"class": item_class}
-        return Element(
+        # ``finish_render``: the parent draws this child instead of calling
+        # its ``render()``, so the two passes of the metaclass wrap
+        # (``classes=``, ``style=``, ``slots={"root"}``…) happen here.
+        return finish_render(self, Element(
             tag="div",
             attrs=wrapper_attrs,
             children=(header_button, body),
-        )
+        ))
 
     # ── Default render — silent fallback outside Accordion ──────────
 

@@ -15,10 +15,11 @@ Interactivity :
 
 - Bars carry ``data-bz-display`` for the tooltip text and dispatch
   ``mouseenter`` / ``mouseleave`` to the chart's tooltip scope
-  (``$bz.charts.tooltipScope()`` — runtime slab ``10_charts.js``).
-- ``on_item_click=callable(label, value)`` registers a per-bar handler via
-  ``functools.partial`` so each rect carries its own signed token. Not
-  declared on ``EVENTS`` — the click target is a sub-element, not the root.
+  (``$bz.charts.tooltipScope()`` — runtime slab ``charts.js``).
+- ``on_item_click=callable(label, value)``, plus ``series`` with several
+  series, registers a per-bar handler via ``functools.partial`` so each
+  rect carries its own signed token. Declared on ``EVENTS``; the handler
+  lands on each bar, not on the root.
 
 ``BINDABLE_PROPS = ()`` — data flows through ``@refreshable``.
 """
@@ -26,7 +27,6 @@ Interactivity :
 from __future__ import annotations
 
 from collections.abc import Callable
-from functools import partial
 from typing import Any, ClassVar
 
 from bretzel.components.base import (
@@ -34,14 +34,20 @@ from bretzel.components.base import (
     item_action_attrs,
     reactive_prop,
 )
-from bretzel.components.base._wiring import theme_context
+from bretzel.components.base.attrs import ComponentUsageError
+from bretzel.components.base.theme_values import theme_context
 from bretzel.components.charts._layers import (
     PLOT_MARGIN_RIGHT,
     apply_fixed_width,
+    data_table,
+    keyboard_attrs,
     plot_svg,
     reject_empty_text_component,
     render_axis_layer,
     render_empty_state,
+    render_static_legend,
+    render_toggle_legend,
+    titled,
 )
 from bretzel.components.charts._svg import (
     PLOT_SPAN,
@@ -51,15 +57,20 @@ from bretzel.components.charts._svg import (
     compute_ticks,
     format_value,
     linear_scale,
+    text_width,
+    whole,
+    widen,
 )
 from bretzel.components.charts.bar_chart.theme import BAR_CHART_THEME
-from bretzel.components.charts.line_chart.line_chart import (
-    _coerce_references,
-    _reference_text,
-    _render_reference_labels,
-    _render_reference_lines,
+from bretzel.components.charts.reference import (
+    coerce_references,
+    reference_text,
+    render_reference_labels,
+    render_reference_lines,
+    render_x_reference_lines,
+    vertical_rule,
 )
-from bretzel.components.charts.series import Series, coloured_slot
+from bretzel.components.charts.series import Series, bad_point, coloured_slot, with_series
 from bretzel.core.tree import Element
 from bretzel.core.tree import TextNode as TextNode
 from bretzel.render import text
@@ -90,12 +101,10 @@ class BarChart(Component):
     THEME_KEY: ClassVar[str] = "bar_chart"
     #: The event is DECLARED, and it is not metadata.
     #:
-    #: As long as it was not, `on_item_click=` accepted only a callable:
-    #: the "client expression string" shape, which every framework `on_*`
-    #: accepts, raised a `TypeError` surfaced bare from
+    #: Undeclared, `on_item_click=` would accept only a callable: the
+    #: "client expression string" shape, which every framework `on_*`
+    #: accepts, would raise a `TypeError` surfaced bare from
     #: `functools.partial`, naming neither the component nor the prop.
-    #: Measured on 2026-09-06 on three shipped components
-    #: (commit `28958bf3`, which declared the event and gated it).
     #:
     #: The routing stays MANUAL — the base layer sets a declared event's
     #: `hx-post` on the ROOT, yet here it is each BAR that carries its
@@ -103,6 +112,9 @@ class BarChart(Component):
     #: of the four components in that case.
     EVENTS: ClassVar[tuple[str, ...]] = ("item_click",)
     IS_CONTAINER: ClassVar[bool] = False
+    #: The chart's name for a screen reader (``aria-label``, empty state):
+    #: a ``ui.histogram`` is bars, and says it is a histogram.
+    KIND: ClassVar[str] = "chart.bar"
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     # Tooltip shows on every bar — the wrapper holds the tooltip scope
     # (``bz-data="$bz.charts.tooltipScope()"``). No EVENTS at the
@@ -117,8 +129,9 @@ class BarChart(Component):
     # a whole) ; ``stacked_100`` = each stack normalised to 100 % for
     # composition comparison. Single-series payloads ignore the variant.
     # ``steps=``: the value names a PLOTTING MODE, not a theme step —
-    # there is therefore no table to read, and ``variant="zzz"`` rendered
-    # identically to ``"grouped"``, in silence. The three members are
+    # there is therefore no table to read, and without it
+    # ``variant="zzz"`` would render identically to ``"grouped"``, in
+    # silence. The three members are
     # tested below (``variant in ("stacked", …)``); the set itself is
     # declared here, once.
     variant: str = reactive_prop(
@@ -128,12 +141,21 @@ class BarChart(Component):
     # ``vertical`` (default) = categories on X, values up ; ``horizontal``
     # = categories on Y (rows), values right — reads cleaner for long or
     # many (>10) category labels than rotated x-axis text.
-    orientation: str = reactive_prop(default="vertical", emit_attr=False)
+    orientation: str = reactive_prop(
+        default="vertical", emit_attr=False, steps=("vertical", "horizontal"),
+    )
+    # A label over each bar but the empty ones: a zero is not written.
     show_values: bool = reactive_prop(default=False, emit_attr=False)
     show_axis: bool = reactive_prop(default=True, emit_attr=False)
     show_gridlines: bool = reactive_prop(default=True, emit_attr=False)
     show_legend: bool = reactive_prop(default=True, emit_attr=False)
-    empty_text: str = reactive_prop(default="No data", emit_attr=False)
+    # « Voir les données » under the chart: the table behind the
+    # drawing, folded (``data_table``). Without it, the table is
+    # still there for a screen reader, invisible.
+    show_data: bool = reactive_prop(default=False, emit_attr=False)
+    # ``None``: the table's « No data », in the page's language — a
+    # literal default would freeze it in English.
+    empty_text: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
         self,
@@ -148,13 +170,18 @@ class BarChart(Component):
         show_axis: bool | None = None,
         show_gridlines: bool | None = None,
         show_legend: bool | None = None,
+        show_data: bool | None = None,
         y_format: Any = None,
         y_unit: str | None = None,
-        reference_lines: Any = None,
+        y_min: float | None = None,
+        y_max: float | None = None,
+        x_label: str | None = None,
+        y_label: str | None = None,
+        y_reference_lines: Any = None,
         on_item_click: Any = None,
         empty_text: str | None = None,
-        empty_icon: str | None = "bar-chart-3",
-        empty_description: str | None = None,
+        empty_icon: str | Component | None = "bar-chart-3",
+        empty_description: str | Component | None = None,
         empty: Callable[[], Any] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -165,15 +192,31 @@ class BarChart(Component):
         self._data = data or []
         self._y_format = y_format
         self._y_unit = y_unit
-        self._reference_lines = _coerce_references(reference_lines)
+        # A bar grows from 0: an axis starting above it would cut every
+        # bar at its foot.
+        if y_min is not None and y_min > 0:
+            raise ComponentUsageError(
+                f"BarChart: y_min={y_min!r} — a bar grows from 0, the value "
+                "axis cannot start above it. Leave y_min out, or give 0 or "
+                "less.")
+        self._y_min, self._y_max = y_min, y_max
+        self._x_label, self._y_label = x_label, y_label
+        self._reference_lines = coerce_references(
+            type(self).__name__, y_reference_lines)
         self._on_item_click = on_item_click
+        # Two hooks for ``ui.histogram``, which is bars: what a bar's click
+        # says (its bounds, not its label and count — ``item_action_attrs``'s
+        # payload, for the server and the client alike), and a vertical
+        # mark over the bars (the mean) — ``(position in categories, text)``.
+        self._item_payload: Callable[[str, float], dict[str, Any]] | None = None
+        self._mark: tuple[float, str] | None = None
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
             color=color, size=size, width=width,
             variant=variant, orientation=orientation,
             show_values=show_values, show_axis=show_axis,
             show_gridlines=show_gridlines,
-            show_legend=show_legend, empty_text=empty_text,
+            show_legend=show_legend, show_data=show_data, empty_text=empty_text,
             **kwargs,
         )
 
@@ -190,13 +233,14 @@ class BarChart(Component):
         show_axis = bool(self._reactive_values.get("show_axis"))
         show_gridlines = bool(self._reactive_values.get("show_gridlines"))
         show_legend = bool(self._reactive_values.get("show_legend"))
+        show_data = bool(self._reactive_values.get("show_data"))
         empty_text = self._reactive_values.get("empty_text") or text("chart.empty")
 
         size_spec = sizes.get(size_name) or sizes.get("md") or {
-            "h": 280, "axis": 12, "pad": 0.20, "value": 11,
+            "h": 280, "axis_font": 12, "pad": 0.20, "value": 11,
         }
         height = int(size_spec["h"])
-        axis_font = int(size_spec["axis"])
+        axis_font = int(size_spec["axis_font"])
         bar_pad = float(size_spec["pad"])
         value_font = int(size_spec["value"])
 
@@ -223,8 +267,8 @@ class BarChart(Component):
             return Element(
                 tag=self._tag, attrs=wrapper_attrs,
                 children=(render_empty_state(
-                    self, width=width or 0, height=height,
-                    kind=text("chart.bar"),
+                    height=height,
+                    kind=text(self.KIND),
                     message=empty_text, icon=self._empty_icon,
                     description=self._empty_description,
                     escape=self._empty, size_key=size_name,
@@ -237,27 +281,46 @@ class BarChart(Component):
         stacked = variant in ("stacked", "stacked_100") and multi
         stacked_100 = variant == "stacked_100" and multi
         horizontal = orientation == "horizontal"
+        # A clickable legend hides a series of GROUPED bars: its slot stays
+        # empty in each group, the others keep place and height. Not a
+        # stack — the segments above a hidden one would float, and the
+        # stack's height would lie, like a pie missing a slice.
+        hideable = show_legend and multi and not stacked
+        if hideable:
+            wrapper_attrs["bz-data"] = f"$bz.charts.barScope({{n_series: {len(series)}}})"
 
         # ``stacked_100`` normalises each category's stack so the
         # value scale is always 0-100, regardless of the underlying
         # numbers. Otherwise reuse the existing domain helpers.
         if stacked_100:
+            if self._y_min is not None or self._y_max is not None:
+                raise ComponentUsageError(
+                    "BarChart: y_min / y_max on variant=\"stacked_100\" — its "
+                    "axis is always 0–100 %. Leave them out, or stack the "
+                    "values themselves (variant=\"stacked\").")
             raw_min, raw_max = 0.0, 100.0
         elif stacked:
             raw_min, raw_max = _stacked_value_domain(series)
+            raw_min, raw_max = widen((raw_min, raw_max), _stack_sums(series),
+                                     self._y_min, self._y_max)
         else:
             raw_min, raw_max = _value_domain(series)
+            raw_min, raw_max = widen((raw_min, raw_max),
+                                     (float(v) for s in series for _, v in s.data),
+                                     self._y_min, self._y_max)
         if raw_min == raw_max:
             raw_max = raw_min + 1  # avoid zero-span flat axis
         # Snap to the nice tick bracket so the axis line covers the
         # data fully and lands on round numbers.
-        ticks = compute_ticks(raw_min, raw_max, target_count=5)
+        # Counts (every value whole) get whole ticks: no « 0.5 » pupil.
+        counts = not stacked_100 and whole(v for s in series for _, v in s.data)
+        ticks = compute_ticks(raw_min, raw_max, target_count=5, whole=counts)
         vmin = ticks[0] if ticks else raw_min
         vmax = ticks[-1] if ticks else raw_max
 
         # The labels left of the plot are the category names in
         # horizontal mode, the value ticks otherwise; the margin holds
-        # the widest of them (a long ``y_unit`` was cut off at 48 px).
+        # the widest of them, so a long ``y_unit`` is not cut off.
         if not show_axis:
             margin_left = _MARGIN_LEFT_NO_AXIS
         elif horizontal:
@@ -310,12 +373,11 @@ class BarChart(Component):
         # ``<line>`` in horizontal mode.
         if self._reference_lines:
             if horizontal:
-                children.append(_render_reference_lines_horizontal(
+                children.append(render_x_reference_lines(
                     slot, self._reference_lines, value_scale,
-                    plot_top, plot_bottom,
-                ))
+                    plot_top, plot_bottom, group_class="bz-bar-refs"))
             else:
-                children.append(_render_reference_lines(
+                children.append(render_reference_lines(
                     slot, self._reference_lines, value_scale,
                 ))
 
@@ -345,7 +407,8 @@ class BarChart(Component):
                     bar_pad, value_font, show_values,
                     self._y_format, self._y_unit,
                     on_item_click=self._on_item_click, component_id=self.id,
-                    modifier=self._trigger_modifier,
+                    modifier=self._trigger_modifier, hideable=hideable,
+                    item_payload=self._item_payload,
                 ))
         else:
             if stacked_100:
@@ -371,8 +434,15 @@ class BarChart(Component):
                     value_scale, bar_pad, value_font, show_values,
                     self._y_format, self._y_unit,
                     on_item_click=self._on_item_click, component_id=self.id,
-                    modifier=self._trigger_modifier,
+                    modifier=self._trigger_modifier, hideable=hideable,
+                    item_payload=self._item_payload,
                 ))
+
+        if self._mark and not horizontal:
+            children.append(_render_mark(
+                slot, *self._mark, len(labels), plot_left, plot_right,
+                plot_top, plot_bottom, axis_font,
+            ))
 
         # The reference LABELS, over the bars: painted under them, a
         # label behind a taller bar could not be read.
@@ -383,7 +453,7 @@ class BarChart(Component):
                     plot_top, axis_font, self._y_format, self._y_unit,
                 ))
             else:
-                children.append(_render_reference_labels(
+                children.append(render_reference_labels(
                     slot, self._reference_lines, value_scale, axis_font,
                     self._y_format, self._y_unit,
                 ))
@@ -397,17 +467,36 @@ class BarChart(Component):
         else:
             children.append(_render_x_axis_labels(
                 slot, labels, plot_left, plot_right, plot_bottom, axis_font,
+                margin_left,
             ))
+            # The container the label thinning queries (``thinned``).
+            wrapper_attrs["class"] = f"{wrapper_attrs['class']} @container"
 
         svg = plot_svg(
             slot, children, height=height, margin_left=margin_left,
-            aria_label=_aria_summary(series, labels),
+            aria_label=_aria_summary(series, labels, self.KIND),
         )
 
-        wrapper_children: list[Element] = [svg]
+        # « y » is the value axis: below the plot when the bars lie down.
+        wrapper_children = titled(
+            slot, svg,
+            top=self._x_label if horizontal else self._y_label,
+            bottom=self._y_label if horizontal else self._x_label,
+        )
         if show_legend and len(series) > 1:
-            wrapper_children.append(_render_legend(slot, series))
+            wrapper_children.append(
+                render_toggle_legend(slot, series) if hideable
+                else _render_legend(slot, series))
 
+        wrapper_children.append(data_table(
+            slot,
+            [self._x_label or text("chart.category"),
+             *(s.name or self._y_label or text("chart.value") for s in series)],
+            [[label, *(format_value(float(s.data[i][1]), self._y_format, self._y_unit)
+                       for s in series)] for i, label in enumerate(labels)],
+            shown=show_data,
+        ))
+        keyboard_attrs(wrapper_attrs)
         return Element(
             tag=self._tag, attrs=wrapper_attrs,
             children=tuple(wrapper_children),
@@ -431,7 +520,8 @@ def _coerce_series(
         out: list[Series] = []
         for i, s in enumerate(data):
             colour = s.color or palette[i % len(palette)]
-            out.append(Series(name=s.name, data=list(s.data), color=colour))
+            out.append(Series(name=s.name, data=[_bar(item) for item in s.data],
+                              color=colour))
         # Multi-series must share labels in the same order (no per-category
         # padding). Mismatch raises rather than silently mapping bars under
         # another series' labels.
@@ -439,20 +529,23 @@ def _coerce_series(
             ref = [item[0] for item in out[0].data]
             for s in out[1:]:
                 if [item[0] for item in s.data] != ref:
-                    raise ValueError(
+                    raise ComponentUsageError(
                         "BarChart multi-series payloads must share the "
                         "same labels in the same order — got "
                         f"{[item[0] for item in s.data]!r} vs {ref!r}."
                     )
         return out
-    pairs: list[tuple] = []
-    for item in data:
-        if isinstance(item, (tuple, list)) and len(item) >= 2:
-            try:
-                pairs.append((str(item[0]), float(item[1])))
-            except (TypeError, ValueError):
-                continue
-    return [Series(name="", data=pairs, color=default_color)]
+    return [Series(name="", data=[_bar(item) for item in data], color=default_color)]
+
+
+def _bar(item: Any) -> tuple[str, float]:
+    """A ``(label, value)`` pair — or the error that says so."""
+    try:
+        if isinstance(item, (tuple, list)) and len(item) == 2:
+            return (str(item[0]), float(item[1]))
+    except (TypeError, ValueError):
+        pass
+    raise bad_point("BarChart", item, "a (label, value) pair, value a number")
 
 
 def _extract_labels(series: list[Series]) -> list[str]:
@@ -466,17 +559,21 @@ def _stacked_value_domain(series: list[Series]) -> tuple[float, float]:
     per-category SUM (not the per-bar max). Positive-only : negative
     segments clamp to 0 contribution so a mixed-sign stack doesn't fold in.
     """
-    n_cats = len(series[0].data) if series else 0
-    if not n_cats:
+    sums = _stack_sums(series)
+    if not sums:
         return (0.0, 1.0)
-    sums = [0.0] * n_cats
-    for s in series:
-        for i, (_, v) in enumerate(s.data):
-            value = float(v)
-            if value > 0:
-                sums[i] += value
     hi = max(sums) if sums else 1.0
     return (0.0, hi + hi * 0.05)
+
+
+def _stack_sums(series: list[Series]) -> list[float]:
+    """Each category's stack: the sum of its positive values."""
+    sums = [0.0] * len(series[0].data) if series else []
+    for s in series:
+        for i, (_, v) in enumerate(s.data):
+            if float(v) > 0:
+                sums[i] += float(v)
+    return sums
 
 
 def _value_domain(series: list[Series]) -> tuple[float, float]:
@@ -498,14 +595,14 @@ def _value_domain(series: list[Series]) -> tuple[float, float]:
     return (lo, hi)
 
 
-def _aria_summary(series: list[Series], labels: list[str]) -> str:
+def _aria_summary(series: list[Series], labels: list[str], kind: str) -> str:
     what = text("chart.categories", n=len(labels))
     if len(series) <= 1:
-        return text("chart.summary", kind=text("chart.bar"), what=what)
+        return text("chart.summary", kind=text(kind), what=what)
     names = ", ".join(s.name for s in series if s.name) or text(
         "chart.series_count", n=len(series))
     return text(
-        "chart.summary_across", kind=text("chart.bar"), what=what, names=names)
+        "chart.summary_across", kind=text(kind), what=what, names=names)
 
 def _render_axis_layer(
     slot, ticks: list[float], y_scale, axis_font: int,
@@ -525,7 +622,7 @@ def _render_axis_layer(
 def _hit_rect(
     *, x: float, y: float, width: float, height: float, display: str,
     on_item_click, ctx, label: Any, value: float, component_id: str,
-    modifier: str | None,
+    modifier: str | None, item_payload=None, series_name: str | None = None,
 ) -> Element:
     """Transparent full-band overlay that widens the hover / click target
     to the bar's whole column (its *prolongement*) — a sliver-thin bar is
@@ -558,11 +655,22 @@ def _hit_rect(
             event="item_click",
             dom_event="click",
             modifier=modifier,
-            bind=lambda fn: partial(fn, str(label), value),
+            payload=(item_payload(str(label), value) if item_payload
+                     else {"label": str(label), "value": value,
+                           **({"series": series_name} if series_name is not None else {})}),
             owner_id=component_id,
             ctx=ctx,
         ))
     return Element(tag="rect", attrs=attrs, children=())
+
+
+def _column_attrs(s_idx: int, hideable: bool) -> dict[str, Any]:
+    """A bar's column: the spotlight's group, and — the legend clickable —
+    shown while its series is (``barScope``'s ``isVisible``)."""
+    attrs: dict[str, Any] = {"class": "group/bar-col"}
+    if hideable:
+        attrs["bz-show"] = f"isVisible({s_idx})"
+    return attrs
 
 
 def _render_bars_layer(
@@ -572,6 +680,7 @@ def _render_bars_layer(
     bar_pad: float, value_font: int, show_values: bool, y_format,
     y_unit: str | None = None,
     *, on_item_click, component_id: str, modifier: str | None,
+    hideable: bool = False, item_payload=None,
 ) -> Element:
     plot_w = plot_right - plot_left
     plot_h = plot_bottom - plot_top
@@ -615,7 +724,10 @@ def _render_bars_layer(
                 "rx": "2",
             }, children=())]
 
-            if show_values:
+            # No « 0 » over an empty bar: the missing bar says it, the
+            # tooltip too — a spread with empty bars would read as a row
+            # of zeros. The stacked layers skip them too.
+            if show_values and value != 0:
                 text_y = top_y - 4 if positive else bottom_y + value_font + 2
                 col_children.append(Element(tag="text", attrs={
                     "class": value_label_cls,
@@ -630,10 +742,11 @@ def _render_bars_layer(
                 display=f"{prefix}{label}: {display}",
                 on_item_click=on_item_click, ctx=ctx, label=label, value=value,
                 modifier=modifier,
-                component_id=component_id,
+                component_id=component_id, item_payload=item_payload,
+                series_name=s.name if len(series) > 1 else None,
             ))
             children.append(Element(tag="g",
-                                    attrs={"class": "group/bar-col"},
+                                    attrs=_column_attrs(s_idx, hideable),
                                     children=tuple(col_children)))
 
     return Element(tag="g", attrs={"class": "bz-bars group/bars"},
@@ -698,8 +811,7 @@ def _render_stacked_bars_layer(
                     event="item_click",
                     dom_event="click",
                     modifier=modifier,
-                    bind=lambda fn, _l=str(label), _v=value: partial(
-                        fn, _l, _v),
+                    payload=with_series({"label": str(label), "value": value}, s, series),
                     owner_id=component_id,
                     ctx=ctx,
                 ))
@@ -739,6 +851,7 @@ def _render_bars_horizontal(
     bar_pad: float, value_font: int, show_values: bool, y_format,
     y_unit: str | None = None,
     *, on_item_click, component_id: str, modifier: str | None,
+    hideable: bool = False, item_payload=None,
 ) -> Element:
     plot_h = plot_bottom - plot_top
     plot_w = plot_right - plot_left
@@ -781,7 +894,7 @@ def _render_bars_horizontal(
                 "rx": "2",
             }, children=())]
 
-            if show_values:
+            if show_values and value != 0:
                 # Value label at the bar's tip — right of the bar for
                 # positive values, left for negative. ``dominant-
                 # baseline: middle`` keeps it on the row's center. The
@@ -806,10 +919,11 @@ def _render_bars_horizontal(
                 display=f"{prefix}{label}: {display}",
                 on_item_click=on_item_click, ctx=ctx, label=label, value=value,
                 modifier=modifier,
-                component_id=component_id,
+                component_id=component_id, item_payload=item_payload,
+                series_name=s.name if len(series) > 1 else None,
             ))
             children.append(Element(tag="g",
-                                    attrs={"class": "group/bar-col"},
+                                    attrs=_column_attrs(s_idx, hideable),
                                     children=tuple(col_children)))
 
     return Element(tag="g", attrs={"class": "bz-bars group/bars"},
@@ -866,8 +980,7 @@ def _render_stacked_bars_horizontal(
                     event="item_click",
                     dom_event="click",
                     modifier=modifier,
-                    bind=lambda fn, _l=str(label), _v=value: partial(
-                        fn, _l, _v),
+                    payload=with_series({"label": str(label), "value": value}, s, series),
                     owner_id=component_id,
                     ctx=ctx,
                 ))
@@ -921,10 +1034,6 @@ def _render_stacked_100_bars_horizontal(
     and the tooltip already carries it), and not a total at the end of
     the bar (it is always 100). Segments that are too narrow are
     skipped.
-
-    (Both parameters were in the signature without ever being read —
-    ``show_values=True`` was silently ignored on that one variant, audit
-    F32.)
 
     ``plot_px`` is the plot's width in pixels as far as the server knows
     it (``width=``, or the nominal width when the chart fills its
@@ -984,8 +1093,7 @@ def _render_stacked_100_bars_horizontal(
                     event="item_click",
                     dom_event="click",
                     modifier=modifier,
-                    bind=lambda fn, _l=str(label), _v=value: partial(
-                        fn, _l, _v),
+                    payload=with_series({"label": str(label), "value": value}, s, series),
                     owner_id=component_id,
                     ctx=ctx,
                 ))
@@ -1000,7 +1108,7 @@ def _render_stacked_100_bars_horizontal(
                     "font-size": str(value_font),
                     "text-anchor": "middle",
                     "dominant-baseline": "central",
-                }, children=(TextNode(f"{round(pct_value)}%"),)))
+                }, children=(TextNode(text("number.percent", value=round(pct_value))),)))
 
     return Element(tag="g", attrs={"class": "bz-bars group/bars"},
                    children=tuple(children))
@@ -1071,8 +1179,7 @@ def _render_stacked_100_bars_vertical(
                     event="item_click",
                     dom_event="click",
                     modifier=modifier,
-                    bind=lambda fn, _l=str(label), _v=value: partial(
-                        fn, _l, _v),
+                    payload=with_series({"label": str(label), "value": value}, s, series),
                     owner_id=component_id,
                     ctx=ctx,
                 ))
@@ -1085,7 +1192,7 @@ def _render_stacked_100_bars_vertical(
                     "font-size": str(value_font),
                     "text-anchor": "middle",
                     "dominant-baseline": "central",
-                }, children=(TextNode(f"{round(pct_value)}%"),)))
+                }, children=(TextNode(text("number.percent", value=round(pct_value))),)))
 
     return Element(tag="g", attrs={"class": "bz-bars group/bars"},
                    children=tuple(children))
@@ -1162,26 +1269,23 @@ def _render_y_category_labels(
                    children=tuple(children))
 
 
-def _render_reference_lines_horizontal(
-    slot, refs, value_scale, plot_top: float, plot_bottom: float,
+def _render_mark(
+    slot, position: float, label: str, n_categories: int,
+    plot_left: float, plot_right: float, plot_top: float, plot_bottom: float,
+    axis_font: int,
 ) -> Element:
-    """Vertical reference lines for horizontal-orientation charts — at
-    ``value_scale(value)`` on the X axis. Behind the bars; their labels
-    are painted over them (:func:`_render_reference_labels_horizontal`).
-    """
-    children: list[Element] = []
-    for r in refs:
-        tx = _pct(value_scale(float(r.value)))
-        children.append(Element(tag="line", attrs={
-            "class": slot("reference_line", r.color or "muted"),
-            "x1": tx, "x2": tx,
-            "y1": _fmt(plot_top), "y2": _fmt(plot_bottom),
-            "stroke-dasharray": "4 4",
-        }, children=()))
-    return Element(
-        tag="g", attrs={"class": "bz-bar-refs"},
-        children=tuple(children),
-    )
+    """A vertical mark over the bars at ``position``, counted in
+    categories (``2.5``: the middle of the third bar) — a histogram's
+    mean. The reference lines' look, in the chart's colour."""
+    x = _pct(plot_left + position * (plot_right - plot_left) / max(n_categories, 1))
+    return Element(tag="g", attrs={"class": "bz-bar-mark"}, children=(
+        vertical_rule(slot("reference_line", "primary"), x, plot_top, plot_bottom),
+        Element(tag="text", attrs={
+            "class": slot("reference_label", "primary"),
+            "x": x, "dx": "4", "y": _fmt(plot_top + axis_font),
+            "text-anchor": "start", "font-size": str(axis_font),
+        }, children=(TextNode(label),)),
+    ))
 
 
 def _render_reference_labels_horizontal(
@@ -1199,24 +1303,70 @@ def _render_reference_labels_horizontal(
             "y": _fmt(plot_top + axis_font),
             "text-anchor": "start",
             "font-size": str(axis_font),
-        }, children=(TextNode(_reference_text(r, y_format, y_unit)),)))
+        }, children=(TextNode(reference_text(r, y_format, y_unit)),)))
     return Element(
         tag="g", attrs={"class": "bz-bar-ref-labels"},
         children=tuple(children),
     )
 
 
+#: Container widths, in px, under which a category label may hide —
+#: with their class WRITTEN OUT: the Tailwind compiler reads the source,
+#: and an assembled ``@max-[{w}px]:hidden`` would exist in dev only.
+_HIDDEN_BELOW: tuple[tuple[int, str], ...] = (
+    (240, "@max-[240px]:hidden"),
+    (320, "@max-[320px]:hidden"),
+    (400, "@max-[400px]:hidden"),
+    (480, "@max-[480px]:hidden"),
+    (560, "@max-[560px]:hidden"),
+    (640, "@max-[640px]:hidden"),
+    (768, "@max-[768px]:hidden"),
+    (896, "@max-[896px]:hidden"),
+    (1024, "@max-[1024px]:hidden"),
+    (1280, "@max-[1280px]:hidden"),
+    (1536, "@max-[1536px]:hidden"),
+)
+
+#: The room between two category labels, in px.
+_LABEL_GAP = 8
+
+
+def thinned(labels: list[str], axis_font: int, margin_left: int) -> list[str]:
+    """The class that hides each category label where it would overlap.
+
+    The server does not know the chart's width — the plot is a percentage
+    of its container. The labels thin out by halves as the container
+    narrows: every other one, then one in four… The first stays, and
+    each kept label has the room of ``stride`` bands. Label ``i`` is kept
+    while the stride divides it, so it hides below the width at which the
+    stride passes its largest power of two (``i & -i``) — rounded UP to a
+    written threshold, a little early rather than overlapping.
+    """
+    band = max(text_width(label, axis_font) for label in labels) + _LABEL_GAP
+    edges = margin_left + PLOT_MARGIN_RIGHT
+    return ["", *(_hidden_below(len(labels) * band / (i & -i) + edges)
+                  for i in range(1, len(labels)))]
+
+
+def _hidden_below(needed: float) -> str:
+    """The class hiding a label below the container width ``needed``."""
+    if needed <= _HIDDEN_BELOW[0][0]:
+        return ""
+    return next((cls for width, cls in _HIDDEN_BELOW if width >= needed), "hidden")
+
+
 def _render_x_axis_labels(
     slot, labels: list[str], plot_left: float, plot_right: float,
-    plot_bottom: float, axis_font: int,
+    plot_bottom: float, axis_font: int, margin_left: int,
 ) -> Element:
     plot_w = plot_right - plot_left
     band_w = plot_w / len(labels)
     label_cls = slot("axis_label")
+    hiding = thinned(labels, axis_font, margin_left)
     children: list[Element] = []
     for i, label in enumerate(labels):
         children.append(Element(tag="text", attrs={
-            "class": label_cls,
+            "class": f"{label_cls} {hiding[i]}".strip(),
             "x": _pct(plot_left + (i + 0.5) * band_w),
             "y": _fmt(plot_bottom + axis_font + 8),
             "font-size": str(axis_font),
@@ -1227,16 +1377,6 @@ def _render_x_axis_labels(
 
 
 def _render_legend(slot, series: list[Series]) -> Element:
-    legend_attrs = {"class": slot("legend")}
-    label_cls = slot("legend_label")
-    children: list[Element] = []
-    for s in series:
-        dot_cls = slot("legend_dot", s.color or None)
-        children.append(Element(tag="div", attrs={
-            "class": "flex items-center gap-2",
-        }, children=(
-            Element(tag="span", attrs={"class": dot_cls}, children=()),
-            Element(tag="span", attrs={"class": label_cls},
-                    children=(TextNode(s.name or text("chart.series")),)),
-        )))
-    return Element(tag="div", attrs=legend_attrs, children=tuple(children))
+    return render_static_legend(
+        slot, [(s.color or None, s.name or text("chart.series")) for s in series],
+    )

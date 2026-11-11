@@ -271,3 +271,47 @@ class TestClickableRows:
         # in each row's hx-vals blob, asserted via the rendered output.
         assert any(_click_handler is h or getattr(h, "func", None) is _click_handler
                    for h in ctx.action_registry.values())
+
+
+class TestRenderCallbackReturnsWhatItBuilds:
+    """A ``render=`` callback runs outside any parent: a component it builds
+    and does not return used to render an empty cell, silently (reported
+    by the comparison's builder, 2026-10-25)."""
+
+    @staticmethod
+    def _render(callback):
+        from bretzel import ui
+        from bretzel.components.base.testing import render_isolated
+        from bretzel.core.serialize import serialize
+
+        with render_isolated():
+            with ui.vstack() as box:
+                ui.table(columns=[ui.column("a", label="A", render=callback)],
+                         rows=[{"a": 1}])
+            return serialize(box.render())
+
+    def test_building_and_returning_nothing_is_refused(self) -> None:
+        import pytest
+
+        from bretzel import ui
+        from bretzel.components.base import ComponentUsageError
+
+        def cell(value, row):
+            ui.badge(f"#{value}")
+
+        with pytest.raises(ComponentUsageError, match=r"built Badge and returned None"):
+            self._render(cell)
+
+    def test_returning_the_component_renders_it(self) -> None:
+        from bretzel import ui
+
+        def cell(value, row):
+            return ui.badge(f"#{value}")
+
+        assert "#1" in self._render(cell)
+
+    def test_building_nothing_may_return_none(self) -> None:
+        def cell(value, row):
+            return None
+
+        assert "<td" in self._render(cell)

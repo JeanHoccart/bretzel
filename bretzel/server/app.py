@@ -30,7 +30,8 @@ from typing import Any, Literal
 
 from fastapi import FastAPI
 
-from bretzel.render import ZoneMaps
+from bretzel.core import base_path
+from bretzel.render import RefreshableHandle, ZoneMaps, ZoneRegistry
 from bretzel.runtime import PUBLIC_ASSET_ROUTES
 from bretzel.server.config import BretzelConfig
 from bretzel.server.decorators.identity import MARK_DOOR, MARK_SOURCE
@@ -43,7 +44,7 @@ from bretzel.server.decorators.lifecycle import (
 from bretzel.server.decorators.middleware import (
     middleware as _middleware_decorator,
 )
-from bretzel.server.feature import Feature, validate_features
+from bretzel.server.feature import Feature, FeatureError, validate_features
 from bretzel.server.lifecycle import (
     bretzel_shutdown,
     bretzel_startup,
@@ -79,11 +80,12 @@ class Bretzel:
         session_max_age_days: int = 30,
         action_max_age: int | None = None,
         mobile_breakpoint: int = 768,
+        base_path: str = "",
         nav_progress: bool = True,
         pwa: Any = None,
         lang: str = "en",
         languages: Sequence[str] = (),
-        texts: Mapping[str, str] | None = None,
+        translations: Mapping[str, Mapping[str, Any]] | None = None,
         static_dir: str | None = None,
         favicon: str | bool | None = None,
         cors_origins: list[str] | None = None,
@@ -113,11 +115,12 @@ class Bretzel:
             "session_max_age_days": session_max_age_days,
             "action_max_age": action_max_age,
             "mobile_breakpoint": mobile_breakpoint,
+            "base_path": base_path,
             "nav_progress": nav_progress,
             "pwa": pwa,
             "lang": lang,
             "languages": tuple(languages),
-            "texts": texts or {},
+            "translations": translations or {},
             "static_dir": static_dir,
             "favicon": favicon,
             "cors_origins": cors_origins or (),
@@ -186,7 +189,7 @@ class Bretzel:
         self._state_backend: Any = None
         # ``_sse_broker`` is wired at startup too — MemoryBroker for
         # single-worker, Redis-backed in phase 2 for multi-worker. The
-        # broadcast fan-out (``broadcast=[State]`` zones) reads it from here ;
+        # fan-out to the other tabs reads it from here ;
         # tests can swap it on a fresh app to inspect signals.
         self._sse_broker: Any = None
         # ``_idempotency_store`` is wired at startup — in-memory for
@@ -198,6 +201,8 @@ class Bretzel:
         # (``render/zone_diff.py``). Per process: another worker, or an
         # evicted version, ships the zone whole.
         self._zone_maps = ZoneMaps()
+        # The app's refreshable zones (``render/decorators/refreshable.py``).
+        self._zones = ZoneRegistry()
         self._is_ready: bool = False
 
         # Cache-bust token : a process-start identifier used by the
@@ -264,11 +269,23 @@ class Bretzel:
         a policy that allows the CDNs while the pages serve local routes
         — two truths for one page.
         """
-        if not self._middleware_stack_built:
-            self._middleware_stack_built = True
-            await self._vendor_third_party()
-            build_middleware_stack(self)
-        await self.fastapi(scope, receive, send)
+        # Cf. ``core/base_path.py``: the prefix comes off on the way in, and
+        # stays known for the duration of the request, to go back on what
+        # the framework writes. Before the stack is built: the security
+        # policy fingerprints the inline scripts, one of which holds a route.
+        base = self.config.base_path
+        token = base_path.activate(base) if base else None
+        try:
+            if not self._middleware_stack_built:
+                self._middleware_stack_built = True
+                await self._vendor_third_party()
+                build_middleware_stack(self)
+            if base and scope["type"] in ("http", "websocket"):
+                scope = base_path.strip(scope, base)
+            await self.fastapi(scope, receive, send)
+        finally:
+            if token is not None:
+                base_path.deactivate(token)
 
     async def _vendor_third_party(self) -> None:
         """In dev, serve the third-party scripts from your own host.
@@ -305,8 +322,7 @@ class Bretzel:
                     "installed package — the pages will load them from their "
                     "CDNs.\n"
                     "[bretzel]       reinstall bretzel, or run "
-                    "``python -m bretzel.render.vendor`` in the app's working "
-                    "directory."
+                    "``bretzel vendor`` in the app's working directory."
                 )
             return
         from bretzel.core import call_without_blocking
@@ -354,6 +370,11 @@ class Bretzel:
     def zone_maps(self) -> ZoneMaps:
         """The zone fingerprint cache read by the render pipeline."""
         return self._zone_maps
+
+    @property
+    def zones(self) -> ZoneRegistry:
+        """The refreshable zones of this application."""
+        return self._zones
 
     @property
     def idempotency_store(self) -> Any:
@@ -454,12 +475,15 @@ class Bretzel:
     def _register_declaration(self, value: Any) -> None:
         """Register one value if it carries a decoration mark.
 
-        Five marks, and the order of the tests is not indifferent: an
+        Six marks, and the order of the tests is not indifferent: an
         error handler ALSO carries ``_bz_page``. ``_bz_download`` is
         tested before ``_bz_page`` out of plain symmetry — a function
         never carries both, but the order would be a trap if that
         changed.
         """
+        if isinstance(value, RefreshableHandle):
+            self._zones.add(value)
+            return
         if getattr(value, MARK_SOURCE, False):
             if value not in self._identity_sources:
                 self._identity_sources.append(value)
@@ -610,8 +634,7 @@ class Bretzel:
         # reload=True : delegate to the Bretzel-owned watcher
         # (``bretzel/server/_dev.py``). uvicorn's own ``--reload`` is
         # broken on Windows — its WatchFiles wrapper detects changes
-        # but never kills the worker subprocess. Cf.
-        # ``.claude/work/todo.md``.
+        # but never kills the worker subprocess.
         if uvicorn_kwargs:
             raise TypeError(
                 "app.run(reload=True) does not forward arbitrary "
@@ -737,7 +760,7 @@ class Bretzel:
         # against reality. Only when the app opted into Features: an app
         # with no contract has no business being lectured.
         if self._features:
-            from bretzel.server.feature import dependency_drift, undeclared_provides
+            from bretzel.server.feature import undeclared_provides
 
             registered = [*self._pages, *self._error_handlers.values()]
             self._undeclared = undeclared_provides(self._features, registered)
@@ -745,15 +768,23 @@ class Bretzel:
                 print(f"[bretzel] WARNING: {label!r} ({route or 'no route'}) "
                       "is mounted but not declared by any Feature — it is "
                       "missing from the app map and cannot be validated.")
-            if self.config.debug:   # mode="dev" — le drift AST reste hors prod
-                for d in dependency_drift(self._features):
-                    if d.missing:
-                        print(f"[bretzel] WARNING: feature {d.feature!r} "
-                              f"imports {list(d.missing)} without declaring "
-                              "them in uses/reads.")
-                    if d.stale:
-                        print(f"[bretzel] WARNING: feature {d.feature!r} "
-                              f"declares {list(d.stale)} but never imports them.")
+            if self.config.debug:   # mode="dev" — the AST reading stays out of prod
+                # A contract that lies stops the app in dev: a WARN goes
+                # unread in the logs.
+                # Production does not read the sources, and never refuses
+                # to start over a contract.
+                from bretzel.server.feature_audit import contract_errors
+
+                lying = contract_errors(self._features)
+                if lying:
+                    raise FeatureError(
+                        "The Feature contracts do not say what the code does:\n  - "
+                        + "\n  - ".join(lying)
+                        + "\n`uses` lists the features a module imports; `provides` "
+                        "holds what other features take — constants included. "
+                        "`python -m bretzel features <module:app>` prints the whole "
+                        "map. Checked in mode=\"dev\" only."
+                    )
         await bretzel_startup(self)
         try:
             yield

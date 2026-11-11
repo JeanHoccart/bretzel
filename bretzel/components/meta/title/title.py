@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from bretzel.components.base import Component
+from bretzel.components.base import Component, ComponentUsageError
 from bretzel.core.tree import FragmentNode as FragmentNode
 from bretzel.render.context import maybe_current_context
 
@@ -55,13 +55,13 @@ class Title(Component):
         **kwargs: Any,
     ) -> None:
         if kwargs:
-            raise TypeError(
+            raise ComponentUsageError(
                 f"Title takes only the positional text argument — "
                 f"got extras : {sorted(kwargs)}. The ``<title>`` "
                 f"element carries no attributes Bretzel uses."
             )
         if not isinstance(text, str):
-            raise TypeError(
+            raise ComponentUsageError(
                 f"Title text must be a str — got {type(text).__name__}. "
                 f"For data-dependent titles, format the string in "
                 f"Python ; for a title that follows state, call "
@@ -79,7 +79,7 @@ class Title(Component):
         """
         ctx = maybe_current_context()
         if ctx is None:
-            raise RuntimeError(
+            raise ComponentUsageError(
                 "ui.title(...) must be called inside a render scope "
                 "(a @page or @layout handler). It writes to "
                 "the request's RenderContext, which doesn't exist "

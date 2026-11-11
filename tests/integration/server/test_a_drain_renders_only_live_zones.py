@@ -1,17 +1,15 @@
 """Le drain ne rend que les zones que le navigateur a sous les yeux.
 
-``_ZONES_BY_DEP`` est indexé par CLASSE d'état, pas par page. Une classe
-partagée par plusieurs écrans traîne donc toutes leurs zones, et
-``enqueue_deps`` les enfilait toutes : le serveur rendait celles des
+Une zone suit les CLASSES d'état qu'elle lit, pas une page. Une classe
+partagée par plusieurs écrans atteint donc toutes leurs zones, et
+``enqueue_readers`` les enfilait toutes : le serveur rendait celles des
 autres pages, les sérialisait, les envoyait, et le navigateur les jetait
 faute de cible. Rien ne lève, rien ne s'affiche de travers — c'est du
 temps serveur brûlé, invisible.
 
 Mesuré le 2026-09-05 sur ``examples/mad`` : une action depuis
 ``/patients`` rendait aussi la zone du tableau de bord, **8,4 ms** contre
-9,6 ms pour la zone utile — près de la moitié du drain. Sur
-``examples/crm``, ``ViewerPrefs`` traîne 14 zones sur 8 modules pour 4 au
-plus par page.
+9,6 ms pour la zone utile — près de la moitié du drain.
 
 ⚠️ Le test le plus important de ce fichier est
 :func:`test_without_the_header_nothing_is_filtered`. Un filtre qui se
@@ -31,6 +29,7 @@ from bretzel import Bretzel, page, refreshable, ui
 from bretzel.runtime.protocol import HEADER_ZONES
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.state import SessionState, field
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -44,12 +43,12 @@ class Compteur(SessionState):
 #: Deux zones sur LA MÊME classe, une par page — la configuration qui
 #: produit le gaspillage. Chacune écrit un marqueur reconnaissable pour
 #: qu'on puisse dire laquelle a été rendue.
-@refreshable(deps=[Compteur])
+@refreshable
 def zone_accueil() -> None:
     ui.text(f"ACCUEIL={Compteur().n}")
 
 
-@refreshable(deps=[Compteur])
+@refreshable
 def zone_ailleurs() -> None:
     ui.text(f"AILLEURS={Compteur().n}")
 
@@ -75,7 +74,7 @@ _app.include(ailleurs)
 def _agir(client: TestClient, entetes: dict[str, str]) -> str:
     """Déclencher l'action et rendre le corps de la réponse."""
     action_id = encode_action_id(incrementer)
-    sig = sign_action(_app.config._action_key, action_id, "")
+    sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
     reponse = client.post(
         f"/_bretzel/action/{action_id}",
         headers={"X-Bz-Sig": sig, **entetes},
@@ -94,14 +93,14 @@ def client():
         yield c
 
 
-def test_both_zones_are_declared_on_the_same_class() -> None:
+def test_both_zones_read_the_same_class(client) -> None:
     """Plancher. Sans DEUX zones sur la classe, il n'y a rien à filtrer
     et tout le fichier passerait sur un montage vide."""
-    from bretzel.render.decorators.refreshable import _ZONES_BY_DEP
-
-    zones = _ZONES_BY_DEP.get(Compteur, ())
-    assert len(zones) >= 2, (
-        f"{len(zones)} zone(s) déclarée(s) sur Compteur — le montage ne "
+    client.get("/")
+    client.get("/ailleurs")
+    zones = [z for z in (zone_accueil, zone_ailleurs) if Compteur in (z.reads or ())]
+    assert len(zones) == 2, (
+        f"{len(zones)} zone(s) lisent Compteur — le montage ne "
         f"reproduit pas la configuration qui gaspille."
     )
 
@@ -129,6 +128,7 @@ def test_without_the_header_nothing_is_filtered(client) -> None:
     rendues — et jamais sur le silence.
     """
     client.get("/")
+    client.get("/ailleurs")
     corps = _agir(client, {})
     assert "ACCUEIL=" in corps and "AILLEURS=" in corps, (
         "un client qui n'envoie pas l'en-tête ne reçoit plus toutes ses "
@@ -169,7 +169,7 @@ def test_an_unknown_zone_id_filters_everything_out(client) -> None:
     )
     # Et le drain sait déjà ne rien renvoyer plutôt qu'un corps vide :
     # c'est le 204 que ``drain_refresh_queue`` produit quand la file est
-    # vide, atteint ici par le filtre au lieu de l'absence de deps.
+    # vide, atteint ici par le filtre au lieu d'un état non lu.
     assert corps == ""
 
 
@@ -187,3 +187,20 @@ def test_the_zone_marker_is_in_the_page(client) -> None:
         "énumérer et le filtre est mort sans bruit."
     )
     assert zone_accueil.id in html
+
+
+def test_the_browser_s_version_says_what_the_zone_read(client) -> None:
+    """``id:fingerprint:reads`` — what THIS browser's version of the zone
+    read decides, not what the server learned elsewhere."""
+    from bretzel.render.decorators.refreshable import field_id
+
+    client.get("/")
+    rien = _agir(client, {HEADER_ZONES: f"{zone_accueil.id}::"})
+    assert "ACCUEIL=" not in rien, (
+        "une version de zone qui n'a rien lu a été redessinée"
+    )
+    lu = _agir(client, {HEADER_ZONES: f"{zone_accueil.id}::{field_id(Compteur, 'n')}"})
+    assert "ACCUEIL=" in lu, (
+        "la version du navigateur lit Compteur.n, qui vient de changer, "
+        "et la zone n'a pas été redessinée"
+    )

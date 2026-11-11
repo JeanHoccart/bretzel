@@ -7,7 +7,7 @@ chacune redemandait sa propre zone, inchangée.
 
 Relevé le 2026-10-03 sur la démo publique ``examples/kanban`` : le tableau
 y est un ``SessionState`` — un tableau par visiteur, pour qu'un inconnu ne
-puisse rien écrire chez les autres. Ajouter ``broadcast=[Tableau]`` pour
+puisse rien écrire chez les autres. Faire en sorte
 que deux fenêtres d'un même visiteur se suivent aurait fait recharger le
 tableau de CHAQUE visiteur connecté à chaque geste de chacun.
 

@@ -2,6 +2,7 @@
 
 A ``ui.viewport`` IS the browser window: it is ``fixed inset-0``. To show
 one inside a preview box, each example pins it into a ``relative`` frame
+# Fixed by design: `absolute!` holds it in this demo's box.
 with ``classes="absolute!"`` — in an app you write ``ui.viewport()`` bare.
 """
 
@@ -31,6 +32,7 @@ def app_shell() -> None:
     with (
         ui.vstack(gap="none", classes="relative h-[26rem] w-full overflow-hidden "
                                       "rounded-box border border-text/10"),
+        # Fixed by design: `absolute!` holds it in this demo's box.
         ui.viewport(classes="absolute!"),
     ):
         with ui.sidebar(collapsible="none", width="sm", slots={"root": "h-full!"}):
@@ -53,6 +55,7 @@ def master_detail() -> None:
     with (
         ui.vstack(gap="none", classes="relative h-[24rem] w-full overflow-hidden "
                                       "rounded-box border border-text/10"),
+        # Fixed by design: `absolute!` holds it in this demo's box.
         ui.viewport(classes="absolute!", grow="equal"),
     ):
         with ui.pane(padding="md", gap="sm"):
@@ -73,6 +76,7 @@ def mobile_shell() -> None:
     with (
         ui.vstack(gap="none", classes="relative h-[32rem] w-full max-w-sm "
                                       "overflow-hidden rounded-box border border-text/10"),
+        # Fixed by design: `absolute!` holds it in this demo's box.
         ui.viewport(direction="col", classes="absolute!"),
     ):
         with ui.navbar():
@@ -96,6 +100,7 @@ def centred() -> None:
     with (
         ui.vstack(gap="none", classes="relative h-[24rem] w-full overflow-hidden "
                                       "rounded-box border border-text/10"),
+        # Fixed by design: `absolute!` holds it in this demo's box.
         ui.viewport(classes="absolute!"),
         ui.pane(padding="lg", align="center", justify="center"),
         ui.card(padding="lg", classes="w-full max-w-sm"),

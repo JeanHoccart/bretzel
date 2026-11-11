@@ -13,11 +13,9 @@ name, and **nothing says it is complete** ::
         # date_picker, number_input, time_picker…: absent
     })
 
-The components named go down, the others keep the default. Measured on
-``examples/ecole`` on 2026-09-12: **four text-field heights on one screen
-— 30, 32, 36 and 38 px**, and a form of three controls side by side
-showed three of them. A user saw it on a screenshot; nothing else could
-have said so.
+The components named go down, the others keep the default: one screen
+ends up with several text-field heights, side by side in the same form.
+Only the screen shows it; nothing else can say so.
 
 Why the existing rules do not catch it
 --------------------------------------
@@ -49,9 +47,8 @@ would turn a useful rule into an endless list. The pass's corpus is read
 by :func:`bretzel.lint.corpus.derived`, so once only whatever the number
 of modules.
 
-Measured on this repository: without that filter, the rule demands
-fourteen components of the kanban's preset; with it, it names two — and
-they are exactly the two it displays.
+Without that filter, the rule demands components no screen displays;
+with it, it names only the ones the app shows.
 
 If the theme resizes at least one and forgets at least one the app shows,
 that is a finding, and it NAMES the missing ones.
@@ -61,9 +58,8 @@ that is a finding, and it NAMES the missing ones.
 
 That everybody must be resized. The recommended way out is the OPPOSITE
 — name nobody, and move the scale's BASE: Tailwind's whole spacing scale
-derives from ``--spacing``, which ``Theme(spacing=…)`` has carried since
-2026-09-13 (before that, one had to go through ``css=``, which is not
-what that door is for). One token instead of N tables, hence a coverage
+derives from ``--spacing``, which ``Theme(spacing=…)`` carries. One token
+instead of N tables, hence a coverage
 that is no longer a list and can no longer be partial. And the shipped
 default is ALREADY a tool's: a size table that only tightens probably no
 longer has a reason to exist.
@@ -124,12 +120,10 @@ def _theme_calls(module: Module) -> list[ast.Call]:
 def _module_dicts(module: Module) -> dict[str, ast.Dict]:
     """The module constants that are a literal dict.
 
-    ``Theme(components=COMPONENTS)`` is this repository's idiom —
-    ``examples/``'s two presets wrote it that way until 2026-09-13, when
-    the scale moved to the framework and they were removed. A rule that
-    only accepts the INLINE dict would be green over the whole real
-    corpus, which is the most expensive form of false negative: it looks
-    like it works.
+    A theme is also written ``Theme(components=COMPONENTS)``, with the
+    dict bound to a name. A rule that only accepts the INLINE dict would
+    be green on that form, which is the most expensive form of false
+    negative: it looks like it works.
     """
     out: dict[str, ast.Dict] = {}
     for node in module.nodes:
@@ -180,9 +174,8 @@ def _app_root(theme: pathlib.Path) -> pathlib.Path | None:
     ⚠️ Without that split, the rule is useless on a repository with
     several apps: sweeping ``examples/`` in one go puts the playground in
     the same bag, and the playground exercises EVERY component — so any
-    theme would have to resize everything. Measured: 14 components
-    demanded of the kanban's preset, against 2 once the app is
-    delimited. The broad version looked stricter and served nothing.
+    theme would have to resize everything. The broad version looks
+    stricter and serves nothing.
     """
     folders = {
         m.path.resolve().parent

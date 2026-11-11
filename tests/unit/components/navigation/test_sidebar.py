@@ -20,6 +20,7 @@ from bretzel.components.navigation.sidebar import (
 from bretzel.components.overlay.dropdown import DropdownItem
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.serialize import serialize
+from bretzel.state import ClientExpression
 from bretzel.state.scopes.client import ClientBinding
 
 
@@ -158,7 +159,7 @@ class TestSidebarRoot:
         gauche, et les deux côtés ne coexistent jamais dans la même app.
 
         Le test porte sur la LEVÉE, pas sur l'absence de la prop : sans
-        le garde ``_CUT``, le socle absorberait le kwarg inconnu dans les
+        le garde ``REFUSED_PROPS``, le socle absorberait le kwarg inconnu dans les
         attrs bruts et ``ui.sidebar(side="right")`` émettrait un attribut
         HTML ``side="right"`` en silence, sans rien changer au rendu.
         Même contrat que ``bottom_bar`` pour ``variant=`` / ``sticky=``.
@@ -216,7 +217,7 @@ class TestSidebarRoot:
 
     def test_unknown_mode_raises(self) -> None:
         with render_isolated(), pytest.raises(ComponentUsageError):
-            Sidebar(collapsible="drawer")
+            Sidebar(collapsible="drawer").render()
 
     def test_overlay_leaves_the_flow_with_a_backdrop(self) -> None:
         """``overlay`` est le mode mobile : hors du flux, glissé hors écran
@@ -297,7 +298,7 @@ class TestSidebarRoot:
     def test_overlay_wires_escape_and_scroll_lock(self) -> None:
         """Un menu ouvert au-dessus du contenu se ferme par Escape et ne
         laisse pas la page défiler derrière lui. Les deux helpers sont
-        ceux de Dialog/Drawer (``base/_wiring``), pas une réécriture."""
+        ceux de Dialog/Drawer (``base/``), pas une réécriture."""
         with render_isolated():
             out = serialize(Sidebar(collapsible="overlay").render())
         assert "escapeKey" in out
@@ -637,18 +638,18 @@ class TestSidebarFooter:
         with render_isolated():
             sb = Sidebar()
             with sb:
-                with SidebarFooter(name="Jean Hoccart", subtitle="jean@acme.com"):
+                with SidebarFooter(name="Alex Martin", subtitle="alex@acme.com"):
                     DropdownItem(label="Logout", icon_left="log-out")
             out = serialize(sb.render())
-        assert "Jean Hoccart" in out
-        assert "jean@acme.com" in out
-        assert ">JH<" in out  # initials auto-derived from name
+        assert "Alex Martin" in out
+        assert "alex@acme.com" in out
+        assert ">AM<" in out  # initials auto-derived from name
 
     def test_color_prop_tints_avatar(self) -> None:
         with render_isolated():
             sb = Sidebar()
             with sb:
-                with SidebarFooter(name="Jean", color="success"):
+                with SidebarFooter(name="Alex", color="success"):
                     DropdownItem(label="Logout")
             out = serialize(sb.render())
         # ``{bg_color}`` resolved against the color prop (no literal token).
@@ -663,12 +664,12 @@ class TestSidebarFooter:
             sb = Sidebar()
             with sb:
                 with SidebarFooter(
-                    name="Jean Hoccart",
-                    avatar=Avatar(initials="JH", color="secondary"),
+                    name="Alex Martin",
+                    avatar=Avatar(initials="AM", color="secondary"),
                 ):
                     DropdownItem(label="Logout")
             out = serialize(sb.render())
-        assert out.count(">JH<") == 1  # once, not standalone + footer
+        assert out.count(">AM<") == 1  # once, not standalone + footer
 
     @pytest.mark.parametrize("url", [
         "https://i.pravatar.cc/96?u=ada",
@@ -696,7 +697,7 @@ class TestSidebarFooter:
         with render_isolated():
             sb = Sidebar()
             with sb:
-                with SidebarFooter(name="Jean"):
+                with SidebarFooter(name="Alex"):
                     SidebarFooterItem(label="Logout")
             out = serialize(sb.render())
         assert 'data-menu-open="false"' in out
@@ -831,7 +832,7 @@ class TestActiveState:
     def test_client_expression_drives_reactive_data_active(self) -> None:
         """Before, it left as a bare ``bz-attr:active`` nothing read: the
         item never lit up (the helpdesk's ``/tickets``, 2026-10-24)."""
-        expr = "current_path === '/tickets' || current_path === '/tickets/all'"
+        expr = ClientExpression("current_path === '/tickets' || current_path === '/tickets/all'")
         with render_isolated():
             out = serialize(
                 SidebarItem("All", href="/tickets/all", active=expr).render()
@@ -936,7 +937,7 @@ class TestSidebarScrollLayout:
             with Sidebar() as s:
                 with SidebarSection(label="MAIN"):
                     SidebarItem("Home", icon="home", href="/")
-                with SidebarFooter(name="Jean"):
+                with SidebarFooter(name="Alex"):
                     SidebarFooterItem(label="Settings")
             el = s.render()
         scroll = _direct(el, "min-h-0")
@@ -967,8 +968,46 @@ class TestSidebarScrollLayout:
         # the footer's own ``mt-auto`` still pins it to the bottom.
         with render_isolated():
             with Sidebar() as s:
-                with SidebarFooter(name="Jean"):
+                with SidebarFooter(name="Alex"):
                     SidebarFooterItem(label="Settings")
             el = s.render()
         assert _direct(el, "min-h-0") is None
         assert _direct(el, "mt-auto") is not None
+
+
+
+class TestAccessibleName:
+    """The link's ``aria-label`` (set for the collapsed rail) replaces its
+    content: the badge must be part of it, or screen readers never hear
+    the count (reported by the comparison's builder, 2026-10-25)."""
+
+    def test_a_scalar_badge_is_part_of_the_name(self) -> None:
+        with render_isolated():
+            out = serialize(SidebarItem("My tickets", href="/m", badge="666").render())
+        assert 'aria-label="My tickets 666"' in out
+
+    def test_no_badge_keeps_the_label(self) -> None:
+        with render_isolated():
+            out = serialize(SidebarItem("Board", href="/b").render())
+        assert 'aria-label="Board"' in out
+
+    def test_a_bound_badge_keeps_the_name_in_step(self) -> None:
+        binding = ClientBinding(class_name="UI", instance_key="default",
+                                field_name="unread", value=3)
+        with render_isolated():
+            out = serialize(SidebarItem("Inbox", href="/i", badge=binding).render())
+        assert "bz-attr:aria-label=" in out
+        assert "$bz.state.UI.default.unread" in out
+
+    def test_the_app_s_own_name_wins(self) -> None:
+        with render_isolated():
+            out = serialize(SidebarItem("Inbox", href="/i", badge="2",
+                                        attrs={"aria-label": "Inbox, 2 unread"}).render())
+        assert 'aria-label="Inbox, 2 unread"' in out
+        assert "bz-attr:aria-label" not in out
+
+    def test_an_entry_carries_its_path_for_the_menu_rule(self) -> None:
+        with render_isolated():
+            out = serialize(SidebarItem("All", href="/tickets").render())
+        assert 'data-bz-nav="/tickets"' in out
+        assert "$bz._navActive(current_path" in out

@@ -50,27 +50,29 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
-from bretzel.components.base._wiring import (
+from bretzel.components.base.arguments import reject_attribute_component
+from bretzel.components.base.commands import ValueCommands
+from bretzel.components.base.focus import FocusCommands
+from bretzel.components.base.overlay_wiring import (
     anchored_dismiss_init,
-    bool_attr,
+    anchored_panel,
     imperative_listeners,
     install_open_close_toggle,
-    install_value_commands,
-    server_sync_marker,
 )
-from bretzel.components.inputs._checkable import sized_slot
+from bretzel.components.base.scope_wiring import bool_attr, server_sync_marker
 from bretzel.components.inputs._picker_field import (
-    anchored_panel,
     clear_button,
     detach_wrapper_carriers,
     hidden_carrier,
     relocate_field_events,
     trigger_button,
+    typed_field_attrs,
     value_expr,
 )
 from bretzel.components.inputs.color_picker.theme import COLOR_PICKER_THEME
 from bretzel.core.tree import Element, Node
 from bretzel.render import text
+from bretzel.render.shared_parts import PART_ATTR, share_part
 
 #: The fallback when no render context is active (a bench, a unit
 #: test): we cannot read the app's palette, and an empty panel would be
@@ -98,19 +100,31 @@ def hex_or_empty(value: Any, *, owner: str = "ColorPicker") -> str:
     render that shows an empty swatch, and that reads. The three date
     pickers reason alike.
     """
-    from bretzel.components.base.attrs import ComponentDefinitionError
+    from bretzel.components.base.attrs import ComponentUsageError
 
     if value is None:
         return ""
     if isinstance(value, str):
         return value
-    raise ComponentDefinitionError(
+    raise ComponentUsageError(
         f"{owner}(value={value!r}): type {type(value).__name__} not "
         "supported. Expected a hexadecimal string or None."
     )
 
 
-class ColorPicker(Component):
+def normalise_to_hex_js(field: str) -> str:
+    """Rewrite ``field`` as ``#rrggbb`` (or ``#rrggbbaa``), lower case: with
+    or without its ``#``, a short form doubled. Empty when it is no colour."""
+    return (
+        f"{field} = ((s) => {{ "
+        "const m = s.trim().match(/^#?([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i); "
+        "if (!m) return ''; const h = m[1].toLowerCase(); "
+        "return '#' + (h.length < 6 ? h.replace(/./g, '$&$&') : h); "
+        f"}})({field})"
+    )
+
+
+class ColorPicker(ValueCommands, FocusCommands, Component):
     """Render a color field with a swatch selection panel."""
 
     THEME: ClassVar[dict[str, Any]] = COLOR_PICKER_THEME
@@ -124,6 +138,9 @@ class ColorPicker(Component):
     IMPERATIVE: ClassVar[tuple[str, ...]] = (
         "open", "close", "toggle", "set", "clear", "focus", "blur",
     )
+    # Where ``autofocus=`` / ``.focus()`` land. NOT ``"input"``: the first
+    # ``<input>`` is the HIDDEN carrier, where ``.focus()`` does nothing.
+    FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("input:not([type=hidden])",)
     EVENTS: ClassVar[tuple[str, ...]] = ("change", "focus", "blur")
 
     name: str | None = reactive_prop(default=None, emit_attr=False)
@@ -141,11 +158,11 @@ class ColorPicker(Component):
 
     def __init__(
         self,
-        value: Any = None,
         *,
+        value: Any = None,
         name: str | None = None,
         placeholder: str | None = None,
-        clearable: bool = False,
+        clearable: bool = True,
         disabled: bool | None = None,
         required: bool | None = None,
         color: str | None = None,
@@ -155,7 +172,12 @@ class ColorPicker(Component):
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
+        reject_attribute_component(placeholder, owner="ColorPicker", prop="placeholder")
         self._placeholder = placeholder or "#rrggbb"
+        # ``True`` like every picker (R5 of the API rules): a picker
+        # empties with one click, a text field with the keyboard, and
+        # ``""`` is a documented value (« no colour »). A colour that may
+        # never be empty says so: ``clearable=False``.
         self._clearable = clearable
         super().__init__(
             value=value, name=name, disabled=disabled, required=required,
@@ -163,15 +185,9 @@ class ColorPicker(Component):
             on_change=on_change, on_focus=on_focus, on_blur=on_blur,
             **kwargs,
         )
-        # AFTER `super().__init__`: both installers read
+        # AFTER `super().__init__`: the installer reads
         # `_binding_metadata`, which is only populated at that point.
         install_open_close_toggle(self)
-        # ⚠️ NOT `"input"`: a picker's first `<input>` is the HIDDEN
-        # carrier (`hidden_carrier`), which does not take focus.
-        # Measured — `.focus()` did nothing on all six.
-        install_value_commands(
-            self, focus_selector="input:not([type=hidden])"
-        )
 
     # ── The two shapes of the value expression ───────────────────────
 
@@ -199,15 +215,6 @@ class ColorPicker(Component):
         )
 
     def render(self) -> Element:
-        theme = self._resolved_theme()
-        sizes = theme.get("sizes", {})
-        size_key = self._reactive_values.get("size") or "md"
-
-        size_cfg = sizes.get(size_key, sizes.get("md", {}))
-
-        def sized(slot: str) -> str:
-            return sized_slot(self, slot, size_cfg)
-
         disabled = bool(self._reactive_values.get("disabled"))
         required = bool(self._reactive_values.get("required"))
         initial = hex_or_empty(self._reactive_values.get("value"))
@@ -231,16 +238,31 @@ class ColorPicker(Component):
         # fields, so the comma before it is the caller's responsibility.
         # Forgetting it produces ``val: "#2f5fd0" _serverSync: [...]`` —
         # a syntax error that kills the runtime's SCAN for the whole page
-        # (28 scopes, 0 initialised) with not a word in the console.
-        # Measured right here.
+        # with not a word in the console.
         local = ""
+        # The value, read and written through the scope — not by its path:
+        # the swatches are SHARED by every picker of the page (cf. the
+        # panel below), and a bound picker's path
+        # (``$bz.state.Studio.default.primary``) would make each palette
+        # its own. In a method body the local field is ``this.<key>``.
+        target = val
         if self._binding_metadata.get("value") is None:
             (key,) = self._scope_keys("value")
             sync = server_sync_marker(
                 key, enabled=self._value_server_backed("value")
             )
             local = f",{key}: {json.dumps(initial)},{sync}"
-        root_attrs["bz-data"] = "{open: false" + local + "}"
+            target = f"this.{key}"
+        # ``local`` ends with a comma (``server_sync_marker``'s fragment
+        # does), so the methods come without one: a doubled comma is a
+        # syntax error that kills the scan of the whole page.
+        # The framework's one-line indirection (``_read`` / ``_write``,
+        # as ``scope_literal`` writes them).
+        methods = (
+            f"_read() {{ return {target}; }},"
+            f"_write(v) {{ {target} = v; }}"
+        )
+        root_attrs["bz-data"] = "{open: false" + (local or ",") + methods + "}"
         # ── The receivers of the imperative API ──────────────────
         #
         # In BOUND mode, `.open()` / `.set()` write straight into the
@@ -265,7 +287,7 @@ class ColorPicker(Component):
         swatch = Element(
             tag="span",
             attrs={
-                "class": sized("swatch"),
+                "class": self.compose_class("swatch"),
                 "aria-hidden": "true",
                 # ``background-color`` and not ``background``: the
                 # class sets the resting grey, and a ``background``
@@ -280,17 +302,23 @@ class ColorPicker(Component):
         field_attrs: dict[str, Any] = {
             "type": "text",
             "placeholder": self._placeholder,
-            "class": sized("input_field"),
+            "class": self.compose_class("input_field"),
             "value": initial,
-            "bz-model": val,
+            # The typed text is read once, normalised, then written: a
+            # value that leaves for the server is a whole colour.
+            **typed_field_attrs(val, normalise_to_hex_js, lambda v: v),
             "autocomplete": "off",
             "spellcheck": "false",
-            "aria-label": self._placeholder,
+            "aria-label": text("color_picker.label"),
         }
         if disabled:
             field_attrs["disabled"] = True
         if required:
             field_attrs["aria-required"] = "true"
+        if "bz-on:blur" in relocated:
+            relocated["bz-on:blur"] = (
+                f"{field_attrs['bz-on:blur']}; {relocated['bz-on:blur']}"
+            )
         field_attrs.update(relocated)
         self.forward_binding("disabled", field_attrs)
 
@@ -301,10 +329,8 @@ class ColorPicker(Component):
 
         if self._clearable:
             cross = clear_button(
-                css=sized("clear_button"),
-                icon_css=self.slot_class(
-                    "button_icon", size_cfg.get("button_icon", "")
-                ),
+                css=self.compose_class("clear_button"),
+                icon_css=self.compose_class("button_icon"),
                 aria_label=text("color_picker.clear"),
                 clear_js=f"{val} = ''",
                 show_when=val,
@@ -316,10 +342,8 @@ class ColorPicker(Component):
 
         opener = trigger_button(
             icon="palette",
-            css=sized("trigger_button"),
-            icon_css=self.slot_class(
-                "button_icon", size_cfg.get("button_icon", "")
-            ),
+            css=self.compose_class("trigger_button"),
+            icon_css=self.compose_class("button_icon"),
             aria_label=text("color_picker.open"),
             disabled=disabled,
         )
@@ -328,13 +352,18 @@ class ColorPicker(Component):
 
         frame = Element(
             tag="div",
-            attrs={"class": sized("input_frame"), "bz-ref": "bztrigger"},
+            attrs={"class": self.compose_class("input_frame"), "bz-ref": "bztrigger"},
             children=tuple(frame_children),
         )
 
-        panel = anchored_panel(
-            css=self.slot_class("panel"),
-            children=(
+        # The palette is the same in every colour picker of the page, and
+        # closed until opened, so the page carries it
+        # ONCE (``render/shared_parts.py``) and the panel clones it the
+        # first time it opens. A swatch's selected mark is a
+        # directive: the shared copy starts unselected and the scan sets
+        # it. Outside a render context, the panel carries its own.
+        def palette(selected: str) -> tuple[Element, ...]:
+            return (
                 Element(
                     tag="div",
                     attrs={"class": self.slot_class("panel_label")},
@@ -345,12 +374,21 @@ class ColorPicker(Component):
                     tag="div",
                     attrs={"class": self.slot_class("grid")},
                     children=tuple(
-                        self._cell(hexa, val, initial, disabled)
+                        self._cell(hexa, val, selected, disabled)
                         for hexa in self._palette_swatches()
                     ),
                 ),
-            ),
+            )
+
+        key = share_part(palette(""))
+        panel = anchored_panel(
+            css=self.slot_class("panel"),
+            children=() if key else palette(initial),
+            extra_effect="if (open) $bz.parts.fill($el)" if key else "",
         )
+        if key:
+            panel = Element(tag=panel.tag, attrs={**panel.attrs, PART_ATTR: key},
+                            children=panel.children)
 
         return Element(
             tag=self._tag,
@@ -371,7 +409,12 @@ class ColorPicker(Component):
             "type": "button",
             "class": self.slot_class("swatch_cell"),
             "style": f"background:{hexa}",
-            "title": hexa,
+            # The page's shared tooltip, not the browser's ``title``
+            # bubble: it follows the theme, and it shows at once on focus
+            # too. The name is the ``aria-label`` — the
+            # panel does not repeat it to a screen reader.
+            "data-bz-tip-root": "",
+            "data-bz-tip": hexa,
             "aria-label": hexa,
             # ``bool_attr`` and not a hand-written ternary: ``bz-attr``
             # treats a boolean the way HTML wants (empty attribute, or
@@ -382,17 +425,15 @@ class ColorPicker(Component):
                 "true" if initial.lower() == hexa.lower() else "false"
             ),
             "bz-attr:data-selected": bool_attr(
-                f"({val} || '').toLowerCase() === '{hexa.lower()}'"
+                f"(_read() || '').toLowerCase() === '{hexa.lower()}'"
             ),
-            # ⚠️ ``value`` and ``open`` BARE, not ``this.value``: a
-            # ``bz-on:`` is a DIRECTIVE, evaluated in a ``with($scope)``
-            # — the bare identifier resolves there, ``this`` does not.
-            # It is ``this`` that is needed in a METHOD BODY of the
-            # ``bz-data``, the exact opposite. Written the wrong way
-            # round here, the raise killed the runtime's scan for the
-            # WHOLE PAGE: no scope initialised any more, and no visible
-            # error.
-            "bz-on:click": f"{val} = '{hexa}'; open = false",
+            # Through the scope's ``_write`` (cf. ``bz-data`` above), the
+            # same for every picker: the swatch is shared. ⚠️ In the
+            # DIRECTIVE the names are bare (a ``with($scope)``); in the
+            # METHOD body it is ``this.<key>`` — written the wrong way
+            # round, the raise killed the runtime's scan for the WHOLE
+            # PAGE, with no visible error.
+            "bz-on:click": f"_write('{hexa}'); open = false",
         }
         if disabled:
             attrs["disabled"] = True

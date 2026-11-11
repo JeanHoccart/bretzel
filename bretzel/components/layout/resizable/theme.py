@@ -33,8 +33,7 @@ adds if ``disabled`` is false. Writing ``not-aria-disabled:hover:…``
 would have fitted in one string, but would have rested the affordance on
 a composition of variants unverified in this repository — and a class
 that does not compile fails in SILENCE, with identical HTML on both
-sides (memory ``project_assembled_tailwind_class_dev_only``). Two static
-strings cannot lie.
+sides. Two static strings cannot lie.
 
 Slots :
 - ``root``           : the flex group — carries the ``bz-data`` scope
@@ -78,7 +77,7 @@ RESIZABLE_THEME: dict[str, Any] = {
         ),
         "handle_active": (
             "cursor-grab active:cursor-grabbing "
-            "hover:bg-(--bz-solid)/40 active:bg-(--bz-solid)"
+            "hover:bg-(--bz-border) active:bg-(--bz-solid)"
         ),
         # No ``pointer-events-none`` beside the cursor: an element that
         # receives no pointer event never paints its cursor, so the class
@@ -92,10 +91,8 @@ RESIZABLE_THEME: dict[str, Any] = {
         # ``group-hover:opacity-100``) is what half the ecosystem does
         # and it is a two-stage trap: a finger does not hover, so on
         # touch the handle no longer announces that it can be grabbed —
-        # and the user's browser reports precisely ``any-hover: false``
-        # (memory ``project_user_browser_has_no_fine_pointer``). Gated by
-        # ``test_hover_only_controls_reachable``, which refused this
-        # slot's first version.
+        # and a touch browser reports precisely ``any-hover: false``.
+        # Gated by ``test_hover_only_controls_reachable``.
         "grip": (
             "pointer-events-none rounded-full bg-text/25 "
             "transition-colors duration-150 ease-out "
@@ -118,18 +115,16 @@ RESIZABLE_THEME: dict[str, Any] = {
     #: which compares them step by step.
     #:
     #: Why it is the GROUP that carries it, and not the panel: an
-    #: ancestor's padding can never create space INSIDE the group.
-    #: Measurement of 2026-08-23 on the CRM shell (parent at ``p-8``):
-    #: the panel did start at x=32, so the padding reached it — but its
-    #: content ran to 384, where the handle starts. Zero. Only the
-    #: panels' parent knows where the handle is.
+    #: ancestor's padding can never create space INSIDE the group. It
+    #: reaches the panel, whose content still runs to where the handle
+    #: starts. Only the panels' parent knows where the handle is.
     "gaps": {
         "none": "gap-0",
-        "xs": "gap-1",
-        "sm": "gap-2",
-        "md": "gap-4",
-        "lg": "gap-6",
-        "xl": "gap-8",
+        "xs": "gap-(--bz-gap-1)",
+        "sm": "gap-(--bz-gap-2)",
+        "md": "gap-(--bz-gap-4)",
+        "lg": "gap-(--bz-gap-6)",
+        "xl": "gap-(--bz-gap-8)",
     },
     "sizes": {
         "xs": {

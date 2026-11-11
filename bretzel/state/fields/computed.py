@@ -2,7 +2,7 @@
 
 A computed is a derived value that auto-tracks its dependencies on first
 evaluation and caches the result until any dependency changes. The shape
-mirrors MobX / Vue computed and the spec in ``.claude/bretzel/state.md``.
+mirrors MobX / Vue computed.
 
 Internally :
 
@@ -26,7 +26,7 @@ import weakref
 from collections.abc import Callable
 from typing import Any
 
-from bretzel.core.tracking import TRACKER
+from bretzel.core.tracking import TRACKER, Reads
 
 
 class ComputedProperty:
@@ -35,7 +35,7 @@ class ComputedProperty:
     # ``__doc__`` cannot live in __slots__ — it shadows the class-level
     # docstring slot. We allow ``__dict__`` so users can still introspect
     # the wrapped function's docstring on the descriptor.
-    __slots__ = ("__dict__", "_cache", "_dirty", "_finalized", "fn", "name")
+    __slots__ = ("__dict__", "_cache", "_dirty", "_finalized", "_reads", "fn", "name")
 
     def __init__(self, fn: Callable[[Any], Any]) -> None:
         self.fn = fn
@@ -45,6 +45,8 @@ class ComputedProperty:
         self._cache: dict[int, Any] = {}
         self._dirty: dict[int, bool] = {}
         self._finalized: set[int] = set()
+        #: ``id(instance)`` → what the cached value was computed from.
+        self._reads: dict[int, Reads] = {}
         self.__doc__ = getattr(fn, "__doc__", None)
 
     # ── Descriptor protocol ─────────────────────────────────────────────
@@ -71,14 +73,18 @@ class ComputedProperty:
 
         # Recompute on first read or after invalidation.
         if self._dirty.get(iid, True):
-            with TRACKER.observing(bound):
+            with TRACKER.observing(bound), TRACKER.recording() as reads:
                 self._cache[iid] = self.fn(instance)
+            self._reads[iid] = reads
             self._dirty[iid] = False
 
         # Outside the inner observing scope : the CALLER's current observer
         # (a render scope, an outer computed, …) becomes a dependent of
-        # this computed via ``(instance, name)``.
+        # this computed via ``(instance, name)``. A zone being recorded
+        # follows the fields the value was computed from — replayed, since
+        # from the cache they are not read again.
         TRACKER.track_access(instance, self.name)
+        TRACKER.replay(self._reads[iid])
         return self._cache[iid]
 
     def __set__(self, instance: Any, value: Any) -> None:
@@ -108,6 +114,7 @@ class ComputedProperty:
         """Drop all per-instance bookkeeping. Called by the weakref finalizer."""
         self._cache.pop(iid, None)
         self._dirty.pop(iid, None)
+        self._reads.pop(iid, None)
         self._finalized.discard(iid)
 
     def __repr__(self) -> str:

@@ -24,12 +24,13 @@ Slots :
 - ``head_static`` : the same metrics for a NON-sortable header, so the two
   kinds of column align on the same baseline
 
-The per-column filter has NO slot here : it is a ``ui.combobox``
-(``multiple``, ``bulk_actions``, custom ``trigger=``), so its panel, its
-tick-list, its search field and its header bar are the combobox's own
-theme. Everything that used to live here — ``filter_panel``,
-``filter_option``, ``filter_rule``, ``filter_search``, ``filter_trigger``,
-``head_group`` — was a second copy of it.
+- ``filter_count`` : the number of rows next to each value of a filter
+  panel (list tier only — a callable holds no rows to count)
+
+The rest of the per-column filter has NO slot here : it is a
+``ui.combobox`` (``multiple``, custom ``trigger=``), so its panel, its
+checkboxes, its search field and its footer are the combobox's own
+theme.
 
 Modifiers :
 - ``sticky``      : pins the ``<thead>`` while the body scrolls. Only ever
@@ -48,15 +49,17 @@ DATATABLE_THEME: dict[str, Any] = {
             "flex flex-col gap-3 w-full"
         ),
         "toolbar": "flex items-center gap-2 flex-wrap",
+        # Pushed to the option's right edge ; ``tabular-nums`` so a column
+        # of counts lines up digit under digit.
+        "filter_count": "ms-auto ps-4 text-muted tabular-nums",
         # The search box shouldn't span the table — a full-width text
         # field reads as "type a lot here", which is the wrong promise
         # for a filter. Hence the ceiling at `max-w-xs` (320 px).
         #
         # `flex-1` and NOT `w-full`, and that is the half that counts.
         # Under `flex-wrap`, an overflow makes things WRAP, it does not
-        # compress: the search therefore stayed at 320 px at every width
-        # (measured from 1400 to 700 px — not a pixel given) and it was
-        # the export that paid a whole row as soon as ~1000 px. `flex-1`
+        # compress: with `w-full`, the search would stay at 320 px at
+        # every width, and the export would pay a whole row. `flex-1`
         # (basis 0) makes it hold the line whatever happens then grow
         # into the remaining space, so IT is what absorbs the narrowness
         # — it is the bar's most elastic control, the others have a width
@@ -83,15 +86,15 @@ DATATABLE_THEME: dict[str, Any] = {
         # has a variable number that must stay grouped. Under
         # ``justify-between`` the bar would push the search and the
         # filters to each end whenever room is left. ``ml-auto`` on the
-        # last child pushes to the right of THE LINE IT LANDS ON —
-        # measured from 1280 to 390 px: wide, it ends the filters' row;
+        # last child pushes to the right of THE LINE IT LANDS ON: wide,
+        # it ends the filters' row;
         # narrow, it occupies its own alone, always flush with the right
         # edge. The "two halves" reading therefore holds as long as the
         # bar fits on one line, and degrades cleanly — not into disorder
         # — when it wraps.
         "export": "ms-auto",
         "footer": "flex items-center justify-between gap-3 flex-wrap",
-        # Type scale lives in ``sizes[<size>]["info"]`` — a ``text-xs``
+        # Type scale lives in ``sizes[<size>]["footer_info"]`` — a ``text-xs``
         # baked here would be a size the ``size=`` prop could never move.
         "footer_info": "text-muted tabular-nums",
         # A ``ui.button`` in a ``<th>`` has to stop looking like a button
@@ -108,18 +111,13 @@ DATATABLE_THEME: dict[str, Any] = {
         # colour at REST comes from the parent (``color="current"``).
         # ⚠️ The case follows ``Table.head_cell`` — the two MUST stay in
         # agreement, otherwise a sortable column and its static neighbour
-        # no longer read as the same header row. The uppercase at 10-12 px
-        # was removed from both on 2026-08-06: illegible, and it is
-        # exactly what the V1 spec asked to replace with normal case.
-        # What distinguishes a header from data is now the WEIGHT and the
-        # colour, not the size nor the capitals — the convention of
-        # current libraries.
-        # Neither ``flex-1`` nor ``min-w-0``: they served the
-        # ``head_group`` that shared the cell between the title and a
-        # filter trigger. The filter moved to the toolbar, the parent
-        # became a bare ``<th>`` again (``table/theme.py`` § head_cell,
-        # with no ``display:flex``), and the two tokens no longer acted
-        # on anything.
+        # no longer read as the same header row. Neither is uppercase: at
+        # 10-12 px it is illegible. What distinguishes a header from data
+        # is the WEIGHT and the colour, not the size nor the capitals —
+        # the convention of current libraries.
+        # Neither ``flex-1`` nor ``min-w-0``: the parent is a bare ``<th>``
+        # (``table/theme.py`` § head_cell, with no ``display:flex``), on
+        # which the two tokens would act on nothing.
         "head_button": (
             "!justify-start !h-auto !px-1 !py-0.5 "
             "!rounded !text-sm !font-semibold !normal-case !tracking-normal "
@@ -141,31 +139,31 @@ DATATABLE_THEME: dict[str, Any] = {
     # The composed children's own size tokens, derived from the
     # Datatable's — a literal ``Pagination(size="sm")`` would leave the
     # pager the same height on a ``size="lg"`` table. Every row carries
-    # the same keys on purpose : a missing one falls back silently,
-    # which is how the frozen-child bug started.
+    # the same keys on purpose : a missing one falls back silently.
     #
     # ⚠️ The sort BUTTON is deliberately absent from this table, and its
     # ``size="xs"`` at the call site is a baselined constant. Table fixes
-    # the header type scale (``text-xs uppercase`` in ``head_cell``, the
+    # the header type scale (``text-sm`` in ``head_cell``, the
     # same at every density), so a sortable header that grew with ``size``
-    # would no longer match the NON-sortable header beside it. Measured
-    # before deciding : with the layout overrides below in place, deriving
-    # the button's size changed nothing at all in the browser — one
+    # would no longer match the NON-sortable header beside it. With the
+    # layout overrides below in place, deriving the button's size changes
+    # nothing at all in the browser — one
     # rendered value across sm/md/lg. A derivation that moves nothing is
     # worse than an honest constant, because the test that "proves" it
     # only sees the class string.
     "sizes": {
-        # A SINGLE `toolbar` token feeds ALL the bar's controls —
+        # A SINGLE `toolbar_size` token feeds ALL the bar's controls —
         # search, filters, export — and it goes down as is into the
         # filter combobox's `size=`, whose own `sizes` table scales its
-        # panel, its options and its search. Before: the search took
-        # `size`, the chip `toolbar_button` and the inner search
-        # `filter_check`, so three scales side by side on an `lg` table.
-        "sm": {"pager": "sm", "info": "text-xs", "toolbar": "sm",
+        # panel, its options and its search.
+        # Not named `toolbar`: that is the name of a SLOT, under which
+        # the base composer pastes a row's classes — it would write
+        # `class="… sm"` on the bar.
+        "sm": {"pager": "sm", "footer_info": "text-xs", "toolbar_size": "sm",
                "search": "min-w-44"},
-        "md": {"pager": "sm", "info": "text-xs", "toolbar": "sm",
+        "md": {"pager": "sm", "footer_info": "text-xs", "toolbar_size": "sm",
                "search": "min-w-48"},
-        "lg": {"pager": "md", "info": "text-sm", "toolbar": "md",
+        "lg": {"pager": "md", "footer_info": "text-sm", "toolbar_size": "md",
                "search": "min-w-56"},
     },
     "modifiers": {

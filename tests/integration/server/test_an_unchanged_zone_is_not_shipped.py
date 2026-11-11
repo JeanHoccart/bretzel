@@ -1,7 +1,7 @@
 """Une zone dont le rendu n'a pas bougé ne repart pas sur le fil.
 
 Le rendu est déjà payé quand on le sait — c'est l'expédition, le gzip et
-le morph qu'on épargne. Mesuré le 2026-09-08 sur ``examples/messagerie`` :
+le morph qu'on épargne. Mesuré sur une messagerie :
 re-cliquer un fil déjà ouvert coûtait **9 461 octets et 50 ms** ; avec
 cette optimisation, **300 octets et 10 ms**. Le même clic sur un fil
 DIFFÉRENT coûte toujours ses 9,4 Ko, et c'est normal — tout y change.
@@ -29,6 +29,7 @@ from bretzel import Bretzel, page, refreshable, ui
 from bretzel.runtime.protocol import HEADER_ZONE_HASHES, HEADER_ZONES
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.state import SessionState, field
+from tests._session import session_of
 
 _SECRET = "x" * 32
 
@@ -37,14 +38,16 @@ _app = Bretzel(secret_key=_SECRET, mode="dev")
 
 class Compteur(SessionState):
     n: int = field(default=0)
-    #: Muté par l'action « sans effet visible » : la zone lit ``n``, pas
-    #: celui-ci, donc son rendu ne bouge pas alors qu'elle est bien sale.
+    #: Muté par l'action « sans effet visible » : la zone le LIT sans
+    #: l'afficher, donc elle est redessinée et son rendu ne bouge pas.
     invisible: int = field(default=0)
 
 
-@refreshable(deps=[Compteur])
+@refreshable
 def zone() -> None:
-    ui.text(f"N={Compteur().n}")
+    compteur = Compteur()
+    compteur.invisible  # lu, pas affiché : sa mutation redessine à l'identique
+    ui.text(f"N={compteur.n}")
 
 
 def incrementer() -> None:
@@ -58,7 +61,7 @@ def toucher_sans_rien_changer() -> None:
 
 def _agir(client: TestClient, quoi, entetes: dict[str, str]):
     action_id = encode_action_id(quoi)
-    sig = sign_action(_app.config._action_key, action_id, "")
+    sig = sign_action(_app.config._action_key, action_id, "", session_id=session_of(client))
     reponse = client.post(
         f"/_bretzel/action/{action_id}",
         headers={"X-Bz-Sig": sig, **entetes},
@@ -165,7 +168,7 @@ def test_the_two_ends_of_the_protocol_agree() -> None:
         / "bretzel"
         / "runtime"
         / "_src"
-        / "05_bridge.js"
+        / "bridge.js"
     ).read_text(encoding="utf-8")
     assert f'"{HEADER_ZONE_HASHES}"' in pont, (
         f"le pont ne lit pas {HEADER_ZONE_HASHES!r} : le serveur annonce "

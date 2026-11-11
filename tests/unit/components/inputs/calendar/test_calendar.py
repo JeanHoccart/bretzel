@@ -7,7 +7,7 @@ import re
 
 import pytest
 
-from bretzel.components.base import ComponentDefinitionError
+from bretzel.components.base import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.inputs.calendar import (
     DEFAULT_WEEKDAY_NAMES_SUN_FIRST,
@@ -91,7 +91,7 @@ class TestComputeMonthGrid:
         # a ``None / ""`` guard. Verify weekstart=0 emits as the
         # custom-element attribute ``weekstart="0"``.
         with render_isolated():
-            html = serialize(Calendar(weekstart=0).render())
+            html = serialize(Calendar(week_start=0).render())
         assert 'weekstart="0"' in html
         # Et la ligne des jours commence bien par DIMANCHE. Elle ne
         # contient plus « Sun » : sans liste explicite, les noms sont
@@ -141,23 +141,23 @@ class TestRotateWeekdayNames:
 
 class TestConstructorValidation:
     def test_invalid_mode_raises(self) -> None:
-        with pytest.raises(ComponentDefinitionError, match="mode"):
-            Calendar(mode="invalid")
+        with render_isolated(), pytest.raises(ComponentUsageError, match="mode"):
+            Calendar(mode="invalid").render()
 
     def test_view_mode_no_longer_accepted(self) -> None:
         # ``view`` was dropped — half-baked feature (capped at 1 event
         # per day, read-only with no click affordance). A dedicated
         # ``ui.event_calendar`` will land later with proper multi-event
         # + interactive support.
-        with pytest.raises(ComponentDefinitionError, match="mode"):
-            Calendar(mode="view")
+        with render_isolated(), pytest.raises(ComponentUsageError, match="mode"):
+            Calendar(mode="view").render()
 
     def test_weekday_names_wrong_length_raises(self) -> None:
-        with pytest.raises(ComponentDefinitionError, match="7"):
+        with pytest.raises(ComponentUsageError, match="7"):
             Calendar(weekday_names=["only", "five", "days", "here", "nope"])
 
     def test_month_names_wrong_length_raises(self) -> None:
-        with pytest.raises(ComponentDefinitionError, match="12"):
+        with pytest.raises(ComponentUsageError, match="12"):
             Calendar(month_names=["one"])
 
 
@@ -250,10 +250,10 @@ class TestRenderPickerMode:
         composant figeait la table anglaise au montage, quelle que soit
         la langue de l'app. Ce qu'il gardait n'était donc pas un
         invariant mais le défaut [11]. Ce qui reste vrai — et ce qui
-        compte — c'est la ROTATION : ``weekstart=1`` met lundi en tête,
+        compte — c'est la ROTATION : ``week_start=1`` met lundi en tête,
         et les indices émis sont ceux de ``Date.getDay()``.
         """
-        html = _render(weekstart=1)
+        html = _render(week_start=1)
         emitted = [
             html.find(f"$bz.locale.weekdayNames()[{i}]") for i in range(7)
         ]
@@ -264,7 +264,7 @@ class TestRenderPickerMode:
 
     def test_an_explicit_list_still_renders_server_side(self) -> None:
         """L'échappatoire tier 2 : les noms donnés partent dans le HTML."""
-        html = _render(weekstart=1, weekday_names=[f"J{i}" for i in range(7)])
+        html = _render(week_start=1, weekday_names=[f"J{i}" for i in range(7)])
         assert "$bz.locale.weekdayNames()" not in html
         for day in ("J1", "J2", "J0"):
             assert f">{day}<" in html
@@ -282,7 +282,7 @@ class TestRenderPickerMode:
         html = _render()
         assert "data-bz-cal-grid" in html
         # No pre-rendered cells.
-        assert "data-day-cell" not in html
+        assert "data-bz-day-cell" not in html
 
     def test_data_bz_theme_blob_present(self) -> None:
         # Theme classes (composed by Python's compose_class) are
@@ -304,10 +304,10 @@ class TestRenderPickerMode:
 
         with render_isolated(), rendering_scope():
             state = _CalForm()
-            html = serialize(Calendar(state.picked).render())
+            html = serialize(Calendar(value=state.picked).render())
         assert "<input" in html
         assert 'type="hidden"' in html
-        assert 'name="picked"' in html
+        assert 'name="_CalForm.picked"' in html
 
     def test_no_hidden_input_without_form_binding(self) -> None:
         # A bare ``Calendar()`` (no value binding, no on_change) does
@@ -325,7 +325,7 @@ class TestRenderRangeMode:
         # The custom element accepts a JSON-stringified [start, end]
         # in its ``value`` attribute.
         html = _render(
-            (dt.date(2026, 3, 10), dt.date(2026, 3, 20)),
+            value=(dt.date(2026, 3, 10), dt.date(2026, 3, 20)),
             mode="range",
         )
         # The value attribute carries the JSON. HTML-escaped quotes.
@@ -338,7 +338,7 @@ class TestRenderRangeMode:
         # and stamps ``data-range-start`` / ``data-range-end`` itself.
         # We just verify the JSON pair survives into the attribute.
         html = _render(
-            (dt.date(2026, 3, 10), dt.date(2026, 3, 20)),
+            value=(dt.date(2026, 3, 10), dt.date(2026, 3, 20)),
             mode="range",
             month=dt.date(2026, 3, 1),
         )
@@ -411,7 +411,7 @@ class TestSizes:
 
     def test_initial_range_values_serialized(self) -> None:
         html = _render(
-            (dt.date(2026, 3, 10), dt.date(2026, 3, 20)),
+            value=(dt.date(2026, 3, 10), dt.date(2026, 3, 20)),
             mode="range",
         )
         assert "2026-03-10" in html
@@ -477,9 +477,9 @@ class TestBindableProps:
 
         with rendering_scope(), render_isolated():
             out = serialize(Calendar(value=_S().day).render())
-        assert 'name="day"' in out
+        assert 'name="_S.day"' in out
         # …and it does NOT leak onto the <bz-calendar> root (released).
-        assert out.count('name="day"') == 1
+        assert out.count('name="_S.day"') == 1
 
     def test_events_listed(self) -> None:
         assert Calendar.EVENTS == (
@@ -516,7 +516,7 @@ class TestValueBinding:
 
         with render_isolated(), rendering_scope():
             state = _Cal()
-            html = serialize(Calendar(state.pick).render())
+            html = serialize(Calendar(value=state.pick).render())
         assert "bz-attr:value=" in html
         assert "$bz.state._Cal.default.pick" in html
         # The write-back path for user picks / internal nav.
@@ -531,8 +531,8 @@ class TestValueBinding:
 
         with render_isolated(), rendering_scope():
             state = _Cal2()
-            html = serialize(Calendar(state.target_date).render())
-        assert 'name="target_date"' in html
+            html = serialize(Calendar(value=state.target_date).render())
+        assert 'name="_Cal2.target_date"' in html
 
 
 class TestImperativeAPI:

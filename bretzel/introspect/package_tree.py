@@ -3,18 +3,16 @@
 ⚠️ **Not to be confused with ``packages.py``, its folder neighbour**,
 which deals with an entirely different subject: the components published
 by installed THIRD-PARTY packages. Here it is Bretzel's own tree. The two
-names look alike enough that one overwrites one believing one is creating
-the other — that happened on 2026-09-02, and it was the suite's 216 reds
-that said so, not the re-reading.
+names look alike enough that one can overwrite one believing one is
+creating the other.
 
 ``describe_module`` reads a hand-written table: seven modules classified
 symbol by symbol. That is precise, and it is **blind to the rest** —
 ``bretzel.components.inputs`` is a real package, with a real docstring,
 and introspection answered "does not exist".
 
-Measured on 2026-09-02: **117 folders under ``bretzel/``, 117 have a
-package docstring, none missing.** The material to describe itself
-therefore already exists in full — nobody was reading it.
+Every folder under ``bretzel/`` has a package docstring: the material to
+describe itself already exists in full.
 
 This module reads it. It classifies nothing and invents nothing: it walks
 the tree, takes the docstring the folder already carries, and returns the
@@ -30,9 +28,8 @@ appears on its own, and its docstring is what its author wrote when
 creating it. The only thing to keep is that it has one —
 ``test_every_package_describes_itself`` takes care of that.
 
-It is the same lesson as the ``bretzel-api`` skill deleted on 2026-08-01:
-a hand-copied catalogue drifts faster than it serves. The difference
-between the two is knowing WHO the source is.
+A hand-copied catalogue drifts faster than it serves. What separates it
+from this tree is knowing WHO the source is.
 """
 
 from __future__ import annotations
@@ -114,19 +111,17 @@ def _docstring_of(path: Path) -> str:
 def _first_line(doc: str) -> str:
     """The first PARAGRAPH, lines re-joined — not the first line.
 
-    ⚠️ **The difference is not cosmetic, it is measured.** Taking the
-    first *line* cut **68 summaries out of 592 (11 %)** in the middle of
-    a sentence, because the author had wrapped their sentence at 79
-    columns:
+    ⚠️ **The difference is not cosmetic.** Taking the first *line* would
+    cut a summary in the middle of a sentence whenever the author has
+    wrapped that sentence:
 
         Stable 8-char hex digest used to compress IDs (and other stable
 
-    The reader did not see a short sentence, they saw a false one — and
-    nothing on screen said half of it was missing.
+    The reader would not see a short sentence, they would see a false
+    one — and nothing on screen would say half of it is missing.
 
-    The paragraph repairs **all 68, at no cost**: the median length is
-    the same (59 characters), because the vast majority of summaries
-    already fit on one line. Only 9 exceed 200 characters.
+    The paragraph costs nothing, because the vast majority of summaries
+    already fit on one line.
 
     We stop at the first EMPTY line: the rest of a docstring is the
     detail, and a summary must stay a summary.
@@ -146,17 +141,16 @@ def _is_package(path: Path) -> bool:
 def _module_info(path: Path) -> ModuleInfo:
     """The module, its sentence, and its top-level public symbols.
 
-    Why we descend that far (2026-09-02)
-    ------------------------------------
-    Because the level above is often EMPTY. Measured: **73 of the 117
-    package docstrings are stubs** of the form "icon_button component.",
-    while the module just below says "IconButton — square button whose
-    only content is an icon".
+    Why we descend that far
+    -----------------------
+    Because the level above is often EMPTY: many package docstrings are
+    stubs of the form "icon_button component.", while the module just
+    below says "IconButton — square button whose only content is an
+    icon".
 
-    The content exists, it is one notch lower: **608 public symbols, 592
-    documented — 97 %**. Descending therefore costs less than rewriting
-    73 folder docstrings — and gives text somebody wrote thinking about
-    what they were doing, not to fill a box.
+    The content exists, it is one notch lower. Descending therefore costs
+    less than rewriting the folder docstrings — and gives text somebody
+    wrote thinking about what they were doing, not to fill a box.
 
     ⚠️ Read from the AST, so WITHOUT importing. A module that breaks on
     import stays described — and that is intended: a repository's
@@ -197,16 +191,12 @@ def describe_package(name: str = "bretzel") -> PackageNode:
     says what EXISTS at the requested level, because a typo in a folder
     name is the common case.
 
-    Memoised, and it took measuring to see it
-    -----------------------------------------
-    Walking the tree parses **344 files at the AST level**, which cost
-    **740 ms ON EVERY CALL**. The package's eight other readers have
-    carried a ``@cache`` forever; this one did not, and it was the most
-    expensive of all — 150 times ``index()``, which takes 4.7 ms.
-
-    ``examples/docs``'s ``/tree`` page called it TWICE per request (here,
-    then through :func:`package_names`): **1 340 ms** for one page,
-    against 132 ms for ``/components``.
+    Memoised
+    --------
+    Walking the tree parses every file of the package at the AST level,
+    which makes it the most expensive of the package's readers, and a
+    single page can call it twice (here, then through
+    :func:`package_names`).
 
     Safe because the result is immutable: ``PackageNode`` is a ``frozen``
     whose every field is a string or a tuple of ``frozen``. No caller can
