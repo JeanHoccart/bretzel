@@ -42,7 +42,7 @@ SIGNATURE_PAD_THEME: dict[str, Any] = {
         "pad": (
             "relative w-full rounded-box overflow-hidden "
             "border-(length:--bz-stroke-strong) border-dashed border-text/15 bg-surface "
-            "transition-colors duration-150 ease-out "
+            "transition-colors duration-200 ease-out "
             "focus-within:border-(--bz-border-hover) "
             # The frame greys out AND loses its dashes when it is
             # locked: a signed pad must no longer INVITE a signature.
@@ -64,7 +64,7 @@ SIGNATURE_PAD_THEME: dict[str, Any] = {
             "text-center text-text/40 "
             # Erased at the first stroke — the prompt has said what it
             # had to say.
-            "transition-opacity duration-150 ease-out "
+            "transition-opacity duration-200 ease-out "
             "data-[empty=false]:opacity-0"
         ),
         "baseline": (
@@ -76,7 +76,7 @@ SIGNATURE_PAD_THEME: dict[str, Any] = {
     # The frame's height, and nothing else: it is the only size axis a
     # pad has. No extra ``height=`` prop — two ways of saying the same
     # thing (principle 4); whoever wants an exact height goes through
-    # ``classes="!h-64"``.
+    # ``classes="h-64"``.
     "sizes": {
         "xs": {"pad": "h-24", "hint": "text-xs", "button": "xs"},
         "sm": {"pad": "h-32", "hint": "text-xs", "button": "xs"},

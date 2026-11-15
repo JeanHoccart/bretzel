@@ -99,21 +99,24 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Sequence
+from itertools import pairwise
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
 from bretzel.components.base.attrs import ComponentUsageError
 from bretzel.components.base.composition import unwrap_transparent
 from bretzel.components.base.field_wiring import hidden_carrier_attrs, relocate_handlers
+from bretzel.components.base.nodes import is_stamped_hidden, stamp_display_none
 from bretzel.components.base.responsive import responsive_classes
 from bretzel.components.base.scope_wiring import scope_literal
-from bretzel.components.base.universals import finish_render
+from bretzel.components.base.universals import finish_render, hide_with
 from bretzel.components.layout.resizable.theme import (
     RESIZABLE_PANEL_THEME,
     RESIZABLE_THEME,
 )
 from bretzel.core.tree import Element, Node
 from bretzel.render import text
+from bretzel.runtime.protocol import BZ_SHOW_PREFIX
 
 #: A group's two axes. ``horizontal`` = panels side by side.
 ORIENTATIONS: tuple[str, ...] = ("horizontal", "vertical")
@@ -178,6 +181,35 @@ def _num(value: float) -> str:
 def _num_list(values: Sequence[float]) -> str:
     """The JSON list of weights, without the ``.0``."""
     return "[" + ", ".join(_num(v) for v in values) + "]"
+
+
+def _hide_between(
+    handle: Element, left: str | None, left_stamped: bool, right: Element
+) -> Element:
+    """The handle hides when it no longer separates two VISIBLE panels.
+
+    A handle is drawn before each panel but the first. It shows when the
+    panel after it (``right``) shows AND at least one panel before it does
+    (``left``: the OR of their ``bz-show``, ``None`` when one of them has
+    none, so always shows) — so a hidden panel takes its handle and its
+    share of the ``gap`` with it, a hidden FIRST panel leaves no handle
+    leading the group, and with the middle one of three hidden a single
+    handle stays between the other two. The runtime mirrors that rule to
+    know which pair the handle drags (``_around`` in ``resizable.js``).
+
+    Composed from the panels' own ``bz-show``, so it follows them without
+    a render, like the panels themselves. A panel hidden on the server
+    (``visible=False``) is not rendered at all, so it has no handle to
+    hide. Classes that hide a panel (``hidden md:block``) are not carried
+    over: they cannot be OR-ed."""
+    shown = right.attrs.get(BZ_SHOW_PREFIX)
+    parts = [f"({p})" for p in (shown, left) if p]
+    if not parts:
+        return handle
+    attrs = {**handle.attrs, BZ_SHOW_PREFIX: " && ".join(parts)}
+    if (shown and is_stamped_hidden(right.attrs)) or left_stamped:
+        stamp_display_none(attrs)
+    return Element(tag=handle.tag, attrs=attrs, children=handle.children)
 
 
 class ResizablePanel(Component):
@@ -270,7 +302,7 @@ class Resizable(Component):
     #: and not inferred: the prop → table correspondence is what the
     #: production safelist must know.
     RESPONSIVE_PROPS: ClassVar[frozenset[str]] = frozenset({"gap"})
-    RESPONSIVE_THEME_KEYS: ClassVar[tuple[str, ...]] = ("gaps",)
+    RESPONSIVE_THEME_KEYS: ClassVar[tuple[str, ...]] = ("gaps", "lines")
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("sizes",)
     IMPERATIVE: ClassVar[tuple[str, ...]] = ("set", "reset")
     EVENTS: ClassVar[tuple[str, ...]] = ("change",)
@@ -422,25 +454,20 @@ class Resizable(Component):
         # resolved sixteen where four are enough — it is the same hoist
         # as ``panel_class``, which already had it.
         panel_class = self.slot_class("panel")
+        gap = self._reactive_values.get("gap") or "none"
+        line_table = theme.get("lines", {})
         handle_class = self.slot_class(
             "handle",
             self.slot_class(f"handle_{axis}"),
             self.slot_class(
                 "handle_locked" if disabled else "handle_active"
             ),
-            size_cfg.get(f"bar_{axis}", ""),
+            # The line at rest, by gap: drawn only where the panels touch.
+            responsive_classes(gap, lambda v, _t=line_table: _t.get(v, "")),
         )
         grip_class = self.slot_class("grip", size_cfg.get(f"grip_{axis}", ""))
-        children: list[Node] = []
-
+        nodes: list[Element] = []
         for index, panel in enumerate(panels):
-            # The ARIA "window splitter" pattern wants the handle to
-            # DESIGNATE the panel it resizes. A panel only emits an
-            # ``id`` if it needs one otherwise, so the group offers it
-            # one — derived from its own, so stable from one render to
-            # the next and unique by construction. An explicit ``id=``
-            # from the caller wins (``setdefault`` on the panel side).
-            panel_id = f"{self.id}_panel_{index}"
             # THE box, composed once and served to both paths: a
             # ``resizable_panel`` receives it and renders WITH it (it can
             # add its own attributes), a foreign child is WRAPPED in it.
@@ -448,7 +475,11 @@ class Resizable(Component):
             chrome: dict[str, Any] = {
                 "class": panel_class,
                 "data-bz-rz-panel": "",
-                "id": panel_id,
+                # The ARIA "window splitter" pattern wants the handle to
+                # DESIGNATE the panel it resizes, so the group offers each
+                # panel an ``id`` derived from its own — stable from one
+                # render to the next. An explicit ``id=`` wins.
+                "id": f"{self.id}_panel_{index}",
                 # The weight as an inline style, from the SSR onwards:
                 # the layout is right at the first paint, before the
                 # runtime takes over. A continuous value cannot go
@@ -458,46 +489,46 @@ class Resizable(Component):
             if isinstance(panel, ResizablePanel):
                 node = panel._render_in_group(chrome)
             else:
-                node = Element(
-                    tag="div",
-                    attrs=chrome,
-                    children=(self._render_one(panel),),
-                )
+                inner = self._render_one(panel)
+                node = Element(tag="div", attrs=chrome, children=(inner,))
+                # A bare child hidden on the client would leave its box
+                # behind, empty, with its share of the group.
+                if isinstance(inner, Element):
+                    node = hide_with(inner, node)
             # The zone takes its ``bz-id`` back on the composed node:
             # without that the panel would display and never refresh.
-            node = rewraps[index](node)
-            children.append(node)
-            # The ``id`` is RE-READ on the rendered node, not assumed: a
-            # panel the caller passed an ``id=`` to keeps its own, and
-            # ``aria-controls`` must designate the one that exists.
-            # Inferring it on both sides is how the pair falls out of
-            # step.
-            panel_id = str(node.attrs.get("id") or panel_id)
+            nodes.append(rewraps[index](node))
 
-            if index < len(panels) - 1:
-                children.append(
-                    self._handle(
-                        index=index,
-                        handle_class=handle_class,
-                        grip_class=grip_class,
-                        disabled=disabled,
-                        value=weights[index],
-                        controls=panel_id,
-                        vertical=vertical,
-                        # The handle puts away the collapsible panel it
-                        # touches. The LEFT one wins when both are: it is
-                        # the one its ``aria-controls`` already
-                        # designates, so the gesture and the
-                        # announcement speak of the same panel.
-                        fold_target=(
-                            index
-                            if foldable[index]
-                            else index + 1
-                            if foldable[index + 1]
-                            else None
-                        ),
-                    )
-                )
+        # A handle before each panel but the first. ``left`` is the OR of
+        # the ``bz-show`` of the panels already placed (``_hide_between``).
+        children: list[Node] = nodes[:1]
+        can_fold = any(foldable)
+        shows: list[str] = []
+        unbound = False
+        left_stamped = True
+        for index, (before, node) in enumerate(pairwise(nodes)):
+            shown = before.attrs.get(BZ_SHOW_PREFIX)
+            if shown:
+                shows.append(f"({shown})")
+            else:
+                unbound = True
+            left_stamped = left_stamped and bool(shown) and is_stamped_hidden(before.attrs)
+            left = None if unbound else " || ".join(shows)
+            handle = self._handle(
+                index=index,
+                handle_class=handle_class,
+                grip_class=grip_class,
+                disabled=disabled,
+                value=weights[index],
+                # The ``id`` is RE-READ on the rendered node, not
+                # assumed: a panel the caller passed an ``id=`` to keeps
+                # its own, and ``aria-controls`` must designate the one
+                # that exists.
+                controls=str(before.attrs.get("id")),
+                vertical=vertical,
+                foldable=can_fold,
+            )
+            children += [_hide_between(handle, left, left_stamped, node), node]
 
         # ── Hidden input — form data + source of the ``change`` ──────
         root_attrs = self.emit_attrs()
@@ -525,8 +556,7 @@ class Resizable(Component):
         # they fill the container.
         gap_table = theme.get("gaps", {})
         gap_class = responsive_classes(
-            self._reactive_values.get("gap") or "none",
-            lambda v, _t=gap_table: _t.get(v, ""),
+            gap, lambda v, _t=gap_table: _t.get(v, ""),
         )
         root_attrs["class"] = self.slot_class(
             "root",
@@ -581,7 +611,7 @@ class Resizable(Component):
         value: float,
         controls: str,
         vertical: bool,
-        fold_target: int | None,
+        foldable: bool,
     ) -> Element:
         """The handle between panel ``index`` and the next one.
 
@@ -622,22 +652,18 @@ class Resizable(Component):
             attrs["bz-on:pointermove"] = "_move($event)"
             attrs["bz-on:pointerup"] = "_end($event)"
             attrs["bz-on:pointercancel"] = "_end($event)"
-            # The collapse, if there is a collapsible panel on either
-            # side. Double-click AND ``Enter``: a mouse gesture with no
-            # keyboard twin does not exist for half the people, and the
-            # handle is already focusable for the arrows.
+            # The collapse, when the group has a collapsible panel.
+            # Double-click AND ``Enter``: a mouse gesture with no keyboard
+            # twin does not exist for half the people, and the handle is
+            # already focusable for the arrows.
             #
-            # The PAIR travels, not only the target: collapsing means
-            # giving your place to the neighbour opposite, and which one
-            # that is depends on which side of the handle the collapsible
-            # panel sits.
-            if fold_target is None:
-                fold = "null"
-            else:
-                partner = index + 1 if fold_target == index else index
-                fold = f"[{fold_target}, {partner}]"
-                attrs["bz-on:dblclick"] = f"_fold({fold_target}, {partner})"
-            attrs["bz-on:keydown"] = f"_key($event, {index}, {fold})"
+            # WHICH panel it puts away is decided by the runtime
+            # (``_foldAt``), not here: the handle's neighbours are the
+            # VISIBLE panels on either side, and a panel hidden by a
+            # client ``visible=`` changes them without a render.
+            if foldable:
+                attrs["bz-on:dblclick"] = f"_foldAt({index})"
+            attrs["bz-on:keydown"] = f"_key($event, {index})"
 
         grip = Element(
             tag="div",

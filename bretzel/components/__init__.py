@@ -43,12 +43,14 @@ from bretzel.components.feedback.notification import (
 )
 from bretzel.components.feedback.progress import Progress
 from bretzel.components.feedback.skeleton import Skeleton
+from bretzel.components.inputs.attachments import Attachments
 from bretzel.components.inputs.calendar import Calendar
 from bretzel.components.inputs.checkbox import Checkbox
 from bretzel.components.inputs.color_picker import ColorPicker
 from bretzel.components.inputs.combobox import Combobox
 from bretzel.components.inputs.date_picker import DatePicker
 from bretzel.components.inputs.date_range_picker import DateRangePicker
+from bretzel.components.inputs.editor import Editor, EditorTool
 from bretzel.components.inputs.file_upload import FileUpload
 from bretzel.components.inputs.form import Form
 from bretzel.components.inputs.form_field import FormField
@@ -61,6 +63,7 @@ from bretzel.components.inputs.select import Select
 from bretzel.components.inputs.signature_pad import SignaturePad
 from bretzel.components.inputs.slider import Slider
 from bretzel.components.inputs.switch import Switch
+from bretzel.components.inputs.tags_input import TagsInput
 from bretzel.components.inputs.textarea import Textarea
 from bretzel.components.inputs.time_picker import TimePicker
 from bretzel.components.inputs.toggle_group import ToggleButton, ToggleGroup
@@ -196,6 +199,7 @@ class _UI:
     textarea = Textarea
     select = Select
     combobox = Combobox
+    tags_input = TagsInput
     slider = Slider
     calendar = Calendar
     date_picker = DatePicker
@@ -211,11 +215,14 @@ class _UI:
     toggle_group = ToggleGroup
     toggle_button = ToggleButton
     signature_pad = SignaturePad
+    attachments = Attachments
     file_upload = FileUpload
     form = Form
     form_field = FormField
     message_input = MessageInput
     message_input_tool = MessageInputTool
+    editor = Editor
+    editor_tool = EditorTool
 
     # Feedback
     alert = Alert
@@ -355,10 +362,13 @@ __all__ = [
     "Dropdown",
     "DropdownItem",
     "EmptyState",
+    "Attachments",
     "FileUpload",
     "Message",
     "MessageInput",
     "MessageInputTool",
+    "Editor",
+    "EditorTool",
     "MessageList",
     "Flex",
     "Form",
@@ -428,6 +438,7 @@ __all__ = [
     "Table",
     "Tabs",
     "Text",
+    "TagsInput",
     "Textarea",
     "ColorPicker",
     "TimePicker",

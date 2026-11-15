@@ -55,7 +55,9 @@ from bretzel.runtime.protocol import ROUTE_ICONS, ROUTE_VENDOR
 __all__ = (
     "ROUTE_ICONS",
     "ensure_vendored",
+    "prosemirror_asset",
     "ROUTE_VENDOR",
+    "served_assets",
     "VendoredAsset",
     "download",
     "download_all",
@@ -209,6 +211,33 @@ def browser_css_asset() -> VendoredAsset:
 def downloadable_assets() -> tuple[VendoredAsset, ...]:
     """Return every third-party asset that can be downloaded locally."""
     return (*vendored_assets(), browser_css_asset())
+
+
+def prosemirror_asset() -> VendoredAsset:
+    """ProseMirror and markdown-it, the brick under ``ui.editor`` — the
+    FIFTH third party, and the only one a page loads on demand.
+
+    Not in :func:`vendored_assets`: those load on every page, and this one
+    weighs 92 KB compressed (291 KB raw) for the pages that have an
+    editor. The editor's runtime slab reads its URL from the element
+    (``data-bz-editor-src``) and adds the ``<script>`` the first time an
+    editor appears.
+
+    No CDN serves this file: it is OUR bundle of upstream packages,
+    built once by ``scripts/prosemirror/build.mjs`` (pinned versions, a
+    lockfile, a reproducible output). Hence no ``url``: it ships in the
+    wheel or it does not exist, and nothing downloads it.
+    """
+    return VendoredAsset(
+        "prosemirror.min.js",
+        "",
+        "b4769057354f74602345f224d68b317370d1e6a2d66048e9bb7c9f764a4128b6",
+    )
+
+
+def served_assets() -> tuple[VendoredAsset, ...]:
+    """The third-party scripts the vendor route serves: every page's, and the editor's."""
+    return (*downloadable_assets(), prosemirror_asset())
 
 
 def ensure_vendored() -> bool:

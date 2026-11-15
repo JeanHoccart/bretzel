@@ -16,7 +16,7 @@ dedups within that address.
 
 The store is opt-in-scoped: only ``@idempotent`` handlers touch it, and
 entries carry a short TTL, so it stays small. Single-process apps use the
-in-memory store; multi-worker apps (``redis_url`` set) use the Redis
+in-memory store; multi-worker apps (a Redis ``state_url``) use the Redis
 store, whose ``SET NX EX`` gives the atomic claim two concurrent
 double-clicks need (a plain check-then-set would race).
 """
@@ -90,8 +90,8 @@ class MemoryIdempotencyStore:
     """Single-process store — a dict + lock with lazy expiry.
 
     Correct only within one worker ; multi-worker deployments must use
-    :class:`RedisIdempotencyStore` (config validation already forces a
-    ``redis_url`` when ``workers > 1``).
+    :class:`RedisIdempotencyStore` (config validation already demands a
+    Redis ``state_url`` when ``workers > 1``).
     """
 
     def __init__(self) -> None:

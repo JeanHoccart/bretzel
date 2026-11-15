@@ -1,7 +1,8 @@
 """Default :class:`Button` theme.
 
-- ``transition duration-200 ease-out`` + ``not-disabled:active:scale`` for
-  tactile click feedback.
+- ``transition duration-150 ease-out`` + ``not-disabled:active:scale`` for
+  tactile click feedback: a control one aims at answers in 150 ms (rule 1
+  of the motion rule, ``components.md`` § motion).
 - Solid : brightness + shadow hover lift ; outline / ghost / soft :
   opacity-driven hover (``/10`` → ``/20``).
 - Focus ring : ``ring-2 ring-offset-2 ring-{color}/40``.
@@ -19,7 +20,7 @@ BUTTON_THEME: dict[str, Any] = {
             # Shape
             "rounded-field font-medium "
             # Motion + tactile feedback
-            "transition duration-200 ease-out "
+            "transition duration-150 ease-out "
             "not-disabled:active:scale-[0.95] "
             # Focus ring
             "focus-visible:outline-none focus-visible:ring-2 "

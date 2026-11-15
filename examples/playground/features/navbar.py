@@ -24,14 +24,16 @@ from examples.playground.features.inspection import emitted_html_block
 PATH = "/navbar"
 
 
-VARIANTS = ["standard", "floating"]
+WIDTHS = ["sm", "md", "lg", "xl", "2xl", "full"]
 SIDES = ["left", "center", "right"]
-LINKS = [("Docs", "/navbar"), ("Pricing", "/navbar"), ("Blog", "/navbar")]
+# Distinct paths: a link to the open page lights up, and three links to
+# ``/navbar`` lit all three at once.
+LINKS = [("Docs", "/docs"), ("Pricing", "/pricing"), ("Blog", "/blog")]
 
 
 class NavbarPlayground(PageState):
-    variant: str = field(default="standard")
     sticky:  str = field(default="off")
+    width:   str = field(default="none")
     # Escape hatches.
     classes:     str = field(default="")
     custom_id:   str = field(default="")
@@ -63,9 +65,10 @@ def parse_extra_attrs(blob: str) -> dict:
 
 def build_preview(state: NavbarPlayground) -> dict:
     kwargs: dict = {
-        "variant": state.variant,
         "sticky": state.sticky == "on",
     }
+    if state.width != "none":
+        kwargs["width"] = state.width
     if state.classes:
         kwargs["classes"] = state.classes
     if state.custom_id:
@@ -109,19 +112,41 @@ def demo_bar(**kwargs) -> None:
             ui.button("Get started", color="primary", size="sm")
 
 
+def aligned_shell(width: str | None) -> None:
+    """An app frame in a box: a bar, then a page of the same width.
+
+    ``None``: the bar without ``width=``, over a ``sm`` page.
+    """
+    page = width or "sm"
+    ui.text(f'navbar(width="{width}") over container(width="{page}")'
+            if width else f'navbar() over container(width="{page}")',
+            color="muted", size="xs")
+    with ui.vstack(gap="none", classes="overflow-hidden rounded-xl border border-text/10"):
+        with ui.navbar(width=width):
+            with ui.navbar_section(side="left"):
+                ui.navbar_item("Support", icon="life-buoy", active=True)
+            with ui.navbar_section(side="right"):
+                ui.button("Sign out", variant="ghost", size="sm")
+        with ui.container(width=page):
+            ui.heading("Open tickets", level=3)
+            ui.text("The title's left edge is the brand's.", color="muted",
+                    size="sm")
+
+
 @refreshable
 def server_panel() -> None:
     state = NavbarPlayground()
 
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
-        with control("variant"):
-            ui.select(value=state.variant,
-                      options=[(v, v) for v in VARIANTS],
-                      on_change=server_changed)
         with control("sticky"):
             ui.select(value=state.sticky,
                       options=[("off", 'False (default)'),
                                ("on", 'True (pinned while scrolling)')],
+                      on_change=server_changed)
+        with control("width"):
+            ui.select(value=state.width,
+                      options=[("none", "None (default, its own clamp)")]
+                      + [(w, w) for w in WIDTHS],
                       on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes, placeholder="shadow-lg",
@@ -199,21 +224,6 @@ def page() -> None:
             ui.heading("Basic", level=3)
             demo_bar()
 
-            ui.heading("variant", level=3)
-            ui.text(
-                "``standard`` sticks the bar to the page's edge. "
-                    '``floating`` detaches it as a rounded card — the look of'
-                    ' the Stripe or Linear sites, which only works with a '
-                    'visible page background around it.',
-                color="muted", size="xs",
-            )
-            with ui.vstack(gap="md"):
-                for name in VARIANTS:
-                    with ui.vstack(gap="xs"):
-                        ui.text(f"variant={name}", color="muted",
-                                size="xs")
-                        demo_bar(variant=name)
-
             ui.heading("sticky", level=3)
             ui.text(
                 '``sticky=True`` pins the bar to the top while scrolling.'
@@ -227,6 +237,21 @@ def page() -> None:
                 serialize_html(ui.navbar(sticky=True)),
                 lang="html",
             )
+
+            ui.heading("width — the bar lines up with the page", level=3)
+            ui.text(
+                '``width=`` takes the words of ``ui.container(width=…)``. '
+                    "The bar's content then has the container's clamp AND "
+                    'its horizontal margin, and the first item on the left '
+                    'lines up its TEXT, its pill overflowing outwards. Below,'
+                    ' the brand and the page title start at the same x. '
+                    "Without ``width=`` (last row), the bar keeps its own, "
+                    'wider clamp and lines up with nothing.',
+                color="muted", size="xs",
+            )
+            with ui.vstack(gap="md"):
+                for name in ("sm", "md", "lg", None):
+                    aligned_shell(name)
 
         # ── Carte 2 — Slots ─────────────────────────────────────
         with ui.card(), ui.vstack():
@@ -312,7 +337,7 @@ def page() -> None:
             ui.text('Brand on the left, links in the middle, call to action on '
                 'the right — the most common shape.',
                     color="muted", size="xs")
-            demo_bar(variant="floating")
+            demo_bar()
 
             ui.heading("Barre d'application", level=3)
             ui.text(
@@ -325,15 +350,15 @@ def page() -> None:
                 with ui.navbar_section(side="left"):
                     ui.heading("Tableau de bord", level=3)
                 with ui.navbar_section(side="right"):
-                    ui.icon_button("bell", variant="ghost")
+                    ui.icon_button("bell", variant="ghost", tooltip="Notifications")
                     ui.avatar(initials="AM", size="sm")
 
             ui.heading('Inside a constrained grid cell', level=3)
             with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
-                for name in VARIANTS:
-                    with ui.navbar(variant=name):
+                for name in ("Narrow", "Also narrow"):
+                    with ui.navbar():
                         with ui.navbar_section(side="left"):
-                            ui.text('Narrow')
+                            ui.text(name)
                         with ui.navbar_section(side="right"):
                             ui.button("OK", size="sm")
 

@@ -1,11 +1,24 @@
 """Accueil public de la documentation Bretzel."""
 
+import re
+from importlib.metadata import metadata
+
 from bretzel import __version__, page, ui
+from examples.docs.features.mockup import repair_jobs
 from examples.docs.features.shell import shell
 
 
-@page("/", layout=shell, title="Bretzel docs — reactive web apps in typed Python",
-      description="Documentation for Bretzel, the full-stack Python web framework: typed state, targeted server rendering, 100+ components and no npm toolchain.")
+def python_range() -> str:
+    """The Python versions the installed package declares — read, never written."""
+    minors = sorted(
+        int(c.rsplit(".", 1)[1]) for c in metadata("bretzel").get_all("Classifier") or []
+        if re.fullmatch(r"Programming Language :: Python :: 3\.\d+", c)
+    )
+    return f"Python 3.{minors[0]}–3.{minors[-1]}"
+
+
+@page("/", layout=shell, title="Bretzel docs — describe a screen, see it, ship it",
+      description="Documentation for Bretzel, the Python web framework where the mockup is the app: built with an AI agent, every file checked, typed state, 100+ components and no npm toolchain.")
 def home_page() -> None:
     with ui.container(width="xl"):
         with ui.vstack(gap="xl"):
@@ -13,38 +26,41 @@ def home_page() -> None:
                 ui.badge("Documentation", color="primary", variant="soft")
                 ui.badge(f"v{__version__} · Early alpha", color="warning", variant="outline")
 
-            with ui.hstack(align="center", justify="between", gap="xl", wrap=True):
-                with ui.vstack(gap="md", classes="max-w-3xl"):
-                    ui.heading(
-                        "Build reactive web apps in Python.",
-                        level=1, size="4xl",
-                    )
-                    ui.text(
-                        "Bretzel brings components, typed state, and server "
-                        "logic into one model. The browser stays in sync—"
-                        "without a JavaScript project or npm toolchain to maintain.",
-                        color="muted", size="lg",
-                    )
-                    with ui.hstack(gap="sm", wrap=True):
-                        ui.button(
-                            "Get started in 5 minutes", href="/quickstart",
-                            icon_right="arrow-right", size="lg",
-                        )
-                        ui.button(
-                            "Understand the model", href="/how",
-                            variant="outline", size="lg",
-                        )
-                ui.image(
-                    "/_bretzel/favicon.svg", alt="Logo Bretzel", fit="contain",
-                    classes="w-64 max-md:w-44 bg-transparent",
-                    attrs={"loading": "eager"},
+            with ui.vstack(gap="md", classes="max-w-3xl"):
+                ui.heading(
+                    "The mockup is the app.",
+                    level=1, size="4xl",
                 )
+                ui.text(
+                    "Ask your AI agent for a screen: it mocks it fast, a throwaway "
+                    "page on invented data made of the components the finished "
+                    "screen ships. You approve it on screenshots, then say “Build "
+                    "it”: the same code is wired to typed state — in Python only, "
+                    "with no JavaScript project or npm toolchain to maintain.",
+                    color="muted", size="lg",
+                )
+                with ui.hstack(gap="sm", wrap=True):
+                    ui.button(
+                        "Start with a mockup", href="/mockup",
+                        icon_right="arrow-right", size="lg",
+                    )
+                    ui.button(
+                        "Start in 5 minutes", href="/quickstart",
+                        variant="outline", size="lg",
+                    )
+
+            with ui.vstack(gap="sm"):
+                with ui.hstack(align="center", justify="between", gap="md", wrap=True):
+                    ui.text("A live mockup, not a screenshot", weight="bold")
+                    ui.link("How it was made", href="/mockup")
+                with ui.card(padding="lg"):
+                    repair_jobs()
 
             with ui.card(color="surface"):
                 with ui.vstack(gap="sm"):
                     with ui.hstack(align="center", justify="between", gap="md", wrap=True):
                         ui.text("Try the early alpha", weight="bold")
-                        ui.badge("Python 3.12–3.13", color="muted", variant="outline")
+                        ui.badge(python_range(), color="muted", variant="outline")
                     ui.code(
                         "python -m pip install bretzel\n"
                         "bretzel new hello-bretzel\n"
@@ -86,10 +102,10 @@ def home_page() -> None:
 
             with ui.card(color="primary"):
                 with ui.vstack(gap="sm"):
-                    ui.heading("The one idea to keep", level=2)
+                    ui.heading("Underneath: UI = f(state)", level=2)
                     ui.text(
-                        "UI = f(state). Describe the interface, change the state, "
-                        "and let Bretzel keep the browser current.",
+                        "Describe the interface, change the state, and let "
+                        "Bretzel keep the browser current.",
                         size="lg",
                     )
                     ui.button(

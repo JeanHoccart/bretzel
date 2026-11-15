@@ -45,9 +45,9 @@ def cadence_page() -> None:
                             {"p": "seconds",
                              "q": 'the interval, in seconds (1.0 by '
                                   'default)'},
-                            {"p": "active",
-                             "q": 'a boolean OR a `ClientBinding` — that '
-                                  'is what makes the cadence stoppable'},
+                            {"p": "disabled",
+                             "q": 'a boolean OR a `ClientBinding` — `True` '
+                                  'stops it; a binding makes it stoppable'},
                         ],
                         size="sm",
                     )
@@ -60,14 +60,14 @@ def cadence_page() -> None:
                 with ui.vstack(gap="sm"):
                     ui.heading('Stopping it — with no task to cancel', level=2)
                     ui.text(
-                        '`active=` accepts a `ClientBinding`. A switch '
+                        '`disabled=` accepts a `ClientBinding`. A switch '
                         'writes into the client state, the interval reads '
                         'it, and the cadence stops — with no round trip, '
                         'and with no server lifecycle needing to exist.',
                         color="muted", size="sm",
                     )
                     ui.code(
-                        'class Monitoring(ClientState):\n    running: bool = field(default=True)\n\nm = Monitoring()\nui.switch(value=m.running, label="Refresh")\nui.interval(on_tick=sample, seconds=5,\n            disabled=~m.running)\n',
+                        'class Monitoring(ClientState):\n    running: bool = field(default=True)\n\nm = Monitoring()\nui.switch("Refresh", checked=m.running)\nui.interval(on_tick=sample, seconds=5,\n            disabled=~m.running)\n',
                         lang="python",
                     )
 

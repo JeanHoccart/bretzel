@@ -256,12 +256,11 @@ DEFAULT_PALETTE: Final[dict[str, str]] = {
 # field, a select panel, a control's recess would render EXACTLY the page
 # colour, and the whole depth hierarchy would rest on the border alone.
 DEFAULT_SEMANTIC_LIGHT: Final[dict[str, str]] = {
-    # The accent is a muted PLUM, the second a DEEP indigo, distinct from
-    # each other and from the status colours (``test_palette_distinctness``).
-    # An amethyst (#8455ab) would fail that gate: too close to the indigo,
-    # so two semantic colours that look alike and an ambiguous variant
-    # matrix.
-    "primary":    "#682747",
+    # The accent is the BROWN of a baked pretzel's crust, the second a DEEP
+    # indigo, distinct from each other and from the status colours
+    # (``test_palette_distinctness``). A caramel or an orange would come too
+    # close to ``warning``: a primary button would read like an alert.
+    "primary":    "#8a4a1f",
     "secondary":  "#3a52b0",
     "success":    "#2f9e64",
     "error":      "#e5484d",
@@ -282,13 +281,15 @@ DEFAULT_SEMANTIC_LIGHT: Final[dict[str, str]] = {
 # three planes climb in regular steps, which is what makes depth readable.
 #
 # The neutral slots swap, and so do the two colours too DARK for a dark
-# page (plum and indigo): a primary button, a sidebar's active row, a
-# chosen toggle would all but vanish. Each is the same hue made lighter
-# until it holds 3:1 on the darkest plane a control sits on (``interface``);
-# white still reads on it. The status colours keep their light value: they
-# already read on a dark page.
+# page (the crust brown and the indigo): a primary button, a sidebar's
+# active row, a chosen toggle would all but vanish. Each is the same hue made
+# lighter until it holds 3:1 on the darkest plane a control sits on
+# (``interface``); white still reads on it. The brown is lifted no further,
+# and less saturated: a lighter crust turns caramel, and caramel sits next
+# to ``warning``. The status colours keep their light value: they already
+# read on a dark page.
 DEFAULT_SEMANTIC_DARK: Final[dict[str, str]] = {
-    "primary":    "#b9467f",
+    "primary":    "#9e5e34",
     "secondary":  "#566dc7",
     "background": "#0a0a0a",
     "surface":    "#151515",

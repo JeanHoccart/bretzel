@@ -241,11 +241,10 @@
    * inputs need nothing here — their value lives in $bz._store, which
    * the patch envelope updates and which never rides a scope signal.
    *
-   * A value adopted here is the SERVER's, not a choice: ``_serverWriting``
-   * stays up until the effects it wakes have run (they flush in the
-   * microtask queued by the first ``set``; clearing in the next one comes
-   * after), and ``change_emit_effect`` takes it as a new baseline rather
-   * than a ``change``. Without it a select that a morph turns into
+   * A value adopted here is the SERVER's, not a choice: it is written
+   * through ``$bz._writeAsServer`` (``signals.js``), and
+   * ``change_emit_effect`` takes it as a new baseline rather than a
+   * ``change``. Without it a select that a morph turns into
    * another one posts the server's value back, to the old action — a
    * 403. */
   function resyncScopes(root) {
@@ -277,11 +276,7 @@
         const moved = scope.seeds.get(key) !== fresh;
         scope.seeds.set(key, fresh);
         if (forced.includes(key) || (moved && !typing)) {
-          if (!$bz._serverWriting) {
-            $bz._serverWriting = true;
-            queueMicrotask(() => queueMicrotask(() => { $bz._serverWriting = false; }));
-          }
-          sig.set(v);
+          $bz._writeAsServer(() => sig.set(v));
         }
       }
     }

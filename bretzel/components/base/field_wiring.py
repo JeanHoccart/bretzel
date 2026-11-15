@@ -33,10 +33,14 @@ def change_emit_effect(value_expr: str) -> str:
     which DISCOVERS it. ``base/`` is importable by all, so the single
     source lives here.
 
-    A value the SERVER wrote (``resyncScopes`` adopting a re-rendered
-    value, ``$bz._serverWriting``) is a new baseline, never a ``change``:
-    a select a morph turns into another one at the same place would post
-    the server's value back to the old action — a 403.
+    A value the SERVER wrote is a new baseline, never a ``change``: one a
+    re-render adopts (``resyncScopes``), or a ClientState field an action
+    pushes (``applyPayload``) — both written through
+    ``$bz._writeAsServer``, which holds ``$bz._serverWriting`` up. A
+    select a morph turns into another one would post the server's value
+    back to the old action (a 403), and a field an action fills would
+    save it as if it had been typed. Gate:
+    ``tests/runtime_js/test_a_field_reports_only_a_gesture.py``.
     """
     return (
         f"((v) => {{ "
@@ -207,6 +211,11 @@ def hidden_carrier_attrs(
 #: on the FOCUSABLE element only. :func:`relocate_aria` moves these from a
 #: layout wrapper onto that element.
 ARIA_OF_THE_FOCUSABLE: tuple[str, ...] = (
+    # A name given by the app (``attrs={"aria-label": …}``) names the field
+    # one types in, not the wrapper around it: left on the ``<div>``, the
+    # input was announced without a name (``bretzel probe``, « every
+    # control has a name », on the ``/ladder`` page).
+    "aria-label",
     "aria-labelledby",
     "aria-describedby",
     "aria-invalid",

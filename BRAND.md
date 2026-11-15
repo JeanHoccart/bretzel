@@ -8,29 +8,35 @@ without turning the identity into a technical diagram.
 
 ## Positioning
 
-**Category:** Server-Driven UI framework for Python.
+**Category:** Python web framework for building apps with an AI agent.
 
-**Promise:** Build reactive web applications without maintaining two
-application models.
+**Promise:** What you approve is what ships. The mockup is made of the very
+components, theme and layout of the app, so it is wired, never redrawn — and
+every file the agent writes is checked.
 
-**Primary line:** Typed Python in. Reactive web apps out.
+**Primary line:** The mockup is the app.
 
-**Descriptor:** Server-Driven UI for Python — typed state, zero npm, batteries
-included.
+**Descriptor:** A Python web framework for building apps with an AI agent —
+mockup first, every file checked, no JavaScript.
+
+**Concept:** zero-rewrite mockups. **The loop:** Mock it — look — fix it —
+“Build it”.
 
 ## Colours
 
 | Token | Hex | Role |
 |---|---:|---|
-| Bretzel Plum | `#682747` | Primary mark, links and key actions |
-| Raspberry | `#A63F6B` | Active and expressive accent |
+| Crust | `#8A4A1F` | Primary mark, links and key actions — the framework's default `primary` |
+| Glaze | `#B0531F` | Active and expressive accent |
+| Bake | `#4F2814` | Large dark bands |
 | Warm Dough | `#E99536` | Mark and human highlight, never body text |
 | Cream | `#FFF8F0` | Warm light background |
-| Ink | `#201820` | Primary text and dark surfaces |
-| Mist | `#EEE7EC` | Borders and quiet surfaces |
+| Ink | `#211810` | Primary text and code surfaces |
+| Flour | `#E2D2C2` | Borders and quiet surfaces |
 
-Plum on Cream is the default high-contrast pairing. Warm Dough is an accent,
-not a substitute for readable foreground text.
+The colours are those of a baked pretzel. Crust on Cream is the default
+high-contrast pairing. Warm Dough is an accent, not a substitute for readable
+foreground text.
 
 ## Typography
 

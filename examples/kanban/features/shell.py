@@ -144,13 +144,13 @@ def theme_sombre() -> None:
         "moon", variant="ghost", size="md",
         on_click=ColorScheme.toggle(),
         tooltip=t("Switch to dark"),
-        classes="dark:!hidden",
+        classes="dark:hidden",
     )
     ui.icon_button(
         "sun", variant="ghost", size="md",
         on_click=ColorScheme.toggle(),
         tooltip=t("Switch to light"),
-        classes="!hidden dark:!inline-flex",
+        classes="hidden dark:inline-flex",
     )
 
 

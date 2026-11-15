@@ -1,16 +1,15 @@
 """``Card`` test bench.
 
-Seven visual cards : Reference / Edge cases / Composability / A11y /
-Server playground / Server events / Client events. ``BINDABLE_PROPS =
-()`` so no Client playground card (S5) — Card is a structural
-wrapper, mutate the surface via ``visible=`` / conditional render at
-the call site. ``EVENTS`` is non-empty though, so Client events (S6)
-still applies — gated independently of BINDABLE_PROPS.
+Eight visual cards : Reference / Edge cases / Composability / A11y /
+Server playground / Server events / Client playground / Client events.
+``BINDABLE_PROPS = ("active",)``: the chosen card can follow a choice
+made in the browser, as a navigation item's ``active`` does.
 
-Four props (``color`` / ``padding`` / ``hoverable`` / ``href``) plus
-three events (click / mouseenter / mouseleave). Polymorphic root :
-``<div>`` by default, ``<a>`` when ``href=`` is set (auto-enables
-``hoverable``).
+Six props (``variant`` / ``color`` / ``padding`` / ``hoverable`` /
+``href`` / ``active``) plus three events (click / mouseenter /
+mouseleave). Polymorphic root : ``<div>`` by default, ``<a>`` when
+``href=`` is set (auto-enables ``hoverable``). ``variant="ghost"`` is a
+row of a list; ``active=True`` the chosen row.
 """
 
 from bretzel import refreshable, ui
@@ -23,16 +22,20 @@ from examples.playground.features.inspection import emitted_html_block
 PATH = "/card"
 
 
+VARIANTS = ["solid", "ghost"]
 COLORS   = ["surface", "primary", "secondary", "success",
             "warning", "error", "info", "muted"]
 PADDINGS = ["none", "xs", "sm", "md", "lg", "xl"]
+LIST_ROWS = ["Inbox", "Drafts", "Sent", "Archive"]
 
 
 class CardPlayground(PageState):
+    variant:      str  = field(default="solid")
     color:        str  = field(default="surface")
     padding:      str  = field(default="md")
     hoverable:    bool = field(default=False)
     href:         str  = field(default="")
+    active:       bool = field(default=False)
     # Escape hatches.
     classes:      str  = field(default="")
     custom_id:    str  = field(default="")
@@ -48,6 +51,10 @@ class CardPlayground(PageState):
 
 class CardEvents(PageState):
     log: list = field(default_factory=list)
+
+
+class CardClient(ClientState, persist="memory"):
+    chosen: str = field(default="Drafts")
 
 
 class CardClientEvents(ClientState, persist="memory"):
@@ -102,9 +109,11 @@ def build_preview(state: CardPlayground):
     enters the Card itself and emits the body content.
     """
     kwargs: dict = {
+        "variant": state.variant,
         "color": state.color,
         "padding": state.padding,
         "hoverable": state.hoverable,
+        "active": state.active,
     }
     if state.href:
         kwargs["href"] = state.href
@@ -145,6 +154,10 @@ def server_panel() -> None:
     state = CardPlayground()
 
     with ui.grid(cols={"base": 1, "sm": 2, "md": 3}, gap="md"):
+        with control("variant"):
+            ui.select(value=state.variant,
+                      options=[(v, v) for v in VARIANTS],
+                      on_change=server_changed)
         with control("color"):
             ui.select(value=state.color,
                       options=[(c, c) for c in COLORS],
@@ -155,6 +168,8 @@ def server_panel() -> None:
                       on_change=server_changed)
         with control("hoverable"):
             ui.switch(checked=state.hoverable, on_change=server_changed)
+        with control("active (the chosen element)"):
+            ui.switch(checked=state.active, on_change=server_changed)
         with control("href (forces <a> tag + hoverable)"):
             ui.input(value=state.href, placeholder="/button",
                      on_change=server_changed)
@@ -287,6 +302,39 @@ def page() -> None:
                     ui.text("Visual scan of every prop.",
                             color="muted", size="sm")
 
+                    ui.heading("Variant", level=3)
+                    ui.text(
+                        "``solid`` is the bordered surface. ``ghost`` draws "
+                        "no box: a row of a list, whose column draws the "
+                        "frame. Clickable, it lights its background (no "
+                        "lift) and rings inside.",
+                        color="muted", size="sm",
+                    )
+                    with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
+                        for v in VARIANTS:
+                            with (ui.card(variant=v, on_click=log_click),
+                                  ui.vstack(gap="xs")):
+                                ui.text(f"variant={v}", weight="bold")
+                                ui.text("Clickable — Tab to it.",
+                                        color="muted", size="sm")
+
+                    ui.heading("Active (a list with its chosen row)",
+                               level=3)
+                    with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
+                        with ui.card(padding="xs"):
+                            for name in LIST_ROWS:
+                                with ui.card(variant="ghost", padding="sm",
+                                             active=name == "Drafts",
+                                             on_click=log_click):
+                                    ui.text(name, size="sm")
+                        with ui.vstack(gap="sm"):
+                            for name in LIST_ROWS:
+                                with ui.card(padding="sm",
+                                             active=name == "Drafts",
+                                             hoverable=True,
+                                             on_click=log_click):
+                                    ui.text(name, size="sm")
+
                     ui.heading("Color", level=3)
                     with ui.hstack(wrap=True):
                         for c in COLORS:
@@ -351,6 +399,18 @@ def page() -> None:
                         with ui.card(href="/button", hoverable=False):
                             ui.text("Linked but no lift",
                                     color="muted")
+
+                    ui.heading("ghost + on_click + hoverable=False", level=3)
+                    ui.text(
+                        "A ghost card that acts lights on hover by default; "
+                        "an explicit ``hoverable=False`` keeps it still. It "
+                        "stays a keyboard button.",
+                        color="muted", size="xs",
+                    )
+                    with ui.card(variant="ghost", on_click=log_click,
+                                 hoverable=False):
+                        ui.text("Clickable, no hover background",
+                                color="muted")
 
                     ui.heading("Very wide content (overflow)", level=3)
                     with ui.card(classes="max-w-sm"):
@@ -444,7 +504,47 @@ def page() -> None:
                             color="muted", size="sm")
                     events_panel()
 
-            # ── Card 7 — Client events ──────────────────────────────
+            # ── Card 7 — Client playground ──────────────────────────
+            with ui.card():
+                with ui.vstack():
+                    ui.heading("Client playground", level=2)
+                    ui.text(
+                        "``active`` is bindable (one-way): each row's "
+                        "``active=client.chosen == name`` follows a "
+                        "ClientState, with no request. Click a row, or "
+                        "pick it in the select — both write the same "
+                        "field. The rest is design-time.",
+                        color="muted", size="sm",
+                    )
+                    client = CardClient()
+                    with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
+                        with control("chosen (external control)"):
+                            ui.select(value=client.chosen,
+                                      options=[(n, n) for n in LIST_ROWS])
+
+                    ui.divider()
+
+                    with ui.card(padding="xs", classes="max-w-sm"):
+                        for name in LIST_ROWS:
+                            with ui.card(variant="ghost", padding="sm",
+                                         active=client.chosen == name,
+                                         on_click=client.chosen.set(name)):
+                                ui.text(name, size="sm")
+
+                    ui.divider()
+
+                    emitted_html_block(
+                        "Emitted HTML — bz-attr:data-active and "
+                        "bz-attr:aria-current, bound to "
+                        "$bz.state.CardClient.default.chosen.",
+                        serialize_html(
+                            ui.card(variant="ghost",
+                                    active=client.chosen == "Inbox",
+                                    on_click=client.chosen.set("Inbox"))
+                        ),
+                    )
+
+            # ── Card 8 — Client events ──────────────────────────────
             with ui.card():
                 with ui.vstack():
                     ui.heading("Client events", level=2)

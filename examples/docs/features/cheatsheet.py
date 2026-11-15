@@ -53,12 +53,12 @@ def cheatsheet_page() -> None:
 
             section(
                 'State — server (4 scopes)',
-                'from bretzel.state import PageState, SessionState, UserState, AppState\nfrom bretzel.state import field, validator, computed\n\nclass Cart(SessionState):          # page / session / user / app\n    items: list[dict] = field(default_factory=list)\n    coupon: str = ""\n\n    @validator("coupon")           # receives (self, value), RETURNS the value\n    def _norm(self, v: str) -> str:\n        return v.strip().upper()\n\n    @computed                       # derived, auto-tracked\n    def total(self) -> float:\n        return sum(i["price"] for i in self.items)\n',
+                'from bretzel.state import PageState, SessionState, UserState, AppState\nfrom bretzel.state import field, validator, computed\n\nclass Cart(SessionState):          # page / session / user / app\n    items: list[dict] = field(default_factory=list)\n    coupon: str = field(default="")\n\n    @validator("coupon")           # receives (self, value), RETURNS the value\n    def _norm(self, v: str) -> str:\n        return v.strip().upper()\n\n    @computed                       # derived, auto-tracked\n    def total(self) -> float:\n        return sum(i["price"] for i in self.items)\n',
             )
 
             section(
                 'State — client (3 persistence modes)',
-                'from bretzel.state import ClientState\n\nclass FilterUI(ClientState, persist="local"):\n    #  "memory"  → throwaway (lost on reload)\n    #  "session" → survives a reload, not a close\n    #  "local"   → survives everything\n    sort_by: str = "date"\n',
+                'from bretzel.state import ClientState, field\n\nclass FilterUI(ClientState, persist="local"):\n    #  "memory"  → throwaway (lost on reload)\n    #  "session" → survives a reload, not a close\n    #  "local"   → survives everything\n    sort_by: str = field(default="date")\n',
             )
 
             section(
@@ -75,13 +75,15 @@ def cheatsheet_page() -> None:
                 with ui.vstack(gap="sm"):
                     ui.heading('⚠️ Trap no. 1', level=2)
                     ui.text(
-                        'Every file declaring a State MUST start with '
-                        '`from __future__ import annotations` (PEP 649) — '
-                        'otherwise the fields do not register, silently.',
+                        'Every State field is declared with `field(...)`. '
+                        'A bare `count: int = 0` is refused at import, by a '
+                        'TypeError that says so.',
                         color="muted", size="sm",
                     )
                     ui.code(
-                        "from __future__ import annotations   # ← FIRST, always\n",
+                        "class Cart(SessionState):\n"
+                        "    count: int = field(default=0)    # not `count: int = 0`\n"
+                        "    items: list[str] = field(default_factory=list)\n",
                         lang="python",
                     )
                     with ui.hstack(align="baseline", gap="sm", wrap=True):

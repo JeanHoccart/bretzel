@@ -75,7 +75,7 @@ class Bretzel:
         description: str | None = None,
         theme: Theme | None = None,
         secret_key: str | None = None,
-        redis_url: str | None = None,
+        state_url: str | None = None,
         workers: int = 1,
         session_max_age_days: int = 30,
         action_max_age: int | None = None,
@@ -110,7 +110,7 @@ class Bretzel:
         config_kwargs: dict[str, Any] = {
             "title": title,
             "description": description,
-            "redis_url": redis_url,
+            "state_url": state_url,
             "workers": workers,
             "session_max_age_days": session_max_age_days,
             "action_max_age": action_max_age,
@@ -184,8 +184,8 @@ class Bretzel:
         self._shutdown_hooks: list[Callable[..., Any]] = []
 
         # ── Persistence + readiness ─────────────────────────────────────
-        # ``_state_backend`` is wired at startup (memory by default,
-        # Redis when ``redis_url`` is set).
+        # ``_state_backend`` is wired at startup from ``state_url``
+        # (memory by default).
         self._state_backend: Any = None
         # ``_sse_broker`` is wired at startup too — MemoryBroker for
         # single-worker, Redis-backed in phase 2 for multi-worker. The

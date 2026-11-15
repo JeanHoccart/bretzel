@@ -7,7 +7,8 @@ from bretzel.state import PageState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("Call ui.notification() in any handler and a toast appears in "
-           "the corner — four tones, a title, a place, a lifetime.")
+           "the corner — four tones, a title, a place, a lifetime. Closed, it "
+           "fades out in 150 ms.")
 
 
 def saved() -> None:

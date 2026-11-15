@@ -90,6 +90,14 @@ def states() -> None:
             ui.input(value="SPRING-25", clearable=True, color="success")
 
 
+def without_a_frame() -> None:
+    with (ui.card(padding="none", classes="w-full max-w-xl"),
+          ui.vstack(gap="none", classes="px-4")):
+        ui.input(placeholder="Subject", variant="ghost")
+        ui.divider(gap="none")
+        ui.textarea(placeholder="Write your message…", rows=4, variant="ghost")
+
+
 def page() -> None:
     page_header("input", "Input", SUMMARY)
     example("A sign-in form", sign_in,
@@ -103,6 +111,10 @@ def page() -> None:
             uses=[CustomerSearch, search_customers, customer_results],
             note="on_input sends the value to Python, debounced by 250 ms; only "
                  "the result list re-renders.")
+    example("Without a frame", without_a_frame,
+            note='variant="ghost" drops the background and the frame: the '
+                 "card and its lines structure the form. A click puts the "
+                 "caret in; the Tab key brings the focus ring.")
     example("Read-only, disabled, clearable", states,
             note="Read-only can still be selected and copied; disabled is out "
                  "of the form entirely. color= tints the focus ring.")

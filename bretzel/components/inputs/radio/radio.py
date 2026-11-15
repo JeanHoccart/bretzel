@@ -24,6 +24,7 @@ from bretzel.components.base.arguments import has_content, reject_sealed
 from bretzel.components.base.attrs import ComponentUsageError
 from bretzel.components.base.commands import ValueCommands
 from bretzel.components.base.focus import FocusCommands
+from bretzel.components.inputs._checkable import label_line
 from bretzel.components.inputs.radio.theme import (
     RADIO_GROUP_THEME,
     RADIO_THEME,
@@ -409,7 +410,8 @@ class Radio(Component):
         container = Element(
             tag="div",
             attrs={
-                "class": self.compose_class("container")
+                # One line of the label high: the circle centres on it.
+                "class": self.compose_class("container") + label_line(self)
             },
             children=(
                 Element(tag="input", attrs=input_attrs, children=()),

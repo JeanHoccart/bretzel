@@ -22,13 +22,15 @@ from typing import Any
 
 DRAWER_THEME: dict[str, Any] = {
     "slots": {
-        # CSS-only enter on ``data-open`` (set by the runtime; element
-        # stays mounted; a closed drawer is inert). The transition lives
-        # on the OPEN state: it slides in, and closes at once (the why:
-        # ``overlay/dialog/theme.py``).
+        # CSS-only on ``data-open`` (set by the runtime; element stays
+        # mounted; a closed drawer is inert). Each state carries its own
+        # transition: it slides in 200 ms ease-out and back to its edge
+        # in 150 ms ease-in (the why: ``overlay/dialog/theme.py``).
         "backdrop": (
             "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm "
             "data-[open=true]:transition-[opacity,visibility] data-[open=true]:duration-200 "
+            "data-[open=false]:transition-[opacity,visibility] data-[open=false]:duration-150 "
+            "data-[open=false]:ease-in "
             "data-[open=false]:opacity-0 data-[open=false]:invisible "
             "data-[open=false]:pointer-events-none"
         ),
@@ -36,7 +38,8 @@ DRAWER_THEME: dict[str, Any] = {
         # (full height on left/right, full width on top/bottom).
         "container": (
             "fixed inset-0 z-50 flex pointer-events-none "
-            "data-[open=true]:transition-[visibility] data-[open=true]:duration-200 data-[open=false]:invisible"
+            "data-[open=true]:transition-[visibility] data-[open=true]:duration-200 "
+            "data-[open=false]:transition-[visibility] data-[open=false]:duration-150 data-[open=false]:invisible"
         ),
         # Common panel surface — sides add the per-edge border + the
         # closed-state translate (``data-[open=false]:…``, applied in
@@ -76,6 +79,8 @@ DRAWER_THEME: dict[str, Any] = {
             "border-text/10 shadow-xl flex flex-col "
             "max-w-full max-h-full "
             "data-[open=true]:transition-[translate,visibility] data-[open=true]:duration-200 data-[open=true]:ease-out "
+            "data-[open=false]:transition-[translate,visibility] data-[open=false]:duration-150 "
+            "data-[open=false]:ease-in "
             "data-[open=false]:invisible data-[open=false]:pointer-events-none"
         ),
         "header": (

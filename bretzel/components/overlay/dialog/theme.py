@@ -25,15 +25,19 @@ DIALOG_THEME: dict[str, Any] = {
         # The element stays mounted; closed = inert (invisible + no
         # pointer events, so a closed dialog can't be tabbed into).
         #
-        # THE TRANSITION LIVES ON THE OPEN STATE (``data-[open=true]:``):
-        # CSS takes the transition of the state it ARRIVES in, so opening
-        # fades and closing drops at once — what disappears does not
-        # linger, one chains on. Same rule for every overlay, chevron
-        # and disclosure; ``duration`` is prefixed too, or the initial
-        # ``transition-property: all`` would animate the close anyway.
+        # EACH STATE CARRIES ITS OWN TRANSITION: CSS takes the transition
+        # of the state it ARRIVES in. A panel laid over the page comes in
+        # 200 ms ease-out and leaves in 150 ms ease-in, the inverse gesture
+        # (rule 5 of the motion rule, ``components.md`` § motion).
+        # Leaving never holds the hand: ``pointer-events-none`` and
+        # ``inert`` (``show_attrs``) apply at once, only the image fades.
+        # ``visibility`` is in both lists, or the panel would vanish on
+        # the first frame of its fade.
         "backdrop": (
             "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm "
             "data-[open=true]:transition-[opacity,visibility] data-[open=true]:duration-200 "
+            "data-[open=false]:transition-[opacity,visibility] data-[open=false]:duration-150 "
+            "data-[open=false]:ease-in "
             "data-[open=false]:opacity-0 data-[open=false]:invisible "
             "data-[open=false]:pointer-events-none "
             # A dialog that ARRIVES open (rendered by a zone, ``open=True``)
@@ -44,6 +48,7 @@ DIALOG_THEME: dict[str, Any] = {
         "container": (
             "fixed inset-0 z-50 flex items-center justify-center p-4 "
             "pointer-events-none data-[open=true]:transition-[visibility] data-[open=true]:duration-200 "
+            "data-[open=false]:transition-[visibility] data-[open=false]:duration-150 "
             "data-[open=false]:invisible"
         ),
         # ``scale`` (v4 individual prop, NOT transform) for the pop ;
@@ -58,6 +63,8 @@ DIALOG_THEME: dict[str, Any] = {
             "rounded-box border-(length:--bz-stroke) border-text/10 shadow-xl "
             "flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden "
             "data-[open=true]:transition-[opacity,scale,visibility] data-[open=true]:duration-200 data-[open=true]:ease-out "
+            "data-[open=false]:transition-[opacity,scale,visibility] data-[open=false]:duration-150 "
+            "data-[open=false]:ease-in "
             "data-[open=false]:opacity-0 data-[open=false]:scale-95 "
             "data-[open=false]:invisible data-[open=false]:pointer-events-none "
             "starting:opacity-0 starting:scale-95"

@@ -57,7 +57,7 @@ def state_client_page() -> None:
                     )
                     ui.code(
                         "class FilterUI(ClientState, persist=\"local\"):\n"
-                        "    sort_by: str = \"date\"\n",
+                        "    sort_by: str = field(default=\"date\")\n",
                         lang="python",
                     )
                     ui.table(

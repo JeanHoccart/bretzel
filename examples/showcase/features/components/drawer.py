@@ -4,8 +4,8 @@ from bretzel import ui
 from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
-SUMMARY = ("A panel that slides in from any edge — for details, filters and "
-           "action sheets, without leaving the page.")
+SUMMARY = ("A panel that slides in from any edge, and back out faster — for "
+           "details, filters and action sheets, without leaving the page.")
 
 
 def order_details() -> None:

@@ -35,13 +35,19 @@ def row(step: str) -> None:
     ``hstack`` each took the whole line and nothing stood side by side
     (``traps.md`` § « Un champ `w-full` dans un hstack avec wrap forme une
     pile »).
+
+    ONE gap for the whole row — the label, the grid's lines, the toolbar,
+    the choices: the grid at ``sm`` under a row at ``xs`` gave two
+    different spaces between three lines of fields (seen by Jean on
+    ``xs``). ``probe_ladder.py`` ⑤ measures it.
     """
-    with ui.vstack(gap="xs", attrs={"data-ladder-row": step}):
+    with ui.vstack(gap="sm", attrs={"data-ladder-row": step}):
         ui.text(f"size=\"{step}\"", size="xs", color="muted")
         with ui.grid(cols=5, gap="sm"):
             ui.input(placeholder="Search…", size=step, icon_left="search",
                      attrs={"data-ladder": "input"})
-            ui.number_input(value=12, size=step, attrs={"data-ladder": "number_input"})
+            ui.number_input(value=12, size=step,
+                            attrs={"data-ladder": "number_input", "aria-label": "Quantity"})
             ui.select(options=OPTIONS, value="Alpha", size=step,
                       attrs={"data-ladder": "select"})
             ui.combobox(options=OPTIONS, placeholder="Pick…", size=step,
@@ -53,6 +59,14 @@ def row(step: str) -> None:
             ui.month_picker(size=step, attrs={"data-ladder": "month_picker"})
             ui.week_picker(size=step, attrs={"data-ladder": "week_picker"})
             ui.date_range_picker(size=step, attrs={"data-ladder": "date_range_picker"})
+            # With values: their tags are the field's step. Two columns,
+            # so the tags fit on the one line the ladder measures (a tags
+            # input wraps, by design, when they do not).
+            ui.tags_input(OPTIONS, value=["Alpha", "Beta"], size=step, classes="col-span-2",
+                          attrs={"data-ladder": "tags_input", "aria-label": "Tags"})
+            ui.combobox(options=OPTIONS, value=["Alpha", "Beta", "Gamma"],
+                        multiple=True, size=step, classes="col-span-2",
+                        attrs={"data-ladder": "combobox", "aria-label": "Picks"})
         with ui.hstack(gap="sm", align="center", wrap=True):
             with ui.flex(classes="w-56"):
                 ui.input(placeholder="Filter…", size=step,
@@ -69,6 +83,16 @@ def row(step: str) -> None:
                            attrs={"data-ladder": "icon_button"})
             ui.pagination(value=2, total_pages=4, size=step,
                           attrs={"data-ladder": "pagination"})
+        # The choice controls have a size scale too, but no field height:
+        # shown to the eye, not measured (not in ``CONTROLS``).
+        with ui.hstack(gap="md", align="center", wrap=True):
+            ui.checkbox(label="Checkbox", checked=True, size=step)
+            ui.switch(label="Switch", checked=True, size=step)
+            with ui.radio_group(value="one", direction="row", size=step):
+                ui.radio("one", label="One")
+                ui.radio("two", label="Two")
+            with ui.flex(classes="w-40"):
+                ui.slider(value=40, size=step)
 
 
 def running_text() -> None:
@@ -94,6 +118,24 @@ def page() -> None:
             with ui.vstack(gap="lg"):
                 for step in SIZES:
                     row(step)
+        # ``variant="ghost"`` beside ``surface``: no frame, the SAME height —
+        # measured as the ``md`` row.
+        with ui.card(padding="md"), ui.vstack(gap="sm", attrs={"data-ladder-row": "md"}):
+            ui.text('variant="ghost", size="md"', size="xs", color="muted")
+            with ui.grid(cols=5, gap="sm"):
+                ui.input(placeholder="Search…", variant="ghost", icon_left="search",
+                         attrs={"data-ladder": "input"})
+                ui.select(options=OPTIONS, value="Alpha", variant="ghost",
+                          attrs={"data-ladder": "select"})
+                ui.combobox(options=OPTIONS, placeholder="Pick…", variant="ghost",
+                            attrs={"data-ladder": "combobox"})
+                ui.tags_input(OPTIONS, value=["Alpha"], variant="ghost", classes="col-span-2",
+                              attrs={"data-ladder": "tags_input", "aria-label": "Tags"})
+            with ui.hstack(gap="sm", align="center"):
+                with ui.flex(classes="w-56"):
+                    ui.input(placeholder="Filter…", variant="ghost",
+                             attrs={"data-ladder": "input"})
+                ui.button("Save", color="primary", attrs={"data-ladder": "button"})
         with ui.card(padding="md"):
             with ui.vstack(gap="sm"):
                 ui.text("Fields without a fixed height", weight="medium")
@@ -102,6 +144,10 @@ def page() -> None:
                         ui.textarea(placeholder=f"textarea {step}", rows=1, size=step,
                                     attrs={"data-ladder": "textarea",
                                            "data-ladder-step": step})
+                # One format, no size scale: its text is a field's at ``md``.
+                with ui.flex(classes="w-full max-w-xl"):
+                    ui.editor(value="Du texte **mis en forme**, une liste :\n\n- un\n- deux",
+                              attrs={"data-ladder": "editor", "data-ladder-step": "md"})
                 for step in SIZES:
                     with ui.tabs(value="a", size=step,
                                  attrs={"data-ladder": "tabs",

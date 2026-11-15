@@ -30,3 +30,7 @@ log_upload_complete = functools.partial(log, "upload_complete")
 log_upload_error = functools.partial(log, "upload_error")
 log_focus = functools.partial(log, "focus")
 log_blur = functools.partial(log, "blur")
+
+
+def log_remove(key: str) -> None:
+    log(f"remove — {key}")

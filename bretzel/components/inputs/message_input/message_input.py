@@ -44,8 +44,9 @@ The text travels under the bound field's name (``value=ask.text`` →
 ``text``), else ``name=``, else ``message``: a handler takes it like any
 field. ``files=``: what may be joined (``(".pdf", "image/*")``). The files
 travel with the message, under the field name ``files``, through
-:class:`~bretzel.components.inputs.file_upload.FileUpload` — its chips,
-its paste of a screenshot, its checks. The box is a ``<form>``
+:class:`~bretzel.components.inputs.attachments.Attachments` — its chips,
+its paste of a screenshot, its drop on the box, its checks; the clip
+opens its picker (``.pick()``). The box is a ``<form>``
 (:func:`~bretzel.components.inputs.form.form.form_element`): it does not
 go inside another one.
 """
@@ -61,7 +62,7 @@ from bretzel.components.base.commands import ValueCommands
 from bretzel.components.base.composition import unwrap_transparent
 from bretzel.components.base.focus import FocusCommands
 from bretzel.components.inputs._wiring import add_local_value_scope
-from bretzel.components.inputs.file_upload import FileUpload
+from bretzel.components.inputs.attachments import Attachments
 from bretzel.components.inputs.form.form import form_element
 from bretzel.components.inputs.message_input.theme import (
     MESSAGE_INPUT_THEME,
@@ -188,19 +189,22 @@ class MessageInput(ValueCommands, FocusCommands, Component):
         accepted = self._reactive_values.get("files")
         bar: list[Node] = []
         if accepted:
-            # The chips at the top, the native input and its checks: all
-            # FileUpload's. Its own trigger gives way to the clip below.
-            children.append(Component.render_detached(_Attachments(
-                variant="button", list="chips", multiple=True, accept=list(accepted),
-                paste=True, name=FILES_FIELD, disabled=disabled,
+            # The chips at the top of the box, with their checks, the paste
+            # of a screenshot and the drop on the box: a ``ui.attachments``,
+            # which takes no room while empty. The clip in the bar opens its
+            # picker.
+            pieces = Attachments(
+                display="chips", multiple=True, accept=list(accepted), paste=True,
+                drop="form", name=FILES_FIELD, disabled=disabled, classes=slots["files"],
                 max_files=self._reactive_values.get("max_files"),
                 max_size_mb=self._reactive_values.get("max_size_mb"),
-            )))
+            )
+            children.append(Component.render_detached(pieces))
             bar.append(Component.render_detached(IconButton(
                 "paperclip", variant="ghost", disabled=disabled,
                 tooltip=text("message_input.attach"),
                 aria_label=text("message_input.attach"),
-                on_click="$el.closest('form').querySelector('input[type=file]').click()",
+                on_click=pieces.pick(),
             )))
         if self._reactive_values.get("voice"):
             bar.append(Element(tag="span", attrs={"class": slots["voice"]}, children=(
@@ -279,39 +283,6 @@ class MessageInput(ValueCommands, FocusCommands, Component):
         return [Component.render_detached(IconButton("arrow-up", **send))]
 
 
-class _Attachments(FileUpload):
-    """:class:`FileUpload` as the box needs it: its chips, its errors, its
-    native input, paste and checks — but no trigger of its own (the clip in
-    the bar opens its picker), and a root that steps aside (``contents``)
-    so that its chips and its errors are rows of the box.
-
-    A subclass rather than ``slots=``: a slot ADDS its classes, and a
-    ``hidden`` added beside the trigger's ``inline-flex`` loses to it in
-    Tailwind's order, and the « Upload file » button would stay.
-    Private: not a component of its own, ``ui.file_upload`` stays
-    the one to use. Its three slots are the box's; every other one is
-    FileUpload's, app overrides included."""
-
-    #: The slots that are the box's rows, not the picker's.
-    _ROWS: ClassVar[dict[str, str]] = {
-        "root": "bz-file-upload contents",
-        "chip_list": "flex flex-row flex-wrap items-center gap-2 px-3 pt-3 empty:hidden",
-        "error_panel": (
-            "mx-3 mt-2 flex flex-col gap-1 px-3 py-2 rounded-box "
-            "bg-error/10 border-(length:--bz-stroke) border-error/20"
-        ),
-    }
-
-    def compose_class(self, slot: str = "root", *,
-                      apply_variant_size_modifiers: bool = True) -> str:
-        return self._ROWS.get(slot) or super().compose_class(
-            slot, apply_variant_size_modifiers=apply_variant_size_modifiers)
-
-    def _render_button(self, s: Any, sz: Any, native_input: Element,
-                       relocated_to_wrapper: dict[str, Any]) -> Element:
-        return native_input
-
-
 class MessageInputTool(Component):
     """A button of one's own in the bar of a :class:`MessageInput`."""
 
@@ -338,12 +309,16 @@ class MessageInputTool(Component):
         # ``icon`` may be a binding (R1), which refuses a truth test: only a
         # NAME can be missing.
         if not label or icon is None or (isinstance(icon, str) and not icon):
+            name = f"ui.{type(self).THEME_KEY}"
             raise ComponentUsageError(
-                "ui.message_input_tool takes a label and its icon — the label is what a "
+                f"{name} takes a label and its icon — the label is what a "
                 "screen reader says and what the tooltip shows: "
-                "``ui.message_input_tool(\"Mes documents\", icon=\"folder-open\")``.")
+                f"``{name}(\"Mes documents\", icon=\"folder-open\")``.")
         super().__init__(icon=icon, label=label, disabled=disabled, on_click=on_click,
                          **kwargs)
+
+    #: The size of its button: the one of the bar it sits in.
+    _BUTTON_SIZE: ClassVar[str | None] = None
 
     #: Set by its box just before rendering it: the box is switched off,
     #: so is the tool, whatever its own ``disabled`` says. A tool alone may
@@ -355,7 +330,7 @@ class MessageInputTool(Component):
             # The binding when there is one: the button follows it live.
             bound if (bound := self._binding_metadata.get("icon")) is not None
             else self._reactive_values["icon"],
-            variant="ghost",
+            variant="ghost", size=self._BUTTON_SIZE,
             disabled=self._within_disabled or bool(self._reactive_values.get("disabled")),
             aria_label=self._reactive_values["label"], type="button",
             tooltip=self._reactive_values["label"],

@@ -63,7 +63,7 @@ ALERT_THEME: dict[str, Any] = {
         "dismiss": (
             "shrink-0 inline-flex items-center justify-center "
             "h-8 w-8 rounded-field text-(--bz-text) "
-            "transition-colors duration-200 "
+            "transition-colors duration-150 "
             "not-disabled:hover:bg-(--bz-bg) "
             "focus-visible:outline-none focus-visible:ring-2 "
             "focus-visible:ring-offset-2 focus-visible:ring-offset-background "

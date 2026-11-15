@@ -32,8 +32,12 @@ from types import MappingProxyType
 from bretzel.lint.corpus import bound as corpus_bound
 from bretzel.lint.corpus import modules
 from bretzel.lint.deep import lint_app, run_deep
+from bretzel.lint.hidden import notes as hidden_notes
+from bretzel.lint.mode import notes as mode_notes
+from bretzel.lint.redrawn import notes as redrawn_notes
 from bretzel.lint.report import Finding, Report
 from bretzel.lint.rules import STATIC
+from bretzel.lint.structure import notes as structure_notes
 
 __all__ = (
     "Finding",
@@ -119,4 +123,9 @@ def run(
             for check in selected.values():
                 report.findings.extend(check(module))
     report.findings.sort(key=lambda f: (f.path.as_posix(), f.line, f.rule))
+    # The notes read the corpus as a whole, and belong to a full pass: a
+    # gate narrowed to its own rule has no use for them.
+    if rules is None:
+        report.notes = [*redrawn_notes(found), *structure_notes(found),
+                        *mode_notes(found), *hidden_notes(found)]
     return report

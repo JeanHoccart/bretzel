@@ -2,6 +2,14 @@
 
 API ::
 
+    # An app shell — the bar lines up with the page under it: same
+    # ``width=`` word, same left edge for the brand and the page title.
+    with ui.navbar(width="xl"):
+        with ui.navbar_section(side="left"):
+            ui.navbar_item("Support", icon="life-buoy", href="/")
+    with ui.container(width="xl"):
+        ui.outlet()
+
     # Marketing / public site — navbar standalone.
     with ui.navbar(sticky=True):
         with ui.navbar_section(side="left"):
@@ -27,9 +35,17 @@ Three pieces, mirror of the Sidebar trio :
 - **Navbar** — the ``<header>``. Drives a ``current_path`` reactive
   (component-local ``bz-data`` scope, V3 runtime) the same way Sidebar
   does, so a page hosting both stays in sync on partial nav.
-  ``sticky=True`` pins the bar to the top during scroll ;
-  ``variant="floating"`` gives the Stripe / Linear marketing-site
-  rounded-card look. A ``sticky`` bar in a "frozen document" shell
+  ``sticky=True`` pins the bar to the top during scroll. One look, the
+  bar along the page's edge: no app shows two kinds of top bar side by
+  side, so there is no ``variant=``. The rounded card of a landing page
+  is the app's look, written once for the whole app with
+  ``Theme(components={"navbar": {"slots": {"root": …}}})``. ``width=`` takes the words and the table of
+  ``ui.container(width=…)`` (``sm`` … ``2xl``, ``full``): the bar's
+  content then has the clamp AND the horizontal margin of the container
+  of the same word, and the first ``navbar_item`` of the left section
+  lines up its text rather than its pill. Without ``width=``, the bar
+  keeps its own wider clamp, which lines up with no page column.
+  A ``sticky`` bar in a "frozen document" shell
   (``ui.viewport``) is subject to the same placement guard as
   ``ui.bottom_bar``, of which it is the upward mirror — cf. the latter's
   docstring. Without ``sticky``, nothing is judged: the bar scrolls with
@@ -75,17 +91,17 @@ class Navbar(Component):
     DEFAULT_TAG: ClassVar[str] = "header"
     BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
     sticky: bool = reactive_prop(default=False, emit_attr=False)
-    variant: str = reactive_prop(default="standard", emit_attr=False)
+    width: str | None = reactive_prop(default=None, emit_attr=False)
 
     def __init__(
         self,
         *,
         sticky: bool | None = None,
-        variant: str | None = None,
+        width: str | None = None,
         **kwargs: Any,
     ) -> None:
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
-        super().__init__(sticky=sticky, variant=variant, **kwargs)
+        super().__init__(sticky=sticky, width=width, **kwargs)
         # A non-``sticky`` navbar is an ordinary block: it scrolls with
         # the rest and has nothing to say to the frozen model. Only the
         # stuck version depends on what contains it — the same mechanism
@@ -99,17 +115,14 @@ class Navbar(Component):
     def render(self) -> Element:
         theme = self._resolved_theme()
         slots = theme.get("slots", {})
-        variants = theme.get("variants", {})
 
         sticky = bool(self._reactive_values.get("sticky"))
-        variant_key = self._reactive_values.get("variant") or "standard"
 
         root_class = " ".join(
             p
             for p in (
                 slots.get("root", ""),
                 theme.get("sticky", "") if sticky else "",
-                variants.get(variant_key, ""),
             )
             if p
         )
@@ -134,9 +147,16 @@ class Navbar(Component):
 
         # Inner ``<nav>`` wraps the children with the max-width clamp +
         # horizontal padding + flex-row layout. Sections live inside.
+        # ``width=`` swaps the bar's own clamp for the container's.
+        width = self._reactive_values.get("width")
+        clamp = (
+            (theme.get("clamp", ""),)
+            if width is None
+            else (theme.get("widths", {}).get(width, ""), theme.get("aligned", ""))
+        )
         inner = Element(
             tag="nav",
-            attrs={"class": slots.get("inner", "")},
+            attrs={"class": " ".join(p for p in (slots.get("inner", ""), *clamp) if p)},
             children=tuple(self._render_children()),
         )
 
@@ -186,6 +206,9 @@ class NavbarSection(Component):
 
         attrs = self.emit_attrs()
         attrs["class"] = slots.get(slot_key, "")
+        # Read by the bar's ``aligned`` layer: the first item of the LEFT
+        # section lines up its text with the page.
+        attrs["data-bz-side"] = side_key
 
         children = self._render_children()
         return Element(tag=self._tag, attrs=attrs, children=children)
@@ -219,6 +242,8 @@ class NavbarItem(NavItem):
         # component.
         w = wire_nav_item(self, slots)
         tag, attrs = w.tag, w.attrs
+        # Read by the bar's ``aligned`` layer (cf. ``NavbarSection``).
+        attrs["data-bz-nav-item"] = ""
         badge_value, badge_binding = w.badge_value, w.badge_binding
         # The label is only drawn as text here: ``shown`` hands the binding
         # when it is bound, so the page follows
@@ -231,7 +256,7 @@ class NavbarItem(NavItem):
         if isinstance(icon, Component):
             Component._detach_from_parent(icon)
             icon_node = Component.with_slot_class(
-                icon.render(), slots.get("icon", "")
+                icon.render(), slots.get("icon", ""), addition=self._slot_addition("icon")
             )
             children.append(icon_node)
 
@@ -261,10 +286,12 @@ class NavbarItem(NavItem):
                     badge_value,
                     slots.get("badge", ""),
                     reactive_path=path,
+                    addition=self._slot_addition("badge"),
                 )
             )
         elif badge_value is not None:
-            children.append(render_badge(badge_value, slots.get("badge", "")))
+            children.append(render_badge(badge_value, slots.get("badge", ""),
+                                         addition=self._slot_addition("badge")))
 
         return Element(tag=tag, attrs=attrs, children=tuple(children))
 

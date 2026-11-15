@@ -49,6 +49,7 @@ class SelectPlayground(PageState):
     placeholder:   str  = field(default="Pick a fruit…")
     color:         str  = field(default="primary")
     size:          str  = field(default="md")
+    variant:       str  = field(default="surface")
     disabled:      bool = field(default=False)
     required:      bool = field(default=False)
     # Escape hatches.
@@ -128,6 +129,7 @@ def build_preview(state: SelectPlayground):
         "placeholder": state.placeholder,
         "color": state.color,
         "size": state.size,
+        "variant": state.variant,
         "disabled": state.disabled,
         "required": state.required,
         "multiple": state.multiple,
@@ -198,6 +200,10 @@ def server_panel() -> None:
         with control("size"):
             ui.select(value=state.size,
                       options=[(s, s) for s in SIZES],
+                      on_change=server_changed)
+        with control("variant (surface / ghost)"):
+            ui.select(value=state.variant,
+                      options=[("surface", "surface"), ("ghost", "ghost")],
                       on_change=server_changed)
         with control("disabled"):
             ui.switch(checked=state.disabled, on_change=server_changed)
@@ -334,6 +340,18 @@ def page() -> None:
                         ui.text('A limit: the trigger shows the TEXT label — a JS'
                             ' map carries no markup.',
                                 color="muted", size="xs")
+
+                    ui.heading("Variants — surface / ghost", level=3)
+                    ui.text(
+                        "ghost: no background, no frame — the container "
+                        "around it structures the screen. The mouse puts "
+                        "the caret in it; the Tab key brings the ring.",
+                        color="muted", size="sm",
+                    )
+                    with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
+                        for v in ("surface", "ghost"):
+                            with ui.vstack(gap="xs"):
+                                ui.select(["Alpha", "Beta", "Gamma"], value="Alpha", variant=v)
 
                     ui.heading("Sizes", level=3)
                     with ui.vstack():
@@ -504,11 +522,13 @@ def page() -> None:
                     )
 
                     ui.heading("Very long label (truncated)", level=3)
+                    # Picked, in a narrow field: one line, cut by « … ».
                     ui.select(
                         [("long",
                           "A very long option label that should "
-                          "wrap or truncate")],
-                        placeholder="Long label",
+                          "never wrap, only be cut short")],
+                        value="long", placeholder="Long label",
+                        classes="max-w-xs", id="select-long",
                     )
 
                     ui.heading("HTML-special characters (XSS escape)",

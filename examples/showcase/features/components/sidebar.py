@@ -2,8 +2,8 @@
 
 In an app the sidebar fills the screen's height (the theme's root is
 ``h-screen``). Inside a preview box it must fill the BOX instead, hence
-``slots={"root": "h-full!"}`` on every example: ``h-full!`` with
-Tailwind's ``!`` is the override that wins over ``h-screen``.
+``slots={"root": "h-full"}`` on every example: the app's class wins
+over the theme's ``h-screen``.
 """
 
 from bretzel import ui
@@ -18,7 +18,7 @@ def app_navigation() -> None:
     with ui.hstack(gap="none", align="stretch",
                    classes="h-[30rem] w-full [contain:inline-size] overflow-hidden "
                            "rounded-box border border-text/10"):
-        with ui.sidebar(collapsible="rail", width="sm", slots={"root": "h-full!"}):
+        with ui.sidebar(collapsible="rail", width="sm", slots={"root": "h-full"}):
             ui.sidebar_title("Nimbus", icon=ui.icon("cloud", color="primary", size="lg"))
             with ui.sidebar_section(label="Workspace"):
                 ui.sidebar_item("Dashboard", icon="layout-dashboard", active=True)
@@ -74,7 +74,7 @@ def client_selection() -> None:
                    classes="h-[22rem] w-full [contain:inline-size] overflow-hidden "
                            "rounded-box border border-text/10"):
         with (
-            ui.sidebar(collapsible="none", width="sm", slots={"root": "h-full!"}),
+            ui.sidebar(collapsible="none", width="sm", slots={"root": "h-full"}),
             ui.sidebar_section(label="Mail"),
         ):
             for key, label, icon, badge in FOLDERS:
@@ -98,7 +98,7 @@ def slide_away() -> None:
                    classes="h-[22rem] w-full [contain:inline-size] overflow-hidden "
                            "rounded-box border border-text/10"):
         with ui.sidebar(collapsible="offcanvas", width="sm",
-                        slots={"root": "h-full!"}) as nav:
+                        slots={"root": "h-full"}) as nav:
             ui.sidebar_title("Docs", icon=ui.icon("book-open", color="primary",
                                                    size="lg"))
             with ui.sidebar_section(label="Guides"):
@@ -124,7 +124,7 @@ def widths() -> None:
                 ui.hstack(gap="none", align="stretch",
                           classes="h-56 overflow-hidden rounded-box "
                                   "border border-text/10"),
-                ui.sidebar(collapsible="none", width=width, slots={"root": "h-full!"}),
+                ui.sidebar(collapsible="none", width=width, slots={"root": "h-full"}),
                 ui.sidebar_section(label=label),
             ):
                 ui.sidebar_item("Overview", icon="house", active=True)
@@ -139,7 +139,7 @@ def page() -> None:
                  "edge: it folds to a rail of icons, and each label becomes "
                  "a tooltip. The account menu opens from the footer. In an "
                  "app the sidebar fills the screen's height; in a box like "
-                 'this one, slots={"root": "h-full!"} makes it fill the box. '
+                 'this one, slots={"root": "h-full"} makes it fill the box. '
                  "It is desktop navigation: on a phone, branch on "
                  "Screen().is_mobile and show a ui.bottom_bar instead.")
     example("Switch folders without a round trip", client_selection,

@@ -520,7 +520,7 @@ def page() -> None:
                                 ui.heading("Issues", level=3)
                                 with ui.hstack(gap="sm"):
                                     ui.input(placeholder="Search…",
-                                             classes="!w-48")
+                                             classes="w-48")
                                     ui.button("New", icon_left="plus",
                                               color="info")
                             ui.table(columns=RICH_COLUMNS, rows=ISSUES,

@@ -215,7 +215,9 @@ class PieChart(Component):
             slice_cls = slot("slice", colour)
             # Hover polish — non-hovered slices dim to 80 %, hovered
             # stays at 100 % via ``hover:!opacity-100``. Subtle pop
-            # that keeps the other slices' share readable.
+            # that keeps the other slices' share readable. The ``!``:
+            # ``hover:`` and ``group-hover/pie:`` weigh the same, and the
+            # class merge only settles an app against the theme.
             slice_cls += (
                 " group-hover/pie:opacity-80 hover:!opacity-100"
             )

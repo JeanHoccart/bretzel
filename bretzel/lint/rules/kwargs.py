@@ -12,6 +12,10 @@ component in a branch never taken, a rarely rendered page, a path behind
 an ``if`` — the base layer will only raise the day somebody goes through
 there. The rule reads the call site, so it sees it straight away.
 
+It counts the positional arguments too: ``ui.card(title)`` raises — a
+card takes none, its text goes inside it. Same reason to exist: the call
+is read before it runs.
+
 ⚠️ It does NOT judge the anchor family (``href`` / ``target`` / ``rel`` /
 ``download``): those are declared raw attributes, legitimate with
 ``tag="a"``, and whether they land on a link depends on the rendered
@@ -113,6 +117,49 @@ def _helper_arguments(name: str) -> frozenset[str] | object:
     from bretzel import ui
 
     return _closed_arguments(getattr(ui, name, None))
+
+
+def _positional_room(ui_name: str) -> int | None:
+    """How many positional arguments ``ui.<name>`` takes; ``None`` = no limit
+    (a ``*args``, or a signature that cannot be read)."""
+    return derived(f"{RULE}.positional", _positional_by_name).get(ui_name)
+
+
+def _positional_by_name() -> dict[str, int | None]:
+    """:func:`_positional_room` for every symbol, built once per pass."""
+    from bretzel import ui
+
+    return {name: _room(getattr(ui, name, None)) for name in catalogue()}
+
+
+def _room(obj: Any) -> int | None:
+    try:
+        params = inspect.signature(obj).parameters.values()
+    except (TypeError, ValueError):
+        return None
+    if any(p.kind is p.VAR_POSITIONAL for p in params):
+        return None
+    return sum(p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD) for p in params)
+
+
+def _too_many_positionals(module: Module, node: ast.Call, name: str) -> Finding | None:
+    """``ui.card("Title")``: more positional arguments than the signature has."""
+    room = _positional_room(name)
+    given = len(node.args)
+    if room is None or given <= room or any(isinstance(a, ast.Starred) for a in node.args):
+        return None
+    from bretzel.introspect import ComponentInfo
+
+    takes = "no positional argument" if room == 0 else (
+        f"{room} positional argument{'s' if room > 1 else ''}")
+    info = catalogue().get(name)
+    inside = (f" Its content goes inside: `with ui.{name}(): ui.text(…)`."
+              if isinstance(info, ComponentInfo) and info.is_container else "")
+    return Finding(
+        rule=RULE, path=module.path, line=node.lineno,
+        message=f"`ui.{name}` takes {takes}, {given} given — it raises when this line runs.",
+        hint=f"`bretzel describe {name}` shows what it takes.{inside}",
+    )
 
 
 def _framework_names(module: Module) -> tuple[dict[str, Any], list[Finding]]:
@@ -219,6 +266,8 @@ def check(module: Module) -> list[Finding]:
                 )
             )
             continue
+        if positional := _too_many_positionals(module, node, func.attr):
+            findings.append(positional)
         if accepted is _NOT_JUDGED:
             continue
         if not _is_component(func.attr):

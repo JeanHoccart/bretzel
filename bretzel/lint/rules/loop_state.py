@@ -4,8 +4,9 @@ The silence it closes, and it is silent ONLY IN DEV
 ---------------------------------------------------
 
 ``MyState()`` is a constructor: it cannot wait. When the backend also
-reads synchronously — which is the case of ``MemoryBackend``, so of any
-app started without ``redis_url`` — hydration happens on the spot and
+reads synchronously — which is the case of ``MemoryBackend`` and
+``SqliteBackend``, so of any app whose ``state_url`` is not Redis —
+hydration happens on the spot and
 everything works. When it only reads with ``await`` (Redis), the registry
 goes through a pool thread… and an ``async def`` body does NOT run in
 that thread, it runs on the loop, where waiting would freeze the whole
@@ -14,7 +15,7 @@ worker. ``StateRegistry`` therefore raises
 values the end-of-request commit would write over the real ones.
 
 Consequence: **the same line works in dev and raises in production**, the
-day somebody sets ``redis_url``. It is this repository's most expensive
+day ``state_url`` points at Redis. It is this repository's most expensive
 class of failure — the one that waits for deployment to show itself, like
 the assembled Tailwind class (``rules/tailwind.py``). Hence a static
 rule: it gives the verdict in dev, with no backend, executing nothing.
@@ -141,9 +142,9 @@ def check(module: Module) -> list[Finding]:
                         f"Write `state = await {built}.load()`, or put "
                         f"`{func.name}` back to `def` (the framework will "
                         f"offload it onto a thread, where `{built}()` works "
-                        f"as-is). In memory the current line works; with "
-                        f"`redis_url` it raises — it is a fault that waits "
-                        f"for production."
+                        f"as-is). In memory the current line works; with a "
+                        f"Redis `state_url` it raises — it is a fault that "
+                        f"waits for production."
                     ),
                 )
             )

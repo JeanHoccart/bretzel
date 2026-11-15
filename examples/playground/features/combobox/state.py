@@ -56,6 +56,7 @@ class ComboboxPlayground(PageState):
     required:     bool = field(default=False)
     color:        str  = field(default="primary")
     size:         str  = field(default="md")
+    variant:      str  = field(default="surface")
     initial:      str  = field(default="fr")
     # Escape hatches.
     classes:     str  = field(default="")

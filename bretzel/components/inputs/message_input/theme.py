@@ -31,6 +31,9 @@ MESSAGE_INPUT_THEME: dict[str, Any] = {
             "has-[textarea:focus]:ring-offset-2 has-[textarea:focus]:ring-offset-background"
         ),
         "top": "flex flex-wrap items-center gap-1.5 px-3 pt-3 empty:hidden",
+        # The files joined: a ``ui.attachments``, a row of the box. It
+        # takes no room while empty, so the padding only shows with them.
+        "files": "px-3 pt-3",
         "field": (
             "block w-full resize-none border-0 bg-transparent px-4 py-3 text-sm text-text "
             "placeholder:text-muted/60 outline-none field-sizing-content min-h-[4.5rem] "

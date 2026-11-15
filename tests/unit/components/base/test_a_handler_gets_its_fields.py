@@ -58,7 +58,10 @@ def test_a_file_upload_carrier_does_not_post_its_file() -> None:
     with render_isolated():
         html = serialize(ui.file_upload(name="fu", upload_url="/up", on_change=_handler,
                                         on_upload_start=_other).render())
-    (include,) = _includes(html)
+    # Two includes: the root's own ``change`` carries the files (multipart);
+    # the carrier's ``upload_start`` leaves the file input out.
+    own, include = sorted(_includes(html), key=lambda one: ":not(:has" in one)
+    assert own.endswith(" input") and "hx-encoding=\"multipart/form-data\"" in html
     root = include.split(",")[1].strip().split(":")[0]
     # The root is taken whole only when it holds no file input.
     assert f"{root}:not(:has(input[type=file]))" in include

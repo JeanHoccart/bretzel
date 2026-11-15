@@ -30,9 +30,10 @@
  *   it listens. The page says the browser can dictate
  *   (``html[data-bz-can-dictate]``), so a morph re-rendering it changes
  *   nothing.
- * - **Files dropped on the box** join, as the clip's picker would; a box
- *   switched off, or taking no file, lets nothing through — and never lets
- *   the browser open the dropped file instead of the page.
+ * - **Files dropped on the box** join, as the clip's picker would: the
+ *   box's ``ui.attachments`` listens on it (``drop="form"``). A box switched
+ *   off, or taking no file, lets nothing through — and here, never lets the
+ *   browser open the dropped file instead of the page.
  */
 (function () {
   "use strict";
@@ -46,12 +47,12 @@
   if (Recognition) document.documentElement.setAttribute("data-bz-can-dictate", "");
 
   function field(form) { return form.querySelector("[data-bz-message-field]"); }
-  // The file picker's scope — its ``clear()``, ``handleFiles()``, ``files``.
+  // The box's ``ui.attachments`` scope — its ``clear()``, ``handleFiles()``,
+  // ``removeFile()``, ``files``.
   function uploader(form) {
-    const el = form.querySelector(".bz-file-upload");
+    const el = form.querySelector("[data-bz-attachments]");
     return el && $bz._scopeFor ? $bz._scopeFor(el).proxy : null;
   }
-  function off(form) { return form.matches("[data-disabled]"); }
 
   function busy(form) {
     const send = form.querySelector("[data-bz-message-send]");
@@ -182,12 +183,9 @@
     if (form) e.preventDefault(); // a file dropped here never replaces the page
   });
 
+  // The files themselves join through the box's ``ui.attachments``.
   document.addEventListener("drop", function (e) {
     const form = e.target.closest && e.target.closest(BOX);
-    if (!form) return;
-    e.preventDefault();
-    const files = uploader(form);
-    if (!files || off(form) || !e.dataTransfer || !e.dataTransfer.files.length) return;
-    files.handleFiles(e.dataTransfer.files);
+    if (form) e.preventDefault();
   });
 })();

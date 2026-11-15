@@ -1,6 +1,6 @@
 ---
 name: bretzel-screen
-description: Use when the user asks for a new screen, page, view, form, dashboard or feature UI in a Bretzel app, or wants to see what an app or screen would look like before it is built ("make me a mockup", "show me the screen first", "design the page for X"). Builds a real Bretzel mockup on invented data, gets it validated from screenshots, then turns that same code into the working screen.
+description: Use when the user asks for a new screen, page, view, form, dashboard or feature UI in a Bretzel app, or wants to see what an app or screen would look like before it is built ("make me a mockup", "show me the screen first", "design the page for X"), and when they approve a mockup ("build it", "wire it"). Builds a real Bretzel mockup on invented data, gets it validated from screenshots, then turns that same code into the working screen.
 ---
 
 # A new screen: mockup, validation, then the code
@@ -37,6 +37,10 @@ TICKETS = [
 COLORS = {"Open": "warning", "In progress": "info", "Done": "success"}
 
 
+def open_tickets() -> list[dict]:
+    return TICKETS  # invented — wiring changes this line, not the page
+
+
 def nothing() -> None:
     ui.notification("Mockup: nothing is saved.")
 
@@ -46,7 +50,7 @@ def tickets() -> None:
     with ui.container(width="lg", classes="py-8"):
         with ui.vstack(gap="md"):
             ui.heading("Tickets", level=1)
-            for ticket in TICKETS:
+            for ticket in open_tickets():
                 with ui.card():
                     with ui.hstack(gap="sm", justify="between"):
                         ui.text(f"#{ticket['id']} {ticket['title']}")
@@ -63,6 +67,9 @@ app.include(sys.modules[__name__])
 - **The app's real look**: if the app passes a `theme=` or a layout, the
   mockup uses the same. Reuse the app's components and helpers when they
   exist.
+- **Data behind one function**: the page reads it through a function
+  (`open_tickets()`), never the constant itself — wiring then changes that
+  function alone.
 - Handlers are module-level no-ops (a notification at most). The layout,
   the hierarchy and the words are what is being decided.
 
@@ -81,9 +88,10 @@ ask for their validation or changes. Iterate in rounds until they say yes.
 
 ## 4. Wire it
 
-Once validated, move the page into the app (`features/<screen>.py`,
-included in `main.py`): the same component tree, the invented constants
-replaced by typed state and real queries, the no-op handlers by real ones.
+Once validated — the user says "build it" — move the page into the app
+(`features/<screen>.py`, included in `main.py`): the same component tree;
+the data function now returns typed state or a real query, and the no-op
+handlers become real ones.
 Do not redesign while wiring; a change of design goes back to step 2.
 
 ## 5. Check it against the mockup

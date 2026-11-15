@@ -179,7 +179,7 @@ def bande_archive() -> None:
         name=ZONE_ARCHIVE, accepts=[GROUPE], locked=True,
         terminal=True, on_move=archiver,
         color="error",
-        classes="flex-none h-12 min-h-0! overflow-hidden rounded-box "
+        classes="flex-none h-12 min-h-0 overflow-hidden rounded-box "
                 "border border-dashed border-text/20 flex items-center "
                 "justify-center gap-2 opacity-0 pointer-events-none "
                 "transition-opacity duration-150 "

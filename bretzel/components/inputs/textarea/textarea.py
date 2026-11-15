@@ -22,6 +22,7 @@ from bretzel.components.base.commands import ValueCommands
 from bretzel.components.base.focus import FocusCommands
 from bretzel.components.inputs._wiring import (
     add_local_value_scope,
+    ghost_frame,
     value_command_listeners,
 )
 from bretzel.components.inputs.textarea.theme import TEXTAREA_THEME
@@ -58,6 +59,13 @@ class Textarea(ValueCommands, FocusCommands, Component):
     maxlength: int | None = reactive_prop(default=None)
     color: str = reactive_prop(default="primary", emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
+    #: The look of the field, the words of ``ui.button``: ``surface`` (the
+    #: default) is the framed field; ``ghost`` has neither background nor
+    #: frame — the container around it structures the screen (the lines
+    #: of a mail) — and its focus ring only for a keyboard user
+    #: (``data-bz-keyboard`` on ``<html>``, set by ``helpers.js``).
+    variant: str = reactive_prop(default="surface", emit_attr=False,
+                                 steps=("surface", "ghost"))
 
     def __init__(
         self,
@@ -73,6 +81,7 @@ class Textarea(ValueCommands, FocusCommands, Component):
         maxlength: int | None = None,
         color: str | None = None,
         size: str | None = None,
+        variant: str | None = None,
         on_change: Callable[..., Any] | str | None = None,
         on_input: Callable[..., Any] | str | None = None,
         on_focus: Callable[..., Any] | str | None = None,
@@ -102,7 +111,7 @@ class Textarea(ValueCommands, FocusCommands, Component):
             name=name, placeholder=placeholder, value=value,
             rows=rows, disabled=disabled, readonly=readonly,
             required=required, minlength=minlength,
-            maxlength=maxlength, color=color, size=size,
+            maxlength=maxlength, color=color, size=size, variant=variant,
             on_change=on_change,
             on_input=on_input,
             on_focus=on_focus,
@@ -113,7 +122,7 @@ class Textarea(ValueCommands, FocusCommands, Component):
         )
 
     def render(self) -> Element:
-        cls_string = self.compose_class("root")
+        cls_string = ghost_frame(self, self.compose_class("root"))
         attrs = self.emit_attrs()
         attrs["class"] = cls_string
 

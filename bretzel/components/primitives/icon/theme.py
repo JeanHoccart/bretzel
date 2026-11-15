@@ -1,7 +1,10 @@
 """Default :class:`Icon` theme.
 
-``inline-flex shrink-0 align-middle`` + ``transition-colors`` so the icon's
-colour can animate with the surrounding component (button hover, link focus).
+``inline-flex shrink-0 align-middle``, and NO transition of its own: the
+icon's colour is inherited (``currentColor``), so it follows the animation
+of the component around it at that component's pace — 150 ms in a
+button, 200 ms in a step chip. A transition here made it lag on its own
+clock (150 ms inside a 200 ms state change, measured).
 Sizing is via ``font-size`` because ``<iconify-icon>`` sizes itself in ``1em``.
 Default colour ``current`` → the ``bz-c-current`` bridge, whose
 ``--bz-text`` is ``currentColor`` : the icon inherits its parent's text
@@ -22,7 +25,7 @@ ICON_THEME: dict[str, Any] = {
     "slots": {
         "root": (
             "inline-flex shrink-0 justify-center items-center align-middle "
-            "transition-colors duration-150 text-(--bz-text)"
+            "text-(--bz-text)"
         ),
     },
     "sizes": {

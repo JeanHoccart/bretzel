@@ -73,7 +73,9 @@ ROLES: dict[str, str] = {
               'from it in `calc()` (`-strong` ×2, `-accent` ×4).',
     "css": "A CSS file of the app's, injected as is — that is where a "
            '`@font-face`, a `@keyframes`, a `@supports` lives.',
-    "scrollbar": "The scrollbar's width and colours.",
+    "scrollbar": "The scrollbar's width, colours, and when it shows: "
+                 '`show="hover"` (the default) hides it until the pointer is '
+                 'over the region or it scrolls, `"always"` keeps it drawn.',
     "icons": 'The default icon set, its style and its size.',
     "base": f"The theme one inherits from. `base=None` starts from scratch — and "
             f"you become responsible for the {len(SEMANTIC_COLOR_NAMES)} roles.",

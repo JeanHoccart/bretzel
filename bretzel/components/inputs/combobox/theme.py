@@ -49,22 +49,20 @@ COMBOBOX_THEME: dict[str, Any] = {
         # the whole shell feels like a text input (clicking anywhere
         # focuses the inner ``<input>`` via the runtime).
         "trigger": (
-            "flex items-center w-full rounded-field border-(length:--bz-stroke) "
-            "border-text/10 bg-interface text-text "
-            "cursor-text outline-none "
-            "transition duration-200 "
-            "focus-within:border-(--bz-solid) "
-            "focus-within:ring-2 focus-within:ring-(--bz-focus-soft) "
-            "focus-within:ring-offset-2 "
-            "focus-within:ring-offset-background "
+            # The frame and its focus ring are the variant's (``variants``).
+            "flex items-center w-full rounded-field text-text "
+            "cursor-text outline-none transition duration-200 "
             "has-[input:disabled]:opacity-50 "
-            "has-[input:disabled]:cursor-not-allowed "
-            "has-[input:disabled]:bg-muted/10"
+            "has-[input:disabled]:cursor-not-allowed"
         ),
         # The flex row holding pills + input. ``min-w-0`` lets pills
         # truncate / wrap correctly when the value list grows.
+        # ONE line, a fixed height: a combobox lives in toolbars and
+        # filters, and must not move the layout as picks pile up. The
+        # pills that fit, then « +N » (``$bz.combobox.fitPills``); the
+        # whole list stays in the panel.
         "pills_row": (
-            "flex flex-wrap items-center gap-1 flex-1 min-w-0"
+            "flex flex-nowrap items-center gap-1 flex-1 min-w-0 overflow-hidden"
         ),
         # No pill classes here : pills source their styling from
         # :data:`bretzel.components.feedback.badge.theme.BADGE_THEME` via
@@ -220,7 +218,7 @@ COMBOBOX_THEME: dict[str, Any] = {
         "option_box": (
             "shrink-0 inline-flex items-center justify-center me-2 "
             "rounded-selector border-(length:--bz-stroke) border-text/25 "
-            "bg-interface text-transparent transition-colors duration-150 "
+            "bg-interface text-transparent transition-colors duration-200 "
             "group-aria-selected:bg-(--bz-solid) "
             "group-aria-selected:border-(--bz-solid) "
             "group-aria-selected:text-(--bz-on-solid)"
@@ -243,6 +241,14 @@ COMBOBOX_THEME: dict[str, Any] = {
     # (traps.md).
     #
     # ``md`` = the historical look, unchanged to the pixel.
+    "variants": {
+        "surface": {
+            "trigger": "bg-interface border-(length:--bz-stroke) border-text/10 focus-within:border-(--bz-solid) focus-within:ring-2 focus-within:ring-(--bz-focus-soft) focus-within:ring-offset-2 focus-within:ring-offset-background has-[input:disabled]:bg-muted/10",
+        },
+        "ghost": {
+            "trigger": "[[data-bz-keyboard]_&]:focus-within:ring-2 [[data-bz-keyboard]_&]:focus-within:ring-(--bz-focus) [[data-bz-keyboard]_&]:focus-within:ring-offset-2 [[data-bz-keyboard]_&]:focus-within:ring-offset-background",
+        },
+    },
     "sizes": {
         "xs": {
             "trigger": "min-h-7 px-2 py-0.5 text-xs",
@@ -274,7 +280,7 @@ COMBOBOX_THEME: dict[str, Any] = {
             "footer_counter": "text-xs",
             "footer_btn_primary": "text-xs",
             "footer_btn_muted": "text-xs",
-            "pill_size": "xs",
+            "pill_size": "sm",
             "chevron_size": "xs",
             "clear_icon_size": "xs",
         },
@@ -291,7 +297,7 @@ COMBOBOX_THEME: dict[str, Any] = {
             "footer_counter": "text-xs",
             "footer_btn_primary": "text-xs",
             "footer_btn_muted": "text-xs",
-            "pill_size": "sm",
+            "pill_size": "md",
             "chevron_size": "sm",
             "clear_icon_size": "xs",
         },
@@ -308,7 +314,7 @@ COMBOBOX_THEME: dict[str, Any] = {
             "footer_counter": "text-sm",
             "footer_btn_primary": "text-sm",
             "footer_btn_muted": "text-sm",
-            "pill_size": "md",
+            "pill_size": "lg",
             "chevron_size": "md",
             "clear_icon_size": "sm",
         },
@@ -325,7 +331,7 @@ COMBOBOX_THEME: dict[str, Any] = {
             "footer_counter": "text-base",
             "footer_btn_primary": "text-base",
             "footer_btn_muted": "text-base",
-            "pill_size": "lg",
+            "pill_size": "xl",
             "chevron_size": "lg",
             "clear_icon_size": "sm",
         },

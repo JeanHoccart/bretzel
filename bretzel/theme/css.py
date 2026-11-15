@@ -16,6 +16,7 @@ import re
 from collections.abc import Mapping, Sequence
 from urllib.parse import quote
 
+from bretzel.runtime.protocol import DATA_BZ_SCROLLING
 from bretzel.theme.bridges import generate_color_bridges
 from bretzel.theme.config import ScrollbarConfig
 from bretzel.theme.palette import Palette
@@ -68,11 +69,31 @@ def _resolve_color_expression(value: str, palette: Palette) -> str:
 
 
 def generate_scrollbar_css(scrollbar: ScrollbarConfig, palette: Palette) -> str:
-    """Build the scrollbar rules for both WebKit and Firefox."""
+    """Build the scrollbar rules: ``::-webkit-scrollbar`` for Chromium and
+    Safari, the standard properties for Firefox only.
+
+    ⚠️ The standard properties stay inside
+    ``@supports not selector(::-webkit-scrollbar)`` (Firefox alone): in
+    Chrome 121+ they switch the ``::-webkit-scrollbar`` rules off — why,
+    in ``tests/consistency/test_standard_scrollbar_properties_stay_out_of_chromium.py``.
+
+    ``show="hover"`` paints the thumb transparent at rest and gives it its
+    colour on ``:hover`` (the pointer is over the region that scrolls, or
+    over one of its descendants) and under ``DATA_BZ_SCROLLING``, which the
+    runtime sets while the region scrolls — the wheel is covered by
+    ``:hover``, a finger or a key by the attribute. The bar keeps its
+    width at rest : nothing moves when it appears.
+
+    Everything sits in ``@layer base`` so that a component's own utility
+    (``[scrollbar-width:none]``, ``[&::-webkit-scrollbar]:h-1.5``) wins,
+    as utilities win over a default everywhere else.
+    """
     width = scrollbar.width
     track = _resolve_color_expression(scrollbar.track, palette)
     thumb = _resolve_color_expression(scrollbar.thumb, palette)
     thumb_hover = _resolve_color_expression(scrollbar.thumb_hover, palette)
+    on_demand = scrollbar.show == "hover"
+    rest_thumb, rest_track = ("transparent", "transparent") if on_demand else (thumb, track)
 
     # The ``border + background-clip: content-box`` trick (V1 idiom) shrinks
     # the visible thumb inwards from the scrollbar's box edges. With a 4px
@@ -81,35 +102,51 @@ def generate_scrollbar_css(scrollbar: ScrollbarConfig, palette: Palette) -> str:
     # would eat the entire width).
     # ``-button`` + ``-corner`` are explicitly neutralised so the OS chrome
     # doesn't sneak arrow caps or a frame square back in.
-    return (
-        "/* scrollbar */\n"
-        "* {\n"
-        f"  scrollbar-width: thin;\n"
-        f"  scrollbar-color: {thumb} {track};\n"
-        "}\n"
-        "::-webkit-scrollbar {\n"
-        f"  width: {width};\n"
-        f"  height: {width};\n"
-        "}\n"
-        "::-webkit-scrollbar-track {\n"
-        f"  background: {track};\n"
-        "}\n"
-        "::-webkit-scrollbar-thumb {\n"
-        f"  background-color: {thumb};\n"
-        "  border-radius: 9999px;\n"
-        "  border: 1px solid transparent;\n"
-        "  background-clip: content-box;\n"
-        "}\n"
-        "::-webkit-scrollbar-thumb:hover {\n"
-        f"  background-color: {thumb_hover};\n"
-        "}\n"
-        "::-webkit-scrollbar-button {\n"
-        "  display: none;\n"
-        "}\n"
-        "::-webkit-scrollbar-corner {\n"
-        "  background: transparent;\n"
-        "}\n"
-    )
+    prelude: list[str] = []
+    firefox = [f"    * {{ scrollbar-width: thin; scrollbar-color: {rest_thumb} {rest_track}; }}"]
+    webkit = [
+        f"  ::-webkit-scrollbar {{ width: {width}; height: {width}; }}",
+        f"  ::-webkit-scrollbar-track {{ background: {rest_track}; }}",
+        "  ::-webkit-scrollbar-thumb {",
+        f"    background-color: {rest_thumb};",
+        "    border-radius: 9999px;",
+        "    border: 1px solid transparent;",
+        "    background-clip: content-box;",
+        "  }",
+    ]
+    if on_demand:
+        shown = (":hover", f"[{DATA_BZ_SCROLLING}]")
+        # ⚠️ Chromium re-resolves an element's ``::-webkit-scrollbar-*``
+        # styles only when the element's OWN style changes. The pseudo
+        # rules below match on hover, but nothing on the element itself
+        # depended on ``:hover``, so the bar stayed transparent under the
+        # pointer (measured, Chromium 147: shown while scrolling, never on
+        # hover). ``--bz-scrollbar-shown`` is that change, and nothing reads
+        # it. Registered NON-inherited, so a hover restyles the element
+        # alone, not its whole subtree.
+        trigger = "--bz-scrollbar-shown"
+        prelude = [f'@property {trigger} {{ syntax: "<number>"; inherits: false; initial-value: 0; }}']
+        firefox.append(f"    {', '.join(shown)} {{ scrollbar-color: {thumb} {track}; }}")
+        webkit = [
+            f"  {', '.join(shown)} {{ {trigger}: 1; }}",
+            *webkit,
+            f"  {', '.join(sel + '::-webkit-scrollbar-track' for sel in shown)} {{ background: {track}; }}",
+            f"  {', '.join(sel + '::-webkit-scrollbar-thumb' for sel in shown)} {{ background-color: {thumb}; }}",
+        ]
+    rules = [
+        "/* scrollbar */",
+        *prelude,
+        "@layer base {",
+        "  @supports not selector(::-webkit-scrollbar) {",
+        *firefox,
+        "  }",
+        *webkit,
+        f"  ::-webkit-scrollbar-thumb:hover {{ background-color: {thumb_hover}; }}",
+        "  ::-webkit-scrollbar-button { display: none; }",
+        "  ::-webkit-scrollbar-corner { background: transparent; }",
+        "}",
+    ]
+    return "\n".join(rules) + "\n"
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -297,10 +334,10 @@ _RAIL_SCROLL = """\
 # ⚠️ Why a real CSS class and not an arbitrary Tailwind utility
 # (``[scrollbar-width:none] [&::-webkit-scrollbar]:hidden``): the production
 # binary emits both forms, but the dev mode's BROWSER compiler handles
-# neither. In **DEV**, neither rule would exist in the page's sheets: the
-# ``* { scrollbar-width: thin }`` above would win, and the bar would stay
-# visible on platforms that draw a classic one (Windows, Linux) — invisible
-# in headless Chromium, which uses overlay bars. The arbitrary variant's
+# neither. In **DEV**, neither rule would exist in the page's sheets, and the
+# theme's bar would show on platforms that draw a classic one (Windows,
+# Linux) — invisible in headless Chromium, which uses overlay bars. The
+# arbitrary variant's
 # ``&`` is furthermore escaped as ``&amp;`` in the HTML attribute.
 #
 # The class works on BOTH sides, where the arbitrary form only exists in
@@ -616,11 +653,9 @@ def generate_theme_css_full(
         _REDUCED_MOTION,
     ]
     if scrollbar is not None:
-        # AFTER the two hiding rules: the global block sets a
-        # ``* { scrollbar-width: thin }``, but a universal selector has
-        # zero specificity, so a class beats it whatever the order. The
-        # order stays written this way so that reading the file follows
-        # the cascade.
+        # AFTER the two hiding rules, though order no longer decides: the
+        # block sits in ``@layer base``, which every unlayered rule and
+        # every utility beats.
         parts.append(generate_scrollbar_css(scrollbar, palette))
     if extra := extra_css.strip():
         parts.append("/* --- Theme(css=…) — l'app a le dernier mot --- */")

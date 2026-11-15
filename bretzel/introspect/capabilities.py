@@ -723,19 +723,20 @@ CAPABILITIES: tuple[Capability, ...] = (
         name="Keep state across a restart",
         chapter="/config",
         does=(
-            "Plug in a shared store — Redis — so that the session and "
-            "user scopes survive the process restarting and are shared "
-            "between several instances. One URL, and nothing else to "
-            "change in the code."
+            "Name a SQLite file and every server state — page, session, "
+            "user, app — survives the process restarting, `bretzel dev`'s "
+            "reload included. One URL, nothing to install, nothing else "
+            "to change in the code. A Redis URL also shares them between "
+            "several workers."
         ),
         entry=("bretzel.BretzelConfig",),
         snippet=(
-            "# Without Redis, state lives in memory and dies with the\n"
-            "# process. Perfect in dev, wrong as soon as there are two\n"
-            "# instances behind a load balancer.\n"
+            "# Without state_url, state lives in memory and dies with the\n"
+            "# process. A file keeps it; a redis:// URL (pip install\n"
+            "# 'bretzel[redis]') also shares it between workers.\n"
             "app = Bretzel(\n"
             '    secret_key="…",\n'
-            '    redis_url="redis://localhost:6379/0",\n'
+            '    state_url="sqlite:///state.db",\n'
             "    session_max_age_days=30,\n"
             ")\n"
             "\n"

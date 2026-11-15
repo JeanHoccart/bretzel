@@ -27,12 +27,12 @@ viewing a zone that subscribed to X. Two responsibilities:
 the in-process :class:`MemoryBroker` (single process — subscriber state
 lives on the worker that rendered the page) and the :class:`RedisBroker`,
 which fans the ``state-dirty`` signal across workers over a Redis Pub/Sub
-channel. The lifecycle picks the Redis-backed one whenever ``redis_url``
-is configured (``server/lifecycle.py``), so **realtime works across
+channel. The lifecycle picks the Redis-backed one whenever ``state_url``
+is a Redis URL (``server/lifecycle.py``), so **realtime works across
 ``workers>1`` and across replicas**.
-Without a ``redis_url`` you get the single-process broker — fine for dev
-and single-worker deployments (the config already forces a ``redis_url``
-when ``workers>1``).
+Otherwise you get the single-process broker — fine for single-worker
+deployments (the config already demands a Redis ``state_url`` when
+``workers>1``).
 
 **Backpressure.** Each connection's queue is bounded
 (:data:`_MAX_QUEUE_CHUNKS`, drop-oldest) and each session is capped to
@@ -95,10 +95,10 @@ _CLOSE = "\x00bretzel-sse-close\x00"
 class SSEBroker(Protocol):
     """Backend-agnostic protocol the framework holds at runtime.
 
-    ``Bretzel._sse_broker`` is set at startup according to the
-    ``redis_url`` config — in-process :class:`MemoryBroker` for single
-    process / dev, :class:`RedisBroker` (cross-worker Pub/Sub) when a
-    ``redis_url`` is set.
+    ``Bretzel._sse_broker`` is set at startup according to
+    ``state_url`` — in-process :class:`MemoryBroker` for a single
+    process, :class:`RedisBroker` (cross-worker Pub/Sub) when it is a
+    Redis URL.
     """
 
     async def connect(

@@ -441,6 +441,7 @@ class NumberInput(ValueCommands, FocusCommands, Component):
         return Component.with_slot_class(
             icon.render(),
             self._resolved_theme().get("slots", {}).get("chevron", ""),
+            addition=self._slot_addition("chevron"),
         )
 
 

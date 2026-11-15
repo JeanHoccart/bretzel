@@ -487,8 +487,29 @@
           $bz.reportError("an effect", err);
         }
       }
+      if (!flushScheduled) $bz._serverWriting = false;
     });
   }
+
+  /* A value the SERVER writes is not a gesture. ``write`` runs with
+   * ``$bz._serverWriting`` up, and the flag stays up until every effect
+   * it wakes has run — those its effects wake in turn included, a field
+   * whose carrier follows its scope which follows the store — and
+   * ``change_emit_effect`` takes what they see as a new baseline rather
+   * than a ``change``. The callers: a value a re-render adopts
+   * (``resyncScopes``), a ClientState field an action pushes and a
+   * snapshot a navigation restores (``bridge.js::applyPayload``).
+   * Without it, a ``ui.tags_input`` bound to a field the server fills
+   * posted its ``on_change`` back with nothing typed (gate
+   * ``test_a_field_reports_only_a_gesture``). */
+  $bz._writeAsServer = function (write) {
+    $bz._serverWriting = true;
+    try {
+      return write();
+    } finally {
+      if (!flushScheduled) $bz._serverWriting = false;
+    }
+  };
 
   /* An error the runtime contains is still REPORTED as uncaught
    * (``reportError``): the page goes on, and whoever listens for page
@@ -1185,7 +1206,7 @@
   // Generic reflow-motion tokens for the ``:flip`` list option — the
   // framework's standard short duration + easing (the same easing the shell
   // uses across its keyframes). Not slaved to any one component: a
-  // dismissed toast goes at once, its neighbours glide into the slot.
+  // dismissed toast fades out, then its neighbours glide into the slot.
   const FLIP_MS = 200;
   const FLIP_EASING = "cubic-bezier(.4,0,.2,1)";
 
@@ -1812,11 +1833,10 @@
    * inputs need nothing here — their value lives in $bz._store, which
    * the patch envelope updates and which never rides a scope signal.
    *
-   * A value adopted here is the SERVER's, not a choice: ``_serverWriting``
-   * stays up until the effects it wakes have run (they flush in the
-   * microtask queued by the first ``set``; clearing in the next one comes
-   * after), and ``change_emit_effect`` takes it as a new baseline rather
-   * than a ``change``. Without it a select that a morph turns into
+   * A value adopted here is the SERVER's, not a choice: it is written
+   * through ``$bz._writeAsServer`` (``signals.js``), and
+   * ``change_emit_effect`` takes it as a new baseline rather than a
+   * ``change``. Without it a select that a morph turns into
    * another one posts the server's value back, to the old action — a
    * 403. */
   function resyncScopes(root) {
@@ -1848,11 +1868,7 @@
         const moved = scope.seeds.get(key) !== fresh;
         scope.seeds.set(key, fresh);
         if (forced.includes(key) || (moved && !typing)) {
-          if (!$bz._serverWriting) {
-            $bz._serverWriting = true;
-            queueMicrotask(() => queueMicrotask(() => { $bz._serverWriting = false; }));
-          }
-          sig.set(v);
+          $bz._writeAsServer(() => sig.set(v));
         }
       }
     }
@@ -2051,6 +2067,14 @@
     // `tests/consistency/test_a_seed_patch_never_overwrites.py`, and the
     // result by
     // `tests/runtime_js/test_a_partial_nav_never_clobbers_client_state.py`.
+    //
+    // Either way the value is the SERVER's, not a gesture: it is written
+    // through ``$bz._writeAsServer``, so a field bound to it takes it as
+    // its new value without posting its ``on_change`` back.
+    $bz._writeAsServer(function () { writePayload(payload); });
+  }
+
+  function writePayload(payload) {
     const isSeed = !!payload.config;
     for (const instancePath of Object.keys(payload.patches)) {
       const fields = payload.patches[instancePath];
@@ -2998,6 +3022,9 @@
         if (old.nodeType === 1 && fresh.nodeType === 1 && fresh.id && !old.id) {
           rebirths.add(old);
         }
+        // A node a library writes (``ui.editor``'s surface): left whole.
+        if (old.nodeType === 1 && fresh.nodeType === 1 && old.hasAttribute("data-bz-client-dom")
+            && fresh.hasAttribute("data-bz-client-dom")) return false;
         if (old.nodeType === 1 && fresh.nodeType === 1
             && old.hasAttribute("data-bz-replace")) {
           if (old.outerHTML !== fresh.outerHTML) {
@@ -4112,6 +4139,39 @@
     whenAnswered: whenAnswered,
     _inFlight: function () { return inFlight; },
   };
+
+  /* A keyboard user, marked on ``<html>`` (``data-bz-keyboard``): set by
+   * Tab, taken off by any pointer. A ``ghost`` field — no frame — draws
+   * its focus ring only for that user: a text field (and a
+   * ``contenteditable``) matches ``:focus-visible`` on a click too, so
+   * ``focus-visible`` cannot tell the two apart. On ``<html>``, which no
+   * morph touches. */
+  document.addEventListener("pointerdown", function () {
+    document.documentElement.removeAttribute("data-bz-keyboard");
+  }, true);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Tab") document.documentElement.setAttribute("data-bz-keyboard", "");
+  }, true);
+
+  /* While a region scrolls it carries `data-bz-scrolling`, and loses it
+   * SETTLE_MS after its last `scroll` event. The theme's scrollbar CSS
+   * reads it to show a bar that is hidden at rest
+   * (`ScrollbarConfig(show="hover")`): `:hover` covers a wheel turned
+   * under the pointer, not a finger or a key. One listener for the page,
+   * in the capture phase because `scroll` does not bubble; the document's
+   * own scroll targets `document`, and its bar belongs to `<html>`. */
+  const SCROLLING = "data-bz-scrolling";
+  const SETTLE_MS = 800;
+  const settling = new WeakMap();
+  document.addEventListener("scroll", function (e) {
+    const el = e.target === document ? document.documentElement : e.target;
+    if (!el || el.nodeType !== 1) return;
+    if (!el.hasAttribute(SCROLLING)) el.setAttribute(SCROLLING, "");
+    clearTimeout(settling.get(el));
+    settling.set(el, setTimeout(function () {
+      el.removeAttribute(SCROLLING);
+    }, SETTLE_MS));
+  }, { capture: true, passive: true });
 
   /* Numeric primitives — pure, widget-agnostic. Shared by the
    * number_input + slider slabs (each caches the result locally). */
@@ -5544,15 +5604,16 @@
 })();
 
 
-/* file_upload.js — $bz.fileUpload.makeScope factory for ui.file_upload. */
+/* attachments.js — $bz.attachments.makeScope, the engine of ui.attachments
+ * (and of ui.file_upload, which is ui.attachments plus a dropzone). */
 // ════════════════════════════════════════════════════════════════════════
-// 08 FILE UPLOAD — bz-data scope factory for <ui.file_upload>.
+// ATTACHMENTS — bz-data scope factory for <ui.attachments>.
 //
 // Why a runtime slab
 // ──────────────────
 // The component carries enough JS for the inline-bz-data shape to bloat
 // every instance. Externalising into one factory means each instance
-// just drops ``bz-data="$bz.fileUpload.makeScope({el: $el, …})"``.
+// just drops ``bz-data="$bz.attachments.makeScope({el: $el, …})"``.
 //
 // Notes : (a) the scope captures its root element (``opts.el``,
 // available in the ``bz-data`` expression) — scope methods get no
@@ -5563,7 +5624,7 @@
 //
 // The factory owns :
 //
-//   1. Drag state (``isDragging``).
+//   1. Drag state (``isDragging``), and the drop host (``drop=``).
 //   2. The file list (each entry carries the raw ``File`` + UI status :
 //      progress / done / error).
 //   3. Client-side validation : ``accept`` filter, ``max_size_mb``,
@@ -5576,6 +5637,8 @@
 //      XMLHttpRequest with progress events. ``upload_*`` Alpine events
 //      dispatch with the raw ``File`` so a ClientBinding push or a
 //      server callable receives identity.
+//   7. ``pick()`` — the system's picker, opened by ANY button: ``.pick()``
+//      on the Python side dispatches ``bz-pick`` at the root, in the click.
 //
 // Public DOM event shape (what the framework hooks onto) :
 //   change            — files added / removed
@@ -5595,7 +5658,7 @@
 
     if (typeof window === 'undefined') return;
     if (!window.$bz) window.$bz = {};
-    if (window.$bz.fileUpload) return;
+    if (window.$bz.attachments) return;
 
     // A size in the page's language: « 1,5 Mo » in French, « 1.5 MB » in
     // English — ``Intl``'s units.
@@ -5636,6 +5699,10 @@
         }
         return false;
     }
+
+    // How long the check stays once a file has arrived (``upload_url``
+    // mode) before the file's icon comes back. An error stays.
+    const DONE_SHOWN_MS = 2000;
 
     // Stable id per file entry so ``bz-for`` :key= stays consistent
     // through removals (browsers don't expose a native handle).
@@ -5737,7 +5804,7 @@
                 if (!multiple && this.files.length > 0) {
                     // Replace mode — drop the previous one (and its preview).
                     this.files.forEach((f) => {
-                        if (f._preview) URL.revokeObjectURL(f._preview);
+                        if (f._url) URL.revokeObjectURL(f._url);
                     });
                     this.files = [];
                 }
@@ -5798,7 +5865,12 @@
                 const newEntries = [];
                 for (let i = 0; i < accepted.length; i++) {
                     const f = accepted[i];
+                    // A local URL for every file: the card opens it (a copy in
+                    // the browser's memory — nothing leaves the machine), and
+                    // an image shows it as its thumbnail.
+                    const url = URL.createObjectURL(f);
                     newEntries.push({
+                        _url: url,
                         id: nextId(),
                         file: f,
                         name: f.name,
@@ -5806,11 +5878,10 @@
                         sizeLabel: formatSize(f.size),
                         type: f.type,
                         isImage: isImage(f),
-                        _preview: (showPreviews && isImage(f))
-                            ? URL.createObjectURL(f)
-                            : null,
+                        _preview: (showPreviews && isImage(f)) ? url : null,
                         progress: 0,
                         status: 'idle',  // idle | uploading | done | error
+                        justDone: false,  // the check shows a moment (DONE_SHOWN_MS)
                         error: '',
                     });
                 }
@@ -5842,7 +5913,7 @@
             // ── Remove ─────────────────────────────────────────────
             removeFile(entry, evt) {
                 if (evt) evt.preventDefault();
-                if (entry._preview) URL.revokeObjectURL(entry._preview);
+                if (entry._url) URL.revokeObjectURL(entry._url);
                 if (entry._xhr) {
                     try { entry._xhr.abort(); } catch (e) {}
                 }
@@ -5855,30 +5926,48 @@
                 });
             },
 
-            // Every file out at once — ``ui.message_input`` empties its
-            // box once the message has left (message_input.js).
+            // Every file out at once — ``.clear()`` on the Python side,
+            // and ``ui.message_input`` once its message has left
+            // (message_input.js). It notifies, as a removal does.
             clear() {
+                this._reset();
+                this.dispatch('change', { files: [], count: 0 });
+            },
+
+            // The same, without telling anyone: the files have LEFT (a
+            // handler took them), so a ``change`` would post again — an
+            // empty list, to the handler that has just stored them.
+            _reset() {
                 this.files.forEach((e) => {
-                    if (e._preview) URL.revokeObjectURL(e._preview);
+                    if (e._url) URL.revokeObjectURL(e._url);
                 });
                 this.files = [];
                 this.errors = [];
                 this.syncInput();
-                this.dispatch('change', { files: [], count: 0 });
             },
 
             // ── DataTransfer → native input ────────────────────────
+            // ``_syncing`` marks OUR write of ``.files``: the specification
+            // says it fires no ``change``, the flag holds whatever a browser
+            // does. Any other ``change`` is a pick — a test's untrusted one
+            // included (``set_input_files`` with bytes).
             syncInput() {
                 if (typeof DataTransfer === 'undefined') return;  // very old browsers
                 const dt = new DataTransfer();
                 this.files.forEach((entry) => dt.items.add(entry.file));
-                const native = this._el && this._el.querySelector('input[type=file]');
-                if (native) native.files = dt.files;
+                const native = this._input();
+                if (!native) return;
+                this._syncing = true;
+                try { native.files = dt.files; } finally { this._syncing = false; }
+            },
+
+            _input() {
+                return this._el && this._el.querySelector('input[type=file]');
             },
 
             // ── Native input change passthrough ────────────────────
             onNativeChange(evt) {
-                if (!evt.isTrusted) return;  // we set .files programmatically too
+                if (this._syncing) return;
                 if (evt.target.files && evt.target.files.length > 0) {
                     this.handleFiles(evt.target.files);
                 }
@@ -5944,62 +6033,115 @@
                 return false;
             },
 
-            // ── Paste (``paste=True``) ─────────────────────────────
-            // Called from the root's ``bz-init``, so ``this`` is the
-            // reactive scope. The listener sits on the enclosing
-            // ``<form>`` — a paste fires on the FOCUSED element, and the
-            // one focused is the field the person writes in, not the
-            // picker — or on the root when there is no form. A paste
-            // that carries files adds them as a pick would; one that
-            // carries text is left to the field (``filesOfPaste``).
-            // No unmount hook in V3 (cf. above): a root that has left
-            // the DOM — a zone redrawn — unsubscribes at its next paste.
-            // The form around the field has sent its files: the list
-            // empties. Otherwise a sent file would keep its pill under the
-            // button, and a second send would ship it again. Only a
-            // SUCCESSFUL send of that form: a refusal
-            // (4xx, 5xx) keeps what was picked. Same unsubscribe as the
-            // paste below, at the next send after the root has left.
-            watchForm() {
-                const self = this;
-                const root = self._el;
-                const form = root && root.closest('form');
-                if (!form) return;
-                function onSent(evt) {
-                    if (!root.isConnected) {
-                        form.removeEventListener('htmx:afterRequest', onSent);
-                        return;
-                    }
-                    const d = evt.detail || {};
-                    if (d.elt === form && d.successful && self.files.length) self.clear();
-                }
-                form.addEventListener('htmx:afterRequest', onSent);
+            // ── Listeners outside the root ─────────────────────────
+            // The watchers below are called from the root's ``bz-init``, so
+            // ``this`` is the reactive scope and the unsubscribe goes to
+            // that ``bz-init`` (``$bz._own``): it is given back when the
+            // root leaves the document — a zone redrawn — even if the form
+            // it listens on stays.
+            _listen(host, name, handler) {
+                host.addEventListener(name, handler);
+                if ($bz._own) $bz._own(() => host.removeEventListener(name, handler));
             },
 
-            watchPaste() {
+            // A switched-off list takes nothing — picked, pasted or dropped.
+            _off() {
+                const native = this._input();
+                return !native || native.disabled;
+            },
+
+            // ── Sent: the list lets its files go ───────────────────
+            // A SUCCESSFUL request that carried them empties the list: the
+            // form around it, or — outside a form — the list's own server
+            // ``on_change``, which posts its files multipart. Otherwise a
+            // sent file would keep its pill, and a second send would ship
+            // it again. A refusal (4xx, 5xx) keeps what was picked. The
+            // emptying is silent (``_reset``): the files have left, a
+            // ``change`` would post again, empty.
+            watchSend() {
                 const self = this;
                 const root = self._el;
                 if (!root) return;
                 const host = root.closest('form') || root;
-                function onPaste(evt) {
-                    if (!root.isConnected) {
-                        host.removeEventListener('paste', onPaste);
-                        return;
+                self._listen(host, 'htmx:afterRequest', (evt) => {
+                    const d = evt.detail || {};
+                    // The root's own request is its files only when it is
+                    // the ``change`` (an ``upload_*`` handler carries none).
+                    const fired = d.requestConfig && d.requestConfig.triggeringEvent;
+                    const carried = host !== root || (fired && fired.type === 'change');
+                    if (d.elt === host && carried && d.successful && self.files.length) {
+                        self._reset();
                     }
-                    const native = root.querySelector('input[type=file]');
-                    if (native && native.disabled) return;
+                });
+            },
+
+            // ── Drop (``drop="form"`` / ``"self"``) ────────────────
+            // Files dropped anywhere on the host join, as a pick would: the
+            // enclosing ``<form>`` (the box a message is written in) or,
+            // with ``"self"`` or no form, the list itself. ``dragover`` is
+            // cancelled on the host, otherwise the browser opens the
+            // dropped file in place of the page. ``data-bz-dragging`` sits
+            // on the host while files hover it, for a theme to show where
+            // they land.
+            watchDrop(mode) {
+                const self = this;
+                const root = self._el;
+                if (!root) return;
+                const host = (mode === 'form' && root.closest('form')) || root;
+                let depth = 0;
+                const handlers = {
+                    dragenter() {
+                        depth += 1;
+                        host.setAttribute('data-bz-dragging', '');
+                    },
+                    dragover(evt) { evt.preventDefault(); },
+                    dragleave() {
+                        depth = Math.max(0, depth - 1);
+                        if (!depth) host.removeAttribute('data-bz-dragging');
+                    },
+                    drop(evt) {
+                        evt.preventDefault();
+                        depth = 0;
+                        host.removeAttribute('data-bz-dragging');
+                        if (!self._off() && evt.dataTransfer.files.length) {
+                            self.handleFiles(evt.dataTransfer.files);
+                        }
+                    },
+                };
+                Object.keys(handlers).forEach((name) => {
+                    self._listen(host, name, (evt) => {
+                        if (self._dragCarriesFiles(evt)) handlers[name](evt);
+                    });
+                });
+            },
+
+            // ── Paste (``paste=True``) ─────────────────────────────
+            // The listener sits on the enclosing ``<form>`` — a paste fires
+            // on the FOCUSED element, and the one focused is the field the
+            // person writes in, not the list — or on the root when there is
+            // no form. A paste that carries files adds them as a pick
+            // would; one that carries text is left to the field
+            // (``filesOfPaste``).
+            watchPaste() {
+                const self = this;
+                const root = self._el;
+                if (!root) return;
+                self._listen(root.closest('form') || root, 'paste', (evt) => {
+                    if (self._off()) return;
                     const pasted = filesOfPaste(evt.clipboardData);
                     if (pasted.length === 0) return;
                     evt.preventDefault();
                     self.handleFiles(pasted);
-                }
-                host.addEventListener('paste', onPaste);
+                });
             },
 
-            // ── Browse-trigger click (delegated to native input) ──
-            openPicker() {
-                const native = this._el && this._el.querySelector('input[type=file]');
-                if (native) native.click();
+            // ── The picker (``.pick()``) ───────────────────────────
+            // ``input.click()`` opens the system's picker only within a
+            // user gesture: the command arrives in the very click that
+            // sent it (a synchronous ``dispatchEvent``), so the gesture
+            // still holds. A switched-off list opens nothing.
+            pick() {
+                if (!this._off()) this._input().click();
             },
 
             // ── Async upload (one file, keyed by id) ───────────────
@@ -6021,7 +6163,10 @@
                 });
                 xhr.addEventListener('load', () => {
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        this._patchFile(id, { status: 'done', progress: 100 });
+                        // The check says it has arrived, then gives way to
+                        // the file's icon: a success need not stay on screen.
+                        this._patchFile(id, { status: 'done', progress: 100, justDone: true });
+                        setTimeout(() => this._patchFile(id, { justDone: false }), DONE_SHOWN_MS);
                         this.dispatch('upload-complete', {
                             file: file,
                             response: xhr.responseText,
@@ -6070,7 +6215,7 @@
         };
     }
 
-    window.$bz.fileUpload = {
+    window.$bz.attachments = {
         makeScope: makeScope, formatSize: formatSize, filesOfPaste: filesOfPaste,
     };
 })();
@@ -6092,8 +6237,11 @@
 // here builds that scope. Reassignment (not in-place push/splice) so
 // the ``bz-for`` over each bucket re-renders (V3 signals are
 // identity-compared). Enter animation is a CSS keyframe fired on mount ;
-// leave is IMMEDIATE — what disappears does not linger. The neighbours
-// still glide into the freed slot (``:flip``).
+// leave is a two-phase dismiss: flag ``_leaving`` (the ``bz-toast-leave``
+// keyframe fades it in ``leave_ms``, the pointer already passes through),
+// then splice. A toast floats over the page: it goes the way a dialog
+// goes (rule 5 of the motion rule, ``components.md`` § motion).
+// The neighbours glide into the freed slot (``:flip``).
 //
 // Variant / icon / position normalisation reads the theme blob the
 // shell injects on ``window.$bz_theme.notification``.
@@ -6114,6 +6262,8 @@
     const positions = Object.keys(THEME.positions || { "top-right": 1 });
     const variants = Object.keys(THEME.variants || { info: 1 });
     const icons = THEME.icons || {};
+    // The fade-out of ``bz-toast-out``, from the same Python constant.
+    const leaveMs = THEME.leave_ms || 0;
 
     function emptyStacks() {
       const out = {};
@@ -6159,10 +6309,30 @@
       },
 
       dismiss(id) {
-        // At once: a toast that leaves does not linger. A
-        // double dismiss (click + auto-timeout) finds nothing the second
-        // time — ``_remove`` is a no-op on an unknown id.
-        this._remove(id);
+        // "Reduce motion": no fade to wait for, it goes at once.
+        if ($bz.helpers.prefersReducedMotion()) {
+          this._remove(id);
+          return;
+        }
+        // Phase 1: flag it leaving, under the same ``id`` so the keyed
+        // ``bz-for`` updates the node in place. A double dismiss (click +
+        // auto-timeout) finds it already leaving and does nothing.
+        let found = false;
+        const next = {};
+        for (const p of Object.keys(this.stacks)) {
+          next[p] = this.stacks[p].map(function (t) {
+            if (t.id !== id || t._leaving) return t;
+            found = true;
+            return Object.assign({}, t, { _leaving: true });
+          });
+        }
+        if (!found) return;
+        this.stacks = next;
+        // Phase 2: splice once the fade has played.
+        const self = this;
+        setTimeout(function () {
+          self._remove(id);
+        }, leaveMs);
       },
 
       _remove(id) {
@@ -6960,6 +7130,43 @@
      * only way into an option's markup. The gain in bytes is not worth a
      * content escape hatch.
      */
+    /* Multi mode keeps its pills on ONE line: show the ones that fit, hide
+     * the rest behind « +N ». Measured, since a label's width is the
+     * browser's to know. The text field keeps its ``min-width``. */
+    fitPills(row) {
+      const more = row.querySelector("[data-bz-more]");
+      if (!more) return;
+      const pills = Array.from(row.querySelectorAll("[data-bz-pill]"));
+      // A pill never shrinks: squeezed, it would measure narrower than it
+      // is drawn, and the last one shown would be cut.
+      for (const p of pills) { p.style.display = ""; p.style.flexShrink = "0"; }
+      more.style.display = "none";
+      if (!pills.length || !row.clientWidth) return;
+      const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+      const input = row.querySelector('input[type="text"]');
+      const room = row.clientWidth - (input ? (parseFloat(getComputedStyle(input).minWidth) || 0) + gap : 0);
+      const widths = pills.map((p) => p.getBoundingClientRect().width);
+      const total = widths.reduce((sum, w, i) => sum + w + (i ? gap : 0), 0);
+      if (total <= room) return;
+      more.textContent = "+" + pills.length;
+      more.style.display = "";
+      const reserve = more.getBoundingClientRect().width + gap;
+      let used = 0;
+      let shown = 0;
+      while (shown < pills.length) {
+        const w = widths[shown] + (shown ? gap : 0);
+        if (used + w + reserve > room) break;
+        used += w;
+        shown += 1;
+      }
+      pills.forEach((p, i) => { if (i >= shown) p.style.display = "none"; });
+      more.textContent = "+" + (pills.length - shown);
+    },
+    observeFit(row) {
+      if (typeof ResizeObserver !== "function") return;
+      new ResizeObserver(() => $bz.combobox.fitPills(row)).observe(row);
+    },
+
     optionOf(ev) {
       const o = ev.target.closest('[role="option"]');
       // A disabled button does not dispatch a click, but IT DOES
@@ -7145,6 +7352,164 @@
 })();
 
 
+/* tags_input.js — the scope of ``ui.tags_input``.
+ *
+ * Free values typed as tags; the instance emits only data
+ * (``value`` / ``query`` / ``open`` / ``_highlight`` / ``_selected`` /
+ * ``_labels``, and the server config ``_options`` / ``_pattern`` /
+ * ``_texts``). The value goes through ``_read`` / ``_write`` (a local
+ * field or the store cell), so the membership algebra is
+ * ``$bz.multiSelect``'s.
+ *
+ * The suggestions are server-rendered buttons; ``_shows(i)`` filters them
+ * (``bz-show``) and ``$bz.combobox.paintOptions`` lights the highlighted
+ * one — the same two tools as the combobox's list.
+ */
+(function () {
+  "use strict";
+  const $bz = (window.$bz = window.$bz || {});
+  // What separates two values typed or pasted at once.
+  const SEPARATORS = /[;,\n\r\t]+/;
+
+  $bz.tagsInput = {
+    scope: {
+      ...$bz.multiSelect,
+      _value() { return this._read(); },
+      // A tag's label: the one it was picked with, the one the server
+      // knows for the value it rendered (``_known``), an option's, or the
+      // value itself. ``_labels`` is the browser's own memory: the options
+      // change with each search, a tag keeps its name.
+      _labelOf(v) {
+        const s = String(v);
+        if (this._labels[s]) return this._labels[s];
+        if (this._known[s]) return this._known[s];
+        const hit = this._options.find((o) => o.value === s);
+        return hit ? hit.label : s;
+      },
+      _remember() { this._labels = { ...this._known, ...this._labels }; },
+      _valid(v) {
+        if (!this._pattern) return true;
+        try { return new RegExp("^(?:" + this._pattern + ")$", "u").test(String(v)); }
+        catch (e) { return true; }
+      },
+      // A tag's tooltip: its value, and why it is refused when it is.
+      _tipOf(v) {
+        return this._valid(v) ? String(v) : String(v) + " — " + this._texts.invalid;
+      },
+      _shows(i) {
+        const o = this._options[i];
+        if (!o || this._isPicked(o.value)) return false;
+        const q = $bz.fold(String(this.query || "").trim());
+        if (!q) return true;
+        return q.split(/\s+/).every((t) => o.haystack.includes(t));
+      },
+      _shown() {
+        const out = [];
+        for (let i = 0; i < this._options.length; i++) if (this._shows(i)) out.push(i);
+        return out;
+      },
+      // The suggestions show on focus and follow the typing, closed when
+      // nothing is left to suggest.
+      _typed() {
+        this._selected = "";
+        const shown = this._shown();
+        this.open = shown.length > 0;
+        this._highlight = shown.length ? shown[0] : -1;
+      },
+      _say(key, v) {
+        this._said = this._texts[key].replace("{text}", this._labelOf(v));
+      },
+      // Each piece of ``raw`` becomes a tag, unless it already is one.
+      _add(raw) {
+        const cur = this._picked();
+        const pieces = String(raw == null ? "" : raw).split(SEPARATORS)
+          .map((s) => s.trim()).filter(Boolean);
+        const fresh = pieces.filter((p, i) => cur.indexOf(p) < 0 && pieces.indexOf(p) === i);
+        if (!fresh.length) return;
+        this._write([...cur, ...fresh]);
+        this._say("added", fresh[fresh.length - 1]);
+      },
+      _remove(v) {
+        this._removeOne(v);
+        this._selected = "";
+        this._say("removed", v);
+      },
+      _choose(i) {
+        const o = this._options[i];
+        if (!o) return;
+        if (o.label !== o.value) this._labels = { ...this._labels, [o.value]: o.label };
+        this._add(o.value);
+        this.query = ""; this.open = false; this._highlight = -1;
+      },
+      // What is typed becomes a tag: on a separator, on leaving the field.
+      _commit() {
+        if (String(this.query || "").trim()) this._add(this.query);
+        this.query = ""; this.open = false; this._highlight = -1;
+      },
+      _move(delta) {
+        const shown = this._shown();
+        if (!shown.length) return;
+        let pos = shown.indexOf(this._highlight) + delta;
+        pos = Math.max(0, Math.min(shown.length - 1, pos));
+        this._highlight = shown[pos];
+      },
+      _key(e) {
+        const k = e.key;
+        const typed = String(this.query || "").trim();
+        if (k === "ArrowDown" || k === "ArrowUp") {
+          if (!this.open) return;
+          e.preventDefault();
+          this._move(k === "ArrowDown" ? 1 : -1);
+        } else if (k === "Enter" || (k === "Tab" && typed)) {
+          // Tab with nothing typed goes on to the next field.
+          e.preventDefault();
+          // The highlight is an index into ``_options``, and a server
+          // search REPLACES them: an index from the list before points at
+          // nothing, or at another person. Taken only if it still shows.
+          const shown = this._shown();
+          const pick = shown.indexOf(this._highlight) >= 0 ? this._highlight : shown[0];
+          if (this.open && pick != null && (typed || k === "Enter")) this._choose(pick);
+          else this._commit();
+        } else if (k === ";" || k === ",") {
+          e.preventDefault();
+          this._commit();
+        } else if (k === "Backspace" && !this.query) {
+          const cur = this._picked();
+          if (!cur.length) return;
+          e.preventDefault();
+          if (this._selected && cur.indexOf(this._selected) >= 0) this._remove(this._selected);
+          else this._selected = cur[cur.length - 1];
+        } else if (k === "Escape") {
+          this.open = false; this._selected = "";
+        } else {
+          this._selected = "";
+        }
+      },
+      // Pasting several values makes several tags at once.
+      _paste(e) {
+        const pasted = (e.clipboardData || window.clipboardData).getData("text");
+        if (!SEPARATORS.test(pasted)) return;
+        e.preventDefault();
+        this._add(String(this.query || "") + pasted);
+        this.query = ""; this.open = false;
+      },
+      // A double click puts a tag back into text, to correct it.
+      _edit(v) {
+        this._commit();
+        this._removeOne(v);
+        this.query = String(v);
+        this._typed();
+      },
+      // ``.clear()`` / ``.set()`` land here too.
+      _setValue(raw) {
+        $bz.multiSelect._setValue.call(this, raw);
+        this._selected = "";
+      },
+    },
+  };
+})();
+
+
 /* pagination.js — the Pagination component's shared scope.
  *
  * The whole ``range()`` algorithm — computing the visible page numbers
@@ -7316,9 +7681,35 @@
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
+  // ── The header's click, shared by both modes ─────────────────────
+  // The header's text can be selected (« Sophie Marchand <s.marchand@…> »
+  // in a mail): only a CLICK folds. A drag ends in a click with text
+  // selected in the header — nothing moves. A double click is two clicks:
+  // the first folded, the second puts the state back and leaves the word
+  // selected; a triple click does nothing more. The state before the
+  // click lives on the header node, not in the scope (no effect to wake).
+  const header = {
+    headerClick(e, el, v) {
+      if (e.detail === 2 && el._bzBeforeClick !== undefined) {
+        this._write(el._bzBeforeClick);
+        el._bzBeforeClick = undefined;
+        return;
+      }
+      if (e.detail > 1) return;
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && el.contains(sel.anchorNode)) {
+        el._bzBeforeClick = undefined;
+        return;
+      }
+      el._bzBeforeClick = this._read();
+      this.toggle(v);
+    },
+  };
+
   $bz.accordion = {
     // ── One panel open at a time ────────────────────────────────────
     single: {
+      ...header,
       isOpen(v) {
         return String(this._read() || "") === String(v);
       },
@@ -7354,6 +7745,7 @@
 
     // ── Plusieurs panneaux ouverts ──────────────────────────────────
     multi: {
+      ...header,
       isOpen(v) {
         return (this._read() || []).indexOf(v) >= 0;
       },
@@ -7691,12 +8083,19 @@
         return Number(this._read()) >= this._maxIndex();
       },
 
+      // "Reduce motion": the track jumps to the slide. ``scrollTo``'s
+      // ``smooth`` ignores the system setting; the CSS rule that zeroes
+      // every transition does not reach it.
+      _glide() {
+        return $bz.helpers.prefersReducedMotion() ? "auto" : "smooth";
+      },
+
       // ── Navigation ───────────────────────────────────────────────
       goTo(i) {
         const t = this._track;
         if (!t) return;
         const n = Math.max(0, Math.min(this._maxIndex(), Number(i) || 0));
-        t.scrollTo({ left: n * this._step(), behavior: "smooth" });
+        t.scrollTo({ left: n * this._step(), behavior: this._glide() });
         // We do NOT write the state here: ``_onScroll`` is the index's
         // single source, and it will publish it when the position has
         // settled. Writing on both sides would make the signal diverge
@@ -7746,7 +8145,7 @@
         // The very first snap is INSTANT: a carousel rendered at
         // value=2 must show on slide 2, not scroll from 0 under the
         // user's eyes on load.
-        const behavior = this._booted ? "smooth" : "auto";
+        const behavior = this._booted ? this._glide() : "auto";
         this._booted = true;
         t.scrollTo({ left: target * this._step(), behavior: behavior });
       },
@@ -8822,6 +9221,25 @@
         const r = el.getBoundingClientRect();
         return this._vertical ? r.height : r.width;
       },
+      // A panel hidden by a client ``visible=`` (``bz-show``) is still in
+      // the group, with its weight: it gets no box, so the visible ones
+      // share its room pro rata, and its handle hides with it (the
+      // server composes the handle's ``bz-show``). Read at gesture time
+      // only — never in ``_apply``, which runs at every tick.
+      _shown(el) {
+        return getComputedStyle(el).display !== "none";
+      },
+      // The pair handle ``i`` actually separates: the nearest VISIBLE
+      // panel on each side. Without hidden panels it is ``[i, i + 1]``;
+      // with the middle one of three hidden, the only visible handle
+      // drags the first and the last.
+      _around(panels, i) {
+        let a = i;
+        while (a >= 0 && !this._shown(panels[a])) a--;
+        let b = i + 1;
+        while (b < panels.length && !this._shown(panels[b])) b++;
+        return a >= 0 && b < panels.length ? [a, b] : null;
+      },
 
       // ── State → layout ───────────────────────────────────────────
       // Called from the root's ``bz-effect``: reading ``_read()``
@@ -8931,26 +9349,39 @@
       // protect nothing and would add latency to the first pixel.
       _start(e, i) {
         const panels = this._panels();
-        const a = panels[i];
-        const b = panels[i + 1];
-        if (!a || !b) return;
-        const totalPx = panels.reduce((s, p) => s + this._px(p), 0);
-        if (!totalPx) return;
+        const pair = this._around(panels, i);
+        if (!pair) return;
+        const a = panels[pair[0]];
+        const b = panels[pair[1]];
         const weights = this._weights(panels.length);
+        // Pixels AND weights of the visible panels only: a hidden
+        // panel's weight occupies no pixel, so counting it would scale
+        // every delta by the wrong factor. A hidden panel measures 0 px,
+        // which is how it is told apart here without a second style read.
+        let totalPx = 0;
+        let totalW = 0;
+        for (let k = 0; k < panels.length; k++) {
+          const px = this._px(panels[k]);
+          if (!px) continue;
+          totalPx += px;
+          totalW += weights[k];
+        }
+        if (!totalPx) return;
         this._drag = {
-          i: i,
+          i: pair[0],
+          j: pair[1],
           from: this._vertical ? e.clientY : e.clientX,
           // The px → weight factor is frozen at the START of the
           // gesture, and it is deliberate: the sum of the weights does
           // not move while you drag (we only redistribute it), so the
           // ratio stays right until release.
-          factor: weights.reduce((s, w) => s + w, 0) / totalPx,
+          factor: totalW / totalPx,
           // The left panel's weight at the START of the gesture: it is
           // the base the delta adds to, so it must not follow the
           // intermediate values (otherwise the movement accumulates and
           // the pointer "slides" under the handle). The right weight is
           // derived from the pair — no need to remember it.
-          a: weights[i],
+          a: weights[pair[0]],
           sizes: weights,
           // Both panels and the handle are HELD here, not re-searched
           // at every frame: ``_move`` runs at the pointer's cadence, and
@@ -8968,7 +9399,7 @@
         $bz.helpers.capturePointer(e.currentTarget, e);
       },
 
-      // Distribute ``want`` over the pair ``i`` / ``i+1``, in place,
+      // Distribute ``want`` over the pair ``i`` / ``j``, in place,
       // respecting both minimums. Returns ``false`` when the pair is
       // FROZEN — the case where the two minimums do not fit inside it
       // (60 + 60 in 100): we prefer to move nothing rather than violate
@@ -8978,22 +9409,22 @@
       // arithmetic, only ``want``'s origin differs (a pointer delta, or
       // an arrow step). Written twice, it would have been fixed one time
       // in two.
-      _pair(sizes, i, want) {
-        const pair = sizes[i] + sizes[i + 1];
+      _pair(sizes, i, j, want) {
+        const pair = sizes[i] + sizes[j];
         // The four constraints cross: the LEFT floor and the RIGHT
         // ceiling push the handle the same way (to the right), the other
         // two the other way. Hence the ``max`` on the floors and the
         // ``min`` on the ceilings, expressed in the same unit — the left
         // panel's size.
-        const lo = Math.max(this._min(i), pair - this._max(i + 1));
-        const hi = Math.min(pair - this._min(i + 1), this._max(i));
+        const lo = Math.max(this._min(i), pair - this._max(j));
+        const hi = Math.min(pair - this._min(j), this._max(i));
         // A FROZEN pair: the constraints do not hold together (60 + 60
         // in 100, or a ceiling under a floor). We prefer to move nothing
         // rather than violate one on the grounds that another requires
         // it.
         if (hi < lo) return false;
         sizes[i] = Math.max(lo, Math.min(hi, want));
-        sizes[i + 1] = pair - sizes[i];
+        sizes[j] = pair - sizes[i];
         return true;
       },
 
@@ -9009,11 +9440,11 @@
         if (!d) return;
         const delta =
           ((this._vertical ? e.clientY : e.clientX) - d.from) * d.factor;
-        if (!this._pair(d.sizes, d.i, d.a + delta)) return;
+        if (!this._pair(d.sizes, d.i, d.j, d.a + delta)) return;
         // A DIRECT write, not going through the state: see the file's
         // header. Publication happens once, on release.
         d.aEl.style.flexGrow = String(d.sizes[d.i]);
-        d.bEl.style.flexGrow = String(d.sizes[d.i + 1]);
+        d.bEl.style.flexGrow = String(d.sizes[d.j]);
         this._announce(d.handle, d.sizes[d.i]);
       },
 
@@ -9096,32 +9527,49 @@
         this._publish(sizes);
       },
 
+      // Handle ``i``'s collapse: it puts away the collapsible one of the
+      // two VISIBLE panels it separates — the LEFT one when both are, the
+      // one its ``aria-controls`` designates. Returns whether it did
+      // anything, so ``Enter`` is only consumed when it collapses.
+      _foldAt(i) {
+        const pair = this._around(this._panels(), i);
+        if (!pair) return false;
+        if (this._foldable[pair[0]]) this._fold(pair[0], pair[1]);
+        else if (this._foldable[pair[1]]) this._fold(pair[1], pair[0]);
+        else return false;
+        return true;
+      },
+
       // ── Keyboard ─────────────────────────────────────────────────
       // The handle is a focusable ``role="separator"``: the arrows move
       // it, like a slider. The step is in percentage points, so
       // independent of the group's width.
-      _key(e, i, fold) {
+      _key(e, i) {
         const key = e.key;
         // ``Enter`` collapses, when the handle touches a collapsible
         // panel. It is the double-click's keyboard twin, and the ARIA
         // "window splitter" pattern prescribes it: a focusable handle
         // whose only collapse command were a mouse gesture has no
         // collapse at all for whoever has no mouse.
-        if (key === "Enter" && Array.isArray(fold)) {
-          e.preventDefault();
-          this._fold(fold[0], fold[1]);
+        if (key === "Enter") {
+          if (this._foldAt(i)) e.preventDefault();
           return;
         }
         const back = this._vertical ? "ArrowUp" : "ArrowLeft";
         const fwd = this._vertical ? "ArrowDown" : "ArrowRight";
         if (key !== back && key !== fwd) return;
         e.preventDefault();
-        const sizes = this._weights();
+        const panels = this._panels();
+        const pair = this._around(panels, i);
+        if (!pair) return;
+        const sizes = this._weights(panels.length);
         const step = key === back ? -KEY_STEP : KEY_STEP;
         // No ``_announce`` here: ``_publish`` relaunches ``_apply``,
         // which sets every ``aria-valuenow`` back. Calling it IN
         // ADDITION would give the same value two authors.
-        if (this._pair(sizes, i, sizes[i] + step)) this._publish(sizes);
+        if (this._pair(sizes, pair[0], pair[1], sizes[pair[0]] + step)) {
+          this._publish(sizes);
+        }
       },
 
       // ── Imperative ───────────────────────────────────────────────
@@ -10540,9 +10988,10 @@
  *   it listens. The page says the browser can dictate
  *   (``html[data-bz-can-dictate]``), so a morph re-rendering it changes
  *   nothing.
- * - **Files dropped on the box** join, as the clip's picker would; a box
- *   switched off, or taking no file, lets nothing through — and never lets
- *   the browser open the dropped file instead of the page.
+ * - **Files dropped on the box** join, as the clip's picker would: the
+ *   box's ``ui.attachments`` listens on it (``drop="form"``). A box switched
+ *   off, or taking no file, lets nothing through — and here, never lets the
+ *   browser open the dropped file instead of the page.
  */
 (function () {
   "use strict";
@@ -10556,12 +11005,12 @@
   if (Recognition) document.documentElement.setAttribute("data-bz-can-dictate", "");
 
   function field(form) { return form.querySelector("[data-bz-message-field]"); }
-  // The file picker's scope — its ``clear()``, ``handleFiles()``, ``files``.
+  // The box's ``ui.attachments`` scope — its ``clear()``, ``handleFiles()``,
+  // ``removeFile()``, ``files``.
   function uploader(form) {
-    const el = form.querySelector(".bz-file-upload");
+    const el = form.querySelector("[data-bz-attachments]");
     return el && $bz._scopeFor ? $bz._scopeFor(el).proxy : null;
   }
-  function off(form) { return form.matches("[data-disabled]"); }
 
   function busy(form) {
     const send = form.querySelector("[data-bz-message-send]");
@@ -10692,14 +11141,678 @@
     if (form) e.preventDefault(); // a file dropped here never replaces the page
   });
 
+  // The files themselves join through the box's ``ui.attachments``.
   document.addEventListener("drop", function (e) {
     const form = e.target.closest && e.target.closest(BOX);
-    if (!form) return;
-    e.preventDefault();
-    const files = uploader(form);
-    if (!files || off(form) || !e.dataTransfer || !e.dataTransfer.files.length) return;
-    files.handleFiles(e.dataTransfer.files);
+    if (form) e.preventDefault();
   });
+})();
+
+
+/* editor.js — the browser part of ``ui.editor``.
+ *
+ * The brick is ProseMirror, shipped as ``prosemirror.min.js`` (the
+ * global ``BzProseMirror``) and loaded the first time an editor appears:
+ * its URL is on the editor (``data-bz-editor-src``), never written here.
+ * Everything that makes it Bretzel's editor is in this file — the schema,
+ * the Markdown dialect, the keys, the paste — so the brick could change
+ * without an app noticing.
+ *
+ *   bz-data="{...$bz.editor.scope, value: '…', _surface: null,
+ *             _read(){…}, _write(v){…}}"
+ *
+ * ── Who writes what ────────────────────────────────────────────────────
+ * The VALUE is Markdown, in the scope (``_read`` / ``_write``): the hidden
+ * carrier reports it into the form, and draws the ``change`` from it.
+ * The DOCUMENT is ProseMirror's, on the surface node (``_bzView``), which
+ * a morph leaves whole (``data-bz-client-dom``, ``bridge.js``). Each edit
+ * publishes the Markdown; ``_follow`` shows a value written from outside
+ * and ignores what the editor published itself (``_bzShown``) — the same
+ * pair as SignaturePad's ``_publish`` / ``_follow``.
+ *
+ * ── One format ─────────────────────────────────────────────────────────
+ * Enter goes to the line (a hard break), Enter on an empty line starts a
+ * paragraph, and Backspace at the start of a paragraph undoes exactly
+ * that (the paragraph becomes a line again): a line and a paragraph are
+ * the two steps of the Markdown, a paragraph 3/4 of a line apart.
+ */
+(function () {
+  "use strict";
+  const $bz = (window.$bz = window.$bz || {});
+
+  // ── The brick, loaded once per page, and the kit built on it ──────────
+  let loading = null;
+  let built = null;
+  function brick(src) {
+    loading = loading || new Promise(function (resolve, reject) {
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = function () {
+        loading = null;
+        reject(new Error("ui.editor: " + src + " did not load"));
+      };
+      document.head.appendChild(script);
+    }).then(function () { return (built = kit(window.BzProseMirror)); });
+    return loading;
+  }
+
+  // An address the browser would run, read as it reads a scheme: the
+  // control characters and spaces it skips taken out (``java\tscript:``).
+  function unsafe(href) {
+    return /^(javascript|vbscript|data|file):/i.test(href.replace(/[\u0000- ]/g, ""));
+  }
+
+  // ── The kit: schema, Markdown both ways, keys, paste ──────────────────
+  function kit(PM) {
+    const schema = new PM.Schema({
+      nodes: {
+        doc: { content: "block+" },
+        paragraph: {
+          content: "inline*", group: "block",
+          // A heading or a quote pasted in becomes a paragraph: the
+          // editor has one format.
+          parseDOM: [{ tag: "p" }, { tag: "h1" }, { tag: "h2" }, { tag: "h3" },
+            { tag: "h4" }, { tag: "h5" }, { tag: "h6" }, { tag: "pre" }],
+          toDOM: function () { return ["p", 0]; },
+        },
+        bullet_list: {
+          content: "list_item+", group: "block", attrs: { tight: { default: true } },
+          parseDOM: [{ tag: "ul" }],
+          toDOM: function () { return ["ul", 0]; },
+        },
+        ordered_list: {
+          content: "list_item+", group: "block",
+          attrs: { order: { default: 1 }, tight: { default: true } },
+          parseDOM: [{
+            tag: "ol",
+            getAttrs: function (dom) {
+              const start = parseInt(dom.getAttribute("start") || "1", 10);
+              return { order: isNaN(start) ? 1 : start };
+            },
+          }],
+          toDOM: function (node) {
+            return node.attrs.order === 1 ? ["ol", 0] : ["ol", { start: node.attrs.order }, 0];
+          },
+        },
+        list_item: {
+          content: "paragraph block*", defining: true,
+          parseDOM: [{ tag: "li" }],
+          toDOM: function () { return ["li", 0]; },
+        },
+        text: { group: "inline" },
+        hard_break: {
+          inline: true, group: "inline", selectable: false,
+          parseDOM: [{ tag: "br" }],
+          toDOM: function () { return ["br"]; },
+        },
+      },
+      marks: {
+        link: {
+          attrs: { href: {}, title: { default: null } },
+          inclusive: false,
+          parseDOM: [{
+            tag: "a[href]",
+            getAttrs: function (dom) {
+              const href = dom.getAttribute("href");
+              if (!href || unsafe(href)) return false;
+              return { href: href, title: dom.getAttribute("title") };
+            },
+          }],
+          toDOM: function (mark) {
+            return ["a", { href: mark.attrs.href, title: mark.attrs.title,
+              rel: "noopener noreferrer nofollow", target: "_blank" }, 0];
+          },
+        },
+        em: {
+          parseDOM: [{ tag: "i" }, { tag: "em" }, { style: "font-style=italic" },
+            { style: "font-style=normal", clearMark: function (m) { return m.type.name === "em"; } }],
+          toDOM: function () { return ["em", 0]; },
+        },
+        strong: {
+          parseDOM: [
+            { tag: "strong" },
+            // Google Docs wraps a whole paste in ``<b style="font-weight:normal">``.
+            { tag: "b", getAttrs: function (n) { return n.style.fontWeight !== "normal" && null; } },
+            { style: "font-weight=400", clearMark: function (m) { return m.type.name === "strong"; } },
+            { style: "font-weight", getAttrs: function (v) { return /^(bold(er)?|[5-9]\d{2,})$/.test(v) && null; } },
+          ],
+          toDOM: function () { return ["strong", 0]; },
+        },
+      },
+    });
+    const N = schema.nodes;
+    const M = schema.marks;
+
+    // Markdown → document. CommonMark, reduced to what the editor shows:
+    // the rest (a heading, a quote, code, an image) stays TEXT, so
+    // nothing disappears in silence.
+    const md = PM.MarkdownIt("commonmark", { html: false, linkify: false });
+    md.disable(["heading", "lheading", "blockquote", "code", "fence", "hr",
+      "html_block", "html_inline", "image", "backticks"]);
+    function tight(tokens, i) {
+      while (++i < tokens.length) if (tokens[i].type !== "list_item_open") return tokens[i].hidden;
+      return false;
+    }
+    const parser = new PM.MarkdownParser(schema, md, {
+      paragraph: { block: "paragraph" },
+      list_item: { block: "list_item" },
+      bullet_list: { block: "bullet_list", getAttrs: function (_, toks, i) { return { tight: tight(toks, i) }; } },
+      ordered_list: {
+        block: "ordered_list",
+        getAttrs: function (tok, toks, i) {
+          return { order: +tok.attrGet("start") || 1, tight: tight(toks, i) };
+        },
+      },
+      hardbreak: { node: "hard_break" },
+      em: { mark: "em" },
+      strong: { mark: "strong" },
+      link: {
+        mark: "link",
+        getAttrs: function (tok) { return { href: tok.attrGet("href"), title: tok.attrGet("title") || null }; },
+      },
+    });
+
+    // Document → Markdown: ``**``, ``*``, ``- `` (two spaces a step),
+    // ``1. ``, ``[text](url)``, a line break as ``\`` at the line's end.
+    const base = PM.defaultMarkdownSerializer;
+    const serializer = new PM.MarkdownSerializer({
+      paragraph: base.nodes.paragraph,
+      bullet_list: function (state, node) { state.renderList(node, "  ", function () { return "- "; }); },
+      ordered_list: base.nodes.ordered_list,
+      list_item: base.nodes.list_item,
+      text: base.nodes.text,
+      hard_break: base.nodes.hard_break,
+    }, {
+      em: { open: "*", close: "*", mixable: true, expelEnclosingWhitespace: true },
+      strong: base.marks.strong,
+      link: base.marks.link,
+    });
+
+    function parse(markdown) {
+      return parser.parse(markdown || "") || schema.topNodeType.createAndFill();
+    }
+    function serialize(doc) {
+      return isEmpty(doc) ? "" : serializer.serialize(doc);
+    }
+    function isEmpty(doc) {
+      return doc.childCount === 1 && doc.firstChild.type === N.paragraph
+        && doc.firstChild.content.size === 0;
+    }
+
+    // ── Where the cursor is ────────────────────────────────────────────
+    function markActive(state, type) {
+      const sel = state.selection;
+      if (sel.empty) return !!type.isInSet(state.storedMarks || sel.$from.marks());
+      return state.doc.rangeHasMark(sel.from, sel.to, type);
+    }
+    // The nearest list around the cursor: its node and its position.
+    function nearestList(state) {
+      const $from = state.selection.$from;
+      for (let d = $from.depth; d > 0; d--) {
+        const node = $from.node(d);
+        if (node.type === N.bullet_list || node.type === N.ordered_list) {
+          return { node: node, pos: $from.before(d) };
+        }
+      }
+      return null;
+    }
+    function inItem(state) {
+      const $from = state.selection.$from;
+      return $from.depth >= 2 && $from.node(-1).type === N.list_item;
+    }
+
+    // ── Commands ───────────────────────────────────────────────────────
+    function toggleList(type) {
+      return function (state, dispatch) {
+        const list = nearestList(state);
+        if (list && list.node.type === type) return PM.liftListItem(N.list_item)(state, dispatch);
+        if (list) {
+          if (dispatch) dispatch(state.tr.setNodeMarkup(list.pos, type, { tight: list.node.attrs.tight }));
+          return true;
+        }
+        return PM.wrapInList(type)(state, dispatch);
+      };
+    }
+    const toggleBold = PM.toggleMark(M.strong);
+    const toggleItalic = PM.toggleMark(M.em);
+
+    // Enter goes to the line; on an empty line (just after a break) it
+    // takes the break back and starts a paragraph. In a list, Enter is
+    // the next item, and on an empty item it leaves the list.
+    function enter(state, dispatch) {
+      if (inItem(state)) {
+        return PM.splitListItem(N.list_item)(state, dispatch)
+          || PM.liftListItem(N.list_item)(state, dispatch);
+      }
+      if (!dispatch) return true;
+      let tr = state.tr;
+      if (!state.selection.empty) tr = tr.deleteSelection();
+      const $pos = tr.selection.$from;
+      const before = $pos.nodeBefore;
+      if (before && before.type === N.hard_break) {
+        tr = tr.delete($pos.pos - 1, $pos.pos);
+        tr = tr.split(tr.mapping.map($pos.pos - 1));
+      } else {
+        tr = tr.replaceSelectionWith(N.hard_break.create());
+      }
+      dispatch(tr.scrollIntoView());
+      return true;
+    }
+    function lineBreak(state, dispatch) {
+      if (dispatch) dispatch(state.tr.replaceSelectionWith(N.hard_break.create()).scrollIntoView());
+      return true;
+    }
+    // Backspace at the start of a paragraph that follows another one:
+    // the paragraph's gap goes, the line break stays — Enter twice undone.
+    function backspace(state, dispatch) {
+      const sel = state.selection;
+      const $from = sel.$from;
+      if (!sel.empty || $from.parentOffset !== 0 || $from.parent.type !== N.paragraph
+          || $from.parent.content.size === 0 || $from.index(-1) === 0) return false;
+      const prev = $from.node(-1).child($from.index(-1) - 1);
+      if (prev.type !== N.paragraph) return false;
+      if (dispatch) {
+        dispatch(state.tr.replaceWith($from.pos - 2, $from.pos, N.hard_break.create()).scrollIntoView());
+      }
+      return true;
+    }
+    // Tab and Shift+Tab nest in a list, and leave the field elsewhere.
+    function onlyInItem(command) {
+      return function (state, dispatch) { return inItem(state) ? command(state, dispatch) || true : false; };
+    }
+
+    // ── Links ──────────────────────────────────────────────────────────
+    // The extent of the link around the cursor, or null.
+    function linkAround(state) {
+      const $from = state.selection.$from;
+      const mark = M.link.isInSet($from.marks())
+        || ($from.nodeAfter && M.link.isInSet($from.nodeAfter.marks));
+      if (!mark) return null;
+      const parent = $from.parent;
+      const start = $from.start();
+      let from = -1;
+      let to = -1;
+      parent.forEach(function (child, offset) {
+        const has = mark.isInSet(child.marks);
+        const a = start + offset;
+        const b = a + child.nodeSize;
+        if (has && from < 0 && b >= $from.pos) from = a;
+        if (has && from >= 0 && to < 0 && a <= $from.pos) to = b;
+        else if (has && from >= 0 && to === a) to = b;
+      });
+      return from >= 0 ? { from: from, to: to, href: mark.attrs.href } : null;
+    }
+    // What one types becomes an address: a domain gets ``https://``, an
+    // e-mail ``mailto:``; a script address is refused.
+    function address(raw) {
+      const text = (raw || "").trim();
+      if (!text || unsafe(text)) return "";
+      if (/^[a-z][a-z0-9+.-]*:/i.test(text) || text.startsWith("/") || text.startsWith("#")) return text;
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return "mailto:" + text;
+      return "https://" + text;
+    }
+    function isAddress(text) {
+      return /^(https?:\/\/|mailto:)\S+$/i.test(text) || /^www\.\S+\.\S+$/i.test(text);
+    }
+    // On the selection, else on the link around the cursor, else the
+    // address typed becomes the link's text. An empty address unlinks.
+    function setLink(view, raw) {
+      const state = view.state;
+      const href = address(raw);
+      const sel = state.selection;
+      const range = sel.empty ? linkAround(state) : sel;
+      let tr = state.tr;
+      if (range) {
+        tr = tr.removeMark(range.from, range.to, M.link);
+        if (href) tr = tr.addMark(range.from, range.to, M.link.create({ href: href }));
+      } else if (href) {
+        tr = tr.insert(sel.from, schema.text(raw.trim(), [M.link.create({ href: href })]));
+      }
+      view.dispatch(tr.scrollIntoView());
+    }
+
+    // ── Paste ──────────────────────────────────────────────────────────
+    // Word (and Outlook, which writes with Word) pastes a list as
+    // paragraphs ``mso-list:l0 level1``, the bullet in a span
+    // ``mso-list:Ignore``. They become a real list, the bullet goes.
+    function wordLists(html) {
+      if (html.indexOf("mso-list") < 0) return html;
+      const doc = new window.DOMParser().parseFromString(html, "text/html");
+      const items = Array.from(doc.body.querySelectorAll("p")).filter(function (p) {
+        return /mso-list:\s*l\d+/i.test(p.getAttribute("style") || "");
+      });
+      let run = [];
+      const runs = [];
+      items.forEach(function (p, i) {
+        let prev = p.previousSibling;
+        while (prev && (prev.nodeType === 8 || (prev.nodeType === 3 && !prev.textContent.trim()))) {
+          prev = prev.previousSibling;
+        }
+        if (i > 0 && prev === items[i - 1]) run.push(p);
+        else { if (run.length) runs.push(run); run = [p]; }
+      });
+      if (run.length) runs.push(run);
+      runs.forEach(function (paras) {
+        // ``stack``: the open lists, outermost first, each with its last item.
+        const stack = [];
+        let lastTop = null;
+        paras.forEach(function (p) {
+          const style = p.getAttribute("style") || "";
+          const level = parseInt((style.match(/level(\d+)/i) || [0, 1])[1], 10);
+          const ignore = p.querySelector("[style*='Ignore']");
+          const marker = ignore ? ignore.textContent.trim() : "";
+          if (ignore) ignore.remove();
+          const ordered = /^\(?[0-9a-z]{1,4}[.)]$/i.test(marker);
+          const li = doc.createElement("li");
+          const para = doc.createElement("p");
+          while (p.firstChild) para.appendChild(p.firstChild);
+          li.appendChild(para);
+          while (stack.length && stack[stack.length - 1].level > level) stack.pop();
+          const open = stack[stack.length - 1];
+          if (open && open.level === level && open.ordered === ordered) {
+            open.list.appendChild(li);
+            open.li = li;
+            return;
+          }
+          const list = doc.createElement(ordered ? "ol" : "ul");
+          list.appendChild(li);
+          const entry = { level: level, ordered: ordered, list: list, li: li };
+          if (open && open.level === level) {
+            open.list.after(list);
+            stack[stack.length - 1] = entry;
+            if (stack.length === 1) lastTop = list;
+            return;
+          }
+          if (open) open.li.appendChild(list);
+          else {
+            if (lastTop) lastTop.after(list);
+            else paras[0].before(list);
+            lastTop = list;
+          }
+          stack.push(entry);
+        });
+        paras.forEach(function (p) { p.remove(); });
+      });
+      return doc.body.innerHTML;
+    }
+    // Plain text: a line is a line, a blank line a paragraph — never
+    // read as Markdown (``5*3`` stays ``5*3``).
+    function plainText(text) {
+      const paragraphs = text.replace(/\r\n?/g, "\n").split(/\n{2,}/).map(function (block) {
+        const parts = [];
+        block.split("\n").forEach(function (line, i) {
+          if (i) parts.push(N.hard_break.create());
+          if (line) parts.push(schema.text(line));
+        });
+        return N.paragraph.create(null, parts);
+      });
+      return new PM.Slice(PM.Fragment.fromArray(paragraphs), 1, 1);
+    }
+
+    // ``- `` or ``1. `` typed just after a line break (Enter, in a mail)
+    // starts a list as at the start of a paragraph: the paragraph is cut
+    // where the break was, and that line becomes the list's first item.
+    // ProseMirror's own rule only looks at the start of a block, and with
+    // Enter = line break, the start of a line is not one. The text before
+    // the cursor reads a break as ``￼``.
+    function listAfterBreak(pattern, type, attrsOf) {
+      return new PM.InputRule(pattern, function (state, match, start, end) {
+        const $start = state.doc.resolve(start);
+        if ($start.parent.type !== N.paragraph || $start.depth !== 1) return null;
+        const tr = state.tr.delete(start, end).split(start);
+        const $line = tr.doc.resolve(start + 2);
+        const range = $line.blockRange();
+        const wrapping = range && PM.findWrapping(range, type, attrsOf(match));
+        if (!wrapping) return null;
+        return tr.wrap(range, wrapping);
+      });
+    }
+
+    // Ctrl+K clicks the bar's own link button: one way in, one panel.
+    function linkKey(state, dispatch, view) {
+      const root = view && view.dom.closest("[data-bz-editor]");
+      const link = root && root.querySelector("[data-bz-editor-command=link]");
+      if (link && !link.disabled) link.click();
+      return true;
+    }
+    // Built once: a plugin keeps its state in each editor's state, so
+    // every editor of the page shares these instances.
+    const plugins = [
+      PM.inputRules({ rules: [
+        PM.wrappingInputRule(/^\s*([-*])\s$/, N.bullet_list),
+        PM.wrappingInputRule(/^(\d+)\.\s$/, N.ordered_list,
+          function (m) { return { order: +m[1] }; },
+          function (m, node) { return node.childCount + node.attrs.order === +m[1]; }),
+        listAfterBreak(/￼\s*([-*])\s$/, N.bullet_list, function () { return null; }),
+        listAfterBreak(/￼(\d+)\.\s$/, N.ordered_list, function (m) { return { order: +m[1] }; }),
+      ] }),
+      PM.keymap({
+        "Enter": enter,
+        "Shift-Enter": lineBreak,
+        "Backspace": backspace,
+        "Tab": onlyInItem(PM.sinkListItem(N.list_item)),
+        "Shift-Tab": onlyInItem(PM.liftListItem(N.list_item)),
+        "Mod-b": toggleBold,
+        "Mod-i": toggleItalic,
+        "Mod-k": linkKey,
+        "Mod-z": PM.undo,
+        "Mod-y": PM.redo,
+        "Shift-Mod-z": PM.redo,
+      }),
+      PM.keymap(PM.baseKeymap),
+      PM.history(),
+    ];
+
+    return {
+      PM: PM, schema: schema, parse: parse, serialize: serialize, isEmpty: isEmpty,
+      plugins: plugins, wordLists: wordLists, plainText: plainText, isAddress: isAddress,
+      markActive: markActive, nearestList: nearestList, linkAround: linkAround, setLink: setLink,
+      commands: {
+        bold: toggleBold,
+        italic: toggleItalic,
+        bullet_list: toggleList(N.bullet_list),
+        ordered_list: toggleList(N.ordered_list),
+      },
+    };
+  }
+
+  // ── The bar follows the cursor ────────────────────────────────────────
+  function rootOf(view) { return view.dom.closest("[data-bz-editor]"); }
+  function syncBar(view, k) {
+    const root = rootOf(view);
+    if (!root) return;
+    const state = view.state;
+    const list = k.nearestList(state);
+    const active = {
+      bold: k.markActive(state, k.schema.marks.strong),
+      italic: k.markActive(state, k.schema.marks.em),
+      bullet_list: !!list && list.node.type === k.schema.nodes.bullet_list,
+      ordered_list: !!list && list.node.type === k.schema.nodes.ordered_list,
+      link: k.markActive(state, k.schema.marks.link),
+    };
+    root.querySelectorAll("[data-bz-editor-command]").forEach(function (button) {
+      const on = active[button.getAttribute("data-bz-editor-command")] ? "true" : "false";
+      if (button.getAttribute("aria-pressed") !== on) button.setAttribute("aria-pressed", on);
+    });
+  }
+
+  // ── The link panel ────────────────────────────────────────────────────
+  // Its content goes to ``<body>`` with the popover; it names its editor.
+  function viewFor(el) {
+    const owner = el.closest("[data-bz-editor-for]");
+    const root = owner ? document.getElementById(owner.getAttribute("data-bz-editor-for"))
+      : el.closest("[data-bz-editor]");
+    const surface = root && root.querySelector("[data-bz-client-dom]");
+    return surface && surface._bzView ? surface._bzView : null;
+  }
+  function linkField(root) {
+    return document.querySelector("[data-bz-editor-for='" + root.id + "'] [data-bz-editor-link-url]");
+  }
+  function closeLink(view) {
+    const pop = rootOf(view).querySelector("[data-bz-editor-link]");
+    if (pop) pop.dispatchEvent(new CustomEvent("bz-close", { bubbles: true }));
+    view.focus();
+  }
+  // Filled before the popover opens; its ``autofocus`` puts the caret there.
+  function openLink(view) {
+    const field = linkField(rootOf(view));
+    const around = built.linkAround(view.state);
+    if (field) field.value = around ? around.href : "";
+  }
+
+  // ── The page's listeners, installed by its first editor ───────────────
+  // Delegated from the document: a morph re-renders the bar freely, and a
+  // page without an editor pays nothing.
+  let listening = false;
+  function listen() {
+    if (listening) return;
+    listening = true;
+    // (The keyboard user's mark, ``data-bz-keyboard``, is the page's:
+    // ``helpers.js``.)
+    document.addEventListener("keydown", function (e) {
+      // Enter in the link panel's address applies it.
+      if (e.key !== "Enter" || !e.target.closest || !e.target.closest("[data-bz-editor-link-url]")) return;
+      const view = viewFor(e.target);
+      if (!view) return;
+      e.preventDefault();
+      built.setLink(view, e.target.value);
+      closeLink(view);
+    }, true);
+    document.addEventListener("mousedown", function (e) {
+      // The text keeps the focus and its selection.
+      const button = e.target.closest && e.target.closest("[data-bz-editor-command]");
+      if (button && button.getAttribute("data-bz-editor-command") !== "link") e.preventDefault();
+    });
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest) return;
+      const button = e.target.closest("[data-bz-editor-command]");
+      if (button) {
+        const view = viewFor(button);
+        if (!view || button.disabled) return;
+        const name = button.getAttribute("data-bz-editor-command");
+        if (name === "link") { openLink(view); return; }
+        built.commands[name](view.state, view.dispatch);
+        view.focus();
+        return;
+      }
+      const apply = e.target.closest("[data-bz-editor-link-apply]");
+      const remove = e.target.closest("[data-bz-editor-link-remove]");
+      if (apply || remove) {
+        const view = viewFor(apply || remove);
+        if (!view) return;
+        const field = linkField(rootOf(view));
+        built.setLink(view, remove ? "" : (field ? field.value : ""));
+        closeLink(view);
+      }
+    });
+  }
+
+  $bz.editor = {
+    scope: {
+      // At ``bz-init``: the view goes away with the editor, then the
+      // brick loads (once per page) and the view mounts.
+      _boot(root) {
+        listen();
+        const surface = this._surface;
+        $bz._own(function () {
+          if (surface && surface._bzView) { surface._bzView.destroy(); surface._bzView = null; }
+        });
+        const self = this;
+        brick(root.getAttribute("data-bz-editor-src")).then(function (k) {
+          self._mount(root, k);
+        }, function (err) { console.error(err); });
+      },
+
+      _mount(root, k) {
+        const surface = this._surface;
+        if (!surface || surface._bzView || !surface.isConnected) return;
+        const self = this;
+        const shown = this._read() || "";
+        surface._bzShown = shown;
+        surface._bzOff = root.hasAttribute("data-disabled");
+        // ProseMirror rewrites the node's class and attributes: they are
+        // handed to it, read once from the server's paint.
+        const own = {};
+        ["class", "role", "aria-multiline", "aria-label", "data-bz-placeholder"].forEach(function (name) {
+          if (surface.hasAttribute(name)) own[name] = surface.getAttribute(name);
+        });
+        surface.replaceChildren();
+        const view = new k.PM.EditorView({ mount: surface }, {
+          state: k.PM.EditorState.create({ doc: k.parse(shown), plugins: k.plugins }),
+          editable: function () { return !root.hasAttribute("data-disabled"); },
+          attributes: function (state) {
+            const attrs = Object.assign({}, own);
+            if (k.isEmpty(state.doc)) attrs["data-empty"] = "";
+            return attrs;
+          },
+          transformPastedHTML: k.wordLists,
+          clipboardTextParser: k.plainText,
+          handlePaste: function (v, event) {
+            // An address pasted over selected text makes it a link.
+            const text = (event.clipboardData && event.clipboardData.getData("text/plain") || "").trim();
+            if (v.state.selection.empty || !k.isAddress(text)) return false;
+            k.setLink(v, text);
+            return true;
+          },
+          // A click on a link follows it, in a new tab — what was clicked,
+          // read on the page. A drag still selects (ProseMirror calls this
+          // for a click only); to change a link, the caret goes in it by
+          // the keyboard, then the bar's link button or Ctrl+K.
+          handleClick: function (v, pos, event) {
+            const a = event.target.closest && event.target.closest("a[href]");
+            if (!a || !v.dom.contains(a)) return false;
+            window.open(a.getAttribute("href"), "_blank", "noopener");
+            return true;
+          },
+          dispatchTransaction: function (tr) {
+            const state = view.state.apply(tr);
+            view.updateState(state);
+            if (tr.docChanged || tr.selectionSet || tr.storedMarksSet) syncBar(view, k);
+            if (!tr.docChanged || tr.getMeta("bz-outside")) return;
+            const markdown = k.serialize(state.doc);
+            if (markdown === surface._bzShown) return;
+            surface._bzShown = markdown;
+            self._write(markdown);
+          },
+        });
+        surface._bzView = view;
+        syncBar(view, k);
+      },
+
+      // ``value`` is two-way: a value written from outside (a server
+      // reset, ``.set()``, another control on the same ClientState) is
+      // shown, as one undoable step. What the editor published itself is
+      // not read back — re-parsing would move the cursor.
+      _follow() {
+        const value = this._read() || "";
+        const surface = this._surface;
+        const view = surface && surface._bzView;
+        if (!view) return;
+        // A morph may have switched the editor on or off.
+        const off = surface.closest("[data-bz-editor]").hasAttribute("data-disabled");
+        if (off !== surface._bzOff) { surface._bzOff = off; view.setProps({}); }
+        if (value === surface._bzShown) return;
+        surface._bzShown = value;
+        const doc = built.parse(value);
+        view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc.content)
+          .setMeta("bz-outside", true));
+      },
+
+      // ``.insert(markdown)``: at the cursor, inline when it is one line.
+      insert(markdown) {
+        const surface = this._surface;
+        const view = surface && surface._bzView;
+        if (!view) {
+          const now = this._read() || "";
+          this._write(now ? now + "\n\n" + markdown : markdown);
+          return;
+        }
+        const doc = built.parse(markdown);
+        view.dispatch(view.state.tr.replaceSelection(built.PM.Slice.maxOpen(doc.content)).scrollIntoView());
+      },
+    },
+  };
 })();
 
 

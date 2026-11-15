@@ -49,6 +49,10 @@ class Report:
     findings: list[Finding] = field(default_factory=list)
     files_scanned: int = 0
     rules_run: tuple[str, ...] = ()
+    #: What the pass noticed across the corpus without judging it a fault
+    #: (:mod:`bretzel.lint.redrawn`). Printed, never counted in the exit
+    #: code: a note that failed the command would be silenced, not read.
+    notes: list[Finding] = field(default_factory=list)
 
     @property
     def exit_code(self) -> int:
@@ -56,11 +60,14 @@ class Report:
 
     def format(self, *, root: Path | None = None) -> str:
         if not self.findings:
-            return (
-                f"OK — {self.files_scanned} files, {len(self.rules_run)} rules, no finding."
+            head = f"OK — {self.files_scanned} files, {len(self.rules_run)} rules, no finding."
+        else:
+            body = "\n".join(f.format(root=root) for f in self.findings)
+            head = (
+                f"{body}\n\n{len(self.findings)} finding(s) across "
+                f"{self.files_scanned} files ({len(self.rules_run)} rules)."
             )
-        body = "\n".join(f.format(root=root) for f in self.findings)
-        return (
-            f"{body}\n\n{len(self.findings)} finding(s) across "
-            f"{self.files_scanned} files ({len(self.rules_run)} rules)."
-        )
+        if not self.notes:
+            return head
+        noted = "\n".join(f"note: {n.format(root=root)}" for n in self.notes)
+        return f"{head}\n\n{noted}"

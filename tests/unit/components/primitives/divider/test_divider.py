@@ -54,3 +54,68 @@ class TestDivider:
             out = serialize(rendered)
         assert len(rendered.children) == 3
         assert 'bz-text="$bz.state._DividerState.default.label"' in out
+
+
+class TestTheLineIsTheFrameworkBorder:
+    """The line was a 1 px box ``bg-current opacity-20`` in the muted text
+    colour — about three times the contrast of the borders around it, so
+    next to a sidebar's edge it read as a thicker line (Orga,
+    2026-11-12). It is now a border, in the framework's border tint and
+    stroke width."""
+
+    def _line(self, **kwargs):
+        with render_isolated():
+            return Divider(**kwargs).render().children[0].attrs["class"].split()
+
+    def test_the_neutral_line_is_the_sidebar_edge(self) -> None:
+        from bretzel.components.navigation.sidebar.theme import SIDEBAR_THEME
+
+        line = self._line()
+        assert "border-text/10" in line
+        assert "border-text/10" in str(SIDEBAR_THEME["slots"]["root"])
+        assert "border-t-(length:--bz-stroke)" in line
+        assert not [c for c in line if c.startswith(("bg-", "opacity-"))]
+
+    def test_a_vertical_line_is_the_same_border(self) -> None:
+        line = self._line(orientation="vertical")
+        assert "border-text/10" in line
+        assert "border-l-(length:--bz-stroke)" in line
+
+    def test_a_colour_draws_its_border_step(self) -> None:
+        line = self._line(color="primary")
+        assert "border-(--bz-border)" in line
+        assert "border-text/10" not in line
+
+
+class TestGap:
+    """``gap=`` : l'espace de chaque côté du trait, les pas de tout ``gap``."""
+
+    def _root_class(self, **kw) -> str:
+        import re
+
+        from bretzel import ui
+        from bretzel.components.base.testing import render_isolated
+        from bretzel.core.serialize import serialize
+        with render_isolated():
+            html = serialize(ui.divider(**kw).render())
+        return re.search(r'class="([^"]*)"', html).group(1)
+
+    def test_the_default_is_the_space_it_always_had(self) -> None:
+        assert "my-(--bz-gap-2)" in self._root_class().split()
+
+    def test_none_draws_the_line_flush(self) -> None:
+        assert "my-0" in self._root_class(gap="none").split()
+
+    def test_a_vertical_divider_spaces_across_its_line(self) -> None:
+        classes = self._root_class(orientation="vertical", gap="lg").split()
+        assert "mx-(--bz-gap-6)" in classes
+        assert not [c for c in classes if c.startswith("my-")]
+
+    def test_a_step_off_the_scale_is_refused(self) -> None:
+        import pytest
+
+        from bretzel import ui
+        from bretzel.components.base.attrs import ComponentUsageError
+        from bretzel.components.base.testing import render_isolated
+        with render_isolated(), pytest.raises(ComponentUsageError):
+            ui.divider(gap="huge").render()

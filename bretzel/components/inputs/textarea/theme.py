@@ -15,16 +15,17 @@ TEXTAREA_THEME: dict[str, Any] = {
     "slots": {
         "root": (
             "bz-textarea "  # audit marker — cf. tests/audit/checklist.py
-            "block w-full rounded-field border-(length:--bz-stroke) border-text/10 "
-            "bg-interface text-text placeholder:text-muted/60 "
+            # The frame and its focus ring are the variant's (``variants``).
+            "block w-full rounded-field "
+            "text-text placeholder:text-muted/60 "
             "outline-none resize-none transition duration-200 "
-            "focus:border-(--bz-solid) "
-            "focus:ring-2 focus:ring-(--bz-focus-soft) "
-            "focus:ring-offset-2 focus:ring-offset-background "
             "disabled:opacity-50 disabled:cursor-not-allowed "
-            "disabled:bg-muted/10 "
-            "read-only:cursor-default read-only:bg-interface/50"
+            "read-only:cursor-default"
         ),
+    },
+    "variants": {
+        "surface": "bg-interface border-(length:--bz-stroke) border-text/10 focus:border-(--bz-solid) focus:ring-2 focus:ring-(--bz-focus-soft) focus:ring-offset-2 focus:ring-offset-background disabled:bg-muted/10 read-only:bg-interface/50",
+        "ghost": "[[data-bz-keyboard]_&]:focus:ring-2 [[data-bz-keyboard]_&]:focus:ring-(--bz-focus) [[data-bz-keyboard]_&]:focus:ring-offset-2 [[data-bz-keyboard]_&]:focus:ring-offset-background",
     },
     "sizes": {
         "xs": "px-2 py-1 text-xs",

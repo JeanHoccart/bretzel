@@ -1,12 +1,18 @@
 """``/`` — the front door: what Bretzel looks like, and under which identity."""
 
 from bretzel import ui
+from bretzel.introspect import ComponentInfo, describe_components
 from examples.showcase.app.catalog import CATALOG
 from examples.showcase.lib.identities import IDENTITIES, Identity
 from examples.showcase.lib.preview import sample_screen
 
 SUMMARY = ("Every Bretzel component in real uses, with its Python code, "
            "under a theme you can switch and tune live.")
+
+
+def component_count() -> int:
+    """The components ``bretzel describe`` lists."""
+    return sum(isinstance(info, ComponentInfo) for info in describe_components())
 
 
 def swatches(identity: Identity) -> None:
@@ -27,7 +33,7 @@ def identity_card(identity: Identity) -> None:
 
 def page() -> None:
     with ui.vstack(gap="md"):
-        ui.badge("102 components · zero npm", color="primary", variant="soft",
+        ui.badge(f"{component_count()} components · zero npm", color="primary", variant="soft",
                  icon_left="sparkles")
         ui.heading("Components for Python web apps", level=1, size="4xl")
         ui.text(

@@ -1,112 +1,57 @@
-"""``FileUpload`` — dropzone or compact-button file picker.
+"""``FileUpload`` — a dropzone, and the list of files under it.
 
-Two INDEPENDENT axes: ``variant=`` dresses the TRIGGER, ``list=`` the
-list of dropped files.
+It is :class:`~bretzel.components.inputs.attachments.Attachments` plus a
+dropzone: the same list (``display="strip" | "chips" | "grid"``), the
+same checks, the same paste, the same ``.pick()`` / ``.clear()``, the same
+server ``on_change`` that carries the files — and a large dashed area
+above it: drop OR click anywhere on the zone OR press Enter / Space when
+focused. Modern Drive / Notion / Linear shape.
 
-- ``list="tiles"`` (default) — one tile per file: thumbnail, name,
-  size, and a × as a corner badge. The "attachments" shape.
-- ``list="chips"`` — one chip per file: icon, name, **inline** ×,
-  wrapping over several lines. The "composer" shape.
+A compact button that imports is not a ``file_upload``: it is the list
+and a button ::
 
-It is not a style axis: the two structures differ in the DOM (the chip
-emits neither thumbnail nor size, and its × is in the flow). No
-``slots=`` override takes you from one to the other.
+    pieces = ui.attachments(name="pieces", multiple=True)
+    ui.button("Importer", icon_left="upload", on_click=pieces.pick())
 
-Two trigger variants share the same file-management plumbing :
-
-- ``variant="dropzone"`` (default) — large dashed area, drop OR click
-  anywhere on the zone OR press Enter / Space when focused. Modern
-  Drive / Notion / Linear shape.
-- ``variant="button"`` — compact inline trigger that just opens the
-  native file picker, no drop affordance. Use it when the page already
-  has a primary call-to-action and you want a secondary attachment
-  control.
-
-State + behaviour live in a single runtime scope factory at
-``bretzel/components/inputs/file_upload/file_upload.js`` ::
-
-    bz-data="$bz.fileUpload.makeScope({el: $el, ...opts})"
-
-The factory owns drag state, the file list (each entry carries the
-raw ``File`` + UI status), validation (``accept`` / ``max_size_mb`` /
-``max_files`` / ``multiple``), DataTransfer sync to the hidden native
-input so parent ``<form>`` submits exactly what's displayed, image
-preview thumbnails via ``URL.createObjectURL``, and the optional
-async upload mode (XHR per file with progress events).
-
-``paste=True`` — a Ctrl+V anywhere in the enclosing ``<form>`` (the
-field the question is written in, typically) joins the files the
-clipboard carries, as a pick would: a screenshot, or files copied from
-the file manager. A paste that carries TEXT is left to the field, even
-with a picture beside it — Excel cells and Word paragraphs both come
-with a rendering of themselves. A pasted screenshot, which the browser
-always names ``image.png``, is renamed ``pasted-<date>-<hour>.png``.
-With no form around, the component itself listens. One ``paste=True``
-picker per form: two would both take the files.
+The list shows under the zone (``display="strip"`` by default, the tiles
+that scroll). It is the BROWSER that owns it — the client creates a row
+when a file is dropped, by cloning a ``<template bz-for>``, so neither
+children nor a ``render=`` callback could reach it: ``display=`` offers
+three shipped presentations instead (``COLLECTION_OWNER = "client"``).
 
 Two upload modes :
 
 - **Form mode** (default) — files just accumulate in the hidden
   ``<input type="file">``. Submit the surrounding ``<form>`` and the
-  browser sends each file as multipart. No JS upload, no progress.
+  browser sends each file as multipart.
 - **Async mode** (set ``upload_url=``) — each accepted file is POSTed
   immediately via XHR. Per-file progress bar renders below the
   thumbnail ; ``upload_complete`` fires server-side per file.
 
-Events emitted (the slab dispatches kebab-case DOM events that bubble
-to the root) :
-
-- ``change``           — file list changed (added / removed)
-- ``upload_start``     — async mode : XHR sent for one file
-- ``upload_complete``  — async mode : server returned 2xx
-- ``upload_error``     — async mode : 4xx / 5xx or network error
-- ``focus`` / ``blur`` — relayed from the focusable wrapper
-
-Note : ``upload_progress`` exists as a DOM event but is NOT a declared
-component event and is never bridged to the server — it would melt the
-wire (one POST every tick). The fill bar reads the entry's reactive
-``progress`` field directly.
+Events: those of the list (``change``, ``upload_start`` /
+``upload_complete`` / ``upload_error``, ``remove``), and ``focus`` /
+``blur`` relayed from the focusable zone. ``upload_progress`` exists as a
+DOM event but is never bridged to the server — it would melt the wire.
 
 Runtime notes :
 
-- The opts blob passes ``el: $el`` so the scope captures its root
-  (scope methods have no ``$root`` / ``$refs`` / ``$dispatch``) — the
-  factory's ``querySelector`` + every ``dispatch()`` ride off it.
-- ``bz-on`` carries no modifier grammar, so ``.prevent`` / ``.stop`` are
-  inlined into the expression bodies.
-- Window-level drag highlight has no per-element equivalent — the three
-  window subscriptions are registered once at ``bz-init`` via
+- Window-level drag highlight has no per-element equivalent — the window
+  subscriptions are registered once at ``bz-init`` via
   ``$bz.helpers.onWindow`` (page-scoped, unsubscribe dropped).
 - Reactive class uses ``bz-class`` (MERGE onto static ``class=``), never
   ``bz-attr:class`` (which REPLACES).
-- FOUC ``display:none`` pre-stamps on branches hidden at SSR (error
-  panel, compact empty state, file-list strip).
-- Server-callable ``on_change`` / ``on_upload_*`` keep their HTMX bundle
-  on the root — the slab dispatches on the root and events bubble. The
-  ``upload_*`` names are renamed to kebab (the slab dispatches
-  ``upload-start`` etc.). ``on_focus`` / ``on_blur`` relocate onto the
-  focusable wrapper — **in both shapes** (string AND callable):
-  ``focus``/``blur`` do not bubble, so an ``hx-trigger`` set on the root
-  would never fire.
-- The hidden input's NATIVE ``change`` is stopped
-  (``stopPropagation``): otherwise it bubbles up to the root, which
-  already listens for the ``change`` the slab dispatches there — two
-  events, so two POSTs for one selection.
+- ``on_focus`` / ``on_blur`` relocate onto the focusable zone — **in both
+  shapes** (string AND callable): ``focus``/``blur`` do not bubble, so an
+  ``hx-trigger`` set on the root would never fire.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any, ClassVar
 
-from bretzel.components.base import (
-    Component,
-    reactive_prop,
-    reject_component,
-    stamp_display_none,
-)
-from bretzel.components.base.dismiss import dismiss_button
+from bretzel.components.base import reject_component, stamp_display_none
 from bretzel.components.base.field_wiring import (
     activate_keydown,
     keep_own_name,
@@ -114,123 +59,46 @@ from bretzel.components.base.field_wiring import (
     relocate_handlers,
 )
 from bretzel.components.base.focus import FocusCommands
+from bretzel.components.inputs.attachments import Attachments
 from bretzel.components.inputs.file_upload.theme import FILE_UPLOAD_THEME
 from bretzel.core.tree import Element, Node
 from bretzel.core.tree import TextNode as _TextNode
 from bretzel.render import template, text
-from bretzel.render.context import maybe_current_context
 
-# Python event names use underscores ; the slab dispatches kebab-case
-# DOM events. ``change`` / ``focus`` / ``blur`` are already kebab-safe ;
-# only the ``upload_*`` family needs renaming (both the ``bz-on:`` string
-# form and the server-callable ``hx-trigger`` value).
-_KEBAB_EVENTS = {
-    "upload_start": "upload-start",
-    "upload_complete": "upload-complete",
-    "upload_error": "upload-error",
-}
-
-# Enter / Space open the picker. The guard (three key names + the
-# target) lives in ``base/field_wiring.activate_keydown`` — this file was the only
-# one of the three sites to handle the legacy ``Spacebar``, and the only
-# one NOT to guard the target.
-_ACTIVATE_KEYDOWN = activate_keydown("openPicker();")
-
-#: The presentations of the file list — ``list=``.
-#:
-#: It is NOT a style axis: the two structures differ in the DOM. The
-#: tile is a column with a thumbnail and a × as a corner badge
-#: (``absolute -top-2 -right-2``); the chip is a row with no thumbnail,
-#: whose × is **inline**. No ``slots=`` override takes you from one to
-#: the other. It is the thesis "the theme RESTYLES, it does not
-#: RESTRUCTURE".
-#:
-#: Why two shipped presentations rather than an escape hatch: the list
-#: is populated by the JS (``<template bz-for>`` cloned when a file is
-#: dropped), so ``COLLECTION_OWNER = "client"`` — neither Python
-#: children nor a Python callback reach it. Cf.
-#: ``Component.COLLECTION_OWNER``.
-LIST_PRESENTATIONS: tuple[str, ...] = ("tiles", "chips")
-
-#: ⚠️ The public kwarg is called ``list=``, so it SHADOWS the ``list``
-#: builtin in the body of ``__init__``. Sequence types are therefore
-#: read through this constant — otherwise ``isinstance(accept, (list,
-#: tuple))`` raises ``arg 2 must be a type`` on the string ``"tiles"``,
-#: three hundred lines from the offending name.
-_SEQUENCE_TYPES: tuple[type, ...] = (list, tuple)
-
-#: The slots the "chips" presentation substitutes for the tiles'. A
-#: finite and literal table on BOTH sides — never an assembled name: a
-#: Tailwind class nothing writes out in full does not reach the compiled
-#: CSS. Here it is the SLOT NAME that is chosen, not the class, and both
-#: sets of classes are written out in full in the theme.
-_CHIP_SLOTS: dict[str, str] = {
-    "file_list": "chip_list",
-    "file_item": "chip_item",
-    "file_icon": "chip_icon",
-    "file_name": "chip_name",
-    "file_status_done": "chip_status_done",
-    "file_status_error": "chip_status_error",
-    "file_progress_bar": "chip_progress_bar",
-    "remove_btn": "chip_remove_btn",
-}
+# Enter / Space open the picker. The guard (three key names + the target)
+# lives in ``base/field_wiring.activate_keydown``.
+_ACTIVATE_KEYDOWN = activate_keydown("pick();")
 
 
-#: The texts ``file_upload.js`` shows when it refuses a file.
-_RUNTIME_TEXTS = ("too_large", "wrong_format", "skipped", "reason_too_large",
-                  "reason_wrong_format", "reason_size_or_format", "only_one",
-                  "max_reached", "over_limit", "network_error")
-
-
-class FileUpload(FocusCommands, Component):
-    """Dropzone or compact-button file picker."""
+class FileUpload(FocusCommands, Attachments):
+    """A dropzone, and the list of the files dropped on it."""
 
     THEME: ClassVar[dict[str, Any]] = FILE_UPLOAD_THEME
     THEME_KEY: ClassVar[str] = "file_upload"
-    IS_CONTAINER: ClassVar[bool] = False
-    #: It is the BROWSER that owns the list: it is populated when a file
-    #: is dropped, by cloning a ``<template bz-for>``. Neither Python
-    #: children nor a ``render=`` callback reach it — they would run at
-    #: server render, when the list is empty.
-    #:
-    #: The mechanism the author gets instead is therefore
-    #: ``list="tiles" | "chips"``: two SHIPPED presentations, not an
-    #: escape hatch. Cf. ``Component.COLLECTION_OWNER`` and
-    #: :data:`LIST_PRESENTATIONS`.
-    COLLECTION_OWNER: ClassVar[str | None] = "client"
-    # ``value`` is never bindable : browsers forbid programmatic
-    # ``input.files`` assignment outside a DataTransfer, and the FileList
-    # shape isn't serialisable for server-side state. Only ``disabled``
-    # earns a client binding (flips live from client state) ; ``multiple``
-    # / ``accept`` / ``required`` are config that only changes on a server
-    # re-render (@refreshable), so they stay static per the
-    # bindable-surface rule (cf. ``client-reactive-surface.md``).
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("disabled",)
-    # What a carrier (a second server handler) listens to.
-    DOM_EVENTS: ClassVar[dict[str, str]] = _KEBAB_EVENTS
-    EVENTS: ClassVar[tuple[str, ...]] = (
-        "change",
-        "upload_start", "upload_complete", "upload_error",
-        "focus", "blur",
-    )
-    IMPERATIVE: ClassVar[tuple[str, ...]] = ("focus", "blur")
+    EVENTS: ClassVar[tuple[str, ...]] = (*Attachments.EVENTS, "focus", "blur")
+    IMPERATIVE: ClassVar[tuple[str, ...]] = (*Attachments.IMPERATIVE, "focus", "blur")
     # Where ``autofocus=`` / ``.focus()`` land: the focusable drop zone, not the hidden file input.
     FOCUS_TARGET: ClassVar[tuple[str, ...] | None] = ("[role=button][tabindex]",)
-
-    name: str | None = reactive_prop(default=None, emit_attr=False)
-    multiple: bool = reactive_prop(default=False, emit_attr=False)
-    accept: str | None = reactive_prop(default=None, emit_attr=False)
-    disabled: bool = reactive_prop(default=False, emit_attr=False)
-    required: bool = reactive_prop(default=False, emit_attr=False)
-    color: str = reactive_prop(default="primary", emit_attr=False)
-    size: str = reactive_prop(default="md", emit_attr=False)
+    #: Retired names, refused with the new one (``attrs.split_kwargs``).
+    RENAMED_PROPS: ClassVar[dict[str, str]] = {
+        "list": "write ``display=``: \"strip\" (the tiles), \"chips\" or \"grid\".",
+    }
+    #: A name this component deliberately does not take.
+    REFUSED_PROPS: ClassVar[dict[str, str]] = {
+        "variant": (
+            "a file_upload is a dropzone. A compact button that joins files is "
+            "a list and a button: ``pieces = ui.attachments(…)`` then "
+            "``ui.button(\"Joindre\", icon_left=\"paperclip\", "
+            "on_click=pieces.pick())``."
+        ),
+    }
 
     def __init__(
         self,
         label: str | None = None,
         *,
-        variant: str = "dropzone",
-        list: str = "tiles",
+        display: str = "strip",
+        files: Iterable[Any] | None = None,
         multiple: bool | None = None,
         accept: str | list[str] | None = None,
         max_size_mb: float | None = None,
@@ -242,442 +110,152 @@ class FileUpload(FocusCommands, Component):
         upload_url: str | None = None,
         show_previews: bool = True,
         paste: bool = False,
+        drop: str | None = None,
         name: str | None = None,
         on_change: Callable[..., Any] | str | None = None,
         on_upload_start: Callable[..., Any] | str | None = None,
         on_upload_complete: Callable[..., Any] | str | None = None,
         on_upload_error: Callable[..., Any] | str | None = None,
+        on_remove: Callable[..., Any] | str | None = None,
         on_focus: Callable[..., Any] | str | None = None,
         on_blur: Callable[..., Any] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        if variant not in ("dropzone", "button"):
-            from bretzel.components.base import ComponentUsageError
-            raise ComponentUsageError(
-                f"FileUpload variant must be 'dropzone' or 'button', "
-                f"got {variant!r}."
-            )
-        if list not in LIST_PRESENTATIONS:
-            from bretzel.components.base import ComponentUsageError
-            raise ComponentUsageError(
-                f"FileUpload list must be one of "
-                f"{' / '.join(map(repr, LIST_PRESENTATIONS))}, got {list!r}."
-            )
-        self._list = list
         reject_component(
             label,
             owner="FileUpload",
             prop="label",
             because=(
-                "the label ALSO serves as ``aria-label`` on the dropzone "
-                "and the button, and an HTML attribute can only carry a "
-                "string (the Component was serialised there as its Python "
-                "repr, and announced as such to the screen reader)."
+                "the label ALSO serves as ``aria-label`` on the dropzone, and "
+                "an HTML attribute can only carry a string (the Component was "
+                "serialised there as its Python repr, and announced as such "
+                "to the screen reader)."
             ),
             instead="For rich content, compose around the FileUpload.",
         )
-        reject_component(
-            accept,
-            owner="FileUpload",
-            prop="accept",
-            because=(
-                "``accept`` is a MIME filter — it goes into the "
-                "``<input type=file>``'s ``accept`` attribute AND into the "
-                "JSON literal the runtime reads, where a Component is not "
-                "even serialisable (``Object of type TextNode is not JSON "
-                "serializable``)."
-            ),
-            instead=(
-                "Attendu : ``accept=\"image/*,.pdf\"`` ou "
-                "``accept=[\"image/*\", \".pdf\"]``."
-            ),
-        )
-        self._variant = variant
         self._label = label
-        self._max_size_mb = max_size_mb
-        self._max_files = max_files
-        self._upload_url = upload_url
-        self._show_previews = show_previews
-        self._paste = paste
-
-        # ``accept=`` accepts either a comma string ("image/*,.pdf")
-        # OR a list (["image/*", ".pdf"]) — normalise to the comma form
-        # both for the HTML attribute and the JS factory.
-        if isinstance(accept, _SEQUENCE_TYPES):
-            accept = ",".join(accept)
-
-        # Direct forward: the base layer drops reactive None kwargs (keeps the default).
         super().__init__(
-            name=name,
-            multiple=multiple,
-            accept=accept,
-            disabled=disabled,
-            required=required,
-            color=color, size=size,
-            on_change=on_change,
-            on_upload_start=on_upload_start,
-            on_upload_complete=on_upload_complete,
-            on_upload_error=on_upload_error,
-            on_focus=on_focus,
-            on_blur=on_blur,
-            **kwargs,
+            display=display, files=files, multiple=multiple, accept=accept,
+            max_size_mb=max_size_mb, max_files=max_files, disabled=disabled,
+            required=required, color=color, size=size, upload_url=upload_url,
+            show_previews=show_previews, paste=paste, drop=drop, name=name,
+            on_change=on_change, on_upload_start=on_upload_start,
+            on_upload_complete=on_upload_complete, on_upload_error=on_upload_error,
+            on_remove=on_remove, on_focus=on_focus, on_blur=on_blur, **kwargs,
         )
 
-    # ── Render ────────────────────────────────────────────────────────
+    def _hides_when_empty(self) -> bool:
+        """The dropzone is always there: the root never hides."""
+        return False
 
-    def render(self) -> Element:
-        # Every slot through the base composer: the slots that name an
-        # entry of the size row (``dropzone_title``, ``dropzone_subtitle``,
-        # ``remove_btn``) take it there.
-        def s(slot: str) -> str:
-            return self.compose_class(slot)
+    # ── The dropzone ─────────────────────────────────────────────────
 
-        # The row's other entries: the paddings, margins and glyph sizes
-        # that depend on the state (files or not) or on the presentation.
-        theme = self._resolved_theme()
+    def _trigger(self, root_attrs: dict[str, Any], native_input: Element) -> Node:
+        s = self.compose_class
         size_row = self._size_row() or {}
 
         def sz(key: str) -> str:
             return size_row.get(key, "")
 
-        multiple = bool(self._reactive_values.get("multiple") or False)
-        accept = self._reactive_values.get("accept")
-        disabled = bool(self._reactive_values.get("disabled") or False)
-        required = bool(self._reactive_values.get("required") or False)
+        # ``focus`` / ``blur`` relocate onto the focusable zone (the only
+        # element that fires them) — IN BOTH SHAPES. The field's label
+        # comes first, the action the zone names next.
+        relocated: dict[str, Any] = {}
+        relocate_handlers(root_attrs, {"focus": relocated, "blur": relocated})
+        relocate_aria(root_attrs, relocated, takes_required=False)
+        keep_own_name(relocated, f"{self.id}_trigger")
 
-        # Pre-compute the scope's options blob — keeps the inline
-        # ``bz-data`` short by passing one JSON object to the factory.
-        opts: dict[str, Any] = {
-            "multiple": multiple,
-            "showPreviews": self._show_previews,
-        }
-        if accept:
-            opts["accept"] = accept
-        if self._max_size_mb is not None:
-            opts["maxSizeMB"] = self._max_size_mb
-        if self._max_files is not None:
-            opts["maxFiles"] = self._max_files
-        if self._upload_url:
-            opts["uploadUrl"] = self._upload_url
-        # The refusal messages, in the app's language: templates the
-        # runtime fills (``{name}``, ``{size}``…), as the calendar does.
-        opts["texts"] = {key: template(f"file_upload.{key}") for key in _RUNTIME_TEXTS}
-
-        # ── Root attrs ─────────────────────────────────────────────
-        root_attrs = self.emit_attrs()
-        # ``variant`` is not a reactive prop here, so ``compose_class``
-        # cannot append its row: it is read by hand, like the sizes.
-        root_attrs["class"] = " ".join(filter(None, [
-            s("root"), theme.get("variants", {}).get(self._variant, ""),
-        ]))
-        # ``el: $el`` captures the root in the scope (methods have no
-        # $root) — the slab's ``querySelector`` + every ``dispatch()``
-        # ride off it. Spliced after the leading brace because ``$el`` is
-        # a runtime identifier, not a JSON-serialisable value. ``opts``
-        # always carries ``multiple`` + ``showPreviews``, so the blob is
-        # never ``"{}"``.
-        scope_arg = "{el: $el, " + json.dumps(opts)[1:]
-        root_attrs["bz-data"] = f"$bz.fileUpload.makeScope({scope_arg})"
-        # On the ROOT, which carries the scope: the dropzone's wrapper
-        # has its own ``bz-init``, the button shape has none. ``watchForm``:
-        # the list empties once the form around it has sent it.
-        root_attrs["bz-init"] = "watchForm()" + ("; watchPaste()" if self._paste else "")
-
-        # ── Event relocation / normalisation ───────────────────────
-        # The slab dispatches kebab-case events on the root and they
-        # bubble, so the HTMX bundle / string handlers for change +
-        # upload-* stay on the root. Only :
-        #   1. the ``upload_*`` event names are renamed to kebab (both
-        #      the ``bz-on:`` string form and the ``hx-trigger`` form) ;
-        #   2. ``focus`` / ``blur`` relocate onto the focusable wrapper
-        #      (the only element that fires them) — IN BOTH SHAPES.
-        relocated_to_wrapper: dict[str, Any] = {}
-        relocate_handlers(root_attrs, {
-            **{event: (root_attrs, kebab) for event, kebab in _KEBAB_EVENTS.items()},
-            "focus": relocated_to_wrapper,
-            "blur": relocated_to_wrapper,
-        })
-        # The field's label comes first, the action the button names next.
-        relocate_aria(root_attrs, relocated_to_wrapper, takes_required=False)
-        keep_own_name(relocated_to_wrapper, f"{self.id}_trigger")
-
-        # ── Form-data name (autoname-style for explicit name=) ────
-        explicit_name = self._reactive_values.get("name")
-        input_name = explicit_name or "files"
-
-        # ── Hidden native file input ───────────────────────────────
-        # ``tabindex="-1"`` + ``aria-hidden="true"`` remove it from
-        # the tab order (sr-only alone does NOT, contrary to display:
-        # none). Without this, keyboard users tab the wrapper AND the
-        # native input — two stops + a scroll jolt when the browser
-        # tries to scroll the off-screen input into view. The wrapper
-        # is the canonical focus host ; the native input is a pure
-        # form-data carrier.
-        input_attrs: dict[str, Any] = {
-            "type": "file",
-            "class": s("input_native"),
-            "name": str(input_name),
-            "tabindex": "-1",
-            "aria-hidden": "true",
-            # ``stopPropagation``: without it, the input's NATIVE
-            # ``change`` bubbles up to the root, which already carries
-            # ``hx-trigger="change"`` — and the slab THEN dispatches its
-            # own ``change`` there. Two events on the root = TWO POSTs
-            # for a single selection. We keep a single source: the
-            # slab's dispatch, which also covers file removal (the
-            # native input notifies nothing when you remove).
-            "bz-on:change": (
-                "$event.stopPropagation(); onNativeChange($event)"
-            ),
-        }
-        if multiple:
-            input_attrs["multiple"] = True
-        if accept:
-            input_attrs["accept"] = str(accept)
-        if disabled:
-            input_attrs["disabled"] = True
-        if required:
-            input_attrs["required"] = True
-        # ``disabled`` only acts on the native input, the wrapper ``<div>``
-        # is just layout (``traps.md`` § "Un champ de formulaire lié
-        # possède un carrier réel").
-        self.forward_binding("disabled", input_attrs)
-        native_input = Element(
-            tag="input", attrs=input_attrs, children=(),
-        )
-        # What the server holds the submission to: the form around signs
-        # it into its token (``server/handlers.check_uploads``).
-        ctx = maybe_current_context()
-        if ctx is not None:
-            limits: dict[str, Any] = {"accept": str(accept or ""), "multiple": multiple}
-            if self._max_size_mb is not None:
-                limits["max_bytes"] = int(self._max_size_mb * 1024 * 1024)
-            if self._max_files is not None:
-                limits["max_files"] = self._max_files
-            ctx.upload_limits[id(native_input)] = (native_input, limits)
-
-        # ── Trigger (variant-dependent) ────────────────────────────
-        if self._variant == "dropzone":
-            trigger = self._render_dropzone(
-                s, sz, native_input, relocated_to_wrapper,
-            )
-        else:
-            trigger = self._render_button(
-                s, sz, native_input, relocated_to_wrapper,
-            )
-
-        # ── Validation error panel ─────────────────────────────────
-        # Hidden at SSR (no errors yet) → FOUC pre-stamp.
-        error_panel_attrs: dict[str, Any] = {
-            "class": s("error_panel"),
-            "bz-show": "errors.length > 0",
-            "role": "alert",
-        }
-        stamp_display_none(error_panel_attrs)
-        error_panel = Element(
-            tag="div",
-            attrs=error_panel_attrs,
-            children=(
-                Element(
-                    tag="span",
-                    attrs={
-                        "class": s("error_text"),
-                        "bz-text": "errors[0]",
-                    },
-                    children=(),
-                ),
-            ),
-        )
-
-        # ── File-list strip (template bz-for) ──────────────────────
-        file_list = self._render_file_list(s, sz)
-
-        return Element(
-            tag=self._tag,
-            attrs=root_attrs,
-            children=(trigger, error_panel, file_list),
-        )
-
-    # ── Trigger variants ─────────────────────────────────────────────
-
-    def _render_dropzone(
-        self, s, sz, native_input: Element,
-        relocated_to_wrapper: dict[str, Any],
-    ) -> Element:
         label = self._label or text("file_upload.dropzone")
         accept = self._reactive_values.get("accept")
         multiple = bool(self._reactive_values.get("multiple") or False)
         disabled = bool(self._reactive_values.get("disabled") or False)
 
         # Two empty states share the same DOM space, swapped via
-        # ``bz-show`` based on files.length :
-        #
-        #  - **Full** : icon + label + hint lines. Renders when no
-        #    files are picked yet (the canonical hero state).
-        #  - **Compact** : tiny icon + "Drop more files" label.
-        #    Renders when files are present so the dropzone doesn't
-        #    steal vertical real-estate from the file strip.
-
-        # Full empty state — visible when files.length === 0 (truthy at
-        # SSR, so no FOUC pre-stamp).
+        # ``bz-show`` based on files.length : the FULL one (icon + label +
+        # hint lines) when no files are picked yet; the COMPACT one (small
+        # icon + "Drop more files") when files are present, so the zone
+        # does not steal vertical room from the list.
         full_children: list[Node] = [
-            Element(
-                tag="iconify-icon",
-                attrs={
-                    "icon": "lucide:cloud-upload",
-                    "class": " ".join(filter(None, [
-                        s("dropzone_icon"),
-                        sz("dropzone_icon_size"),
-                        sz("dropzone_icon_margin"),
-                    ])),
-                },
-                children=(),
-            ),
-            Element(
-                tag="span",
-                attrs={
-                    "class": s("dropzone_title"),
-                },
-                children=(_TextNode(label),),
-            ),
+            Element(tag="iconify-icon", attrs={
+                "icon": "lucide:cloud-upload",
+                "class": " ".join(filter(None, [
+                    s("dropzone_icon"), sz("dropzone_icon_size"), sz("dropzone_icon_margin"),
+                ])),
+            }, children=()),
+            Element(tag="span", attrs={"class": s("dropzone_title")},
+                    children=(_TextNode(label),)),
         ]
         if accept:
-            full_children.append(Element(
-                tag="span",
-                attrs={
-                    "class": s("dropzone_subtitle"),
-                },
-                children=(_TextNode(text("file_upload.accepted", types=accept)),),
-            ))
+            full_children.append(Element(tag="span", attrs={"class": s("dropzone_subtitle")},
+                                         children=(_TextNode(text("file_upload.accepted",
+                                                                  types=accept)),)))
         if self._max_size_mb is not None:
             # The size is written by the browser, in the page's language
             # (« 1,5 Mo »); the server's « 1.5 MB » is the fallback.
             ceiling = int(self._max_size_mb * 1024 * 1024)
-            full_children.append(Element(
-                tag="span",
-                attrs={
-                    "class": s("dropzone_subtitle"),
-                    "bz-text": (f"{json.dumps(template('file_upload.max_size'))}"
-                                f".replace('{{size}}', $bz.fileUpload.formatSize({ceiling}))"),
-                },
-                children=(_TextNode(text(
-                    "file_upload.max_size",
-                    size=f"{self._max_size_mb} MB",
-                )),),
-            ))
+            full_children.append(Element(tag="span", attrs={
+                "class": s("dropzone_subtitle"),
+                "bz-text": (f"{json.dumps(template('file_upload.max_size'))}"
+                            f".replace('{{size}}', $bz.attachments.formatSize({ceiling}))"),
+            }, children=(_TextNode(text("file_upload.max_size",
+                                        size=f"{self._max_size_mb} MB")),)))
         if multiple:
             # Two WHOLE sentences rather than a re-glued suffix: a
-            # translation does not necessarily put the ceiling at the
-            # end.
-            hint = (
-                text("file_upload.multiple_capped", max=self._max_files)
-                if self._max_files is not None
-                else text("file_upload.multiple")
-            )
-            full_children.append(Element(
-                tag="span",
-                attrs={
-                    "class": s("dropzone_subtitle"),
-                },
-                children=(_TextNode(hint),),
-            ))
+            # translation does not necessarily put the ceiling at the end.
+            hint = (text("file_upload.multiple_capped", max=self._max_files)
+                    if self._max_files is not None else text("file_upload.multiple"))
+            full_children.append(Element(tag="span", attrs={"class": s("dropzone_subtitle")},
+                                         children=(_TextNode(hint),)))
+        full_empty_state = Element(tag="div", attrs={
+            "class": s("dropzone_empty_state"), "bz-show": "files.length === 0",
+        }, children=tuple(full_children))
 
-        full_empty_state = Element(
-            tag="div",
-            attrs={
-                "class": s("dropzone_empty_state"),
-                "bz-show": "files.length === 0",
-            },
-            children=tuple(full_children),
-        )
-
-        # Compact empty state — visible when files.length > 0. Hidden at
-        # SSR (no files yet) → FOUC pre-stamp.
-        compact_label = text(
-            "file_upload.drop_more" if multiple
-            else "file_upload.drop_replace"
-        )
         compact_attrs: dict[str, Any] = {
-            "class": (
-                s("dropzone_empty_state")
-                + " flex-row gap-2"
-            ),
+            "class": self.slot_class("dropzone_empty_state", "flex-row gap-2"),
             "bz-show": "files.length > 0",
         }
         stamp_display_none(compact_attrs)
-        compact_empty_state = Element(
-            tag="div",
-            attrs=compact_attrs,
-            children=(
-                Element(
-                    tag="iconify-icon",
-                    attrs={
-                        "icon": "lucide:cloud-upload",
-                        "class": " ".join(filter(None, [
-                            s("dropzone_icon"),
-                            sz("dropzone_icon_size_with_files"),
-                        ])),
-                    },
-                    children=(),
-                ),
-                Element(
-                    tag="span",
-                    attrs={
-                        "class": s("dropzone_subtitle"),
-                    },
-                    children=(_TextNode(compact_label),),
-                ),
-            ),
-        )
+        compact_empty_state = Element(tag="div", attrs=compact_attrs, children=(
+            Element(tag="iconify-icon", attrs={
+                "icon": "lucide:cloud-upload",
+                "class": " ".join(filter(None, [
+                    s("dropzone_icon"), sz("dropzone_icon_size_with_files"),
+                ])),
+            }, children=()),
+            Element(tag="span", attrs={"class": s("dropzone_subtitle")}, children=(
+                _TextNode(text("file_upload.drop_more" if multiple
+                               else "file_upload.drop_replace")),)),
+        ))
 
-        # Wrapper padding swaps between full / compact when files
-        # exist — reactive class expression. ``bz-class`` MERGES the
-        # dynamic toggles onto the static ``class=`` (``bz-attr:class``
-        # would REPLACE it — cf. ``traps.md`` § "`bz-class` fusionne,
-        # `bz-attr:class` remplace").
-        wrapper_base = s("dropzone_wrapper")
-        # ⚠️ The padding is split by AXIS (cf. the theme): the
-        # horizontal one is static, the vertical one is EXCLUSIVELY in
-        # the ``bz-class``. Setting ``py-8`` statically and ``py-3``
-        # dynamically would not work — same specificity, the Tailwind
-        # sheet decides, and the compact state would never apply.
-        pad_x = sz("dropzone_padding_x")
-        pad_empty = sz("dropzone_padding_y")
+        # ⚠️ The padding is split by AXIS (cf. the theme): the horizontal
+        # one is static, the vertical one is EXCLUSIVELY in the
+        # ``bz-class`` — same specificity, the Tailwind sheet decides, and
+        # a static ``py-8`` would beat the compact ``py-3`` for ever.
+        # ``bz-class`` MERGES onto the static ``class=``.
         pad_compact = sz("dropzone_padding_with_files")
+        pad_empty = sz("dropzone_padding_y")
         active_cls = s("dropzone_active")
         global_drag_cls = s("dropzone_global_drag")
-
         wrapper_attrs: dict[str, Any] = {
-            "class": f"{wrapper_base} {pad_x}",
-            # Three layered class toggles : the VERTICAL padding, in its
-            # two states ; ``dropzone_active`` when this dropzone is the
-            # current drop target ; ``dropzone_global_drag`` when the
-            # user is dragging files anywhere on the page. ``bz-class``
-            # accepts an array natively (each entry split on whitespace).
+            "class": f"{s('dropzone_wrapper')} {sz('dropzone_padding_x')}",
             "bz-class": (
                 "["
                 f"files.length > 0 ? '{pad_compact}' : '{pad_empty}', "
                 f"isDragging ? '{active_cls}' : '', "
-                f"(isGlobalDragActive && !isDragging) "
-                f"? '{global_drag_cls}' : ''"
+                f"(isGlobalDragActive && !isDragging) ? '{global_drag_cls}' : ''"
                 "]"
             ),
-            "bz-on:click": "openPicker()",
+            "bz-on:click": "pick()",
             # ``.prevent`` inlined (``bz-on`` has no modifier grammar).
             "bz-on:dragenter": "$event.preventDefault(); onDragEnter($event)",
             "bz-on:dragover": "$event.preventDefault(); onDragOver($event)",
             "bz-on:dragleave": "$event.preventDefault(); onDragLeave($event)",
             "bz-on:drop": "$event.preventDefault(); onDrop($event)",
-            # Window-level drag detection : ``bz-on:`` only listens on its
-            # own element, so register the three window subscriptions once
-            # at ``bz-init`` via ``$bz.helpers.onWindow``. Page-scoped :
-            # the returned unsubscribe is dropped, the listeners live for
-            # the page lifetime (a dropzone is never torn down mid-page).
+            # Window-level drag detection: every zone of the page lights up
+            # while a file from the OS is dragged anywhere on it.
             "bz-init": (
-                "$bz.helpers.onWindow('dragenter', "
-                "e => onWindowDragEnter(e)); "
-                "$bz.helpers.onWindow('dragleave', "
-                "e => onWindowDragLeave(e)); "
+                "$bz.helpers.onWindow('dragenter', e => onWindowDragEnter(e)); "
+                "$bz.helpers.onWindow('dragleave', e => onWindowDragLeave(e)); "
                 "$bz.helpers.onWindow('drop', () => onWindowDrop()); "
                 "$bz.helpers.onWindow('dragend', () => onWindowDrop())"
             ),
@@ -685,250 +263,9 @@ class FileUpload(FocusCommands, Component):
             "bz-on:keydown": _ACTIVATE_KEYDOWN,
             "role": "button",
             "aria-label": label,
-            **relocated_to_wrapper,
+            **relocated,
         }
         if disabled:
             wrapper_attrs["aria-disabled"] = "true"
-
-        return Element(
-            tag="div",
-            attrs=wrapper_attrs,
-            children=(
-                native_input,
-                full_empty_state,
-                compact_empty_state,
-            ),
-        )
-
-    def _render_button(
-        self, s, sz, native_input: Element,
-        relocated_to_wrapper: dict[str, Any],
-    ) -> Element:
-        label = self._label or text("file_upload.button")
-        disabled = bool(self._reactive_values.get("disabled") or False)
-
-        wrapper_attrs: dict[str, Any] = {
-            "class": " ".join(filter(None, [
-                s("button_wrapper"),
-                sz("button_padding"),
-            ])),
-            "bz-on:click": "openPicker()",
-            "tabindex": "0" if not disabled else "-1",
-            "bz-on:keydown": _ACTIVATE_KEYDOWN,
-            "role": "button",
-            "aria-label": label,
-            **relocated_to_wrapper,
-        }
-        if disabled:
-            wrapper_attrs["aria-disabled"] = "true"
-
-        return Element(
-            tag="div",
-            attrs=wrapper_attrs,
-            children=(
-                native_input,
-                Element(
-                    tag="iconify-icon",
-                    attrs={
-                        "icon": "lucide:upload",
-                        "class": " ".join(filter(None, [
-                            s("button_icon"),
-                            sz("button_icon_size"),
-                        ])),
-                    },
-                    children=(),
-                ),
-                Element(
-                    tag="span",
-                    attrs={},
-                    children=(_TextNode(label),),
-                ),
-            ),
-        )
-
-    # ── File-list strip ──────────────────────────────────────────────
-
-    def _render_file_list(self, s, sz) -> Element:
-        """Build the ``<template bz-for>`` strip rendering one card per
-        file. The cards display thumb-or-icon + name + size + remove
-        button, with an optional progress bar overlay in async mode.
-
-        The card lives inside a ``<template>``, so its ``bz-show`` /
-        ``bz-attr`` branches don't need FOUC pre-stamps — the rows are
-        cloned + bound fresh by ``bz-for`` (no SSR-rendered instance to
-        flash)."""
-        # ``slot`` substitutes the slot names of the chosen
-        # presentation. The NAME is chosen here; the CLASSES are written
-        # out in full in the theme on both sides — never assembled,
-        # otherwise they would not reach production's compiled CSS.
-        chips = self._list == "chips"
-
-        def slot(name: str) -> str:
-            return s(_CHIP_SLOTS[name] if chips and name in _CHIP_SLOTS else name)
-
-        # Per-file item attrs : keyed by the entry's id (stable
-        # through removals).
-        thumb = Element(
-            tag="img",
-            attrs={
-                "bz-attr:src": "entry._preview",
-                "bz-attr:alt": "entry.name",
-                "bz-show": "entry.isImage && entry._preview",
-                "class": slot("file_thumb"),
-                "loading": "lazy",
-            },
-            children=(),
-        )
-        icon_fallback = Element(
-            tag="iconify-icon",
-            attrs={
-                "icon": "lucide:file",
-                "class": slot("file_icon"),
-                "bz-show": "!(entry.isImage && entry._preview)",
-            },
-            children=(),
-        )
-
-        # Status badges — uploading is implicit (progress bar shown),
-        # done / error get a small badge over the thumbnail.
-        status_done = Element(
-            tag="span",
-            attrs={
-                "class": slot("file_status_done"),
-                "bz-show": "entry.status === 'done'",
-                "aria-label": text("file_upload.complete"),
-            },
-            children=(
-                Element(
-                    tag="iconify-icon",
-                    attrs={
-                        "icon": "lucide:check",
-                        "class": slot("file_status_icon"),
-                    },
-                    children=(),
-                ),
-            ),
-        )
-        status_error = Element(
-            tag="span",
-            attrs={
-                "class": slot("file_status_error"),
-                "bz-show": "entry.status === 'error'",
-                "bz-attr:title": "entry.error",
-                "aria-label": text("file_upload.error"),
-            },
-            children=(
-                Element(
-                    tag="iconify-icon",
-                    attrs={
-                        "icon": "lucide:alert-triangle",
-                        "class": slot("file_status_icon"),
-                    },
-                    children=(),
-                ),
-            ),
-        )
-
-        # Progress bar — only renders during ``uploading``.
-        progress = Element(
-            tag="div",
-            attrs={
-                "class": slot("file_progress_bar"),
-                "bz-show": (
-                    "entry.status === 'uploading' "
-                    "|| (entry.status === 'done' && entry.progress < 100)"
-                ),
-                "role": "progressbar",
-                "bz-attr:aria-valuenow": "entry.progress",
-                "aria-valuemin": "0",
-                "aria-valuemax": "100",
-            },
-            children=(
-                Element(
-                    tag="div",
-                    attrs={
-                        "class": slot("file_progress_fill"),
-                        "bz-attr:style": "'width: ' + entry.progress + '%'",
-                    },
-                    children=(),
-                ),
-            ),
-        )
-
-        # Single-sourced emission in ``base/dismiss.dismiss_button`` (the
-        # same × as Alert / Badge / Banner). It brings the DETACHED
-        # ``Icon`` — so the theme's icon set and the FOUC treatment —
-        # where this file wrote an ``<iconify-icon icon="lucide:x">`` by
-        # hand. Only the gesture differs: here we remove ONE entry, not
-        # the component.
-        # ``.stop`` inlined (``bz-on`` has no modifiers).
-        # The chips' × (``chip_remove_btn``) takes the tiles' step on
-        # purpose: one × size per step, whatever the presentation.
-        remove_btn = dismiss_button(
-            button_class=" ".join(
-                p for p in (
-                    slot("remove_btn"), sz("remove_btn") if chips else "",
-                ) if p
-            ),
-            aria_label=text("file_upload.remove"),
-            icon_size=sz("remove_btn_icon_size") or "xs",
-            on_click="$event.stopPropagation(); removeFile(entry, $event)",
-        )
-
-        item = Element(
-            tag="div",
-            attrs={
-                "class": slot("file_item"),
-                "bz-attr:title": "entry.name",
-            },
-            children=tuple(
-                child for child in (
-                # A chip has no thumbnail (no room) and no size (it
-                # would take two lines). These are not classes we hide:
-                # the nodes are not emitted.
-                None if chips else thumb,
-                icon_fallback,
-                status_done,
-                status_error,
-                Element(
-                    tag="span",
-                    attrs={
-                        "class": slot("file_name"),
-                        "bz-text": "entry.name",
-                    },
-                    children=(),
-                ),
-                None if chips else Element(
-                    tag="span",
-                    attrs={
-                        "class": slot("file_size"),
-                        "bz-text": "entry.sizeLabel",
-                    },
-                    children=(),
-                ),
-                progress,
-                remove_btn,
-                ) if child is not None
-            ),
-        )
-
-        # ``bz-for`` lives on a ``<template>`` with a SINGLE root child ;
-        # the key rides inside the attribute (``entry in files
-        # :key=entry.id``) per the directive grammar.
-        template = Element(
-            tag="template",
-            attrs={"bz-for": "entry in files :key=entry.id"},
-            children=(item,),
-        )
-
-        # File-list strip — hidden at SSR (no files) → FOUC pre-stamp.
-        list_attrs: dict[str, Any] = {
-            "class": slot("file_list"),
-            "bz-show": "files.length > 0",
-        }
-        stamp_display_none(list_attrs)
-        return Element(
-            tag="div",
-            attrs=list_attrs,
-            children=(template,),
-        )
+        return Element(tag="div", attrs=wrapper_attrs,
+                       children=(native_input, full_empty_state, compact_empty_state))

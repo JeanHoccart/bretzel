@@ -20,7 +20,7 @@ PATH = "/avatar"
 
 
 SIZES    = ["xs", "sm", "md", "lg", "xl", "2xl"]
-VARIANTS = ["soft", "solid"]
+VARIANTS = ["solid", "soft"]
 SHAPES   = ["circle", "square"]
 COLORS   = ["primary", "secondary", "success", "warning",
             "error", "info", "muted"]
@@ -32,7 +32,7 @@ class AvatarPlayground(PageState):
     alt:         str = field(default="")
     initials:    str = field(default="AD")
     size:        str = field(default="md")
-    variant:     str = field(default="soft")
+    variant:     str = field(default="solid")
     shape:       str = field(default="circle")
     color:       str = field(default="primary")
     status:      str = field(default="")
@@ -376,13 +376,13 @@ def page() -> None:
                                level=3)
                     with ui.hstack(classes="-space-x-2"):
                         ui.avatar(initials="A", color="primary",
-                                  classes="!ring-2 !ring-background")
+                                  classes="ring-2 ring-background")
                         ui.avatar(initials="B", color="success",
-                                  classes="!ring-2 !ring-background")
+                                  classes="ring-2 ring-background")
                         ui.avatar(initials="C", color="warning",
-                                  classes="!ring-2 !ring-background")
+                                  classes="ring-2 ring-background")
                         ui.avatar(initials="+3", color="muted",
-                                  classes="!ring-2 !ring-background")
+                                  classes="ring-2 ring-background")
 
                     ui.heading("Inside ui.card (profile header)",
                                level=3)

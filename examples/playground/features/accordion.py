@@ -564,6 +564,21 @@ def page() -> None:
                                                label="The only one"):
                             ui.text("Body.", color="muted")
 
+                    ui.heading("A header whose text is copied — a mail in a thread",
+                               level=3)
+                    ui.text("Drag across the sender, or double-click a word: the text "
+                            "is selected and the item does not move. A click folds.",
+                            color="muted", size="xs")
+                    with ui.accordion(multiple=True):
+                        for who, said in (
+                            ("Camille Durand <camille.durand@example.org>",
+                             "Voici le devis signé."),
+                            ("Louis Bernard <louis.bernard@example.org>",
+                             "Merci, je transmets à la compta."),
+                        ):
+                            with ui.accordion_item(who.split()[0].lower(), label=who):
+                                ui.text(said, color="muted")
+
                     ui.heading("Very long scrolling body", level=3)
                     with ui.accordion():
                         with ui.accordion_item(
@@ -629,14 +644,15 @@ def page() -> None:
                 with ui.vstack():
                     ui.heading("A11y", level=2)
                     ui.text(
-                        "Each header is a ``<button type=\"button\">`` "
-                        "with ``aria-expanded`` reactive against the "
+                        "Each header is a ``div role=\"button\"`` (its text "
+                        "can be selected, a ``<button>``'s cannot), in the "
+                        "Tab order, Enter and Space fold it, with "
+                        "``aria-expanded`` reactive against the "
                         "expansion state and ``aria-controls`` pointing "
                         "at its body's ``id``. The body wears "
                         "``role=\"region\"`` + ``aria-labelledby`` "
                         "linking back to the header. Disabled items "
-                        "emit ``disabled`` HTML attr and skip the "
-                        "toggle click.",
+                        "emit ``aria-disabled`` and leave the Tab order.",
                         color="muted", size="sm",
                     )
                     with ui.accordion(value="kbd"):

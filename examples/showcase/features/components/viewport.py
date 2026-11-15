@@ -2,8 +2,7 @@
 
 A ``ui.viewport`` IS the browser window: it is ``fixed inset-0``. To show
 one inside a preview box, each example pins it into a ``relative`` frame
-# Fixed by design: `absolute!` holds it in this demo's box.
-with ``classes="absolute!"`` — in an app you write ``ui.viewport()`` bare.
+with ``classes="absolute"`` — in an app you write ``ui.viewport()`` bare.
 """
 
 from bretzel import ui
@@ -32,10 +31,10 @@ def app_shell() -> None:
     with (
         ui.vstack(gap="none", classes="relative h-[26rem] w-full overflow-hidden "
                                       "rounded-box border border-text/10"),
-        # Fixed by design: `absolute!` holds it in this demo's box.
-        ui.viewport(classes="absolute!"),
+        # Fixed by design: `absolute` holds it in this demo's box.
+        ui.viewport(classes="absolute"),
     ):
-        with ui.sidebar(collapsible="none", width="sm", slots={"root": "h-full!"}):
+        with ui.sidebar(collapsible="none", width="sm", slots={"root": "h-full"}):
             ui.sidebar_title("Nimbus", icon=ui.icon("cloud", color="primary", size="lg"))
             with ui.sidebar_section():
                 ui.sidebar_item("Activity", icon="activity", active=True)
@@ -55,8 +54,8 @@ def master_detail() -> None:
     with (
         ui.vstack(gap="none", classes="relative h-[24rem] w-full overflow-hidden "
                                       "rounded-box border border-text/10"),
-        # Fixed by design: `absolute!` holds it in this demo's box.
-        ui.viewport(classes="absolute!", grow="equal"),
+        # Fixed by design: `absolute` holds it in this demo's box.
+        ui.viewport(classes="absolute", grow="equal"),
     ):
         with ui.pane(padding="md", gap="sm"):
             ui.text("Conversations", weight="semibold")
@@ -76,8 +75,8 @@ def mobile_shell() -> None:
     with (
         ui.vstack(gap="none", classes="relative h-[32rem] w-full max-w-sm "
                                       "overflow-hidden rounded-box border border-text/10"),
-        # Fixed by design: `absolute!` holds it in this demo's box.
-        ui.viewport(direction="col", classes="absolute!"),
+        # Fixed by design: `absolute` holds it in this demo's box.
+        ui.viewport(direction="col", classes="absolute"),
     ):
         with ui.navbar():
             with ui.navbar_section(side="left"):
@@ -100,8 +99,8 @@ def centred() -> None:
     with (
         ui.vstack(gap="none", classes="relative h-[24rem] w-full overflow-hidden "
                                       "rounded-box border border-text/10"),
-        # Fixed by design: `absolute!` holds it in this demo's box.
-        ui.viewport(classes="absolute!"),
+        # Fixed by design: `absolute` holds it in this demo's box.
+        ui.viewport(classes="absolute"),
         ui.pane(padding="lg", align="center", justify="center"),
         ui.card(padding="lg", classes="w-full max-w-sm"),
         ui.vstack(gap="md"),
@@ -113,11 +112,11 @@ def centred() -> None:
 
 
 def page() -> None:
-    page_header("viewport", "Viewport & pane", SUMMARY)
+    page_header(("viewport", "pane"), "Viewport & pane", SUMMARY)
     example("An app shell", app_shell, uses=[activity], full=True,
             note="ui.viewport freezes the window; ui.pane is the region that "
                  "scrolls. Scroll the activity: the sidebar does not move. In "
-                 "an app the viewport IS the window — here classes=\"absolute!\" "
+                 "an app the viewport IS the window — here classes=\"absolute\" "
                  "pins it inside the box.")
     example("Two regions, two scrollbars", master_detail, uses=[activity],
             full=True,

@@ -82,6 +82,7 @@ SITES: tuple[tuple[str, str, str], ...] = (
 NAV = [
     ('GET STARTED', [
         ("Introduction", "/", "compass", ""),
+        ("Start with a mockup", "/mockup", "pencil-ruler", ""),
         ('Start in 5 minutes', "/quickstart", "rocket", ""),
         ('Understand Bretzel', "/how", "book-open", ""),
         ('How it compares', "/compare", "scale", ""),
@@ -145,7 +146,7 @@ def shell() -> None:
     ui.meta_tag(property="og:site_name", content="Bretzel")
     ui.meta_tag(
         property="og:description",
-        content="Bretzel documentation for server-driven, reactive Python web apps.",
+        content="Bretzel documentation: the Python web framework where the mockup is the app.",
     )
     ui.meta_tag(property="og:image", content=SHARE_IMAGE)
     ui.meta_tag(name="twitter:card", content="summary_large_image")

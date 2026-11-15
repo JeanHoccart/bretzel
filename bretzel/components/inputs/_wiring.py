@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -38,6 +39,25 @@ from bretzel.components.base import ComponentUsageError
 from bretzel.components.base.commands import ValueCommands
 from bretzel.components.base.scope_wiring import server_sync_marker
 from bretzel.core.tree import Element
+
+#: A horizontal padding token: ``px-3``, ``ps-10``, ``pe-2`` (not ``py-``).
+_INLINE_PADDING = re.compile(r"^p[xse]-\S+$")
+
+
+def ghost_frame(component: Any, classes: str) -> str:
+    """A ``ghost`` field's frame has no horizontal padding.
+
+    Without a frame, nothing marks where the field starts: its text, its
+    tags, an editor's bar start at its edge, on the same line as the label
+    or the other fields of a mail's header (Gmail). The vertical padding
+    stays — a ghost field is as tall as a framed one. The padding comes
+    from the size row, so it is REMOVED here (no class is assembled, which
+    the production build would not see); what the render adds after it —
+    the room an icon needs — stays.
+    """
+    if component._reactive_values.get("variant") != "ghost":
+        return classes
+    return " ".join(t for t in classes.split() if not _INLINE_PADDING.match(t))
 
 
 def refuse_on_a_single(component: Any, command: str) -> None:

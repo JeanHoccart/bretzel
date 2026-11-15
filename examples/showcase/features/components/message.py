@@ -66,7 +66,7 @@ def write_and_send() -> None:
 
 
 def page() -> None:
-    page_header("message", "Message", SUMMARY)
+    page_header(("message", "message_list", "message_input", "message_input_tool"), "Message", SUMMARY)
     example("Two shapes, one thread", two_shapes,
             note="The user's bubble sized to its words; the answer behind its "
                  "mark, in markdown, still being written.")

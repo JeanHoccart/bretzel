@@ -21,11 +21,11 @@ def shell() -> None:
             ui.icon_button(
                 "moon", variant="ghost", size="sm",
                 on_click=ColorScheme.toggle(), tooltip="Dark mode",
-                classes="dark:!hidden",
+                classes="dark:hidden",
             )
             ui.icon_button(
                 "sun", variant="ghost", size="sm",
                 on_click=ColorScheme.toggle(), tooltip="Light mode",
-                classes="!hidden dark:!inline-flex",
+                classes="hidden dark:inline-flex",
             )
         ui.outlet()

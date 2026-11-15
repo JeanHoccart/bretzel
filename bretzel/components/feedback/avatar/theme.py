@@ -12,13 +12,12 @@ Slots :
 
 Variants :
 
-- ``soft`` (default): a 10 % tint and the colour as ink. Right for a
-  list of people on a page, where the disc must not out-shout the name
-  beside it.
-- ``solid``: the full colour and its derived foreground. For a disc
-  that IS the information — a card's owner on a board — and for dark
-  surfaces, where the 10 % tint lands within 1.1:1 of the card it sits
-  on and the disc disappears.
+- ``solid`` (default): the full colour and its derived foreground. It
+  holds on every surface: on a dark card, the 10 % tint of ``soft``
+  lands within 1.1:1 of the card and the disc disappears.
+- ``soft``: a 10 % tint and the colour as ink — a disc that must stay
+  in the background, beside solid ones (a « nobody assigned »
+  placeholder next to the people of a board).
 """
 
 from __future__ import annotations

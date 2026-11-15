@@ -212,7 +212,7 @@ def server_panel() -> None:
                       on_change=server_changed)
         with control("disabled"):
             ui.switch(checked=state.disabled, on_change=server_changed)
-        with control('size (handle thickness)'):
+        with control('size (grip size)'):
             ui.select(value=state.size,
                       options=[(s, s) for s in SIZES],
                       on_change=server_changed)
@@ -398,7 +398,7 @@ def page() -> None:
                     panel_block(0, height="h-full")
                     panel_block(1, height="h-full")
 
-            ui.heading('Sizes (handle thickness)', level=3)
+            ui.heading('Sizes (the grip — hover the handle)', level=3)
             for s in SIZES:
                 ui.text(f"size={s}", color="muted", size="xs")
                 with ui.resizable(size=s):

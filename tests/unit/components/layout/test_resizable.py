@@ -33,6 +33,14 @@ class Layout(ClientState, persist="local"):
     split: list = field(default_factory=lambda: [30, 70])
 
 
+class Shown(ClientState):
+    """Three panels, each shown by its own client flag."""
+
+    a: bool = field(default=True)
+    b: bool = field(default=True)
+    c: bool = field(default=False)
+
+
 def _build(*, panels: int = 2, mins: tuple[float, ...] = (), **kwargs):
     with Resizable(**kwargs) as group:
         for index in range(panels):
@@ -280,12 +288,34 @@ class TestA11y:
         target = out.split('aria-controls="')[1].split('"')[0]
         assert f'id="{target}"' in out
 
-    def test_grip_is_visible_at_rest(self) -> None:
-        # Un doigt ne survole pas : un grip qui n'apparaît qu'au
-        # ``hover:`` n'annonce jamais qu'il y a quelque chose à
-        # attraper. Gaté aussi par test_hover_only_controls_reachable.
-        out = _html()
-        assert "opacity-0" not in out
+    def test_the_line_at_rest_follows_the_gap(self) -> None:
+        # Panneaux qui se touchent : un trait d'un ``--bz-stroke``, teinte
+        # des bordures. Une gouttière : rien au repos. Au survol, le trait
+        # prend la couleur dans les deux cas.
+        touching = _html()
+        assert "bg-text/10" in touching
+        assert "w-(length:--bz-stroke)" in touching
+        spaced = _html(gap="sm")
+        assert "bg-text/10" not in spaced
+        assert "bg-transparent" in spaced
+        for out in (touching, spaced):
+            assert "hover:bg-(--bz-border)" in out
+        # ``size`` ne règle plus que la prise : même trait à toutes les tailles.
+        assert "w-(length:--bz-stroke)" in _html(size="xl")
+
+    def test_a_responsive_gap_draws_the_line_where_it_is_none(self) -> None:
+        out = _html(gap={"base": "none", "md": "sm"})
+        assert "bg-text/10" in out
+        assert "md:bg-transparent" in out
+
+    def test_grip_shows_only_under_the_pointer(self) -> None:
+        # Une couleur, pas un ``opacity-0`` : la prise est une marque, pas
+        # un contrôle (test_hover_only_controls_reachable).
+        grip = RESIZABLE_THEME["slots"]["grip"].split()
+        assert "bg-transparent" in grip
+        for shown in ("group-hover/rz:", "group-focus-within/rz:", "group-active/rz:"):
+            assert any(c.startswith(shown + "bg-") for c in grip), shown
+        assert "opacity-0" not in _html()
 
 
 class TestBinding:
@@ -350,12 +380,12 @@ class TestImperative:
 
 class TestTheme:
     @pytest.mark.parametrize("size", ["xs", "sm", "md", "lg", "xl"])
-    def test_every_size_reaches_the_handle(self, size: str) -> None:
+    def test_every_size_reaches_the_grip(self, size: str) -> None:
         # Asserter la CLASSE du palier, pas « le HTML n'est pas vide » :
         # la première version de ce test passait sur n'importe quel
         # rendu, donc elle ne pouvait pas échouer pour la raison que son
-        # nom annonce.
-        assert RESIZABLE_THEME["sizes"][size]["bar_h"] in _html(size=size)
+        # nom annonce. ``size`` ne règle que la prise (le trait suit ``gap``).
+        assert RESIZABLE_THEME["sizes"][size]["grip_h"] in _html(size=size)
 
     def test_two_sizes_render_differently(self) -> None:
         assert _html(size="xs") != _html(size="xl")
@@ -365,3 +395,101 @@ class TestTheme:
         assert "hover:bg-(--bz-border)" in out
         assert "bz-c-success" in out
         assert "focus-visible:ring-(--bz-focus)" in out
+
+
+def _handles(group) -> list:
+    return [c for c in group.render().children if "data-bz-rz-handle" in c.attrs]
+
+
+class TestAHiddenPanelTakesItsHandle:
+    """A panel hidden on the client (``visible=`` bound) took neither its
+    handle nor its share of the ``gap`` with it: on Orga (2026-11-12) the
+    right panel closed and the handle stayed at the edge. The handle now
+    shows only between two VISIBLE panels, composed from their own
+    ``bz-show``."""
+
+    def test_a_handle_between_two_unbound_panels_is_always_shown(self) -> None:
+        with render_isolated():
+            (handle,) = _handles(_build())
+        assert "bz-show" not in handle.attrs
+
+    def test_the_handle_hides_with_the_panel_after_it(self) -> None:
+        with render_isolated(), rendering_scope():
+            shown = Shown()
+            with Resizable() as group:
+                with ResizablePanel():
+                    Text("main")
+                with ResizablePanel(collapsible=True, visible=shown.b):
+                    Text("side")
+            (handle,) = _handles(group)
+        assert handle.attrs["bz-show"] == "($bz.state.Shown.default.b)"
+
+    def test_the_handle_hides_with_a_first_panel(self) -> None:
+        # A hidden first panel must not leave a handle leading the group.
+        with render_isolated(), rendering_scope():
+            shown = Shown()
+            with Resizable() as group:
+                with ResizablePanel(visible=shown.a):
+                    Text("side")
+                with ResizablePanel():
+                    Text("main")
+            (handle,) = _handles(group)
+        assert handle.attrs["bz-show"] == "(($bz.state.Shown.default.a))"
+
+    def test_with_the_middle_one_hidden_one_handle_stays(self) -> None:
+        # [a, b, c]: handle 0 needs b; handle 1 needs c and (a or b) —
+        # so with b hidden, handle 1 alone separates a and c.
+        with render_isolated(), rendering_scope():
+            shown = Shown()
+            with Resizable() as group:
+                with ResizablePanel(visible=shown.a):
+                    Text("a")
+                with ResizablePanel(visible=shown.b):
+                    Text("b")
+                with ResizablePanel(visible=shown.c):
+                    Text("c")
+            first, second = _handles(group)
+        a, b, c = (f"$bz.state.Shown.default.{k}" for k in "abc")
+        assert first.attrs["bz-show"] == f"({b}) && (({a}))"
+        assert second.attrs["bz-show"] == f"({c}) && (({a}) || ({b}))"
+
+    def test_a_handle_hidden_at_first_paint_is_stamped(self) -> None:
+        # ``c`` defaults to False: the panel AND its handle are stamped
+        # ``display:none`` by the server, so nothing flashes.
+        with render_isolated(), rendering_scope():
+            shown = Shown()
+            with Resizable() as group:
+                with ResizablePanel():
+                    Text("a")
+                with ResizablePanel(visible=shown.c):
+                    Text("c")
+            (handle,) = _handles(group)
+        assert "display:none" in handle.attrs.get("style", "")
+
+    def test_a_bare_child_hidden_on_the_client_hides_its_box(self) -> None:
+        # The box the group draws around a bare child kept its share of
+        # the group, empty, when the child hid itself.
+        with render_isolated(), rendering_scope():
+            shown = Shown()
+            with Resizable() as group:
+                Text("a")
+                Text("b", visible=shown.b)
+            panels = [c for c in group.render().children if "data-bz-rz-panel" in c.attrs]
+        assert panels[1].attrs["bz-show"] == "$bz.state.Shown.default.b"
+        assert "bz-show" not in panels[0].attrs
+
+    def test_which_panel_folds_is_decided_by_the_runtime(self) -> None:
+        # The visible neighbours of a handle change without a render, so
+        # the server only says "this group can fold".
+        with render_isolated():
+            with Resizable() as group:
+                with ResizablePanel():
+                    Text("a")
+                with ResizablePanel(collapsible=True):
+                    Text("b")
+            (handle,) = _handles(group)
+        assert handle.attrs["bz-on:dblclick"] == "_foldAt(0)"
+        assert handle.attrs["bz-on:keydown"] == "_key($event, 0)"
+        with render_isolated():
+            (plain,) = _handles(_build())
+        assert "bz-on:dblclick" not in plain.attrs

@@ -9,8 +9,10 @@ Three variants :
   ``height=`` for cards / images / charts.
 
 ``animated=True`` (default) uses Tailwind's ``animate-pulse`` so the
-placeholder breathes ; pass ``animated=False`` for fully static
-print / screenshot use.
+placeholder breathes — unless the system asks to reduce motion
+(``motion-safe:``): a placeholder waits for content, it does not say
+"working" like a spinner, so it holds still. Pass ``animated=False``
+for fully static print / screenshot use.
 """
 
 from __future__ import annotations
@@ -69,7 +71,7 @@ class Skeleton(Component):
             for p in (
                 slots.get("root", ""),
                 variants.get(variant, variants.get("rectangle", "")),
-                "animate-pulse" if animated else "",
+                "motion-safe:animate-pulse" if animated else "",
             )
             if p
         )

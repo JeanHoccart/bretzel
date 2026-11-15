@@ -119,20 +119,8 @@ class IconButton(Component):
         attrs = self.emit_attrs()
         self.apply_class_attrs(attrs)
 
-        # An icon button with no text has NO accessible name: a screen
-        # reader announces "button", and a test cannot find it by
-        # role+name. The ``tooltip=`` already says in full what the
-        # button is for — it wraps the component in a :class:`Tooltip`,
-        # which is a hover, not a label. So we copy it into
-        # ``aria-label`` when the caller has not set one.
-        #
-        # Only a string: a ``tooltip=ui.text(...)`` is rich content, and
-        # flattening a tree into a label would produce a sentence nobody
-        # wrote.
-        if "aria-label" not in attrs and isinstance(self._tooltip, str):
-            label = self._tooltip.strip()
-            if label:
-                attrs["aria-label"] = label
+        # No text: the ``tooltip=`` names the button — for every control,
+        # in the tooltip that wraps it (``overlay.tooltip.name_from_tooltip``).
 
         loading_binding = self._binding_metadata.get("loading")
         loading = bool(self._reactive_values.get("loading"))

@@ -400,7 +400,7 @@ def page() -> None:
 
                     ui.heading("Very large via classes", level=3)
                     ui.icon_button("save", size="xl",
-                                   classes="!h-16 !w-16",
+                                   classes="h-16 w-16",
                                    aria_label="Big save")
 
             # ── Card 4 — Composability ──────────────────────────────

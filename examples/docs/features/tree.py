@@ -54,7 +54,7 @@ from bretzel.introspect import (
 )
 
 from examples.docs.features.shell import shell
-from examples.docs.lib.blocks import plain
+from examples.docs.lib.blocks import component_count, plain
 
 PATH = "/tree"
 
@@ -298,8 +298,8 @@ def tree_page() -> None:
                     ui.text(
                         'Of a symbol, the tree gives the name and the '
                         'first line. Not its parameters, not its slots, '
-                        'not its events: there are 2 827 lines of those '
-                        'for the 111 components alone, and showing them '
+                        'not its events: there are thousands of lines of '
+                        f'those for the {component_count()} components alone, and showing them '
                         'here would make a page nobody would read. The '
                         'catalogue has its own page, and `bretzel describe'
                         ' <name>` returns the complete sheet on the '

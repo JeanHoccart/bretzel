@@ -194,7 +194,7 @@ def page() -> None:
 
                     ui.heading("Very large via classes=", level=3)
                     with ui.hstack(align="center"):
-                        ui.spinner(size="xl", classes="!h-24 !w-24")
+                        ui.spinner(size="xl", classes="h-24 w-24")
 
                     ui.heading("Smallest readable (xs)", level=3)
                     with ui.hstack(align="center"):

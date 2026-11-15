@@ -175,8 +175,9 @@ def state_server_page() -> None:
                 with ui.vstack(gap="sm"):
                     ui.heading('Declaring a state', level=2)
                     ui.text(
-                        'An immutable default → directly. A mutable '
-                        'default → `field(default_factory=…)`. '
+                        'Every field goes through `field(...)`: '
+                        '`field(default=…)` for an immutable default, '
+                        '`field(default_factory=…)` for a mutable one. '
                         '`@validator` normalises on write, `@computed` '
                         'derives automatically.',
                         color="muted", size="sm",
@@ -274,7 +275,7 @@ def state_server_page() -> None:
                         '`DatatableState.filters` stays out of the address'
                         ' by construction. To survive a navigation WITHOUT'
                         ' being published, it is the scope you need: '
-                        '`scope="session"`.',
+                        'a `SessionState`.',
                         color="muted", size="sm",
                     )
 

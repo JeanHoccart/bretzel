@@ -357,11 +357,14 @@ SIDEBAR_THEME: dict[str, Any] = {
         # when closed. ``z-50`` goes in front of the dimmed backdrop
         # (``z-40``). The translation rather than a ``display:none``: it
         # animates, and it keeps the node mounted so the client scope
-        # survives. It slides IN and closes at once: the transition lives
-        # on the open state (the why: ``overlay/dialog/theme.py``).
+        # survives. It slides in 200 ms ease-out and back out in 150 ms
+        # ease-in, letting the pointer through at once (the why:
+        # ``overlay/dialog/theme.py``).
         "overlay": (
             "fixed inset-y-0 left-0 z-50 shadow-2xl "
             "data-[open=true]:transition-transform data-[open=true]:duration-200 data-[open=true]:ease-out "
+            "data-[open=false]:transition-transform data-[open=false]:duration-150 "
+            "data-[open=false]:ease-in data-[open=false]:pointer-events-none "
             "data-[open=false]:-translate-x-full"
         ),
         "none": "relative z-40",
@@ -370,7 +373,9 @@ SIDEBAR_THEME: dict[str, Any] = {
     # not a child (cf. ``_render_backdrop``).
     "backdrop": (
         "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm "
-        "data-[open=true]:transition-opacity data-[open=true]:duration-200 "
+        "data-[open=true]:transition-[opacity,visibility] data-[open=true]:duration-200 "
+        "data-[open=false]:transition-[opacity,visibility] data-[open=false]:duration-150 "
+        "data-[open=false]:ease-in "
         "data-[open=false]:opacity-0 data-[open=false]:invisible "
         "data-[open=false]:pointer-events-none"
     ),

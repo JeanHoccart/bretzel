@@ -82,7 +82,7 @@ def responsive() -> None:
 
 
 def page() -> None:
-    page_header("stack", "Stack & flex", SUMMARY)
+    page_header(("vstack", "hstack", "flex"), "Stack & flex", SUMMARY)
     example("A vertical list", vertical, uses=[tile],
             note="ui.vstack puts its children one under the other, with a "
                  "gap from the theme's spacing scale.")

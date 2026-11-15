@@ -15,6 +15,7 @@ from bretzel.theme.palette import (
     DEFAULT_SEMANTIC_DARK,
     DEFAULT_SEMANTIC_LIGHT,
     Palette,
+    ThemeError,
 )
 
 
@@ -130,6 +131,47 @@ class TestScrollbarCss:
         # thumb actually paints — a 2px border eats the whole bar.
         css = generate_scrollbar_css(ScrollbarConfig(), palette)
         assert "border: 1px solid transparent" in css
+
+    def test_hidden_at_rest_by_default(self, palette: Palette) -> None:
+        # ``show="hover"`` : thumb transparent at rest, coloured under the
+        # pointer and while the runtime marks the region as scrolling.
+        css = generate_scrollbar_css(ScrollbarConfig(), palette)
+        thumb = "color-mix(in srgb, var(--color-muted) 30%, transparent)"
+        assert "background-color: transparent;" in css
+        assert (
+            ":hover::-webkit-scrollbar-thumb, "
+            f"[data-bz-scrolling]::-webkit-scrollbar-thumb {{ background-color: {thumb}; }}"
+        ) in css
+        assert "scrollbar-color: transparent transparent" in css
+        assert f":hover, [data-bz-scrolling] {{ scrollbar-color: {thumb} transparent; }}" in css
+
+    def test_always_paints_the_thumb_at_rest(self, palette: Palette) -> None:
+        css = generate_scrollbar_css(ScrollbarConfig(show="always"), palette)
+        thumb = "color-mix(in srgb, var(--color-muted) 30%, transparent)"
+        assert f"background-color: {thumb};" in css
+        assert "data-bz-scrolling" not in css
+
+    def test_standard_properties_are_for_firefox_only(self, palette: Palette) -> None:
+        # Chrome 121+ drops ``::-webkit-scrollbar`` on an element that has
+        # ``scrollbar-width`` / ``scrollbar-color`` (cf. the consistency gate).
+        css = generate_scrollbar_css(ScrollbarConfig(), palette)
+        fence = css.index("@supports not selector(::-webkit-scrollbar)")
+        assert css.index("scrollbar-width: thin") > fence
+        assert css.startswith("/* scrollbar */\n@property --bz-scrollbar-shown ")
+        assert "@layer base {" in css
+
+    def test_hover_restyles_the_element_itself(self, palette: Palette) -> None:
+        # Chromium repaints a custom bar only when the element's own style
+        # changes: without this trigger the bar never showed on hover.
+        css = generate_scrollbar_css(ScrollbarConfig(), palette)
+        assert "inherits: false" in css
+        assert ":hover, [data-bz-scrolling] { --bz-scrollbar-shown: 1; }" in css
+        always = generate_scrollbar_css(ScrollbarConfig(show="always"), palette)
+        assert "--bz-scrollbar-shown" not in always
+
+    def test_unknown_show_is_refused(self) -> None:
+        with pytest.raises(ThemeError):
+            ScrollbarConfig(show="never")  # type: ignore[arg-type]
 
 
 # ───────────────────────────────────────────────────────────────────────────

@@ -37,8 +37,8 @@ from bretzel.core.invoke import call_without_blocking
 from bretzel.render import (
     ROUTE_VENDOR,
     cached_name,
-    downloadable_assets,
     icon_payload,
+    served_assets,
     vendored_is_available,
     vendored_local_path,
 )
@@ -148,7 +148,7 @@ def register_static_routes(
         answer 404: the app would lose htmx and iconify at once, so its
         icons and its transport, with not a single server error.
         """
-        for asset in downloadable_assets():
+        for asset in served_assets():
             if cached_name(asset) == filename and vendored_is_available(asset):
                 return FileResponse(
                     vendored_local_path(asset),

@@ -16,7 +16,8 @@ Three pieces, horizontal counterpart to the Sidebar trio :
 
 Slots :
 - ``navbar.root``         : the ``<header>`` flex row
-- ``navbar.inner``        : the inner ``<nav>`` flex row (max-width clamp)
+- ``navbar.inner``        : the inner ``<nav>`` flex row (its clamp comes
+  from ``clamp``, or ``widths`` + ``aligned`` when ``width=`` is passed)
 - ``navbar.section_left``     : left section flex container
 - ``navbar.section_center``   : center section flex container
 - ``navbar.section_right``    : right section flex container
@@ -40,15 +41,10 @@ NAVBAR_THEME: dict[str, Any] = {
             "group/navbar w-full bg-surface z-30 "
             "border-b-(length:--bz-stroke) border-text/10"
         ),
-        # Inner ``<nav>`` — clamps max-width + horizontal padding for
-        # comfortable line length on wide viewports. Mirror of Container
-        # but local to navbar so we don't accidentally pick up vertical
-        # padding from a future Container theme change.
-        "inner": (
-            "mx-auto w-full max-w-screen-2xl "
-            "px-4 sm:px-6 lg:px-8 "
-            "flex flex-row items-center gap-4 h-14"
-        ),
+        # Inner ``<nav>`` — the flex row that holds the sections. Its
+        # width clamp and horizontal margin are NOT here: they come from
+        # ``clamp`` (no ``width=``) or from ``widths`` + ``aligned``.
+        "inner": "mx-auto w-full flex flex-row items-center gap-4 h-14",
         # Per-side section containers. ``mr-auto`` on left + ``ml-auto``
         # on right push them to the edges ; center uses ``mx-auto``.
         # Each section is itself a flex-row so items + components inside
@@ -59,21 +55,36 @@ NAVBAR_THEME: dict[str, Any] = {
         ),
         "section_right": "flex flex-row items-center gap-2 ms-auto",
     },
+    # No ``width=``: the bar's own clamp, wider than any page column. It
+    # lines up with nothing, which is why ``width=`` exists.
+    "clamp": "max-w-screen-2xl px-4 sm:px-6 lg:px-8",
+    # ``width=``: the SAME table as ``ui.container(width=…)``, key for key,
+    # so a bar and a page given the same word share their left edge.
+    # Harmonised, not imported (style tokens stay per component); the
+    # equality is gated by ``test_a_bar_lines_up_with_its_page``.
+    "widths": {
+        "sm":   "max-w-2xl",
+        "md":   "max-w-3xl",
+        "lg":   "max-w-5xl",
+        "xl":   "max-w-7xl",
+        "2xl":  "max-w-screen-2xl",
+        "full": "",
+    },
+    # What ``width=`` adds besides the clamp:
+    # - the horizontal margin of ``ui.container``, the box family's
+    #   ``--bz-pad-6``: one token for both, so they cannot drift apart;
+    # - the first ``navbar_item`` of the left section lines up its TEXT,
+    #   not its pill — the pill overflows outwards by its own ``px-3``
+    #   (the Linear / GitHub header). ``-ms-3`` mirrors the item's
+    #   ``px-3``; the gate reads both.
+    "aligned": (
+        "px-(--bz-pad-6) "
+        "[&>[data-bz-side=left]>[data-bz-nav-item]:first-child]:-ms-3"
+    ),
     # ``sticky=True`` injects fixed positioning so the bar stays at the
     # top during page scroll. Backdrop blur softens content sliding
     # underneath.
     "sticky": "sticky top-0 backdrop-blur-md bg-surface/95",
-    # ``variant`` axis kept narrow for v1 — "standard" = the default
-    # bordered bar, "floating" = rounded card detached from the viewport
-    # edges (Stripe / Linear marketing site idiom).
-    "variants": {
-        "standard": "",
-        "floating": (
-            "max-w-screen-2xl mx-auto mt-3 rounded-box "
-            "border-(length:--bz-stroke) border-text/10 shadow-sm bg-surface/95 "
-            "backdrop-blur-md"
-        ),
-    },
 }
 
 

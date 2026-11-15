@@ -169,8 +169,21 @@ def show_attrs(open_expr: str, initial_open: bool) -> dict[str, Any]:
     return {
         "data-open": "true" if initial_open else "false",
         "bz-attr:data-open": bool_attr(open_expr),
+        **closed_inert(open_expr, initial_open),
         "data-bz-overlay": "",
     }
+
+
+def closed_inert(open_expr: str, initial_open: bool) -> dict[str, Any]:
+    """``inert`` while closed: out of focus, pointer and assistive tech.
+
+    A closed panel may still be painted — a modal fades out for 150 ms
+    (``components.md`` § motion), an off-canvas sidebar is only slid off
+    screen — and during that time it must not take a Tab, a click or a
+    screen reader: it is gone for everything but the eye. ``bz-attr``
+    removes the attribute when the expression turns false.
+    """
+    return {"bz-attr:inert": f"!({open_expr})", **({} if initial_open else {"inert": ""})}
 
 
 def focus_trap_effect(open_expr: str) -> str:

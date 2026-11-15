@@ -15,8 +15,13 @@ from typing import Any
 CONTAINER_THEME: dict[str, Any] = {
     "slots": {
         # ``mx-auto`` centers, ``w-full`` lets the max-width clamp it,
-        # ``px-6 py-8`` is the baked content padding.
-        "root": "mx-auto w-full px-6 py-8",
+        # ``py-8`` and the horizontal margin are the baked content
+        # padding. The horizontal margin is the box family's
+        # ``--bz-pad-6`` (1.5rem by default): it is the
+        # one ``ui.navbar(width=…)`` writes too, so a bar and a page of
+        # the same width share their left edge whatever the theme's
+        # ``spacing=`` says. Gated by ``test_a_bar_lines_up_with_its_page``.
+        "root": "mx-auto w-full px-(--bz-pad-6) py-8",
     },
     "widths": {
         "sm":   "max-w-2xl",

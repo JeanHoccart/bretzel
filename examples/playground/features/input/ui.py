@@ -77,6 +77,7 @@ def build_preview(state: InputPlayground):
         "type": state.type,
         "color": state.color,
         "size": state.size,
+        "variant": state.variant,
         "disabled": state.disabled,
         "readonly": state.readonly,
         "required": state.required,
@@ -159,6 +160,10 @@ def server_panel() -> None:
         with control("size"):
             ui.select(value=state.size,
                       options=[(s, s) for s in SIZES],
+                      on_change=server_changed)
+        with control("variant (surface / ghost)"):
+            ui.select(value=state.variant,
+                      options=[("surface", "surface"), ("ghost", "ghost")],
                       on_change=server_changed)
         with control("disabled"):
             ui.switch(checked=state.disabled, on_change=server_changed)
@@ -336,6 +341,19 @@ def page() -> None:
                         "steppers + clamp + precision).",
                         color="muted", size="xs",
                     )
+
+                    ui.heading("Variants — surface / ghost", level=3)
+                    ui.text(
+                        "ghost: no background, no frame — the container "
+                        "around it structures the screen. The mouse puts "
+                        "the caret in it; the Tab key brings the ring.",
+                        color="muted", size="sm",
+                    )
+                    with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
+                        for v in ("surface", "ghost"):
+                            with ui.vstack(gap="xs"):
+                                ui.input(placeholder=f"variant={v}", variant=v)
+                                ui.input(prefix="@", placeholder="with an affix", variant=v)
 
                     ui.heading("Sizes", level=3)
                     with ui.vstack(gap="sm"):

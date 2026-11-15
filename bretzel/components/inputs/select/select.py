@@ -83,7 +83,7 @@ from bretzel.components.inputs._picker import (
     option_classes,
     render_x_icon,
 )
-from bretzel.components.inputs._wiring import ChoiceCommands
+from bretzel.components.inputs._wiring import ChoiceCommands, ghost_frame
 from bretzel.components.inputs.select.theme import SELECT_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element, Node
@@ -138,6 +138,13 @@ class Select(ChoiceCommands, FocusCommands, Component):
     required: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
+    #: The look of the field, the words of ``ui.button``: ``surface`` (the
+    #: default) is the framed field; ``ghost`` has neither background nor
+    #: frame — the container around it structures the screen (the lines
+    #: of a mail) — and its focus ring only for a keyboard user
+    #: (``data-bz-keyboard`` on ``<html>``, set by ``helpers.js``).
+    variant: str = reactive_prop(default="surface", emit_attr=False,
+                                 steps=("surface", "ghost"))
 
     def __init__(
         self,
@@ -153,6 +160,7 @@ class Select(ChoiceCommands, FocusCommands, Component):
         required: bool | None = None,
         color: str | None = None,
         size: str | None = None,
+        variant: str | None = None,
         on_change: Callable[..., Any] | str | None = None,
         on_focus: Callable[..., Any] | str | None = None,
         on_blur: Callable[..., Any] | str | None = None,
@@ -163,7 +171,7 @@ class Select(ChoiceCommands, FocusCommands, Component):
             name=name, value=value, placeholder=placeholder,
             multiple=multiple, bulk_actions=bulk_actions,
             disabled=disabled, required=required,
-            color=color, size=size,
+            color=color, size=size, variant=variant,
             on_change=on_change,
             on_focus=on_focus,
             on_blur=on_blur,
@@ -244,7 +252,7 @@ class Select(ChoiceCommands, FocusCommands, Component):
         value_label_map = {str(v): str(label) for v, label, _ in normalised}
 
         # ── Trigger button ───────────────────────────────────────────
-        trigger_class = self.compose_class("trigger")
+        trigger_class = ghost_frame(self, self.compose_class("trigger"))
 
         # The label inside the trigger : reactive lookup through
         # ``_labelOf``, the scope method that reads the baked ``_labels``
@@ -301,6 +309,7 @@ class Select(ChoiceCommands, FocusCommands, Component):
         chevron_render = Component.with_slot_class(
             Component.render_detached(chevron),
             slots.get("chevron", ""),
+            addition=self._slot_addition("chevron"),
         )
 
         # ── Resolve event relocations BEFORE building trigger / hidden.

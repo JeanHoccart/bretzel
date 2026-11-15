@@ -32,7 +32,7 @@ class TestStructure:
         # Component delegates state + behaviour to the runtime factory
         # (cf. bretzel/components/inputs/file_upload/file_upload.js) — keeps each
         # instance's bz-data short.
-        assert "$bz.fileUpload.makeScope(" in html
+        assert "$bz.attachments.makeScope(" in html
 
     def test_scope_captures_root_via_el(self) -> None:
         # V3 scope methods have no $root / $refs — the factory captures
@@ -65,16 +65,11 @@ class TestVariants:
         assert "bz-on:dragenter=" in html
         assert "bz-on:drop=" in html
 
-    def test_button_variant_skips_drop_handlers(self) -> None:
-        html = _render(variant="button")
-        assert "border-dashed" not in html
-        assert "bz-on:dragenter" not in html
-        assert "bz-on:drop" not in html
-
-    def test_invalid_variant_raises(self) -> None:
+    def test_variant_is_refused(self) -> None:
+        """A compact button is ``ui.attachments`` and a button, not a variant."""
         from bretzel.components.base import ComponentUsageError
-        with pytest.raises(ComponentUsageError):
-            FileUpload(variant="oops")
+        with render_isolated(), pytest.raises(ComponentUsageError, match="attachments"):
+            FileUpload(variant="button")
 
     def test_dropzone_keyboard_accessible(self) -> None:
         # Enter / Space open the file picker so keyboard users don't
@@ -82,7 +77,7 @@ class TestVariants:
         # per-key modifier — one ``bz-on:keydown`` guards on $event.key.
         html = _render()
         assert "bz-on:keydown=" in html
-        assert "openPicker()" in html
+        assert 'bz-on:click="pick()"' in html
         # role=button + aria-label so screen readers announce the
         # control as activatable.
         assert 'role="button"' in html
@@ -91,10 +86,6 @@ class TestVariants:
     def test_dropzone_default_label(self) -> None:
         html = _render()
         assert "Drop files here or click to browse" in html
-
-    def test_button_default_label(self) -> None:
-        html = _render(variant="button")
-        assert "Upload file" in html
 
     def test_custom_label(self) -> None:
         html = _render(label="Attach a document")
@@ -265,7 +256,7 @@ class TestBindableContract:
     def test_events_listed(self) -> None:
         assert FileUpload.EVENTS == (
             "change",
-            "upload_start", "upload_complete", "upload_error",
+            "upload_start", "upload_complete", "upload_error", "remove",
             "focus", "blur",
         )
 
@@ -303,9 +294,9 @@ class TestSizeAxis:
         assert "py-3" in _render(size="xs")
         assert "py-16" in _render(size="xl")
 
-    def test_button_padding_scales_with_size(self) -> None:
-        assert "h-7" in _render(variant="button", size="xs")
-        assert "h-14" in _render(variant="button", size="xl")
+    def test_remove_button_scales_with_size(self) -> None:
+        assert "w-4 h-4" in _render(size="xs")
+        assert "w-8 h-8" in _render(size="xl")
 
 
 # ───────────────────────────────────────────────────────────────────
@@ -442,12 +433,12 @@ class TestRemoveButtonStyling:
 
 
 class TestStripScrollbar:
-    def test_strip_uses_custom_scrollbar(self) -> None:
-        # We override the default browser scrollbar so we don't end
-        # up with a double scrollbar inside Card. The strip uses a
-        # thin themed bar that only shows on hover.
+    def test_strip_uses_the_theme_scrollbar(self) -> None:
+        # The theme's bar (``ScrollbarConfig``) is already thin and hidden
+        # until hovered or scrolled. The strip's own ``[&::-webkit-…]``
+        # variants compiled in production only, and drew a thumb at rest.
         html = _render()
-        assert "::-webkit-scrollbar" in html
+        assert "::-webkit-scrollbar" not in html
 
     def test_strip_overflow_y_hidden(self) -> None:
         # Without ``overflow-y: hidden`` the strip can grow a vertical
@@ -567,53 +558,49 @@ class TestCallableEventRouting:
 
 
 class TestListPresentations:
-    """``list=`` est un axe INDÉPENDANT de ``variant=`` : celui-ci habille
-    le déclencheur, celui-là la liste des fichiers déposés.
+    """``display=`` habille la liste sous la zone de dépôt.
 
     Les différences structurelles sont gatées catalogue-large par
     ``tests/consistency/test_list_presentations_restructure.py`` ; ici on
-    épingle l'indépendance des deux axes et le défaut."""
+    épingle le défaut de ``file_upload`` (les tuiles qui défilent)."""
 
     def test_tiles_is_the_default(self) -> None:
-        assert _render() == _render(list="tiles")
+        assert _render() == _render(display="strip")
 
     def test_chips_drop_the_thumbnail_node(self) -> None:
         """Pas masqué — non émis. Un nœud masqué coûterait quand même son
         ``URL.createObjectURL`` côté runtime."""
-        assert "<img" in _render(list="tiles")
-        assert "<img" not in _render(list="chips")
+        assert "<img" in _render(display="strip")
+        assert "<img" not in _render(display="chips")
 
     def test_chips_remove_button_leaves_the_corner(self) -> None:
         """La raison d'être de la présentation : le × de la tuile est un
         badge de coin (``absolute -top-2 -right-2``) ; dans une puce il
         doit vivre dans le flux."""
-        assert "-top-2" in _render(list="tiles")
-        assert "-top-2" not in _render(list="chips")
+        assert "-top-2" in _render(display="strip")
+        assert "-top-2" not in _render(display="chips")
 
-    def test_the_two_axes_are_independent(self) -> None:
-        """Les quatre combinaisons se construisent et se rendent — si
-        ``list=`` n'était lu que dans la branche ``dropzone``, la moitié
-        du tableau serait morte sans que rien ne le dise."""
-        for variant in ("dropzone", "button"):
-            for presentation in ("tiles", "chips"):
-                out = _render(variant=variant, list=presentation)
-                assert len(out) > 500, f"{variant}/{presentation} vide"
-                has_corner = "-top-2" in out
-                assert has_corner == (presentation == "tiles"), (
-                    f"variant={variant} list={presentation} : le × de coin "
-                    f"ne suit pas ``list=``, donc l'axe est mal câblé."
-                )
+    def test_every_presentation_renders(self) -> None:
+        for presentation in ("strip", "chips", "grid"):
+            out = _render(display=presentation)
+            assert len(out) > 500, f"{presentation} vide"
+            assert ("-top-2" in out) == (presentation != "chips"), (
+                f"display={presentation} : le × de coin ne suit pas ``display=``."
+            )
 
     def test_an_unknown_presentation_raises(self) -> None:
         from bretzel.components.base import ComponentUsageError
 
         with pytest.raises(ComponentUsageError, match="zznope"):
-            _render(list="zznope")
+            _render(display="zznope")
+
+    def test_list_is_renamed(self) -> None:
+        from bretzel.components.base import ComponentUsageError
+
+        with pytest.raises(ComponentUsageError, match="display"):
+            _render(list="chips")
 
     def test_accept_still_takes_a_python_list(self) -> None:
-        """⚠️ Le kwarg ``list=`` MASQUE le builtin ``list`` dans le corps
-        d'``__init__``. Sans ``_SEQUENCE_TYPES``, ce cas levait
-        ``isinstance() arg 2 must be a type`` — à trois cents lignes du
-        nom fautif. Mesuré en écrivant la prop."""
-        out = _render(accept=["image/*", ".pdf"], list="chips")
+        """``accept=`` prend une chaîne à virgules ou une liste de jetons."""
+        out = _render(accept=["image/*", ".pdf"], display="chips")
         assert 'accept="image/*,.pdf"' in out

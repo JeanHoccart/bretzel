@@ -155,8 +155,9 @@ def skeleton_html() -> str:
     values** in the HTML — Tailwind scans them on the SSR pass so the
     CSS is ready before the first toast appears. Enter animation is
     pure CSS (the ``bz-toast-enter`` keyframe fires on mount, in the
-    shell's ``_NOTIFICATION_ANIM_STYLE``) ; leave is immediate — what
-    disappears does not linger.
+    shell's ``_NOTIFICATION_ANIM_STYLE``) ; leave is a two-phase dismiss
+    (``notification.js`` flags ``t._leaving``, the ``bz-toast-leave``
+    keyframe fades it in 150 ms, then the node goes).
     """
 
     theme = NOTIFICATION_THEME
@@ -196,10 +197,12 @@ def skeleton_html() -> str:
             # variant classes onto the static ``root`` slot (a plain
             # ``bz-attr:class`` would wipe it — cf. traps.md). The static
             # ``bz-toast-enter`` fires the enter keyframe on mount (bz-for
-            # is keyed on ``t.id`` so only new toasts animate). No leave
-            # class: a dismissed toast goes at once.
+            # is keyed on ``t.id`` so only new toasts animate) ; the merged
+            # ``bz-toast-leave`` comes with ``t._leaving`` (two-phase
+            # dismiss, ``notification.js``).
             f'<div class="{slots["root"]} bz-toast-enter" '
-            f'bz-class="(({variant_map})[t.variant] || \'{neutral}\')" '
+            f'bz-class="(({variant_map})[t.variant] || \'{neutral}\')'
+            f' + (t._leaving ? \' bz-toast-leave\' : \'\')" '
             f'role="status" bz-attr:id="t.id">'
             # Icon (only when ``t.icon`` is set)
             f'<iconify-icon class="{slots["icon"]}" '

@@ -14,8 +14,11 @@
 // here builds that scope. Reassignment (not in-place push/splice) so
 // the ``bz-for`` over each bucket re-renders (V3 signals are
 // identity-compared). Enter animation is a CSS keyframe fired on mount ;
-// leave is IMMEDIATE — what disappears does not linger. The neighbours
-// still glide into the freed slot (``:flip``).
+// leave is a two-phase dismiss: flag ``_leaving`` (the ``bz-toast-leave``
+// keyframe fades it in ``leave_ms``, the pointer already passes through),
+// then splice. A toast floats over the page: it goes the way a dialog
+// goes (rule 5 of the motion rule, ``components.md`` § motion).
+// The neighbours glide into the freed slot (``:flip``).
 //
 // Variant / icon / position normalisation reads the theme blob the
 // shell injects on ``window.$bz_theme.notification``.
@@ -36,6 +39,8 @@
     const positions = Object.keys(THEME.positions || { "top-right": 1 });
     const variants = Object.keys(THEME.variants || { info: 1 });
     const icons = THEME.icons || {};
+    // The fade-out of ``bz-toast-out``, from the same Python constant.
+    const leaveMs = THEME.leave_ms || 0;
 
     function emptyStacks() {
       const out = {};
@@ -81,10 +86,30 @@
       },
 
       dismiss(id) {
-        // At once: a toast that leaves does not linger. A
-        // double dismiss (click + auto-timeout) finds nothing the second
-        // time — ``_remove`` is a no-op on an unknown id.
-        this._remove(id);
+        // "Reduce motion": no fade to wait for, it goes at once.
+        if ($bz.helpers.prefersReducedMotion()) {
+          this._remove(id);
+          return;
+        }
+        // Phase 1: flag it leaving, under the same ``id`` so the keyed
+        // ``bz-for`` updates the node in place. A double dismiss (click +
+        // auto-timeout) finds it already leaving and does nothing.
+        let found = false;
+        const next = {};
+        for (const p of Object.keys(this.stacks)) {
+          next[p] = this.stacks[p].map(function (t) {
+            if (t.id !== id || t._leaving) return t;
+            found = true;
+            return Object.assign({}, t, { _leaving: true });
+          });
+        }
+        if (!found) return;
+        this.stacks = next;
+        // Phase 2: splice once the fade has played.
+        const self = this;
+        setTimeout(function () {
+          self._remove(id);
+        }, leaveMs);
       },
 
       _remove(id) {

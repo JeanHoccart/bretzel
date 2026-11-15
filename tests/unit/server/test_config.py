@@ -27,9 +27,33 @@ class TestValidation:
         with pytest.raises(ConfigError, match="workers must be"):
             BretzelConfig(secret_key=_OK, workers=0)
 
-    def test_multi_worker_needs_redis(self) -> None:
-        with pytest.raises(ConfigError, match="redis_url"):
-            BretzelConfig(secret_key=_OK, workers=4, redis_url=None)
+    def test_multi_worker_needs_a_redis_state_url(self) -> None:
+        with pytest.raises(ConfigError, match="redis://"):
+            BretzelConfig(secret_key=_OK, workers=4)
+
+    def test_multi_worker_refuses_a_state_file(self) -> None:
+        # A file outlives a restart; it carries no SSE signal between
+        # processes, and @idempotent stays in each one.
+        with pytest.raises(ConfigError, match="Several workers"):
+            BretzelConfig(secret_key=_OK, workers=2, state_url="sqlite:///s.db")
+
+    def test_multi_worker_accepts_redis(self) -> None:
+        cfg = BretzelConfig(secret_key=_OK, workers=2, state_url="redis://h:6379/0")
+        assert cfg.workers == 2
+
+    @pytest.mark.parametrize("url", [
+        "sqlite:///state.db", "sqlite:///C:/apps/state.db",
+        "redis://h:6379/0", "rediss://h:6380", "unix:///tmp/redis.sock",
+    ])
+    def test_state_url_accepts_its_schemes(self, url: str) -> None:
+        assert BretzelConfig(secret_key=_OK, state_url=url).state_url == url
+
+    @pytest.mark.parametrize("url", [
+        "postgresql://h/db", "state.db", "file:///state.db", "memory://",
+    ])
+    def test_state_url_refuses_any_other_scheme(self, url: str) -> None:
+        with pytest.raises(ConfigError, match="unknown scheme"):
+            BretzelConfig(secret_key=_OK, state_url=url)
 
     def test_session_max_age_must_be_positive(self) -> None:
         with pytest.raises(ConfigError, match="session_max_age_days"):
@@ -64,7 +88,7 @@ class TestDefaults:
         assert cfg.workers == 1
         assert cfg.debug is False
         assert cfg.session_max_age_days == 30
-        assert cfg.redis_url is None
+        assert cfg.state_url is None
         assert cfg.mobile_breakpoint == 768
 
 

@@ -223,7 +223,7 @@ def comment_thread() -> None:
 
 
 def page() -> None:
-    page_header("each", "Lists", SUMMARY)
+    page_header(("each", "filter_each", "limit_each", "paginate_each", "show_more"), "Lists", SUMMARY)
     example("Rows that keep their identity", keyed_rows,
             uses=[invitations, Invites, revoke, restore, pending_invites],
             note="ui.each gives every row a stable key, so removing one on "

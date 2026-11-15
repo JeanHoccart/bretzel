@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.data.accordion import Accordion, AccordionItem
 from bretzel.core.serialize import serialize
 from bretzel.state.scopes.client import ClientBinding
+
 
 def _synced_keys(out: str) -> set[str]:
     """Les clés réellement re-semées.
@@ -112,10 +115,9 @@ class TestStructure:
     def test_three_items_three_headers(self) -> None:
         with render_isolated():
             out = serialize(_build_basic_accordion().render())
-        # Each item → one <button type="button"> header.
-        # Other buttons may exist in the page chrome, but in this
-        # isolated test only the headers appear.
-        assert out.count('<button type="button"') == 3
+        # Each item → one ``div role="button"`` header (its text can be
+        # selected, which a ``<button>``'s cannot).
+        assert out.count('role="button"') == 3
 
     def test_headers_aria_controls_match_body_id(self) -> None:
         with render_isolated():
@@ -523,7 +525,20 @@ class TestAccordionItem:
             with Accordion() as acc, AccordionItem("a", label="A", disabled=True):
                 pass
             out = serialize(acc.render())
-        assert "disabled" in out
+        header = re.search(r'<div[^>]*role="button"[^>]*>', out).group(0)
+        assert 'aria-disabled="true"' in header
+        # Out of the Tab order, and inert: no click, no key.
+        assert "tabindex" not in header and "bz-on:" not in header
+
+    def test_a_header_is_a_focusable_button_the_keyboard_opens(self) -> None:
+        with render_isolated():
+            with Accordion() as acc, AccordionItem("a", label="A"):
+                pass
+            out = serialize(acc.render())
+        header = re.search(r'<div[^>]*role="button"[^>]*>', out).group(0)
+        assert 'tabindex="0"' in header
+        assert "headerClick($event, $el," in header
+        assert "bz-on:keydown" in header and "'Enter'" in header
 
     def test_item_renders_standalone_fallback(self) -> None:
         """Used outside an Accordion, an item renders as a plain

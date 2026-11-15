@@ -58,7 +58,7 @@ DROPDOWN_THEME: dict[str, Any] = {
             # that lingers reads as latency, not as care.
             #
             # Guarded by ``test_a_declared_transition_can_animate``
-            # (classes) and ``tests/runtime_js/test_a_panel_closes_at_once.py``
+            # (classes) and ``tests/runtime_js/test_motion_by_rule.py``
             # (measured).
             "transition-opacity duration-150 "
             "starting:opacity-0"

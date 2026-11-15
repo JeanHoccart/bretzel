@@ -31,6 +31,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from bretzel.core import call_without_blocking
 from bretzel.render import zones_reachable_from
 from bretzel.runtime.protocol import ROUTE_STATIC_DIR
+from bretzel.server.config import redis_state_url
 from bretzel.server.errors import BretzelError
 from bretzel.server.middleware.auth import AuthMiddleware
 from bretzel.server.middleware.csrf import CSRFMiddleware
@@ -50,6 +51,7 @@ from bretzel.server.routing.static import register_static_routes
 from bretzel.server.sse import MemoryBroker
 from bretzel.state.persistence.base import Backend
 from bretzel.state.persistence.memory import MemoryBackend
+from bretzel.state.persistence.sqlite import SqliteBackend
 from bretzel.theme import strip_safelist, strip_scan_roots
 
 if TYPE_CHECKING:
@@ -108,7 +110,7 @@ async def _check_state_backend(app: Bretzel) -> None:
     except Exception as exc:  # re-raised enriched just below
         raise RuntimeError(
             f"The state backend ({type(backend).__name__}) is unreachable "
-            f"at startup: {exc!r}. Check the URL / credentials passed to "
+            f"at startup: {exc!r}. Check the `state_url` passed to "
             f"`Bretzel(...)`. (Without this check, the error would only have "
             f"appeared on the first request.)"
         ) from exc
@@ -253,19 +255,21 @@ def _resolve_theme(app: Bretzel) -> None:
 
 
 def _build_state_backend(app: Bretzel) -> None:
-    """Choose the persistence backend.
+    """Choose the persistence backend from ``state_url``.
 
-    No Redis URL → in-memory (single-worker dev). Multi-worker without
-    Redis is rejected by the config at construction, so the only
-    branch we need to handle here is "Redis URL is set".
+    Unset → in memory. ``sqlite:///…`` → that file. A Redis URL → Redis.
+    The config has already refused any other scheme, and several workers
+    on anything but Redis.
     """
-    config = app.config
-    if config.redis_url:
+    url = app.config.state_url
+    if redis_state_url(url):
         # Redis import is deferred so test environments without the
         # ``redis`` package can still build a Bretzel app on memory.
         from bretzel.state.persistence.redis import RedisBackend
 
-        app._state_backend = RedisBackend.from_url(config.redis_url)
+        app._state_backend = RedisBackend.from_url(url)
+    elif url:
+        app._state_backend = SqliteBackend.from_url(url)
     else:
         app._state_backend = MemoryBackend()
 
@@ -273,33 +277,35 @@ def _build_state_backend(app: Bretzel) -> None:
 def _build_sse_broker(app: Bretzel) -> None:
     """Wire the SSE broker that tells the other tabs a state they show changed.
 
-    Redis URL set → cross-worker :class:`RedisBroker` (Pub/Sub fanout of
-    the ``state-dirty`` signal) ; otherwise the in-process
-    :class:`MemoryBroker`. Branching on ``redis_url`` alone (not
-    ``workers>1``) mirrors the state backend and idempotency store : a
+    A Redis ``state_url`` → cross-worker :class:`RedisBroker` (Pub/Sub
+    fanout of the ``state-dirty`` signal); otherwise the in-process
+    :class:`MemoryBroker`. Branching on the URL's scheme (not
+    ``workers>1``) mirrors the state backend and idempotency store: a
     shared Redis is the signal that other processes/replicas may hold the
-    subscribing tabs, and the config already forces a ``redis_url`` when
-    ``workers>1``.
+    subscribing tabs, and the config already demands one when
+    ``workers>1``. A SQLite file is not: it outlives a restart, it does
+    not carry a signal between processes.
     """
-    config = app.config
-    if config.redis_url:
+    url = redis_state_url(app.config.state_url)
+    if url:
         # Deferred import so memory-only apps don't need the redis package.
         from bretzel.server.sse import RedisBroker
 
-        app._sse_broker = RedisBroker.from_url(config.redis_url)
+        app._sse_broker = RedisBroker.from_url(url)
     else:
         app._sse_broker = MemoryBroker()
 
 
 def _build_idempotency_store(app: Bretzel) -> None:
-    """Wire the ``@idempotent`` dedup store — Redis when a URL is set (its
-    atomic ``SET NX`` is what a multi-worker claim needs), else in-memory.
+    """Wire the ``@idempotent`` dedup store — Redis when ``state_url`` is a
+    Redis URL (its atomic ``SET NX`` is what a multi-worker claim needs),
+    else in-memory.
     """
-    config = app.config
-    if config.redis_url:
+    url = redis_state_url(app.config.state_url)
+    if url:
         from bretzel.server.idempotency import RedisIdempotencyStore
 
-        app._idempotency_store = RedisIdempotencyStore.from_url(config.redis_url)
+        app._idempotency_store = RedisIdempotencyStore.from_url(url)
     else:
         from bretzel.server.idempotency import MemoryIdempotencyStore
 

@@ -41,10 +41,10 @@ EXPECTED_MODULES = [
     "helpers.js",
     # Stateful-widget slabs load after the core 7 (they use window.$bz
     # which 00-06 set up). ``<bz-calendar>`` custom element + the
-    # ``$bz.fileUpload`` scope factory.
+    # ``$bz.attachments`` scope factory.
     "locale.js",
     "calendar.js",
-    "file_upload.js",
+    "attachments.js",
     "notification.js",
     "charts.js",
     # ``$bz.numberInput.scope`` factory — the heavy NumberInput client
@@ -56,6 +56,7 @@ EXPECTED_MODULES = [
     "select.js",
     # ``$bz.combobox.common`` / ``.single`` / ``.multi`` factory scopes.
     "combobox.js",
+    "tags_input.js",
     # Le scope de Pagination. L'algorithme ``range()`` était sérialisé dans
     # le ``bz-data`` de chaque instance — 957 octets, le plus gros du dépôt,
     # avec la config cuite dans les corps de méthode. Migré le 2026-07-29 :
@@ -101,6 +102,7 @@ EXPECTED_MODULES = [
         "scheduler.js",
         "tip.js",
         "message_input.js",
+        "editor.js",
         "message_list.js",
     # Les noms de mois et de jours, derives de ``<html lang>`` par
     # ``Intl``. Le seul module qui n'expose ni scope ni element : une

@@ -4,12 +4,12 @@
   "owner": {
     "name": "Jean Hoccart"
   },
-  "description": "Claude Code plugin for Bretzel, the server-driven Python web framework.",
+  "description": "Claude Code plugin for Bretzel, the Python web framework where the mockup is the app.",
   "plugins": [
     {
       "name": "bretzel",
       "source": "./claude-plugin",
-      "description": "Build Bretzel apps with Claude Code: a real mockup of each screen before the code, the exact API from `bretzel describe`, and `bretzel check` on every file written.",
+      "description": "Build Bretzel apps with Claude Code — the mockup is the app: a real mockup of each screen first, the same file wired once approved, the exact API from `bretzel describe`, and `bretzel check` on every file written.",
       "category": "development"
     }
   ]

@@ -223,6 +223,10 @@ def page() -> None:
                 "``duration_ms``.",
                 color="muted",
             )
+            ui.text(
+                "Motion: comes in over 200 ms, fades out in 150 ms when closed, then its neighbours glide into the slot in 200 ms (the motion rule, rule 4, 5 and 6).",
+                color="muted", size="sm",
+            )
 
             # ── Card 1 — Reference ──────────────────────────────────
             with ui.card():

@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from bretzel.state import ClientState, PageState, field
 
-
-VARIANTS = ("dropzone", "button")
+DISPLAYS = ("strip", "chips", "grid")
 COLORS = (
     "primary", "secondary", "success", "warning", "error", "info", "muted",
 )
@@ -16,7 +15,7 @@ class FileUploadPlayground(PageState):
     """Drives the Server playground card."""
 
     # ── Component-public props ────────────────────────────────────
-    variant:         str = field(default="dropzone")
+    display:         str = field(default="strip")
     label:           str = field(default="")
     name:            str = field(default="")
     multiple:        str = field(default="off")

@@ -286,7 +286,7 @@ def page() -> None:
                     ui.heading("Very large via size + classes", level=3)
                     with ui.hstack(align="center"):
                         ui.icon("rocket", size="2xl",
-                                classes="!text-6xl")
+                                classes="text-6xl")
 
                     ui.heading("Inherits ``text-current`` color",
                                level=3)

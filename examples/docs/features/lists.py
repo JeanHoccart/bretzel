@@ -136,6 +136,8 @@ def lists_page() -> None:
                         color="muted", size="sm",
                     )
                     ui.code(
+                        "from math import ceil\n"
+                        "\n"
                         "class View(ClientState):\n"
                         "    page: int = field(default=1)\n"
                         "\n"
@@ -143,8 +145,8 @@ def lists_page() -> None:
                         "for row in ui.paginate_each(ROWS, page=v.page,\n"
                         "                            per_page=20, key=\"id\"):\n"
                         "    ui.text(row.name)\n"
-                        "ui.pagination(value=v.page, total=len(ROWS),\n"
-                        "              per_page=20)\n",
+                        "ui.pagination(value=v.page,\n"
+                        "              total_pages=ceil(len(ROWS) / 20))\n",
                         lang="python",
                     )
                     ui.alert(

@@ -35,15 +35,11 @@ SELECT_THEME: dict[str, Any] = {
         # Trigger button — same visual as Input/Textarea so the form
         # looks coherent.
         "trigger": (
-            "flex items-center w-full rounded-field border-(length:--bz-stroke) "
-            "border-text/10 bg-interface text-text "
+            # The frame and its focus ring are the variant's (``variants``).
+            "flex items-center w-full rounded-field text-text "
             "cursor-pointer outline-none "
             "transition duration-200 "
-            "focus:border-(--bz-solid) "
-            "focus:ring-2 focus:ring-(--bz-focus-soft) "
-            "focus:ring-offset-2 focus:ring-offset-background "
-            "disabled:opacity-50 disabled:cursor-not-allowed "
-            "disabled:bg-muted/10"
+            "disabled:opacity-50 disabled:cursor-not-allowed"
         ),
         # Inner label ; ``truncate`` keeps long values one-line.
         "label": "flex-1 text-start truncate",
@@ -194,6 +190,14 @@ SELECT_THEME: dict[str, Any] = {
     # sized in ``text-*``, never in ``w-``/``h-`` (traps.md).
     #
     # ``md`` = the historical look, unchanged.
+    "variants": {
+        "surface": {
+            "trigger": "bg-interface border-(length:--bz-stroke) border-text/10 focus:border-(--bz-solid) focus:ring-2 focus:ring-(--bz-focus-soft) focus:ring-offset-2 focus:ring-offset-background disabled:bg-muted/10",
+        },
+        "ghost": {
+            "trigger": "[[data-bz-keyboard]_&]:focus:ring-2 [[data-bz-keyboard]_&]:focus:ring-(--bz-focus) [[data-bz-keyboard]_&]:focus:ring-offset-2 [[data-bz-keyboard]_&]:focus:ring-offset-background",
+        },
+    },
     "sizes": {
         "xs": {
             "trigger": "h-7 px-2 text-xs",
@@ -215,7 +219,7 @@ SELECT_THEME: dict[str, Any] = {
             "footer_counter": "text-xs",
             "footer_btn_primary": "text-xs",
             "footer_btn_muted": "text-xs",
-            "pill_size": "xs",
+            "pill_size": "sm",
             "chevron_size": "xs",
             "clear_icon_size": "xs",
         },
@@ -227,7 +231,7 @@ SELECT_THEME: dict[str, Any] = {
             "footer_counter": "text-xs",
             "footer_btn_primary": "text-xs",
             "footer_btn_muted": "text-xs",
-            "pill_size": "sm",
+            "pill_size": "md",
             "chevron_size": "sm",
             "clear_icon_size": "xs",
         },
@@ -239,7 +243,7 @@ SELECT_THEME: dict[str, Any] = {
             "footer_counter": "text-sm",
             "footer_btn_primary": "text-sm",
             "footer_btn_muted": "text-sm",
-            "pill_size": "md",
+            "pill_size": "lg",
             "chevron_size": "md",
             "clear_icon_size": "sm",
         },
@@ -251,7 +255,7 @@ SELECT_THEME: dict[str, Any] = {
             "footer_counter": "text-base",
             "footer_btn_primary": "text-base",
             "footer_btn_muted": "text-base",
-            "pill_size": "lg",
+            "pill_size": "xl",
             "chevron_size": "lg",
             "clear_icon_size": "sm",
         },

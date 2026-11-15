@@ -161,6 +161,7 @@ from bretzel.components.inputs._picker import (
     build_footer_bar,
     build_header_bar,
     build_pills_template,
+    field_text_pill,
     has_picks,
     normalise_option,
     option_body,
@@ -168,7 +169,7 @@ from bretzel.components.inputs._picker import (
     option_classes,
     render_x_icon,
 )
-from bretzel.components.inputs._wiring import ChoiceCommands
+from bretzel.components.inputs._wiring import ChoiceCommands, ghost_frame
 from bretzel.components.inputs.combobox.theme import COMBOBOX_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.text import fold
@@ -285,6 +286,13 @@ class Combobox(ChoiceCommands, FocusCommands, Component):
     required: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
+    #: The look of the field, the words of ``ui.button``: ``surface`` (the
+    #: default) is the framed field; ``ghost`` has neither background nor
+    #: frame — the container around it structures the screen (the lines
+    #: of a mail) — and its focus ring only for a keyboard user
+    #: (``data-bz-keyboard`` on ``<html>``, set by ``helpers.js``).
+    variant: str = reactive_prop(default="surface", emit_attr=False,
+                                 steps=("surface", "ghost"))
 
     def __init__(
         self,
@@ -303,6 +311,7 @@ class Combobox(ChoiceCommands, FocusCommands, Component):
         required: bool | None = None,
         color: str | None = None,
         size: str | None = None,
+        variant: str | None = None,
         on_change: Callable[..., Any] | str | None = None,
         on_focus: Callable[..., Any] | str | None = None,
         on_blur: Callable[..., Any] | str | None = None,
@@ -319,7 +328,7 @@ class Combobox(ChoiceCommands, FocusCommands, Component):
             creatable=creatable,
             empty_text=empty_text,
             disabled=disabled, required=required,
-            color=color, size=size,
+            color=color, size=size, variant=variant,
             on_change=on_change,
             on_focus=on_focus,
             on_blur=on_blur,
@@ -549,7 +558,7 @@ class Combobox(ChoiceCommands, FocusCommands, Component):
         )
 
         # ── Trigger : pills (multi only) + input + clear + chevron ──
-        trigger_class = self.compose_class("trigger")
+        trigger_class = ghost_frame(self, self.compose_class("trigger"))
         input_class = self.compose_class("input")
 
         # Trigger pills (multi only, CLOSED state). When the panel is
@@ -573,6 +582,8 @@ class Combobox(ChoiceCommands, FocusCommands, Component):
                 size=size_map.get("pill_size", "sm"),
                 badge_theme=self._resolved_theme("badge", BADGE_THEME),
             )
+            # Its letters are the size of the text typed beside them.
+            badge_pill_class = field_text_pill(badge_pill_class, size_map.get("input", ""))
             pill_template = build_pills_template(
                 pill_class=badge_pill_class,
                 remove_class=badge_remove_class,
@@ -584,11 +595,18 @@ class Combobox(ChoiceCommands, FocusCommands, Component):
             # FOUC pre-stamp : the wrapper is hidden only when ``open``
             # is true at SSR — but the panel starts CLOSED, so the
             # pills are visible at first paint. No pre-stamp needed.
+            # « +N »: the picks the line has no room for. Hidden until
+            # ``fitPills`` measures an overflow; ``shrink-0`` so it is
+            # never the one cut.
+            more_attrs: dict[str, Any] = {
+                "class": f"{badge_pill_class} shrink-0", "data-bz-more": ""}
+            stamp_display_none(more_attrs)
             pills_children.append(
                 Element(
                     tag="div",
                     attrs=pills_wrapper_attrs,
-                    children=(pill_template,),
+                    children=(pill_template,
+                              Element(tag="span", attrs=more_attrs, children=())),
                 )
             )
         # The inner <input type="text">.
@@ -769,9 +787,16 @@ class Combobox(ChoiceCommands, FocusCommands, Component):
             trigger_children: tuple[Node, ...] = detached_trigger.children
         else:
             pills_children.append(search_field)
+            row_attrs: dict[str, Any] = {"class": slots.get("pills_row", "")}
+            if is_multi:
+                # Re-fitted when the picks change, when the panel closes,
+                # and when the row is resized.
+                row_attrs["bz-effect"] = (
+                    "_picked(); open; $nextTick(() => $bz.combobox.fitPills($el))")
+                row_attrs["bz-init"] = "$bz.combobox.observeFit($el)"
             pills_row = Element(
                 tag="div",
-                attrs={"class": slots.get("pills_row", "")},
+                attrs=row_attrs,
                 children=tuple(pills_children),
             )
 
@@ -1132,6 +1157,7 @@ class Combobox(ChoiceCommands, FocusCommands, Component):
         return Component.with_slot_class(
             Component.render_detached(Icon("chevron-down", size=icon_size)),
             chevron_class,
+            addition=self._slot_addition("chevron"),
         )
 
     def _render_option_box(self, size_map: dict[str, str]) -> Element:

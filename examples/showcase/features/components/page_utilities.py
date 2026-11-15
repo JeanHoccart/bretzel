@@ -101,7 +101,7 @@ def pending_demo() -> None:
 
 
 def page() -> None:
-    page_header("title · ui.meta_tag · ui.outlet · ui.fragment · ui.pending", "Page utilities", SUMMARY)
+    page_header(("title", "meta_tag", "outlet", "fragment", "pending"), "Page utilities", SUMMARY)
     example("A tab title from your data", tab_title,
             note="ui.title replaces the route's title with one computed while "
                  "the page renders — this very tab starts with the unread count.")

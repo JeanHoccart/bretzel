@@ -22,7 +22,7 @@ SPARKLINE_THEME: dict[str, Any] = {
         # any shadow reads as fuzz at this scale.
         "line": (
             "stroke-(--bz-solid) fill-none "
-            "transition-[d] duration-500 ease-out "
+            "motion-safe:transition-[d] duration-400 ease-out "
             "bz-line-entry"
         ),
         # The gradient's colour lives on the ``<linearGradient>``

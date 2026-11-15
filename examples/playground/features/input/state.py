@@ -53,6 +53,7 @@ class InputPlayground(PageState):
     value:        str  = field(default="")
     color:        str  = field(default="primary")
     size:         str  = field(default="md")
+    variant:      str  = field(default="surface")
     # HTML5 validation attrs
     disabled:     bool = field(default=False)
     readonly:     bool = field(default=False)

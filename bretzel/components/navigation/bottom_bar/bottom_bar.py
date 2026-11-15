@@ -262,15 +262,18 @@ class BottomBarItem(NavItem):
         if isinstance(icon, Component):
             Component._detach_from_parent(icon)
             wrapped.append(
-                Component.with_slot_class(icon.render(), slots.get("icon", ""))
+                Component.with_slot_class(icon.render(), slots.get("icon", ""),
+                                          addition=self._slot_addition("icon"))
             )
 
         # A Component passed as badge only gets the PLACEMENT: it has
         # already decided its look, and repainting over it would put two
         # competing ``bg-*`` on the same node (cf. the theme).
         badge_class = slots.get("badge", "")
+        badge_addition = self._slot_addition("badge")
         if not isinstance(badge_value, Component):
             badge_class = f"{badge_class} {slots.get('badge_pill', '')}".strip()
+            badge_addition = self._slot_addition("badge", "badge_pill")
 
         if badge_binding is not None:
             wrapped.append(
@@ -278,10 +281,11 @@ class BottomBarItem(NavItem):
                     badge_value,
                     badge_class,
                     reactive_path=self.path_of(badge_binding),
+                    addition=badge_addition,
                 )
             )
         elif badge_value is not None:
-            wrapped.append(render_badge(badge_value, badge_class))
+            wrapped.append(render_badge(badge_value, badge_class, addition=badge_addition))
 
         children: list[Any] = []
         if wrapped:

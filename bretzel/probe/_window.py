@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from bretzel.probe._hidden import LOAD_JS, REDRAWN_JS
 from bretzel.probe._settle import settle_page
 
 #: How long an element is allowed to keep us waiting before the harness
@@ -71,6 +72,10 @@ class Window:
         self.console: list[str] = []
         self.broken: list[str] = []
         self._seen: list[Seen] = []
+        #: What ``visible=`` hid at each load, and each zone an action
+        #: redrew — judged by the sweep (``_hidden``).
+        self.loads: list[tuple[str, dict[str, Any]]] = []
+        self.redrawn: list[dict[str, Any]] = []
         self._wire()
 
     # ── what the window records by itself ─────────────────────────────
@@ -90,6 +95,13 @@ class Window:
         )
         self.page.on("request", self._note)
         self.page.on("response", self._note_response)
+        self.page.expose_function("__bzProbeRedrawn", self._note_redrawn)
+        self.page.add_init_script(REDRAWN_JS)
+
+    def _note_redrawn(self, zone: dict[str, Any]) -> None:
+        # A bound method, not ``list.append``: Playwright tags its callback
+        # with an attribute, which a builtin refuses.
+        self.redrawn.append(zone)
 
     def _note_response(self, response: Any) -> None:
         if not response.url.startswith(self._base):
@@ -129,6 +141,7 @@ class Window:
         # `load` has already passed: nothing is debouncing, so the
         # anti-debounce floor would have nothing to cover.
         self.settle(floor=0)
+        self.loads.append((path, self.page.evaluate(LOAD_JS)))
 
     def click(self, sel: str) -> None:
         self._one(sel).click()

@@ -32,9 +32,35 @@
   "use strict";
   const $bz = (window.$bz = window.$bz || {});
 
+  // ── The header's click, shared by both modes ─────────────────────
+  // The header's text can be selected (« Sophie Marchand <s.marchand@…> »
+  // in a mail): only a CLICK folds. A drag ends in a click with text
+  // selected in the header — nothing moves. A double click is two clicks:
+  // the first folded, the second puts the state back and leaves the word
+  // selected; a triple click does nothing more. The state before the
+  // click lives on the header node, not in the scope (no effect to wake).
+  const header = {
+    headerClick(e, el, v) {
+      if (e.detail === 2 && el._bzBeforeClick !== undefined) {
+        this._write(el._bzBeforeClick);
+        el._bzBeforeClick = undefined;
+        return;
+      }
+      if (e.detail > 1) return;
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && el.contains(sel.anchorNode)) {
+        el._bzBeforeClick = undefined;
+        return;
+      }
+      el._bzBeforeClick = this._read();
+      this.toggle(v);
+    },
+  };
+
   $bz.accordion = {
     // ── One panel open at a time ────────────────────────────────────
     single: {
+      ...header,
       isOpen(v) {
         return String(this._read() || "") === String(v);
       },
@@ -70,6 +96,7 @@
 
     // ── Plusieurs panneaux ouverts ──────────────────────────────────
     multi: {
+      ...header,
       isOpen(v) {
         return (this._read() || []).indexOf(v) >= 0;
       },

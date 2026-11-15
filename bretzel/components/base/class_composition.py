@@ -9,19 +9,44 @@ from bretzel.core.tree import Element, Node
 from bretzel.runtime.protocol import (
     BZ_SHOW_PREFIX,
 )
+from bretzel.theme.class_merge import merge_classes
 
 if TYPE_CHECKING:
     pass
+
+
+def _app_theme() -> object | None:
+    """The ``Theme`` of the app being rendered, ``None`` outside a render."""
+    from bretzel.render.context import maybe_current_context
+
+    ctx = maybe_current_context()
+    return getattr(ctx.app, "theme", None) if ctx is not None else None
+
+
+def merge_app_classes(base: str, addition: str) -> str:
+    """``base`` + the app's ``addition``, the app winning every conflict.
+
+    Through the app's theme, which caches the pair; outside a render (a
+    unit test building a component bare) the same merge, uncached.
+    Cf. :mod:`bretzel.theme.class_merge` for the rule, and ``traps.md``,
+    « L'ordre dans ``class=`` ne tranche pas un conflit Tailwind ».
+    """
+    merge = getattr(_app_theme(), "merge_classes", None)
+    return merge(base, addition) if callable(merge) else merge_classes(base, addition)
 
 
 class ClassComposition:
     """Mixed into :class:`Component`."""
 
     def slot_class(self, slot: str, *extra: str) -> str:
-        """Compose classes for a non-root slot and optional extra fragments."""
-        return " ".join(
-            part for part in (self.compose_class(slot), *extra) if part
-        )
+        """Compose classes for a non-root slot and optional extra fragments.
+
+        The app's ``slots={slot: …}`` stays LAST, over the fragments too:
+        ``slot_class("empty", "flex-row")`` must not out-vote an app's
+        ``flex-col`` by coming after it."""
+        composed = " ".join(part for part in (self.compose_class(slot), *extra) if part)
+        addition = self._slot_addition(slot) if any(extra) else ""
+        return merge_app_classes(composed, addition) if addition else composed
 
     def _size_key(self) -> str | None:
         """The step this instance is drawn at: ``size=`` as given.
@@ -54,8 +79,8 @@ class ClassComposition:
         applies variant / size / modifier lookups when relevant. The
         user-supplied ``classes=`` are NOT added
         here — they land on the true root later, in
-        ``_apply_universal_modifiers`` (the metaclass render wrap), so
-        cosmetic overrides still win in source order (see step 5 below).
+        ``_apply_universal_modifiers`` (the metaclass render wrap), merged
+        so that they win every conflict (see steps 5 and 6 below).
 
         Parameters:
         - ``slot``: key in ``theme["slots"]``. Defaults to ``"root"``.
@@ -78,20 +103,29 @@ class ClassComposition:
         theme = self._resolved_theme()
         parts: list[str] = []
 
-        # 1. The slot template itself.
-        slot_template = theme.get("slots", {}).get(slot)
+        # 1. The slot template itself. With a ``slots={slot: …}`` of the
+        # instance, the template WITHOUT it: the app's addition is merged
+        # after the variant and the size (step 6), which would otherwise
+        # come after it and win again.
+        addition = self._slot_addition(slot)
+        slots = (self._resolved_theme(with_instance_slots=False) if addition
+                 else theme).get("slots", {})
+        slot_template = slots.get(slot)
         if slot_template:
             parts.append(slot_template)
 
-        if apply_variant_size_modifiers and slot == "root":
-            # 2. Variant.
+        if apply_variant_size_modifiers:
+            # 2. Variant. A row is a class string — the root's — or a dict
+            # keyed by slot, like a size row: each slot takes its own entry
+            # (Badge: ``root`` and ``close`` ; a field whose frame is not its
+            # root: ``trigger``, ``input``).
             variant_value = self._reactive_values.get("variant")
             if variant_value is not None:
                 variant_template = theme.get("variants", {}).get(variant_value)
-                # A variant row may be keyed by slot, like a size row
-                # (Badge: ``root`` and ``close``); the root takes its own.
                 if isinstance(variant_template, dict):
                     variant_template = variant_template.get(slot)
+                elif slot != "root":
+                    variant_template = None
                 if variant_template:
                     parts.append(variant_template)
 
@@ -124,13 +158,24 @@ class ClassComposition:
         # uniformly regardless of which slot composes its root. See
         # ``_user_classes_str``.
 
-        # 6. No slot override here. ``slots={"<slot>": "..."}`` is already
-        # IN the template of step 1: ``_resolved_theme`` merges it into
-        # ``theme["slots"]`` (non-root slots; the root's lands on the true
-        # root in ``_apply_universal_modifiers``). Appending it here would
-        # give every non-root slot composed here the override twice.
+        # 6. The instance's ``slots={"<slot>": "..."}`` (non-root slots; the
+        # root's lands on the true root in ``_apply_universal_modifiers``),
+        # LAST and merged: a ``p-4`` given by the app removes the template's
+        # ``p-2`` and the size row's ``px-4 py-3`` alike. The reads made by
+        # hand (``slots.get("item")``) get the same merge from
+        # ``_resolved_theme``, on the template alone.
+        composed = " ".join(p for p in parts if p).strip()
+        return merge_app_classes(composed, addition) if addition else composed
 
-        return " ".join(p for p in parts if p).strip()
+    def _slot_addition(self, *slots: str) -> str:
+        """What the instance's ``slots=`` adds to ``slots`` — ``""`` for
+        the root (applied on the true root, post-render) and before the
+        keys are validated (cf. ``_resolved_theme``). Several slots when
+        one element wears several (a badge and its pill)."""
+        if not getattr(self, "_user_slots_validated", False):
+            return ""
+        given = getattr(self, "_user_slots", None) or {}
+        return " ".join(str(given[s]) for s in slots if s != "root" and given.get(s))
 
     @property
     def _raw_class_str(self) -> str:
@@ -202,7 +247,9 @@ class ClassComposition:
             merge_attr(attrs, "class", cls_string)
 
     @staticmethod
-    def with_slot_class(node: Node, slot_class: str, **extra_attrs: Any) -> Node:
+    def with_slot_class(
+        node: Node, slot_class: str, *, addition: str = "", **extra_attrs: Any,
+    ) -> Node:
         """Clone ``node`` with ``slot_class`` PREPENDED to its ``class``.
 
         The gesture: a component receives a subcomponent as a slot (a nav
@@ -219,6 +266,12 @@ class ClassComposition:
         ``aria-hidden`` on the same clone (otherwise two would be
         needed).
 
+        ``addition`` — the app's ``slots={<slot>: …}`` for this slot
+        (``self._slot_addition(slot)``) — is merged LAST: the child
+        decides against the slot's theme, the app decides against both.
+        Without it, ``slots={"icon": "shrink"}`` lost to the icon's own
+        ``shrink-0``.
+
         A ``node`` that is not an ``Element`` (FragmentNode, TextNode)
         comes back as-is: it has no attributes to set the class on.
         """
@@ -226,6 +279,8 @@ class ClassComposition:
             return node
         existing = str(node.attrs.get("class", "")).strip()
         merged = f"{slot_class} {existing}".strip() if existing else slot_class
+        if addition:
+            merged = merge_app_classes(merged, addition)
         import dataclasses as _dc
 
         return _dc.replace(node, attrs={**node.attrs, "class": merged, **extra_attrs})
@@ -269,8 +324,13 @@ class ClassComposition:
         self,
         key: str | None = None,
         shipped: dict[str, Any] | None = None,
+        *,
+        with_instance_slots: bool = True,
     ) -> dict[str, Any]:
         """Merge the user's app-level override onto ``cls.THEME``.
+
+        ``with_instance_slots=False``: without the instance's ``slots=``
+        additions — what ``compose_class`` merges an addition onto, last.
 
         ``key`` / ``shipped`` default to its own. Passing them resolves
         ANOTHER component's theme — a real case: Combobox and Select
@@ -292,21 +352,15 @@ class ClassComposition:
         context is active (typical in unit tests) or when no override
         exists.
         """
-        own = key is None and shipped is None
+        own = key is None and shipped is None and with_instance_slots
         if own and getattr(self, "_own_theme", None) is not None:
             return self._own_theme
-        from bretzel.render.context import maybe_current_context
-
         name = key if key is not None else self.THEME_KEY
         default = shipped if shipped is not None else type(self).THEME
-
-        ctx = maybe_current_context()
-        resolved = default
-        if ctx is not None:
-            theme_obj = getattr(ctx.app, "theme", None)
-            getter = getattr(theme_obj, "merged_component_theme", None) if theme_obj else None
-            if callable(getter):
-                resolved = getter(name, default)
+        getter = getattr(_app_theme(), "merged_component_theme", None)
+        resolved = getter(name, default) if callable(getter) else default
+        if not with_instance_slots:
+            return resolved
         # ``slots={"panel": …}`` — the per-instance override, for
         # NON-root slots — is added here, at the point where the
         # reads of ``theme["slots"][X]`` already draw from.
@@ -340,7 +394,8 @@ class ClassComposition:
                 slots = dict(resolved.get("slots", {}))
                 for slot_name, addition in extra.items():
                     base = slots.get(slot_name, "")
-                    slots[slot_name] = f"{base} {addition}".strip() if base else str(addition)
+                    slots[slot_name] = (
+                        merge_app_classes(base, str(addition)) if base else str(addition))
                 resolved = {**resolved, "slots": slots}
         if own and getattr(self, "_user_slots_validated", False):
             # Asked several times per component (each slot, the size check…),

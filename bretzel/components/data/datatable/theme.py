@@ -107,7 +107,7 @@ DATATABLE_THEME: dict[str, Any] = {
         # hover wash some body around the text, and the negative margin
         # cancels it for alignment — so a sortable header still starts on
         # the same pixel as the plain header above it in the column.
-        # ``hover:!text-text`` is the affordance that says clickable ; the
+        # ``hover:text-text`` is the affordance that says clickable ; the
         # colour at REST comes from the parent (``color="current"``).
         # ⚠️ The case follows ``Table.head_cell`` — the two MUST stay in
         # agreement, otherwise a sortable column and its static neighbour
@@ -119,9 +119,9 @@ DATATABLE_THEME: dict[str, Any] = {
         # (``table/theme.py`` § head_cell, with no ``display:flex``), on
         # which the two tokens would act on nothing.
         "head_button": (
-            "!justify-start !h-auto !px-1 !py-0.5 "
-            "!rounded !text-sm !font-semibold !normal-case !tracking-normal "
-            "not-disabled:hover:!text-text gap-1"
+            "justify-start h-auto px-1 py-0.5 "
+            "rounded text-sm font-semibold normal-case tracking-normal "
+            "not-disabled:hover:text-text gap-1"
         ),
         # Non-sortable headers keep the same box so a sortable and a
         # static column don't sit two pixels apart.

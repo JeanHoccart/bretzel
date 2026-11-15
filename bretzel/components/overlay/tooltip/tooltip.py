@@ -30,9 +30,57 @@ from bretzel.components.base.overlay_wiring import (
     trigger_is_full_width,
 )
 from bretzel.components.overlay.tooltip.theme import TOOLTIP_THEME
-from bretzel.core.tree import Element
+from bretzel.core.tree import Element, FragmentNode, Node
 from bretzel.state.scopes.client import ClientBinding
 from bretzel.theme.bridges import bridge_class
+
+#: What a person operates: the controls a screen reader announces by
+#: role AND name, and that a test finds by ``get_by_role(role, name=…)``.
+#: Not ``input`` / ``select`` / ``textarea``: a field is named by its label
+#: or placeholder, and an ``aria-label`` would override its ``<label>``.
+_CONTROL_TAGS = frozenset({"button", "a", "summary"})
+_CONTROL_ROLES = frozenset({
+    "button", "link", "tab", "menuitem", "menuitemcheckbox", "menuitemradio",
+    "option", "switch", "checkbox", "radio", "treeitem",
+})
+_NAMING_ATTRS = ("aria-label", "aria-labelledby", "title", "bz-text")
+
+
+def _says_something(node: Node) -> bool:
+    """Whether ``node`` carries a name: text, or an attribute that names."""
+    if isinstance(node, Element):
+        if any(str(node.attrs.get(a) or "").strip() for a in _NAMING_ATTRS):
+            return True
+        return any(_says_something(c) for c in node.children)
+    if isinstance(node, FragmentNode):
+        return any(_says_something(c) for c in node.children)
+    return bool(str(getattr(node, "content", "") or "").strip())
+
+
+def name_from_tooltip(node: Element, tooltip: Any) -> Element:
+    """A control with nothing to read takes its ``tooltip=`` as its name.
+
+    An icon-only button, tab or toggle has no accessible name: a screen
+    reader says "button", and ``get_by_role("tab", name="Drafts")`` finds
+    nothing. Its ``tooltip=`` already says in full what it is for — but a
+    tooltip is a hover, not a label. So when the wrapped root is a control
+    and says nothing (no text, no ``aria-label`` / ``aria-labelledby`` /
+    ``title``), the tooltip's text becomes its ``aria-label``. Here, in the
+    tooltip that wraps it — ``tooltip=`` and ``with ui.tooltip(…)`` alike —
+    rather than in each control: ``ui.icon_button`` did it alone,
+    ``ui.tab`` did not.
+
+    Only a string: a ``tooltip=ui.text(...)`` is rich content, and
+    flattening a tree into a label would produce a sentence nobody wrote.
+    """
+    if not isinstance(tooltip, str) or not tooltip.strip():
+        return node
+    role = str(node.attrs.get("role") or "")
+    if node.tag not in _CONTROL_TAGS and role not in _CONTROL_ROLES:
+        return node
+    if _says_something(node):
+        return node
+    return Element(node.tag, {**node.attrs, "aria-label": tooltip.strip()}, node.children)
 
 
 class Tooltip(Component):
@@ -173,11 +221,18 @@ class Tooltip(Component):
             attrs["bz-attr:data-bz-tip"] = self.path_of(text)
         else:
             attrs["data-bz-tip"] = str(text or "")
+            children = [
+                name_from_tooltip(c, text) if isinstance(c, Element) else c
+                for c in children
+            ]
 
         position = self._reactive_values.get("position") or "auto"
         if position != "auto":
             attrs["data-bz-tip-position"] = position
-        delay = int(self._reactive_values.get("delay") or self.DEFAULT_DELAY_MS)
+        # ``is None``, not ``or``: ``delay=0`` means "at once", and ``0 or
+        # DEFAULT`` turned it back into the default.
+        raw_delay = self._reactive_values.get("delay")
+        delay = self.DEFAULT_DELAY_MS if raw_delay is None else int(raw_delay)
         if delay != self.DEFAULT_DELAY_MS:
             attrs["data-bz-tip-delay"] = str(delay)
         color = self._reactive_values.get("color") or "text"

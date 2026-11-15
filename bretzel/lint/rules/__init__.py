@@ -50,7 +50,7 @@ Rule = Callable[[Module], list[Finding]]
 #: The order is that of the **discretion of the failure**, from the most
 #: silent to the loudest, because that is the order one wants to read
 #: them in: a state built in an `async def` body works in memory and
-#: RAISES the day `redis_url` is set — mute too, but with a delayed
+#: RAISES the day `state_url` points at Redis — mute too, but with a delayed
 #: silence: it is not the code that stays quiet, it is the developer who
 #: does not surface the failure; an assembled Tailwind class only breaks
 #: in production with identical HTML; an unknown theme name changes

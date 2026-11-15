@@ -5,7 +5,7 @@ from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A brand on the left, links in the middle, actions on the right — "
-           "sticky, floating, and aware of the page that is open.")
+           "sticky, lined up with the page, and aware of the page that is open.")
 
 
 def product_bar() -> None:
@@ -26,21 +26,6 @@ def product_bar() -> None:
                       size="sm")
 
 
-def marketing_bar() -> None:
-    with ui.vstack(gap="none", classes="w-full"), ui.navbar(variant="floating"):
-        with ui.navbar_section(side="left"):
-            ui.icon("sparkles", color="primary", size="lg")
-            ui.heading("Lumen", level=3, size="md")
-        with ui.navbar_section(side="center", classes="max-md:hidden"):
-            ui.navbar_item("Product")
-            ui.navbar_item("Pricing")
-            ui.navbar_item("Customers")
-            ui.navbar_item("Changelog", badge="New")
-        with ui.navbar_section(side="right"):
-            ui.button("Sign in", variant="ghost", size="sm")
-            ui.button("Start free", size="sm")
-
-
 def sticky_bar() -> None:
     with ui.vstack(gap="none", classes="h-80 w-full overflow-hidden rounded-box "
                                        "border border-text/10"), ui.pane():
@@ -57,6 +42,21 @@ def sticky_bar() -> None:
                         "The rent went up, the fuel bill went down, and the "
                         "team finally stopped driving two hours to meet the "
                         "trucks at the port.", color="muted")
+
+
+def app_shell() -> None:
+    with ui.vstack(gap="none", classes="w-full overflow-hidden rounded-box "
+                                       "border border-text/10"):
+        with ui.navbar(width="md"):
+            with ui.navbar_section(side="left"):
+                ui.navbar_item("Helpdesk", icon="life-buoy", active=True)
+                ui.navbar_item("Reports", icon="chart-column")
+            with ui.navbar_section(side="right"):
+                ui.avatar(src="https://i.pravatar.cc/96?u=grace",
+                          name="Grace Hopper", size="sm")
+        with ui.container(width="md"), ui.vstack(gap="xs"):
+            ui.heading("Open tickets", level=2, size="xl")
+            ui.text("12 waiting on you, 3 past their deadline.", color="muted")
 
 
 class Workspace(ClientState):
@@ -95,9 +95,10 @@ def page() -> None:
     example("A product's top bar", product_bar, full=True,
             note="Three sections: side= pins them left, centre and right. "
                  "Items take an icon, a badge, and can be disabled.")
-    example("A marketing site", marketing_bar, full=True,
-            note='variant="floating" lifts the bar off the edges into a '
-                 "rounded card — the look of a landing page.")
+    example("Lined up with the page", app_shell, full=True,
+            note='width= takes the words of ui.container: the bar and the '
+                 "page share their left edge — the first item's text sits "
+                 "right above the page title.")
     example("Stays on top while you read", sticky_bar, full=True,
             note="sticky=True pins the bar to the top of whatever scrolls. "
                  "Scroll the article inside the box.")

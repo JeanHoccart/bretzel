@@ -57,6 +57,18 @@ def colored() -> None:
         ui.text("INV-2039 for Atlas Freight is 12 days late.", size="sm")
 
 
+def form_lines() -> None:
+    # Fields without a frame (``variant="ghost"``), one line each: the
+    # dividers draw the lines, flush (``gap="none"``).
+    with (ui.card(padding="none", classes="w-full max-w-xl"),
+          ui.vstack(gap="none", classes="px-4")):
+        ui.input(placeholder="To", variant="ghost")
+        ui.divider(gap="none")
+        ui.input(placeholder="Subject", variant="ghost")
+        ui.divider(gap="none")
+        ui.textarea(placeholder="Write your message…", rows=3, variant="ghost")
+
+
 def page() -> None:
     page_header("divider", "Divider", SUMMARY)
     example("Between settings", sections, uses=[setting_row],
@@ -67,6 +79,10 @@ def page() -> None:
                  "\"or\" between two ways of signing in.")
     example("Vertical, inside a row", vertical,
             note="orientation=\"vertical\" separates items of an hstack.")
+    example("The lines of a form", form_lines,
+            note='gap="none" draws the line flush, between fields that carry '
+                 "their own height — the header of a message. gap= takes the "
+                 "steps of every gap; sm, the default, is the space above.")
     example("In colour", colored,
             note="color= tints the line and its label, to mark a section of "
                  "a timeline.")

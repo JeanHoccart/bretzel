@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
@@ -11,9 +10,10 @@ from bretzel.components.base.attrs import (
     ANCHOR_TAGS,
     ComponentUsageError,
 )
+from bretzel.components.base.class_composition import merge_app_classes
 from bretzel.components.base.client_wiring import ClientWiring
 from bretzel.components.base.focus import stamp_autofocus
-from bretzel.components.base.nodes import stamp_display_none
+from bretzel.components.base.nodes import is_stamped_hidden, stamp_display_none
 from bretzel.core.tree import Element, FragmentNode, Node
 from bretzel.runtime.protocol import (
     BZ_ATTR_PREFIX,
@@ -22,6 +22,7 @@ from bretzel.runtime.protocol import (
     DATA_BZ_BUSY,
 )
 from bretzel.state.scopes.client import ClientBinding
+from bretzel.theme.class_merge import split_token, utility_properties
 
 if TYPE_CHECKING:
     from bretzel.components.base.component import Component
@@ -59,44 +60,7 @@ def _ensure_scope_identity(component: Component, node: Node) -> Node:
     )
 
 
-#: A WIDTH utility, variants included.
-#:
-#: The variant prefix (``md:``, ``dark:hover:``…) is captured so that
-#: only two declarations of the SAME scope conflict: an ``md:w-1/2``
-#: passed by the caller must not erase the theme's base ``w-full``,
-#: otherwise the component would lose its width below the breakpoint.
-#:
-#: ``max-w-`` / ``min-w-`` are excluded **naturally**: with the variants
-#: removed, their base starts with ``max-w-`` / ``min-w-``, not ``w-``.
-#: That is the right behaviour and not a happy accident — they are other
-#: CSS properties, which compose with ``width`` instead of contradicting
-#: it.
-_WIDTH_UTILITY = re.compile(r"^(?P<variants>(?:[^\s:]+:)*)!?w-")
-
-
-def _width_scopes(classes: str) -> set[str]:
-    """The variant scopes for which ``classes`` sets a width."""
-    scopes: set[str] = set()
-    for token in classes.split():
-        match = _WIDTH_UTILITY.match(token)
-        if match:
-            scopes.add(match.group("variants"))
-    return scopes
-
-
-def _drop_widths(existing: str, scopes: set[str]) -> str:
-    """Remove from ``existing`` the widths redeclared in ``scopes``."""
-    if not scopes:
-        return existing
-    kept = [
-        token
-        for token in existing.split()
-        if not ((match := _WIDTH_UTILITY.match(token)) and match.group("variants") in scopes)
-    ]
-    return " ".join(kept)
-
-
-def _append_attr(node: Element, key: str, value: str) -> Element:
+def _append_attr(node: Element, key: str, value: str, *, merge: bool = True) -> Element:
     """Clone ``node`` with ``value`` appended to its ``key`` attribute.
 
     Append, not prepend — the caller's value lands AFTER whatever the theme
@@ -106,20 +70,21 @@ def _append_attr(node: Element, key: str, value: str) -> Element:
 
     **The order inside the ``class`` attribute decides nothing.** What
     settles two competing Tailwind utilities is their order in the
-    generated sheet. When the incoming value declares a width, those of
-    the same scope are REMOVED from the existing one. The conflict is
-    resolved in the HTML, where we control it, instead of being delegated
-    to a sheet order we do not control. The rule holds for ``class``
-    only — the other attributes are concatenated as-is.
+    generated sheet. So every utility of the existing ``class`` that the
+    incoming value redeclares, in the same variant scope, is REMOVED
+    (:func:`merge_app_classes`): the conflict is resolved in the HTML,
+    where we control it, instead of being delegated to a sheet order we
+    do not control. The rule holds for ``class`` only — the other
+    attributes are concatenated as-is.
     """
     existing = str(node.attrs.get(key, ""))
-    if key == "class" and existing:
-        existing = _drop_widths(existing, _width_scopes(value))
-    return Element(
-        tag=node.tag,
-        attrs={**node.attrs, key: f"{existing} {value}" if existing else value},
-        children=node.children,
-    )
+    if not existing:
+        joined = value
+    elif key == "class" and merge:
+        joined = merge_app_classes(existing, value)
+    else:
+        joined = f"{existing} {value}"
+    return Element(tag=node.tag, attrs={**node.attrs, key: joined}, children=node.children)
 
 
 def _reject_unknown_slot_keys(component: Component, user_slots: Mapping[str, Any]) -> None:
@@ -255,7 +220,9 @@ def _apply_universal_modifiers(component: Component, node: Node) -> Node:
     from bretzel.components.base.theme_values import root_color_bridge
 
     if (bridge := root_color_bridge(component, node)) is not None:
-        node = _append_attr(node, "class", bridge)
+        # A ``bz-c-*`` sets variables, never a Tailwind property: nothing
+        # to merge, and no pair to spend in the app's cache.
+        node = _append_attr(node, "class", bridge, merge=False)
 
     # ── Universal slots={"root": …} : land on the component's TRUE root ─
     # Same reason as ``classes=`` below. Any component whose root is
@@ -379,6 +346,41 @@ def _apply_universal_modifiers(component: Component, node: Node) -> Node:
     wrapper = component._tooltip_wrapper
     if wrapper is not None:
         wrapper._children = [node]
+        trigger = node
         node = wrapper.render()
+        if isinstance(trigger, Element) and isinstance(node, Element):
+            node = hide_with(trigger, node)
 
     return node
+
+
+def hide_with(inner: Element, wrapper: Element) -> Element:
+    """``wrapper`` hides when ``inner``, the node it wraps, is hidden.
+
+    A wrapper is a box of its own in the parent's flow: with its content
+    hidden inside it, an empty box stays behind and takes its share of the
+    parent's ``gap`` or ``flex-grow``. Two callers, one rule:
+
+    - the tooltip's wrapper — two buttons swapped by ``dark:`` sat 8 px
+      apart from one scheme to the other (the Kanban's light/dark toggle);
+    - the box ``ui.resizable`` draws around a bare child — it kept the
+      child's share of the group, empty.
+
+    So the inner node's way of hiding goes up to the wrapper too: its
+    ``visible=`` binding (``bz-show``, with the pre-stamped
+    ``display:none``), and, when its ``classes=`` hide it, every display
+    utility among them."""
+    attrs = dict(wrapper.attrs)
+    if BZ_SHOW_PREFIX in inner.attrs:
+        attrs[BZ_SHOW_PREFIX] = inner.attrs[BZ_SHOW_PREFIX]
+        if is_stamped_hidden(inner.attrs):
+            stamp_display_none(attrs)
+    display = [c for c in str(inner.attrs.get("class", "")).split()
+               if utility_properties(split_token(c)[1]) == ("display",)]
+    if any(split_token(c)[1] == "hidden" for c in display):
+        # Merged, not appended: the tooltip's wrapper is ``inline-flex``,
+        # which the sheet puts after ``hidden``.
+        attrs["class"] = merge_app_classes(str(attrs.get("class", "")), " ".join(display))
+    if attrs == wrapper.attrs:
+        return wrapper
+    return Element(tag=wrapper.tag, attrs=attrs, children=wrapper.children)

@@ -1,10 +1,10 @@
-"""``/file-upload`` — drop files, or pick them from a compact button."""
+"""``/file-upload`` — a dropzone, and the files dropped on it."""
 
 from bretzel import refreshable, ui
 from bretzel.state import PageState, field
 from examples.showcase.lib.example import example, page_header
 
-SUMMARY = ("A dropzone or a compact button, tiles or chips, with type, size "
+SUMMARY = ("A dropzone and the list under it — tiles, chips or a grid — with type, size "
            "and count checked before anything leaves the browser.")
 
 
@@ -16,30 +16,27 @@ def product_photos() -> None:
                 "cover.", color="muted", size="sm")
 
 
-def composer() -> None:
-    with ui.card(padding="md", classes="w-full max-w-xl"), ui.form(), \
-            ui.vstack(gap="sm"):
-        ui.textarea(placeholder="Reply to Lumen Studio…", rows=3, size="sm")
-        with ui.hstack(gap="sm", justify="between", align="start"):
-            ui.file_upload(variant="button", list="chips", multiple=True,
-                           max_files=5, paste=True, size="sm", label="Attach")
-            ui.button("Send reply", type="button", icon_right="send", size="sm",
-                      classes="shrink-0")
+def gallery() -> None:
+    with ui.vstack(gap="xs", classes="w-full max-w-xl"):
+        ui.file_upload(label="Moodboard", display="grid", multiple=True,
+                       accept="image/*", paste=True)
+        ui.text("Large tiles that wrap. Paste a screenshot with Ctrl+V.",
+                color="muted", size="sm")
 
 
 def contract_documents() -> None:
     with ui.grid(min_col="16rem", gap="md", classes="w-full"):
         with ui.form_field(label="Signed contract", required=True):
-            ui.file_upload(list="chips", accept=".pdf", max_size_mb=5,
+            ui.file_upload(display="chips", accept=".pdf", max_size_mb=5,
                            color="success", size="sm", label="Drop the PDF")
         with ui.form_field(label="Supporting documents",
                            hint="Up to 3 files, PDF or DOCX."):
-            ui.file_upload(list="chips", multiple=True, max_files=3,
+            ui.file_upload(display="chips", multiple=True, max_files=3,
                            accept=[".pdf", ".docx"], size="sm",
                            label="Quotes, minutes…")
         with ui.form_field(label="Company logo",
                            hint="Uploads are paused during the migration."):
-            ui.file_upload(variant="button", accept="image/*", disabled=True,
+            ui.file_upload(display="chips", accept="image/*", disabled=True,
                            size="sm", label="Choose a logo")
 
 
@@ -72,7 +69,7 @@ def csv_import() -> None:
             ui.form(on_submit=import_contacts), ui.vstack(gap="md"):
         ui.heading("Import contacts", level=3, size="md")
         ui.file_upload(name="contacts", accept=".csv", max_files=1,
-                       max_size_mb=2, list="chips",
+                       max_size_mb=2, display="chips",
                        label="Drop a CSV export from your CRM")
         with ui.hstack(justify="end"):
             ui.button("Import", type="submit", icon_left="upload")
@@ -85,10 +82,10 @@ def page() -> None:
             note="The default dropzone: drop or click, with a thumbnail tile "
                  "per image. accept, max_size_mb and max_files are checked "
                  "on the spot.")
-    example("Attach to a message", composer,
-            note="variant=\"button\" keeps the composer compact; list=\"chips\" "
-                 "lines files up inline. paste=True turns a Ctrl+V of a "
-                 "screenshot into an attachment.")
+    example("A gallery", gallery,
+            note="display=\"grid\" shows large tiles that wrap. A compact "
+                 "button that attaches is ui.attachments and any button with "
+                 "on_click=pieces.pick().")
     example("Documents in a form", contract_documents,
             note="Chips in narrow columns, a colour and a size, and a "
                  "disabled picker.")

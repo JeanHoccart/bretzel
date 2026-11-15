@@ -28,9 +28,16 @@ from bretzel.introspect import (
     StateInfo,
     describe_callable,
     describe_client_algebra,
+    describe_components,
     describe_state,
     describe_toplevel_surface,
 )
+
+
+def component_count(family: str | None = None) -> int:
+    """The components ``bretzel describe`` lists — of one family, if given."""
+    return sum(isinstance(info, ComponentInfo) and family in (None, info.family)
+               for info in describe_components())
 
 
 def callable_signature(fn: object, *, title: str | None = None) -> None:

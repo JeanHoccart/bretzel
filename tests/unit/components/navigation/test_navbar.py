@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from bretzel.components.base import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
 from bretzel.components.navigation.navbar import (
     Navbar,
@@ -68,15 +69,10 @@ class TestNavbarRoot:
         # no positioning of its own.
         assert "sticky top-0" not in out
 
-    @pytest.mark.parametrize("variant", ["standard", "floating"])
-    def test_variant_applies(self, variant: str) -> None:
-        with render_isolated():
-            out = serialize(Navbar(variant=variant).render())
-        if variant == "floating":
-            # The floating variant turns the bar into a rounded card.
-            assert "rounded-box" in out
-        else:
-            assert "rounded-box" not in out
+    def test_there_is_no_variant(self) -> None:
+        """One look: ``variant=`` is refused, not ignored."""
+        with render_isolated(), pytest.raises(ComponentUsageError, match="variant"):
+            Navbar(variant="floating")
 
     def test_inner_nav_clamps_max_width(self) -> None:
         """The inner ``<nav>`` carries the max-width + horizontal

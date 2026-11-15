@@ -1,8 +1,8 @@
 """TOPIC — The charts.
 
-Five components, zero JavaScript library. They render SVG on the server,
-which has three consequences one only measures in use: nothing to load,
-the chart exists in the first response's HTML, and it shows on a
+The chart components, zero JavaScript library. They render SVG on the
+server, which has three consequences one only measures in use: nothing to
+load, the chart exists in the first response's HTML, and it shows on a
 screenshot or a PDF without a script having run.
 """
 
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from bretzel import page, ui
 from examples.docs.features.shell import shell
+from examples.docs.lib.blocks import component_count
 
 PATH = "/charts"
 
@@ -26,13 +27,13 @@ PARTS = [("Direct", 42), ("Search", 31), ("Referral", 27)]
 
 
 @page(PATH, layout=shell, title="Charts · Bretzel docs",
-      description="Server-rendered SVG charts in Python: five Bretzel chart components with no JavaScript library, visible from the first byte.")
+      description="Server-rendered SVG charts in Python: Bretzel's chart components, with no JavaScript library, visible from the first byte.")
 def charts_page() -> None:
     with ui.container(width="xl"):
         with ui.vstack(gap="lg"):
             ui.heading("Charts", level=1, size="3xl")
             ui.text(
-                'Five components, no JavaScript library. The SVG is '
+                f'{component_count("charts")} components, no JavaScript library. The SVG is '
                 'produced by the server, so it is already there at the '
                 'first byte — nothing to load, nothing to wait for.',
                 color="muted", size="lg",
@@ -40,7 +41,7 @@ def charts_page() -> None:
 
             with ui.card():
                 with ui.vstack(gap="sm"):
-                    ui.heading('The five', level=2)
+                    ui.heading('The components', level=2)
                     ui.table(
                         columns=[
                             ui.column("nom", label="Component"),
@@ -56,9 +57,15 @@ def charts_page() -> None:
                              'for': 'a breakdown — shares of a whole'},
                             {"nom": "ui.scatter_chart",
                              'for': 'a correlation between two quantities'},
+                            {"nom": "ui.histogram",
+                             'for': 'how raw values spread — counted per '
+                                     'tranche'},
                             {"nom": "ui.sparkline",
                              'for': 'a TINY trend, inside a line of text '
                                      'or a cell'},
+                            {"nom": "ui.stat",
+                             'for': 'one key figure, its label and what it '
+                                     'means'},
                         ],
                         size="sm",
                     )

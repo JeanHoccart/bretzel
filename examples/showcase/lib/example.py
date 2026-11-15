@@ -27,11 +27,12 @@ def source_of(*objects: object) -> str:
     )
 
 
-def page_header(name: str, title: str, summary: str) -> None:
-    """The page's title block: the ``ui.*`` name, the title, one sentence."""
+def page_header(names: str | tuple[str, ...], title: str, summary: str) -> None:
+    """The page's title block: the ``ui.*`` name(s), the title, one sentence."""
+    shown = (names,) if isinstance(names, str) else names
     with ui.vstack(gap="sm"):
-        ui.text(f"ui.{name}", size="sm", weight="medium", color="primary",
-                classes="font-mono")
+        ui.text(" · ".join(f"ui.{name}" for name in shown), size="sm", weight="medium",
+                color="primary", classes="font-mono")
         ui.heading(title, level=1, size="3xl")
         ui.text(summary, size="lg", color="muted", classes="max-w-2xl")
 

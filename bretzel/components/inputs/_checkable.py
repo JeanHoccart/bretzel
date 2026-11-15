@@ -35,6 +35,27 @@ from bretzel.components.inputs._wiring import (
 from bretzel.core.tree import Element, Node
 
 
+def label_line(component: Any) -> str:
+    """What the control's container adds beside a label: ONE LINE of it.
+
+    The container is at least one line of the label high, so the control
+    centres on the first line, and a label that wraps runs on below it
+    instead of pulling the control down to its middle. One line or a
+    bigger visual (a switch's rail), nothing moves. The LABEL's size on
+    the container, on purpose: ``1lh`` is a line of the label.
+
+    Shared by ``render_checkable`` and ``ui.radio``, which draws its own
+    container: without it, an ``xs`` radio's 12 px circle sat at the top of
+    a 16 px line, 2 px above its label's centre.
+    """
+    # ``has_content``, not ``if label:``: a bound label (a ClientBinding)
+    # refuses a truth test, and counts as present.
+    if not has_content(component._label):
+        return ""
+    size_map = component._size_row() or {}
+    return f" min-h-[1lh] {size_map.get('label', '')}"
+
+
 def render_checkable(
     component: Any,
     *,
@@ -127,16 +148,8 @@ def render_checkable(
         if server_bound_boolean else ()
     )
 
-    # Beside a label, the container is at least ONE LINE of it high: the
-    # box centres on the first line, and a label that wraps runs on below
-    # it instead of pulling the box down to its middle. One line or a
-    # bigger visual (a switch's rail), nothing moves. The LABEL's size
-    # on the container, on purpose: ``1lh`` is a line of the label.
-    size_map = component._size_row() or {}
-    # ``has_content``, not ``if label:``: a bound label (a ClientBinding)
-    # refuses a truth test, and counts as present.
     has_label = has_content(component._label)
-    line = f" min-h-[1lh] {size_map.get('label', '')}" if has_label else ""
+    line = label_line(component)
     container = Element(
         tag="div",
         attrs={

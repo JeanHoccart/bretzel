@@ -62,7 +62,7 @@ def clips() -> None:
 
 
 def page() -> None:
-    page_header("video · ui.track", "Video", SUMMARY)
+    page_header(("video", "track"), "Video", SUMMARY)
     example("A product tour", product_tour,
             note="poster= shows a still until play; ratio= keeps the frame's "
                  "place before a single byte of video arrives.")

@@ -1,11 +1,11 @@
 """In-memory storage backend for dev / tests.
 
-Plain ``dict`` under the hood. Lost on process restart — production
-deployments use the Redis backend instead.
+Plain ``dict`` under the hood. Lost on process restart — an app whose
+states must survive one sets ``state_url="sqlite:///…"``
+(:class:`~bretzel.state.persistence.sqlite.SqliteBackend`).
 
-Used as the default when no ``redis_url`` is configured. Sufficient for
-single-worker uvicorn dev runs and for the unit / integration test
-suite (``MemoryBackend`` removes the need for a live Redis in CI).
+Used as the default when no ``state_url`` is configured, and by the unit
+/ integration test suite: nothing to open, nothing left behind.
 
 What becomes of an expired entry
 --------------------------------

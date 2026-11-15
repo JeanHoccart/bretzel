@@ -1,8 +1,7 @@
 """``Divider`` — horizontal or vertical separator with optional label.
 
 Renders ``[line, label?, line]`` — a present label is flanked by two lines.
-The line uses ``bg-current`` so it follows whatever ``text-{color}`` the
-root carries.
+The line is a border, in the framework's border colour (cf. ``theme.py``).
 """
 
 from __future__ import annotations
@@ -26,6 +25,9 @@ class Divider(Component):
 
     orientation: str = reactive_prop(default="horizontal", emit_attr=False)
     color: str = reactive_prop(default="muted", emit_attr=False)
+    #: The space on each side of the line — the steps of every ``gap``.
+    gap: str = reactive_prop(default="sm", emit_attr=False,
+                             steps=("none", "xs", "sm", "md", "lg", "xl"))
 
     def __init__(
         self,
@@ -33,10 +35,11 @@ class Divider(Component):
         *,
         orientation: str | None = None,
         color: str | None = None,
+        gap: str | None = None,
         **kwargs: Any,
     ) -> None:
         # Direct forward: the base layer drops reactive None kwargs (keeps the default).
-        super().__init__(orientation=orientation, color=color, **kwargs)
+        super().__init__(orientation=orientation, color=color, gap=gap, **kwargs)
         self._label = label
 
     def render(self) -> Element:
@@ -45,24 +48,32 @@ class Divider(Component):
         color = self._reactive_values.get("color") or "muted"
         ovr = theme.get("orientations", {}).get(orientation, {})
 
-        # Root : base slot + orientation override + ``text-{color}`` so
-        # the inner line inherits via ``bg-current``.
+        # Root : base slot + orientation override + ``text-{color}`` for
+        # the label.
         # ``classes=`` set by the metaclass wrap — not here (duplicate).
         root_class = " ".join(
             p
             for p in (
                 theme.get("slots", {}).get("root", ""),
                 ovr.get("root", ""),
+                theme.get("gaps", {}).get(orientation, {}).get(
+                    self._reactive_values.get("gap") or "sm", ""),
             # The STEP: the root's bridge carries the colour.
                 "text-(--bz-text)" if color else "",
             )
             if p
         )
+        # The neutral divider draws the framework's border, the one of the
+        # sidebar's edge and the card's outline; a coloured one, its
+        # colour's resting border step. Same split as ``ui.empty_state``'s
+        # icon box: ``muted`` is a resting grey, not a component colour.
+        tint = "line_neutral" if color == "muted" else "line_tinted"
         line_class = " ".join(
             p
             for p in (
                 theme.get("slots", {}).get("line", ""),
                 ovr.get("line", ""),
+                theme.get("slots", {}).get(tint, ""),
             )
             if p
         )

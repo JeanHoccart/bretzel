@@ -62,6 +62,12 @@ DATA_NAV_HREF: Final[str] = "data-bz-nav"
 #: On ``<html>``, for an app under a ``base_path``: the runtime reads it once.
 DATA_BZ_BASE: Final[str] = "data-bz-base"
 DATA_BZ_BUSY: Final[str] = "data-bz-busy"
+# Scrolling: the runtime sets it on an element WHILE it scrolls, and
+# removes it a moment after the last ``scroll`` event (``helpers.js``).
+# The theme's scrollbar CSS reads it to show a bar that is hidden at
+# rest (``ScrollbarConfig(show="hover")``): CSS alone sees the pointer
+# over a region, not a finger or a key scrolling it.
+DATA_BZ_SCROLLING: Final[str] = "data-bz-scrolling"
 # Replace-not-morph: an element carrying it is REPLACED whole when a swap
 # reaches it (``bridge.js`` hooks idiomorph's ``beforeNodeMorphed``),
 # instead of having its children paired one by one. Set by the components
@@ -70,6 +76,14 @@ DATA_BZ_BUSY: Final[str] = "data-bz-busy"
 # quadratic, so a large blob can take seconds to morph. Nothing inside
 # such a blob holds client state to keep.
 DATA_BZ_REPLACE: Final[str] = "data-bz-replace"
+# Left-alone-by-morph: an element carrying it keeps its attributes AND its
+# children whatever a swap brings (``bridge.js``, the same hook). Set on
+# the node a third-party library writes — ``ui.editor``'s surface, where
+# ProseMirror owns the DOM, the selection and the undo history. A morph
+# that paired its children with the server's first paint would erase the
+# text being typed. What the server says of such a component travels by
+# its scope and its root, which morph as usual.
+DATA_BZ_CLIENT_DOM: Final[str] = "data-bz-client-dom"
 # Autofocus: the element (the one carrying the component's id) whose
 # focus target takes the focus when it enters the page. Its value is the
 # JSON list of the component's ``FOCUS_TARGET`` selectors, read by

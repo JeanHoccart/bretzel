@@ -45,8 +45,8 @@ def drag_page() -> None:
                         "with ui.dropzone(name=\"todo\", accepts=[\"task\"],\n"
                         "                 on_move=move_task):\n"
                         "    for t in ui.each(tasks, key=\"id\"):\n"
-                        "        with ui.draggable(key=str(t.id), group=\"task\"):\n"
-                        "            ui.card(t.title)\n",
+                        "        with ui.draggable(key=str(t.id), group=\"task\"), ui.card():\n"
+                        "            ui.text(t.title)\n",
                         lang="python",
                     )
                     ui.alert(

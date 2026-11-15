@@ -22,8 +22,9 @@ Optional ``status=`` overlays a small dot in the bottom-right corner
 
 ``shape=`` picks ``circle`` (default) or ``square``.
 
-``variant=`` picks the fill: ``soft`` (default, a tint) or ``solid``
-(the full colour, for a disc that must hold on a dark surface).
+``variant=`` picks the fill: ``solid`` (default, the full colour, which
+holds on a dark surface) or ``soft`` (a tint, for a disc that must stay
+in the background — a « nobody » placeholder beside assigned people).
 """
 
 from __future__ import annotations
@@ -88,7 +89,7 @@ class Avatar(Component):
     name: str | None = reactive_prop(default=None, emit_attr=False)
     initials: str | Component | None = reactive_prop(default=None, emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
-    variant: str = reactive_prop(default="soft", emit_attr=False)
+    variant: str = reactive_prop(default="solid", emit_attr=False)
     shape: str = reactive_prop(default="circle", emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
     status: str | None = reactive_prop(default=None, emit_attr=False)

@@ -32,26 +32,38 @@ import json
 
 from bretzel.state import ClientState, field
 from bretzel.theme import (
+    DEFAULT_SEMANTIC_DARK,
+    DEFAULT_SEMANTIC_LIGHT,
     DEFAULT_SHAPE,
     DEFAULT_SPACING,
     DEFAULT_STROKE,
     SHAPE_SLOT_NAMES,
 )
 
-#: The eleven semantic slots: (name, role, light default, dark default).
-#: The order is the reading one — the accents first, the planes next.
+#: The eleven semantic slots and what each one is for. The order is the
+#: reading one — the accents first, the planes next.
+ROLES: list[tuple[str, str]] = [
+    ("primary",    "the brand accent"),
+    ("secondary",  "the second accent"),
+    ("success",    "what succeeded"),
+    ("warning",    "what needs attention"),
+    ("error",      "what failed"),
+    ("info",       "a neutral piece of information"),
+    ("background", "the page"),
+    ("surface",    "a panel"),
+    ("interface",  "a control's fill"),
+    ("text",       "the running text"),
+    ("muted",      "the secondary text"),
+]
+
+#: (name, role, light default, dark default) — the defaults READ from the
+#: framework's palette, never copied: a copy drifts from the shipped
+#: colours in silence. A slot that does not swap in dark mode keeps its
+#: light value there.
 SLOTS: list[tuple[str, str, str, str]] = [
-    ("primary",    "the brand accent",               "#682747", "#b9467f"),
-    ("secondary",  "the second accent",              "#3a52b0", "#566dc7"),
-    ("success",    "what succeeded",                 "#2f9e64", "#2f9e64"),
-    ("warning",    "what needs attention",           "#f0a91b", "#f0a91b"),
-    ("error",      "what failed",                    "#e5484d", "#e5484d"),
-    ("info",       "a neutral piece of information", "#0e9bc4", "#0e9bc4"),
-    ("background", "the page",                       "#fafafa", "#0a0a0a"),
-    ("surface",    "a panel",                        "#ffffff", "#151515"),
-    ("interface",  "a control's fill",               "#f0f0f1", "#212121"),
-    ("text",       "the running text",               "#171717", "#f5f5f5"),
-    ("muted",      "the secondary text",             "#6b6b6e", "#a0a0a3"),
+    (name, role, DEFAULT_SEMANTIC_LIGHT[name],
+     DEFAULT_SEMANTIC_DARK.get(name, DEFAULT_SEMANTIC_LIGHT[name]))
+    for name, role in ROLES
 ]
 
 #: The colour defaults, DERIVED from :data:`SLOTS` — light mode for the

@@ -82,12 +82,17 @@ from bretzel.core.errors import BretzelError
 #: is a default, the operator's wins.
 _DEFAULT_TIMEOUT_SECONDS = 5.0
 
+#: The URL schemes a Redis server answers on.
+SCHEMES = frozenset({"redis", "rediss", "unix"})
+
+
 def require_redis() -> ModuleType:
     """The ``redis`` package, imported on first use.
 
     It is an extra (``pip install 'bretzel[redis]'``): only an app running
-    several workers needs it, and ``import bretzel`` must not. An app that
-    sets ``redis_url`` without it is told so at startup, in a sentence.
+    several workers needs it, and ``import bretzel`` must not. An app whose
+    ``state_url`` is a Redis URL without it is told so at startup, in a
+    sentence.
     """
     try:
         import redis
@@ -95,10 +100,10 @@ def require_redis() -> ModuleType:
         import redis.exceptions
     except ImportError as exc:
         raise BretzelError(
-            "redis_url is set, and the redis package is not installed: "
-            "pip install 'bretzel[redis]'. Redis only serves an app that runs "
-            "several workers; with one, leave redis_url unset and the state "
-            "stays in memory."
+            "state_url is a Redis URL, and the redis package is not "
+            "installed: pip install 'bretzel[redis]'. Redis only serves an "
+            "app that runs several workers; with one, leave state_url unset "
+            "(memory) or write 'sqlite:///state.db' to survive restarts."
         ) from exc
     return redis
 
@@ -187,7 +192,7 @@ class RedisBackend:
         )
         # Quick sanity check : reject unknown schemes early.
         scheme = urlparse(url).scheme
-        if scheme not in {"redis", "rediss", "unix"}:
+        if scheme not in SCHEMES:
             raise BretzelError(
                 f"Unsupported Redis URL scheme {scheme!r} : "
                 "expected one of 'redis', 'rediss', 'unix'."

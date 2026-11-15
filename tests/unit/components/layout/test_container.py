@@ -16,8 +16,8 @@ class TestDefaults:
             c = Container()
         out = serialize(c.render())
         # Default width="lg" → max-w-5xl ; root slot adds mx-auto w-full
-        # + baked px-6 py-8.
-        for cls in ("mx-auto", "w-full", "px-6", "py-8", "max-w-5xl"):
+        # + baked px-(--bz-pad-6) py-8.
+        for cls in ("mx-auto", "w-full", "px-(--bz-pad-6)", "py-8", "max-w-5xl"):
             assert cls in out
         # Default tag is <div>.
         assert out.startswith("<div")
@@ -42,7 +42,7 @@ class TestWidths:
 
     def test_width_full_emits_no_clamp(self) -> None:
         # ``full`` opts out of the max-width clamp entirely. The root
-        # slot (``mx-auto w-full px-6 py-8``) still ships.
+        # slot (``mx-auto w-full px-(--bz-pad-6) py-8``) still ships.
         with render_isolated():
             c = Container(width="full")
         out = serialize(c.render())
@@ -50,7 +50,7 @@ class TestWidths:
         # Still centered and padded — the clamp opt-out doesn't
         # disable the surrounding chrome.
         assert "mx-auto" in out
-        assert "px-6" in out
+        assert "px-(--bz-pad-6)" in out
 
     def test_an_unknown_width_is_refused(self) -> None:
         # It fell through to no class, in silence — a typo lost the width

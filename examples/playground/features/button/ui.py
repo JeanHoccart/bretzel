@@ -272,6 +272,10 @@ def page() -> None:
                 "and the emitted HTML is shown live underneath the preview.",
                 color="muted",
             )
+            ui.text(
+                "Motion: hover and press answer in 150 ms ease-out (the motion rule, rule 1).",
+                color="muted", size="sm",
+            )
 
             with ui.card():
                 with ui.vstack():

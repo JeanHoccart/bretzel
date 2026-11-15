@@ -7,10 +7,12 @@ playground / Client events. FileUpload's reactive surface :
 ``EVENTS = ("change", "upload_start", "upload_complete",
 "upload_error", "focus", "blur")``.
 
-Two variants : ``dropzone`` (default, large dashed area) and
-``button`` (compact inline trigger). State + behaviour delegated to
-``$bz.fileUpload.makeScope({...opts})`` factory in
-``bretzel/components/inputs/file_upload/file_upload.js``.
+A dropzone over a list of files — ``ui.attachments`` plus the zone. The
+list takes ``display="strip"`` (default) / ``"chips"`` / ``"grid"``. A
+compact button that imports is not a file_upload: it is ``ui.attachments``
+and a button (``/attachments``). State + behaviour delegated to
+``$bz.attachments.makeScope({...opts})`` in
+``bretzel/components/inputs/attachments/attachments.js``.
 
 Two upload modes : form (hidden ``<input type="file">``, submitted
 with the parent form) and async (``upload_url=`` opt-in, XHR per
@@ -30,13 +32,14 @@ from examples.playground.features.file_upload.state import (
     FileUploadClient,
     FileUploadPlayground,
     SIZES,
-    VARIANTS,
+    DISPLAYS,
 )
 from examples.playground.features.file_upload.logic import (
     clear_log,
     log_blur,
     log_change,
     log_focus,
+    log_remove,
     log_upload_complete,
     log_upload_error,
     log_upload_start,
@@ -65,7 +68,7 @@ def parse_extra_attrs(blob: str) -> dict:
 
 def build_preview(state: FileUploadPlayground):
     kwargs: dict = {
-        "variant": state.variant,
+        "display": state.display,
         "color": state.color,
         "size": state.size,
         "multiple": state.multiple == "on",
@@ -128,9 +131,9 @@ def control(label: str):
 def server_panel() -> None:
     state = FileUploadPlayground()
     with ui.grid(cols={"base": 1, "sm": 2}, gap="md"):
-        with control("variant"):
-            ui.select(value=state.variant,
-                      options=[(v, v) for v in VARIANTS],
+        with control("display"):
+            ui.select(value=state.display,
+                      options=[(d, d) for d in DISPLAYS],
                       on_change=server_changed)
         with control("label"):
             ui.input(value=state.label,
@@ -245,14 +248,14 @@ def page() -> None:
         with ui.vstack():
             ui.heading("FileUpload", level=1)
             ui.text(
-                "Dropzone or compact-button file picker. Drop OR click "
+                "A dropzone over the list of files. Drop OR click "
                 "to browse, multi-file with per-card list, image "
                 "thumbnails via ``URL.createObjectURL``, validation "
                 "(``accept`` filter + ``max_size_mb`` + ``max_files``), "
                 "and an opt-in async upload mode (``upload_url=``) "
                 "with per-file XHR progress. State + behaviour live in "
-                "``$bz.fileUpload.makeScope({...opts})`` "
-                "(``bretzel/components/inputs/file_upload/file_upload.js``) ; the "
+                "``$bz.attachments.makeScope({...opts})`` "
+                "(``bretzel/components/inputs/attachments/attachments.js``) ; the "
                 "Python component just renders the markup. "
                 "``BINDABLE_PROPS = (disabled, multiple, accept)`` ; "
                 "``EVENTS = (change, upload_start, upload_complete, "
@@ -272,38 +275,21 @@ def page() -> None:
                         color="muted", size="sm",
                     )
 
-                    ui.heading("variant (dropzone / button)", level=3)
-                    with ui.flex(wrap=True, gap="md", align="start"):
-                        with ui.vstack(gap="xs", align="start"):
-                            ui.text("dropzone (default)",
-                                    color="muted", size="xs")
-                            ui.file_upload()
-                        with ui.vstack(gap="xs", align="start"):
-                            ui.text("button (compact inline)",
-                                    color="muted", size="xs")
-                            ui.file_upload(variant="button")
-
-                    ui.heading("list (tiles / chips)", level=3)
-                    ui.text('An axis INDEPENDENT of variant=: this one dresses '
-                        'the list of dropped files, not the trigger. Drop a '
-                        'file in each to see the difference.',
+                    ui.heading("display (strip / chips / grid)", level=3)
+                    ui.text('How the list under the zone shows the files: '
+                            'tiles on one scrolling row (default), chips that '
+                            'wrap, or large tiles that wrap. Drop a file in '
+                            'each to see the difference.',
                             color="muted", size="xs")
-                    with ui.flex(wrap=True, gap="md", align="start"):
-                        with ui.vstack(gap="xs", align="start"):
-                            ui.text("tiles (defaut) — vignette, taille, "
-                                    "x en badge de coin",
-                                    color="muted", size="xs")
-                            ui.file_upload(multiple=True)
-                        with ui.vstack(gap="xs", align="start"):
-                            ui.text('chips — icon, name, inline x, wrapping onto '
-                                'several lines',
-                                    color="muted", size="xs")
-                            ui.file_upload(multiple=True, list="chips")
-                    ui.text('The composer shape: a compact trigger and pills '
-                        'under the field.',
+                    with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
+                        for d in DISPLAYS:
+                            with ui.vstack(gap="xs"):
+                                ui.text(d, color="muted", size="xs")
+                                ui.file_upload(multiple=True, display=d, size="sm")
+                    ui.text('A compact button that joins files is a list and a '
+                            'button: ui.attachments, then on_click=pieces.pick() '
+                            '(see /attachments).',
                             color="muted", size="xs")
-                    ui.file_upload(variant="button", multiple=True,
-                                   list="chips", label="Joindre")
 
                     ui.heading("color (7 paliers)", level=3)
                     with ui.flex(wrap=True, gap="md", align="start"):
@@ -311,7 +297,7 @@ def page() -> None:
                             with ui.vstack(gap="xs", align="center"):
                                 ui.text(c, color="muted", size="xs")
                                 ui.file_upload(
-                                    variant="button", color=c,
+                                    size="sm", color=c,
                                     label=c,
                                 )
 
@@ -328,16 +314,6 @@ def page() -> None:
                             with ui.vstack(gap="xs", align="start"):
                                 ui.text(s, color="muted", size="xs")
                                 ui.file_upload(size=s)
-
-                    ui.heading("size (xs/sm/md/lg/xl) — button",
-                               level=3)
-                    with ui.flex(wrap=True, gap="md", align="start"):
-                        for s in SIZES:
-                            with ui.vstack(gap="xs", align="start"):
-                                ui.text(s, color="muted", size="xs")
-                                ui.file_upload(
-                                    variant="button", size=s, label=s,
-                                )
 
                     ui.heading("multiple + max_files", level=3)
                     with ui.flex(wrap=True, gap="md", align="start"):
@@ -390,11 +366,23 @@ def page() -> None:
                                     color="muted", size="xs")
                             ui.file_upload(disabled=True)
                         with ui.vstack(gap="xs", align="start"):
-                            ui.text("button disabled",
+                            ui.text("chips disabled",
                                     color="muted", size="xs")
-                            ui.file_upload(
-                                variant="button", disabled=True,
-                            )
+                            ui.file_upload(display="chips", disabled=True)
+
+                    ui.heading("files= / on_remove= — the files the server holds",
+                               level=3)
+                    ui.file_upload(display="chips", size="sm", files=[
+                        {"name": "contract-signed.pdf", "size": 182_331},
+                        {"name": "kbis-2026.pdf", "size": 64_102},
+                    ], on_remove=log_remove)
+
+                    ui.heading("drop=\"form\" — drop anywhere on the form", level=3)
+                    with ui.form(), ui.vstack(gap="sm"):
+                        ui.textarea(placeholder="Drop a file anywhere on this form…",
+                                    rows=2, size="sm")
+                        ui.file_upload(display="chips", size="sm", multiple=True,
+                                       drop="form")
 
                     ui.heading("required", level=3)
                     with ui.flex(justify="start"):
@@ -417,13 +405,6 @@ def page() -> None:
                             ui.file_upload(
                                 label="Drop your CSV here",
                                 accept=".csv",
-                            )
-                        with ui.vstack(gap="xs", align="start"):
-                            ui.text("button custom label",
-                                    color="muted", size="xs")
-                            ui.file_upload(
-                                variant="button",
-                                label="Attach a file",
                             )
 
             # ── Card 3 — Edge cases ─────────────────────────────────
@@ -488,8 +469,8 @@ def page() -> None:
                     with ui.form():
                         with ui.vstack(gap="sm"):
                             ui.textarea(placeholder="Paste a screenshot here…",
-                                        rows=2)
-                            ui.file_upload(variant="button", list="chips",
+                                        rows=2, size="sm")
+                            ui.file_upload(display="chips", size="sm",
                                            multiple=True, paste=True)
 
             # ── Card 4 — Composability ──────────────────────────────
@@ -563,14 +544,14 @@ def page() -> None:
                         with ui.vstack(gap="xs", align="start"):
                             ui.text("Drag area",
                                     color="muted", size="xs")
-                            ui.file_upload(multiple=True)
+                            ui.file_upload(multiple=True, size="sm")
                         with ui.vstack(gap="xs", align="start"):
-                            ui.text("Quick browse",
+                            ui.text("Quick browse — the zone opened by another "
+                                    "button (.pick())",
                                     color="muted", size="xs")
-                            ui.file_upload(
-                                variant="button",
-                                label="Attach",
-                            )
+                            browse = ui.file_upload(display="chips", size="sm")
+                            ui.button("Browse", icon_left="folder-open", size="sm",
+                                      variant="outline", on_click=browse.pick())
 
             # ── Card 5 — A11y ───────────────────────────────────────
             with ui.card():
@@ -635,28 +616,25 @@ def page() -> None:
                         color="muted", size="xs",
                     )
                     with ui.flex(wrap=True, gap="md"):
-                        ui.file_upload(variant="button", label="change",
+                        ui.file_upload(size="xs", label="change",
                                        multiple=True,
                                        on_change=log_change)
-                        ui.file_upload(variant="button",
-                                       label="upload_start",
+                        ui.file_upload(size="xs", label="upload_start",
                                        upload_url="/_demo/upload",
                                        on_upload_start=log_upload_start)
-                        ui.file_upload(variant="button",
-                                       label="upload_complete",
+                        ui.file_upload(size="xs", label="upload_complete",
                                        upload_url="/_demo/upload",
                                        on_upload_complete=log_upload_complete)
                         # A target answering 500 on purpose:
                         # ``upload_error`` only fires on a non-2xx, so the
                         # target that succeeds would make it
                         # undemonstrable.
-                        ui.file_upload(variant="button",
-                                       label="upload_error",
+                        ui.file_upload(size="xs", label="upload_error",
                                        upload_url="/_demo/upload-fail",
                                        on_upload_error=log_upload_error)
-                        ui.file_upload(variant="button", label="focus",
+                        ui.file_upload(size="xs", label="focus",
                                        on_focus=log_focus)
-                        ui.file_upload(variant="button", label="blur",
+                        ui.file_upload(size="xs", label="blur",
                                        on_blur=log_blur)
                     ui.divider()
                     events_panel()
@@ -720,7 +698,7 @@ def page() -> None:
                     ui.heading("Mode 1 — Imperative only (default)",
                                level=3)
                     with ui.hstack(align="center", gap="md", wrap=True):
-                        target = ui.file_upload(variant="button")
+                        target = ui.file_upload(size="sm")
                         ui.button("Focus", on_click=target.focus())
                         ui.button("Blur", variant="outline",
                                   on_click=target.blur())

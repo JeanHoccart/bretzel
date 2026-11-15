@@ -71,6 +71,12 @@ DEFAULT_TEXTS: Mapping[str, str] = {
     # ``creatable=True``: the row that creates what was typed. ``{text}``
     # is the typed text, filled in the browser.
     "combobox.create": 'Create "{text}"',
+    # ``ui.tags_input``: a tag's tooltip when ``pattern=`` refuses it, its
+    # cross, and what the live region says. ``{text}`` is the tag's label.
+    "tags_input.invalid": "Not a valid value",
+    "tags_input.remove": "Remove {text}",
+    "tags_input.added": "{text} added",
+    "tags_input.removed": "{text} removed",
     "slider.range_start": "Range start",
     "slider.range_end": "Range end",
     # ── Dates and times ──────────────────────────────────────────────
@@ -145,25 +151,36 @@ DEFAULT_TEXTS: Mapping[str, str] = {
     "file_upload.max_size": "Max size: {size}",
     "file_upload.multiple": "Multiple files allowed",
     "file_upload.multiple_capped": "Multiple files allowed (up to {max})",
-    "file_upload.remove": "Remove file",
+    "attachments.label": "Attached files",
+    "attachments.remove": "Remove file",
     "file_upload.dropzone": "Drop files here or click to browse",
-    "file_upload.button": "Upload file",
+    "editor.label": "Text",
+    "editor.toolbar": "Formatting",
+    "editor.bold": "Bold (Ctrl+B)",
+    "editor.italic": "Italic (Ctrl+I)",
+    "editor.bullet_list": "Bulleted list",
+    "editor.ordered_list": "Numbered list",
+    "editor.link": "Link (Ctrl+K)",
+    "editor.link_address": "Link address",
+    "editor.link_placeholder": "https://…",
+    "editor.link_apply": "Apply",
+    "editor.link_remove": "Remove the link",
     "file_upload.drop_more": "Drop more files here",
     "file_upload.drop_replace": "Drop a different file to replace",
     # What the browser says when it refuses a file — filled in by the
-    # runtime (file_upload.js). ``{name}`` the file, ``{size}`` the
+    # runtime (attachments.js). ``{name}`` the file, ``{size}`` the
     # ceiling with its unit, ``{count}`` / ``{max}`` numbers, ``{reason}``
     # one of the three ``reason_*`` texts.
-    "file_upload.too_large": "{name} — exceeds {size}",
-    "file_upload.wrong_format": "{name} — format not supported",
-    "file_upload.skipped": "{count} files skipped ({reason}).",
-    "file_upload.reason_too_large": "too large",
-    "file_upload.reason_wrong_format": "wrong format",
-    "file_upload.reason_size_or_format": "size or format",
-    "file_upload.only_one": "Only one file allowed.",
-    "file_upload.max_reached": "Maximum {max} files reached.",
-    "file_upload.over_limit": "{count} files skipped — limit {max} reached.",
-    "file_upload.network_error": "Network error",
+    "attachments.too_large": "{name} — exceeds {size}",
+    "attachments.wrong_format": "{name} — format not supported",
+    "attachments.skipped": "{count} files skipped ({reason}).",
+    "attachments.reason_too_large": "too large",
+    "attachments.reason_wrong_format": "wrong format",
+    "attachments.reason_size_or_format": "size or format",
+    "attachments.only_one": "Only one file allowed.",
+    "attachments.max_reached": "Maximum {max} files reached.",
+    "attachments.over_limit": "{count} files skipped — limit {max} reached.",
+    "attachments.network_error": "Network error",
     # ── Data table ───────────────────────────────────────────────────
     "datatable.clear_filters": "Clear filters",
     "datatable.export_csv": "Export CSV",
@@ -201,8 +218,8 @@ DEFAULT_TEXTS: Mapping[str, str] = {
     "show_more.label": "Show more",
     "resizable.resize_panel": "Resize panel {n}",
     "draggable.reorder": "Drag to reorder",
-    "file_upload.complete": "Upload complete",
-    "file_upload.error": "Upload error",
+    "attachments.complete": "Upload complete",
+    "attachments.error": "Upload error",
     "number_input.increment": "Increment",
     "number_input.decrement": "Decrement",
     "sidebar.rail_toggle": "Collapse or expand the sidebar",

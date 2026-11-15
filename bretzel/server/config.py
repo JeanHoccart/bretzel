@@ -13,6 +13,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 from bretzel.core.base_path import normalize as normalize_base_path
 from bretzel.render import LanguageTables
@@ -24,6 +25,23 @@ from bretzel.server.crypto import (
     PURPOSE_SESSION,
     derive_key,
 )
+from bretzel.state.persistence.redis import SCHEMES as REDIS_SCHEMES
+from bretzel.state.persistence.sqlite import SCHEME as SQLITE_SCHEME
+
+#: The schemes a ``state_url`` may carry, each read from its backend.
+#: SQLite keeps the states in one file; a Redis URL also carries the SSE
+#: relay and the ``@idempotent`` store (``server/lifecycle.py``), which
+#: is what several workers need. Closed: anything else is refused at
+#: construction.
+STATE_URL_SCHEMES = frozenset({SQLITE_SCHEME}) | REDIS_SCHEMES
+
+
+def redis_state_url(state_url: str | None) -> str | None:
+    """``state_url`` when it names a Redis server, ``None`` otherwise."""
+    if state_url and urlparse(state_url).scheme in REDIS_SCHEMES:
+        return state_url
+    return None
+
 
 #: The subset of BCP-47 an app declares in practice: a language,
 #: possibly a script, possibly a region — ``fr``, ``zh-Hant``,
@@ -92,7 +110,11 @@ class BretzelConfig:
     _session_key: bytes = field(init=False, repr=False, compare=False, default=b"")
 
     # ── Persistence + scaling ─────────────────────────────────────────
-    redis_url: str | None = None
+    # Where the server states live. ``None``: in memory, until the process
+    # restarts. ``sqlite:///path.db``: in that file, across restarts.
+    # ``redis://…``: in Redis, with the SSE relay and ``@idempotent`` —
+    # the only form that serves several workers.
+    state_url: str | None = None
     workers: int = 1
 
     # ── Sessions / auth ───────────────────────────────────────────────
@@ -365,10 +387,22 @@ class BretzelConfig:
             raise ConfigError(
                 f"workers must be >= 1, got {self.workers}."
             )
-        if self.workers > 1 and self.redis_url is None:
+        if self.state_url is not None:
+            scheme = urlparse(self.state_url).scheme
+            if scheme not in STATE_URL_SCHEMES:
+                raise ConfigError(
+                    f"state_url {self.state_url!r}: unknown scheme {scheme!r}. "
+                    "Write 'sqlite:///state.db' to keep the states in a file "
+                    "across restarts, or a 'redis://' / 'rediss://' / "
+                    "'unix://' URL to share them between workers."
+                )
+        if self.workers > 1 and redis_state_url(self.state_url) is None:
             raise ConfigError(
-                "Multi-worker deployments need redis_url configured "
-                "(state + SSE broker need a shared backend across workers)."
+                "Several workers need a shared store: state_url must be a "
+                "redis:// URL (pip install 'bretzel[redis]') — the states, "
+                "the SSE relay and @idempotent are kept in each process "
+                "otherwise. With one worker, leave state_url unset (memory) "
+                "or use 'sqlite:///state.db' to survive restarts."
             )
         if self.session_max_age_days < 1:
             raise ConfigError(

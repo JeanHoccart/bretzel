@@ -695,7 +695,9 @@ def _render_bars_layer(
     # Hover polish — non-hovered bars dim to 80 %, hovered stays at
     # 100 %. The spotlight is driven by the per-column ``group/bar-col``
     # (not the bar's own ``:hover``) because the transparent hit overlay
-    # on top intercepts the pointer — cf. ``_hit_rect``.
+    # on top intercepts the pointer — cf. ``_hit_rect``. The ``!``: the
+    # two group variants weigh the same, and the class merge only settles
+    # an app against the theme (same for the ``hover:!`` of the others).
     hover_states = (
         " group-hover/bars:opacity-80 group-hover/bar-col:!opacity-100"
     )

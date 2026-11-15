@@ -61,7 +61,7 @@ if secret_key is None:
 
 app = Bretzel(
     title="Bretzel · Docs",
-    description="Bretzel documentation: build reactive web applications in typed Python with server-driven rendering and shared state.",
+    description="Bretzel documentation: the Python web framework where the mockup is the app — built with an AI agent, every file checked.",
     secret_key=secret_key,
     mode=mode,
     lang="en",
@@ -129,9 +129,13 @@ async def llms_txt() -> Response:
     lines = [
         "# Bretzel documentation",
         "",
-        "> Bretzel is a full-stack Python web framework (server-driven UI): "
-        "typed state, targeted server rendering, 100+ components, realtime "
-        "over SSE, and no npm toolchain. Alpha: APIs may change.",
+        "> Bretzel is a Python web framework for building apps with an AI "
+        "agent: ask for a screen, approve a real mockup made of the components "
+        "the app will ship, and the same file becomes the working screen. "
+        "`bretzel describe` gives the exact API of the installed version, "
+        "`bretzel check` judges every file written. Typed state, targeted "
+        "server rendering, 100+ components, realtime over SSE, no npm "
+        "toolchain. Alpha: APIs may change.",
         "",
         "Install with `pip install bretzel` (Python 3.12, 3.13 or 3.14). "
         "Source: https://github.com/JeanHoccart/bretzel — "
@@ -165,6 +169,7 @@ from examples.docs.features import (      # noqa: E402 — marks ramassées par 
     how,
     languages,
     lists,
+    mockup,
     quickstart,
     reactivity_client,
     reactivity_server,
@@ -185,7 +190,7 @@ from examples.docs.features import (      # noqa: E402 — marks ramassées par 
 # ⚠️ `stubs` DOIT rester après les vrais chapitres : il lit leurs
 # marques `@page` pour savoir lesquels sont livrés.
 app.include(
-    home, quickstart, how, compare, describe, check,
+    home, mockup, quickstart, how, compare, describe, check,
     state_server, state_client,
     actions_server, actions_client,
     reactivity_server, reactivity_client,

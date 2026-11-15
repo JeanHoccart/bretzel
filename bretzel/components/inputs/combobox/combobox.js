@@ -56,6 +56,43 @@
      * only way into an option's markup. The gain in bytes is not worth a
      * content escape hatch.
      */
+    /* Multi mode keeps its pills on ONE line: show the ones that fit, hide
+     * the rest behind « +N ». Measured, since a label's width is the
+     * browser's to know. The text field keeps its ``min-width``. */
+    fitPills(row) {
+      const more = row.querySelector("[data-bz-more]");
+      if (!more) return;
+      const pills = Array.from(row.querySelectorAll("[data-bz-pill]"));
+      // A pill never shrinks: squeezed, it would measure narrower than it
+      // is drawn, and the last one shown would be cut.
+      for (const p of pills) { p.style.display = ""; p.style.flexShrink = "0"; }
+      more.style.display = "none";
+      if (!pills.length || !row.clientWidth) return;
+      const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+      const input = row.querySelector('input[type="text"]');
+      const room = row.clientWidth - (input ? (parseFloat(getComputedStyle(input).minWidth) || 0) + gap : 0);
+      const widths = pills.map((p) => p.getBoundingClientRect().width);
+      const total = widths.reduce((sum, w, i) => sum + w + (i ? gap : 0), 0);
+      if (total <= room) return;
+      more.textContent = "+" + pills.length;
+      more.style.display = "";
+      const reserve = more.getBoundingClientRect().width + gap;
+      let used = 0;
+      let shown = 0;
+      while (shown < pills.length) {
+        const w = widths[shown] + (shown ? gap : 0);
+        if (used + w + reserve > room) break;
+        used += w;
+        shown += 1;
+      }
+      pills.forEach((p, i) => { if (i >= shown) p.style.display = "none"; });
+      more.textContent = "+" + (pills.length - shown);
+    },
+    observeFit(row) {
+      if (typeof ResizeObserver !== "function") return;
+      new ResizeObserver(() => $bz.combobox.fitPills(row)).observe(row);
+    },
+
     optionOf(ev) {
       const o = ev.target.closest('[role="option"]');
       // A disabled button does not dispatch a click, but IT DOES

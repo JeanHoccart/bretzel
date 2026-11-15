@@ -29,6 +29,7 @@ from bretzel.components.base.focus import FocusCommands
 from bretzel.components.inputs._picker_field import icon_button
 from bretzel.components.inputs._wiring import (
     add_local_value_scope,
+    ghost_frame,
     value_command_listeners,
 )
 from bretzel.components.inputs.input.theme import INPUT_THEME
@@ -51,7 +52,7 @@ _NATIVE_PICKER_TYPES: dict[str, str] = {
     "month":          "ui.month_picker",
     "week":           "ui.week_picker",
     "color":          "ui.color_picker",
-    "file":           "ui.file_upload",
+    "file":           "ui.attachments (a list any button fills with .pick()) or ui.file_upload (a dropzone)",
     # Native ``type=number`` has too many cross-browser quirks (leading
     # zeros stripped, ``e`` scientific notation, inconsistent clamp/step,
     # FormData returns a string that may not parse). ``ui.number_input``
@@ -98,6 +99,13 @@ class Input(ValueCommands, FocusCommands, Component):
     # Visual props — consumed by the slot composer, kept off the DOM.
     color: str = reactive_prop(default="primary", emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
+    #: The look of the field, the words of ``ui.button``: ``surface`` (the
+    #: default) is the framed field; ``ghost`` has neither background nor
+    #: frame — the container around it structures the screen (the lines
+    #: of a mail) — and its focus ring only for a keyboard user
+    #: (``data-bz-keyboard`` on ``<html>``, set by ``helpers.js``).
+    variant: str = reactive_prop(default="surface", emit_attr=False,
+                                 steps=("surface", "ghost"))
 
     # Whitelist of accepted input types. Native UI types (date / time /
     # color / file / number / ...) are blocked at ``__init__`` so the dev
@@ -126,6 +134,7 @@ class Input(ValueCommands, FocusCommands, Component):
         autocomplete: str | None = None,
         color: str | None = None,
         size: str | None = None,
+        variant: str | None = None,
         # Decorative slots — strings or Component instances.
         prefix: str | Component | None = None,
         suffix: str | Component | None = None,
@@ -166,7 +175,7 @@ class Input(ValueCommands, FocusCommands, Component):
             required=required, min=min, max=max,
             step=step, pattern=pattern, minlength=minlength,
             maxlength=maxlength, autocomplete=autocomplete,
-            color=color, size=size,
+            color=color, size=size, variant=variant,
             on_change=on_change,
             on_input=on_input,
             on_focus=on_focus,
@@ -278,7 +287,7 @@ class Input(ValueCommands, FocusCommands, Component):
         input_class = " ".join(
             p
             for p in (
-                self.compose_class("input"),
+                ghost_frame(self, self.compose_class("input")),
                 size_map.get("icon_pad_left", "")
                 if self._icon_left is not None
                 else "",
@@ -405,12 +414,15 @@ class Input(ValueCommands, FocusCommands, Component):
         """Build the ``<span>`` (or pre-rendered Component) for a
         decorative slot, sized by the base composer (the icons' offset)."""
         slot_class = self.compose_class(slot)
+        if slot in ("prefix", "suffix"):
+            # Ghost: the affix starts at the field's edge, as its text would.
+            slot_class = ghost_frame(self, slot_class)
         if isinstance(content, Component):
             # Component author : render as-is and stamp the slot class
             # on its root attrs.
             node = content.render()
             return Component.with_slot_class(  # type: ignore[return-value]
-                node, slot_class
+                node, slot_class, addition=self._slot_addition(slot)
             )
         # Through ``emit_text_slot``: a bound affix becomes a live
         # ``bz-text`` span instead of crashing on ``str(binding)``. An

@@ -60,7 +60,7 @@ LINE_CHART_THEME: dict[str, Any] = {
         # calibrated to disappear under dark themes.
         "line": (
             "stroke-(--bz-solid) fill-none "
-            "motion-safe:transition-[d] duration-500 ease-out "
+            "motion-safe:transition-[d] duration-400 ease-out "
             "drop-shadow-sm "
             "bz-area-entry"
         ),
@@ -72,7 +72,7 @@ LINE_CHART_THEME: dict[str, Any] = {
         # ``url(#...)`` ; the gradient's colour lives on the
         # ``<linearGradient>`` via ``area_gradient_color``.
         "area": (
-            "motion-safe:transition-[d] duration-500 ease-out "
+            "motion-safe:transition-[d] duration-400 ease-out "
             "bz-area-entry"
         ),
         # Sets ``color`` on the ``<linearGradient>`` so the stops'
@@ -120,7 +120,7 @@ LINE_CHART_THEME: dict[str, Any] = {
         # hidden visual the wrapper drives via ``:class``.
         "legend_item":  (
             "flex items-center gap-2 cursor-pointer "
-            "transition-opacity duration-150 "
+            "transition-opacity duration-200 "
             "outline-none focus-visible:ring-2 focus-visible:ring-text/30 "
             "rounded px-1"
         ),

@@ -60,7 +60,11 @@ from typing import Any, ClassVar
 from bretzel.components.base import Component, ComponentUsageError, reactive_prop
 from bretzel.components.base.arguments import shown
 from bretzel.components.base.composition import unwrap_transparent
-from bretzel.components.base.field_wiring import hidden_carrier_attrs, relocate_handlers
+from bretzel.components.base.field_wiring import (
+    activate_keydown,
+    hidden_carrier_attrs,
+    relocate_handlers,
+)
 from bretzel.components.base.scope_wiring import bool_attr, scope_literal
 from bretzel.components.base.theme_values import theme_context
 from bretzel.components.base.universals import finish_render
@@ -457,7 +461,13 @@ class AccordionItem(Component):
             else f"acc_b_{abs(hash(item_value))}"
         )
 
-        # ── Header — button + label + chevron ────────────────────────
+        # ── Header — label + chevron, a ``div role="button"`` ────────
+        # Not a ``<button>``: a browser takes a press in a button for a
+        # click, so its text cannot be selected (Firefox refuses even with
+        # ``user-select: text``). A mail's header — « Sophie Marchand
+        # <s.marchand@…> » — is text one copies. The role, the focus
+        # (``tabindex``), Enter and Space (``activate_keydown``) and
+        # ``aria-disabled`` give back what the native button gave.
         header_children: list[Node] = []
 
         # Optional leading icon. Detach from the auto-attach machinery
@@ -489,7 +499,7 @@ class AccordionItem(Component):
         header_children.append(chevron.render())
 
         header_attrs: dict[str, Any] = {
-            "type": "button",
+            "role": "button",
             "id": header_id,
             "class": header_class,
             "aria-controls": body_id,
@@ -499,7 +509,6 @@ class AccordionItem(Component):
             # on a falsy boolean (cf. ``traps.md`` data-attr stringify).
             "bz-attr:aria-expanded": bool_attr(f"isOpen({value_js})"),
             "bz-attr:data-open": bool_attr(f"isOpen({value_js})"),
-            "bz-on:click": f"toggle({value_js})",
         }
         if initially_open:
             # SSR-render the active state so CSS picks it up before
@@ -509,10 +518,16 @@ class AccordionItem(Component):
         else:
             header_attrs["aria-expanded"] = "false"
         if disabled:
-            header_attrs["disabled"] = True
+            header_attrs["aria-disabled"] = "true"
+        else:
+            header_attrs["tabindex"] = "0"
+            # A click folds; a drag, a double or a triple click selects
+            # (``headerClick``, ``accordion.js``).
+            header_attrs["bz-on:click"] = f"headerClick($event, $el, {value_js})"
+            header_attrs["bz-on:keydown"] = activate_keydown(f"toggle({value_js});")
 
         header_button = Element(
-            tag="button",
+            tag="div",
             attrs=header_attrs,
             children=tuple(header_children),
         )

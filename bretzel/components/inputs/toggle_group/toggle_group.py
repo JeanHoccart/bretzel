@@ -6,6 +6,13 @@ via ``data-selected="true"``.
 
 - ``multiple=False`` (default) — value is a scalar str.
 - ``multiple=True`` — value is a ``list[str]``.
+- ``orientation="vertical"`` — the items stack in a column (a rail of
+  icons): square icon-only items, the group as tall as its content, and
+  the items' tooltips open to the RIGHT, beside the column, instead of
+  over the next item. The same word as ``ui.resizable`` / ``ui.stepper``.
+- ``variant="ghost"`` — no background, border or inset around the items
+  (``"surface"``, the default, has them); the chosen item's pill does not
+  change. The same words as ``ui.button``.
 
 *(``multiple=`` — the same word as Select / Combobox / FileUpload —
 rather than shadcn's ``type="single"|"multiple"``, so the API stays
@@ -60,6 +67,11 @@ from bretzel.components.inputs.toggle_group.theme import TOGGLE_GROUP_THEME
 from bretzel.components.primitives.icon import Icon
 from bretzel.core.tree import Element
 
+#: The two axes — the same words as ``ui.resizable`` and ``ui.stepper``.
+ORIENTATIONS: tuple[str, ...] = ("horizontal", "vertical")
+#: The frame around the items — the same words as ``ui.button``.
+VARIANTS: tuple[str, ...] = ("surface", "ghost")
+
 
 class ToggleGroup(ChoiceCommands, FocusCommands, Component):
     """Cluster of :class:`ToggleButton` items — single or multi-select."""
@@ -86,6 +98,10 @@ class ToggleGroup(ChoiceCommands, FocusCommands, Component):
     multiple: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
     size: str = reactive_prop(default="md", emit_attr=False)
+    orientation: str = reactive_prop(
+        default="horizontal", emit_attr=False, steps=ORIENTATIONS,
+    )
+    variant: str = reactive_prop(default="surface", emit_attr=False, steps=VARIANTS)
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     name: str | None = reactive_prop(default=None, emit_attr=False)
 
@@ -97,6 +113,8 @@ class ToggleGroup(ChoiceCommands, FocusCommands, Component):
         multiple: bool | None = None,
         color: str | None = None,
         size: str | None = None,
+        orientation: str | None = None,
+        variant: str | None = None,
         disabled: bool | None = None,
         name: str | None = None,
         on_change: Callable[..., Any] | str | None = None,
@@ -119,6 +137,8 @@ class ToggleGroup(ChoiceCommands, FocusCommands, Component):
             multiple=multiple,
             color=color,
             size=size,
+            orientation=orientation,
+            variant=variant,
             disabled=disabled,
             name=name,
             on_change=on_change,
@@ -239,7 +259,20 @@ class ToggleGroup(ChoiceCommands, FocusCommands, Component):
         # ── Walk children — collect ToggleButton items only ────────────
         buttons: list[Element] = []
         item_values: list[str] = []
+        vertical = self._reactive_values.get("orientation") == "vertical"
         item_class = self.compose_class("item")
+        if vertical:
+            # The row's ``h-full px-*`` would stretch a column item to the
+            # whole group: the item carries its own size instead
+            # (``square_v`` / ``row_v``, theme docstring).
+            bare_item = self.compose_class("item", apply_variant_size_modifiers=False)
+            size_row = self._size_row() or {}
+            # Without the frame, an item fills the whole step.
+            suffix = "_ghost" if self._reactive_values.get("variant") == "ghost" else ""
+            vertical_class = {
+                True: f"{bare_item} {size_row.get('square_v' + suffix, '')}".strip(),
+                False: f"{bare_item} {size_row.get('row_v' + suffix, '')}".strip(),
+            }
 
         # Group-level ``disabled`` resolution — same dual-stream as
         # ``value`` :
@@ -272,7 +305,12 @@ class ToggleGroup(ChoiceCommands, FocusCommands, Component):
             if isinstance(child, ToggleButton):
                 buttons.append(rewrap(
                     child._render_button(
-                        item_class=item_class,
+                        item_class=(
+                            vertical_class[child._label is None] if vertical
+                            else item_class
+                        ),
+                        # Beside the column, not over the next item.
+                        tip_position="right" if vertical else None,
                         click_expr=_click_expr(child._option_value),
                         selected_expr=_selected_expr(child._option_value),
                         initially_selected=_is_initially_selected(
@@ -377,7 +415,20 @@ class ToggleGroup(ChoiceCommands, FocusCommands, Component):
         # The step's height is on the root because it is the root that
         # carries the frame's border (cf. the comment on
         # ``TOGGLE_GROUP_THEME["sizes"]``).
-        root_class = self.compose_class("root")
+        # Vertical, the root takes its content's height: the step's
+        # height (``sizes[…]["root"]``) belongs to a row. The variant's
+        # frame is composed either way.
+        if vertical:
+            variants = self._resolved_theme().get("variants", {})
+            root_class = " ".join(c for c in (
+                self.compose_class("root", apply_variant_size_modifiers=False),
+                variants.get(self._reactive_values.get("variant") or "surface", ""),
+                self.compose_class("vertical"),
+            ) if c)
+        else:
+            root_class = " ".join((
+                self.compose_class("root"), self.compose_class("horizontal"),
+            ))
         root_attrs["class"] = root_class
         root_attrs["bz-data"] = bz_data
         root_attrs.setdefault("role", "group")
@@ -453,7 +504,7 @@ class ToggleButton(Component):
             from bretzel.components.overlay.tooltip import Tooltip
 
             self._tooltip_wrapper = Component.adopt_slot(
-                Tooltip(tooltip, classes="flex! h-full!"))
+                Tooltip(tooltip, classes="flex h-full"))
         # ⚠️ An ``icon="star"`` keeps its NAME here: its size depends
         # on the GROUP's ``size=``, which a child does not know at its
         # construction. It is derived at render, where ``item_class``
@@ -491,6 +542,7 @@ class ToggleButton(Component):
         initially_selected: bool,
         group_disabled: bool,
         group_disabled_path: str | None = None,
+        tip_position: str | None = None,
     ) -> Element:
         """Materialise the actual ``<button>``. Called by the parent
         group with composed expressions + the SSR initial-selected
@@ -504,7 +556,15 @@ class ToggleButton(Component):
         (truthy → empty attr present, falsy → attr removed, exactly the
         boolean-attr semantics ``disabled`` needs). Without the path,
         ``group_disabled`` is the static SSR snapshot used to lock the
-        button at first paint only."""
+        button at first paint only.
+
+        ``tip_position`` places the tooltip, when the group knows better
+        than ``auto`` (a vertical group: beside the column). A button
+        cannot be wrapped in ``ui.tooltip`` (it must be the group's
+        direct child), so its ``tooltip=`` is the only bubble it has."""
+        wrapper = getattr(self, "_tooltip_wrapper", None)
+        if tip_position is not None and wrapper is not None:
+            wrapper._reactive_values["position"] = tip_position
         attrs: dict[str, Any] = {
             "type": "button",
             "class": item_class,
@@ -556,12 +616,6 @@ class ToggleButton(Component):
             attrs["bz-attr:disabled"] = " || ".join(reactive_terms)
         if per_item_static or group_disabled:
             attrs["disabled"] = True
-
-        # An icon-only button is named by its tooltip (the ``title`` did
-        # it before, for screen readers too).
-        named = isinstance(self._tooltip, str) and self._tooltip and not self._label
-        if named and "aria-label" not in attrs:
-            attrs["aria-label"] = self._tooltip
 
         # Icon + label children. ``label is None`` is a valid case —
         # icon-only buttons. Don't emit a stray empty text node.

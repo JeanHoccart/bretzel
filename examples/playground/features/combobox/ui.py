@@ -65,6 +65,7 @@ def build_preview(state: ComboboxPlayground) -> dict:
         "required": state.required,
         "color": state.color,
         "size": state.size,
+        "variant": state.variant,
     }
     if state.multiple:
         kwargs["value"] = [
@@ -136,6 +137,10 @@ def server_panel() -> None:
         with control("size"):
             ui.select(value=state.size,
                       options=[(s, s) for s in SIZES],
+                      on_change=server_changed)
+        with control("variant (surface / ghost)"):
+            ui.select(value=state.variant,
+                      options=[("surface", "surface"), ("ghost", "ghost")],
                       on_change=server_changed)
         with control(
             "initial (single : 'fr' / multi : 'fr,de,es')"
@@ -370,6 +375,18 @@ def page() -> None:
                             "label — type 'fr'.",
                                 color="muted", size="xs")
 
+                    ui.heading("Variants — surface / ghost", level=3)
+                    ui.text(
+                        "ghost: no background, no frame — the container "
+                        "around it structures the screen. The mouse puts "
+                        "the caret in it; the Tab key brings the ring.",
+                        color="muted", size="sm",
+                    )
+                    with ui.grid(cols={"base": 1, "md": 2}, gap="md"):
+                        for v in ("surface", "ghost"):
+                            with ui.vstack(gap="xs"):
+                                ui.combobox(COUNTRIES, value=["fr", "de"], multiple=True, variant=v)
+
                     ui.heading("Sizes (xs → xl)", level=3)
                     with ui.vstack(gap="md"):
                         for s in ui.each(SIZES):
@@ -524,13 +541,28 @@ def page() -> None:
                                         bulk_actions=True,
                                         placeholder="Visited countries")
 
-                    ui.heading("Multi with many initial picks", level=3)
-                    ui.combobox(
-                        options=COUNTRIES,
-                        value=[c[0] for c in COUNTRIES[:8]],
-                        multiple=True,
-                        bulk_actions=True,
+                    ui.heading("Multi with many picks — one line, then « +N »",
+                               level=3)
+                    ui.text(
+                        "The field keeps one line and its height: the pills "
+                        "that fit, then « +N ». The whole list is in the "
+                        "panel. Resize the window: the count follows.",
+                        color="muted", size="sm",
                     )
+                    with ui.vstack(gap="sm", classes="max-w-md"):
+                        ui.combobox(
+                            options=COUNTRIES,
+                            value=[c[0] for c in COUNTRIES[:12]],
+                            multiple=True,
+                            bulk_actions=True,
+                            id="cb-many",
+                        )
+                        ui.combobox(
+                            options=COUNTRIES,
+                            value=[c[0] for c in COUNTRIES[:2]],
+                            multiple=True,
+                            id="cb-two",
+                        )
 
             # ── Card 5 — A11y ───────────────────────────────────────
             with ui.card():

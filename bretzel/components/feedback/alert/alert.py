@@ -109,20 +109,10 @@ class Alert(Component):
         children: list[Node] = []
 
         if icon is not None:
-            icon_render = icon.render()
-            icon_class = self.compose_class("icon")
-            icon_render = Element(
-                tag=icon_render.tag,
-                attrs={
-                    **icon_render.attrs,
-                    "class": (
-                        f"{icon_class} "
-                        f"{icon_render.attrs.get('class', '')}"
-                    ).strip(),
-                },
-                children=icon_render.children,
-            )
-            children.append(icon_render)
+            children.append(Component.with_slot_class(
+                icon.render(), self.compose_class("icon"),
+                addition=self._slot_addition("icon"),
+            ))
 
         # ── Content stack : title + message ────────────────────────────
         content_children: list[Node] = []

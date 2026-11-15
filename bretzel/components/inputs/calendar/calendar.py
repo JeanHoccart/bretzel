@@ -710,27 +710,28 @@ class Calendar(ValueCommands, Component):
         next_step = ("year += 1" if is_month_mode else (
             "month === 11 ? (year += 1, month = 0) : (month += 1)"
         )) + said
+        # ``shrink-0``: without it the arrow SHRINKS when the
+        # month's label is long. Its right edge is fixed, so its LEFT
+        # edge moves: you click, the target slips away. It is the
+        # label that must give, never the command.
+        # The size comes from the CALENDAR's theme, not from
+        # IconButton's: its ``md`` step is 40 px where this theme
+        # declares 32 (``nav_button: w-8``), and the difference would
+        # make the header overflow. Passed in ``classes=``, it wins
+        # over IconButton's own size by the class merge
+        # (``theme/class_merge.py``), with no ``!``.
+        # ``min-w-fit min-h-fit``: the box is in density steps, the
+        # chevron in text steps — at 2.4 px a step the ``xl`` glyph
+        # (32 px) would stick out of its 28.8 px box. The steps stay
+        # the size; the glyph is the floor.
+        nav_classes = "shrink-0 min-w-fit min-h-fit " + size_map.get("nav_button", "")
         prev_btn = _IconButton(
             "chevron-left",
             variant="ghost",
             size=size_key,
             color=color,
             disabled=disabled_prop,
-            # ``shrink-0``: without it the arrow SHRINKS when the
-            # month's label is long. Its right edge is fixed, so its LEFT
-            # edge moves: you click, the target slips away. It is the
-            # label that must give, never the command.
-            # The size comes from the CALENDAR's theme, not from
-            # IconButton's: its ``md`` step is 40 px where this theme
-            # declares 32 (``nav_button: w-8``), and the difference would
-            # make the header overflow. The ``!`` are necessary: at equal
-            # specificity, Tailwind decides by its sheet's order, so
-            # without them the winner is unpredictable.
-            # ``min-w-fit min-h-fit``: the box is in density steps, the
-            # chevron in text steps — at 2.4 px a step the ``xl`` glyph
-            # (32 px) would stick out of its 28.8 px box. The steps stay
-            # the size; the glyph is the floor.
-            classes="shrink-0 min-w-fit min-h-fit " + size_map.get("nav_button", ""),
+            classes=nav_classes,
             **{
                 "bz-on:click": prev_step,
                 "aria-label": text(
@@ -746,21 +747,7 @@ class Calendar(ValueCommands, Component):
             size=size_key,
             color=color,
             disabled=disabled_prop,
-            # ``shrink-0``: without it the arrow SHRINKS when the
-            # month's label is long. Its right edge is fixed, so its LEFT
-            # edge moves: you click, the target slips away. It is the
-            # label that must give, never the command.
-            # The size comes from the CALENDAR's theme, not from
-            # IconButton's: its ``md`` step is 40 px where this theme
-            # declares 32 (``nav_button: w-8``), and the difference would
-            # make the header overflow. The ``!`` are necessary: at equal
-            # specificity, Tailwind decides by its sheet's order, so
-            # without them the winner is unpredictable.
-            # ``min-w-fit min-h-fit``: the box is in density steps, the
-            # chevron in text steps — at 2.4 px a step the ``xl`` glyph
-            # (32 px) would stick out of its 28.8 px box. The steps stay
-            # the size; the glyph is the floor.
-            classes="shrink-0 min-w-fit min-h-fit " + size_map.get("nav_button", ""),
+            classes=nav_classes,
             **{
                 "bz-on:click": next_step,
                 "aria-label": text(

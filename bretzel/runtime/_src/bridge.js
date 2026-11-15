@@ -90,6 +90,14 @@
     // `tests/consistency/test_a_seed_patch_never_overwrites.py`, and the
     // result by
     // `tests/runtime_js/test_a_partial_nav_never_clobbers_client_state.py`.
+    //
+    // Either way the value is the SERVER's, not a gesture: it is written
+    // through ``$bz._writeAsServer``, so a field bound to it takes it as
+    // its new value without posting its ``on_change`` back.
+    $bz._writeAsServer(function () { writePayload(payload); });
+  }
+
+  function writePayload(payload) {
     const isSeed = !!payload.config;
     for (const instancePath of Object.keys(payload.patches)) {
       const fields = payload.patches[instancePath];
@@ -1037,6 +1045,9 @@
         if (old.nodeType === 1 && fresh.nodeType === 1 && fresh.id && !old.id) {
           rebirths.add(old);
         }
+        // A node a library writes (``ui.editor``'s surface): left whole.
+        if (old.nodeType === 1 && fresh.nodeType === 1 && old.hasAttribute("__CLIENT_DOM_ATTR__")
+            && fresh.hasAttribute("__CLIENT_DOM_ATTR__")) return false;
         if (old.nodeType === 1 && fresh.nodeType === 1
             && old.hasAttribute("__REPLACE_ATTR__")) {
           if (old.outerHTML !== fresh.outerHTML) {

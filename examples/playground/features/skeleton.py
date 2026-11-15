@@ -280,7 +280,7 @@ def page() -> None:
                     with ui.hstack():
                         ui.skeleton(variant="rectangle", width="120px",
                                     height="40px",
-                                    classes="!rounded-md")
+                                    classes="rounded-md")
 
             # ── Card 4 — A11y ───────────────────────────────────────
             with ui.card():

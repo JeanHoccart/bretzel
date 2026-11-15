@@ -16,6 +16,7 @@ Combobox mounts it as a method).
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from bretzel.components.base import (
@@ -73,6 +74,28 @@ def badge_pill_classes(
         size_cfg.get("close", ""),
     ) if p)
     return pill, close
+
+
+#: A text-size token of the scale (``text-sm``), not a colour (``text-(--bz-text)``).
+_TEXT_STEP = re.compile(r"^text-(xs|sm|base|lg|xl|[2-9]xl)$")
+
+
+def field_text_pill(pill_class: str, field_classes: str) -> str:
+    """A tag INSIDE a field writes as one types in that field.
+
+    The badge's own step sets the tag's box (padding, height) and its text
+    one step smaller than a field's: 12 px beside 14 px of typing at ``sm``.
+    Jean, on Orga's recipients: the letters of a tag are always the size of
+    the text typed in its field. So the tag takes the field's ``text-*``
+    (read in the field's size row). The badge's ``h-*`` and line height do
+    not move: the taller line overflows the box evenly, unclipped — a
+    ``leading-none`` there let the label's ``truncate`` clip descenders.
+    """
+    field_text = next((t for t in field_classes.split() if _TEXT_STEP.match(t)), "")
+    if not field_text:
+        return pill_class
+    kept = [t for t in pill_class.split() if not _TEXT_STEP.match(t)]
+    return " ".join([*kept, field_text])
 
 
 def normalise_option(opt: Any) -> tuple[Any, Any, bool]:
@@ -241,7 +264,8 @@ def build_pills_template(
         children=(
             Element(
                 tag="span",
-                attrs={"class": pill_class},
+                # ``data-bz-pill``: what ``$bz.combobox.fitPills`` counts.
+                attrs={"class": pill_class, "data-bz-pill": ""},
                 children=(
                     Element(
                         tag="span",
@@ -285,6 +309,7 @@ __all__ = [
     "build_footer_bar",
     "build_header_bar",
     "build_pills_template",
+    "field_text_pill",
     "has_picks",
     "normalise_option",
     "option_check",

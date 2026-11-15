@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any, Final
 
 from bretzel.components.base.attrs import (
@@ -65,6 +65,12 @@ def stamp_display_none(attrs: dict[str, Any]) -> None:
     """
     existing = str(attrs.get("style", "")).rstrip().rstrip(";")
     attrs["style"] = f"{existing}; display:none" if existing else "display:none"
+
+
+def is_stamped_hidden(attrs: Mapping[str, Any]) -> bool:
+    """Whether :func:`stamp_display_none` hid these attrs — its reader, so
+    the format of the stamp lives in one place."""
+    return "display:none" in str(attrs.get("style", "")).replace(" ", "")
 
 
 def coerce_children(rendered: Any) -> tuple[Node, ...]:

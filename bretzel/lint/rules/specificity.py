@@ -1,33 +1,23 @@
 """Rule: a class in ``classes=`` that the SAME prop already sets.
 
-The silence it closes
----------------------
+What it closes
+--------------
 
 ``ui.vstack`` emits ``justify-start`` without being asked: the
 ``justify`` prop has a default, and a default emits. Writing ::
 
     ui.vstack(gap="none", align="start", classes="h-full w-full justify-center px-3")
 
-therefore puts **two** ``justify-*`` on the same element ::
+says the same thing twice, in two languages: the prop that the
+component reads, and a class that bypasses it. The class wins — the app's
+classes are merged over the theme's (``bretzel/theme/class_merge.py``) —
+but the call now has two ways to say where its content sits, and the one
+the component knows (``justify=``) says the opposite of what renders. A
+theme that changes the prop's classes, a reader who trusts the prop, an
+agent that edits it: each is wrong about the page.
 
-    <div class="flex flex-col items-start justify-start gap-0 h-full w-full justify-center px-3">
-
-Both selectors have the same specificity, so it is the Tailwind
-**sheet**'s order that settles them — not the order of the ``class``
-attribute, which everyone reads first. ``justify-start`` can win, and the
-content stays stuck at the top although the code says "centre".
-
-It is the repository's favourite failure mode: nothing raises, nothing is
-missing from the HTML, and **re-reading the classes shows nothing** —
-both are there, both correct, both wanted by somebody. Same mechanics as
-the "hover on every other row" of
-``bretzel/components/data/table/theme.py`` ("hover vs striped
-specificity"), where two rules of equal specificity are settled by the
-source.
-
-The fault happened **twice in a row** in the same file (commits
-``9cdd7627`` then ``db1b574c``), which is the definition of an easy and
-invisible fault.
+One way to do each thing (charter, principle 4): what a prop covers is
+written with the prop, ``classes=`` is for what no prop covers.
 
 The prop → family table is DERIVED, never copied
 ------------------------------------------------
@@ -74,13 +64,12 @@ Three consequences:
 - ``flex-1`` on a ``ui.flex``: ``direction``'s family is exactly
   ``flex-row|flex-col|flex-row-reverse|flex-col-reverse``, not
   ``flex-*`` → spared (the prefix alone would make false positives);
-- ``md:justify-center``, ``justify-center!``, ``[justify-content:…]``:
-  **deliberate** departures in specificity or scope, which win for good →
-  never reported.
+- ``md:justify-center``, ``[justify-content:…]``: a scope or a value the
+  prop cannot say → never reported. (``justify-center!`` is not reported
+  here either: ``component-forced-with-important`` refuses the ``!``.)
 
-Accepted blind spot: ``gap-3`` (a step outside the table) really does
-fight with the default's ``gap-4``, and is not reported — it exists as no
-prop's value, so reporting it would amount to refusing the escape hatch.
+Not reported: ``gap-3``, a step outside the table — it is no prop's
+value, so reporting it would amount to refusing the escape hatch.
 
 ``examples/`` is at zero, frozen by ``test_lint_baseline_on_examples``.
 """
@@ -101,10 +90,9 @@ RULE = "class-duplicates-a-prop"
 _CLASS_KWARGS = ("classes", "class_")
 
 #: A character that takes a class out of judgement. ``:`` = a variant
-#: (``md:``, ``hover:``) hence another scope AND another rank in the
-#: sheet; ``[`` / ``]`` = an arbitrary value, written on purpose; ``!`` =
-#: Tailwind's important, that is to say an accepted departure that wins.
-#: None of the three is the silent duplicate this rule looks for.
+#: (``md:``, ``hover:``), a scope the prop cannot say; ``[`` / ``]`` = an
+#: arbitrary value, written on purpose; ``!`` = Tailwind's important,
+#: which ``component-forced-with-important`` judges.
 _DELIBERATE = "[]:!"
 
 
@@ -254,12 +242,10 @@ def _finding(
         )
     else:
         message = (
-            f"`ui.{ui_name}(classes=…)` sets `{token}` on the SAME element "
-            f"as the `{family.prop}=` prop, which already emits `{posed}` "
-            f"({origin}). Two classes of equal specificity: it is the "
-            f"Tailwind SHEET's order that settles it, not the `class` "
-            f"attribute's — the HTML carries both and nothing says which "
-            f"one won."
+            f"`ui.{ui_name}(classes=…)` sets `{token}` where the "
+            f"`{family.prop}=` prop says `{posed}` ({origin}): the class "
+            f"wins, and the prop the component reads says the opposite "
+            f"of what renders."
         )
         hint = (
             f"Write `{family.prop}={wanted!r}`: it is the value that "

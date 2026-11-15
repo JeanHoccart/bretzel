@@ -80,7 +80,7 @@ BAR_CHART_THEME: dict[str, Any] = {
         # (grouped bars) — the line chart's, for the same gesture.
         "legend_item":  (
             "flex items-center gap-2 cursor-pointer "
-            "transition-opacity duration-150 "
+            "transition-opacity duration-200 "
             "outline-none focus-visible:ring-2 focus-visible:ring-text/30 "
             "rounded px-1"
         ),

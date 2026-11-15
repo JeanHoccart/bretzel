@@ -44,6 +44,9 @@ PAGINATION_THEME: dict[str, Any] = {
             "focus-visible:ring-(--bz-focus) "
             "disabled:opacity-50 disabled:cursor-not-allowed"
         ),
+        # The ``!``: this layer arrives by ``bz-class``, in the browser,
+        # over ``item``'s ``not-disabled:hover:bg-text/5`` — the server's
+        # class merge never sees the two together.
         "active": (
             "bg-(--bz-solid) text-(--bz-on-solid) shadow-sm scale-110 z-10 "
             "not-disabled:hover:!bg-(--bz-solid-hover)"

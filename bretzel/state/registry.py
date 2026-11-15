@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import hashlib
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -41,6 +42,7 @@ from bretzel.core.errors import AuthRequiredError, BretzelError
 from bretzel.core.tracking import TRACKER
 from bretzel.state._wire_name import wire_name
 from bretzel.state.base import State
+from bretzel.state.fields.descriptor import assign_fields
 from bretzel.state.persistence.base import Backend
 from bretzel.state.scopes.client import ClientState
 from bretzel.state.scopes.server import ServerScope, ServerState
@@ -62,6 +64,9 @@ _ABSENT: Any = object()
 
 class ScopeConfigError(RuntimeError):
     """Raised when scope-specific identity is missing (no session id …)."""
+
+
+_log = logging.getLogger("bretzel.state")
 
 
 class StateHydrationError(BretzelError):
@@ -113,6 +118,29 @@ def use_registry(registry: StateRegistry) -> Iterator[None]:
         yield
     finally:
         _CURRENT.reset(token)
+
+
+def _apply_stored(instance: State, raw: dict[str, Any]) -> None:
+    """Hydrate ``instance`` from a stored row, dropping what no longer fits.
+
+    A stored row outlives the code that wrote it: a value its field now
+    refuses (the type changed, a validator appeared) keeps the field at
+    its default and is said in the log — raising would answer 500 to
+    every request reading the state. Fields the class no longer declares
+    are ignored, as in ``State._apply_fields``.
+
+    The refusal is the one a submitted form gets (``assign_fields``):
+    the same coercion, the same validators, the whole-instance ones run
+    once on the whole row.
+    """
+    fields = type(instance)._all_fields()
+    errors, _ = assign_fields(instance, {n: v for n, v in raw.items() if n in fields})
+    for name, message in errors.items():
+        _log.warning(
+            "%s.%s: the stored value %r no longer fits (%s) — dropped, "
+            "the default stays.",
+            type(instance).__name__, name, raw.get(name, raw), message,
+        )
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -318,7 +346,7 @@ class StateRegistry:
         instance = type.__call__(cls, key=key)
         if raw is not None:
             self._note_page_row(cls, key)
-            instance._apply_fields(raw)
+            _apply_stored(instance, raw)
             # We have just READ: this is not a user mutation.
             instance._dirty = False
         self.register(instance, key)
@@ -438,7 +466,7 @@ class StateRegistry:
             # declared default reappear.
             instance.__dict__.pop(fld._storage_key, None)
         if raw:
-            instance._apply_fields(raw)
+            _apply_stored(instance, raw)
         instance._dirty = False
         photo = copy.deepcopy(instance._field_values())
         instance._bz_stored = photo

@@ -1,12 +1,13 @@
-/* file_upload.js — $bz.fileUpload.makeScope factory for ui.file_upload. */
+/* attachments.js — $bz.attachments.makeScope, the engine of ui.attachments
+ * (and of ui.file_upload, which is ui.attachments plus a dropzone). */
 // ════════════════════════════════════════════════════════════════════════
-// 08 FILE UPLOAD — bz-data scope factory for <ui.file_upload>.
+// ATTACHMENTS — bz-data scope factory for <ui.attachments>.
 //
 // Why a runtime slab
 // ──────────────────
 // The component carries enough JS for the inline-bz-data shape to bloat
 // every instance. Externalising into one factory means each instance
-// just drops ``bz-data="$bz.fileUpload.makeScope({el: $el, …})"``.
+// just drops ``bz-data="$bz.attachments.makeScope({el: $el, …})"``.
 //
 // Notes : (a) the scope captures its root element (``opts.el``,
 // available in the ``bz-data`` expression) — scope methods get no
@@ -17,7 +18,7 @@
 //
 // The factory owns :
 //
-//   1. Drag state (``isDragging``).
+//   1. Drag state (``isDragging``), and the drop host (``drop=``).
 //   2. The file list (each entry carries the raw ``File`` + UI status :
 //      progress / done / error).
 //   3. Client-side validation : ``accept`` filter, ``max_size_mb``,
@@ -30,6 +31,8 @@
 //      XMLHttpRequest with progress events. ``upload_*`` Alpine events
 //      dispatch with the raw ``File`` so a ClientBinding push or a
 //      server callable receives identity.
+//   7. ``pick()`` — the system's picker, opened by ANY button: ``.pick()``
+//      on the Python side dispatches ``bz-pick`` at the root, in the click.
 //
 // Public DOM event shape (what the framework hooks onto) :
 //   change            — files added / removed
@@ -49,7 +52,7 @@
 
     if (typeof window === 'undefined') return;
     if (!window.$bz) window.$bz = {};
-    if (window.$bz.fileUpload) return;
+    if (window.$bz.attachments) return;
 
     // A size in the page's language: « 1,5 Mo » in French, « 1.5 MB » in
     // English — ``Intl``'s units.
@@ -90,6 +93,10 @@
         }
         return false;
     }
+
+    // How long the check stays once a file has arrived (``upload_url``
+    // mode) before the file's icon comes back. An error stays.
+    const DONE_SHOWN_MS = 2000;
 
     // Stable id per file entry so ``bz-for`` :key= stays consistent
     // through removals (browsers don't expose a native handle).
@@ -191,7 +198,7 @@
                 if (!multiple && this.files.length > 0) {
                     // Replace mode — drop the previous one (and its preview).
                     this.files.forEach((f) => {
-                        if (f._preview) URL.revokeObjectURL(f._preview);
+                        if (f._url) URL.revokeObjectURL(f._url);
                     });
                     this.files = [];
                 }
@@ -252,7 +259,12 @@
                 const newEntries = [];
                 for (let i = 0; i < accepted.length; i++) {
                     const f = accepted[i];
+                    // A local URL for every file: the card opens it (a copy in
+                    // the browser's memory — nothing leaves the machine), and
+                    // an image shows it as its thumbnail.
+                    const url = URL.createObjectURL(f);
                     newEntries.push({
+                        _url: url,
                         id: nextId(),
                         file: f,
                         name: f.name,
@@ -260,11 +272,10 @@
                         sizeLabel: formatSize(f.size),
                         type: f.type,
                         isImage: isImage(f),
-                        _preview: (showPreviews && isImage(f))
-                            ? URL.createObjectURL(f)
-                            : null,
+                        _preview: (showPreviews && isImage(f)) ? url : null,
                         progress: 0,
                         status: 'idle',  // idle | uploading | done | error
+                        justDone: false,  // the check shows a moment (DONE_SHOWN_MS)
                         error: '',
                     });
                 }
@@ -296,7 +307,7 @@
             // ── Remove ─────────────────────────────────────────────
             removeFile(entry, evt) {
                 if (evt) evt.preventDefault();
-                if (entry._preview) URL.revokeObjectURL(entry._preview);
+                if (entry._url) URL.revokeObjectURL(entry._url);
                 if (entry._xhr) {
                     try { entry._xhr.abort(); } catch (e) {}
                 }
@@ -309,30 +320,48 @@
                 });
             },
 
-            // Every file out at once — ``ui.message_input`` empties its
-            // box once the message has left (message_input.js).
+            // Every file out at once — ``.clear()`` on the Python side,
+            // and ``ui.message_input`` once its message has left
+            // (message_input.js). It notifies, as a removal does.
             clear() {
+                this._reset();
+                this.dispatch('change', { files: [], count: 0 });
+            },
+
+            // The same, without telling anyone: the files have LEFT (a
+            // handler took them), so a ``change`` would post again — an
+            // empty list, to the handler that has just stored them.
+            _reset() {
                 this.files.forEach((e) => {
-                    if (e._preview) URL.revokeObjectURL(e._preview);
+                    if (e._url) URL.revokeObjectURL(e._url);
                 });
                 this.files = [];
                 this.errors = [];
                 this.syncInput();
-                this.dispatch('change', { files: [], count: 0 });
             },
 
             // ── DataTransfer → native input ────────────────────────
+            // ``_syncing`` marks OUR write of ``.files``: the specification
+            // says it fires no ``change``, the flag holds whatever a browser
+            // does. Any other ``change`` is a pick — a test's untrusted one
+            // included (``set_input_files`` with bytes).
             syncInput() {
                 if (typeof DataTransfer === 'undefined') return;  // very old browsers
                 const dt = new DataTransfer();
                 this.files.forEach((entry) => dt.items.add(entry.file));
-                const native = this._el && this._el.querySelector('input[type=file]');
-                if (native) native.files = dt.files;
+                const native = this._input();
+                if (!native) return;
+                this._syncing = true;
+                try { native.files = dt.files; } finally { this._syncing = false; }
+            },
+
+            _input() {
+                return this._el && this._el.querySelector('input[type=file]');
             },
 
             // ── Native input change passthrough ────────────────────
             onNativeChange(evt) {
-                if (!evt.isTrusted) return;  // we set .files programmatically too
+                if (this._syncing) return;
                 if (evt.target.files && evt.target.files.length > 0) {
                     this.handleFiles(evt.target.files);
                 }
@@ -398,62 +427,115 @@
                 return false;
             },
 
-            // ── Paste (``paste=True``) ─────────────────────────────
-            // Called from the root's ``bz-init``, so ``this`` is the
-            // reactive scope. The listener sits on the enclosing
-            // ``<form>`` — a paste fires on the FOCUSED element, and the
-            // one focused is the field the person writes in, not the
-            // picker — or on the root when there is no form. A paste
-            // that carries files adds them as a pick would; one that
-            // carries text is left to the field (``filesOfPaste``).
-            // No unmount hook in V3 (cf. above): a root that has left
-            // the DOM — a zone redrawn — unsubscribes at its next paste.
-            // The form around the field has sent its files: the list
-            // empties. Otherwise a sent file would keep its pill under the
-            // button, and a second send would ship it again. Only a
-            // SUCCESSFUL send of that form: a refusal
-            // (4xx, 5xx) keeps what was picked. Same unsubscribe as the
-            // paste below, at the next send after the root has left.
-            watchForm() {
-                const self = this;
-                const root = self._el;
-                const form = root && root.closest('form');
-                if (!form) return;
-                function onSent(evt) {
-                    if (!root.isConnected) {
-                        form.removeEventListener('htmx:afterRequest', onSent);
-                        return;
-                    }
-                    const d = evt.detail || {};
-                    if (d.elt === form && d.successful && self.files.length) self.clear();
-                }
-                form.addEventListener('htmx:afterRequest', onSent);
+            // ── Listeners outside the root ─────────────────────────
+            // The watchers below are called from the root's ``bz-init``, so
+            // ``this`` is the reactive scope and the unsubscribe goes to
+            // that ``bz-init`` (``$bz._own``): it is given back when the
+            // root leaves the document — a zone redrawn — even if the form
+            // it listens on stays.
+            _listen(host, name, handler) {
+                host.addEventListener(name, handler);
+                if ($bz._own) $bz._own(() => host.removeEventListener(name, handler));
             },
 
-            watchPaste() {
+            // A switched-off list takes nothing — picked, pasted or dropped.
+            _off() {
+                const native = this._input();
+                return !native || native.disabled;
+            },
+
+            // ── Sent: the list lets its files go ───────────────────
+            // A SUCCESSFUL request that carried them empties the list: the
+            // form around it, or — outside a form — the list's own server
+            // ``on_change``, which posts its files multipart. Otherwise a
+            // sent file would keep its pill, and a second send would ship
+            // it again. A refusal (4xx, 5xx) keeps what was picked. The
+            // emptying is silent (``_reset``): the files have left, a
+            // ``change`` would post again, empty.
+            watchSend() {
                 const self = this;
                 const root = self._el;
                 if (!root) return;
                 const host = root.closest('form') || root;
-                function onPaste(evt) {
-                    if (!root.isConnected) {
-                        host.removeEventListener('paste', onPaste);
-                        return;
+                self._listen(host, 'htmx:afterRequest', (evt) => {
+                    const d = evt.detail || {};
+                    // The root's own request is its files only when it is
+                    // the ``change`` (an ``upload_*`` handler carries none).
+                    const fired = d.requestConfig && d.requestConfig.triggeringEvent;
+                    const carried = host !== root || (fired && fired.type === 'change');
+                    if (d.elt === host && carried && d.successful && self.files.length) {
+                        self._reset();
                     }
-                    const native = root.querySelector('input[type=file]');
-                    if (native && native.disabled) return;
+                });
+            },
+
+            // ── Drop (``drop="form"`` / ``"self"``) ────────────────
+            // Files dropped anywhere on the host join, as a pick would: the
+            // enclosing ``<form>`` (the box a message is written in) or,
+            // with ``"self"`` or no form, the list itself. ``dragover`` is
+            // cancelled on the host, otherwise the browser opens the
+            // dropped file in place of the page. ``data-bz-dragging`` sits
+            // on the host while files hover it, for a theme to show where
+            // they land.
+            watchDrop(mode) {
+                const self = this;
+                const root = self._el;
+                if (!root) return;
+                const host = (mode === 'form' && root.closest('form')) || root;
+                let depth = 0;
+                const handlers = {
+                    dragenter() {
+                        depth += 1;
+                        host.setAttribute('data-bz-dragging', '');
+                    },
+                    dragover(evt) { evt.preventDefault(); },
+                    dragleave() {
+                        depth = Math.max(0, depth - 1);
+                        if (!depth) host.removeAttribute('data-bz-dragging');
+                    },
+                    drop(evt) {
+                        evt.preventDefault();
+                        depth = 0;
+                        host.removeAttribute('data-bz-dragging');
+                        if (!self._off() && evt.dataTransfer.files.length) {
+                            self.handleFiles(evt.dataTransfer.files);
+                        }
+                    },
+                };
+                Object.keys(handlers).forEach((name) => {
+                    self._listen(host, name, (evt) => {
+                        if (self._dragCarriesFiles(evt)) handlers[name](evt);
+                    });
+                });
+            },
+
+            // ── Paste (``paste=True``) ─────────────────────────────
+            // The listener sits on the enclosing ``<form>`` — a paste fires
+            // on the FOCUSED element, and the one focused is the field the
+            // person writes in, not the list — or on the root when there is
+            // no form. A paste that carries files adds them as a pick
+            // would; one that carries text is left to the field
+            // (``filesOfPaste``).
+            watchPaste() {
+                const self = this;
+                const root = self._el;
+                if (!root) return;
+                self._listen(root.closest('form') || root, 'paste', (evt) => {
+                    if (self._off()) return;
                     const pasted = filesOfPaste(evt.clipboardData);
                     if (pasted.length === 0) return;
                     evt.preventDefault();
                     self.handleFiles(pasted);
-                }
-                host.addEventListener('paste', onPaste);
+                });
             },
 
-            // ── Browse-trigger click (delegated to native input) ──
-            openPicker() {
-                const native = this._el && this._el.querySelector('input[type=file]');
-                if (native) native.click();
+            // ── The picker (``.pick()``) ───────────────────────────
+            // ``input.click()`` opens the system's picker only within a
+            // user gesture: the command arrives in the very click that
+            // sent it (a synchronous ``dispatchEvent``), so the gesture
+            // still holds. A switched-off list opens nothing.
+            pick() {
+                if (!this._off()) this._input().click();
             },
 
             // ── Async upload (one file, keyed by id) ───────────────
@@ -475,7 +557,10 @@
                 });
                 xhr.addEventListener('load', () => {
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        this._patchFile(id, { status: 'done', progress: 100 });
+                        // The check says it has arrived, then gives way to
+                        // the file's icon: a success need not stay on screen.
+                        this._patchFile(id, { status: 'done', progress: 100, justDone: true });
+                        setTimeout(() => this._patchFile(id, { justDone: false }), DONE_SHOWN_MS);
                         this.dispatch('upload-complete', {
                             file: file,
                             response: xhr.responseText,
@@ -524,7 +609,7 @@
         };
     }
 
-    window.$bz.fileUpload = {
+    window.$bz.attachments = {
         makeScope: makeScope, formatSize: formatSize, filesOfPaste: filesOfPaste,
     };
 })();

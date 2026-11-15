@@ -7,6 +7,194 @@ change between alpha releases.
 
 ## [Unreleased]
 
+## [0.1.0a7] - 2026-11-15
+
+### Added
+
+- `bretzel check` counts the positional arguments of a `ui.*` call:
+  `ui.card("Title")` is refused before it runs, and a container is told
+  where its content goes (`with ui.card(): ui.text(…)`).
+
+- `Bretzel(state_url="sqlite:///state.db")`: the server states — page,
+  session, user, app — live in one SQLite file and survive a restart
+  (`bretzel dev`'s reload included). Standard library, nothing to install;
+  about 0.4 ms more per request than memory, which stays the default.
+
+- `ui.divider(gap=...)`: the space on each side of the line, on the scale of
+  every other `gap=` (`none`, `xs`, `sm`, `md`, `lg`, `xl`). `sm`, the default,
+  is the spacing it had; `gap="none"` is a line with no margin, the rule
+  between the lines of a form. A vertical divider takes it left and right.
+- `variant="ghost"` on the field family — `ui.input`, `ui.textarea`,
+  `ui.select`, `ui.combobox`, `ui.tags_input` (and `ui.editor`): no background,
+  no frame, the container structures the screen (the lines of a mail). A
+  click puts the caret in; the focus ring shows for a keyboard user only,
+  marked by `data-bz-keyboard` on `<html>` (set by Tab, cleared by a
+  pointer). `"surface"`, the default, is the framed field.
+- `ui.tags_input`: free values typed as tags inside the field — the recipients
+  of a mail, the labels of a task. Enter, Tab, `;` and `,` turn what is typed
+  into a tag, a paste of several values makes several, Backspace selects then
+  removes the last one, a double click puts a tag back into text. Suggestions
+  (`options=`, drawn by `render=`) show on focus and filter while typing;
+  `on_search=` lets the server replace them. `pattern=` marks an invalid value
+  in red, the reason in its tooltip. Past about four lines the field scrolls
+  inside.
+- `ui.editor`: a text field that formats — bold, italic, bulleted and
+  numbered lists, links — whose value is Markdown, bound both ways. One
+  format: Enter goes to the line, Enter on an empty line starts a
+  paragraph, 3/4 of a line below; Ctrl+B, Ctrl+I, Ctrl+K; `- ` or `1. ` starts a list; a paste
+  from Word, Outlook or a web page keeps the format and drops fonts, sizes
+  and colours. The formatting bar sits above the text, and
+  `ui.editor_tool` adds buttons of one's own to it. `variant="ghost"`
+  drops the background and the frame. Commands: `.set()`, `.clear()`,
+  `.insert(markdown)`, `.focus()`, `.blur()`. Built on ProseMirror, shipped
+  in the wheel (92 KB compressed) and loaded only by a page that has an
+  editor.
+- `ScrollbarConfig(show=…)`: `"hover"` (the default) hides the scrollbar at
+  rest and shows it while the pointer is over the region that scrolls and
+  while that region scrolls, as the new Outlook, Gmail, Slack or VS Code do;
+  `"always"` keeps it drawn. Either way it has no arrow buttons.
+- `ui.toggle_group(orientation="vertical")` stacks its items in a column — a
+  rail of icons: square icon-only items, labelled ones as full-width rows,
+  the group as tall as its content, and the items' tooltips open to the
+  right of the column. The same word as `ui.resizable` and `ui.stepper`.
+- `ui.toggle_group(variant="ghost")`: no background, border or inset around
+  the items — a rail sitting on its column. `"surface"`, the default, keeps
+  the frame. The chosen item's pill is the same in both; the same words as
+  `ui.button`.
+- `bretzel probe` reports "the controls of a row share one height" when a
+  flex row holds buttons, fields, selects or toggle groups of different
+  heights — an `md` button beside an `sm` icon button. Each control is
+  measured on its frame; a textarea, a lone control, a control laid over a
+  field and a size ladder shown on purpose are left alone.
+- `bretzel probe` reports "every control has a name" when a rendered
+  button, link, tab, toggle or field has no accessible name (no text,
+  `aria-label`, label, placeholder or title).
+- `bretzel probe` scrolls every region that holds a sticky element and
+  reports "nothing scrolls into view past a stuck element" when content
+  shows between the element and the edge it sticks to: `sticky top-0` sticks
+  inside the region's padding, so rows passing under a search reappeared in
+  the band above it.
+- `bretzel probe` measures each focused element's focus ring during its Tab
+  pass and reports "no focus ring is clipped" when an ancestor that clips
+  its overflow cuts it — a field flush against the edge of a pane loses the
+  4 px of its ring there. Neither `bretzel check` nor "nothing is clipped
+  without recourse" could see it: a ring is a shadow, and only exists while
+  the element has focus.
+
+### Changed
+
+- One rule of motion for every component: one aims at a control, it
+  answers in 150 ms; a state changes in 200 ms both ways; a field's list
+  or a tooltip appears in 75, a menu or a popover in 150, a dialog, a
+  drawer or a toast in 200; data enters once (bars and slices 500, a drawn
+  line 1 100) and an update glides in 400. What one chains on (a list, a
+  menu) still closes at once; `ui.dialog`, `ui.drawer`, the sidebar's
+  mobile drawer and a toast now leave in 150 ms ease-in, the inverse
+  gesture of their entry, letting the pointer, the focus and the
+  keyboard go on the first frame (`inert`). A transition that names no
+  curve is ease-out. Under "reduce motion", the carousel jumps and the
+  skeleton holds still; the spinner keeps turning.
+
+- One message everywhere: the README (so PyPI), the package summary and
+  keywords, the docs' home, `llms.txt` and descriptions, the plugin's
+  manifests and `BRAND.md` now say « The mockup is the app » — a Python web
+  framework for building apps with an AI agent — where six taglines ran.
+
+- **Breaking:** `redis_url=` is gone; `state_url=` says where the states
+  live, and its scheme chooses: `sqlite:///…`, or `redis://…` (still the
+  `bretzel[redis]` extra, still the only form that serves `workers > 1`).
+  Any other scheme is refused at construction.
+
+- The default accent is the brown of a baked pretzel's crust: `primary` is
+  `#8a4a1f`, and `#9e5e34` in dark mode (white text, 3:1 on `interface`),
+  instead of the plum `#682747` / `#b9467f`. An app that sets its own
+  `primary` is unaffected; one that relies on the default changes colour.
+- A `ghost` field has no horizontal padding: its text, the tags of
+  `ui.tags_input`, the bar and the text of `ui.editor` start at the edge of the
+  field, as the To and Subject lines of a mail. The vertical padding stays:
+  the field keeps the height of a `surface` one.
+- `ui.accordion`: the text of a header can be selected — a drag, a double or a
+  triple click selects it, and only a click folds. The header is a
+  `div role="button"` in the Tab order (Enter and Space fold it,
+  `aria-expanded`, `aria-controls`; a disabled one carries `aria-disabled`),
+  no longer a `<button>`, whose text a browser does not let one select.
+- The letters of a tag inside a field (`ui.tags_input`, `ui.combobox`
+  multiple) are the size of the text typed in it, at every step — 14 px
+  beside 14 px of typing at `sm`, 18 px at `xl`. The tag's box keeps the
+  badge's height.
+- `ui.combobox(multiple=True)` keeps ONE line and its height: the picks that
+  fit, then a « +N » pill for the rest (the whole list stays in the panel).
+  Its pills used to wrap and the field grew — a combobox lives in toolbars
+  and filters, and must not move the layout.
+- The tags of `ui.combobox`, `ui.select` and `ui.tags_input` take the size of
+  their field (`md` tags in an `md` field): they were one step smaller, 12 px
+  of text beside 14 px of typing.
+- `ui.resizable`'s line at rest follows `gap`: with a gutter, nothing is
+  drawn (the space already separates the panels); with `gap="none"`, a
+  one-stroke line in the framework's border tint, like a card's outline or
+  `ui.divider`. Under the pointer and while held it takes the colour, as
+  before. `size=` now sets the grip only, which shows under the pointer, on
+  focus and while held — no longer at rest.
+- An accordion section folds as smoothly as it unfolds (200 ms), and its
+  chevron turns back at the same pace. It used to fold at once, which made
+  everything below it jump: a section stays in the page, so it is a state
+  change, animated both ways — a dialog or a menu still goes at once.
+
+### Fixed
+
+- `ui.tooltip(delay=0)` shows at once; the `0` fell back to the default
+  225 ms. And the page itself no longer fades its colours in on every load.
+
+- The documentation no longer shows code that fails: `ui.card(t.title)` on
+  `/drag`, `ui.pagination(total=…, per_page=…)` on `/lists`,
+  `ui.switch(value=…)` and an `active=` the interval never had on `/cadence`.
+  The `from __future__ import annotations` trap, gone from the framework, is
+  gone from `/traps` and the cheat sheet; `/state-server` says every field
+  goes through `field(...)`. A gate now binds every `ui.*` call the docs, the
+  landing, the READMEs and the plugin's skills show to the real signature.
+- The component gallery's headers name real members (`ui.stack` and
+  `ui.drag_and_drop` never existed), and its component count is read from the
+  code, as are the docs' on `/tree` and `/charts`.
+
+- A stored state whose field no longer accepts its value (the field changed
+  type, a validator appeared) no longer answers 500 to every request that
+  reads it: the value is dropped with a warning on the `bretzel.state`
+  logger, and the field keeps its default.
+
+- An `xs` `ui.radio` centres its circle on the first line of its label, as a
+  checkbox and a switch do: the 12 px circle sat 2 px above.
+- A variant row keyed by slot lands on that slot, as a size row does: a
+  `ui.badge`'s own cross wore its variant's classes only inside the pickers.
+- A name given with `attrs={"aria-label": …}` to a field whose root is a
+  wrapper (`combobox`, `select`, `number_input`, the date pickers,
+  `tags_input`, `slider`, `file_upload`) lands on the element one types in or
+  operates: it stayed on the wrapper, and the field was announced unnamed.
+- An icon-only control with a `tooltip=` — `ui.tab`, `ui.toggle_button`,
+  any button or link — takes the tooltip's text as its accessible name
+  (`aria-label`). Only `ui.icon_button` did; an icon tab was announced as
+  "tab" and could not be found by its name.
+- `ui.accordion` draws its headers' focus ring inside (`ring-inset`): its
+  root clips to its rounding, so the first and last headers lost the edge of
+  their ring.
+- In Chrome and Edge 121+ the theme's scrollbar was the platform's (about
+  10 px, with arrow buttons) instead of `ScrollbarConfig.width`: the
+  standard `scrollbar-width` / `scrollbar-color`, meant for Firefox, switch
+  the `::-webkit-scrollbar` rules off. They now apply in Firefox only.
+  `ui.file_upload`'s file strip follows the theme's bar.
+- A `ui.resizable` panel hidden by a `visible=` binding takes its handle and
+  its gutter with it, and the panels left share the whole group. The handle
+  stayed at the edge, with the `gap` beside it. With three panels and the
+  middle one hidden, the handle left drags the first and the last.
+- `ui.divider` draws the framework's border: `border-text/10` (the sidebar's
+  edge, a card's outline) when neutral, the colour's border step otherwise,
+  in the theme's stroke width. It was a 1 px box at 20 % of the muted text
+  colour, about three times the contrast of the borders around it.
+- A component hidden by its `classes=` (`dark:!hidden`) or by a `visible=`
+  binding no longer leaves an empty box when it has a `tooltip=`: the
+  tooltip's wrapper hides with it. The box took its share of the row's
+  `gap`, and a light/dark pair of buttons moved by 8 px from one scheme to
+  the other.
+
 ## [0.1.0a6] - 2026-11-11
 
 ### Added
@@ -978,7 +1166,8 @@ First public alpha.
 - Tailwind CSS v4 theming, compiled with the standalone binary in production.
 - CLI: `bretzel new`, `bretzel dev`, `bretzel describe` and `bretzel check`.
 
-[Unreleased]: https://github.com/JeanHoccart/bretzel/compare/v0.1.0a6...HEAD
+[Unreleased]: https://github.com/JeanHoccart/bretzel/compare/v0.1.0a7...HEAD
+[0.1.0a7]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a7
 [0.1.0a6]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a6
 [0.1.0a5]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a5
 [0.1.0a4]: https://github.com/JeanHoccart/bretzel/releases/tag/v0.1.0a4

@@ -21,13 +21,14 @@ MODULES: tuple[str, ...] = (
     "helpers",
     "locale",
     "inputs/calendar/calendar",
-    "inputs/file_upload/file_upload",
+    "inputs/attachments/attachments",
     "feedback/notification/notification",
     "charts/charts",
     "inputs/number_input/number_input",
     "inputs/slider/slider",
     "inputs/select/select",
     "inputs/combobox/combobox",
+    "inputs/tags_input/tags_input",
     "navigation/pagination/pagination",
     "data/accordion/accordion",
     "layout/carousel/carousel",
@@ -40,6 +41,7 @@ MODULES: tuple[str, ...] = (
     "data/scheduler/scheduler",
     "tip",
     "inputs/message_input/message_input",
+    "inputs/editor/editor",
     "data/message/message_list",
 )
 SOURCES: tuple[Path, ...] = tuple(

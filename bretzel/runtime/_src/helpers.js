@@ -927,6 +927,39 @@
     _inFlight: function () { return inFlight; },
   };
 
+  /* A keyboard user, marked on ``<html>`` (``data-bz-keyboard``): set by
+   * Tab, taken off by any pointer. A ``ghost`` field — no frame — draws
+   * its focus ring only for that user: a text field (and a
+   * ``contenteditable``) matches ``:focus-visible`` on a click too, so
+   * ``focus-visible`` cannot tell the two apart. On ``<html>``, which no
+   * morph touches. */
+  document.addEventListener("pointerdown", function () {
+    document.documentElement.removeAttribute("data-bz-keyboard");
+  }, true);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Tab") document.documentElement.setAttribute("data-bz-keyboard", "");
+  }, true);
+
+  /* While a region scrolls it carries `__SCROLLING_ATTR__`, and loses it
+   * SETTLE_MS after its last `scroll` event. The theme's scrollbar CSS
+   * reads it to show a bar that is hidden at rest
+   * (`ScrollbarConfig(show="hover")`): `:hover` covers a wheel turned
+   * under the pointer, not a finger or a key. One listener for the page,
+   * in the capture phase because `scroll` does not bubble; the document's
+   * own scroll targets `document`, and its bar belongs to `<html>`. */
+  const SCROLLING = "__SCROLLING_ATTR__";
+  const SETTLE_MS = 800;
+  const settling = new WeakMap();
+  document.addEventListener("scroll", function (e) {
+    const el = e.target === document ? document.documentElement : e.target;
+    if (!el || el.nodeType !== 1) return;
+    if (!el.hasAttribute(SCROLLING)) el.setAttribute(SCROLLING, "");
+    clearTimeout(settling.get(el));
+    settling.set(el, setTimeout(function () {
+      el.removeAttribute(SCROLLING);
+    }, SETTLE_MS));
+  }, { capture: true, passive: true });
+
   /* Numeric primitives — pure, widget-agnostic. Shared by the
    * number_input + slider slabs (each caches the result locally). */
   $bz.num = {

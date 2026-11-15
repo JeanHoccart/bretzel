@@ -432,6 +432,29 @@ def fields_of(root_id: str) -> str:
             f"#{root_id} select, #{root_id} textarea")
 
 
+def posts_its_files(
+    attrs: dict[str, Any], root_id: str, ctx: Any, uploads: dict[str, dict[str, Any]],
+) -> Any:
+    """The root's OWN post carries its files, with or without a form
+    around: multipart, every input under it — the file one included — and
+    the token that signs its file fields, to place under the root.
+
+    :func:`fields_of` leaves a file input out, because a URL-encoded POST
+    turns a file into the text ``[object File]``; said multipart, the file
+    travels. And a file is taken only into a field a signed token declares
+    (``check_uploads``): with no form to sign it, the root signs its own —
+    for its fields and its action only, as a ``ui.form`` does for its
+    controls. ``None`` when nothing posts, or there is nothing to sign
+    with (the test rigs). The user: ``ui.attachments``' server
+    ``on_change``."""
+    action = posted_action(attrs)
+    if action is None:
+        return None
+    attrs["hx-encoding"] = "multipart/form-data"
+    attrs["hx-include"] = f"#{root_id} input"
+    return ctx.fields_input(set(uploads), uploads, actions={action}) if ctx else None
+
+
 def carrier_attrs(
     event: str, action_id: str, args_blob: str, sig: str, *,
     root_id: str, dom_event: str | None = None, modifier: str | None = None,

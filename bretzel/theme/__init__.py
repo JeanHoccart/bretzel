@@ -8,6 +8,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
+from bretzel.theme.class_merge import merge_classes
 from bretzel.theme.color_scheme import ColorScheme
 from bretzel.theme.config import IconConfig, ScrollbarConfig
 from bretzel.theme.css import generate_theme_css_full as generate_theme_css_full
@@ -94,6 +95,7 @@ __all__ = [
 #: by ``tests/consistency/test_public_surface_is_classified.py``: nothing
 #: enters a facade without being classified on one side or the other.
 _INTERNAL = [
+    "merge_classes",
     "Palette",
     "ResolvedColor",
     "SemanticColors",
@@ -114,6 +116,9 @@ _INTERNAL = [
 #: colour that keeps the app's value unless the app gives its own dark.
 _SWAPPING_PLANES = frozenset({"background", "surface", "interface", "text", "muted"})
 
+#: How many (theme string, app string) pairs a theme remembers.
+CLASS_MERGES_BOUND = 4096
+
 # Sentinel to distinguish "user passed nothing" from "user passed None".
 _UNSET: Any = object()
 
@@ -127,6 +132,7 @@ class Theme:
     """Build a user-facing Bretzel theme."""
 
     __slots__ = (
+        "_class_merges",
         "_components",
         "_css",
         "_css_cache",
@@ -170,7 +176,7 @@ class Theme:
         self._semantic = _merge_dict(_section(base_theme, "_semantic"), semantic)
         # An accent given in light alone is the APP's colour in both modes:
         # the base's dark value is the dark of ANOTHER colour (the default
-        # plum's). The neutral planes are the exception: they must swap,
+        # brown's). The neutral planes are the exception: they must swap,
         # so theirs is kept.
         inherited_dark = {
             key: value
@@ -190,6 +196,10 @@ class Theme:
         # boot, so the merge is computed ONCE — without the cache,
         # ``compose_class`` would re-merge on every slot of every render.
         self._merged_components: dict[str, dict[str, Any]] = {}
+        # The app's class merges, keyed by the pair of strings (cf.
+        # ``merge_classes``). Here and not at module level: no mutable
+        # global, and one app's cache dies with it.
+        self._class_merges: dict[tuple[str, str], str] = {}
         self._fonts = _merge_fonts(_section(base_theme, "_fonts"), fonts)
         # The scale: its base is a SCALAR (a single setting, like the
         # stroke), its text steps a dict of closed slots (like the
@@ -283,6 +293,26 @@ class Theme:
             cached = merge_component_themes(shipped, override)
             self._merged_components[name] = cached
         return cached
+
+    def merge_classes(self, base: str, addition: str) -> str:
+        """``base`` + the app's ``addition``, without what it redeclares —
+        :func:`bretzel.theme.class_merge.merge_classes`, memoised.
+
+        A render asks the same pairs again and again (every card of a
+        list carries the same theme string and the same ``classes=``),
+        so the pair is the key. Bounded: past
+        :data:`CLASS_MERGES_BOUND` pairs — classes built from data, one
+        per row — the cache starts over rather than grow with the app's
+        content. Starting over is a rebinding, not a ``clear()``: a
+        render in another thread still holds a valid dict.
+        """
+        key = (base, addition)
+        merged = self._class_merges.get(key)
+        if merged is None:
+            if len(self._class_merges) >= CLASS_MERGES_BOUND:
+                self._class_merges = {}
+            merged = self._class_merges[key] = merge_classes(base, addition)
+        return merged
 
     def get_scrollbar(self) -> ScrollbarConfig:
         return self._scrollbar

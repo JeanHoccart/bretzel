@@ -54,15 +54,12 @@ INPUT_THEME: dict[str, Any] = {
         # The visible <input> in the no-affix case — frame + focus ring live here.
         "input": (
             "bz-input "  # audit marker — cf. tests/audit/checklist.py
-            "block w-full rounded-field border-(length:--bz-stroke) border-text/10 "
-            "bg-interface text-text placeholder:text-muted/60 "
+            # The frame and its focus ring are the variant's (``variants``).
+            "block w-full rounded-field "
+            "text-text placeholder:text-muted/60 "
             "outline-none transition duration-200 "
-            "focus:border-(--bz-solid) "
-            "focus:ring-2 focus:ring-(--bz-focus-soft) "
-            "focus:ring-offset-2 focus:ring-offset-background "
             "disabled:opacity-50 disabled:cursor-not-allowed "
-            "disabled:bg-muted/10 "
-            "read-only:cursor-default read-only:bg-interface/50"
+            "read-only:cursor-default"
         ),
         # Affixes architecture : the wrapper carries the frame + ring.
         # ``relative``: the ``×`` of ``clearable=True`` positions itself
@@ -72,11 +69,7 @@ INPUT_THEME: dict[str, Any] = {
         # anywhere in the page.
         "prefix_root": (
             "relative flex items-center w-full rounded-field "
-            "border-(length:--bz-stroke) border-text/10 "
-            "bg-interface transition duration-200 group "
-            "focus-within:border-(--bz-solid) "
-            "focus-within:ring-2 focus-within:ring-(--bz-focus-soft) "
-            "focus-within:ring-offset-2 focus-within:ring-offset-background"
+            "transition duration-200 group"
         ),
         # The <input> when wrapped in prefix_root : strip its own frame.
         "input_inner": (
@@ -132,6 +125,16 @@ INPUT_THEME: dict[str, Any] = {
     # (``icon_left`` / ``icon_right``, the field's own ``px``). An icon of
     # a fixed size at a fixed offset would sit ON the placeholder of a
     # small field. The pad is offset + icon + ~5 px.
+    "variants": {
+        "surface": {
+            "input": "bg-interface border-(length:--bz-stroke) border-text/10 focus:border-(--bz-solid) focus:ring-2 focus:ring-(--bz-focus-soft) focus:ring-offset-2 focus:ring-offset-background disabled:bg-muted/10 read-only:bg-interface/50",
+            "prefix_root": "bg-interface border-(length:--bz-stroke) border-text/10 focus-within:border-(--bz-solid) focus-within:ring-2 focus-within:ring-(--bz-focus-soft) focus-within:ring-offset-2 focus-within:ring-offset-background",
+        },
+        "ghost": {
+            "input": "[[data-bz-keyboard]_&]:focus:ring-2 [[data-bz-keyboard]_&]:focus:ring-(--bz-focus) [[data-bz-keyboard]_&]:focus:ring-offset-2 [[data-bz-keyboard]_&]:focus:ring-offset-background",
+            "prefix_root": "[[data-bz-keyboard]_&]:focus-within:ring-2 [[data-bz-keyboard]_&]:focus-within:ring-(--bz-focus) [[data-bz-keyboard]_&]:focus-within:ring-offset-2 [[data-bz-keyboard]_&]:focus-within:ring-offset-background",
+        },
+    },
     "sizes": {
         "xs": {
             "input": "h-7 px-2 text-xs",

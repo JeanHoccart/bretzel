@@ -26,6 +26,18 @@ installed package describes itself, at the version the app runs.
   `UserState`, `AppState` (everyone), `ClientState` (browser only). Mutate
   it in a handler; the regions that read it redraw, in every tab the scope
   allows. There is no refresh to call and no dependency to declare.
+- Ask "does the server need to know to render?". No: a `ClientState`, no
+  round trip. But branches hidden with `visible=` are still rendered and
+  redrawn: what decides WHICH heavy content to render (the app shown, a
+  panel open or closed, a heavy tab) is an addressable `PageState`
+  (`field(url=...)`) or a `UserState` preference, and the page renders
+  only what is seen. A `ClientState` stays right for light branches (a
+  menu, a tooltip, two small cards).
+- Server states live in memory and a restart forgets them (`bretzel dev`
+  restarts on every save). To keep them, name a file:
+  `Bretzel(state_url="sqlite:///state.db")` — derive the path from the
+  app's own settings, next to its database, so a test on a copy does not
+  write into the real preferences.
 - Data that lives elsewhere (a database) is followed through a `Topic`
   (`from bretzel.state import Topic, reads, writes`): the function that
   queries it carries `@reads(topic)`, the ones that change it

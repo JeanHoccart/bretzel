@@ -321,8 +321,10 @@ def render_badge(
     slot_class: str,
     *,
     reactive_path: str | None = None,
+    addition: str = "",
 ) -> Element:
-    """A nav item's badge chip.
+    """A nav item's badge chip. ``addition``: the app's ``slots=`` for the
+    badge, kept last over the chip's own classes (``with_slot_class``).
 
     Accepts a Component (rendered as is, the slot class merged into its
     attrs) or a scalar (rendered as a small chip).
@@ -342,7 +344,7 @@ def render_badge(
                 {"bz-text": reactive_path, "bz-show": reactive_path}
                 if reactive_path is not None else {}
             )
-            return Component.with_slot_class(node, slot_class, **extra)
+            return Component.with_slot_class(node, slot_class, addition=addition, **extra)
 
     # ── Scalar → a REAL chip ─────────────────────────────────────────
     # Deferred import: ``primitives`` is below ``navigation`` in the DAG,
@@ -368,7 +370,7 @@ def render_badge(
                 {"bz-text": reactive_path, "bz-show": reactive_path}
                 if reactive_path is not None else {}
             )
-            return Component.with_slot_class(node, slot_class, **extra)
+            return Component.with_slot_class(node, slot_class, addition=addition, **extra)
 
     # Null value: the empty wrapper stays, it carries the ``bz-show``
     # that will make it appear when the binding fills.

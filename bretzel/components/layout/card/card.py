@@ -1,5 +1,11 @@
 """``Card`` — surface wrapper with V1's signature hover lift effect.
 
+Two variants: ``solid`` (default), the bordered surface, and ``ghost``, no
+background, border or shadow — a row of a list. A ghost card that acts
+(``on_click=``, ``href=``) shows it by a hover background, never a lift,
+and draws its focus ring inside. ``active=True`` marks the chosen element
+(``data-active``, ``aria-current``, the accent's background).
+
 Polymorphic root tag : ``<div>`` by default, ``<a>`` when ``href=``
 is passed (so the whole card becomes a single click target — common
 in dashboards, list views). Setting ``href=`` auto-enables
@@ -20,6 +26,7 @@ from typing import Any, ClassVar
 
 from bretzel.components.base import Component, reactive_prop
 from bretzel.components.base.field_wiring import activate_keydown
+from bretzel.components.base.scope_wiring import bool_attr
 from bretzel.components.layout.card.theme import CARD_THEME
 from bretzel.core.tree import Element
 
@@ -27,26 +34,34 @@ from bretzel.core.tree import Element
 class Card(Component):
     """Surface wrapper. Pass ``href=`` to make the whole card a link
     (auto-enables ``hoverable``), ``padding=`` for the inner spacing
-    scale, ``hoverable=True`` to opt in to the lift effect manually."""
+    scale, ``hoverable=True`` to opt in to the lift effect manually.
+    ``variant="ghost"`` for a row of a list, ``active=True`` for the
+    chosen one."""
 
     THEME: ClassVar[dict[str, Any]] = CARD_THEME
     THEME_KEY: ClassVar[str] = "card"
-    # design-time. Use ``visible=`` universal modifier to show/hide.
-    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ()
+    # ``active`` follows a client state (a choice made in the browser),
+    # as on the navigation items — R1, one word, one effect. The rest is
+    # design-time; ``visible=`` shows / hides.
+    BINDABLE_PROPS: ClassVar[tuple[str, ...]] = ("active",)
     EVENTS: ClassVar[tuple[str, ...]] = ("click", "mouseenter", "mouseleave")
 
+    variant: str = reactive_prop(default="solid", emit_attr=False)
     color: str = reactive_prop(default="surface", emit_attr=False)
     padding: str = reactive_prop(default="md", emit_attr=False)
     hoverable: bool | None = reactive_prop(default=None, emit_attr=False)
     href: str | None = reactive_prop(default=None)
+    active: Any = reactive_prop(default=False, emit_attr=False)
 
     def __init__(
         self,
         *,
+        variant: str | None = None,
         color: str | None = None,
         padding: str | None = None,
         hoverable: bool | None = None,
         href: str | None = None,
+        active: Any = None,
         on_click: Callable[..., Any] | str | None = None,
         on_mouseenter: Callable[..., Any] | str | None = None,
         on_mouseleave: Callable[..., Any] | str | None = None,
@@ -56,10 +71,12 @@ class Card(Component):
         # (keeps the default) — no more ``if x is not None`` guard to
         # retype.
         super().__init__(
+            variant=variant,
             color=color,
             padding=padding,
             hoverable=hoverable,
             href=href,
+            active=active,
             on_click=on_click,
             on_mouseenter=on_mouseenter,
             on_mouseleave=on_mouseleave,
@@ -82,32 +99,30 @@ class Card(Component):
 
     def render(self) -> Element:
         theme = self._resolved_theme()
-        padding = self._reactive_values.get("padding") or "md"
-        href = self._reactive_values.get("href")
+        values = self._reactive_values
+        padding = values.get("padding") or "md"
+        href = values.get("href")
+        acts = self._tag == "a" or self._acts
 
-        # ``hoverable=True`` explicit, or implicit when href is set.
-        explicit_hover = self._reactive_values.get("hoverable")
+        # ``hoverable=True`` explicit, or implicit when the card links. A
+        # ``ghost`` card has no box at rest: the hover background is how a
+        # row says it acts, so ``on_click=`` turns it on too.
+        explicit_hover = values.get("hoverable")
         is_hoverable = (
-            explicit_hover if explicit_hover is not None else href is not None
+            explicit_hover if explicit_hover is not None
+            else href is not None or (values.get("variant") == "ghost" and acts)
         )
 
-        parts: list[str] = []
-        root = theme.get("slots", {}).get("root")
-        if root:
-            root_class = root
-            # ``overflow-hidden`` is unconditional : every anchored
-            # panel (Select, Tooltip, Dropdown…) is repositioned
-            # ``position: fixed`` at open time by ``floating()`` and
-            # escapes the clip box natively — so no auto-swap to
-            # ``overflow-visible`` is needed.
-            parts.append(root_class)
-        padding_class = theme.get("paddings", {}).get(padding)
-        if padding_class:
-            parts.append(padding_class)
+        # ``overflow-hidden`` (in the root slot) is unconditional: every
+        # anchored panel (Select, Tooltip, Dropdown…) is repositioned
+        # ``position: fixed`` at open time by ``floating()`` and escapes
+        # the clip box natively.
+        parts: list[str] = [
+            self.compose_class("root"),
+            theme.get("paddings", {}).get(padding, ""),
+        ]
         if is_hoverable:
-            hoverable_class = theme.get("hoverable", "")
-            if hoverable_class:
-                parts.append(hoverable_class)
+            parts.append(self.compose_class("hoverable"))
         # The user classes (``classes=``) are set on the real root by
         # the ``_apply_universal_modifiers`` metaclass wrap — do NOT
         # re-append them here (otherwise a "X X" duplicate). Guarded by
@@ -119,13 +134,27 @@ class Card(Component):
         # Space — the table row's gesture (``activate_keydown``). Without
         # it, only a mouse could reach it. An ``<a>`` card is all that
         # natively.
-        acts = self._acts
-        if self._tag != "a" and acts:
+        if self._tag != "a" and self._acts:
             attrs.setdefault("role", "button")
             attrs.setdefault("tabindex", "0")
             attrs.setdefault("bz-on:keydown", activate_keydown("$el.click()"))
-        if self._tag == "a" or acts:
-            parts.append(theme.get("focusable", ""))
+        if acts:
+            parts.append(self.compose_class("focusable"))
+        # The active layer is written under ``data-[active=true]:``: set
+        # once, it follows the attribute, so a binding only drives the
+        # attribute. The literal value paints the first frame, before the
+        # runtime has read the binding.
+        binding = self._binding_metadata.get("active")
+        lit = bool(values.get("active"))
+        if lit:
+            attrs["data-active"] = "true"
+            attrs["aria-current"] = "true"
+        if binding is not None:
+            expr = binding.binding_path()
+            attrs["bz-attr:data-active"] = bool_attr(expr)
+            attrs["bz-attr:aria-current"] = f"({expr}) ? 'true' : null"
+        if lit or binding is not None:
+            parts.append(theme.get("active", ""))
         attrs["class"] = " ".join(p for p in parts if p).strip()
 
         return Element(

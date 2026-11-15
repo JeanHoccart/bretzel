@@ -407,6 +407,29 @@ def page() -> None:
                             color=c,
                         )
 
+                    ui.heading('orientation="vertical" (tooltips on the right)',
+                               level=3)
+                    with ui.hstack(gap="lg", align="start"):
+                        for variant in ("surface", "ghost"):
+                            with ui.vstack(gap="xs"):
+                                ui.text(f'variant="{variant}"', color="muted", size="xs")
+                                with ui.toggle_group(value="mail", orientation="vertical",
+                                                     variant=variant):
+                                    ui.toggle_button("mail", icon="mail", tooltip="Mail")
+                                    ui.toggle_button("todo", icon="list-checks",
+                                                     tooltip="To-do")
+                                    ui.toggle_button("cal", icon="calendar",
+                                                     tooltip="Calendar")
+                        with ui.toggle_group(value="in", orientation="vertical"):
+                            ui.toggle_button("in", label="Inbox")
+                            ui.toggle_button("sent", label="Sent")
+
+                    ui.heading('variant="ghost" (no frame around the items)',
+                               level=3)
+                    ui.toggle_group(value="a", variant="ghost",
+                                    options=[("a", "Day"), ("b", "Week"),
+                                             ("c", "Month")])
+
                     ui.heading("Disabled button inside enabled group",
                                level=3)
                     with ui.toggle_group(value="a"):

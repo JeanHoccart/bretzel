@@ -5,7 +5,8 @@ from bretzel.state import ClientState, PageState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A centred modal with backdrop, Escape and focus trap — opened "
-           "with .open(), closed from any button inside it.")
+           "with .open(), closed from any button inside it. It comes in over "
+           "200 ms and fades out in 150.")
 
 
 def confirm_delete() -> None:

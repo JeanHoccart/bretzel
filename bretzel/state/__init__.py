@@ -24,6 +24,7 @@ from bretzel.state.persistence.client_bridge import (
 from bretzel.state.persistence.memory import MemoryBackend as MemoryBackend
 from bretzel.state.persistence.redis import BretzelError as BretzelError
 from bretzel.state.persistence.redis import RedisBackend as RedisBackend
+from bretzel.state.persistence.sqlite import SqliteBackend as SqliteBackend
 from bretzel.state.registry import (
     AuthRequiredError,
     ScopeConfigError,
@@ -189,6 +190,7 @@ _INTERNAL = [
     "Backend",
     "MemoryBackend",
     "RedisBackend",
+    "SqliteBackend",
     # Request-scoped registry
     "StateRegistry",
     "current_registry",

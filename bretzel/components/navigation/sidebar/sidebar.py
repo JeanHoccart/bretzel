@@ -49,6 +49,7 @@ from bretzel.components.base.composition import unwrap_transparent
 from bretzel.components.base.overlay_wiring import (
     anchored_dismiss_init,
     anchored_panel,
+    closed_inert,
     escape_init,
     focus_trap_effect,
     imperative_listeners,
@@ -306,13 +307,11 @@ class Sidebar(Component):
         # ``offcanvas`` is zero wide — yet their links stay in the Tab
         # order, and the keyboard would walk into a panel nobody sees.
         # ``inert`` takes the closed panel out of focus, pointer and
-        # assistive tech at once, and ``bz-attr`` removes it when the
-        # expression is false. ``rail`` keeps its icons usable, and
-        # ``none`` never closes.
+        # assistive tech at once (``closed_inert``, shared with the
+        # modals). ``rail`` keeps its icons usable, and ``none`` never
+        # closes.
         if mode in ("overlay", "offcanvas"):
-            if not open_initial:
-                attrs["inert"] = ""
-            attrs["bz-attr:inert"] = f"!({data_open_expr})"
+            attrs.update(closed_inert(data_open_expr, bool(open_initial)))
 
         # bz-data layout :
         #  - ``current_path`` : same path tracking as before, used by
@@ -857,7 +856,8 @@ class SidebarTitle(Component):
 
         def _glyph(cls: str) -> Node:
             if drawn is not None:
-                return Component.with_slot_class(drawn, cls)
+                return Component.with_slot_class(
+                    drawn, cls, addition=self._slot_addition("title_logo"))
             own = mark._user_classes_str() if mark else ""
             glyph_attrs = {"icon": _iconify_ref(icon_name), "class": f"{cls} {own}".strip()}
             if icon_binding is not None:
@@ -1036,7 +1036,7 @@ class SidebarItem(NavItem):
         if isinstance(icon, Component):
             Component._detach_from_parent(icon)
             children.append(Component.with_slot_class(
-                icon.render(), slots.get("icon", ""),
+                icon.render(), slots.get("icon", ""), addition=self._slot_addition("icon"),
             ))
 
         # The visible text follows a bound label (``shown``); the rail's
@@ -1063,9 +1063,11 @@ class SidebarItem(NavItem):
             children.append(render_badge(
                 badge_value, slots.get("badge", ""),
                 reactive_path=self.path_of(badge_binding),
+                addition=self._slot_addition("badge"),
             ))
         elif badge_value is not None:
-            children.append(render_badge(badge_value, slots.get("badge", "")))
+            children.append(render_badge(badge_value, slots.get("badge", ""),
+                                         addition=self._slot_addition("badge")))
 
         # ── Rail tooltip: this row triggers the page's shared panel ──
         # Not a ``ui.tooltip`` per entry, which would pre-render one panel

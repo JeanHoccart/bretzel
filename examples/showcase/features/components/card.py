@@ -5,7 +5,7 @@ from bretzel.state import ClientState, field
 from examples.showcase.lib.example import example, page_header
 
 SUMMARY = ("A bordered surface with a padding scale — a link or a click "
-           "target when you need one.")
+           "target when you need one, or a borderless row of a list.")
 
 
 def stat_card(label: str, value: str, delta: str, color: str) -> None:
@@ -79,18 +79,50 @@ def clickable() -> None:
     chosen = ChosenPlan().name
     with ui.grid(min_col="12rem", gap="md"):
         for name, price, tagline, limits in PLANS:
-            with ui.card(padding="lg", hoverable=True,
+            with ui.card(padding="lg", hoverable=True, active=chosen == name,
                          on_click=chosen.set(name)), ui.vstack(gap="sm"):
                 with ui.hstack(justify="between"):
                     ui.heading(name, level=3, size="md")
-                    ui.badge("Selected", color="primary", size="sm",
-                             icon_left="check", visible=chosen == name)
+                    ui.icon("circle-check", color="primary",
+                            visible=chosen == name)
                 with ui.hstack(gap="xs", align="baseline"):
                     ui.heading(price, level=4, size="3xl")
                     ui.text("/ month", color="muted", size="sm")
                 ui.text(tagline, weight="medium")
                 ui.text(limits, color="muted", size="sm")
     ui.text("You picked the " + chosen + " plan.", color="muted", size="sm")
+
+
+MESSAGES = [
+    ("m1", "Lena Ortiz", "Q3 numbers are in",
+     "Revenue landed 4% above plan. The deck is attached; the board sees it "
+     "Thursday."),
+    ("m2", "Tom Becker", "Offsite: venue shortlist",
+     "Three venues left. Lisbon is the cheapest, Ghent the easiest to reach."),
+    ("m3", "Priya Nair", "Re: onboarding checklist",
+     "I moved the laptop order to day one. Everything else stays as is."),
+]
+
+
+class OpenMessage(ClientState):
+    key: str = field(default="m1")
+
+
+def inbox() -> None:
+    opened = OpenMessage().key
+    with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
+        with ui.card(padding="xs"), ui.vstack(gap="none"):
+            for key, sender, subject, _body in MESSAGES:
+                with ui.card(variant="ghost", padding="sm", active=opened == key,
+                             on_click=opened.set(key)), ui.vstack(gap="none"):
+                    ui.text(sender, size="sm", weight="semibold")
+                    ui.text(subject, size="sm", color="muted", truncate=True)
+        for key, sender, subject, body in MESSAGES:
+            with ui.card(padding="lg", classes="md:col-span-2",
+                         visible=opened == key), ui.vstack(gap="sm"):
+                ui.heading(subject, level=3, size="md")
+                ui.text("From " + sender, size="sm", color="muted")
+                ui.text(body)
 
 
 def page() -> None:
@@ -104,6 +136,11 @@ def page() -> None:
             note="Give it an href and the whole card becomes the link, with "
                  "a hover lift to say so.")
     example("Pick a plan", clickable, uses=[ChosenPlan], full=True,
-            note="on_click writes the choice to a ClientState: the badge and "
-                 "the sentence follow in the browser, with no request.")
+            note="on_click writes the choice to a ClientState; active= follows "
+                 "it in the browser, with no request.")
+    example("A list beside the open item", inbox, uses=[OpenMessage],
+            full=True,
+            note="variant=\"ghost\" makes each row a card with no box of its "
+                 "own: the column frames the list, the row lights on hover and "
+                 "active= marks the open one.")
     example("Padding scale", paddings, full=True)

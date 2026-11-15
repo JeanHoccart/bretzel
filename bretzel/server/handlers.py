@@ -281,7 +281,28 @@ def form_token(
     ``role=admin``. A token is the form's word on ITS fields, for ITS
     actions.
     """
-    token = form_data.get(FIELDS_TOKEN)
+    sent = form_data.get(FIELDS_TOKEN)
+    # Several tokens is a real case: a post point that signs its own fields
+    # (``events.posts_its_files``), so that they may leave with no form
+    # around — and, inside a form, both tokens arrive. Each is verified on
+    # its own; those that vouch for this action are merged.
+    payloads = [
+        payload for token in (sent if isinstance(sent, list) else [sent])
+        if (payload := _verified_token(token, action_key, session_id=session_id,
+                                       action_id=action_id)) is not None
+    ]
+    if not payloads:
+        return None
+    return {
+        "names": sorted({name for p in payloads for name in p.get("names", ())}),
+        "uploads": {k: v for p in payloads for k, v in (p.get("uploads") or {}).items()},
+        "actions": [action_id],
+    }
+
+
+def _verified_token(
+    token: Any, action_key: bytes, *, session_id: str, action_id: str
+) -> dict[str, Any] | None:
     if not isinstance(token, str):
         return None
     blob, _, sig = token.rpartition(".")
@@ -335,7 +356,8 @@ def check_uploads(form_data: Mapping[str, Any], token: Mapping[str, Any] | None)
         if name not in uploads and any(isinstance(f, UploadFile) for f in sent):
             raise UploadRefusedError(
                 f"{name!r}: a file arrived for a field no form of this page "
-                f"declares — files are taken through a ``ui.form``."
+                f"declares — files are taken through a ``ui.form``, or a post point "
+                f"that signs its own (``posts_its_files``)."
             )
     for name, limits in uploads.items():
         value = form_data.get(name)

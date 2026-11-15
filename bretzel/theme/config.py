@@ -15,6 +15,15 @@ otherwise forms when ``css.py`` (a consumer) and ``__init__.py``
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal, get_args
+
+from bretzel.theme.palette import ThemeError
+
+#: When the bar shows. ``"hover"`` : hidden at rest, drawn while the
+#: pointer is over the region that scrolls and while it scrolls — the
+#: behaviour of the new Outlook, Gmail, Slack, Notion, Linear, VS Code.
+#: ``"always"`` : drawn at rest too.
+ScrollbarShow = Literal["hover", "always"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,9 +52,20 @@ class ScrollbarConfig:
     machinery, but a literal ``"#ccc"`` works too. The css generator
     is responsible for translating either form into a final ``rgb()``
     declaration.
+
+    ``show`` says when the bar is drawn (:data:`ScrollbarShow`). Either
+    way it has no arrows.
     """
 
     width: str = "4px"
     track: str = "transparent"
     thumb: str = "muted/30"
     thumb_hover: str = "muted/50"
+    show: ScrollbarShow = "hover"
+
+    def __post_init__(self) -> None:
+        if self.show not in get_args(ScrollbarShow):
+            raise ThemeError(
+                f"ScrollbarConfig(show={self.show!r}) : expected one of "
+                f"{', '.join(repr(v) for v in get_args(ScrollbarShow))}."
+            )

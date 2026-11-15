@@ -16,14 +16,6 @@ PATH = "/traps"
 # (title, symptom, fix) — the silent traps first.
 _TRAPS: list[tuple[str, str, str]] = [
     (
-        'PEP 649 — State fields do not register',
-        'A State looks correct but its fields are empty / the re-render '
-        'does not fire. No error at all.',
-        'Put `from __future__ import annotations` FIRST in every file that'
-        ' declares a State. Without it, the annotations are not evaluated '
-        'as expected and the metaclass does not see the fields.',
-    ),
-    (
         'A binding read outside a render scope',
         '`state.field.set(...)` produces nothing useful; the binding '
         'behaves like a raw value.',

@@ -198,7 +198,7 @@ def roles_example() -> None:
 
 
 def page() -> None:
-    page_header("drag_and_drop", "Drag and drop", SUMMARY)
+    page_header(("draggable", "dropzone", "drag_each"), "Drag and drop", SUMMARY)
     example("A kanban board", board_example,
             uses=[starting_board, Board, move_task, task_card, kanban], full=True,
             note="Three dropzones share the group \"task\". A drop posts a Move "

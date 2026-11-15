@@ -152,12 +152,19 @@
         return Number(this._read()) >= this._maxIndex();
       },
 
+      // "Reduce motion": the track jumps to the slide. ``scrollTo``'s
+      // ``smooth`` ignores the system setting; the CSS rule that zeroes
+      // every transition does not reach it.
+      _glide() {
+        return $bz.helpers.prefersReducedMotion() ? "auto" : "smooth";
+      },
+
       // ── Navigation ───────────────────────────────────────────────
       goTo(i) {
         const t = this._track;
         if (!t) return;
         const n = Math.max(0, Math.min(this._maxIndex(), Number(i) || 0));
-        t.scrollTo({ left: n * this._step(), behavior: "smooth" });
+        t.scrollTo({ left: n * this._step(), behavior: this._glide() });
         // We do NOT write the state here: ``_onScroll`` is the index's
         // single source, and it will publish it when the position has
         // settled. Writing on both sides would make the signal diverge
@@ -207,7 +214,7 @@
         // The very first snap is INSTANT: a carousel rendered at
         // value=2 must show on slide 2, not scroll from 0 under the
         // user's eyes on load.
-        const behavior = this._booted ? "smooth" : "auto";
+        const behavior = this._booted ? this._glide() : "auto";
         this._booted = true;
         t.scrollTo({ left: target * this._step(), behavior: behavior });
       },

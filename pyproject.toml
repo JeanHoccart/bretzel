@@ -4,16 +4,17 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bretzel"
-version = "0.1.0a6"
-description = "Full-stack Python web framework: server-driven UI, typed state, 100+ components, zero npm."
+version = "0.1.0a7"
+description = "Python web framework for building apps with an AI agent: the mockup you approve becomes the working screen, and every file is checked. Typed state, 100+ components, no JavaScript."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Jean Hoccart", email = "jean.hoccart@gmail.com" }]
 keywords = [
-    "web framework", "full-stack", "python web framework", "server-driven ui",
-    "sdui", "reactive", "ui components", "no javascript", "fastapi", "htmx",
-    "sse", "realtime", "tailwind",
+    "web framework", "python web framework", "ai agent", "claude code",
+    "agent skills", "mockup", "prototyping", "internal tools", "full-stack",
+    "server-driven ui", "typed state", "ui components", "no javascript",
+    "htmx", "fastapi",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -72,10 +73,11 @@ css = [
     "tailwindcss-bin>=4.1",
 ]
 # Plusieurs workers d'une même app : état, relais SSE, verrous et
-# ``@idempotent`` partagés par Redis (``redis_url``). Extra et non
-# dépendance : avec un seul processus tout reste en mémoire, et aucune
-# app du dépôt ne règle ``redis_url`` (2026-11-11). Importé seulement
-# quand il sert (``state/persistence/redis.require_redis``).
+# ``@idempotent`` partagés par Redis (``state_url="redis://…"``). Extra et
+# non dépendance : avec un seul processus, l'état reste en mémoire ou dans
+# un fichier SQLite (bibliothèque standard), et aucune app du dépôt ne
+# règle Redis (2026-11-11 : code gelé, rien de plus n'y est investi).
+# Importé seulement quand il sert (``state/persistence/redis.require_redis``).
 redis = [
     "redis[hiredis]>=5.2",
 ]

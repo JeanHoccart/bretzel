@@ -105,17 +105,12 @@ class MenuItem(Component):
             if checked is not None else None
         )
 
-    @staticmethod
-    def _slotted_icon(icon: Component, slot_class: str) -> Element:
-        """Render an icon component and prepend the slot class to it."""
-        ic = icon.render()
-        return Element(
-            tag=ic.tag,
-            attrs={
-                **ic.attrs,
-                "class": f"{slot_class} {ic.attrs.get('class', '')}".strip(),
-            },
-            children=ic.children,
+    def _slotted_icon(self, icon: Component, slot: str) -> Element:
+        """Render an icon component, dressed with ``slot`` — the app's
+        ``slots={slot: …}`` kept last, over the icon's own classes."""
+        return Component.with_slot_class(  # type: ignore[return-value]
+            icon.render(), self._resolved_theme().get("slots", {}).get(slot, ""),
+            addition=self._slot_addition(slot),
         )
 
     def _choice_attrs(self) -> dict[str, str] | None:
@@ -146,7 +141,7 @@ class MenuItem(Component):
         children: list[Node] = []
         if self._icon_left is not None:
             children.append(
-                self._slotted_icon(self._icon_left, slots.get("icon_left", ""))
+                self._slotted_icon(self._icon_left, "icon_left")
             )
         if isinstance(self._label, Component):
             # A Component keeps its own root — wrapping it in the
@@ -169,7 +164,7 @@ class MenuItem(Component):
                 )
         if self._icon_right is not None:
             children.append(
-                self._slotted_icon(self._icon_right, slots.get("icon_right", ""))
+                self._slotted_icon(self._icon_right, "icon_right")
             )
         choice = self._choice_attrs()
         if choice is not None and self._check is not None:
@@ -177,7 +172,7 @@ class MenuItem(Component):
             # one mechanism for a fixed value and a bound one, and the
             # unchecked rows keep the mark's room, so labels line up.
             children.append(
-                self._slotted_icon(self._check, slots.get("check", ""))
+                self._slotted_icon(self._check, "check")
             )
         shortcut_node = self.emit_text_slot(self._shortcut)
         if shortcut_node is not None:

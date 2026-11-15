@@ -99,7 +99,7 @@ class ComponentInfo:
     #: (``fragment``, ``outlet``, ``interval``, ``meta_tag``).
     theme_key: str
     #: The theme's **vocabulary**: ``(group, keys)``, sorted. The values
-    #: — the 110 components' Tailwind class strings — are NOT  count:components
+    #: — the 114 components' Tailwind class strings — are NOT  count:components
     #: in it: what a reader and a lint rule need to know is which names
     #: exist, not what they render (the code is there for that).
     #:

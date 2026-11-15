@@ -99,7 +99,7 @@ def actions_client_page() -> None:
                         ui.link('Client state', href="/state-client")
                         ui.text(".", color="muted", size="sm")
                     ui.code(
-                        'class PanelUI(ClientState):\n    open: bool = False\n\npanel = PanelUI()\nui.button("Show", on_click=panel.open.toggle())\nwith ui.card(visible=panel.open):\n    ui.text("Zero round trips.")\n',
+                        'class PanelUI(ClientState):\n    open: bool = field(default=False)\n\npanel = PanelUI()\nui.button("Show", on_click=panel.open.toggle())\nwith ui.card(visible=panel.open):\n    ui.text("Zero round trips.")\n',
                         lang="python",
                     )
 

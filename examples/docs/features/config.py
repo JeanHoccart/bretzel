@@ -31,7 +31,7 @@ def config_page() -> None:
                 with ui.vstack(gap="sm"):
                     ui.heading("The instance", level=2)
                     ui.code(
-                        'from bretzel import Bretzel\n\napp = Bretzel(\n    title="My App",\n    secret_key="…",   # required, ≥ 16 chars\n    mode="dev",       # "dev" | "prod" (prod by default)\n)\n',
+                        'from bretzel import Bretzel\n\napp = Bretzel(\n    title="My App",\n    secret_key="…",   # required, ≥ 16 chars\n)\n# The mode is chosen by the command, not written here:\n#   bretzel dev main:app   -> dev\n#   uvicorn main:app       -> prod (the default)\n',
                         lang="python",
                     )
                     callable_signature(Bretzel.__init__, title="Bretzel(...)")
@@ -172,10 +172,11 @@ def config_page() -> None:
                 with ui.vstack(gap="sm"):
                     ui.heading('State persistence', level=2)
                     ui.text(
-                        'By default, server state lives in memory. For '
-                        'multi-worker or durability, pass `redis_url=` — '
-                        'there is no `state_backend=` param, the backend '
-                        'is wired at startup according to `redis_url`.',
+                        'By default, server state lives in memory and a '
+                        'restart forgets it. `state_url=` says where it '
+                        'lives instead: `"sqlite:///state.db"` keeps it in '
+                        'a file across restarts; a `redis://` URL also '
+                        'shares it between workers.',
                         color="muted", size="sm",
                     )
                     ui.table(
@@ -188,13 +189,13 @@ def config_page() -> None:
                              "effet": 'the HMAC key (action signatures) — '
                                       'required, ≥ 16 chars; in production'
                                       ' through an env var'},
-                            {"param": "redis_url=",
-                             "effet": 'a Redis backend if supplied; memory'
-                                      ' otherwise'},
+                            {"param": "state_url=",
+                             "effet": 'sqlite:///file.db or redis://…; '
+                                      'memory otherwise'},
                             {"param": "session_max_age_days=",
                              "effet": 'session cookie lifetime (default 30)'},
                             {"param": "workers=",
-                             "effet": "uvicorn processes (Redis required if > 1)"},
+                             "effet": "uvicorn processes (a redis:// state_url if > 1)"},
                         ],
                         size="sm",
                     )

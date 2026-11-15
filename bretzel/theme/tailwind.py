@@ -149,6 +149,11 @@ def generate_theme_css(
     parts.extend("  " + line for line in _emit_layout_block(spacing_layout))
     parts.extend("  " + line for line in _emit_shape_block(shape))
     parts.extend("  " + line for line in _emit_stroke_block(stroke))
+    # The motion rule has two curves: ease-out for what arrives or
+    # changes, ease-in for what leaves (``components.md`` § motion).
+    # A transition that names no curve is one that arrives or changes,
+    # so Tailwind's default curve becomes ease-out.
+    parts.append("  --default-transition-timing-function: cubic-bezier(0, 0, 0.2, 1);")
     parts.extend("  " + line for line in light_lines)
     parts.append("}")
 

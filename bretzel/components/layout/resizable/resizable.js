@@ -67,6 +67,25 @@
         const r = el.getBoundingClientRect();
         return this._vertical ? r.height : r.width;
       },
+      // A panel hidden by a client ``visible=`` (``bz-show``) is still in
+      // the group, with its weight: it gets no box, so the visible ones
+      // share its room pro rata, and its handle hides with it (the
+      // server composes the handle's ``bz-show``). Read at gesture time
+      // only — never in ``_apply``, which runs at every tick.
+      _shown(el) {
+        return getComputedStyle(el).display !== "none";
+      },
+      // The pair handle ``i`` actually separates: the nearest VISIBLE
+      // panel on each side. Without hidden panels it is ``[i, i + 1]``;
+      // with the middle one of three hidden, the only visible handle
+      // drags the first and the last.
+      _around(panels, i) {
+        let a = i;
+        while (a >= 0 && !this._shown(panels[a])) a--;
+        let b = i + 1;
+        while (b < panels.length && !this._shown(panels[b])) b++;
+        return a >= 0 && b < panels.length ? [a, b] : null;
+      },
 
       // ── State → layout ───────────────────────────────────────────
       // Called from the root's ``bz-effect``: reading ``_read()``
@@ -176,26 +195,39 @@
       // protect nothing and would add latency to the first pixel.
       _start(e, i) {
         const panels = this._panels();
-        const a = panels[i];
-        const b = panels[i + 1];
-        if (!a || !b) return;
-        const totalPx = panels.reduce((s, p) => s + this._px(p), 0);
-        if (!totalPx) return;
+        const pair = this._around(panels, i);
+        if (!pair) return;
+        const a = panels[pair[0]];
+        const b = panels[pair[1]];
         const weights = this._weights(panels.length);
+        // Pixels AND weights of the visible panels only: a hidden
+        // panel's weight occupies no pixel, so counting it would scale
+        // every delta by the wrong factor. A hidden panel measures 0 px,
+        // which is how it is told apart here without a second style read.
+        let totalPx = 0;
+        let totalW = 0;
+        for (let k = 0; k < panels.length; k++) {
+          const px = this._px(panels[k]);
+          if (!px) continue;
+          totalPx += px;
+          totalW += weights[k];
+        }
+        if (!totalPx) return;
         this._drag = {
-          i: i,
+          i: pair[0],
+          j: pair[1],
           from: this._vertical ? e.clientY : e.clientX,
           // The px → weight factor is frozen at the START of the
           // gesture, and it is deliberate: the sum of the weights does
           // not move while you drag (we only redistribute it), so the
           // ratio stays right until release.
-          factor: weights.reduce((s, w) => s + w, 0) / totalPx,
+          factor: totalW / totalPx,
           // The left panel's weight at the START of the gesture: it is
           // the base the delta adds to, so it must not follow the
           // intermediate values (otherwise the movement accumulates and
           // the pointer "slides" under the handle). The right weight is
           // derived from the pair — no need to remember it.
-          a: weights[i],
+          a: weights[pair[0]],
           sizes: weights,
           // Both panels and the handle are HELD here, not re-searched
           // at every frame: ``_move`` runs at the pointer's cadence, and
@@ -213,7 +245,7 @@
         $bz.helpers.capturePointer(e.currentTarget, e);
       },
 
-      // Distribute ``want`` over the pair ``i`` / ``i+1``, in place,
+      // Distribute ``want`` over the pair ``i`` / ``j``, in place,
       // respecting both minimums. Returns ``false`` when the pair is
       // FROZEN — the case where the two minimums do not fit inside it
       // (60 + 60 in 100): we prefer to move nothing rather than violate
@@ -223,22 +255,22 @@
       // arithmetic, only ``want``'s origin differs (a pointer delta, or
       // an arrow step). Written twice, it would have been fixed one time
       // in two.
-      _pair(sizes, i, want) {
-        const pair = sizes[i] + sizes[i + 1];
+      _pair(sizes, i, j, want) {
+        const pair = sizes[i] + sizes[j];
         // The four constraints cross: the LEFT floor and the RIGHT
         // ceiling push the handle the same way (to the right), the other
         // two the other way. Hence the ``max`` on the floors and the
         // ``min`` on the ceilings, expressed in the same unit — the left
         // panel's size.
-        const lo = Math.max(this._min(i), pair - this._max(i + 1));
-        const hi = Math.min(pair - this._min(i + 1), this._max(i));
+        const lo = Math.max(this._min(i), pair - this._max(j));
+        const hi = Math.min(pair - this._min(j), this._max(i));
         // A FROZEN pair: the constraints do not hold together (60 + 60
         // in 100, or a ceiling under a floor). We prefer to move nothing
         // rather than violate one on the grounds that another requires
         // it.
         if (hi < lo) return false;
         sizes[i] = Math.max(lo, Math.min(hi, want));
-        sizes[i + 1] = pair - sizes[i];
+        sizes[j] = pair - sizes[i];
         return true;
       },
 
@@ -254,11 +286,11 @@
         if (!d) return;
         const delta =
           ((this._vertical ? e.clientY : e.clientX) - d.from) * d.factor;
-        if (!this._pair(d.sizes, d.i, d.a + delta)) return;
+        if (!this._pair(d.sizes, d.i, d.j, d.a + delta)) return;
         // A DIRECT write, not going through the state: see the file's
         // header. Publication happens once, on release.
         d.aEl.style.flexGrow = String(d.sizes[d.i]);
-        d.bEl.style.flexGrow = String(d.sizes[d.i + 1]);
+        d.bEl.style.flexGrow = String(d.sizes[d.j]);
         this._announce(d.handle, d.sizes[d.i]);
       },
 
@@ -341,32 +373,49 @@
         this._publish(sizes);
       },
 
+      // Handle ``i``'s collapse: it puts away the collapsible one of the
+      // two VISIBLE panels it separates — the LEFT one when both are, the
+      // one its ``aria-controls`` designates. Returns whether it did
+      // anything, so ``Enter`` is only consumed when it collapses.
+      _foldAt(i) {
+        const pair = this._around(this._panels(), i);
+        if (!pair) return false;
+        if (this._foldable[pair[0]]) this._fold(pair[0], pair[1]);
+        else if (this._foldable[pair[1]]) this._fold(pair[1], pair[0]);
+        else return false;
+        return true;
+      },
+
       // ── Keyboard ─────────────────────────────────────────────────
       // The handle is a focusable ``role="separator"``: the arrows move
       // it, like a slider. The step is in percentage points, so
       // independent of the group's width.
-      _key(e, i, fold) {
+      _key(e, i) {
         const key = e.key;
         // ``Enter`` collapses, when the handle touches a collapsible
         // panel. It is the double-click's keyboard twin, and the ARIA
         // "window splitter" pattern prescribes it: a focusable handle
         // whose only collapse command were a mouse gesture has no
         // collapse at all for whoever has no mouse.
-        if (key === "Enter" && Array.isArray(fold)) {
-          e.preventDefault();
-          this._fold(fold[0], fold[1]);
+        if (key === "Enter") {
+          if (this._foldAt(i)) e.preventDefault();
           return;
         }
         const back = this._vertical ? "ArrowUp" : "ArrowLeft";
         const fwd = this._vertical ? "ArrowDown" : "ArrowRight";
         if (key !== back && key !== fwd) return;
         e.preventDefault();
-        const sizes = this._weights();
+        const panels = this._panels();
+        const pair = this._around(panels, i);
+        if (!pair) return;
+        const sizes = this._weights(panels.length);
         const step = key === back ? -KEY_STEP : KEY_STEP;
         // No ``_announce`` here: ``_publish`` relaunches ``_apply``,
         // which sets every ``aria-valuenow`` back. Calling it IN
         // ADDITION would give the same value two authors.
-        if (this._pair(sizes, i, sizes[i] + step)) this._publish(sizes);
+        if (this._pair(sizes, pair[0], pair[1], sizes[pair[0]] + step)) {
+          this._publish(sizes);
+        }
       },
 
       // ── Imperative ───────────────────────────────────────────────

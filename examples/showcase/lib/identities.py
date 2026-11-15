@@ -50,7 +50,7 @@ class Identity:
 
 
 IDENTITIES: list[Identity] = [
-    Identity("Bretzel", "The shipped theme: plum accent, neutral greys."),
+    Identity("Bretzel", "The shipped theme: baked-crust brown, neutral greys."),
     Identity(
         "Harbor",
         "Crisp blue SaaS, cool neutrals.",

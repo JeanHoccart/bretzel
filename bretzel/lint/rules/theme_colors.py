@@ -45,7 +45,8 @@ import re
 from bretzel.lint.corpus import Module
 from bretzel.lint.report import Finding
 from bretzel.lint.rules._app_calls import literal_tokens
-from bretzel.theme.tokens import FOREGROUND_SUFFIX, PALETTE_CLASS_PREFIX, SEMANTIC_COLOR_NAMES
+from bretzel.theme.class_merge import TAILWIND_COLOR_FAMILIES, UNSHADED_COLORS
+from bretzel.theme.tokens import PALETTE_CLASS_PREFIX
 
 RULE = "unknown-theme-color"
 
@@ -60,17 +61,10 @@ _COLOR_PREFIXES = tuple(sorted((
     "via", "to", "shadow", "inset-shadow",
 ), key=len, reverse=True))
 
-#: Tailwind's colour families: with a shade, they exist.
-_TAILWIND_FAMILIES = frozenset({
-    "slate", "gray", "zinc", "neutral", "stone", "red", "orange", "amber", "yellow", "lime",
-    "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple",
-    "fuchsia", "pink", "rose", "mauve", "olive", "mist", "taupe",
-})
-
-#: The colours that exist without a shade.
-_KNOWN = (frozenset(SEMANTIC_COLOR_NAMES)
-          | {f"{name}{FOREGROUND_SUFFIX}" for name in SEMANTIC_COLOR_NAMES}
-          | {"black", "white", "transparent", "current", "inherit"})
+#: Tailwind's colour families (with a shade, they exist) and the colours
+#: named without one — the class merge reads the same, from the same place.
+_TAILWIND_FAMILIES = TAILWIND_COLOR_FAMILIES
+_KNOWN = UNSHADED_COLORS
 
 #: What follows a colour prefix without being a colour: ``ring-offset-2``,
 #: ``border-spacing-10``, ``bg-linear-to-r``, ``bg-opacity-50``…

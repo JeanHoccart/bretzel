@@ -302,7 +302,8 @@ def _render_separator(
         node = separator.render()
         if isinstance(node, Element):
             return Component.with_slot_class(
-                node, separator_class, **{"aria-hidden": "true"}
+                node, separator_class, addition=owner._slot_addition("separator"),
+                **{"aria-hidden": "true"},
             )
         return Element(
             tag="span",
@@ -328,20 +329,9 @@ def _render_separator(
     # binding goes to the Icon as is: it emits the live ``bz-attr:icon``.
     icon = Icon(bound if bound is not None else text, size="xs")
     Component._detach_from_parent(icon)
-    rendered = icon.render()
-    existing = rendered.attrs.get("class", "")
-    return Element(
-        tag=rendered.tag,
-        attrs={
-            **rendered.attrs,
-            "class": (
-                f"{separator_class} {existing}".strip()
-                if existing
-                else separator_class
-            ),
-            "aria-hidden": "true",
-        },
-        children=rendered.children,
+    return Component.with_slot_class(
+        icon.render(), separator_class, addition=owner._slot_addition("separator"),
+        **{"aria-hidden": "true"},
     )
 
 

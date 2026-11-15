@@ -368,7 +368,7 @@ _CHARTS_ENTRY_STYLE = """
   }
   .bz-slice-entry {
     transform-origin: 50% 50%;
-    animation: bz-slice-pop 450ms cubic-bezier(.4,0,.2,1) backwards;
+    animation: bz-slice-pop 500ms cubic-bezier(.4,0,.2,1) backwards;
   }
 }
 """
@@ -376,17 +376,30 @@ _CHARTS_ENTRY_STYLE = """
 
 # Toast ENTER keyframe. ``bz-for`` is keyed on ``t.id``, so
 # ``.bz-toast-enter`` fires only when a NEW toast node mounts — existing
-# toasts don't re-animate when another arrives. Gated behind
-# ``prefers-reduced-motion: no-preference``. No leave keyframe: a toast
-# that goes, goes at once — what disappears does not linger.
-_NOTIFICATION_ANIM_STYLE = """
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes bz-toast-in {
-    from { opacity: 0; transform: translateY(-6px) scale(0.96); }
-    to   { opacity: 1; transform: none; }
-  }
-  .bz-toast-enter { animation: bz-toast-in 300ms cubic-bezier(.4,0,.2,1) backwards; }
-}
+# toasts don't re-animate when another arrives. The leave keyframe plays
+# while ``notification.js`` holds the node: both read ``TOAST_LEAVE_MS``
+# (the JS through ``window.$bz_theme.notification.leave_ms``, cf.
+# ``_theme_payload_js``) ; ``.bz-toast-leave`` comes AFTER ``.bz-toast-enter`` so it
+# wins the cascade, and lets the pointer through at once. The motion
+# rule: in 200 ms ease-out, out 150 ms ease-in (``components.md``).
+# Gated behind ``prefers-reduced-motion: no-preference``.
+#: How long a dismissed toast fades out before its node goes (rule 5 of
+#: the motion rule, ``components.md`` § motion).
+TOAST_LEAVE_MS: Final[int] = 150
+
+_NOTIFICATION_ANIM_STYLE = f"""
+@media (prefers-reduced-motion: no-preference) {{
+  @keyframes bz-toast-in {{
+    from {{ opacity: 0; transform: translateY(-6px) scale(0.96); }}
+    to   {{ opacity: 1; transform: none; }}
+  }}
+  @keyframes bz-toast-out {{
+    from {{ opacity: 1; }}
+    to   {{ opacity: 0; }}
+  }}
+  .bz-toast-enter {{ animation: bz-toast-in 200ms cubic-bezier(0,0,.2,1) backwards; }}
+  .bz-toast-leave {{ animation: bz-toast-out {TOAST_LEAVE_MS}ms cubic-bezier(.4,0,1,1) forwards; pointer-events: none; }}
+}}
 """
 
 #: The strip that slides during a navigation. A shell keyframe, like
@@ -607,7 +620,7 @@ def _theme_payload_js() -> str:
     )
 
     payload = {
-        "notification": _notification_payload(),
+        "notification": {**_notification_payload(), "leave_ms": TOAST_LEAVE_MS},
     }
     # ``ensure_ascii=False`` keeps non-ASCII chars readable in source
     # ; combined with ``separators=(",",":")`` to shave a few bytes.
@@ -1036,8 +1049,11 @@ def _build_body(body_html: str, page_uuid: str, *, nav_progress: bool = True) ->
         # bz-id, so swapped subtrees keep their client state and the
         # bridge re-binds directives after each swap.
         'hx-ext="morph" '
-        'class="bg-background text-text text-base transition-colors '
-        'duration-200">\n'
+        # No transition on the body: nothing moves when nothing changed
+        # (rule 7 of the motion rule). One here faded the page in from
+        # transparent on every load, and the scheme switch suspends
+        # transitions anyway.
+        'class="bg-background text-text text-base">\n'
         f'  <div id="{wrapper_id}" data-bz-page-id="{safe_uuid}"{boost} '
         f'hx-headers="{hx_headers}">\n'
         f"    {body_html}\n"

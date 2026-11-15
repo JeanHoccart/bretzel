@@ -48,8 +48,29 @@
           $bz.reportError("an effect", err);
         }
       }
+      if (!flushScheduled) $bz._serverWriting = false;
     });
   }
+
+  /* A value the SERVER writes is not a gesture. ``write`` runs with
+   * ``$bz._serverWriting`` up, and the flag stays up until every effect
+   * it wakes has run — those its effects wake in turn included, a field
+   * whose carrier follows its scope which follows the store — and
+   * ``change_emit_effect`` takes what they see as a new baseline rather
+   * than a ``change``. The callers: a value a re-render adopts
+   * (``resyncScopes``), a ClientState field an action pushes and a
+   * snapshot a navigation restores (``bridge.js::applyPayload``).
+   * Without it, a ``ui.tags_input`` bound to a field the server fills
+   * posted its ``on_change`` back with nothing typed (gate
+   * ``test_a_field_reports_only_a_gesture``). */
+  $bz._writeAsServer = function (write) {
+    $bz._serverWriting = true;
+    try {
+      return write();
+    } finally {
+      if (!flushScheduled) $bz._serverWriting = false;
+    }
+  };
 
   /* An error the runtime contains is still REPORTED as uncaught
    * (``reportError``): the page goes on, and whoever listens for page

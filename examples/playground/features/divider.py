@@ -36,6 +36,7 @@ class DividerPlayground(PageState):
     orientation: str = field(default="horizontal")
     label:       str = field(default="")
     color:       str = field(default="muted")
+    gap:         str = field(default="sm")
     # Escape hatches.
     classes:     str = field(default="")
     custom_id:   str = field(default="")
@@ -75,6 +76,7 @@ def build_preview(state: DividerPlayground):
     kwargs: dict = {
         "orientation": state.orientation,
         "color": state.color,
+        "gap": state.gap,
     }
     if state.label:
         kwargs["label"] = state.label
@@ -119,6 +121,10 @@ def server_panel() -> None:
         with control("color"):
             ui.select(value=state.color,
                       options=[(c, c.title()) for c in COLORS],
+                      on_change=server_changed)
+        with control("gap (the space on each side)"):
+            ui.select(value=state.gap,
+                      options=[(g, g) for g in ("none", "xs", "sm", "md", "lg", "xl")],
                       on_change=server_changed)
         with control("classes"):
             ui.input(value=state.classes, placeholder="!my-8",
@@ -211,6 +217,19 @@ def page() -> None:
                         ui.text("Section B")
                         ui.divider(label="Continue with email")
                         ui.text("Section C")
+
+                    ui.heading("gap — none (the lines of a form) → xl", level=3)
+                    ui.text("The space on each side of the line, the steps of "
+                            "every gap. sm (the default) is 8 px; none draws "
+                            "the line flush, between fields that carry their "
+                            "own height.", color="muted", size="sm")
+                    with ui.grid(cols={"base": 1, "md": 3}, gap="md"):
+                        for g in ("none", "sm", "lg"):
+                            with ui.card(padding="sm"), ui.vstack(gap="none"):
+                                ui.text(f'gap="{g}"', size="xs", color="muted")
+                                ui.text("Above")
+                                ui.divider(gap=g)
+                                ui.text("Below")
 
                     ui.heading("Colors", level=3)
                     with ui.vstack():

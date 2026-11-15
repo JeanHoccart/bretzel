@@ -21,6 +21,21 @@ drawing and be impossible to catch; a thick bar would be catchable and
 ugly. The two halves of the problem do not have the same answer, hence
 the visual / grab-zone separation.
 
+**The line at rest follows ``gap=``** (table ``lines``). With a gutter,
+the space already separates the panels, and a line in it would be a
+second separator: nothing is drawn. With ``gap="none"`` the panels touch,
+and the handle is the border between them: one stroke (``--bz-stroke``)
+in the framework's border tint, ``text/10`` — the one of a card's outline
+and of ``ui.divider``. ``size=`` sets the grip only; a thicker bar would
+be a heavier border than any other. Either way, under the pointer and
+while held, the line takes the colour's border and solid steps.
+
+**The grip shows under the pointer, on focus and while held** — never at
+rest. Next to a 1 px border or in an empty gutter, a permanent pill reads
+as an object of its own; the cursor says the handle can be grabbed. The
+price is touch: a finger does not hover, so a gutter handle is only seen
+once pressed (``active:``).
+
 ``touch-none`` (``touch-action: none``) is MANDATORY and not a
 refinement: without it, the browser reads a finger dragging on the
 handle as a page scroll and never sends the ``pointermove`` — the
@@ -44,7 +59,8 @@ Slots :
 - ``handle_locked``  : what it gains when ``disabled=True``
 - ``handle_h`` / ``handle_v`` : what depends on the axis (cursor,
   direction of the grab zone)
-- ``grip``           : the central mark, revealed on hover and on focus
+- ``grip``           : the central mark, drawn under the pointer, on focus
+  and while held
 """
 
 from __future__ import annotations
@@ -65,8 +81,10 @@ RESIZABLE_THEME: dict[str, Any] = {
             # ``group/rz`` names the group the grip watches. Named and
             # not bare: a NESTED Resizable would otherwise make the
             # parent's grip react to hovering the child.
+            # No background here: at rest it comes from ``lines`` (by
+            # ``gap``), under the pointer from ``handle_active``.
             "group/rz relative shrink-0 touch-none select-none "
-            "bg-text/10 transition-colors duration-150 ease-out "
+            "transition-colors duration-150 ease-out "
             "flex items-center justify-center "
             # The grab zone overflows the bar — a pseudo-element, so no
             # extra node in the DOM and no box that would take part in
@@ -84,24 +102,36 @@ RESIZABLE_THEME: dict[str, Any] = {
         # would be present and invisible. It is the bug
         # ``test_disabled_affordance`` locks down, paid for by Tree.
         "handle_locked": "cursor-not-allowed",
-        "handle_h": "cursor-col-resize before:-inset-x-1 before:inset-y-0",
-        "handle_v": "cursor-row-resize before:-inset-y-1 before:inset-x-0",
-        # The grip is ALWAYS visible, and hover only emphasises it. The
-        # opposite reflex (``opacity-0`` then
-        # ``group-hover:opacity-100``) is what half the ecosystem does
-        # and it is a two-stage trap: a finger does not hover, so on
-        # touch the handle no longer announces that it can be grabbed —
-        # and a touch browser reports precisely ``any-hover: false``.
-        # Gated by ``test_hover_only_controls_reachable``.
+        "handle_h": (
+            "w-(length:--bz-stroke) cursor-col-resize before:-inset-x-1 before:inset-y-0"
+        ),
+        "handle_v": (
+            "h-(length:--bz-stroke) cursor-row-resize before:-inset-y-1 before:inset-x-0"
+        ),
+        # Transparent at rest, drawn under the pointer, on keyboard focus
+        # and while held (module docstring). A colour, not an
+        # ``opacity-0`` reveal: it is a mark, not a control — the handle
+        # around it stays where it was, grabbable, and changes the cursor.
         "grip": (
-            "pointer-events-none rounded-full bg-text/25 "
+            "pointer-events-none rounded-full bg-transparent "
             "transition-colors duration-150 ease-out "
-            "group-hover/rz:bg-text/60 group-focus-within/rz:bg-text/60"
+            "group-hover/rz:bg-text/60 group-focus-within/rz:bg-text/60 "
+            "group-active/rz:bg-text/60"
         ),
     },
-    # ``bar_*`` = the bar's THICKNESS, ``grip_*`` = the central mark.
-    # The suffix says the GROUP's axis: ``_h`` = panels side by side, so
-    # a vertical bar whose width is what varies.
+    #: The handle's line AT REST, by ``gap`` value — a responsive table
+    #: like ``gaps``, so ``gap={"base": "none", "md": "sm"}`` draws the
+    #: line on a phone only. Every value names its class, ``bg-transparent``
+    #: included: an empty entry would let the ``base`` line through at
+    #: ``md``.
+    "lines": {
+        "none": "bg-text/10",
+        "xs": "bg-transparent",
+        "sm": "bg-transparent",
+        "md": "bg-transparent",
+        "lg": "bg-transparent",
+        "xl": "bg-transparent",
+    },
     #: The space between a panel and the handle — the GUTTER. Same
     #: six-step scale as ``ui.flex`` / ``ui.hstack`` / ``ui.vstack`` /
     #: ``ui.grid`` / ``ui.carousel``, because it is the same space: a
@@ -126,34 +156,26 @@ RESIZABLE_THEME: dict[str, Any] = {
         "lg": "gap-(--bz-gap-6)",
         "xl": "gap-(--bz-gap-8)",
     },
+    # ``grip_*`` = the central mark. The suffix says the GROUP's axis:
+    # ``_h`` = panels side by side, so a vertical mark.
     "sizes": {
         "xs": {
-            "bar_h": "w-px",
-            "bar_v": "h-px",
             "grip_h": "w-0.5 h-3",
             "grip_v": "h-0.5 w-3",
         },
         "sm": {
-            "bar_h": "w-px",
-            "bar_v": "h-px",
             "grip_h": "w-0.5 h-4",
             "grip_v": "h-0.5 w-4",
         },
         "md": {
-            "bar_h": "w-0.5",
-            "bar_v": "h-0.5",
             "grip_h": "w-1 h-6",
             "grip_v": "h-1 w-6",
         },
         "lg": {
-            "bar_h": "w-1",
-            "bar_v": "h-1",
             "grip_h": "w-1.5 h-8",
             "grip_v": "h-1.5 w-8",
         },
         "xl": {
-            "bar_h": "w-1.5",
-            "bar_v": "h-1.5",
             "grip_h": "w-2 h-10",
             "grip_v": "h-2 w-10",
         },

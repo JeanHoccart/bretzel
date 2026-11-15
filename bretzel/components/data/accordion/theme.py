@@ -6,7 +6,7 @@ need the gapped-card or borderless look override the ``root`` / ``item``
 slots.
 
 The active state is driven by a ``data-open`` attribute on the header
-button, rendered statically server-side for initially-expanded items
+(a ``div role="button"``, so its text can be selected), rendered statically server-side for initially-expanded items
 and kept reactive via ``bz-attr:data-open``. Same SSR-first idiom Tabs
 uses for ``data-selected`` — avoids the flash before the runtime hydrates.
 """
@@ -36,14 +36,18 @@ ACCORDION_THEME: dict[str, Any] = {
             "font-medium text-start "
             "transition-[color,background-color,border-color] "
             "duration-200 ease-out cursor-pointer outline-none "
-            "focus-visible:ring-2 focus-visible:ring-offset-2 "
-            "focus-visible:ring-offset-background "
+            # The ring is drawn INSIDE (``ring-inset``, no offset): the
+            # root clips to its rounding (``overflow-hidden``), so an
+            # outer ring lost its edges on the first and last header —
+            # on all four sides inside an item that clips too.
+            "focus-visible:ring-2 focus-visible:ring-inset "
             "focus-visible:ring-(--bz-focus) "
-            "disabled:opacity-50 disabled:cursor-not-allowed "
-            # ``not-disabled:hover:`` (not bare ``hover:``) scopes the hover to
-            # elements WITHOUT the ``disabled`` attribute — else disabled
-            # items still colour on hover and look interactive.
-            "not-disabled:hover:text-(--bz-text) "
+            # The header is a ``div role="button"``: its disabled state is
+            # ``aria-disabled``, not the native attribute.
+            "aria-disabled:opacity-50 aria-disabled:cursor-not-allowed "
+            # ``not-aria-disabled:hover:`` (not bare ``hover:``): a disabled
+            # item must not colour on hover and look interactive.
+            "not-aria-disabled:hover:text-(--bz-text) "
             "data-[open=true]:text-(--bz-text)"
         ),
         # Label slot — flex-1 so the chevron stays right-aligned.
@@ -51,11 +55,11 @@ ACCORDION_THEME: dict[str, Any] = {
         # Optional leading icon — sits before the label.
         "icon": "shrink-0",
         # Chevron — rotates 180° when the parent header carries
-        # ``data-open=true``. It turns on OPENING and snaps back on
-        # closing: the transition lives on the open state (the why:
-        # ``overlay/dialog/theme.py``).
+        # ``data-open=true``, both ways at the body's pace: an accordion
+        # section is a state change in the page, not a panel leaving it
+        # (the motion rule's third case, like the sidebar folding).
         "chevron": (
-            "shrink-0 group-data-[open=true]:transition-transform group-data-[open=true]:duration-200 group-data-[open=true]:ease-out "
+            "shrink-0 transition-transform duration-200 ease-out "
             "group-data-[open=true]:rotate-180"
         ),
         # Body wrapper — the **grid-template-rows trick** for height
@@ -63,13 +67,13 @@ ACCORDION_THEME: dict[str, Any] = {
         # (collapsed) to ``1fr`` (expanded). The inner ``min-h-0
         # overflow-hidden`` div inherits that height, so the transition
         # adapts to the real content height (no ``max-h`` cap, no JS
-        # measurement). It unfolds on OPENING and folds at once:
-        # ``not-aria-hidden:`` is the open state (the body carries
-        # ``aria-hidden="true"`` closed) — the why: ``overlay/dialog/theme.py``.
-        "body": (
-            "grid not-aria-hidden:transition-[grid-template-rows] "
-            "not-aria-hidden:duration-200 not-aria-hidden:ease-out"
-        ),
+        # measurement). It unfolds and folds at the same pace: the
+        # section stays in the page and pushes what follows, so folding
+        # at once made everything below it jump (Jean, « la fermeture doit
+        # être plus smooth, avec un délai égal à l'ouverture »). A state
+        # change, animated both ways (rule 3 of the motion rule) — unlike
+        # a menu, which leaves at once, or a dialog, which fades out.
+        "body": "grid transition-[grid-template-rows] duration-200 ease-out",
         # The grid row child — must clip its own overflow and accept
         # ``min-h-0`` so the grid can shrink it below its natural
         # height during the collapse animation.

@@ -368,6 +368,10 @@ def page() -> None:
                 "in Card 9.",
                 color="muted",
             )
+            ui.text(
+                "Motion: comes in over 200 ms ease-out, fades out in 150 ms ease-in — the pointer and the focus are released on the first frame (the motion rule, rule 4 and 5).",
+                color="muted", size="sm",
+            )
 
             # ── Card 1 — Reference ──────────────────────────────────
             with ui.card():
