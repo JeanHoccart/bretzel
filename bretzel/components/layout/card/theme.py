@@ -54,7 +54,7 @@ CARD_THEME: dict[str, Any] = {
             # Badge / Button / IconButton.
             "root": (
                 "bg-(--bz-solid) text-(--bz-on-solid) "
-                "border-(length:--bz-stroke) border-text/10"
+                "border-(length:--bz-stroke) border-line"
             ),
             # The lift. NOTE : do NOT gate on ``aria-enabled:`` — it is NOT
             # a Tailwind variant (only aria-checked/disabled/expanded/…
@@ -67,12 +67,12 @@ CARD_THEME: dict[str, Any] = {
                 "transition duration-150 ease-out cursor-pointer "
                 "relative top-0 "
                 "hover:shadow-sm "
-                "hover:border-text/20 "
+                "hover:border-line-strong "
                 "hover:-top-px "
                 "aria-disabled:cursor-default "
                 "aria-disabled:hover:top-0 "
                 "aria-disabled:hover:shadow-none "
-                "aria-disabled:hover:border-text/10"
+                "aria-disabled:hover:border-line"
             ),
             "focusable": (
                 "focus-visible:outline-none focus-visible:ring-2 "
@@ -86,7 +86,7 @@ CARD_THEME: dict[str, Any] = {
             # rises makes the whole list jump. The row lights at once, with
             # no fade (the sidebar's rows do the same).
             "hoverable": (
-                "cursor-pointer hover:bg-text/5 "
+                "cursor-pointer hover:bg-hover "
                 "aria-disabled:cursor-default aria-disabled:hover:bg-transparent"
             ),
             # The ring is drawn INSIDE: a list lives in a column that
@@ -97,7 +97,7 @@ CARD_THEME: dict[str, Any] = {
             # page.
             "focusable": (
                 "focus-visible:outline-none focus-visible:ring-2 "
-                "focus-visible:ring-inset focus-visible:ring-primary/40"
+                "focus-visible:ring-inset focus-visible:ring-primary-ring"
             ),
         },
     },
@@ -117,7 +117,7 @@ CARD_THEME: dict[str, Any] = {
     # order of the compiled sheet. The text goes back to the page's, for a
     # coloured ``solid`` card whose light text would not read on the tint.
     "active": (
-        "data-[active=true]:bg-primary/10 data-[active=true]:hover:bg-primary/15 "
+        "data-[active=true]:bg-primary-wash data-[active=true]:hover:bg-primary-wash-hover "
         "data-[active=true]:text-text"
     ),
 }

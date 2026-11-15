@@ -51,6 +51,32 @@ SEMANTIC_COLOR_NAMES: Final[tuple[str, ...]] = (
 )
 
 
+#: The GENERATED colours — computed by the theme from the eleven above,
+#: never chosen. A component writes them by name (``border-line``,
+#: ``hover:bg-hover``, ``bg-error-wash``) and never doses a colour itself
+#: (``bg-text/5``): ``test_no_component_doses_a_colour``.
+#:
+#: The neutral steps every component shares (``theme/neutrals.py``).
+NEUTRAL_STEP_NAMES: Final[tuple[str, ...]] = (
+    "line", "line-strong", "track", "hover", "pressed", "tint", "stripe",
+    "ring", "placeholder", "faint", "backdrop", "glass",
+)
+#: The vivid colours whose steps a variant table reaches by name — a
+#: table that writes one colour per row has no bridge class to read
+#: (``theme/bridges.py``, the same measured doses).
+WASH_COLOR_NAMES: Final[tuple[str, ...]] = (
+    "primary", "secondary", "success", "error", "warning", "info",
+)
+#: ``suffix → the bridge step it names``: ``bg-error-wash`` is the error
+#: bridge's ``--bz-bg``, its formula and its dose.
+WASH_STEPS: Final[dict[str, str]] = {
+    "wash": "--bz-bg", "wash-hover": "--bz-bg-hover", "edge": "--bz-border", "ring": "--bz-focus",
+}
+GENERATED_COLOR_NAMES: Final[tuple[str, ...]] = NEUTRAL_STEP_NAMES + tuple(
+    f"{color}-{suffix}" for color in WASH_COLOR_NAMES for suffix in WASH_STEPS
+)
+
+
 SemanticColors = Literal[
     "primary",
     "secondary",

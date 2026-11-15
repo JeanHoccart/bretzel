@@ -58,7 +58,10 @@ def ghost() -> None:
                 ui.text("Subject", color="muted", size="sm")
                 ui.text("Quarterly review", size="sm", weight="medium")
             ui.divider()
-            ui.editor(variant="ghost", placeholder="Write the message…")
+            # A ghost field has no margin of its own: its text lines up
+            # with « Subject » because the parent gives the same px-4.
+            with ui.vstack(gap="none", classes="px-4"):
+                ui.editor(variant="ghost", placeholder="Write the message…")
 
 
 class Note(PageState):

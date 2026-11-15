@@ -87,14 +87,16 @@ BADGE_THEME: dict[str, Any] = {
             "root": "bg-(--bz-solid) text-(--bz-on-solid)",
             "close": (
                 "text-(--bz-on-solid) opacity-80 hover:opacity-100 "
-                "hover:bg-black/10"
+                # The fill's own hover, measured against the fill — a
+                # neutral step is measured against the page, not this.
+                "hover:bg-(--bz-solid-hover)"
             ),
         },
         "outline": {
             # The border is the colour itself, as on a button's outline:
             # one colour for the frame and its label, the label being the
             # colour made readable — the colour itself wherever it reads
-            # (``bridges.readable_step_pct``).
+            # (``bridges.step_percentages``).
             "root": "border-(length:--bz-stroke-strong) border-(--bz-solid) text-(--bz-text)",
             "close": (
                 "text-(--bz-text-muted) hover:text-(--bz-text) "

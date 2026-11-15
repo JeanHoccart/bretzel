@@ -13,6 +13,7 @@ previous identity's.
 
 from dataclasses import dataclass, field
 
+from bretzel.theme import SEMANTIC_COLOR_NAMES, Palette, Theme
 from examples.showcase.lib.studio import (
     FONTS,
     SHIPPED_DEFAULTS,
@@ -38,6 +39,14 @@ class Identity:
             for family in ("space_box", "space_gap"):
                 values[family] = self.overrides.get(family, self.overrides["spacing"])
         return values
+
+    def palette(self) -> Palette:
+        """The eleven colours in both modes, as the theme receives them."""
+        v = self.values
+        return Theme(
+            semantic={k: str(v[k]) for k in SEMANTIC_COLOR_NAMES},
+            semantic_dark={k: str(v.get(f"d_{k}", v[k])) for k in SEMANTIC_COLOR_NAMES},
+        ).get_palette()
 
     def apply(self) -> str:
         """The client expression that paints the app with this identity."""

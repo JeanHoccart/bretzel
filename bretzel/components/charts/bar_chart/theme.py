@@ -32,7 +32,7 @@ BAR_CHART_THEME: dict[str, Any] = {
         # (``_svg.PLOT_SPAN``). The svg's width is set by
         # ``_layers.plot_svg`` (container less the axis margins).
         # The focus ring: the chart is one tab stop (``keyboard_attrs``).
-        "wrapper":      "flex flex-col gap-3 w-full min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-text/30",
+        "wrapper":      "flex flex-col gap-3 w-full min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "svg":          "block overflow-visible",
         # ``transition-[y,height,opacity]`` morphs the bar on data
         # refresh (grow / shrink smoothly). ``bz-bar-entry`` runs
@@ -45,13 +45,13 @@ BAR_CHART_THEME: dict[str, Any] = {
             "motion-safe:transition-[y,height,opacity] duration-400 ease-out "
             "bz-bar-entry"
         ),
-        "axis":         "stroke-text/30",
-        "axis_label":   "fill-text/60",
+        "axis":         "stroke-line-strong",
+        "axis_label":   "fill-muted",
         # The axis titles, level: the vertical axis's above the plot at
         # its left, the horizontal axis's below it at its right.
-        "title_top":    "self-start text-text/60",
-        "title_bottom": "self-end text-text/60",
-        "gridline":     "stroke-text/10",
+        "title_top":    "self-start text-muted",
+        "title_bottom": "self-end text-muted",
+        "gridline":     "stroke-line",
         # Reference lines — same recipe as LineChart's theme : the
         # reference's bridge carries its colour, so
         # ``Reference(color="success")`` paints a green threshold
@@ -81,20 +81,20 @@ BAR_CHART_THEME: dict[str, Any] = {
         "legend_item":  (
             "flex items-center gap-2 cursor-pointer "
             "transition-opacity duration-200 "
-            "outline-none focus-visible:ring-2 focus-visible:ring-text/30 "
+            "outline-none focus-visible:ring-2 focus-visible:ring-ring "
             "rounded px-1"
         ),
         "legend_dot":   "size-3 rounded-selector shrink-0 bg-(--bz-solid)",
-        "legend_label": "text-xs text-text/70",
+        "legend_label": "text-xs text-muted",
         # « Voir les données »: the ``<details>`` and its summary
         # (``data_table``); the table inside is a ``ui.table``.
         "data":         "group w-full",
         "data_toggle":  (
-            "w-fit cursor-pointer select-none text-text/60 "
+            "w-fit cursor-pointer select-none text-muted "
             "hover:text-text rounded outline-none "
-            "focus-visible:ring-2 focus-visible:ring-text/30"
+            "focus-visible:ring-2 focus-visible:ring-ring"
         ),
-        "empty":        "fill-text/40 text-sm",
+        "empty":        "fill-muted text-sm",
     },
     "sizes": {
         # name → {height_px, axis_font_px, bar_padding_ratio, value_font_px}

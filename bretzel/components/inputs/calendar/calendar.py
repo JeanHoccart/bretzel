@@ -770,7 +770,7 @@ class Calendar(ValueCommands, Component):
             "inline-flex items-center gap-1 px-2 py-1 whitespace-nowrap "
             "rounded-selector font-medium text-text tabular-nums "
             f"{size_map.get('month_label', 'text-sm')} "
-            "not-disabled:hover:bg-text/5 transition-colors "
+            "not-disabled:hover:bg-hover transition-colors "
             "disabled:opacity-40 disabled:cursor-not-allowed "
             "focus-visible:outline-none focus-visible:ring-2 "
             "focus-visible:ring-(--bz-focus)"
@@ -785,7 +785,7 @@ class Calendar(ValueCommands, Component):
         panel_cls = (
             "absolute top-full left-0 mt-1 z-10 min-w-[120px] "
             "max-h-64 overflow-y-auto "
-            "rounded-box border border-text/10 bg-surface shadow-lg "
+            "rounded-box border border-line bg-surface shadow-lg "
             "transition-opacity duration-75 starting:opacity-0"
         )
         item_cls = (

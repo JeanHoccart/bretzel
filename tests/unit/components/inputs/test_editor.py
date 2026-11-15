@@ -101,8 +101,8 @@ class TestVariants:
     def test_surface_frames_and_ghost_does_not(self) -> None:
         surface = tag(html(), "data-bz-editor=")
         ghost = tag(html(variant="ghost"), "data-bz-editor=")
-        assert "bg-interface" in surface and "border-text/10" in surface
-        assert "bg-interface" not in ghost and "border-text/10" not in ghost
+        assert "bg-interface" in surface and "border-line" in surface
+        assert "bg-interface" not in ghost and "border-line" not in ghost
         assert "[[data-bz-keyboard]_" in ghost
 
     def test_another_word_is_refused(self) -> None:

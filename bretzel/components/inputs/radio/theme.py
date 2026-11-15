@@ -38,7 +38,7 @@ RADIO_THEME: dict[str, Any] = {
         ),
         "input": "peer absolute inset-0 m-0 opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed",
         "circle": (
-            "block rounded-full border-(length:--bz-stroke) border-text/25 bg-interface "
+            "block rounded-full border-(length:--bz-stroke) border-line-strong bg-interface "
             # ``border-width`` too: checking thickens the ring.
             "transition-[color,background-color,border-color,border-width,box-shadow] "
             "duration-200 ease-out "

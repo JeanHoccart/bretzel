@@ -30,8 +30,8 @@ IFRAME_THEME: dict[str, Any] = {
         # ``block``: an iframe is ``inline`` by default, which sticks
         # the baseline's space under its belly.
         "root": (
-            "block max-w-full bg-muted/30 "
-            "border-(length:--bz-stroke) border-text/10 rounded-box"
+            "block max-w-full bg-track "
+            "border-(length:--bz-stroke) border-line rounded-box"
         ),
     },
     "ratios": {

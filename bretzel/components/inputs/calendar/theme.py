@@ -50,7 +50,7 @@ CALENDAR_THEME: dict[str, Any] = {
             # below the content would only make the text collide.
             "bz-calendar inline-flex flex-col gap-2 "
             "h-fit min-w-max "
-            "p-3 rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
+            "p-3 rounded-box border-(length:--bz-stroke) border-line bg-surface "
             "select-none "
             # Disabled feedback : whole grid fades + cursor reflects it.
             "aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
@@ -62,7 +62,7 @@ CALENDAR_THEME: dict[str, Any] = {
         "nav_button": (
             # Size (``w-8 h-8`` md) in ``sizes``, not here — cf. weekday.
             "inline-flex shrink-0 items-center justify-center rounded-selector "
-            "text-text/70 not-disabled:hover:bg-text/5 not-disabled:hover:text-text "
+            "text-faint not-disabled:hover:bg-hover not-disabled:hover:text-text "
             "disabled:opacity-40 disabled:cursor-not-allowed "
             "transition-colors"
         ),
@@ -82,7 +82,7 @@ CALENDAR_THEME: dict[str, Any] = {
             # than the names running into each other. The default names
             # are the NARROW ones (``locale.js``), which fit any step.
             "flex items-center justify-center min-w-fit "
-            "font-medium text-text/50 uppercase"
+            "font-medium text-muted uppercase"
         ),
         # The dot of a marked cell. ABSOLUTE, and that is the point:
         # placed in the flow, it would turn the cell into a column and
@@ -110,7 +110,7 @@ CALENDAR_THEME: dict[str, Any] = {
         # selected pill of "September" off their neighbours.
         "month_cell": (
             "inline-flex items-center justify-center px-1.5 rounded-selector "
-            "text-text not-disabled:hover:bg-text/5 "
+            "text-text not-disabled:hover:bg-hover "
             # No fade: a cell lights at once.
             "cursor-pointer "
             "focus-visible:outline-none focus-visible:ring-2 "
@@ -118,7 +118,7 @@ CALENDAR_THEME: dict[str, Any] = {
             "data-[selected=true]:bg-(--bz-solid) "
             "data-[selected=true]:text-(--bz-on-solid) "
             "data-[selected=true]:font-semibold "
-            "data-[current=true]:ring-1 data-[current=true]:ring-text/30 "
+            "data-[current=true]:ring-1 data-[current=true]:ring-line-strong "
             "aria-disabled:opacity-40 aria-disabled:cursor-not-allowed "
             "aria-disabled:hover:bg-transparent"
         ),
@@ -128,9 +128,9 @@ CALENDAR_THEME: dict[str, Any] = {
             "relative inline-flex items-center justify-center "
             "rounded-selector "
             "text-text "
-            "not-disabled:hover:bg-text/5 "
-            "data-[outside=true]:text-text/30 "
-            "data-[today=true]:ring-1 data-[today=true]:ring-text/30 "
+            "not-disabled:hover:bg-hover "
+            "data-[outside=true]:text-faint "
+            "data-[today=true]:ring-1 data-[today=true]:ring-line-strong "
             # Range middles : same ``--bz-bg`` wash, flat sides so they
             # tile seamlessly into the endpoints.
             "data-[in-range=true]:bg-(--bz-bg) "

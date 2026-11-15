@@ -21,8 +21,12 @@ MESSAGE_INPUT_THEME: dict[str, Any] = {
     "slots": {
         "root": (
             "bz-message-input bz-c-primary flex flex-col w-full min-w-0 rounded-field "
-            "border-(length:--bz-stroke) border-text/10 "
+            "border-(length:--bz-stroke) border-line "
             "bg-interface transition duration-200 "
+            # Nothing to send (``data-empty``, kept by message_input.js):
+            # the round button reads as off, as a disabled one does.
+            "[&[data-empty]_button[type=submit]]:opacity-50 "
+            "[&[data-empty]_button[type=submit]]:pointer-events-none "
             # Lit while one TYPES, not whenever the focus is inside: on
             # the round button, its own ring says where the keyboard is —
             # two rings at once read as two fields.
@@ -36,7 +40,7 @@ MESSAGE_INPUT_THEME: dict[str, Any] = {
         "files": "px-3 pt-3",
         "field": (
             "block w-full resize-none border-0 bg-transparent px-4 py-3 text-sm text-text "
-            "placeholder:text-muted/60 outline-none field-sizing-content min-h-[4.5rem] "
+            "placeholder:text-placeholder outline-none field-sizing-content min-h-[4.5rem] "
             "max-h-60 overflow-y-auto disabled:cursor-not-allowed disabled:opacity-50"
         ),
         "bar": "flex items-center gap-1 px-2 pb-2",

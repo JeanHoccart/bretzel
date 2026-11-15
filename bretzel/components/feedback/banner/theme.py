@@ -55,14 +55,14 @@ BANNER_THEME: dict[str, Any] = {
     # doesn't overwhelm the page chrome above it. A ``/8`` wash for
     # the wash and a coloured left bar for the semantic accent.
     "variants": {
-        "info":    {"root": "bg-info/8 border-info text-info"},
-        "success": {"root": "bg-success/8 border-success text-success"},
-        "warning": {"root": "bg-warning/8 border-warning text-warning"},
-        "error":   {"root": "bg-error/8 border-error text-error"},
+        "info":    {"root": "bg-info-wash border-info text-info"},
+        "success": {"root": "bg-success-wash border-success text-success"},
+        "warning": {"root": "bg-warning-wash border-warning text-warning"},
+        "error":   {"root": "bg-error-wash border-error text-error"},
         # Neutral / muted variants for generic info that doesn't need
         # a semantic flag.
-        "muted":   {"root": "bg-text/5 border-text/30 text-text"},
-        "primary": {"root": "bg-primary/8 border-primary text-primary"},
+        "muted":   {"root": "bg-tint border-line-strong text-text"},
+        "primary": {"root": "bg-primary-wash border-primary text-primary"},
     },
     "sizes": {
         "sm": {"root": "py-2 text-xs", "title": "text-sm"},

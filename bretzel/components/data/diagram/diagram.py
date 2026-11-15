@@ -616,7 +616,7 @@ class Diagram(Component):
                         Element(
                             tag="path",
                             attrs={"d": "M0,0 L8,4 L0,8 z",
-                                   "class": "fill-text/20"},
+                                   "class": "fill-line-strong"},
                             children=(),
                         ),
                     ),

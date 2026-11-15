@@ -31,7 +31,7 @@ SCATTER_CHART_THEME: dict[str, Any] = {
         # Fills its container: the plot is drawn in percentages of it
         # (``_svg.PLOT_SPAN``) — same reason as LineChart's wrapper.
         # The focus ring: the chart is one tab stop (``keyboard_attrs``).
-        "wrapper":      "relative flex flex-col gap-3 w-full min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-text/30",
+        "wrapper":      "relative flex flex-col gap-3 w-full min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "svg":          "block overflow-visible",
         # ``cursor-pointer`` because every dot is a hover target ; the
         # hover makes the point SOLID, and that is the only way to do it
@@ -53,13 +53,13 @@ SCATTER_CHART_THEME: dict[str, Any] = {
             "transition-colors duration-150 ease-out "
             "hover:fill-(--bz-solid)"
         ),
-        "axis":         "stroke-text/30",
-        "axis_label":   "fill-text/60",
+        "axis":         "stroke-line-strong",
+        "axis_label":   "fill-muted",
         # The axis titles, level: the vertical axis's above the plot at
         # its left, the horizontal axis's below it at its right.
-        "title_top":    "self-start text-text/60",
-        "title_bottom": "self-end text-text/60",
-        "gridline":     "stroke-text/10",
+        "title_top":    "self-start text-muted",
+        "title_bottom": "self-end text-muted",
+        "gridline":     "stroke-line",
         "reference_line":  "stroke-(--bz-border-hover)",
         # Painted OVER the dots: a halo in the page colour keeps it
         # readable, and it gives the hover back to the dots beneath.
@@ -71,20 +71,20 @@ SCATTER_CHART_THEME: dict[str, Any] = {
         "legend_item": (
             "flex items-center gap-2 cursor-pointer "
             "transition-opacity duration-200 "
-            "outline-none focus-visible:ring-2 focus-visible:ring-text/30 "
+            "outline-none focus-visible:ring-2 focus-visible:ring-ring "
             "rounded px-1"
         ),
         "legend_dot":   "size-3 rounded-selector shrink-0 bg-(--bz-solid)",
-        "legend_label": "text-xs text-text/70",
+        "legend_label": "text-xs text-muted",
         # « Voir les données »: the ``<details>`` and its summary
         # (``data_table``); the table inside is a ``ui.table``.
         "data":         "group w-full",
         "data_toggle":  (
-            "w-fit cursor-pointer select-none text-text/60 "
+            "w-fit cursor-pointer select-none text-muted "
             "hover:text-text rounded outline-none "
-            "focus-visible:ring-2 focus-visible:ring-text/30"
+            "focus-visible:ring-2 focus-visible:ring-ring"
         ),
-        "empty":        "fill-text/40 text-sm",
+        "empty":        "fill-muted text-sm",
     },
     "sizes": {
         # name → {height, dot_radius, axis_font}

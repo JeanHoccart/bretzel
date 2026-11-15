@@ -34,7 +34,7 @@ DIALOG_THEME: dict[str, Any] = {
         # ``visibility`` is in both lists, or the panel would vanish on
         # the first frame of its fade.
         "backdrop": (
-            "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm "
+            "fixed inset-0 z-40 bg-backdrop backdrop-blur-sm "
             "data-[open=true]:transition-[opacity,visibility] data-[open=true]:duration-200 "
             "data-[open=false]:transition-[opacity,visibility] data-[open=false]:duration-150 "
             "data-[open=false]:ease-in "
@@ -60,7 +60,7 @@ DIALOG_THEME: dict[str, Any] = {
         # ``interface`` a control.
         "panel": (
             "pointer-events-auto w-full bg-surface text-text "
-            "rounded-box border-(length:--bz-stroke) border-text/10 shadow-xl "
+            "rounded-box border-(length:--bz-stroke) border-line shadow-xl "
             "flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden "
             "data-[open=true]:transition-[opacity,scale,visibility] data-[open=true]:duration-200 data-[open=true]:ease-out "
             "data-[open=false]:transition-[opacity,scale,visibility] data-[open=false]:duration-150 "
@@ -70,7 +70,7 @@ DIALOG_THEME: dict[str, Any] = {
             "starting:opacity-0 starting:scale-95"
         ),
         "header": (
-            "flex items-start gap-3 px-5 py-4 border-b-(length:--bz-stroke) border-text/5"
+            "flex items-start gap-3 px-5 py-4 border-b-(length:--bz-stroke) border-line"
         ),
         "title": "flex-1 text-lg font-semibold leading-snug",
         "close": "shrink-0 -mr-1 -mt-1",

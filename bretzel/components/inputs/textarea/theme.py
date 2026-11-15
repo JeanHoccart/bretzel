@@ -17,14 +17,14 @@ TEXTAREA_THEME: dict[str, Any] = {
             "bz-textarea "  # audit marker — cf. tests/audit/checklist.py
             # The frame and its focus ring are the variant's (``variants``).
             "block w-full rounded-field "
-            "text-text placeholder:text-muted/60 "
+            "text-text placeholder:text-placeholder "
             "outline-none resize-none transition duration-200 "
             "disabled:opacity-50 disabled:cursor-not-allowed "
             "read-only:cursor-default"
         ),
     },
     "variants": {
-        "surface": "bg-interface border-(length:--bz-stroke) border-text/10 focus:border-(--bz-solid) focus:ring-2 focus:ring-(--bz-focus-soft) focus:ring-offset-2 focus:ring-offset-background disabled:bg-muted/10 read-only:bg-interface/50",
+        "surface": "bg-interface border-(length:--bz-stroke) border-line focus:border-(--bz-solid) focus:ring-2 focus:ring-(--bz-focus-soft) focus:ring-offset-2 focus:ring-offset-background disabled:bg-tint read-only:bg-tint",
         "ghost": "[[data-bz-keyboard]_&]:focus:ring-2 [[data-bz-keyboard]_&]:focus:ring-(--bz-focus) [[data-bz-keyboard]_&]:focus:ring-offset-2 [[data-bz-keyboard]_&]:focus:ring-offset-background",
     },
     "sizes": {

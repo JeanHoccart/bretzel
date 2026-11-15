@@ -68,8 +68,8 @@ BOTTOM_BAR_THEME: dict[str, Any] = {
         # disappearing all at once (iOS idiom).
         "root": (
             "group/bottombar w-full mt-auto z-30 "
-            "sticky bottom-0 bg-surface/95 backdrop-blur-md "
-            "border-t-(length:--bz-stroke) border-text/10 "
+            "sticky bottom-0 bg-glass backdrop-blur-md "
+            "border-t-(length:--bz-stroke) border-line "
             "pb-[env(safe-area-inset-bottom)]"
         ),
         # The row. It is each item's ``flex-1`` that makes the widths

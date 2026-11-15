@@ -482,8 +482,8 @@ class TestThemeFrame:
         # overrides, not props).
         with render_isolated():
             out = serialize(_build_basic_accordion().render())
-        assert "border-(length:--bz-stroke) border-text/10 rounded-box" in out
-        assert "border-b-(length:--bz-stroke) border-text/10 last:border-b-0" in out
+        assert "border-(length:--bz-stroke) border-line rounded-box" in out
+        assert "border-b-(length:--bz-stroke) border-line last:border-b-0" in out
 
 
 class TestThemeSizes:

@@ -62,12 +62,12 @@ SCHEDULER_THEME: dict[str, Any] = {
         "root": (
             "bz-scheduler "  # audit marker — cf. tests/audit/checklist.py
             "relative block w-full min-w-0 rounded-box bg-surface text-text "
-            "border-(length:--bz-stroke) border-text/10 p-3 sm:p-4"
+            "border-(length:--bz-stroke) border-line p-3 sm:p-4"
         ),
         "head": "flex items-end",
         "gutter": "w-12 sm:w-14 shrink-0",
         "day_head": "flex flex-1 min-w-0 flex-col items-center pb-2",
-        "day_name": "text-sm text-text/60 uppercase tracking-wider",
+        "day_name": "text-sm text-muted uppercase tracking-wider",
         "day_number": (
             "flex size-9 items-center justify-center rounded-full "
             "text-base font-semibold tabular-nums"
@@ -83,10 +83,10 @@ SCHEDULER_THEME: dict[str, Any] = {
         "all_day_title": "truncate",
         "body": "flex items-start pt-3",
         "hours": "relative",
-        "hour": "absolute end-0 pe-2 sm:pe-3 -translate-y-1/2 text-sm text-text/60 tabular-nums",
-        "column": "relative flex-1 min-w-0 border-s-(length:--bz-stroke) border-text/10",
-        "line_hour": "absolute inset-x-0 border-t-(length:--bz-stroke) border-text/15",
-        "line_half": "absolute inset-x-0 border-t-(length:--bz-stroke) border-text/5",
+        "hour": "absolute end-0 pe-2 sm:pe-3 -translate-y-1/2 text-sm text-muted tabular-nums",
+        "column": "relative flex-1 min-w-0 border-s-(length:--bz-stroke) border-line",
+        "line_hour": "absolute inset-x-0 border-t-(length:--bz-stroke) border-line",
+        "line_half": "absolute inset-x-0 border-t-(length:--bz-stroke) border-line",
         "event": (
             "absolute overflow-hidden rounded-box px-2.5 py-1.5 "
             "bg-(--bz-bg) text-(--bz-text) hover:bg-(--bz-bg-hover) "
@@ -110,23 +110,23 @@ SCHEDULER_THEME: dict[str, Any] = {
         "month_head": "flex",
         "month_head_cell": "flex flex-1 min-w-0 justify-center pb-2",
         "month": (
-            "flex flex-col border-(length:--bz-stroke) border-text/10 rounded-field "
+            "flex flex-col border-(length:--bz-stroke) border-line rounded-field "
             "overflow-hidden"
         ),
         "month_week": (
-            "relative flex border-t-(length:--bz-stroke) border-text/10 first:border-t-0"
+            "relative flex border-t-(length:--bz-stroke) border-line first:border-t-0"
         ),
         "month_cell": (
             "relative flex flex-1 min-w-0 flex-col min-h-28 "
-            "border-s-(length:--bz-stroke) border-text/10 first:border-s-0"
+            "border-s-(length:--bz-stroke) border-line first:border-s-0"
         ),
         "month_number": (
             "m-1 flex size-6 items-center justify-center self-end rounded-full "
             "text-sm font-semibold tabular-nums"
         ),
-        "month_outside": "text-text/40 font-normal",
+        "month_outside": "text-faint font-normal",
         "month_list": "flex min-w-0 flex-col gap-0.5 px-1 pb-1",
-        "month_more": "px-1.5 text-xs text-text/60",
+        "month_more": "px-1.5 text-xs text-muted",
         "chip": (
             "flex min-w-0 items-baseline gap-1 rounded-field px-1.5 py-0.5 text-xs "
             "bg-(--bz-bg) text-(--bz-text) hover:bg-(--bz-bg-hover) "
@@ -142,7 +142,7 @@ SCHEDULER_THEME: dict[str, Any] = {
         "tag": (
             "absolute z-40 pointer-events-none whitespace-nowrap rounded-field "
             "bg-surface text-text text-sm px-2.5 py-0.5 shadow-md "
-            "border-(length:--bz-stroke) border-text/15"
+            "border-(length:--bz-stroke) border-line"
         ),
         "carrier": "hidden",
         # The new event traced on the empty grid: the accent, soft, above

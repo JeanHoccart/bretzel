@@ -98,7 +98,7 @@ class TestVariants:
             ("success", "border-success"),
             ("warning", "border-warning"),
             ("error", "border-error"),
-            ("muted", "border-text/30"),
+            ("muted", "border-line-strong"),
             ("primary", "border-primary"),
         ],
     )

@@ -61,7 +61,7 @@ TABLE_THEME: dict[str, Any] = {
         "root": (
             "bz-table "  # audit marker — cf. tests/audit/checklist.py
             "max-w-full overflow-x-auto "
-            "border-(length:--bz-stroke) border-text/10 rounded-box"
+            "border-(length:--bz-stroke) border-line rounded-box"
         ),
         # The ``<table>``. ``border-separate`` + zero spacing keeps the
         # rounded corners clean. Zebra + hover are baked in (hover uses
@@ -71,8 +71,8 @@ TABLE_THEME: dict[str, Any] = {
         "table": (
             "w-full text-sm text-text "
             "border-separate border-spacing-0 "
-            "[&>tbody>tr:nth-child(even)]:bg-text/[0.02] "
-            "[&>tbody>tr:hover]:!bg-text/[0.05]"
+            "[&>tbody>tr:nth-child(even)]:bg-stripe "
+            "[&>tbody>tr:hover]:!bg-hover"
         ),
         # Structural only — the colour tint (``bg-<color>/5``) is added
         # at render time so the header follows the ``color`` prop.
@@ -94,7 +94,7 @@ TABLE_THEME: dict[str, Any] = {
         # right-aligned figures.
         "head_cell": (
             "text-sm font-semibold "
-            "text-text/70 border-b-(length:--bz-stroke) border-text/10 whitespace-nowrap"
+            "text-muted border-b-(length:--bz-stroke) border-line whitespace-nowrap"
         ),
         "body": "",
         # No fade on a row: sliding down a table, the previous row would
@@ -102,12 +102,12 @@ TABLE_THEME: dict[str, Any] = {
         "row": "",
         # Padding is added per-size at render time (see ``sizes``).
         "cell": (
-            "border-b-(length:--bz-stroke) border-text/5 align-middle"
+            "border-b-(length:--bz-stroke) border-line align-middle"
         ),
         # The empty-state lives in a full-width cell that hosts the
         # ``ui.empty_state`` component — ``p-0`` (and NOT sized) so the
         # component owns its own spacing.
-        "empty_cell": "p-0 border-b-(length:--bz-stroke) border-text/5",
+        "empty_cell": "p-0 border-b-(length:--bz-stroke) border-line",
     },
     # Cell density — composed onto head / body cells at render time.
     "sizes": {

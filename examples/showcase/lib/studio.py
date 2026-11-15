@@ -37,7 +37,10 @@ from bretzel.theme import (
     DEFAULT_SHAPE,
     DEFAULT_SPACING,
     DEFAULT_STROKE,
+    NEUTRAL_STEPS,
     SHAPE_SLOT_NAMES,
+    STEP_RULES,
+    WASH_COLOR_NAMES,
 )
 
 #: The eleven semantic slots and what each one is for. The order is the
@@ -254,48 +257,140 @@ if (!window.bzFg) {
 """
 
 
-#: The TEXT STEPS of a colour, mirrored from ``bridges.readable_step_pct``.
-#:
-#: The bridge of a colour writes ``--bz-text`` / ``--bz-text-muted`` as a
-#: mix of the colour and the text, at the percentage of hue that stays
-#: readable over the page, a panel and the colour's own tint — measured
-#: per colour and per MODE by the server. The studio rewrote the colours
-#: and kept the server's percentages: a colour set here kept those of the
-#: colour it replaced, and the preview could show a label browner (or less
-#: readable) than the app that receives the exported palette (2026-10-26).
-#: Its numbers are the server's; ``test_foreground_algebra_is_mirrored``
-#: holds them equal.
+#: Every GENERATED colour, mirrored from the server: the twelve steps of a
+#: colour's bridge (``bridges.step_percentages``), the vivid colours' named
+#: steps (``bridges.wash_lines``) and the neutral steps
+#: (``neutrals.neutral_percentages``). The studio repaints live, without a
+#: server round trip; a colour set here measures its own doses, as the app
+#: that receives the exported palette will. The thresholds are not copied:
+#: ``STEP_RULES`` and ``NEUTRAL_STEPS`` are injected from the framework, and
+#: ``test_the_studio_measures_text_steps_like_the_server`` holds the results
+#: equal.
 STEPS_JS = """
 if (!window.bzSteps) {
+  var R = __RULES__, N = __NEUTRALS__;
   var hexRgb = function (hex) {
     var n = parseInt(String(hex).replace('#', ''), 16);
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   };
-  var mix = function (a, b, part) {
+  var mix = function (a, b, pct) {
+    var part = pct / 100;
     return a.map(function (x, i) { return Math.round(part * x + (1 - part) * b[i]); });
   };
   var ratio = function (a, b) {
     var la = window.bzLum(a[0], a[1], a[2]), lb = window.bzLum(b[0], b[1], b[2]);
     return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
   };
-  var pct = function (src, text, grounds, base, target) {
-    for (var p = base; p >= 25; p -= 5) {
-      var m = mix(src, text, p / 100);
-      if (Math.min.apply(null, grounds.map(function (g) { return ratio(m, g); })) >= target) return p;
-    }
-    return 25;
+  var lin = function (v) { var c = v / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  var oklab = function (c) {
+    var r = lin(c[0]), g = lin(c[1]), b = lin(c[2]);
+    var l = Math.pow(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b, 1 / 3);
+    var m = Math.pow(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b, 1 / 3);
+    var s = Math.pow(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b, 1 / 3);
+    return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s];
   };
-  // The two declarations of a colour's bridge, in this mode's colours.
-  window.bzSteps = function (srcHex, textHex, pageHex, surfaceHex) {
+  var dist = function (a, b) {
+    var x = oklab(a), y = oklab(b);
+    return 100 * Math.sqrt(Math.pow(x[0] - y[0], 2) + Math.pow(x[1] - y[1], 2) + Math.pow(x[2] - y[2], 2));
+  };
+  var worst = function (grounds, f) { return Math.min.apply(null, grounds.map(f)); };
+  var least = function (start, ceiling, reads) {
+    for (var p = start; p <= ceiling; p++) if (reads(p)) return p;
+    return ceiling;
+  };
+  var textPct = function (src, text, grounds, base, target) {
+    for (var p = base; p >= R.text_floor; p -= R.text_down) {
+      var m = mix(src, text, p);
+      if (worst(grounds, function (g) { return ratio(m, g); }) >= target) return p;
+    }
+    return R.text_floor;
+  };
+  // A colour's doses in this mode's colours: bridges.step_percentages.
+  // Remembered per input: a repaint that moves no colour (a radius, the
+  // spacing) measures nothing, and a named step reuses its bridge's.
+  var seen_doses = {};
+  window.bzDoses = function (srcHex, textHex, pageHex, surfaceHex, interfaceHex) {
+    var key = [srcHex, textHex, pageHex, surfaceHex, interfaceHex].join();
+    if (!seen_doses[key]) seen_doses[key] = measure(srcHex, textHex, pageHex, surfaceHex, interfaceHex);
+    return seen_doses[key];
+  };
+  var measure = function (srcHex, textHex, pageHex, surfaceHex, interfaceHex) {
     var src = hexRgb(srcHex), text = hexRgb(textHex), surface = hexRgb(surfaceHex);
-    var grounds = [hexRgb(pageHex), surface, mix(src, surface, 0.10)];
-    var t = pct(src, text, grounds, 100, 4.5);
-    var muted = pct(src, text, grounds, Math.max(70, t), 3.0);
-    return '--bz-text-muted:color-mix(in srgb, var(--bz-src) ' + muted + '%, var(--color-text));'
-      + '--bz-text:color-mix(in srgb, var(--bz-src) ' + t + '%, var(--color-text));';
+    var grounds = [hexRgb(pageHex), surface, hexRgb(interfaceHex)];
+    var B = R.base, d = {};
+    var wash = function (p) { return mix(src, surface, p); };
+    var seen = function (t) { return function (p) { return worst(grounds, function (g) { return dist(wash(p), g); }) >= t; }; };
+    var after = function (prev) { return function (p) { return dist(wash(p), wash(prev)) >= R.apart; }; };
+    var ring = function (t) { return function (p) { return worst(grounds, function (g) { return dist(mix(src, g, p), g); }) >= t; }; };
+    d.bg = least(B.pct_bg, R.ceiling, seen(R.from_ground));
+    d.bg_hover = least(Math.max(B.pct_bg_hover, d.bg + R.gap), R.ceiling, after(d.bg));
+    d.bg_active = least(Math.max(B.pct_bg_active, d.bg_hover + R.gap), R.ceiling, after(d.bg_hover));
+    d.border = least(B.pct_border, R.ceiling, seen(R.border));
+    d.border_hover = least(Math.max(B.pct_border_hover, d.border + R.gap), R.ceiling, after(d.border));
+    d.focus = least(B.pct_focus, R.ceiling, ring(R.ring));
+    d.focus_soft = least(B.pct_focus_soft, R.ceiling, ring(R.soft_ring));
+    d.solid_hover = B.pct_solid_hover; d.solid_hover_to = 'text';
+    var toward = [['text', text], ['surface', surface]], found = false;
+    for (var k = 0; k < toward.length && !found; k++) {
+      for (var q = B.pct_solid_hover; q >= R.floor; q--) {
+        if (dist(mix(src, toward[k][1], q), src) >= R.apart) {
+          d.solid_hover = q; d.solid_hover_to = toward[k][0]; found = true; break;
+        }
+      }
+    }
+    var onText = grounds.concat([wash(d.bg)]);
+    d.text = textPct(src, text, onText, R.text_base.pct_text, R.text_targets.pct_text);
+    d.muted = textPct(src, text, onText, Math.max(R.text_base.pct_muted, d.text), R.text_targets.pct_muted);
+    return d;
+  };
+  var decl = function (name, src, pct, to) { return name + ':color-mix(in srgb, ' + src + ' ' + pct + '%, ' + to + ');'; };
+  var S = 'var(--color-surface)', T = 'var(--color-text)';
+  // The declarations of a colour's bridge.
+  window.bzSteps = function (srcHex, textHex, pageHex, surfaceHex, interfaceHex) {
+    var d = window.bzDoses(srcHex, textHex, pageHex, surfaceHex, interfaceHex), v = 'var(--bz-src)';
+    return decl('--bz-bg', v, d.bg, S) + decl('--bz-bg-hover', v, d.bg_hover, S)
+      + decl('--bz-bg-active', v, d.bg_active, S) + decl('--bz-border', v, d.border, S)
+      + decl('--bz-border-hover', v, d.border_hover, S) + decl('--bz-focus', v, d.focus, 'transparent')
+      + decl('--bz-focus-soft', v, d.focus_soft, 'transparent')
+      + decl('--bz-solid-hover', v, d.solid_hover, 'var(--color-' + d.solid_hover_to + ')')
+      + decl('--bz-text-muted', v, d.muted, T) + decl('--bz-text', v, d.text, T);
+  };
+  // A vivid colour's named steps: bridges.wash_lines.
+  window.bzWash = function (name, srcHex, textHex, pageHex, surfaceHex, interfaceHex) {
+    var d = window.bzDoses(srcHex, textHex, pageHex, surfaceHex, interfaceHex), v = 'var(--color-' + name + ')';
+    return decl('--color-' + name + '-wash', v, d.bg, S) + decl('--color-' + name + '-wash-hover', v, d.bg_hover, S)
+      + decl('--color-' + name + '-edge', v, d.border, S) + decl('--color-' + name + '-ring', v, d.focus, 'transparent');
+  };
+  // The neutral steps: neutrals.neutral_percentages.
+  window.bzNeutralDoses = function (textHex, mutedHex, pageHex, surfaceHex, interfaceHex) {
+    var hexes = { text: hexRgb(textHex), muted: hexRgb(mutedHex) }, surface = hexRgb(surfaceHex);
+    var grounds = [hexRgb(pageHex), surface, hexRgb(interfaceHex)], doses = {};
+    N.forEach(function (row) {
+      var step = row[0], src = hexes[row[1]], start = row[2], rule = row[3], target = row[4], reads;
+      if (rule === 'seen') {
+        reads = function (p) { return worst(grounds, function (g) { return dist(mix(src, g, p), g); }) >= target; };
+      } else if (rule === 'read') {
+        reads = function (p) { return worst(grounds, function (g) { return ratio(mix(src, g, p), g); }) >= target; };
+      } else {
+        var before = doses[rule.slice(6)];
+        start = Math.max(start, before + R.gap);
+        reads = function (p) { return dist(mix(src, surface, p), mix(src, surface, before)) >= target; };
+      }
+      doses[step] = least(start, R.neutral_ceiling, reads);
+    });
+    return doses;
+  };
+  window.bzNeutrals = function (textHex, mutedHex, pageHex, surfaceHex, interfaceHex) {
+    var doses = window.bzNeutralDoses(textHex, mutedHex, pageHex, surfaceHex, interfaceHex);
+    return N.map(function (row) {
+      return decl('--color-' + row[0], 'var(--color-' + row[1] + ')', doses[row[0]], 'transparent');
+    }).join('');
   };
 }
-"""
+""".replace("__RULES__", json.dumps(STEP_RULES)).replace("__NEUTRALS__", json.dumps(NEUTRAL_STEPS))
+
 
 #: The slots whose bridge carries measured text steps — the planes keep
 #: the server's (``bridges._SURFACE_SLOTS``).
@@ -377,12 +472,25 @@ def repaint_effect() -> str:
         " localStorage.setItem('bz-studio-shipped', "
         f"{json.dumps(SHIPPED_FINGERPRINT)}); }} }} catch (e) {{}}"
     )
+    def grounds(prefix: str) -> str:
+        # The text and the three grounds a dose is measured against.
+        return ", ".join(path(prefix + k) for k in ("text", "background", "surface", "interface"))
+
+    def generated(prefix: str) -> str:
+        # The neutral steps and the vivid colours' named steps, in this
+        # mode's own colours (``tokens.GENERATED_COLOR_NAMES``).
+        rest = ", ".join(path(prefix + k) for k in ("background", "surface", "interface"))
+        washes = " + ".join(
+            f"window.bzWash('{name}', {path(prefix + name)}, {grounds(prefix)})"
+            for name in WASH_COLOR_NAMES)
+        return (f"window.bzNeutrals({path(prefix + 'text')}, {path(prefix + 'muted')}, {rest})"
+                f" + {washes}")
+
     def steps(prefix: str, scope: str) -> str:
         # One rule per stepped colour, in this mode's own colours.
         return " + ".join(
             f"'{scope}.bz-c-{name}{{' + window.bzSteps({path(prefix + name)}, "
-            f"{path(prefix + 'text')}, {path(prefix + 'background')}, "
-            f"{path(prefix + 'surface')}) + '}}'"
+            f"{grounds(prefix)}) + '}}'"
             for name in STEPPED_SLOTS
         )
 
@@ -395,6 +503,7 @@ def repaint_effect() -> str:
         " s.id = 'bz-studio'; document.head.appendChild(s); }"
         " s.textContent = ':root{' + "
         + block("")
+        + " + " + generated("")
         + f" + '--spacing:' + {path('spacing')} + 'rem;'"
         + f" + '--bz-space-box:' + {path('space_box')} + 'rem;'"
         + f" + '--bz-space-gap:' + {path('space_gap')} + 'rem;' + "
@@ -403,6 +512,7 @@ def repaint_effect() -> str:
         + " + " + font
         + " + '}.dark{' + "
         + block("d_")
+        + " + " + generated("d_")
         + " + '}' + "
         + steps("", "")
         + " + "

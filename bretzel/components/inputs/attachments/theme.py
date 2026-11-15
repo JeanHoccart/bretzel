@@ -41,7 +41,7 @@ ATTACHMENTS_THEME: dict[str, Any] = {
         # Validation panel.
         "error_panel": (
             "flex flex-col gap-1 w-full px-3 py-2 rounded-box "
-            "bg-error/10 border-(length:--bz-stroke) border-error/20"
+            "bg-error-wash border-(length:--bz-stroke) border-error-edge"
         ),
         "error_text": (
             "text-xs font-medium text-error"
@@ -79,7 +79,7 @@ ATTACHMENTS_THEME: dict[str, Any] = {
         # horizontal flex container from squishing items.
         "file_item": (
             "group relative shrink-0 flex flex-col items-center "
-            "justify-start w-28 p-2 rounded-box border-(length:--bz-stroke) border-text/10 "
+            "justify-start w-28 p-2 rounded-box border-(length:--bz-stroke) border-line "
             "bg-interface shadow-sm hover:border-(--bz-border-hover) "
             "hover:bg-(--bz-bg) transition snap-start"
         ),
@@ -100,7 +100,7 @@ ATTACHMENTS_THEME: dict[str, Any] = {
         ),
         # Async upload progress (per-file bar at the bottom of the card).
         "file_progress_bar": (
-            "absolute bottom-0 left-0 right-0 h-1 bg-text/5 "
+            "absolute bottom-0 left-0 right-0 h-1 bg-track "
             "rounded-b-box overflow-hidden"
         ),
         "file_progress_fill": (
@@ -136,7 +136,7 @@ ATTACHMENTS_THEME: dict[str, Any] = {
             "shadow-md hover:bg-error hover:text-white "
             "active:scale-90 active:bg-error active:text-white "
             "focus-visible:outline-none "
-            "focus-visible:ring-2 focus-visible:ring-error/50 "
+            "focus-visible:ring-2 focus-visible:ring-error-ring "
             "transition"
         ),
         # ── The "grid" presentation (``display="grid"``) ───────────
@@ -149,7 +149,7 @@ ATTACHMENTS_THEME: dict[str, Any] = {
         ),
         "grid_item": (
             "group relative flex flex-col items-center justify-start "
-            "w-40 p-2 rounded-box border-(length:--bz-stroke) border-text/10 "
+            "w-40 p-2 rounded-box border-(length:--bz-stroke) border-line "
             "bg-interface shadow-sm hover:border-(--bz-border-hover) "
             "hover:bg-(--bz-bg) transition"
         ),
@@ -176,7 +176,7 @@ ATTACHMENTS_THEME: dict[str, Any] = {
         # shrinks to the ×'s breath (``has-[button]:``).
         "chip_item": (
             "group relative inline-flex flex-row items-center "
-            "max-w-full rounded-full border-(length:--bz-stroke) border-text/10 "
+            "max-w-full rounded-full border-(length:--bz-stroke) border-line "
             "bg-interface hover:border-(--bz-border-hover) "
             "hover:bg-(--bz-bg) transition"
         ),
@@ -197,7 +197,7 @@ ATTACHMENTS_THEME: dict[str, Any] = {
             "rounded-full bg-error text-white"
         ),
         "chip_progress_bar": (
-            "absolute bottom-0 left-0 right-0 h-0.5 bg-text/5 "
+            "absolute bottom-0 left-0 right-0 h-0.5 bg-track "
             "rounded-b-full overflow-hidden"
         ),
         # An INLINE ×, in the chip's flow.

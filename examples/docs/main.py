@@ -94,7 +94,7 @@ async def sitemap_xml() -> Response:
     parameterised ones (no single URL to publish), and this file's
     non-HTML routes.
     """
-    hidden = {"/sitemap.xml", "/robots.txt", "/llms.txt"}
+    hidden = {"/sitemap.xml", "/robots.txt", "/llms.txt", "/llms-full.txt"}
     paths = sorted({
         route.path
         for route in app.fastapi.routes
@@ -140,6 +140,9 @@ async def llms_txt() -> Response:
         "Install with `pip install bretzel` (Python 3.12, 3.13 or 3.14). "
         "Source: https://github.com/JeanHoccart/bretzel — "
         "component gallery: https://ui.bretzel-py.dev",
+        "",
+        "The whole API of the version this site runs, in one file generated "
+        "from the code: https://docs.bretzel-py.dev/llms-full.txt",
     ]
     for section, items in NAV:
         lines += ["", f"## {section.capitalize()}", ""]
@@ -147,6 +150,19 @@ async def llms_txt() -> Response:
             url = href if href.startswith("http") else f"https://docs.bretzel-py.dev{href}"
             lines.append(f"- [{label}]({url})")
     return Response("\n".join(lines) + "\n", media_type="text/plain; charset=utf-8")
+
+
+@app.fastapi.get("/llms-full.txt", include_in_schema=False)
+async def llms_full_txt() -> Response:
+    """The map of ``/llms.txt``, then every card ``bretzel describe`` prints
+    for the version this site runs: the ``ui.*`` index, each component and
+    helper, each public module. Generated, so it cannot drift from the code:
+    what an assistant reads here is what it will import."""
+    from bretzel.introspect import describe, index, module_names, ui_symbol_names
+
+    cards = [describe(name) for name in (*sorted(ui_symbol_names()), *module_names())]
+    text = "\n\n".join([bytes((await llms_txt()).body).decode(), index(), *cards])
+    return Response(text + "\n", media_type="text/plain; charset=utf-8")
 
 from examples.docs.features import (      # noqa: E402 — marks ramassées par include
     actions_client,

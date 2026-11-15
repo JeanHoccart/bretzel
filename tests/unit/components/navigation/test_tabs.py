@@ -291,7 +291,7 @@ class TestSingleStyle:
         # underline overlaps it.
         with render_isolated():
             out = serialize(_build_basic_tabs().render())
-        assert "border-b-(length:--bz-stroke) border-text/10" in out
+        assert "border-b-(length:--bz-stroke) border-line" in out
 
     def test_label_lives_in_a_pill_badge(self) -> None:
         # Each label rides inside a rounded pill (badge) — the

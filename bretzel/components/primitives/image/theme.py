@@ -39,7 +39,7 @@ IMAGE_THEME: dict[str, Any] = {
         # ``max-w-full``: never a horizontal overflow of the parent.
         # ``bg-muted/30``: THE background that serves as skeleton AND as
         # fallback.
-        "root": "block max-w-full bg-muted/30",
+        "root": "block max-w-full bg-track",
     },
     # A closed table — cf. the docstring's warning.
     # ``w-full`` accompanies every ratio: ``aspect-ratio`` needs ONE

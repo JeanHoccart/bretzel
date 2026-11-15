@@ -27,7 +27,7 @@ STAT_THEME: dict[str, Any] = {
     "slots": {
         "root": (
             "flex flex-col gap-1 w-full min-w-0 rounded-box bg-surface text-text "
-            "border-(length:--bz-stroke) border-text/10 "
+            "border-(length:--bz-stroke) border-line "
             "p-(--bz-pad-4) sm:p-(--bz-pad-6)"
         ),
         "label": "text-sm text-muted",
@@ -38,7 +38,7 @@ STAT_THEME: dict[str, Any] = {
         "value": "min-w-0 max-w-full truncate text-2xl font-semibold leading-tight tabular-nums",
         # The mark overflows the track by design (``-top-1 -bottom-1``):
         # no ``overflow-hidden`` here, the fill is rounded on its own.
-        "meter": "relative h-2 mt-1 rounded-full bg-text/10",
+        "meter": "relative h-2 mt-1 rounded-full bg-track",
         "fill": "h-full rounded-full bg-(--bz-solid)",
         "target": "absolute -top-1 -bottom-1 w-0.5 -ml-px rounded-full bg-text",
         "scale": "flex justify-between gap-2 text-xs tabular-nums text-muted",

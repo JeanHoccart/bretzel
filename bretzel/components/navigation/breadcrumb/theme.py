@@ -38,7 +38,7 @@ BREADCRUMB_THEME: dict[str, Any] = {
             "inline-flex items-center "
             "text-(--bz-text) font-medium"
         ),
-        "separator": "text-muted/50 shrink-0",
+        "separator": "text-faint shrink-0",
     },
     # The text floor is ``text-xs``, so ``xs`` and ``sm``
     # share their text: ``xs`` is the TIGHTER one, as a button's ``xs``

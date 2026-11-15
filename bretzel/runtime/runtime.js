@@ -10970,6 +10970,11 @@
  *   ``compositionend``, as keyCode 229). On a touch screen Enter breaks the
  *   line (the round button sends), as assistant-ui does. Sending is the
  *   form's own ``requestSubmit``: no request is built here.
+ * - **Nothing to send reads as off.** With neither text nor file, the box
+ *   carries ``data-empty`` (the theme dims the round button) and the button
+ *   ``aria-disabled``: a box holding only an app's chip would otherwise
+ *   promise a send it refuses. Kept in step as one types, joins or removes
+ *   a file, and after a send empties the box.
  * - **Never empty, never twice.** A submit with neither text nor file, one
  *   while an answer is written (the round button hidden or absent), or one
  *   while the box's request is still in flight, is stopped before htmx
@@ -11023,6 +11028,28 @@
     return !(text && text.value.trim()) && !(files && files.files && files.files.length);
   }
 
+  // The files as the box's ``ui.attachments`` holds them — its ``change``
+  // may bubble before it has copied them onto the native input.
+  function nothing(form) {
+    const files = uploader(form);
+    return empty(form) && !(files && files.files && files.files.length);
+  }
+
+  function sync(form) {
+    const off = nothing(form);
+    form.toggleAttribute("data-empty", off);
+    const send = form.querySelector("[data-bz-message-send]");
+    if (!send) return;
+    if (off) send.setAttribute("aria-disabled", "true");
+    else send.removeAttribute("aria-disabled");
+  }
+
+  function syncAll(root) {
+    if (!root || !root.querySelectorAll) return;
+    if (root.matches && root.matches(BOX)) sync(root);
+    root.querySelectorAll(BOX).forEach(sync);
+  }
+
   function write(text, value) {
     text.value = value;
     text.dispatchEvent(new Event("input", { bubbles: true }));
@@ -11066,8 +11093,18 @@
 
   document.addEventListener("input", function (e) {
     const form = e.target.closest && e.target.closest(BOX);
-    if (form && e.target.matches("[data-bz-message-field]")) count(form);
+    if (form && e.target.matches("[data-bz-message-field]")) { count(form); sync(form); }
   });
+
+  // A file joined or removed: the attachments list says ``change``.
+  document.addEventListener("change", function (e) {
+    const form = e.target.closest && e.target.closest(BOX);
+    if (form) setTimeout(function () { sync(form); });
+  });
+
+  // A value the app sets on load (a bound draft) or a box swapped in.
+  document.addEventListener("DOMContentLoaded", function () { syncAll(document); });
+  document.addEventListener("htmx:load", function (e) { syncAll(e.detail && e.detail.elt); });
 
   document.addEventListener("submit", function (e) {
     const form = e.target;

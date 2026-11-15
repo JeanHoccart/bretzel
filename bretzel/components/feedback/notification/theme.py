@@ -41,18 +41,18 @@ NOTIFICATION_THEME: dict[str, Any] = {
     # Vercel / Mantine soft). Toasts sit ABOVE existing content for
     # ~4s, so the fill must be OPAQUE, not translucent : ``bg-{c}/20``
     # (opacity) would let the content underneath bleed through the
-    # missing 80%. Instead we ``color-mix`` an OPAQUE blend — 20% of
-    # the semantic hue into 80% ``--color-surface`` — so the toast
-    # reads coloured-at-a-glance yet fully hides whatever is behind
-    # it. The blend tracks light/dark automatically (``--color-surface``
-    # swaps). Legibility is kept by neutral body text (``text-text``)
-    # over the soft wash, with the colour concentrated in the /40
-    # tinted border and the icon + title accents.
+    # missing 80%. Instead the toast takes the colour's WASH, an opaque
+    # blend of the hue into ``--color-surface`` whose dose the theme
+    # measures (``bg-info-wash``), so it reads coloured-at-a-glance yet
+    # fully hides whatever is behind it, in both modes. Legibility is
+    # kept by neutral body text (``text-text``) over the wash, with the
+    # colour concentrated in the tinted border (``border-info-edge``)
+    # and the icon + title accents.
     "variants": {
-        "info":    "bg-[color-mix(in_oklab,var(--color-info)_20%,var(--color-surface)_80%)] border-info/40 text-text",
-        "success": "bg-[color-mix(in_oklab,var(--color-success)_20%,var(--color-surface)_80%)] border-success/40 text-text",
-        "warning": "bg-[color-mix(in_oklab,var(--color-warning)_20%,var(--color-surface)_80%)] border-warning/40 text-text",
-        "error":   "bg-[color-mix(in_oklab,var(--color-error)_20%,var(--color-surface)_80%)] border-error/40 text-text",
+        "info":    "bg-info-wash border-info-edge text-text",
+        "success": "bg-success-wash border-success-edge text-text",
+        "warning": "bg-warning-wash border-warning-edge text-text",
+        "error":   "bg-error-wash border-error-edge text-text",
     },
     # Icon + title accent classes per variant. The icon and title
     # get this on top of the root chrome so they read distinctly.
@@ -90,7 +90,7 @@ NOTIFICATION_THEME: dict[str, Any] = {
         # shell (``_NOTIFICATION_ANIM_STYLE``) and is applied via
         # ``bz-toast-enter`` in ``notification.py``; the leave is instant.
         # ``border`` gives the 1px stroke on all sides ; its colour comes
-        # from the variant string (``border-{c}/40``) merged on top.
+        # from the variant string (``border-{c}-edge``) merged on top.
         "root": (
             "pointer-events-auto flex items-center gap-3 "
             "rounded-box border-(length:--bz-stroke) px-4 py-3 shadow-lg"
@@ -105,7 +105,7 @@ NOTIFICATION_THEME: dict[str, Any] = {
         "message": "text-sm leading-snug break-words",
         "dismiss": (
             "shrink-0 inline-flex items-center justify-center "
-            "rounded-selector p-1 text-text/60 hover:bg-text/5 "
+            "rounded-selector p-1 text-faint hover:bg-hover "
             "hover:text-text transition-colors"
         ),
         # Outer stack container (the ``fixed`` corner wrapper). The
@@ -121,7 +121,7 @@ NOTIFICATION_THEME: dict[str, Any] = {
     # Neutral fallback chrome when the runtime is asked for an
     # unknown variant (shouldn't happen with the strict Python API,
     # but defensive against drift between the two sides).
-    "neutral": "bg-text/5 border-text/40 text-text",
+    "neutral": "bg-tint border-line-strong text-text",
 }
 
 

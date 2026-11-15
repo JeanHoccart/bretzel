@@ -23,7 +23,9 @@ and overlay just the entries they want to change.
 from __future__ import annotations
 
 import colorsys
+import math
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Final, Literal
 
 from bretzel.theme.tokens import (
@@ -118,6 +120,36 @@ def _contrast_ratio(rgb_a: tuple[int, int, int], rgb_b: tuple[int, int, int]) ->
     lb = _relative_luminance(*rgb_b)
     light, dark = max(la, lb), min(la, lb)
     return (light + 0.05) / (dark + 0.05)
+
+
+@lru_cache(maxsize=4096)
+def _oklab(rgb: tuple[int, int, int]) -> tuple[float, float, float]:
+    """sRGB bytes → OKLab (Björn Ottosson's matrices)."""
+    def lin(v: int) -> float:
+        c = v / 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (lin(v) for v in rgb)
+    l_ = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
+    m_ = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
+    s_ = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
+    return (
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    )
+
+
+def _distance(rgb_a: tuple[int, int, int], rgb_b: tuple[int, int, int]) -> float:
+    """How far apart two colours LOOK — OKLab ΔE × 100.
+
+    Contrast (:func:`_contrast_ratio`) judges text on a ground; this judges
+    two surfaces side by side, where hue counts as much as lightness: a
+    tinted background on a grey of the same lightness has a contrast near 1
+    and is still told apart if its hue is far enough. Around 2 is where the
+    eye starts to see a difference.
+    """
+    return 100 * math.dist(_oklab(rgb_a), _oklab(rgb_b))
 
 
 # ───────────────────────────────────────────────────────────────────────────

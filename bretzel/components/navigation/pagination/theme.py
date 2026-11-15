@@ -38,7 +38,7 @@ PAGINATION_THEME: dict[str, Any] = {
         "item": (
             "flex items-center justify-center rounded-field font-medium "
             "transition duration-200 ease-out cursor-pointer "
-            "not-disabled:hover:bg-text/5 not-disabled:active:scale-95 "
+            "not-disabled:hover:bg-hover not-disabled:active:scale-95 "
             "focus-visible:ring-2 focus-visible:ring-offset-2 "
             "focus-visible:ring-offset-background "
             "focus-visible:ring-(--bz-focus) "
@@ -53,7 +53,7 @@ PAGINATION_THEME: dict[str, Any] = {
         ),
         # Composed on top of ``item``: no flex/centring and no size here.
         "ellipsis": "text-muted pointer-events-none",
-        "nav": "text-text/70 not-disabled:hover:text-(--bz-text)",
+        "nav": "text-faint not-disabled:hover:text-(--bz-text)",
     },
     "sizes": {
         "xs": {

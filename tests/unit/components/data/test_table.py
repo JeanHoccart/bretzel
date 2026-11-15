@@ -101,7 +101,7 @@ class TestLook:
         with render_isolated():
             t = Table(columns=_basic_cols(), rows=[{"name": "A", "age": 1}])
             out = serialize(t.render())
-        assert ":!bg-text/" in out
+        assert ":!bg-hover" in out
 
     def test_body_renders(self) -> None:
         with render_isolated():

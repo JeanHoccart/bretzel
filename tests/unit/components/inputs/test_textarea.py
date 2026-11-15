@@ -105,7 +105,7 @@ class TestTheme:
         # V1 identity: same radius / border / resize-none as Input.
         assert "rounded-field" in out
         assert "resize-none" in out
-        assert "border-text/10" in out
+        assert "border-line" in out
 
 
 def _textarea_attrs(ta: Textarea) -> dict:

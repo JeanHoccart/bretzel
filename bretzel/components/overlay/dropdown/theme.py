@@ -37,7 +37,7 @@ DROPDOWN_THEME: dict[str, Any] = {
         # ``tests/runtime_js/test_a_menu_row_fills_its_panel.py``.
         "panel": (
             "absolute z-40 min-w-[12rem] overflow-hidden "
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
+            "rounded-box border-(length:--bz-stroke) border-line bg-surface "
             "shadow-lg "
             # THE ENTER FADE OF AN ANCHORED PANEL — the family's
             # reference; the other panels point here.
@@ -98,7 +98,7 @@ DROPDOWN_ITEM_THEME: dict[str, Any] = {
         # labels of a choice menu line up.
         "check": "shrink-0 invisible group-aria-checked:visible",
         "shortcut": (
-            "shrink-0 ms-auto text-xs text-muted/70 tabular-nums"
+            "shrink-0 ms-auto text-xs text-muted tabular-nums"
         ),
     },
     # Per-row tint (label + hover/focus bg). ``neutral`` is the default
@@ -106,8 +106,8 @@ DROPDOWN_ITEM_THEME: dict[str, Any] = {
     # ``hover:`` so ``<a>`` link rows tint too.
     "colors": {
         "neutral": "hover:bg-interface focus:bg-interface",
-        "error":   "text-error hover:bg-error/10 focus:bg-error/10",
-        "warning": "text-warning hover:bg-warning/10 focus:bg-warning/10",
-        "success": "text-success hover:bg-success/10 focus:bg-success/10",
+        "error":   "text-error hover:bg-error-wash focus:bg-error-wash",
+        "warning": "text-warning hover:bg-warning-wash focus:bg-warning-wash",
+        "success": "text-success hover:bg-success-wash focus:bg-success-wash",
     },
 }

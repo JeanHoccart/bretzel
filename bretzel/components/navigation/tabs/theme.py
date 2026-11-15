@@ -41,7 +41,7 @@ TABS_THEME: dict[str, Any] = {
         # so buttons of differing heights align on the baseline ; the
         # active button's 2px underline overlaps this 1px border via the
         # button's ``-mb-px``.
-        "tablist": "flex items-end gap-1 border-b-(length:--bz-stroke) border-text/10",
+        "tablist": "flex items-end gap-1 border-b-(length:--bz-stroke) border-line",
         # The tab BUTTON. Only chrome + the active underline live here —
         # the visible label sits in the ``pill`` span below. ``group`` so
         # the pill can read this button's ``data-selected``. ``-mb-px``

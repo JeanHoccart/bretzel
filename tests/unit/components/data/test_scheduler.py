@@ -445,7 +445,7 @@ def test_the_chosen_day_wears_no_mark(view) -> None:
     six weeks reaches back to today."""
     numbers = _numbers(_render(date=dt.date.today() + dt.timedelta(days=120), view=view))
     plain = SCHEDULER_THEME["slots"]["month_number" if view == "month" else "day_number"]
-    assert all(c.split() == plain.split() or "text-text/" in c for c in numbers.values()), numbers
+    assert all(c.split() == plain.split() or "text-faint" in c for c in numbers.values()), numbers
 
 
 class _Wednesday(dt.date):

@@ -43,29 +43,33 @@ substrate** — a hover laid on a ``/15`` background and a hover laid on a
 solid fill cannot carry the same opacity. Absolute steps make the
 problem disappear.
 
-Dark mode is free
------------------
+Dark mode is almost free
+------------------------
 
-No ``.dark`` rule here, and that is not an oversight. The formulas start
-from ``--color-<name>``, ``--color-surface`` and ``--color-text``, which
-are **already** redefined in the theme's ``.dark`` block. A bridge
-written once therefore re-evaluates itself on the other side: the ramp
-inverts without a single ``dark:`` class.
+The formulas start from ``--color-<name>``, ``--color-surface`` and
+``--color-text``, which are **already** redefined in the theme's
+``.dark`` block. A bridge written once therefore re-evaluates itself on
+the other side: the ramp inverts without a single ``dark:`` class.
 
-One exception, and it is measured, not styled: the two TEXT steps keep as
-much of the colour as stays readable, and that depends on the mode's own
-value of the colour (cf. :func:`readable_step_pct`). Where the dark
-percentage differs, a ``.dark .bz-c-<name>`` rule restates those two
-steps; nothing else is ever written per mode.
+What a mode does change is the DOSE: every one is measured against that
+mode's own colours (:func:`step_percentages`). Where a dark dose differs,
+a ``.dark .bz-c-<name>`` rule restates that step, and nothing else.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import math
+from collections.abc import Callable, Iterable, Sequence
 from functools import lru_cache
 from typing import Final
 
-from bretzel.theme.palette import Palette, ThemeError
+from bretzel.theme.palette import (
+    Palette,
+    ThemeError,
+    _contrast_ratio,
+    _distance,
+    _parse_hex,
+)
 from bretzel.theme.tokens import (
     PALETTE_CLASS_PREFIX,
     SEMANTIC_COLOR_NAMES,
@@ -91,7 +95,7 @@ SOURCE_FOREGROUND_VAR = "--bz-src-foreground"
 #: write "the TEXT version of this colour".
 #:
 #: Each colour gets its own percentages, per mode, starting from the
-#: colour itself (:func:`readable_step_pct`). ``--bz-text`` holds 4.5:1;
+#: colour itself (:func:`step_percentages`). ``--bz-text`` holds 4.5:1;
 #: ``--bz-text-muted`` holds the AFFORDANCE bar (WCAG 1.4.11: 3:1 for a UI
 #: component): its sites are icons and close buttons, which go solid on
 #: hover.
@@ -117,43 +121,41 @@ SOURCE_FOREGROUND_VAR = "--bz-src-foreground"
 #: ⚠️ A perceptually uniform scale remains a better DESIGN goal, and it
 #: is what would make the steps regular. But that is a visual change: it
 #: has to be decided and shown on its own.
-#:
-#: ``feedback/notification/theme.py`` writes ``color-mix`` literally too.
 COLOR_STEPS: tuple[tuple[str, str, str], ...] = (
     # (step name, formula, what it is for)
     (
         "--bz-bg",
-        "color-mix(in srgb, var({src}) 10%, var({surface}))",
+        "color-mix(in srgb, var({src}) {pct_bg}%, var({surface}))",
         "background of a tinted component (Radix 3)",
     ),
     (
         "--bz-bg-hover",
-        "color-mix(in srgb, var({src}) 20%, var({surface}))",
+        "color-mix(in srgb, var({src}) {pct_bg_hover}%, var({surface}))",
         "son survol (Radix 4)",
     ),
     (
         "--bz-bg-active",
-        "color-mix(in srgb, var({src}) 30%, var({surface}))",
+        "color-mix(in srgb, var({src}) {pct_bg_active}%, var({surface}))",
         "its selected / active state (Radix 5)",
     ),
     (
         "--bz-border",
-        "color-mix(in srgb, var({src}) 35%, var({surface}))",
+        "color-mix(in srgb, var({src}) {pct_border}%, var({surface}))",
         "bordure au repos (Radix 6-7)",
     ),
     (
         "--bz-border-hover",
-        "color-mix(in srgb, var({src}) 50%, var({surface}))",
+        "color-mix(in srgb, var({src}) {pct_border_hover}%, var({surface}))",
         "bordure au survol / au focus (Radix 7)",
     ),
     (
         "--bz-focus",
-        "color-mix(in srgb, var({src}) 40%, transparent)",
+        "color-mix(in srgb, var({src}) {pct_focus}%, transparent)",
         "anneau de focus (Radix 8)",
     ),
     (
         "--bz-focus-soft",
-        "color-mix(in srgb, var({src}) 30%, transparent)",
+        "color-mix(in srgb, var({src}) {pct_focus_soft}%, transparent)",
         "SUSTAINED focus ring — a field's, lit for the whole time one "
         "types, hence more discreet",
     ),
@@ -164,7 +166,7 @@ COLOR_STEPS: tuple[tuple[str, str, str], ...] = (
     ),
     (
         "--bz-solid-hover",
-        "color-mix(in srgb, var({src}) 88%, var({text}))",
+        "color-mix(in srgb, var({src}) {pct_solid_hover}%, var({solid_hover_to}))",
         "son survol (Radix 10)",
     ),
     (
@@ -282,7 +284,7 @@ def bridged_color_names(palette: Palette) -> tuple[str, ...]:
     a palette were rebuilt per request, nothing would break: the page
     would stay correct, it would merely have gone slow again.
     """
-    names = list(SEMANTIC_COLOR_NAMES) + [CURRENT_COLOR_NAME]
+    names = [*SEMANTIC_COLOR_NAMES, CURRENT_COLOR_NAME]
     names += sorted(set(palette.envelope_dict()) - set(SEMANTIC_COLOR_NAMES))
     return tuple(names)
 
@@ -292,10 +294,7 @@ def bridged_color_names(palette: Palette) -> tuple[str, ...]:
 #: ``--bz-text`` is accented body text: WCAG AA, 4.5:1.
 #: ``--bz-text-muted`` is an AFFORDANCE and not body text, so its bar is
 #: the components' one (WCAG 1.4.11), 3:1.
-_TEXT_STEP_TARGETS: Final[dict[str, tuple[str, float]]] = {
-    "pct_text": ("--bz-text", 4.5),
-    "pct_muted": ("--bz-text-muted", 3.0),
-}
+_TEXT_STEP_TARGETS: Final[dict[str, float]] = {"pct_text": 4.5, "pct_muted": 3.0}
 
 #: The STARTING percentages — the ramp we want, when it is readable.
 _TEXT_STEP_BASE: Final[dict[str, int]] = {"pct_text": 100, "pct_muted": 70}
@@ -325,71 +324,185 @@ _SURFACE_SLOTS: Final[frozenset[str]] = frozenset({
 })
 
 
-def readable_step_pct(
-    palette: Palette, color: str, step: str, mode: str = "light"
-) -> int:
-    """The hue percentage of step ``step`` in ``mode``: as much of the
-    colour as stays readable.
+#: The DOSED steps: the percentage each starts from — the dose it had
+#: when every step was a fixed number — and what it must read against.
+#: A step that already reads keeps its dose; one that does not takes the
+#: least it needs (Jean: « minimum guaranteed »). Distances are
+#: OKLab ΔE × 100 (:func:`~bretzel.theme.palette._distance`), measured
+#: against the page, a panel AND a field's grey: a step is global, it
+#: does not know which of the three it will be laid on.
+_DOSE_BASE: Final[dict[str, int]] = {
+    "pct_bg": 10, "pct_bg_hover": 20, "pct_bg_active": 30,
+    "pct_border": 35, "pct_border_hover": 50,
+    "pct_focus": 40, "pct_focus_soft": 30, "pct_solid_hover": 88,
+}
+#: A tinted background against every ground. The 10 % wash measured
+#: 0.6 to 4.9 against the field grey over the eight identities of the
+#: gallery: a pressed B, a soft chip, read as nothing there.
+_FROM_GROUND: Final[float] = 4.0
+#: A state against the one it follows — hover after rest, press after
+#: hover, a solid fill's hover after the fill. The fill's hover measured
+#: 0 for some colours: nothing moved under the pointer.
+_APART: Final[float] = 3.0
+#: A border, a focus ring, against every ground.
+_BORDER_FROM_GROUND: Final[float] = 9.0
+_RING_FROM_GROUND: Final[float] = 10.0
+_SOFT_RING_FROM_GROUND: Final[float] = 8.0
+#: How far a dose may climb (a wash) or fall (the fill's hover).
+_DOSE_CEILING: Final[int] = 60
+_DOSE_FLOOR: Final[int] = 50
+#: A state starts at least this many points above the one it follows,
+#: so a hover never lands on its rest step's own dose.
+_STATE_GAP: Final[int] = 5
+#: A neutral step (``neutrals.py``) may climb up to the text itself.
+_NEUTRAL_CEILING: Final[int] = 100
 
-    The palette gives each colour a light AND a dark value; this reads the
-    one of ``mode``. The ramp starts from the colour ITSELF (100 %) and
-    mixes it towards the text only as far as its bar requires, against
-    every ground it is written on: the page, a panel, and the colour's own
-    tint (``--bz-bg``, a soft badge or an alert).
 
-    Why
-    ---
-    One percentage for every colour in both modes would pull the text step
-    towards the text colour even where the colour reads on its own: an
-    outline button would write its label in a shade its border does not
-    share.
+#: The same rules, as one table — what a client-side mirror of the
+#: measurement (the gallery's studio repaints live) reads, so its numbers
+#: cannot drift from these.
+STEP_RULES: Final[dict[str, object]] = {
+    "base": _DOSE_BASE, "from_ground": _FROM_GROUND, "apart": _APART,
+    "border": _BORDER_FROM_GROUND, "ring": _RING_FROM_GROUND,
+    "soft_ring": _SOFT_RING_FROM_GROUND, "ceiling": _DOSE_CEILING, "floor": _DOSE_FLOOR,
+    "gap": _STATE_GAP, "neutral_ceiling": _NEUTRAL_CEILING,
+    "text_base": _TEXT_STEP_BASE, "text_targets": _TEXT_STEP_TARGETS,
+    "text_down": _TEXT_STEP_DOWN, "text_floor": _TEXT_STEP_FLOOR,
+}
 
-    ``--bz-text-muted`` never carries more hue than ``--bz-text``'s
-    percentage would allow it to drop to: it starts from
-    ``max(70, text)``, so a colour readable as it is gives both steps the
-    colour itself.
+RGB = tuple[int, int, int]
 
-    Backing off increases contrast (the text is by construction the colour
-    contrasting most with the ground), so the loop always ends.
+
+def _rgb(palette: Palette, name: str, mode: str) -> RGB:
+    """``name``'s value in ``mode``, as bytes."""
+    return _parse_hex(palette.resolve(name, mode).bg_hex)  # type: ignore[arg-type]
+
+
+def _grounds(palette: Palette, mode: str) -> tuple[RGB, RGB, RGB]:
+    """What a step may be laid on: the page, a panel, a field's grey —
+    a step is global, it does not know which of the three it gets."""
+    return (_rgb(palette, "background", mode), _rgb(palette, "surface", mode),
+            _rgb(palette, "interface", mode))
+
+
+def _mix(a: Sequence[int], b: Sequence[int], pct: int | float) -> RGB:
+    """``color-mix(in srgb, a pct%, b)`` — the browser's rounding, to the bit
+    (``test_the_calculator_matches_the_browser``): a half goes UP, as
+    ``Math.round`` does in the studio's mirror, not to the even neighbour
+    as Python's ``round`` would — one unit apart is enough to flip a dose
+    measured at its threshold."""
+    part = pct / 100
+    r, g, b = (math.floor(part * x + (1 - part) * y + 0.5) for x, y in zip(a, b, strict=True))
+    return r, g, b
+
+
+def _least(start: int, reads: Callable[[int], bool], ceiling: int = _DOSE_CEILING) -> int:
+    """The first dose from ``start`` up that reads — else the ceiling."""
+    return next((p for p in range(start, ceiling + 1) if reads(p)), ceiling)
+
+
+def _seen_on(colour: RGB, grounds: Sequence[RGB]) -> float:
+    """How far a colour laid on each ground stands from it, at worst."""
+    return min(_distance(colour, g) for g in grounds)
+
+
+def _seen_over(src: RGB, pct: int, grounds: Sequence[RGB]) -> float:
+    """The same, for a step drawn over whatever is there
+    (``transparent``): it composes over each ground first."""
+    return min(_distance(_mix(src, g, pct), g) for g in grounds)
+
+
+@lru_cache(maxsize=512)
+def step_percentages(palette: Palette, color: str, mode: str = "light") -> dict[str, int | str]:
+    """Every step's percentage for ``color`` in ``mode``, and the colour
+    the fill's hover moves towards (``solid_hover_to``).
+
+    The order is the scale's: a state is measured against the step it
+    follows, so the rest wash is settled before its hover, the hover
+    before the press, the border before its hover — and the text steps
+    last, since they are read on the wash.
     """
-    base = _TEXT_STEP_BASE[step]
-    _name, target = _TEXT_STEP_TARGETS[step]
+    base: dict[str, int | str] = {**_DOSE_BASE, **_TEXT_STEP_BASE, "solid_hover_to": "text"}
     if color == CURRENT_COLOR_NAME or color in _SURFACE_SLOTS:
-        # ``currentColor`` has no resolvable value: nothing to measure,
-        # so nothing to back off. The SURFACE slots are kept out for
-        # another reason — cf. ``_SURFACE_SLOTS``.
+        # Nothing resolvable to measure (``currentColor``), or a plane
+        # kept out of the derivation (``_SURFACE_SLOTS``).
         return base
-    if step == "pct_muted":
-        base = max(base, readable_step_pct(palette, color, "pct_text", mode))
-    for pct in range(base, _TEXT_STEP_FLOOR - 1, -_TEXT_STEP_DOWN):
-        if _step_ratio(palette, color, mode, pct) >= target:
-            return pct
-    return _TEXT_STEP_FLOOR
-
-
-def _step_ratio(palette: Palette, color: str, mode: str, pct: int) -> float:
-    """The step's WORST contrast, at this percentage, over the grounds it
-    is written on: the page, a panel (``surface``) and the colour's own
-    tint (``--bz-bg``, 10 % of the colour over the surface)."""
-    from bretzel.theme.palette import _contrast_ratio, _parse_hex
-
     try:
-        src = _parse_hex(palette.resolve(color, mode).bg_hex)
+        src = _rgb(palette, color, mode)
     except ThemeError:
-        return 21.0          # couleur inconnue ici : le juge, c'est ailleurs
-    text = _parse_hex(palette.resolve("text", mode).bg_hex)
-    background = _parse_hex(palette.resolve("background", mode).bg_hex)
-    surface = _parse_hex(palette.resolve("surface", mode).bg_hex)
+        return base          # unknown here: judged elsewhere
+    grounds = _grounds(palette, mode)
+    surface, text = grounds[1], _rgb(palette, "text", mode)
+    d = dict(_DOSE_BASE)
 
-    def mix(a: tuple[int, ...], b: tuple[int, ...], part: float) -> tuple[int, ...]:
-        return tuple(round(part * x + (1 - part) * y) for x, y in zip(a, b, strict=True))
+    def wash(pct: int) -> RGB:
+        return _mix(src, surface, pct)
 
-    mixed = mix(src, text, pct / 100)
-    tint = mix(src, surface, 0.10)
-    return min(
-        _contrast_ratio(mixed, ground)  # type: ignore[arg-type]
-        for ground in (background, surface, tint)
-    )
+    def after(step: str, prev: str) -> None:
+        before = wash(d[prev])
+        d[step] = _least(max(d[step], d[prev] + _STATE_GAP),
+                         lambda p: _distance(wash(p), before) >= _APART)
+
+    d["pct_bg"] = _least(d["pct_bg"], lambda p: _seen_on(wash(p), grounds) >= _FROM_GROUND)
+    after("pct_bg_hover", "pct_bg")
+    after("pct_bg_active", "pct_bg_hover")
+    d["pct_border"] = _least(d["pct_border"],
+                             lambda p: _seen_on(wash(p), grounds) >= _BORDER_FROM_GROUND)
+    after("pct_border_hover", "pct_border")
+    d["pct_focus"] = _least(d["pct_focus"],
+                            lambda p: _seen_over(src, p, grounds) >= _RING_FROM_GROUND)
+    d["pct_focus_soft"] = _least(d["pct_focus_soft"],
+                                 lambda p: _seen_over(src, p, grounds) >= _SOFT_RING_FROM_GROUND)
+    # The fill's hover moves TOWARDS the text: less of the colour. A fill
+    # as dark as the text (a black accent on a light page) cannot darken:
+    # its hover lightens, towards the surface.
+    toward = "text"
+    for name, other in (("text", text), ("surface", surface)):
+        dose = next((p for p in range(d["pct_solid_hover"], _DOSE_FLOOR - 1, -1)
+                     if _distance(_mix(src, other, p), src) >= _APART), None)
+        if dose is not None:
+            d["pct_solid_hover"], toward = dose, name
+            break
+    # The text steps keep as much of the colour as stays readable — on the
+    # page, a panel, a field's grey and the colour's own wash (a soft
+    # badge, an alert): they mix towards the text only as far as their
+    # bar requires. Backing off raises the contrast (the text is by
+    # construction the colour contrasting most with the ground), so the
+    # loop ends. ``--bz-text-muted`` never carries more of the colour
+    # than ``--bz-text``: a colour readable as it is gives both itself.
+    on = (*grounds, wash(d["pct_bg"]))
+
+    def readable(start: int, bar: float) -> int:
+        return next((p for p in range(start, _TEXT_STEP_FLOOR - 1, -_TEXT_STEP_DOWN)
+                     if min(_contrast_ratio(_mix(src, text, p), g) for g in on) >= bar),
+                    _TEXT_STEP_FLOOR)
+
+    d["pct_text"] = readable(_TEXT_STEP_BASE["pct_text"], _TEXT_STEP_TARGETS["pct_text"])
+    d["pct_muted"] = readable(max(_TEXT_STEP_BASE["pct_muted"], d["pct_text"]),
+                              _TEXT_STEP_TARGETS["pct_muted"])
+    return {**d, "solid_hover_to": toward}
+
+
+def _formula_values(doses: dict[str, int | str]) -> dict[str, int | str]:
+    """The doses as ``COLOR_STEPS`` spells them: the percentages, and the
+    variable the fill's hover moves towards."""
+    return {**doses, "solid_hover_to": f"--color-{doses['solid_hover_to']}"}
+
+
+def wash_lines(palette: Palette, mode: str = "light") -> Iterable[str]:
+    """The vivid colours' steps reachable BY NAME — ``bg-error-wash``,
+    ``border-error-edge`` — for a variant table that writes one colour per
+    row and so has no bridge class to read. The bridge's own formula and
+    doses (:func:`step_percentages`), not a second measurement."""
+    from bretzel.theme.tokens import WASH_COLOR_NAMES, WASH_STEPS
+
+    formulas = {name: formula for name, formula, _role in COLOR_STEPS}
+    for color in WASH_COLOR_NAMES:
+        values = _formula_values(step_percentages(palette, color, mode))
+        for suffix, step in WASH_STEPS.items():
+            written = formulas[step].format(src=f"--color-{color}", surface="--color-surface",
+                                            **values)
+            yield f"--color-{color}-{suffix}: {written};"
 
 
 def generate_color_bridges(
@@ -426,8 +539,7 @@ def _bridge_rule(
             fg=SOURCE_FOREGROUND_VAR,
             surface="--color-surface",
             text="--color-text",
-            pct_text=readable_step_pct(palette, color, "pct_text", mode),
-            pct_muted=readable_step_pct(palette, color, "pct_muted", mode),
+            **_formula_values(step_percentages(palette, color, mode)),
         )
 
     yield f".{bridge_class(color)} {{"
@@ -441,9 +553,9 @@ def _bridge_rule(
             continue
         yield f"  {name}: {value(formula, 'light')};"
     yield "}"
-    # The text steps are measured per mode (``readable_step_pct``): where
-    # the dark value differs, ``.dark`` says so — the only place a bridge
-    # names a mode, because only these two steps depend on a measurement.
+    # Every dosed step is measured per mode (``step_percentages``): where
+    # the dark dose differs, ``.dark`` says so — the only place a bridge
+    # names a mode.
     dark = [
         (name, value(formula, "dark")) for name, formula, _role in COLOR_STEPS
         if value(formula, "dark") != value(formula, "light")

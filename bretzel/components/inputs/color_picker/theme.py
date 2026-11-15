@@ -22,7 +22,7 @@ COLOR_PICKER_THEME: dict[str, Any] = {
         "root": "bz-color-picker relative flex flex-col w-full",
         "input_frame": (
             "flex items-center gap-2 w-full rounded-field border-(length:--bz-stroke) "
-            "border-text/15 bg-interface transition-colors "
+            "border-line bg-interface transition-colors "
             "focus-within:border-(--bz-solid) "
             "focus-within:ring-2 focus-within:ring-(--bz-focus-soft) "
             "focus-within:ring-offset-2 focus-within:ring-offset-background "
@@ -40,11 +40,11 @@ COLOR_PICKER_THEME: dict[str, Any] = {
         # The resting grey plays the same role: a swatch WITH NO colour
         # is not confused with a white swatch.
         "swatch": (
-            "shrink-0 rounded-selector border-(length:--bz-stroke) border-text/15 bg-text/5"
+            "shrink-0 rounded-selector border-(length:--bz-stroke) border-line bg-tint"
         ),
         "input_field": (
             "flex-1 min-w-0 bg-transparent outline-none font-mono "
-            "text-text placeholder:text-muted/70 "
+            "text-text placeholder:text-placeholder "
             "disabled:cursor-not-allowed"
         ),
         "clear_button": (
@@ -67,7 +67,7 @@ COLOR_PICKER_THEME: dict[str, Any] = {
         # does not exist, and the glyph would inherit the page's size.
         "button_icon": "inline-flex shrink-0 text-current",
         "panel": (
-            "absolute z-50 mt-1 rounded-box border-(length:--bz-stroke) border-text/10 "
+            "absolute z-50 mt-1 rounded-box border-(length:--bz-stroke) border-line "
             "bg-surface shadow-lg p-3 w-max max-w-[min(20rem,100vw-2rem)] "
             # The enter fade, FIELD cadence (75 ms, half the menus').
             # Mechanism of the three classes: a single copy, in
@@ -81,7 +81,7 @@ COLOR_PICKER_THEME: dict[str, Any] = {
         # changing its size, so the grid does not move when the selection
         # changes.
         "swatch_cell": (
-            "h-6 w-6 rounded-selector border-(length:--bz-stroke) border-text/15 cursor-pointer "
+            "h-6 w-6 rounded-selector border-(length:--bz-stroke) border-line cursor-pointer "
             "transition-transform hover:scale-110 "
             "outline-none focus-visible:ring-2 "
             "focus-visible:ring-(--bz-focus) focus-visible:ring-offset-1 "

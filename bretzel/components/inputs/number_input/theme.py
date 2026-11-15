@@ -29,7 +29,7 @@ NUMBER_INPUT_THEME: dict[str, Any] = {
         # shell itself).
         "shell": (
             "flex items-stretch w-full rounded-field border-(length:--bz-stroke) "
-            "border-text/10 bg-interface text-text "
+            "border-line bg-interface text-text "
             "transition duration-200 "
             "focus-within:border-(--bz-solid) "
             "focus-within:ring-2 focus-within:ring-(--bz-focus-soft) "
@@ -37,7 +37,7 @@ NUMBER_INPUT_THEME: dict[str, Any] = {
             "focus-within:ring-offset-background "
             "has-[input:disabled]:opacity-50 "
             "has-[input:disabled]:cursor-not-allowed "
-            "has-[input:disabled]:bg-muted/10 "
+            "has-[input:disabled]:bg-tint "
             "overflow-hidden"
         ),
         # The text input — flex-1, borderless because the shell
@@ -46,15 +46,15 @@ NUMBER_INPUT_THEME: dict[str, Any] = {
         "input": (
             "flex-1 min-w-0 bg-transparent outline-none "
             "border-none p-0 text-text tabular-nums "
-            "placeholder:text-muted/70 "
+            "placeholder:text-placeholder "
             "disabled:cursor-not-allowed"
         ),
         # Vertical stack of ▲ / ▼ — fixed width, left border to
         # separate from the input visually. ``divide-y`` puts a
         # 1px line between the two buttons.
         "steppers": (
-            "flex flex-col shrink-0 border-l-(length:--bz-stroke) border-text/10 "
-            "divide-y divide-text/10"
+            "flex flex-col shrink-0 border-l-(length:--bz-stroke) border-line "
+            "divide-y divide-line"
         ),
         # One stepper button. Compact (half the input height each)
         # so they stack to match the input. ``cursor-pointer`` +

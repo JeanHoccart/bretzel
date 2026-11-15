@@ -101,11 +101,17 @@ class TestThemeCss:
         # ``background`` IS overridden.
         assert "--color-background:" in dark_section
 
-    def test_no_dark_block_when_no_overrides(self) -> None:
-        # Build a palette with no dark dictionary at all.
+    def test_dark_block_holds_only_generated_steps_when_no_overrides(self) -> None:
+        # A palette with no dark dictionary: no chosen colour is restated,
+        # only the generated steps, which each mode measures for itself.
+        import re
+
+        from bretzel.theme.tokens import GENERATED_COLOR_NAMES
+
         p = Palette(DEFAULT_SEMANTIC_LIGHT)
-        out = generate_theme_css(p)
-        assert ".dark {" not in out
+        dark = generate_theme_css(p).split(".dark {", 1)[1]
+        restated = set(re.findall(r"--color-([\w-]+):", dark))
+        assert restated and restated <= set(GENERATED_COLOR_NAMES)
 
     def test_rgb_value_format(self, palette: Palette) -> None:
         out = generate_theme_css(palette)

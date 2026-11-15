@@ -115,8 +115,8 @@ RESIZABLE_THEME: dict[str, Any] = {
         "grip": (
             "pointer-events-none rounded-full bg-transparent "
             "transition-colors duration-150 ease-out "
-            "group-hover/rz:bg-text/60 group-focus-within/rz:bg-text/60 "
-            "group-active/rz:bg-text/60"
+            "group-hover/rz:bg-faint group-focus-within/rz:bg-faint "
+            "group-active/rz:bg-faint"
         ),
     },
     #: The handle's line AT REST, by ``gap`` value — a responsive table
@@ -125,7 +125,7 @@ RESIZABLE_THEME: dict[str, Any] = {
     #: included: an empty entry would let the ``base`` line through at
     #: ``md``.
     "lines": {
-        "none": "bg-text/10",
+        "none": "bg-line",
         "xs": "bg-transparent",
         "sm": "bg-transparent",
         "md": "bg-transparent",

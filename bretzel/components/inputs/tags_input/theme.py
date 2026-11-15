@@ -46,18 +46,18 @@ TAGS_INPUT_THEME: dict[str, Any] = {
         # empty field selects the last tag, the second removes it.
         "tag": (
             "max-w-full cursor-default "
-            "aria-invalid:bg-error/15 aria-invalid:text-error "
+            "aria-invalid:bg-error-wash aria-invalid:text-error "
             "data-[selected=true]:ring-2 data-[selected=true]:ring-inset "
             "data-[selected=true]:ring-(--bz-focus)"
         ),
         "input": (
             "flex-1 min-w-[80px] bg-transparent outline-none border-none p-0 "
-            "text-text placeholder:text-muted/70 disabled:cursor-not-allowed"
+            "text-text placeholder:text-placeholder disabled:cursor-not-allowed"
         ),
         # Aligned on the anchored-panel family (test_anchored_panels_match).
         "panel": (
             "absolute z-40 mt-1 overflow-y-auto "
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
+            "rounded-box border-(length:--bz-stroke) border-line bg-surface "
             "shadow-lg transition-opacity duration-75 starting:opacity-0"
         ),
         "option": (
@@ -70,7 +70,7 @@ TAGS_INPUT_THEME: dict[str, Any] = {
     # step of the tags and the Icon step of their cross, read by the render.
     "variants": {
         "surface": {
-            "trigger": "bg-interface border-(length:--bz-stroke) border-text/10 focus-within:border-(--bz-solid) focus-within:ring-2 focus-within:ring-(--bz-focus-soft) focus-within:ring-offset-2 focus-within:ring-offset-background has-[input:disabled]:bg-muted/10",
+            "trigger": "bg-interface border-(length:--bz-stroke) border-line focus-within:border-(--bz-solid) focus-within:ring-2 focus-within:ring-(--bz-focus-soft) focus-within:ring-offset-2 focus-within:ring-offset-background has-[input:disabled]:bg-tint",
         },
         "ghost": {
             "trigger": "[[data-bz-keyboard]_&]:focus-within:ring-2 [[data-bz-keyboard]_&]:focus-within:ring-(--bz-focus) [[data-bz-keyboard]_&]:focus-within:ring-offset-2 [[data-bz-keyboard]_&]:focus-within:ring-offset-background",

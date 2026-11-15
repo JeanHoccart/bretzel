@@ -104,7 +104,7 @@ class EmptyState(Component):
             # say. ``muted`` keeps its soft tint written out, which is
             # not a component colour but a resting grey.
             icon_tint = (
-                "bg-text/5 text-muted/70" if color_key == "muted"
+                "bg-tint text-faint" if color_key == "muted"
                 else "bg-(--bz-bg) text-(--bz-text)"
             )
             icon_box_class = " ".join(p for p in (

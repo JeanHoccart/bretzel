@@ -70,7 +70,7 @@ TREE_THEME: dict[str, Any] = {
             "data-[selected=true]:before:bg-(--bz-solid) "
             "focus-visible:ring-2 focus-visible:ring-inset "
             "focus-visible:ring-(--bz-focus) "
-            "hover:bg-text/5 "
+            "hover:bg-hover "
             "data-[selected=true]:bg-(--bz-bg) "
             "data-[selected=true]:text-(--bz-text) "
             "data-[selected=true]:font-medium"

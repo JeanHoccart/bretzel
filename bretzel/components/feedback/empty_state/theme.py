@@ -39,7 +39,7 @@ EMPTY_STATE_THEME: dict[str, Any] = {
         # Description : muted supporting copy. ``max-w-sm`` so long
         # descriptions wrap to a comfortable measure instead of
         # spanning a wide card.
-        "description": "text-muted/80 max-w-sm leading-relaxed",
+        "description": "text-muted max-w-sm leading-relaxed",
         # Action row : space above to separate it from the
         # description ; ``flex-wrap`` so multiple buttons line-break
         # on narrow widths instead of overflowing.

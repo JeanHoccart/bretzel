@@ -71,20 +71,20 @@ class TestTheLineIsTheFrameworkBorder:
         from bretzel.components.navigation.sidebar.theme import SIDEBAR_THEME
 
         line = self._line()
-        assert "border-text/10" in line
-        assert "border-text/10" in str(SIDEBAR_THEME["slots"]["root"])
+        assert "border-line" in line
+        assert "border-line" in str(SIDEBAR_THEME["slots"]["root"])
         assert "border-t-(length:--bz-stroke)" in line
         assert not [c for c in line if c.startswith(("bg-", "opacity-"))]
 
     def test_a_vertical_line_is_the_same_border(self) -> None:
         line = self._line(orientation="vertical")
-        assert "border-text/10" in line
+        assert "border-line" in line
         assert "border-l-(length:--bz-stroke)" in line
 
     def test_a_colour_draws_its_border_step(self) -> None:
         line = self._line(color="primary")
         assert "border-(--bz-border)" in line
-        assert "border-text/10" not in line
+        assert "border-line" not in line
 
 
 class TestGap:

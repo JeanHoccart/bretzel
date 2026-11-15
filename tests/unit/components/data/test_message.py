@@ -32,7 +32,7 @@ def html(*args, **kwargs) -> str:
 class TestWhereAndWho:
     def test_the_others_speak_on_the_start_side_by_default(self) -> None:
         out = html("Salut")
-        assert 'data-side="start"' in out and "bg-text/5" in out
+        assert 'data-side="start"' in out and "bg-tint" in out
         assert 'aria-label="Message"' in out
 
     def test_mine_sit_on_the_end_side_in_the_accent(self) -> None:

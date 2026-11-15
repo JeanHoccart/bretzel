@@ -24,7 +24,7 @@ stack to run or review. Python owns the state and the interface that follows
 it; the browser receives targeted HTML updates through a small runtime: no
 React application, no npm pipeline in production.
 
-> **Alpha:** the latest public alpha is `0.1.0a7`. APIs may change between
+> **Alpha:** the latest public alpha is `0.1.0a8`. APIs may change between
 > alpha releases; only the latest alpha receives fixes.
 
 See it first: [the loop, on the website](https://bretzel-py.dev/#loop) ·

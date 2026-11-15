@@ -128,8 +128,16 @@ def generate_theme_css(
     functional breakage. Measurements and date in ``traps.md``;
     ``hover:`` must still never CARRY an affordance.
     """
-    light_lines = list(_emit_block(palette, mode="light"))
-    dark_lines = list(_emit_dark_block(palette))
+    from bretzel.theme.bridges import wash_lines
+    from bretzel.theme.neutrals import neutral_lines
+
+    # The generated colours (``tokens.GENERATED_COLOR_NAMES``) after the
+    # chosen ones, in both blocks: each mode measures its own doses, and a
+    # ``.dark`` subtree recomputes them from its own text and grounds.
+    light_lines = [*_emit_block(palette, mode="light"),
+                   *wash_lines(palette, "light"), *neutral_lines(palette, "light")]
+    dark_lines = [*_emit_dark_block(palette),
+                  *wash_lines(palette, "dark"), *neutral_lines(palette, "dark")]
 
     parts = [
         '@import "tailwindcss";',

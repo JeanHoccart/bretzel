@@ -46,7 +46,7 @@ MARKDOWN_THEME: dict[str, Any] = {
         "blockquote": "border-l-(length:--bz-stroke-accent) border-current/20 pl-4 italic mb-3 text-current/70",
         "a": "text-primary underline hover:no-underline",
         # Its own chip (``bg-surface``), so its own ink.
-        "code": "px-1 py-0.5 rounded bg-surface border-(length:--bz-stroke) border-text/10 font-mono text-xs text-text/80",
+        "code": "px-1 py-0.5 rounded bg-surface border-(length:--bz-stroke) border-line font-mono text-xs text-muted",
         "hr": "border-t-(length:--bz-stroke) border-current/[0.125] my-4",
         "table": "w-full border-collapse mb-3",
         "th": "border-b-(length:--bz-stroke) border-current/25 px-3 py-2 text-start font-semibold",

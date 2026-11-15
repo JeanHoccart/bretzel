@@ -293,10 +293,10 @@ class TestA11y:
         # des bordures. Une gouttière : rien au repos. Au survol, le trait
         # prend la couleur dans les deux cas.
         touching = _html()
-        assert "bg-text/10" in touching
+        assert "bg-line" in touching
         assert "w-(length:--bz-stroke)" in touching
         spaced = _html(gap="sm")
-        assert "bg-text/10" not in spaced
+        assert "bg-line" not in spaced
         assert "bg-transparent" in spaced
         for out in (touching, spaced):
             assert "hover:bg-(--bz-border)" in out
@@ -305,7 +305,7 @@ class TestA11y:
 
     def test_a_responsive_gap_draws_the_line_where_it_is_none(self) -> None:
         out = _html(gap={"base": "none", "md": "sm"})
-        assert "bg-text/10" in out
+        assert "bg-line" in out
         assert "md:bg-transparent" in out
 
     def test_grip_shows_only_under_the_pointer(self) -> None:

@@ -27,7 +27,7 @@ DRAWER_THEME: dict[str, Any] = {
         # transition: it slides in 200 ms ease-out and back to its edge
         # in 150 ms ease-in (the why: ``overlay/dialog/theme.py``).
         "backdrop": (
-            "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm "
+            "fixed inset-0 z-40 bg-backdrop backdrop-blur-sm "
             "data-[open=true]:transition-[opacity,visibility] data-[open=true]:duration-200 "
             "data-[open=false]:transition-[opacity,visibility] data-[open=false]:duration-150 "
             "data-[open=false]:ease-in "
@@ -76,7 +76,7 @@ DRAWER_THEME: dict[str, Any] = {
         # ``interface`` a control.
         "panel": (
             "pointer-events-auto bg-surface text-text "
-            "border-text/10 shadow-xl flex flex-col "
+            "border-line shadow-xl flex flex-col "
             "max-w-full max-h-full "
             "data-[open=true]:transition-[translate,visibility] data-[open=true]:duration-200 data-[open=true]:ease-out "
             "data-[open=false]:transition-[translate,visibility] data-[open=false]:duration-150 "
@@ -84,7 +84,7 @@ DRAWER_THEME: dict[str, Any] = {
             "data-[open=false]:invisible data-[open=false]:pointer-events-none"
         ),
         "header": (
-            "flex items-start gap-3 px-5 py-4 border-b-(length:--bz-stroke) border-text/5"
+            "flex items-start gap-3 px-5 py-4 border-b-(length:--bz-stroke) border-line"
         ),
         "title": "flex-1 text-lg font-semibold leading-snug",
         "close": "shrink-0 -mr-1 -mt-1",

@@ -48,7 +48,7 @@ CHECKBOX_THEME: dict[str, Any] = {
         # and the radio.
         "input": "peer absolute inset-0 m-0 opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed",
         "box": (
-            "block rounded-selector border-(length:--bz-stroke) border-text/25 bg-interface "
+            "block rounded-selector border-(length:--bz-stroke) border-line-strong bg-interface "
             "transition duration-200 ease-out "
             "peer-checked:bg-(--bz-solid) peer-checked:border-(--bz-solid) "
             "peer-focus-visible:ring-2 peer-focus-visible:ring-(--bz-focus) "

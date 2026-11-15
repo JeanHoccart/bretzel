@@ -91,7 +91,7 @@ DIAGRAM_THEME: dict[str, Any] = {
             # wash, not an accent, and it crushes the drawing.
             "bz-diagram "  # marqueur d'audit — cf. tests/audit/checklist.py
             "relative overflow-x-auto max-w-full rounded-box "
-            "border-(length:--bz-stroke) border-text/10"
+            "border-(length:--bz-stroke) border-line"
         ),
         # The placed box. Its dimensions arrive as an inline style.
         "canvas": "relative",

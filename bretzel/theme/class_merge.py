@@ -55,6 +55,7 @@ from typing import Final
 
 from bretzel.theme.tokens import (
     FOREGROUND_SUFFIX,
+    GENERATED_COLOR_NAMES,
     PALETTE_CLASS_PREFIX,
     SEMANTIC_COLOR_NAMES,
     TEXT_SLOT_NAMES,
@@ -127,6 +128,7 @@ UNSHADED_COLORS: Final = (
     frozenset(SEMANTIC_COLOR_NAMES)
     | {f"{name}{FOREGROUND_SUFFIX}" for name in SEMANTIC_COLOR_NAMES}
     | {"black", "white", "transparent", "current", "inherit"}
+    | frozenset(GENERATED_COLOR_NAMES)
 )
 
 _ALPHA = r"(?:/(?:\d+(?:\.\d+)?|\[[^\]]+\]|\([^)]+\)))?"

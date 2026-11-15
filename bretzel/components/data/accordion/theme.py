@@ -23,11 +23,11 @@ ACCORDION_THEME: dict[str, Any] = {
         # ``position: fixed`` at open time, never clipped by it.)
         "root": (
             "flex flex-col w-full "
-            "border-(length:--bz-stroke) border-text/10 rounded-box overflow-hidden"
+            "border-(length:--bz-stroke) border-line rounded-box overflow-hidden"
         ),
         # Per-item wrapper — a thin internal divider ; the last item
         # drops its bottom rule so it sits flush against the frame.
-        "item": "border-b-(length:--bz-stroke) border-text/10 last:border-b-0",
+        "item": "border-b-(length:--bz-stroke) border-line last:border-b-0",
         # Header button — common base : full-width clickable row,
         # left-aligned label + right-aligned chevron. Chevron rotates
         # 180° when the item is open via ``data-[open=true]:rotate-180``.

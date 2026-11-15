@@ -29,7 +29,7 @@ from typing import Any
 PIE_CHART_THEME: dict[str, Any] = {
     "slots": {
         # The focus ring: the chart is one tab stop (``keyboard_attrs``).
-        "wrapper":      "flex flex-col gap-3 items-center rounded outline-none focus-visible:ring-2 focus-visible:ring-text/30",
+        "wrapper":      "flex flex-col gap-3 items-center rounded outline-none focus-visible:ring-2 focus-visible:ring-ring",
         # ``group/pie`` enables the slice ``group-hover/pie:opacity-80``
         # dim-others polish (the hovered slice keeps full opacity via
         # ``hover:!opacity-100`` on its own class).
@@ -48,16 +48,16 @@ PIE_CHART_THEME: dict[str, Any] = {
         "center_text":  "fill-text font-semibold",
         "legend":       "flex flex-wrap items-center justify-center gap-x-4 gap-y-1",
         "legend_dot":   "size-3 rounded-selector shrink-0 bg-(--bz-solid)",
-        "legend_label": "text-xs text-text/70",
+        "legend_label": "text-xs text-muted",
         # « Voir les données »: the ``<details>`` and its summary
         # (``data_table``); the table inside is a ``ui.table``.
         "data":         "group w-full",
         "data_toggle":  (
-            "w-fit cursor-pointer select-none text-text/60 "
+            "w-fit cursor-pointer select-none text-muted "
             "hover:text-text rounded outline-none "
-            "focus-visible:ring-2 focus-visible:ring-text/30"
+            "focus-visible:ring-2 focus-visible:ring-ring"
         ),
-        "empty":        "fill-text/40 text-sm",
+        "empty":        "fill-muted text-sm",
     },
     "sizes": {
         # name → {h, label, center}

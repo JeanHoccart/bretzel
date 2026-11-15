@@ -39,7 +39,7 @@ NAVBAR_THEME: dict[str, Any] = {
         # (z-50), so a modal paints over the navbar.
         "root": (
             "group/navbar w-full bg-surface z-30 "
-            "border-b-(length:--bz-stroke) border-text/10"
+            "border-b-(length:--bz-stroke) border-line"
         ),
         # Inner ``<nav>`` — the flex row that holds the sections. Its
         # width clamp and horizontal margin are NOT here: they come from
@@ -84,7 +84,7 @@ NAVBAR_THEME: dict[str, Any] = {
     # ``sticky=True`` injects fixed positioning so the bar stays at the
     # top during page scroll. Backdrop blur softens content sliding
     # underneath.
-    "sticky": "sticky top-0 backdrop-blur-md bg-surface/95",
+    "sticky": "sticky top-0 backdrop-blur-md bg-glass",
 }
 
 
@@ -114,7 +114,7 @@ NAVBAR_ITEM_THEME: dict[str, Any] = {
             "focus-visible:ring-2 focus-visible:ring-(--bz-focus) "
             "focus-visible:ring-offset-2 "
             "focus-visible:ring-offset-surface "
-            "data-[active=false]:hover:bg-text/10 "
+            "data-[active=false]:hover:bg-hover "
             "data-[active=false]:hover:text-text "
             # Hover and press are neutralised EXPLICITLY on a locked
             # item: the inertness comes from the base layer

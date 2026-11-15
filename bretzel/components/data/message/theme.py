@@ -30,7 +30,7 @@ MESSAGE_THEME: dict[str, Any] = {
         ),
         "bubble": "flex w-fit max-w-full flex-col gap-2 rounded-box px-4 py-3",
         "bubble_end": "bz-c-primary bg-(--bz-bg)",
-        "bubble_start": "bg-text/5",
+        "bubble_start": "bg-tint",
         "author": "text-xs font-semibold text-muted",
         "files": "flex flex-wrap gap-1.5",
         "plain": "whitespace-pre-wrap break-words",

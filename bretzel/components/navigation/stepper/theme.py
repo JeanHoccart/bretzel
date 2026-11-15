@@ -63,7 +63,7 @@ STEPPER_THEME: dict[str, Any] = {
             "border-(length:--bz-stroke-strong) font-semibold "
             "transition-[color,background-color,border-color] "
             "duration-200 ease-out "
-            "border-text/15 bg-background text-muted "
+            "border-line bg-background text-muted "
             "group-data-[status=current]/step:border-(--bz-solid) "
             "group-data-[status=current]/step:bg-(--bz-bg) "
             "group-data-[status=current]/step:text-(--bz-text) "
@@ -105,7 +105,7 @@ STEPPER_THEME: dict[str, Any] = {
             "aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
         ),
         "connector": (
-            "shrink-0 rounded-full bg-text/15 "
+            "shrink-0 rounded-full bg-track "
             "transition-colors duration-200 ease-out "
             "group-data-[status=done]/step:bg-(--bz-solid)"
         ),

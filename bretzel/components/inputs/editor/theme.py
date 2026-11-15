@@ -39,7 +39,7 @@ EDITOR_THEME: dict[str, Any] = {
             "[&_[aria-pressed=true]]:text-(--bz-solid)"
         ),
         # A thin rule between the formatting commands and the app's tools.
-        "separator": "mx-1 h-5 w-0 border-l-(length:--bz-stroke) border-text/10",
+        "separator": "mx-1 h-5 w-0 border-l-(length:--bz-stroke) border-line",
         # The text. ``whitespace-pre-wrap`` is ProseMirror's requirement
         # (it warns without it); the descendants' look is the one format.
         "surface": (
@@ -55,7 +55,7 @@ EDITOR_THEME: dict[str, Any] = {
             "[&_strong]:font-semibold "
             # The placeholder: the runtime marks the empty surface.
             "data-empty:before:pointer-events-none data-empty:before:absolute "
-            "data-empty:before:text-muted/60 "
+            "data-empty:before:text-placeholder "
             "data-empty:before:content-[attr(data-bz-placeholder)]"
         ),
         # The link panel: an address field and its two buttons.
@@ -63,7 +63,7 @@ EDITOR_THEME: dict[str, Any] = {
     },
     "variants": {
         "surface": (
-            "bg-interface border-(length:--bz-stroke) border-text/10 "
+            "bg-interface border-(length:--bz-stroke) border-line "
             # Lit while one TYPES, not while a button of the bar has the
             # focus: that one draws its own ring (MessageInput's rule).
             "has-[[contenteditable]:focus]:border-(--bz-solid) "
@@ -72,7 +72,7 @@ EDITOR_THEME: dict[str, Any] = {
             "has-[[contenteditable]:focus]:ring-offset-2 "
             "has-[[contenteditable]:focus]:ring-offset-background "
             "[&>[role=toolbar]]:border-b-(length:--bz-stroke) "
-            "[&>[role=toolbar]]:border-text/10"
+            "[&>[role=toolbar]]:border-line"
         ),
         "ghost": (
             "[[data-bz-keyboard]_&]:has-[[contenteditable]:focus]:ring-2 "

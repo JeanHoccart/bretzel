@@ -17,8 +17,8 @@ CODE_THEME: dict[str, Any] = {
             "bz-code "                # marker class for the Pygments stylesheet
             "block w-full "
             "p-4 "
-            "rounded-box border-(length:--bz-stroke) border-text/10 "
-            "bg-surface text-text/80 "
+            "rounded-box border-(length:--bz-stroke) border-line "
+            "bg-surface text-muted "
             "font-mono text-xs leading-relaxed "
             # ``whitespace-pre-wrap`` keeps the serializer's newlines AND
             # wraps long tokens at container width (no horizontal scroll) ;

@@ -35,7 +35,7 @@ PROGRESS_THEME: dict[str, Any] = {
             "absolute inset-0 rounded-full bg-(--bz-solid) "
             "animate-pulse opacity-70"
         ),
-        "label": "text-xs text-text/70 tabular-nums shrink-0",
+        "label": "text-xs text-muted tabular-nums shrink-0",
     },
     # Track height per size — the fill follows the track via ``h-full``.
     "sizes": {

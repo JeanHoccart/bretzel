@@ -41,13 +41,13 @@ SIGNATURE_PAD_THEME: dict[str, Any] = {
         "root": "flex flex-col gap-2 w-full",
         "pad": (
             "relative w-full rounded-box overflow-hidden "
-            "border-(length:--bz-stroke-strong) border-dashed border-text/15 bg-surface "
+            "border-(length:--bz-stroke-strong) border-dashed border-line bg-surface "
             "transition-colors duration-200 ease-out "
             "focus-within:border-(--bz-border-hover) "
             # The frame greys out AND loses its dashes when it is
             # locked: a signed pad must no longer INVITE a signature.
             "data-[locked=true]:border-solid "
-            "data-[locked=true]:bg-text/5 "
+            "data-[locked=true]:bg-tint "
             "data-[locked=true]:cursor-not-allowed"
         ),
         # ``block``: a canvas is ``inline`` by default, so it drags its
@@ -61,7 +61,7 @@ SIGNATURE_PAD_THEME: dict[str, Any] = {
         # not depend on the step.
         "hint": (
             "pointer-events-none absolute inset-x-0 bottom-3 "
-            "text-center text-text/40 "
+            "text-center text-placeholder "
             # Erased at the first stroke — the prompt has said what it
             # had to say.
             "transition-opacity duration-200 ease-out "
@@ -69,7 +69,7 @@ SIGNATURE_PAD_THEME: dict[str, Any] = {
         ),
         "baseline": (
             "pointer-events-none absolute inset-x-6 bottom-10 "
-            "border-b-(length:--bz-stroke) border-text/20"
+            "border-b-(length:--bz-stroke) border-line-strong"
         ),
         "actions": "flex items-center justify-end",
     },

@@ -96,8 +96,8 @@ CAROUSEL_THEME: dict[str, Any] = {
         "arrow": (
             "absolute top-1/2 -translate-y-1/2 z-10 "
             "flex items-center justify-center rounded-full "
-            "bg-surface/90 backdrop-blur-sm text-text "
-            "border-(length:--bz-stroke) border-text/10 shadow-md "
+            "bg-glass backdrop-blur-sm text-text "
+            "border-(length:--bz-stroke) border-line shadow-md "
             "transition-[opacity,background-color] duration-200 ease-out "
             "not-disabled:cursor-pointer not-disabled:active:scale-95 "
             "not-disabled:hover:bg-surface "
@@ -114,7 +114,7 @@ CAROUSEL_THEME: dict[str, Any] = {
         "arrow_next": "right-2",
         "dots": "flex items-center justify-center gap-2",
         "dot": (
-            "rounded-full cursor-pointer bg-text/20 "
+            "rounded-full cursor-pointer bg-faint "
             "transition-[width,background-color] duration-200 ease-out "
             "focus-visible:outline-none focus-visible:ring-2 "
             "focus-visible:ring-offset-2 "

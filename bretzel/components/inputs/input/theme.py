@@ -33,7 +33,7 @@ from typing import Any
 #: the field's colour: the focus ring already says the field is active, and
 #: a second accent is no signal (``components.md`` § R1).
 _ICON_OVERLAY = (
-    "absolute text-muted/60 "
+    "absolute text-faint "
     "group-focus-within:text-text "
     "transition-colors pointer-events-none "
     "flex items-center justify-center"
@@ -56,7 +56,7 @@ INPUT_THEME: dict[str, Any] = {
             "bz-input "  # audit marker — cf. tests/audit/checklist.py
             # The frame and its focus ring are the variant's (``variants``).
             "block w-full rounded-field "
-            "text-text placeholder:text-muted/60 "
+            "text-text placeholder:text-placeholder "
             "outline-none transition duration-200 "
             "disabled:opacity-50 disabled:cursor-not-allowed "
             "read-only:cursor-default"
@@ -74,15 +74,15 @@ INPUT_THEME: dict[str, Any] = {
         # The <input> when wrapped in prefix_root : strip its own frame.
         "input_inner": (
             "block w-full outline-none bg-transparent text-text "
-            "placeholder:text-muted/60 rounded-field"
+            "placeholder:text-placeholder rounded-field"
         ),
         # Inline static label slots (e.g. ``https://`` / ``.com``).
         "prefix": (
-            "shrink-0 text-muted/60 text-sm font-medium select-none "
+            "shrink-0 text-muted text-sm font-medium select-none "
             "ps-3 py-2"
         ),
         "suffix": (
-            "shrink-0 text-muted/60 text-sm font-medium select-none "
+            "shrink-0 text-muted text-sm font-medium select-none "
             "pe-3 py-2"
         ),
         # Absolute-positioned icons overlaid on the no-affix input ;
@@ -107,7 +107,7 @@ INPUT_THEME: dict[str, Any] = {
         # NOT ``pointer-events-none``, unlike the two icons: this one is
         # clicked.
         "clear_button": (
-            "absolute end-3 text-muted/60 "
+            "absolute end-3 text-faint "
             "not-disabled:hover:text-text cursor-pointer "
             "transition-colors outline-none rounded-selector "
             "focus-visible:ring-2 focus-visible:ring-(--bz-focus) "
@@ -127,8 +127,8 @@ INPUT_THEME: dict[str, Any] = {
     # small field. The pad is offset + icon + ~5 px.
     "variants": {
         "surface": {
-            "input": "bg-interface border-(length:--bz-stroke) border-text/10 focus:border-(--bz-solid) focus:ring-2 focus:ring-(--bz-focus-soft) focus:ring-offset-2 focus:ring-offset-background disabled:bg-muted/10 read-only:bg-interface/50",
-            "prefix_root": "bg-interface border-(length:--bz-stroke) border-text/10 focus-within:border-(--bz-solid) focus-within:ring-2 focus-within:ring-(--bz-focus-soft) focus-within:ring-offset-2 focus-within:ring-offset-background",
+            "input": "bg-interface border-(length:--bz-stroke) border-line focus:border-(--bz-solid) focus:ring-2 focus:ring-(--bz-focus-soft) focus:ring-offset-2 focus:ring-offset-background disabled:bg-tint read-only:bg-tint",
+            "prefix_root": "bg-interface border-(length:--bz-stroke) border-line focus-within:border-(--bz-solid) focus-within:ring-2 focus-within:ring-(--bz-focus-soft) focus-within:ring-offset-2 focus-within:ring-offset-background",
         },
         "ghost": {
             "input": "[[data-bz-keyboard]_&]:focus:ring-2 [[data-bz-keyboard]_&]:focus:ring-(--bz-focus) [[data-bz-keyboard]_&]:focus:ring-offset-2 [[data-bz-keyboard]_&]:focus:ring-offset-background",

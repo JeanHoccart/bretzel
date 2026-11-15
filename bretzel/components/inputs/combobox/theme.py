@@ -73,7 +73,7 @@ COMBOBOX_THEME: dict[str, Any] = {
         # input retains a typeable area when squeezed by pills.
         "input": (
             "flex-1 min-w-[60px] bg-transparent outline-none "
-            "border-none p-0 text-text placeholder:text-muted/70 "
+            "border-none p-0 text-text placeholder:text-placeholder "
             "disabled:cursor-not-allowed"
         ),
         # ``×`` to clear everything. Hidden when there's nothing
@@ -82,7 +82,7 @@ COMBOBOX_THEME: dict[str, Any] = {
         "clear": (
             "shrink-0 inline-flex items-center justify-center "
             "ml-1 rounded-selector text-muted not-disabled:hover:text-text "
-            "not-disabled:hover:bg-text/5 cursor-pointer outline-none "
+            "not-disabled:hover:bg-hover cursor-pointer outline-none "
             "focus-visible:ring-2 focus-visible:ring-(--bz-focus)"
         ),
         "chevron": (
@@ -113,7 +113,7 @@ COMBOBOX_THEME: dict[str, Any] = {
         # Guarded by ``tests/consistency/test_anchored_panels_match.py``.
         "panel": (
             "absolute z-40 mt-1 overflow-y-auto "
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
+            "rounded-box border-(length:--bz-stroke) border-line bg-surface "
             "shadow-lg "
             # The enter fade, at the FIELD cadence — half the menus'.
             # The mechanism of the three classes is explained in a single
@@ -135,8 +135,8 @@ COMBOBOX_THEME: dict[str, Any] = {
         # picked and no field, it is hidden (no chrome for nothing).
         "header_bar": (
             "flex flex-wrap items-center gap-2 px-2 py-1.5 "
-            "border-b-(length:--bz-stroke) border-text/10 sticky top-0 "
-            "bg-surface/95 backdrop-blur z-10"
+            "border-b-(length:--bz-stroke) border-line sticky top-0 "
+            "bg-glass backdrop-blur z-10"
         ),
         # Counter — "3 / 29" tabular-style. Subtle, secondary
         # information : muted text + small + tabular-nums so the
@@ -159,8 +159,8 @@ COMBOBOX_THEME: dict[str, Any] = {
         # of the header.
         "footer_bar": (
             "flex items-center gap-2 px-2 py-1.5 "
-            "border-t-(length:--bz-stroke) border-text/10 sticky bottom-0 "
-            "bg-surface/95 backdrop-blur z-10"
+            "border-t-(length:--bz-stroke) border-line sticky bottom-0 "
+            "bg-glass backdrop-blur z-10"
         ),
         # Actions container — right-aligned, small gap.
         "footer_actions": (
@@ -182,9 +182,9 @@ COMBOBOX_THEME: dict[str, Any] = {
         "footer_btn_muted": (
             "inline-flex items-center px-2 py-1 rounded-selector "
             "font-medium text-muted "
-            "hover:bg-error/10 hover:text-error "
+            "hover:bg-error-wash hover:text-error "
             "cursor-pointer outline-none focus-visible:ring-2 "
-            "focus-visible:ring-error/40"
+            "focus-visible:ring-error-ring"
         ),
         "option": (
             "flex items-center w-full text-start "
@@ -217,7 +217,7 @@ COMBOBOX_THEME: dict[str, Any] = {
         # lives in ``sizes[<size>]["option_box"]``.
         "option_box": (
             "shrink-0 inline-flex items-center justify-center me-2 "
-            "rounded-selector border-(length:--bz-stroke) border-text/25 "
+            "rounded-selector border-(length:--bz-stroke) border-line-strong "
             "bg-interface text-transparent transition-colors duration-200 "
             "group-aria-selected:bg-(--bz-solid) "
             "group-aria-selected:border-(--bz-solid) "
@@ -226,7 +226,7 @@ COMBOBOX_THEME: dict[str, Any] = {
         "option_selected": "font-semibold text-(--bz-text)",
         # No-results placeholder.
         "empty": (
-            "px-3 py-6 text-center text-muted/80"
+            "px-3 py-6 text-center text-muted"
         ),
     },
     # The full scale. The ``*_size`` keys are NOT classes: they are the
@@ -243,7 +243,7 @@ COMBOBOX_THEME: dict[str, Any] = {
     # ``md`` = the historical look, unchanged to the pixel.
     "variants": {
         "surface": {
-            "trigger": "bg-interface border-(length:--bz-stroke) border-text/10 focus-within:border-(--bz-solid) focus-within:ring-2 focus-within:ring-(--bz-focus-soft) focus-within:ring-offset-2 focus-within:ring-offset-background has-[input:disabled]:bg-muted/10",
+            "trigger": "bg-interface border-(length:--bz-stroke) border-line focus-within:border-(--bz-solid) focus-within:ring-2 focus-within:ring-(--bz-focus-soft) focus-within:ring-offset-2 focus-within:ring-offset-background has-[input:disabled]:bg-tint",
         },
         "ghost": {
             "trigger": "[[data-bz-keyboard]_&]:focus-within:ring-2 [[data-bz-keyboard]_&]:focus-within:ring-(--bz-focus) [[data-bz-keyboard]_&]:focus-within:ring-offset-2 [[data-bz-keyboard]_&]:focus-within:ring-offset-background",

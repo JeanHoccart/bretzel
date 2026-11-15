@@ -32,7 +32,7 @@ SWITCH_THEME: dict[str, Any] = {
         "container": "relative inline-flex items-center shrink-0",
         "input": "peer absolute inset-0 m-0 opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed",
         "track": (
-            "block rounded-full border-(length:--bz-stroke) border-text/10 bg-interface "
+            "block rounded-full border-(length:--bz-stroke) border-line bg-interface "
             "transition duration-200 ease-out "
             "peer-checked:bg-(--bz-solid) peer-checked:border-(--bz-solid) "
             "peer-focus-visible:ring-2 peer-focus-visible:ring-(--bz-focus) "

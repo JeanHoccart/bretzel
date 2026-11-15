@@ -117,7 +117,7 @@ class TestLineChart:
         # per-series active dots into one readable slice.
         with render_isolated():
             out = serialize(LineChart(SAMPLE).render())
-        assert 'class="stroke-text/20"' in out
+        assert 'class="stroke-line-strong"' in out
         assert 'stroke-dasharray="4 4"' in out
         # Bound to the active column (``>`` is HTML-escaped in attrs).
         assert "bz-attr:x1=" in out

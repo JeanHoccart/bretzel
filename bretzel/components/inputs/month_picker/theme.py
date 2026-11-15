@@ -28,7 +28,7 @@ MONTH_PICKER_THEME: dict[str, Any] = {
     "slots": {
         "root": "bz-month-picker relative flex flex-col w-full",
         "input_frame": (
-            "flex items-stretch w-full rounded-field border-(length:--bz-stroke) border-text/10 "
+            "flex items-stretch w-full rounded-field border-(length:--bz-stroke) border-line "
             "bg-interface text-text transition duration-200 "
             "focus-within:border-(--bz-solid) focus-within:ring-2 "
             "focus-within:ring-(--bz-focus-soft) focus-within:ring-offset-2 "
@@ -38,12 +38,12 @@ MONTH_PICKER_THEME: dict[str, Any] = {
         ),
         "input_field": (
             "flex-1 min-w-0 px-3 bg-transparent text-text "
-            "placeholder:text-muted/60 outline-none "
+            "placeholder:text-placeholder outline-none "
             "rounded-l-field disabled:cursor-not-allowed"
         ),
         "clear_button": (
             "shrink-0 inline-flex items-center justify-center "
-            "text-muted/60 not-disabled:hover:text-text outline-none "
+            "text-faint not-disabled:hover:text-text outline-none "
             "transition-colors disabled:opacity-50 "
             "disabled:cursor-not-allowed"
         ),
@@ -52,7 +52,7 @@ MONTH_PICKER_THEME: dict[str, Any] = {
         # glyph that sits there (``components.md`` § R1).
         "trigger_button": (
             "shrink-0 inline-flex items-center justify-center "
-            "text-muted not-disabled:hover:text-text not-disabled:hover:bg-text/5 rounded-r-field "
+            "text-muted not-disabled:hover:text-text not-disabled:hover:bg-hover rounded-r-field "
             "outline-none focus-visible:ring-2 focus-visible:ring-inset "
             "focus-visible:ring-(--bz-focus) transition-colors "
             "disabled:opacity-50 disabled:cursor-not-allowed"
@@ -60,7 +60,7 @@ MONTH_PICKER_THEME: dict[str, Any] = {
         "button_icon": "inline-flex shrink-0 text-current",
         "panel": (
             "absolute z-40 mt-1 "
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface shadow-lg "
+            "rounded-box border-(length:--bz-stroke) border-line bg-surface shadow-lg "
             # The enter fade, FIELD cadence (75 ms, half the menus').
             # Mechanism of the three classes: a single copy, in
             # ``overlay/dropdown/theme.py``.

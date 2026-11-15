@@ -650,7 +650,7 @@ class TestFilterShape:
         assert "bz-c-primary" in out
         assert "text-muted" in out
         assert "hover:text-error" in out
-        assert "hover:bg-error/10" in out
+        assert "hover:bg-error-wash" in out
 
 
 # ───────────────────────────────────────────────────────────────────────────

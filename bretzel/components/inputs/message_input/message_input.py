@@ -158,6 +158,11 @@ class MessageInput(ValueCommands, FocusCommands, Component):
             "t.dispatchEvent(new Event('input', {bubbles: true})); }"
         )
         field = self._field(root_attrs, slots)
+        # Nothing typed yet: the round button reads as off from the first
+        # paint (``message_input.js`` keeps it in step as one types).
+        typed = "".join(c.content for c in field.children if isinstance(c, TextNode))
+        if not typed.strip():
+            root_attrs["data-empty"] = ""
 
         # ``unwrap_transparent``: a tool inside a ``@refreshable`` zone is
         # still a tool — it goes to the bar, its zone around it.

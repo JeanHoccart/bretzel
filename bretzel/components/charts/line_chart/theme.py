@@ -47,7 +47,7 @@ LINE_CHART_THEME: dict[str, Any] = {
         # ``w-fit max-w-full`` while the SVG had a fixed intrinsic width
         # (600): a wide card kept the chart at 600 px on its left.
         # The focus ring: the chart is one tab stop (``keyboard_attrs``).
-        "wrapper":      "relative flex flex-col gap-3 w-full min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-text/30",
+        "wrapper":      "relative flex flex-col gap-3 w-full min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "svg":          "block overflow-visible",
         # ``transition-[d]`` morphs the path when @refreshable
         # swaps new data — ``motion-safe:``, as the entry keyframes wait
@@ -93,15 +93,15 @@ LINE_CHART_THEME: dict[str, Any] = {
         # Vertical crosshair at the active column. Faint + dashed so it
         # guides the eye without competing with the data ; connects the
         # active dots into a readable slice.
-        "crosshair":    "stroke-text/20",
+        "crosshair":    "stroke-line-strong",
         "hit":          "fill-transparent",
-        "axis":         "stroke-text/30",
-        "axis_label":   "fill-text/60",
+        "axis":         "stroke-line-strong",
+        "axis_label":   "fill-muted",
         # The axis titles, level: the vertical axis's above the plot at
         # its left, the horizontal axis's below it at its right.
-        "title_top":    "self-start text-text/60",
-        "title_bottom": "self-end text-text/60",
-        "gridline":     "stroke-text/10",
+        "title_top":    "self-start text-muted",
+        "title_bottom": "self-end text-muted",
+        "gridline":     "stroke-line",
         # Reference lines (thresholds / goal markers). ``stroke-`` and
         # ``fill-`` substitute with the ref's colour so a goal can pop
         # in ``success`` green while a baseline sits in muted grey.
@@ -121,7 +121,7 @@ LINE_CHART_THEME: dict[str, Any] = {
         "legend_item":  (
             "flex items-center gap-2 cursor-pointer "
             "transition-opacity duration-200 "
-            "outline-none focus-visible:ring-2 focus-visible:ring-text/30 "
+            "outline-none focus-visible:ring-2 focus-visible:ring-ring "
             "rounded px-1"
         ),
         # ``bg-(--bz-solid)`` is the killer-feature — without it the
@@ -129,16 +129,16 @@ LINE_CHART_THEME: dict[str, Any] = {
         # legend entries to curve colours. Substituted per-series at
         # render time so each entry gets its own palette colour.
         "legend_dot":   "size-3 rounded-selector shrink-0 bg-(--bz-solid)",
-        "legend_label": "text-xs text-text/70",
+        "legend_label": "text-xs text-muted",
         # « Voir les données »: the ``<details>`` and its summary
         # (``data_table``); the table inside is a ``ui.table``.
         "data":         "group w-full",
         "data_toggle":  (
-            "w-fit cursor-pointer select-none text-text/60 "
+            "w-fit cursor-pointer select-none text-muted "
             "hover:text-text rounded outline-none "
-            "focus-visible:ring-2 focus-visible:ring-text/30"
+            "focus-visible:ring-2 focus-visible:ring-ring"
         ),
-        "empty":        "fill-text/40 text-sm",
+        "empty":        "fill-muted text-sm",
     },
     "sizes": {
         # name → {height, stroke_width, dot_radius, axis_font}

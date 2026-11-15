@@ -8,12 +8,14 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
+from bretzel.theme.bridges import STEP_RULES as STEP_RULES
 from bretzel.theme.class_merge import merge_classes
 from bretzel.theme.color_scheme import ColorScheme
 from bretzel.theme.config import IconConfig, ScrollbarConfig
 from bretzel.theme.css import generate_theme_css_full as generate_theme_css_full
 from bretzel.theme.css import strip_safelist as strip_safelist
 from bretzel.theme.css import strip_scan_roots as strip_scan_roots
+from bretzel.theme.neutrals import NEUTRAL_STEPS as NEUTRAL_STEPS
 from bretzel.theme.palette import (
     DEFAULT_PALETTE as DEFAULT_PALETTE,
 )
@@ -48,6 +50,7 @@ from bretzel.theme.tokens import (
 from bretzel.theme.tokens import (
     DEFAULT_SPACING_PX as DEFAULT_SPACING_PX,
 )
+from bretzel.theme.tokens import WASH_COLOR_NAMES as WASH_COLOR_NAMES
 from bretzel.theme.tokens import (
     AnyColor as AnyColor,
 )
@@ -108,6 +111,11 @@ _INTERNAL = [
     "DEFAULT_PALETTE",
     "DEFAULT_SEMANTIC_LIGHT",
     "DEFAULT_SEMANTIC_DARK",
+    # The rules of the generated colours, for a client-side mirror of the
+    # measurement (the gallery's studio repaints live).
+    "STEP_RULES",
+    "NEUTRAL_STEPS",
+    "WASH_COLOR_NAMES",
 ]
 
 

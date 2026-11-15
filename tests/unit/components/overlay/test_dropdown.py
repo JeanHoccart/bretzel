@@ -104,7 +104,7 @@ class TestItemStyling:
                 DropdownItem(label="Delete", color="error", href="/x").render()
             )
         # coloured row tints with its own colour (no bg-text clash)
-        assert "hover:bg-error/10" in out
+        assert "hover:bg-error-wash" in out
         assert "text-error" in out
 
     def test_disabled_link_is_inert(self) -> None:

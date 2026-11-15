@@ -17,7 +17,7 @@ SKELETON_THEME: dict[str, Any] = {
         # Default rectangular shape ; ``animate-pulse`` is Tailwind's
         # built-in subtle fade. ``bg-muted/30`` is light enough to
         # work on both interface + background surfaces.
-        "root": "block bg-muted/30",
+        "root": "block bg-track",
     },
     # Each variant bakes a sensible default dimension so the skeleton
     # is visible without the user having to pass ``width=`` /

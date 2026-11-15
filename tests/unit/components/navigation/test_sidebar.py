@@ -245,7 +245,7 @@ class TestSidebarRoot:
             out = serialize(Sidebar(collapsible="overlay").render())
         assert "fixed inset-y-0 left-0" in out
         assert "data-[open=false]:-translate-x-full" in out
-        assert "bg-black/50" in out
+        assert "bg-backdrop" in out
         assert 'bz-teleport="body"' not in out, (
             "le fond est de nouveau téléporté — il quitte le contexte "
             "d'empilement du shell et recouvrira la sidebar"
@@ -313,7 +313,7 @@ class TestSidebarRoot:
             out = serialize(Sidebar(collapsible=mode).render())
         assert "escapeKey" not in out
         assert "scrollLock" not in out
-        assert "bg-black/50" not in out
+        assert "bg-backdrop" not in out
 
     def test_overlay_keeps_its_current_path_resync(self) -> None:
         """``bz-init`` porte DÉJÀ le resync ``current_path``. Le mode

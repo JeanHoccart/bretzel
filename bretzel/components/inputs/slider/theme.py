@@ -35,7 +35,7 @@ SLIDER_THEME: dict[str, Any] = {
         # closest handle there. ``rounded-full`` for the standard
         # capsule look.
         "track": (
-            "relative w-full rounded-full bg-text/10 "
+            "relative w-full rounded-full bg-track "
             "cursor-pointer"
         ),
         # The fill : a coloured slice of the track between min and

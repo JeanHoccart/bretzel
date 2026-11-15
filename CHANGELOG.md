@@ -7,6 +7,30 @@ change between alpha releases.
 
 ## [Unreleased]
 
+## [0.1.0a8] - 2026-11-15
+
+### Added
+
+- The docs serve `/llms-full.txt`: the map of `llms.txt` followed by every
+  component's page, one file for an assistant to read whole.
+
+### Changed
+
+- `ui.message_input`: with nothing to send (no text, no file), the send
+  button dims, stops reacting and says `aria-disabled`; it lights up again
+  as soon as something is typed or attached.
+- Every shade between the eleven chosen colours is now computed, never
+  dosed by hand. A tinted background, a hover, a pressed state, a border or
+  a focus ring starts at the dose it had and only grows when it does not
+  read — against the page, a panel and a field's grey, in each mode. A soft
+  badge, a sent message, a pressed toolbar button and an active tab now
+  show on every theme, including the pale ones (Candy, Brutal).
+- Components write named steps instead of opacities: `border-line`,
+  `bg-hover`, `bg-pressed`, `bg-tint`, `text-placeholder`, `text-faint`,
+  `bg-backdrop`, `bg-glass`… and, for each vivid colour, `bg-error-wash`,
+  `-wash-hover`, `-edge`, `-ring`. A theme that writes its own classes can
+  use them too; `bg-text/5` still compiles but is no longer measured.
+
 ## [0.1.0a7] - 2026-11-15
 
 ### Added

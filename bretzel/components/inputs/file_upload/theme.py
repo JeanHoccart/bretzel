@@ -39,7 +39,7 @@ _DROPZONE_SLOTS: dict[str, str] = {
     "dropzone_wrapper": (
         "group relative flex flex-col items-center justify-center "
         "w-full rounded-box border-(length:--bz-stroke-strong) border-dashed "
-        "border-text/15 bg-interface cursor-pointer "
+        "border-line bg-interface cursor-pointer "
         "transition duration-200 "
         # Switched off, the hover tints nothing (the input inside says it,
         # bound or not): only the not-allowed cursor answers.

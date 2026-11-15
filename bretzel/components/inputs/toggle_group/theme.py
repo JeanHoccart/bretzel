@@ -103,7 +103,7 @@ TOGGLE_GROUP_THEME: dict[str, Any] = {
     },
     "variants": {
         # The same classes as ``ui.button(variant="surface")``'s box.
-        "surface": "bg-interface border-(length:--bz-stroke) border-text/10 p-0.5",
+        "surface": "bg-interface border-(length:--bz-stroke) border-line p-0.5",
         "ghost": "",
     },
     # Sizes scale the root height and the item padding. ``root`` and

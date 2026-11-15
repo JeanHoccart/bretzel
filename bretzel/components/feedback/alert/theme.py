@@ -54,7 +54,7 @@ ALERT_THEME: dict[str, Any] = {
         "title": "font-semibold text-sm leading-tight text-(--bz-text)",
         # ``text-text/80`` keeps the message readable in any color context ;
         # the title (not the body) carries the colour cue.
-        "message": "text-sm leading-snug text-text/80",
+        "message": "text-sm leading-snug text-muted",
         # × ghost button — the look (once carried by a ghost IconButton)
         # lives here since the dismiss_button unification: an h-8 w-8
         # square, rounded-box, ``--bz-bg`` tint, hover/focus ring. The

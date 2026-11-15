@@ -66,9 +66,9 @@ class TestBottomBarRoot:
         (cf. traps.md). Le thème n'en déclare donc qu'un par propriété."""
         with render_isolated():
             cls = BottomBar().render().attrs["class"].split()
-        assert [c for c in cls if c.startswith("bg-")] == ["bg-surface/95"]
+        assert [c for c in cls if c.startswith("bg-")] == ["bg-glass"]
         assert [c for c in cls if c.startswith("border")] == [
-            "border-t-(length:--bz-stroke)", "border-text/10",
+            "border-t-(length:--bz-stroke)", "border-line",
         ]
         assert [c for c in cls if c in ("static", "sticky", "fixed",
                                         "relative", "absolute")] == ["sticky"]

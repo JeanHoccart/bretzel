@@ -44,7 +44,7 @@ SELECT_THEME: dict[str, Any] = {
         # Inner label ; ``truncate`` keeps long values one-line.
         "label": "flex-1 text-start truncate",
         # Modifier added when the displayed text is the placeholder.
-        "placeholder": "text-muted/70",
+        "placeholder": "text-placeholder",
         # Chevron icon. ``pointer-events-none`` so clicks pass through
         # to the trigger button underneath.
         "chevron": (
@@ -65,7 +65,7 @@ SELECT_THEME: dict[str, Any] = {
         # viewport's right edge.
         "panel": (
             "absolute z-40 mt-1 overflow-y-auto "
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
+            "rounded-box border-(length:--bz-stroke) border-line bg-surface "
             "shadow-lg "
             # The enter fade, at the FIELD cadence — half the menus'.
             # The mechanism of the three classes is explained in a single
@@ -124,8 +124,8 @@ SELECT_THEME: dict[str, Any] = {
         # Sticky so it survives scroll.
         "header_bar": (
             "flex flex-wrap items-center gap-2 px-2 py-1.5 "
-            "border-b-(length:--bz-stroke) border-text/10 sticky top-0 "
-            "bg-surface/95 backdrop-blur z-10"
+            "border-b-(length:--bz-stroke) border-line sticky top-0 "
+            "bg-glass backdrop-blur z-10"
         ),
         # Text size in ``sizes[<size>]["footer_counter"]`` — do NOT put
         # it back here (slot + table = a Tailwind collision, traps.md).
@@ -139,8 +139,8 @@ SELECT_THEME: dict[str, Any] = {
         # The mirror of the header, cf. ``combobox/theme.py``.
         "footer_bar": (
             "flex items-center gap-2 px-2 py-1.5 "
-            "border-t-(length:--bz-stroke) border-text/10 sticky bottom-0 "
-            "bg-surface/95 backdrop-blur z-10"
+            "border-t-(length:--bz-stroke) border-line sticky bottom-0 "
+            "bg-glass backdrop-blur z-10"
         ),
         "footer_actions": (
             "shrink-0 inline-flex items-center gap-1 ms-auto"
@@ -155,9 +155,9 @@ SELECT_THEME: dict[str, Any] = {
         "footer_btn_muted": (
             "inline-flex items-center px-2 py-1 rounded-selector "
             "font-medium text-muted "
-            "hover:bg-error/10 hover:text-error "
+            "hover:bg-error-wash hover:text-error "
             "cursor-pointer outline-none focus-visible:ring-2 "
-            "focus-visible:ring-error/40"
+            "focus-visible:ring-error-ring"
         ),
         # Clear-all × on the trigger right edge (multi mode). Hover
         # gated on ``not-disabled:`` so the × stays visually frozen when
@@ -165,7 +165,7 @@ SELECT_THEME: dict[str, Any] = {
         "clear": (
             "shrink-0 inline-flex items-center justify-center "
             "ml-1 rounded-selector text-muted not-disabled:hover:text-text "
-            "not-disabled:hover:bg-text/5 cursor-pointer outline-none "
+            "not-disabled:hover:bg-hover cursor-pointer outline-none "
             "focus-visible:ring-2 focus-visible:ring-(--bz-focus)"
         ),
     },
@@ -192,7 +192,7 @@ SELECT_THEME: dict[str, Any] = {
     # ``md`` = the historical look, unchanged.
     "variants": {
         "surface": {
-            "trigger": "bg-interface border-(length:--bz-stroke) border-text/10 focus:border-(--bz-solid) focus:ring-2 focus:ring-(--bz-focus-soft) focus:ring-offset-2 focus:ring-offset-background disabled:bg-muted/10",
+            "trigger": "bg-interface border-(length:--bz-stroke) border-line focus:border-(--bz-solid) focus:ring-2 focus:ring-(--bz-focus-soft) focus:ring-offset-2 focus:ring-offset-background disabled:bg-tint",
         },
         "ghost": {
             "trigger": "[[data-bz-keyboard]_&]:focus:ring-2 [[data-bz-keyboard]_&]:focus:ring-(--bz-focus) [[data-bz-keyboard]_&]:focus:ring-offset-2 [[data-bz-keyboard]_&]:focus:ring-offset-background",

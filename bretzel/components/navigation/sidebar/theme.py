@@ -56,7 +56,7 @@ SIDEBAR_THEME: dict[str, Any] = {
             # itself BLURRED under its own backdrop.
             "p-2 gap-1 bg-surface "
             # A side nav is on the left, so the border is on the right.
-            "border-r-(length:--bz-stroke) border-text/10 "
+            "border-r-(length:--bz-stroke) border-line "
             # NO ``overflow-y-auto`` here — the scroll lives on the
             # ``scroll`` slot (the middle region) so an overflowing nav
             # list scrolls WITHOUT dragging the footer down with it. The
@@ -211,7 +211,7 @@ SIDEBAR_THEME: dict[str, Any] = {
         "rail_edge_line": (
             "absolute inset-y-0 right-0 w-1 "
             "bg-transparent transition-colors duration-150 "
-            "group-hover/railedge:bg-primary/60 "
+            "group-hover/railedge:bg-primary-edge "
             "group-focus-visible/railedge:bg-primary"
         ),
         # ── SidebarTitle (header : logo + title + collapse toggle) ───
@@ -309,7 +309,7 @@ SIDEBAR_THEME: dict[str, Any] = {
         # its edge (``rail_edge``) — visible in both states.
         "title_rail_brand": (
             "hidden place-items-center no-underline "
-            "rounded-selector text-text hover:bg-text/10 transition-colors "
+            "rounded-selector text-text hover:bg-hover transition-colors "
             "group-data-[open=false]/sidebar:grid "
             "group-data-[open=false]/sidebar:w-10 "
             "group-data-[open=false]/sidebar:h-10 "
@@ -372,7 +372,7 @@ SIDEBAR_THEME: dict[str, Any] = {
     # The dimmed backdrop of ``overlay`` mode: a sibling of the aside,
     # not a child (cf. ``_render_backdrop``).
     "backdrop": (
-        "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm "
+        "fixed inset-0 z-40 bg-backdrop backdrop-blur-sm "
         "data-[open=true]:transition-[opacity,visibility] data-[open=true]:duration-200 "
         "data-[open=false]:transition-[opacity,visibility] data-[open=false]:duration-150 "
         "data-[open=false]:ease-in "
@@ -433,7 +433,7 @@ SIDEBAR_ITEM_THEME: dict[str, Any] = {
             "data-[active=true]:focus-visible:ring-(--bz-on-solid) "
             # Hover bump aligned with Button's ghost variant (/10
             # rather than /5) so the row clearly responds to pointer.
-            "data-[active=false]:hover:bg-text/10 "
+            "data-[active=false]:hover:bg-hover "
             "data-[active=false]:hover:text-text "
             # Hover and press are neutralised EXPLICITLY on a locked
             # item: the inertness comes from the base layer
@@ -524,12 +524,12 @@ SIDEBAR_FOOTER_THEME: dict[str, Any] = {
         "trigger": (
             "group/acct flex flex-row items-center gap-2 w-full "
             "px-2 py-2 rounded-selector cursor-pointer text-start "
-            "hover:bg-text/10 transition-colors outline-none "
+            "hover:bg-hover transition-colors outline-none "
             # Stays SELECTED while the popover is open (``data-menu-open``
             # mirrors the ``acct_open`` flag) — not just on hover. A
             # distinct attr (not ``data-open``, which is the sidebar's
             # collapse state) so the two never clash.
-            "data-[menu-open=true]:bg-text/10 "
+            "data-[menu-open=true]:bg-pressed "
             # ``-surface`` for the same reason as the nav row: the footer
             # rests on the aside, not on the page background.
             "focus-visible:ring-2 focus-visible:ring-(--bz-focus) "
@@ -569,7 +569,7 @@ SIDEBAR_FOOTER_THEME: dict[str, Any] = {
         # ``z-50`` sits above the aside (z-40).
         "panel": (
             "min-w-[14rem] overflow-hidden z-50 "
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
+            "rounded-box border-(length:--bz-stroke) border-line bg-surface "
             # The enter fade. The three classes go together and none
             # serves alone — the why is in a single copy in
             # ``overlay/dropdown/theme.py``.
@@ -609,12 +609,12 @@ SIDEBAR_FOOTER_ITEM_THEME: dict[str, Any] = {
         # chosen one (``aria-checked="true"``, fixed or bound), so the
         # labels of a choice menu line up.
         "check": "shrink-0 invisible group-aria-checked:visible",
-        "shortcut": "shrink-0 ms-auto text-xs text-muted/70 tabular-nums",
+        "shortcut": "shrink-0 ms-auto text-xs text-muted tabular-nums",
     },
     "colors": {
         "neutral": "hover:bg-interface focus:bg-interface",
-        "error":   "text-error hover:bg-error/10 focus:bg-error/10",
-        "warning": "text-warning hover:bg-warning/10 focus:bg-warning/10",
-        "success": "text-success hover:bg-success/10 focus:bg-success/10",
+        "error":   "text-error hover:bg-error-wash focus:bg-error-wash",
+        "warning": "text-warning hover:bg-warning-wash focus:bg-warning-wash",
+        "success": "text-success hover:bg-success-wash focus:bg-success-wash",
     },
 }

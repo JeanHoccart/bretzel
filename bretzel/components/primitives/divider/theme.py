@@ -40,7 +40,7 @@ DIVIDER_THEME: dict[str, Any] = {
     "slots": {
         "root": "flex items-center justify-center",
         "line": "grow",
-        "line_neutral": "border-text/10",
+        "line_neutral": "border-line",
         "line_tinted": "border-(--bz-border)",
         "label": (
             "text-xs font-semibold px-4 whitespace-nowrap "

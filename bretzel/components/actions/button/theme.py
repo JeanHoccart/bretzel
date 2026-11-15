@@ -104,8 +104,8 @@ BUTTON_THEME: dict[str, Any] = {
         # the box: at rest `current`, active the accent — the geometry
         # does not move.
         "surface": (
-            "bg-interface border-(length:--bz-stroke) border-text/10 text-(--bz-text) "
-            "not-disabled:hover:bg-text/5"
+            "bg-interface border-(length:--bz-stroke) border-line text-(--bz-text) "
+            "not-disabled:hover:bg-hover"
         ),
         # Soft : muted background, hover bumps to /20.
         "soft": ("bg-(--bz-bg) text-(--bz-text) not-disabled:hover:bg-(--bz-bg-hover)"),

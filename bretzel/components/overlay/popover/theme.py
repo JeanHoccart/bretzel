@@ -24,7 +24,7 @@ POPOVER_THEME: dict[str, Any] = {
             "absolute z-40 min-w-[12rem] "
             # ``bg-surface``: a popover holds content, fields included —
             # the fill of a control is ``interface`` (cf. dialog).
-            "rounded-box border-(length:--bz-stroke) border-text/10 bg-surface "
+            "rounded-box border-(length:--bz-stroke) border-line bg-surface "
             "p-3 shadow-lg "
             # The enter fade. The three classes go together and none
             # serves alone — the why is in a single copy in
