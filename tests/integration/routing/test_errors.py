@@ -20,6 +20,9 @@ from bretzel import Bretzel, abort, error_page, page, ui
 from bretzel.server.errors import BretzelError
 
 _SECRET = "x" * 32
+# What a browser sends on a navigation: the error comes back as a page.
+# A caller asking for no HTML gets FastAPI's JSON (cf. TestJsonCaller).
+BROWSER = {"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -30,7 +33,7 @@ _SECRET = "x" * 32
 class TestNotFoundFallback:
     def test_no_handler_returns_default_html(self) -> None:
         app = Bretzel(secret_key=_SECRET, mode="dev")
-        with TestClient(app) as client:
+        with TestClient(app, headers=BROWSER) as client:
             response = client.get("/does-not-exist")
         assert response.status_code == 404
         assert "text/html" in response.headers["content-type"]
@@ -50,7 +53,7 @@ class TestNotFoundFallback:
             ui.text("Lost in the void.")
 
         app.include(not_found)
-        with TestClient(app) as client:
+        with TestClient(app, headers=BROWSER) as client:
             response = client.get("/nope")
         assert response.status_code == 404
         # User content renders through the full pipeline → envelope present.
@@ -66,7 +69,7 @@ class TestNotFoundFallback:
             ui.text("Sorry.")
 
         app.include(not_found)
-        with TestClient(app) as client:
+        with TestClient(app, headers=BROWSER) as client:
             response = client.get("/nope")
         assert "<title>Page introuvable</title>" in response.text
 
@@ -85,7 +88,7 @@ class TestAbort:
             abort(403, "Project archived")
 
         app.include(secret)
-        with TestClient(app) as client:
+        with TestClient(app, headers=BROWSER) as client:
             response = client.get("/secret")
         assert response.status_code == 403
         # Detail flows into the default page as the message.
@@ -103,7 +106,7 @@ class TestAbort:
             abort(403)
 
         app.include(forbidden, secret)
-        with TestClient(app) as client:
+        with TestClient(app, headers=BROWSER) as client:
             response = client.get("/secret")
         assert response.status_code == 403
         assert "Forbidden" in response.text
@@ -127,7 +130,7 @@ class TestBretzelError:
             raise BretzelError("internal invariant violated")
 
         app.include(server_error, broken)
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(app, headers=BROWSER, raise_server_exceptions=False) as client:
             response = client.get("/broken")
         assert response.status_code == 500
         assert "Boom" in response.text
@@ -142,7 +145,7 @@ class TestBretzelError:
             raise BretzelError("LEAKY SECRET DETAIL")
 
         app.include(broken)
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(app, headers=BROWSER, raise_server_exceptions=False) as client:
             response = client.get("/broken")
         assert response.status_code == 500
         # Internal message must not surface in production.
@@ -163,7 +166,7 @@ class TestUnhandledException:
             raise RuntimeError("unexpected")
 
         app.include(oops)
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(app, headers=BROWSER, raise_server_exceptions=False) as client:
             response = client.get("/oops")
         # Caught by the catch-all → static 500 page (no user handler).
         assert response.status_code == 500
@@ -183,7 +186,7 @@ class TestUnhandledException:
             raise RuntimeError("debug-visible")
 
         app.include(oops)
-        with TestClient(app) as client:
+        with TestClient(app, headers=BROWSER) as client:
             with pytest.raises(RuntimeError, match="debug-visible"):
                 client.get("/oops")
 
@@ -202,10 +205,59 @@ class TestRenderFallback:
             raise RuntimeError("user error page crashed")
 
         app.include(broken_not_found)
-        with TestClient(app) as client:
+        with TestClient(app, headers=BROWSER) as client:
             response = client.get("/missing")
         # Status preserved, body is the static fallback.
         assert response.status_code == 404
         assert "Page not found" in response.text
         # The user crash didn't leak — the static page has no envelope.
         assert "<bz-envelope>" not in response.text
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# A caller that asks for no HTML — FastAPI's own JSON
+# ───────────────────────────────────────────────────────────────────────────
+
+
+class TestJsonCaller:
+    """A program reading the app's API keeps FastAPI's ``{"detail": …}``:
+    the contract an existing FastAPI app gave its clients before Bretzel
+    was added to it."""
+
+    def test_unknown_route_answers_json(self) -> None:
+        app = Bretzel(secret_key=_SECRET, mode="dev")
+        with TestClient(app) as client:
+            response = client.get("/api/books/99")
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Not Found"}
+
+    def test_abort_detail_reaches_the_program(self) -> None:
+        app = Bretzel(secret_key=_SECRET, mode="dev")
+
+        @app.fastapi.get("/api/books/{book_id}")
+        def get_book(book_id: int) -> dict:
+            abort(404, "Book not found")
+
+        with TestClient(app) as client:
+            response = client.get("/api/books/7", headers={"Accept": "application/json"})
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Book not found"}
+
+    def test_a_crash_answers_json_without_the_trace(self) -> None:
+        app = Bretzel(secret_key=_SECRET, mode="prod")
+
+        @app.fastapi.get("/api/oops")
+        def oops() -> dict:
+            raise RuntimeError("LEAKY SECRET DETAIL")
+
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.get("/api/oops")
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Internal Server Error"}
+
+    def test_the_runtime_still_gets_html(self) -> None:
+        app = Bretzel(secret_key=_SECRET, mode="dev")
+        with TestClient(app) as client:
+            response = client.get("/nope", headers={"HX-Request": "true"})
+        assert response.status_code == 404
+        assert "text/html" in response.headers["content-type"]

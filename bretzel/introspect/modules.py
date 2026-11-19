@@ -189,6 +189,7 @@ _RENDER: dict[str, str] = {
     # Public for the server layer, which owns one per app:
     # the element fingerprints that let a zone ship only what changed.
     "ZoneMaps": "refresh a region",
+    "RowMemo": "refresh a region",
     "RefreshableHandle": "refresh a region",
     # Public for the server layer, which owns one per app.
     "ZoneRegistry": "refresh a region",

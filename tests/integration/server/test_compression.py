@@ -62,7 +62,9 @@ def test_a_page_ships_compressed(client) -> None:
         "compresser multiplie par 15 ce qui passe sur le fil, pour "
         "économiser 6 ms de CPU."
     )
-    wire = int(r.headers["content-length"])
+    # Bytes as they came over the wire: a page that hides something at
+    # load leaves in two writes, without a ``Content-Length``.
+    wire = r.num_bytes_downloaded
     plain = len(r.text.encode())
     assert plain / wire > 5, (
         f"{plain} octets rendus pour {wire} sur le fil — soit "

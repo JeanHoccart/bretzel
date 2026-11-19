@@ -7,9 +7,10 @@ function : no I/O, no mutation, no side-effects.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 
 from bretzel.core.escape import escape_html, serialize_attrs
-from bretzel.core.tree import Element, FragmentNode, HtmlNode, Node, TextNode
+from bretzel.core.tree import Element, FragmentNode, HtmlNode, LaterNode, Node, TextNode
 
 # HTML5 void elements — emitted as ``<tag attrs/>`` with no closing tag and
 # no children. Any children passed alongside are silently ignored at the
@@ -39,7 +40,7 @@ VOID_ELEMENTS: frozenset[str] = frozenset(
 _TAG_NAME = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
 
 
-def serialize(node: Node) -> str:
+def serialize(node: Node, later: Callable[[LaterNode], str] | None = None) -> str:
     """Render a ``Node`` tree to an HTML string.
 
     Dispatch table :
@@ -53,7 +54,15 @@ def serialize(node: Node) -> str:
 
     Unknown :class:`Node` subclasses raise :class:`TypeError` — extending
     the framework with new node kinds requires updating this dispatcher.
+
+    ``later`` writes a :class:`LaterNode` in its place instead — what it
+    returns — and keeps it for after (a full page, ``render/later.py``).
+    Not inside a ``<template>``: its content is out of the document, so a
+    place written there could never be found to put the piece back.
     """
+    if later is not None and isinstance(node, LaterNode):
+        return later(node)
+
     if isinstance(node, Element):
         # ⚠️ The tag is written as is: it must be a NAME, or a tag built
         # from a value such as ``"h1><img onerror=…><h1"`` writes a real
@@ -63,7 +72,8 @@ def serialize(node: Node) -> str:
         attrs = serialize_attrs(node.attrs)
         if node.tag in VOID_ELEMENTS:
             return f"<{node.tag}{attrs}/>"
-        inner = "".join(serialize(child) for child in node.children)
+        within = None if node.tag == "template" else later
+        inner = "".join(serialize(child, within) for child in node.children)
         return f"<{node.tag}{attrs}>{inner}</{node.tag}>"
 
     if isinstance(node, TextNode):
@@ -73,6 +83,6 @@ def serialize(node: Node) -> str:
         return node.html
 
     if isinstance(node, FragmentNode):
-        return "".join(serialize(child) for child in node.children)
+        return "".join(serialize(child, later) for child in node.children)
 
     raise TypeError(f"Cannot serialize unknown Node type : {type(node).__name__}")

@@ -15,6 +15,7 @@ from __future__ import annotations
 from bretzel import Screen, __version__, layout, ui
 from bretzel.state import ClientState, field
 from bretzel.theme import ColorScheme
+from examples.docs.recipes import RECIPES
 
 # Les trois modes, dans l'ordre où on les lit. MÊMES entrées que
 # ``examples/playground/app/layout.py`` — les deux coques se lisent l'une
@@ -79,6 +80,12 @@ SITES: tuple[tuple[str, str, str], ...] = (
 #   CHERCHER    les INDEX, générés d'une source unique. On n'y apprend
 #               pas : ils listent et renvoient (cf. la règle en tête de
 #               ``examples/docs/main.py``).
+#
+# RECIPES se lit à part : une appli complète par demande courante. Ses
+# entrées viennent des fichiers de ``examples/docs/recipes/``, pas d'une
+# liste écrite ici, et ``/llms.txt`` la donne en premier, en Markdown brut.
+RECIPES_SECTION = "RECIPES"
+
 NAV = [
     ('GET STARTED', [
         ("Introduction", "/", "compass", ""),
@@ -90,6 +97,11 @@ NAV = [
         # Le jumeau du précédent : l'un dit ce qui existe, l'autre juge
         # ce qu'on en a fait. Ils se lisent l'un après l'autre.
         ('Review code', "/check", "shield-check", ""),
+    ]),
+    (RECIPES_SECTION, [
+        ("All recipes", "/recipes", "chef-hat", ""),
+        *((recipe.title, f"/recipes/{recipe.slug}", "file-code", "")
+          for recipe in RECIPES),
     ]),
     ('THE CYCLE', [
         ('State · server', "/state-server", "database", ""),

@@ -27,7 +27,7 @@ into a malicious page therefore cannot compute the expected token
 without first leaking ``session_id`` AND ``csrf_key`` (server-only) —
 both required, impossible from a hostile origin.
 
-**Exemptions** — two, for one reason each:
+**Exemptions** — three, for one reason each:
 
 - ``/_bretzel/action/*`` skips both checks: its own per-call HMAC on
   ``action_id + bound_args`` (cf. :mod:`bretzel.server.handlers`)
@@ -42,12 +42,30 @@ both required, impossible from a hostile origin.
   the victim's cookies, so it still needs ``trusted_hosts``, like any
   cross-origin write. A program sends no Origin and passes it. The
   bearer token itself is checked by the app's ``@auth.source``.
+- a request carrying no credential the browser attaches by itself — no
+  ``Cookie`` header, no ``Authorization`` header — skips the session
+  token too. A forged request borrows the victim's ambient credentials;
+  this one carries none, so there is nothing to borrow. It is what a
+  program calling the app's existing API sends (``curl``, another
+  service). The Origin check STAYS, for the browser that would send such
+  a request from a hostile page. The token never authenticated a
+  program anyway: any client reads it from a page it GETs first. Who may
+  write through an API route is the route's own check.
+
+**A program that keeps cookies** (``requests.Session`` after a GET) is
+refused like a browser would be: a cookie without the token is what a
+forged request looks like, and a request naming no origin is not proof
+of a program on every browser. It is told why, in JSON — the browser and
+the runtime (``Accept: text/html``, ``HX-Request``, a token sent) get the
+page that reloads, a program gets ``{"detail": …}`` naming its three ways
+through: no cookie, a bearer token, or the token echoed from a page.
 
 """
 
 from __future__ import annotations
 
 import hmac
+import json
 from urllib.parse import urlsplit
 
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -67,6 +85,17 @@ _ORIGIN_KEY = b"origin"
 _REFERER_KEY = b"referer"
 _HOST_KEY = b"host"
 _AUTHORIZATION_KEY = b"authorization"
+_COOKIE_KEY = b"cookie"
+_ACCEPT_KEY = b"accept"
+_HX_REQUEST_KEY = b"hx-request"
+
+#: What a program refused for a missing token reads.
+_PROGRAM_DETAIL = (
+    "CSRF: this request carries a cookie but no X-Bretzel-CSRF token. "
+    "A program calling this API either sends no cookie, or authenticates "
+    "with an 'Authorization: Bearer' token, or echoes the X-Bretzel-CSRF "
+    "token of its session (read from a page it fetched)."
+)
 
 # The one scheme a browser never sends by itself. ``Basic`` stays
 # checked: after a 401 challenge the browser caches the credentials and
@@ -97,10 +126,10 @@ class CSRFMiddleware:
     """Verify the per-session CSRF token on non-safe HTTP methods.
 
     Always-on : there is no ``csrf=False`` knob on :class:`BretzelConfig`.
-    A bearer-token caller skips the session token (cf. the module
-    docstring). A caller that proves itself some other way — a webhook
-    signing its body in its own header — is refused: every route of
-    ``app.fastapi`` sits behind this middleware. That case is not handled.
+    A bearer-token caller and a caller with no ambient credential skip
+    the session token (cf. the module docstring) — a webhook signing its
+    body in its own header is the second kind. The Origin check applies
+    to every one of them.
     """
 
     def __init__(
@@ -154,6 +183,9 @@ class CSRFMiddleware:
         host_b = b""
         supplied_b = b""
         authorization_b = b""
+        cookie_b = b""
+        accept_b = b""
+        hx_b = b""
         for k, v in scope.get("headers", ()):
             if k == _ORIGIN_KEY:
                 origin_b = v
@@ -165,6 +197,12 @@ class CSRFMiddleware:
                 supplied_b = v
             elif k == _AUTHORIZATION_KEY:
                 authorization_b = v
+            elif k == _COOKIE_KEY:
+                cookie_b = v
+            elif k == _ACCEPT_KEY:
+                accept_b = v
+            elif k == _HX_REQUEST_KEY:
+                hx_b = v
 
         # 1. Origin / Referer same-origin (or trusted-host) check.
         if not self._origin_allowed(origin_b, referer_b, host_b):
@@ -178,13 +216,22 @@ class CSRFMiddleware:
             await self.app(scope, receive, send)
             return
 
+        # No ambient credential to borrow: nothing to forge (cf. the
+        # module docstring).
+        if not cookie_b.strip() and not authorization_b.strip():
+            await self.app(scope, receive, send)
+            return
+
         # 2. Session-bound token check.
         state = ensure_state(scope)
         session_id = getattr(state, "session_id", "") or ""
         supplied = supplied_b.decode("latin-1")
         expected = csrf_token_for(session_id, self._csrf_key)
         if not expected or not supplied or not hmac.compare_digest(expected, supplied):
-            await _reject(send, "CSRF: token missing or invalid")
+            if supplied_b or hx_b or b"text/html" in accept_b:
+                await _reject(send, "CSRF: token missing or invalid")
+            else:
+                await _reject_program(send, _PROGRAM_DETAIL)
             return
 
         await self.app(scope, receive, send)
@@ -230,6 +277,23 @@ class CSRFMiddleware:
                 return True
 
         return False
+
+
+async def _reject_program(send: Send, detail: str) -> None:
+    """``403`` with ``{"detail": …}``, as FastAPI answers: what a program
+    reads (cf. the module docstring)."""
+    body = json.dumps({"detail": detail}).encode("utf-8")
+    await send(
+        {
+            "type": "http.response.start",
+            "status": 403,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("ascii")),
+            ],
+        }
+    )
+    await send({"type": "http.response.body", "body": body})
 
 
 async def _reject(send: Send, detail: str) -> None:

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 from starlette.applications import Starlette
-from starlette.responses import PlainTextResponse
+from starlette.responses import HTMLResponse, PlainTextResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
@@ -34,6 +34,11 @@ async def _ok(request):  # type: ignore[no-untyped-def]
     return PlainTextResponse("ok")
 
 
+async def _page(request):  # type: ignore[no-untyped-def]
+    """A page: the HTML answer that starts a session."""
+    return HTMLResponse("<p>page</p>")
+
+
 async def _ok_action(request):  # type: ignore[no-untyped-def]
     """Stand-in for the framework action route — protected by HMAC,
     NOT by CSRF (the middleware short-circuits these)."""
@@ -49,7 +54,8 @@ def _build_app(trusted_hosts: tuple[str, ...] = ()) -> Starlette:
     """
     app = Starlette(
         routes=[
-            Route("/", _ok, methods=["GET"]),
+            Route("/", _page, methods=["GET"]),
+            Route("/api/books", _ok, methods=["GET"]),
             Route("/submit", _ok, methods=["POST"]),
             Route(f"{ROUTE_ACTION}/dummy", _ok_action, methods=["POST"]),
         ],
@@ -301,3 +307,61 @@ class TestBearerToken:
                 },
             )
         assert response.status_code == 200
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# No ambient credential — a program calling an existing API
+# ───────────────────────────────────────────────────────────────────────────
+
+
+class TestNoAmbientCredential:
+    """A request without cookie nor Authorization has nothing a forger
+    could borrow: no token asked. Each other case stays checked."""
+
+    def test_cookieless_program_passes_without_token(self) -> None:
+        with TestClient(_build_app()) as client:
+            response = client.post("/submit", json={"title": "Kindred"})
+        assert response.status_code == 200
+        assert response.text == "ok"
+
+    def test_a_request_with_a_session_cookie_still_needs_the_token(self) -> None:
+        with TestClient(_build_app()) as client:
+            _prime_session(client)
+            response = client.post("/submit")
+        assert response.status_code == 403
+
+    def test_any_cookie_counts_as_ambient(self) -> None:
+        # The app's own cookie is as ambient as Bretzel's.
+        with TestClient(_build_app()) as client:
+            response = client.post("/submit", headers={"Cookie": "app_auth=abc"})
+        assert response.status_code == 403
+
+    def test_a_program_that_keeps_cookies_is_told_its_ways_through(self) -> None:
+        # ``requests.Session`` after a GET: the cookie rides along, no token.
+        with TestClient(_build_app()) as client:
+            _prime_session(client)
+            response = client.post("/submit", json={"title": "Kindred"},
+                                   headers={"Accept": "application/json"})
+        assert response.status_code == 403
+        assert response.headers["content-type"] == "application/json"
+        detail = response.json()["detail"]
+        for way in ("no cookie", "Bearer", "X-Bretzel-CSRF"):
+            assert way in detail, detail
+
+    @pytest.mark.parametrize("headers", [
+        {"Accept": "text/html,application/xhtml+xml"},
+        {"HX-Request": "true"},
+        {"X-Bretzel-CSRF": "deadbeef" * 4},
+    ], ids=["a browser", "htmx", "a stale token"])
+    def test_the_browser_and_the_runtime_still_get_the_page_that_reloads(self, headers) -> None:
+        with TestClient(_build_app()) as client:
+            _prime_session(client)
+            response = client.post("/submit", headers=headers)
+        assert response.status_code == 403
+        assert response.headers["content-type"].startswith("text/html")
+
+    def test_cookieless_from_a_hostile_origin_is_rejected(self) -> None:
+        with TestClient(_build_app()) as client:
+            response = client.post("/submit", headers={"Origin": "https://evil.example.com"})
+        assert response.status_code == 403
+        assert "origin" in response.text.lower()

@@ -32,7 +32,7 @@ class NumberInputPlayground(PageState):
     max:         str  = field(default="")
     step:        str  = field(default="1")
     placeholder: str  = field(default="Type a number…")
-    wheel:       bool = field(default=True)
+    wheel:       bool = field(default=False)
     disabled:    bool = field(default=False)
     required:    bool = field(default=False)
     color:       str  = field(default="primary")

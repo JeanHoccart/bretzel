@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-import secrets
 from pathlib import Path
 from textwrap import dedent
 from typing import Any
@@ -30,7 +29,11 @@ AGENTS_GUIDE = dedent(
     - `bretzel check app` — fix every finding in one pass, then run it once
       more.
     - `bretzel probe app.main:app` — drives the app in a real browser and
-      prints one verdict.
+      prints one verdict. Once per machine, it needs
+      `python -m pip install "bretzel[probe]"` and
+      `python -m playwright install chromium`.
+    - Recipes, one complete app per common request:
+      https://docs.bretzel-py.dev/llms.txt
     """
 )
 
@@ -46,7 +49,6 @@ def create_project(destination: Path, *, display_name: str) -> list[Path]:
         raise ValueError(f"directory already exists: {destination}")
 
     package_name = _package_name(destination.name)
-    secret_key = secrets.token_urlsafe(32)
     files = {
         ".gitignore": ".venv/\n__pycache__/\n*.py[cod]\n.env\n.bretzel/\n",
         "README.md": dedent(
@@ -112,27 +114,13 @@ def create_project(destination: Path, *, display_name: str) -> list[Path]:
         ),
         "app/main.py": dedent(
             f"""\
-            import os
-
             from bretzel import Bretzel
 
             from app.features import home
 
-
-            mode = os.environ.get("BRETZEL_MODE", "prod")
-            secret_key = os.environ.get("BRETZEL_SECRET_KEY")
-            if secret_key is None:
-                if mode == "prod":
-                    raise RuntimeError(
-                        "BRETZEL_SECRET_KEY is required when BRETZEL_MODE=prod"
-                    )
-                secret_key = {secret_key!r}
-
-            app = Bretzel(
-                title={display_name!r},
-                secret_key=secret_key,
-                mode=mode,
-            )
+            # The secret key comes from BRETZEL_SECRET_KEY, or else from
+            # .bretzel/secret_key, generated on the first start.
+            app = Bretzel(title={display_name!r})
             app.include(home)
             """
         ),

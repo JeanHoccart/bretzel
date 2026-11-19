@@ -41,6 +41,15 @@ import json
 import sys
 from pathlib import Path
 
+#: The two installs ``bretzel probe`` needs, once per machine — said in
+#: full wherever one is missing, so the next command is the right one.
+PROBE_INSTALL = (
+    "`bretzel probe` drives a real browser. It needs two installs, once per "
+    "machine, in the app's environment:\n"
+    '    python -m pip install "bretzel[probe]"\n'
+    "    python -m playwright install chromium   (about 150 MB)"
+)
+
 
 def _new(args: argparse.Namespace) -> int:
     from bretzel.cli.commands.project import create_project
@@ -95,7 +104,7 @@ def _describe(args: argparse.Namespace) -> int:
             }
             print(json.dumps(payload, ensure_ascii=False, indent=2))
         else:
-            print(index())
+            print(index(full=args.all))
         return 0
     else:
         render = _as_dict if args.json else describe
@@ -200,12 +209,7 @@ def _probe(args: argparse.Namespace) -> int:
     try:
         from bretzel.probe import ProbeFailedError, probe
     except ImportError as exc:  # pragma: no cover — needs the extra
-        print(
-            "`bretzel probe` requires the optional dependency: "
-            "pip install bretzel[probe]\n"
-            f"({exc})",
-            file=sys.stderr,
-        )
+        print(f"{PROBE_INSTALL}\n({exc})", file=sys.stderr)
         return 2
 
     # ⚠️ ONE probe PER ROUTE, and not a loop of navigations in a single
@@ -228,6 +232,13 @@ def _probe(args: argparse.Namespace) -> int:
                     window.goto(route)
         except ProbeFailedError:
             worst = 1
+        except Exception as exc:
+            # Playwright installed, its browser not downloaded: its own
+            # message names `playwright install`, not the interpreter.
+            if "Executable doesn't exist" not in str(exc):
+                raise
+            print(f"{PROBE_INSTALL}\n({str(exc).splitlines()[0]})", file=sys.stderr)
+            return 2
     return worst
 
 
@@ -303,7 +314,8 @@ def build_parser() -> argparse.ArgumentParser:
         "describe",
         help="show the public API or describe a symbol",
         description=(
-            "Without an argument, show a compact one-line-per-symbol index. "
+            "Without an argument, show a compact one-line-per-component index "
+            "(`--all` adds the module API). "
             "With names, show each symbol's complete description — ask for "
             "every card you need in one call."
         ),
@@ -314,6 +326,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME",
         help="a component (`button`), symbol (`page`, `PageState`, "
         "`ROUTE_ACTION`), or module (`bretzel.state`)",
+    )
+    desc.add_argument(
+        "--all",
+        action="store_true",
+        help="without a name: append the module API, the kwarg routing and "
+        "the bindable matrix to the index",
     )
     desc.add_argument(
         "--json",
@@ -416,7 +434,7 @@ def build_parser() -> argparse.ArgumentParser:
             "scan for overflow, keyboard navigation, JavaScript errors, failed "
             "requests, a second viewport size, and both themes, then print one "
             "verdict block. Returns a non-zero status if any check fails. "
-            "Requires: pip install bretzel[probe]"
+            + PROBE_INSTALL.replace("`bretzel probe` drives a real browser. ", "")
         ),
     )
     prb.add_argument("target", help="application to probe (`module:attribute`)")

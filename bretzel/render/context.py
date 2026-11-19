@@ -15,7 +15,8 @@ import uuid
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+from operator import attrgetter
 from typing import TYPE_CHECKING, Any
 
 from bretzel.core.identity import IdGenerator
@@ -359,7 +360,7 @@ class RenderContext:
         bridge) before resolving the callable.
         """
         from bretzel.components.base.events import encode_handler_id
-        from bretzel.server.handlers import encode_args, sign_action
+        from bretzel.server.handlers import encode_args
 
         action_id = encode_handler_id(handler)
         # Multiple components binding the same module-level handler
@@ -377,14 +378,31 @@ class RenderContext:
         # session. No key available (test rigs, plain ``RenderContext``
         # with no app attached) → empty sig ; the call won't verify but
         # unit tests don't go through the route either.
-        action_key = self._action_key()
-        sig = (
-            sign_action(action_key, action_id, args_blob, ts=self.render_ts,
-                        session_id=self.session_id)
-            if action_key
-            else ""
+        return action_id, args_blob, self.sign_action(action_id, args_blob)
+
+    def traces(self) -> tuple[int, ...]:
+        """How much this request has collected so far beyond what it read:
+        the size of each collection a render may add to (``_TRACED``), and
+        the states obtained. A table row whose build changed it is never
+        taken back without building (``render/row_memo.py``): skipping the
+        build would skip that trace."""
+        registry = self.state_registry
+        return (
+            *map(len, _TRACED(self)),
+            registry.obtained_count() if registry is not None else 0,
         )
-        return action_id, args_blob, sig
+
+    def sign_action(self, action_id: str, args_blob: str) -> str:
+        """The signature of ``(action_id, args_blob)`` for this session and
+        this render (``render_ts``); empty with no key — test rigs, a plain
+        context with no app — where the call won't verify, nor be routed."""
+        from bretzel.server.handlers import sign_action  # casse un cycle
+
+        action_key = self._action_key()
+        if not action_key:
+            return ""
+        return sign_action(action_key, action_id, args_blob, ts=self.render_ts,
+                           session_id=self.session_id)
 
     def refetch_signature(self, zone: str) -> str:
         """The signature of a zone's refetch URL for this session
@@ -448,6 +466,15 @@ class RenderContext:
 # ───────────────────────────────────────────────────────────────────────────
 # Context-var binding
 # ───────────────────────────────────────────────────────────────────────────
+
+
+#: The collections a render may add to: every field made empty per
+#: request, so the next one added is covered. Not the action registry, a
+#: record of the handlers met that no one reads on the way out.
+_TRACED = attrgetter(*(
+    f.name for f in fields(RenderContext)
+    if f.default_factory in (list, dict, set) and f.name != "action_registry"
+))
 
 
 _CURRENT: ContextVar[RenderContext | None] = ContextVar(

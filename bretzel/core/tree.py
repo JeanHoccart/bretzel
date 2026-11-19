@@ -69,3 +69,16 @@ class FragmentNode(Node):
     """
 
     children: tuple[Node, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class LaterNode(FragmentNode):
+    """What a page hides at load: a closed dialog's panel, a menu's panel.
+
+    Everywhere it is a plain fragment — every walk, every partial
+    response, every patch sees its children as if it were not there. A
+    full page alone writes it AFTER what shows (``render/later.py``), and
+    the browser puts it back in place once the visible part runs
+    (``runtime/_src/index.js``). Set by the component that knows it is
+    closed, at its point of emission, never by the app.
+    """

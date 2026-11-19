@@ -6,7 +6,10 @@ read. Hence:
 - :func:`render_index` — **one line per symbol**, the whole surface. It
   is what stays loaded permanently: it answers "does ``justify`` exist on
   ``hstack``?", which is the question whose wrong answer produces a
-  workaround (``classes="justify-between"``).
+  workaround (``classes="justify-between"``). The module API, the kwarg
+  routing and the bindable matrix follow it only in the full form
+  (``describe --all``): they triple its size, and a first draft needs the
+  components.
 - :func:`render_detail` — ONE symbol's whole card, on demand.
 
 The cheap index always present, the detail one command away.
@@ -39,9 +42,11 @@ def _names(params: tuple[ParamInfo, ...]) -> str:
     return " ".join(p.name for p in params)
 
 
-def render_index() -> str:
+def render_index(*, full: bool = True) -> str:
     """One line per ``ui.*`` symbol — plus a contracts line when the
-    component carries any."""
+    component carries any. ``full`` appends the module API, the kwarg
+    routing and the bindable matrix; without it, the module names and
+    where the rest is."""
     from bretzel.components.base.events import SERVER_HANDLER_RULE
 
     catalogue = describe_components()
@@ -61,6 +66,7 @@ def render_index() -> str:
         "`autofocus` too, on the components that take the focus (their card says so).",
         "",
         "A `click` event is written as `on_click=`. Pass a slot by its name.",
+        "A state field is `name: type = field(default=…)` — a bare value is refused.",
         *textwrap.wrap(SERVER_HANDLER_RULE, 76, break_on_hyphens=False),
         "Full details: `describe <name> [<name> …]` — every card you need, one call.",
         "",
@@ -86,9 +92,19 @@ def render_index() -> str:
             head = f"ui.{helper.ui_name}".ljust(width)
             out.append(f"{head}{helper.kind:<18} {_names(helper.params)}")
 
-    out.append(render_modules())
-    out.append(render_kwarg_routing())
-    out.append(render_bindable_matrix())
+    if full:
+        out += [render_modules(), render_kwarg_routing(), render_bindable_matrix()]
+    else:
+        from bretzel.introspect.modules import describe_modules
+
+        names = " ".join(section.name for section in describe_modules())
+        out += [
+            "", "## Modules", "",
+            *textwrap.wrap(names, 76, break_on_hyphens=False),
+            "",
+            "A module's API: `describe bretzel.state`. Everything at once — the",
+            "module API, the kwarg routing, the bindable matrix: `describe --all`.",
+        ]
     return "\n".join(out)
 
 

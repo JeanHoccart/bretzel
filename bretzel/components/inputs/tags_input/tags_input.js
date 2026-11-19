@@ -100,6 +100,11 @@
         this._highlight = shown[pos];
       },
       _key(e) {
+        // A key of an IME composition (Japanese, Chinese…) belongs to the
+        // IME: its Enter confirms the composition, not a tag. Both real
+        // forms — ``isComposing`` (Chrome, Firefox), and Safari's
+        // ``keyCode`` 229 after ``compositionend``.
+        if (e.isComposing || e.keyCode === 229) return;
         const k = e.key;
         const typed = String(this.query || "").trim();
         if (k === "ArrowDown" || k === "ArrowUp") {

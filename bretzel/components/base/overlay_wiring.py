@@ -10,7 +10,7 @@ from bretzel.components.base.composition import _append_class
 from bretzel.components.base.scope_wiring import bool_attr
 from bretzel.components.base.theme_values import color_bridge_class
 from bretzel.core.escape import escape_js
-from bretzel.core.tree import Element, Node
+from bretzel.core.tree import Element, LaterNode, Node
 
 _SHRINK_TOKENS = ("inline-block", "inline-flex", "inline-grid", "inline-table")
 
@@ -617,6 +617,10 @@ def teleport_to_body(panel: Node, owner: Any = None) -> Node:
     """Wrap an overlay ``panel`` in a ``<template bz-teleport="body">`` so the
     runtime projects it under ``<body>`` at init.
 
+    A panel stamped closed (``anchored_panel(closed=)``) does not show at
+    load: a full page writes it after what shows (``core.tree.LaterNode``,
+    ``render/later.py``).
+
     **Real scope: the ANCHORED overlays only** — Tooltip, Popover,
     Dropdown, and `SidebarFooter`'s popover. They are ``position: fixed``
     and float against their trigger, so any ancestor with ``overflow`` (a
@@ -658,11 +662,15 @@ def teleport_to_body(panel: Node, owner: Any = None) -> Node:
         bridge = color_bridge_class(owner, panel)
         if bridge is not None:
             panel = _append_class(panel, bridge)
-    return Element(
+    template = Element(
         tag="template",
         attrs={"bz-teleport": "body"},
         children=(panel,),
     )
+    from bretzel.components.base.nodes import is_stamped_hidden  # casse un cycle
+
+    closed = isinstance(panel, Element) and is_stamped_hidden(panel.attrs)
+    return LaterNode((template,)) if closed else template
 
 
 def escape_init(open_expr: str) -> str:

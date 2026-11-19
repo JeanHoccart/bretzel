@@ -72,7 +72,7 @@ SCHEDULER_THEME: dict[str, Any] = {
             "flex size-9 items-center justify-center rounded-full "
             "text-base font-semibold tabular-nums"
         ),
-        # The one marked day — ``date=`` is not marked (cf. ``_day_mark``).
+        # The one marked day — ``date=`` is not marked (cf. ``_number_class``).
         "today": "bz-c-primary bg-(--bz-solid) text-(--bz-on-solid) font-bold",
         "all_day_row": "flex items-start pt-1",
         "all_day": "relative flex-1 min-w-0",

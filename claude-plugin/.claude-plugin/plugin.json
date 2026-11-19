@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "bretzel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build Bretzel apps with Claude Code — the mockup is the app: a real mockup of each screen first, the same file wired once approved, the exact API from `bretzel describe`, and `bretzel check` on every file written.",
   "author": {
     "name": "Jean Hoccart"

@@ -164,9 +164,11 @@ __all__ = (
 )
 
 
-def index() -> str:
-    """The whole ``ui.*`` surface, one line per symbol."""
-    return render_index()
+def index(*, full: bool = True) -> str:
+    """The whole ``ui.*`` surface, one line per symbol; ``full=False``
+    leaves the module API, kwarg routing and bindable matrix to
+    ``describe --all`` (cf. :func:`render_index`)."""
+    return render_index(full=full)
 
 
 def resolve(name: str) -> ModuleSection | ComponentInfo | HelperInfo | SymbolDetail:

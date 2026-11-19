@@ -3,7 +3,9 @@
 Walked once at startup. Each registered page becomes one (or several,
 when ``methods=`` lists more than ``GET``) FastAPI route ; the route
 handler delegates to :func:`bretzel.render.render_page` and wraps
-the resulting :class:`RenderResult` in a Starlette :class:`HTMLResponse`.
+the resulting :class:`RenderResult` in a Starlette :class:`HTMLResponse` —
+or, for a page that hides something at load, in two writes
+(:func:`_in_two_writes`).
 
 Path-template parameters land on ``path_params`` ; the pipeline does
 the lightweight signature inspection that injects them into the page
@@ -12,11 +14,13 @@ function's kwargs.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import asyncio
+import zlib
+from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any
 
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, Response
+from starlette.responses import HTMLResponse, Response, StreamingResponse
 
 from bretzel.render.pipeline import _resolve_layout_chain, render_page
 from bretzel.runtime.protocol import outlet_id_for
@@ -25,6 +29,7 @@ from bretzel.server.navigation import PageRedirectError, redirect_response
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
+    from bretzel.render.partials import RenderResult
     from bretzel.render.types import BretzelApp
 
 
@@ -113,7 +118,10 @@ def _register_one(
             # ``redirect()`` while the page rendered: an address that only
             # leads elsewhere. 307 keeps the method.
             return redirect_response(request, jump.url, status_code=307)
-        response = HTMLResponse(content=result.body, status_code=result.status_code)
+        if result.visible_end is not None:
+            response = _in_two_writes(request, result)
+        else:
+            response = HTMLResponse(content=result.body, status_code=result.status_code)
         # Push pipeline-emitted headers (e.g. ``HX-Trigger`` carrying
         # the new title on a partial nav) onto the response. We skip
         # the entity headers Starlette controls.
@@ -140,6 +148,46 @@ def _register_one(
             include_in_schema=False,
             name=page_fn.__qualname__,
         )
+
+
+def _in_two_writes(request: Request, result: RenderResult) -> StreamingResponse:
+    """A page that hides something at load (``render/later.py``): what shows
+    leaves first, and the browser shows it while the rest is on its way.
+
+    Compressed here, and flushed after the first write: Starlette's
+    ``GZipMiddleware`` keeps a streamed response's bytes in its compressor
+    until the next ones, so the visible part would wait for the hidden one.
+    A response that already names its encoding passes that middleware as
+    it is. Everything is decided before the first byte — status, headers,
+    cookies — since the whole page is built first.
+    """
+    first = result.body[: result.visible_end].encode()
+    rest = result.body[result.visible_end :].encode()
+    gzip = "gzip" in request.headers.get("accept-encoding", "")
+
+    async def writes() -> AsyncIterator[bytes]:
+        # The first write goes out before the rest is even compressed.
+        if not gzip:
+            yield first
+            await asyncio.sleep(0)
+            yield rest
+            return
+        # Level 6, as ``GZipMiddleware`` (``server/lifecycle.py``).
+        packer = zlib.compressobj(6, zlib.DEFLATED, 31)
+        yield packer.compress(first) + packer.flush(zlib.Z_SYNC_FLUSH)
+        await asyncio.sleep(0)
+        yield packer.compress(rest) + packer.flush()
+
+    response = StreamingResponse(
+        writes(), status_code=result.status_code, media_type="text/html; charset=utf-8",
+    )
+    response.headers.append("Vary", "Accept-Encoding")
+    # A proxy in front (nginx buffers by default) would glue the two writes
+    # back together: the page stays right, the head start is lost.
+    response.headers["X-Accel-Buffering"] = "no"
+    if gzip:
+        response.headers["Content-Encoding"] = "gzip"
+    return response
 
 
 def _match_outlet_in_chain(

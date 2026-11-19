@@ -113,6 +113,7 @@ from datetime import datetime, timedelta
 from typing import Any, ClassVar
 
 from bretzel.components.base import Component, ComponentUsageError, el
+from bretzel.components.base.class_composition import merge_app_classes
 from bretzel.components.base.composition import unwrap_transparent
 from bretzel.components.base.events import item_action_attrs
 from bretzel.components.base.field_wiring import activate_keydown
@@ -583,17 +584,35 @@ class Scheduler(Component):
             attrs["data-bz-gap"] = str(GAP)
         return Element(tag=self._tag, attrs=attrs, children=tuple(rows))
 
-    def _day_mark(self, cls: dict[str, str], day: date_type, today: date_type) -> str:
-        """Today, and today only. The day of ``date=`` wears no mark: next
-        to today's it would read as a second today."""
-        return cls["today"] if day == today else ""
+    def _worn(self, *names: str) -> str:
+        """One element wearing several slots — a day's number and its mark.
+        The theme's slots follow one another as they always did; what the
+        app passed for any of them is merged LAST, so neither the theme's
+        mark nor the sheet's order out-votes it (cf. the badge and its pill
+        of ``ui.bottom_bar``)."""
+        bare = self._resolved_theme(with_instance_slots=False).get("slots", {})
+        composed = " ".join(bare[name] for name in names if bare.get(name))
+        addition = self._slot_addition(*names)
+        return merge_app_classes(composed, addition) if addition else composed
+
+    def _number_class(self, cls: dict[str, str], number: str, day: date_type,
+                      today: date_type, *, outside: bool = False) -> str:
+        """The class of a day's number. Today, and today only, wears the
+        ``today`` mark: the day of ``date=`` wears none — next to today's it
+        would read as a second today. In the month, a day of another month
+        wears ``month_outside``."""
+        if day == today:
+            return self._worn(number, "today")
+        if outside:
+            return self._worn(number, "month_outside")
+        return cls[number]
 
     def _head(self, cls: dict[str, str], days: list[date_type]) -> Element:
         today = date_type.today()
         heads: list[Node] = [el("div", {"class": cls["gutter"]})]
         for day in days:
             name = self._day_name(cls, day)
-            number_class = f"{cls['day_number']} {self._day_mark(cls, day, today)}"
+            number_class = self._number_class(cls, "day_number", day, today)
             heads.append(el("div", {"class": cls["day_head"]},
                             [name, el("div", {"class": number_class}, [str(day.day)])]))
         return el("div", {"class": cls["head"]}, heads)
@@ -798,11 +817,8 @@ class Scheduler(Component):
         cells: list[Node] = []
         for day in week:
             outside = day.month != self._date.month
-            number_class = cls["month_number"]
-            if mark := self._day_mark(cls, day, today):
-                number_class = f"{number_class} {mark}"
-            elif outside:
-                number_class = f"{number_class} {cls['month_outside']}"
+            number_class = self._number_class(cls, "month_number", day, today,
+                                              outside=outside)
             pieces = sorted((s for s in cut if s.day == day), key=lambda s: (s.start, -s.end))
             chips: list[Node] = [self._chip(cls, s) for s in pieces[:MONTH_CHIPS]]
             if len(pieces) > MONTH_CHIPS:

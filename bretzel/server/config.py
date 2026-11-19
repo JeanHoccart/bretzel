@@ -10,8 +10,11 @@ from __future__ import annotations
 import logging
 import os
 import re
+import secrets
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlparse
 
@@ -54,6 +57,58 @@ _BCP47 = re.compile(r"[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|\d{3}))?")
 class ConfigError(ValueError):
     """Raised at :class:`BretzelConfig` construction when a required
     setting is missing or malformed."""
+
+
+#: Where an app that names no key keeps the one generated for it — in the
+#: project cache, ignored by git like the rest of ``.bretzel/``.
+SECRET_FILE = Path(".bretzel") / "secret_key"
+
+
+def project_secret() -> str:
+    """The project's own key, ``./.bretzel/secret_key``, created on the
+    first start.
+
+    A key generated at every start would sign everyone out at each
+    restart; one written in the code is public. The file is neither: it
+    stays on the machine, readable by its owner only, and every process
+    started from the same directory reads the same key. Several machines
+    behind one address each generate their own — there, set
+    ``BRETZEL_SECRET_KEY``, as the notice printed on creation says.
+
+    Written whole to a file of its own, then published by ``os.link``,
+    which refuses an existing name: two workers starting together cannot
+    each keep a different key — the second reads the first one's, never
+    a half-written file.
+    """
+    path = Path.cwd() / SECRET_FILE
+    key = secrets.token_hex(32)
+    draft = path.with_name(f"{path.name}.{os.getpid()}")
+    try:
+        if path.exists():
+            return path.read_text(encoding="ascii").strip()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(draft, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="ascii") as fh:
+            fh.write(key)
+        try:
+            os.link(draft, path)
+        except FileExistsError:
+            return path.read_text(encoding="ascii").strip()
+        finally:
+            draft.unlink(missing_ok=True)
+    except OSError as exc:
+        raise ConfigError(
+            f"secret_key is required — no BRETZEL_SECRET_KEY, and {path} "
+            f"cannot be created ({exc}). Pass Bretzel(secret_key=...) or set "
+            "the BRETZEL_SECRET_KEY environment variable."
+        ) from exc
+    print(
+        f"[bretzel] no secret key given: generated one in {SECRET_FILE.as_posix()} "
+        "(kept across restarts, never commit it). Several machines serving "
+        "the same app need one key: set BRETZEL_SECRET_KEY on each.",
+        file=sys.stderr,
+    )
+    return key
 
 
 #: Words a placeholder key is written with — the ones the examples use.
@@ -526,8 +581,10 @@ class BretzelConfig:
         """Resolve config from kwargs + env-var fallbacks.
 
         ``secret_key`` falls through to ``$BRETZEL_SECRET_KEY`` if not
-        passed explicitly; ``mode`` falls through to ``$BRETZEL_MODE``
-        ("dev" / anything else, unset → prod).
+        passed explicitly, then to the project's own key,
+        ``./.bretzel/secret_key``, generated on the first start
+        (:func:`project_secret`); ``mode`` falls through to
+        ``$BRETZEL_MODE`` ("dev" / anything else, unset → prod).
 
         This is where the preset becomes concrete values: ``debug`` and
         ``expose_errors`` when not supplied (or ``None``) take the mode's
@@ -537,7 +594,7 @@ class BretzelConfig:
         allows testing the real error pages locally.
         """
         if not kwargs.get("secret_key"):
-            kwargs["secret_key"] = os.environ.get("BRETZEL_SECRET_KEY", "")
+            kwargs["secret_key"] = os.environ.get("BRETZEL_SECRET_KEY", "") or project_secret()
         if kwargs.get("mode") is None:
             kwargs["mode"] = (
                 "dev"

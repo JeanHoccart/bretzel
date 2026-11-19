@@ -17,6 +17,23 @@ What it is for, who opens it, what it shows, what can be done from it. Infer
 what you can from the app (its features, its data); ask only what you
 cannot, in one short message.
 
+- **How the user works today, not what the category offers.** Ask which
+  actions they really use in the tool this screen replaces. A mail screen
+  for someone who only marks as read and archives has two actions, not the
+  twenty of a full mail client.
+- **One screen, one job.** If the request bundles several screens (a list,
+  an agenda, a to-do, an assistant), say so and start with one. Agree on
+  the app's shell first when there is none.
+- **Nothing invented.** The first mockup holds what was asked and nothing
+  else, as light as it can be. Features you think of go in the message as
+  questions, not on the screen: adding later is cheap, removing what the
+  user never wanted costs their trust.
+- **Look at the references.** For each gesture the screen offers (picking
+  recipients, a folder, a long list, a separator, a scrollbar), check how
+  two or three established products do it, say which you follow, and
+  recommend. A plain select where every real product has a token field is
+  the kind of first draft that has to be redone.
+
 ## 2. Write the mockup
 
 One file, `mockups/<screen>.py` (with an empty `mockups/__init__.py`), its
@@ -72,6 +89,11 @@ app.include(sys.modules[__name__])
   function alone.
 - Handlers are module-level no-ops (a notification at most). The layout,
   the hierarchy and the words are what is being decided.
+- **Components as they are.** Props (`variant=`, `size=`, `gap=`,
+  `align=`) first, no `classes=` in a first draft. When the screen needs a
+  component Bretzel does not have, or one that cannot do it without
+  forcing classes, say so in the message — do not stand in with the
+  nearest one (a select for recipients, a textarea for rich text).
 
 ## 3. Show it
 
@@ -81,17 +103,35 @@ bretzel probe mockups.<screen>:app --out mockups/shots/<screen>
 ```
 
 The probe drives a real browser and writes `f1-light.png` and
-`f1-dark.png`. Open both yourself first; fix what is obviously wrong. Then
-give the user the two screenshot paths, three lines on the choices made, and
-ask for their validation or changes. Iterate in rounds until they say yes.
-`bretzel dev mockups.<screen>:app` lets them click through it themselves.
+`f1-dark.png`. Before the user sees anything, check it yourself:
+
+- **Measure, do not eyeball.** In the browser, read the boxes
+  (`getBoundingClientRect`): the gaps between repeated rows are equal, the
+  space on each side of a separator or a scrollbar matches, edges that
+  should line up do, sibling buttons share their radius and height.
+- **Narrow it.** Load the page at the smallest width the user has, and
+  again in between: nothing passes under another element, nothing comes
+  out on the far side, a long label truncates instead of pushing.
+- **Play the gestures.** A screenshot shows none of these: click each
+  action and look at what remains (an archived item leaves the reading
+  pane too), check the focus lands where typing starts (the reply box after
+  "Reply"), double-click whatever creates or sends (it happens once), and
+  try selecting the text the user will want to copy.
+
+Then give the user the two screenshot paths, three lines on the choices
+made, and ask for their validation or changes. When they ask a question
+("should the scrollbar show?", "a card or not?"), answer it in that same
+round with what the references do and your recommendation. Iterate in
+rounds until they say yes. `bretzel dev mockups.<screen>:app` lets them
+click through it themselves.
 
 ## 4. Wire it
 
-Once validated — the user says "build it" — move the page into the app
-(`features/<screen>.py`, included in `main.py`): the same component tree;
-the data function now returns typed state or a real query, and the no-op
-handlers become real ones.
+Once validated — the user says "build it" — move the page into the app as
+its own feature (see the `bretzel` skill, "Write in this shape"): the same
+component tree; the data function now returns typed state or a real query,
+and the no-op handlers become real ones — `@idempotent` on every handler
+that creates, sends or pays.
 Do not redesign while wiring; a change of design goes back to step 2.
 
 ## 5. Check it against the mockup

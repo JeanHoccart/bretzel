@@ -88,6 +88,25 @@ def quickstart_page() -> None:
                             lang="python",
                         )
 
+                with ui.card():
+                    with ui.vstack(gap="md"):
+                        ui.badge("5", color="primary")
+                        ui.heading("Check it", level=2)
+                        ui.code(
+                            "bretzel check app\n"
+                            'python -m pip install "bretzel[probe]"\n'
+                            "python -m playwright install chromium\n"
+                            "bretzel probe app.main:app",
+                            lang="bash",
+                        )
+                        ui.text(
+                            "`check` reads every file without running it. `probe` "
+                            "serves the app and drives a real browser: JavaScript "
+                            "errors, failed requests, overflow, keyboard, both "
+                            "themes. Its two installs are needed once per machine.",
+                            color="muted", size="sm",
+                        )
+
             with ui.card(color="primary"):
                 with ui.vstack(gap="md"):
                     ui.heading("What the generator created", level=2)

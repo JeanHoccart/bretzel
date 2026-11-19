@@ -110,9 +110,13 @@ def panel_from_teleport(el: Any) -> Any:
     ``<template bz-teleport="body">`` (moved under ``<body>`` at runtime
     to clear ancestor clip / stacking traps). Tests that assert on the
     panel need to descend into that template. Falls back to the element's
-    last child when no teleport wrapper is present.
+    last child when no teleport wrapper is present. A closed panel's
+    wrapper sits in a :class:`~bretzel.core.tree.LaterNode` (a full page
+    writes it after what shows): looked through like any fragment.
     """
-    for child in getattr(el, "children", ()):
+    from bretzel.render.fusion import _flatten_fragments
+
+    for child in _flatten_fragments(getattr(el, "children", ())):
         if getattr(child, "tag", None) == "template" and "bz-teleport" in (
             getattr(child, "attrs", {}) or {}
         ):

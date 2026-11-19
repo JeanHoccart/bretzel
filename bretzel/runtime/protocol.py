@@ -13,7 +13,9 @@ use native ``hx-post`` attributes; client-only events use ``BZ_ON_PREFIX``.
 
 from __future__ import annotations
 
-from typing import Final
+import json
+from collections.abc import Mapping
+from typing import Any, Final
 
 # ───────────────────────────────────────────────────────────────────────────
 # Protocol version (semver — major bump = incompatible wire change)
@@ -193,6 +195,28 @@ ROUTE_ICONS: Final[str] = f"{ROUTE_PREFIX}/icons"
 ROUTE_FAVICON: Final[str] = f"{ROUTE_PREFIX}/favicon.svg"
 ROUTE_TOUCH_ICON: Final[str] = f"{ROUTE_PREFIX}/apple-touch-icon.png"
 ROUTE_ACTION: Final[str] = f"{ROUTE_PREFIX}/action"
+
+
+def posted_action(attrs: Mapping[str, Any]) -> str | None:
+    """The action id these attributes post (``hx-post``, written by
+    ``components.base.events.action_attrs``), or ``None``. Read next to the
+    route it names, so every layer reads it the same way."""
+    post = attrs.get("hx-post")
+    prefix = f"{ROUTE_ACTION}/"
+    if isinstance(post, str) and post.startswith(prefix):
+        return post[len(prefix):]
+    return None
+
+
+def posted_args(attrs: Mapping[str, Any]) -> str:
+    """The ``_args`` blob these attributes post (``hx-vals``, written by
+    ``action_attrs``), ``""`` when there is none."""
+    vals = attrs.get("hx-vals")
+    try:
+        return str(json.loads(vals).get("_args", "")) if isinstance(vals, str) else ""
+    except (ValueError, AttributeError):
+        return ""
+
 ROUTE_SSE: Final[str] = f"{ROUTE_PREFIX}/sse"
 # The user assets (``Bretzel(static_dir=…)``) — OUTSIDE the
 # ``/_bretzel`` prefix, which is reserved for the framework: that path
@@ -378,6 +402,18 @@ SINK_ELEMENT_ID: Final[str] = "bz-sink"
 # The JSON block of the glyphs a full page drew on the server
 # (``render/icons.py``), handed to the icon component as it registers.
 ICONS_DATA_ID: Final[str] = "bz-icons"
+
+# A full page arrives in two times (``core.tree.LaterNode``): what the page
+# hides at load — a closed dialog, a menu's panel — is written after what
+# shows. In its place stays an empty ``<template LATER_PLACE_ATTR="n">``;
+# the piece itself rides at the end of ``<body>`` in a
+# ``<template LATER_PIECE_ATTR="n">``, and the runtime puts it back
+# (``__LATER_PLACE__`` / ``__LATER_PIECE__`` in ``index.js``). A
+# ``<template>`` because it is the one element the parser leaves where it
+# is written — in a ``<table>`` or a ``<select>`` too — and whose content
+# it neither shows nor lets a script find.
+LATER_PLACE_ATTR: Final[str] = "data-bz-later-place"
+LATER_PIECE_ATTR: Final[str] = "data-bz-later"
 
 # RESERVED key of the ``$bz.pending`` registry: "a NAVIGATION is in
 # flight". The bridge arms it in addition to the triggering element when

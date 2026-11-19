@@ -443,7 +443,7 @@ def build_middleware_stack(app: Bretzel) -> None:
       methods using the session id Session just populated;
       short-circuits ``/_bretzel/action/*`` since those carry their
       own HMAC, and waives the token for an ``Authorization: Bearer``
-      caller).
+      caller and for one that carries no cookie at all).
     - ``AuthMiddleware`` (reads the auth cookie).
     - ``RenderContextMiddleware`` (innermost — composes a
       :class:`RenderContext` from everything the upstream middleware
@@ -471,8 +471,9 @@ def build_middleware_stack(app: Bretzel) -> None:
     # ``request.state``, computes the expected token, and rejects
     # non-safe-method requests whose ``X-Bretzel-CSRF`` header doesn't
     # match. Action routes (``/_bretzel/action/*``) are bypassed —
-    # they carry their own per-call HMAC — and a bearer-token caller
-    # needs no token (the Origin check still applies to it).
+    # they carry their own per-call HMAC — and a bearer-token caller,
+    # like one with no cookie at all, needs no token (the Origin check
+    # still applies to both).
     app.fastapi.add_middleware(
         CSRFMiddleware,
         csrf_key=config._csrf_key,
@@ -522,7 +523,9 @@ def build_middleware_stack(app: Bretzel) -> None:
     # (``DEFAULT_EXCLUDED_CONTENT_TYPES``), which is better than a
     # path-based exclusion: it also covers a stream an app would expose
     # elsewhere. We DEPEND on it, so we GATE it —
-    # ``tests/integration/server/test_compression.py``.
+    # ``tests/integration/server/test_compression.py``. A full page sent
+    # in two writes compresses itself for the same reason, and this
+    # middleware lets it through (``server/routing/pages.py``).
     app.fastapi.add_middleware(GZipMiddleware, compresslevel=6)
 
     # Security headers — above the whole framework stack (so added

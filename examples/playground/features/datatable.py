@@ -545,6 +545,9 @@ def client_events_panel() -> None:
         row_key="id",
         search=False,
         on_item_click=events.log.push(clicked),
+        # Ctrl/⌘+click or a middle click opens the row's address in a new
+        # tab; a plain click still runs the action above.
+        row_href=lambda row: f"/datatable?person={row['id']}",
     )
 
     ui.divider()

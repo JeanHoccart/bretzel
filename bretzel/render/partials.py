@@ -29,7 +29,7 @@ from typing import Any
 
 from bretzel.core import IdGenerator, call_without_blocking
 from bretzel.core.serialize import serialize
-from bretzel.core.tree import Element, Node
+from bretzel.core.tree import Element, FragmentNode, Node
 from bretzel.render.context import RenderContext, use_context
 from bretzel.render.decorators.refreshable import (
     RefreshableHandle,
@@ -41,8 +41,11 @@ from bretzel.render.shared_parts import shared_part_templates
 from bretzel.render.types import BretzelApp
 from bretzel.render.zone_diff import (
     Fingerprinter,
+    as_shown,
     changes,
+    drifted,
     holding,
+    inner_version,
     ship,
     stamp_zones,
     stamped,
@@ -83,6 +86,10 @@ class RenderResult:
     headers: dict[str, str] = field(default_factory=dict)
     new_cookies: dict[str, dict[str, Any]] = field(default_factory=dict)
     deleted_cookies: set[str] = field(default_factory=set)
+    #: A full page that hides something at load: where its hidden pieces
+    #: start in ``body`` (``render/later.py``). The server sends what comes
+    #: before first, so the browser shows it without waiting for the rest.
+    visible_end: int | None = None
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -249,15 +256,30 @@ async def render_zones(
         # The controls an action overrode: the browser shows what was
         # typed there, not the render its fingerprint describes.
         stale = holding(printed, root, overridden) if overridden else set()
-        if held == printed.digest and not stale:
+        # A zone inside, redrawn or patched alone, moved under this one's
+        # fingerprint: the browser's copy is no longer that render
+        # (``render/zone_diff.py``, "A zone inside a zone").
+        presented = ctx.zone_hashes
+        if held == printed.digest and not stale and not drifted(printed.zones, h.id, presented):
             bases[h.id] = held
             continue
-        patch = changes(printed, root, known, stale) if known else None
+        shown = as_shown(known, h.id, presented, maps) if known else None
+        patch = changes(printed, root, shown, stale) if shown else None
         if patch is not None:
             if debug:
                 _warn_slid(h, patch.slid)
             emitted[h.id] = "".join(map(serialize, ship(h.id, patch, fingerprinter, maps)))
             bases[h.id] = held
+            # Each zone inside gets its new fingerprint: the patch may
+            # have changed its elements without shipping its root. Its
+            # version is cached too, for when it is redrawn alone.
+            for zone_id, digest in printed.zones.items():
+                if zone_id != h.id and zone_id in presented and digest != presented[zone_id]:
+                    digests[zone_id] = digest
+                    bases[zone_id] = presented[zone_id]
+                    version = inner_version(printed, zone_id)
+                    if maps is not None and version is not None:
+                        maps.put_version(digest, version)
             continue
         inner = Element(root.tag, root.attrs, tuple(stamp_zones(root.children, fingerprinter, maps)))
         emitted[h.id] = serialize(stamped(inner, printed, maps))
@@ -434,7 +456,10 @@ def _warn_slid(handle: RefreshableHandle,
 
 
 def _holds_client_state(node: Node) -> bool:
-    """Does ``node`` hold a component with a client scope (``bz-data``)?"""
+    """Does ``node`` hold a component with a client scope (``bz-data``)?
+    Through fragments too: a closed overlay's panel is one (``LaterNode``)."""
+    if isinstance(node, FragmentNode):
+        return any(_holds_client_state(kid) for kid in node.children)
     if not isinstance(node, Element):
         return False
     return "bz-data" in node.attrs or any(_holds_client_state(kid) for kid in node.children)

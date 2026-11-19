@@ -11,7 +11,7 @@ behavior surface is too different :
 - float precision rounding (``0.1 + 0.1 + 0.1 === 0.30000000000000004``
   — same trick as Slider, ``toFixed(stepPrecision)``)
 - keyboard nav (ArrowUp/Down ± step, PageUp/Down ± step*10)
-- optional wheel-while-focused inc/dec
+- optional wheel-while-focused inc/dec (``wheel=True``; off by default)
 - imperative ``.increment()`` / ``.decrement()`` (in addition to the
   standard ``.set / .clear / .focus / .blur``)
 
@@ -82,7 +82,9 @@ class NumberInput(ValueCommands, FocusCommands, Component):
     max: Any = reactive_prop(default=None, emit_attr=False)
     step: float = reactive_prop(default=1.0, emit_attr=False)
     placeholder: str | None = reactive_prop(default=None, emit_attr=False)
-    wheel: bool = reactive_prop(default=True, emit_attr=False)
+    #: Off by default: a field that has the focus would otherwise change its
+    #: value, in silence, under the wheel that meant to scroll the page.
+    wheel: bool = reactive_prop(default=False, emit_attr=False)
     disabled: bool = reactive_prop(default=False, emit_attr=False)
     required: bool = reactive_prop(default=False, emit_attr=False)
     color: str = reactive_prop(default="primary", emit_attr=False)
@@ -144,7 +146,7 @@ class NumberInput(ValueCommands, FocusCommands, Component):
         disabled = bool(self._reactive_values.get("disabled"))
         required = bool(self._reactive_values.get("required"))
         placeholder = self._reactive_values.get("placeholder") or ""
-        wheel_on = bool(self._reactive_values.get("wheel", True))
+        wheel_on = bool(self._reactive_values.get("wheel", False))
 
         min_raw = self._reactive_values.get("min")
         max_raw = self._reactive_values.get("max")

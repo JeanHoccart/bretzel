@@ -303,7 +303,7 @@ _ANTI_FLASH_STYLE = (
 # takes ``onpopstate`` — htmx's own restore would re-render the whole
 # ``<body>``, its scripts included), so the client-side snapshot buys
 # nothing. Size 0 turns the snapshot off entirely. htmx reads this from ``meta[name=htmx-
-# config]`` at load — emitted in <head> before the deferred runtime.
+# config]`` at load — emitted in <head>, before the framework's scripts.
 _HTMX_CONFIG = '{"historyCacheSize":0}'
 
 
@@ -525,7 +525,7 @@ def default_shell(
         manifest_url=manifest_url,
         theme_color=theme_color,
     )
-    body = _build_body(body_html, page_uuid, nav_progress=nav_progress)
+    body = _build_body(body_html, page_uuid, js_list, nav_progress=nav_progress)
 
     return (
         "<!doctype html>\n"
@@ -550,13 +550,13 @@ def _default_css(cache_bust: str | None) -> list[str]:
 
 
 def _default_js(cache_bust: str | None) -> list[str]:
-    # Order matters with ``defer`` scripts:
+    # Order matters — they run in turn at the end of ``<body>``:
     # 1. HTMX must load first; the runtime bridge wires its events.
     # 2. Idiomorph (htmx-2 extension) must load AFTER htmx so its
     #    ``htmx.defineExtension('morph', ...)`` can register before
     #    the first swap.
-    # 3. ``runtime.js`` last — its bootstrap runs at DOMContentLoaded
-    #    and expects ``window.htmx`` to exist. No Alpine in V3.
+    # 3. ``runtime.js`` last — it boots at once on what shows and
+    #    expects ``window.htmx`` to exist. No Alpine in V3.
     #
     # The first three are served from the copies shipped in the package,
     # else from the project cache; the CDN is only the fallback when
@@ -851,7 +851,7 @@ def _build_head(
         f'<meta charset="{escape_attr(charset)}"/>',
         '<meta name="viewport" content="width=device-width, initial-scale=1"/>',
         # htmx history snapshot off (cf. _HTMX_CONFIG) — must precede the
-        # deferred htmx <script> so it's read at load. Single-quoted attr
+        # htmx <script> so it's read at load. Single-quoted attr
         # value : the content is JSON with double quotes.
         f"<meta name=\"htmx-config\" content='{_HTMX_CONFIG}'/>",
         f"<title>{escape_html(title)}</title>",
@@ -936,7 +936,7 @@ def _build_head(
     # Theme payload — read by notification.js (and any future
     # runtime-managed component that needs Tailwind classes resolved
     # from a Python source of truth). Injected synchronously so it's
-    # available the moment the deferred ``runtime.js`` evaluates.
+    # available the moment ``runtime.js`` evaluates.
     # Keeps the theme as the single source of truth in Python ; the
     # JS never carries its own copy of the class strings.
     parts.append(f"<script>{_inline['theme']}</script>")
@@ -953,9 +953,12 @@ def _build_head(
     # nothing, because it is the DATA that comes from them.
     parts.append(f"<script>{_inline['icons']}</script>")
 
-    # Framework JS — defer so the body can render before they execute.
+    # Framework JS — fetched from here, run at the end of what shows
+    # (``_build_body``): the page boots on its visible part, before the
+    # pieces it hides arrive (``render/later.py``). A ``defer`` script would
+    # wait for the whole document.
     for url in js_urls:
-        parts.append(f'<script defer src="{escape_attr(url)}"></script>')
+        parts.append(f'<link rel="preload" as="script" href="{escape_attr(url)}"/>')
 
     # User-supplied <head> extras (ui.title() / ui.meta_tag() / og:image).
     # We accept any Node ; serialize each through the core serializer.
@@ -965,8 +968,14 @@ def _build_head(
     return "<head>\n  " + "\n  ".join(parts) + "\n</head>"
 
 
-def _build_body(body_html: str, page_uuid: str, *, nav_progress: bool = True) -> str:
+def _build_body(
+    body_html: str, page_uuid: str, js_urls: Iterable[str] = (), *, nav_progress: bool = True,
+) -> str:
     """Wrap the inner body in the ``bz-page-<uuid>`` div (CR-3).
+
+    The framework's scripts close it, without ``defer``: they run once what
+    shows is parsed, and the runtime boots on it (``index.js``). What the
+    page hides comes after them (``render/later.py``).
 
     The wrapper carries :
 
@@ -1066,7 +1075,8 @@ def _build_body(body_html: str, page_uuid: str, *, nav_progress: bool = True) ->
         # Notifications ride the same <bz-patch> path (the V2
         # #bz-script-outbox is gone).
         f'  <div id="{SINK_ELEMENT_ID}" hidden></div>\n'
-        "</body>"
+        + "".join(f'  <script src="{escape_attr(url)}"></script>\n' for url in js_urls)
+        + "</body>"
     )
 
 

@@ -33,6 +33,7 @@ from bretzel.render.decorators.page import PageMeta
 from bretzel.render.decorators.refreshable import drain_pending_async_zones
 from bretzel.render.icons import with_glyphs
 from bretzel.render.ids import refuse_duplicate_ids
+from bretzel.render.later import after_all, visible_first
 from bretzel.render.partials import RenderResult, fingerprinter_for
 from bretzel.render.shared_parts import shared_part_templates
 from bretzel.render.shell import default_shell
@@ -146,7 +147,10 @@ async def render_page(
     # A full page draws its icons while parsing (``render/icons.py``);
     # a partial nav is swapped by htmx, which would not.
     produced, preload = with_glyphs(produced)
-    body_html = "".join(serialize(node) for node in produced) + preload
+    # What the page hides at load (a closed dialog, a menu's panel) is
+    # written after what shows, at the end of ``<body>`` (``render/later.py``).
+    shown, pieces = visible_first(produced)
+    body_html = shown + preload
     # The page's ONE tooltip panel, wearing the app's merged theme — every
     # ``tooltip=`` of the page shows it (``tip.js``). Outside the
     # outlet, so a boosted navigation keeps it. Imported here: ``render``
@@ -222,6 +226,15 @@ async def render_page(
         theme_color=getattr(getattr(cfg, "pwa", None), "theme_color", None),
     )
 
+    # The pieces close ``<body>``, after the runtime's scripts: the response
+    # can then go in two writes, cut where they start (``visible_end``).
+    visible_end = None
+    if pieces:
+        visible_end = document.rfind("</body>")
+        if visible_end < 0:
+            visible_end = len(document)
+        document = document[:visible_end] + after_all(pieces) + document[visible_end:]
+
     headers = dict(ctx.response_headers)
     # Dev : never let the browser cache the full document. Every
     # page carries baked-in IDs / signatures / cache-bust hashes
@@ -238,6 +251,7 @@ async def render_page(
         headers=headers,
         new_cookies=dict(ctx.new_cookies),
         deleted_cookies=set(ctx.deleted_cookies),
+        visible_end=visible_end,
     )
 
 

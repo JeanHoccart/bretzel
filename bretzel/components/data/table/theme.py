@@ -116,9 +116,10 @@ TABLE_THEME: dict[str, Any] = {
         "lg": "px-5 py-3.5",
     },
     "modifiers": {
-        # Clickable rows : pointer affordance + no text selection on the
-        # double-click that often follows a row click.
-        "clickable": "[&>tbody>tr]:cursor-pointer [&>tbody>tr]:select-none",
+        # Clickable rows : the pointer affordance. Their text stays
+        # selectable — an address is copied from a row; a drag that selects
+        # sends nothing (the bridge's ``selectedIn``).
+        "clickable": "[&>tbody>tr]:cursor-pointer",
     },
     # Per-column alignment modifiers — applied on the th + td of the
     # corresponding column.

@@ -416,6 +416,7 @@ class Datatable(Component):
         max_height: str | None = None,
         row_key: str | Callable[[Any], Any] | None = None,
         on_item_click: Callable[..., Any] | None = None,
+        row_href: Callable[[Any], str] | None = None,
         size: str | None = None,
         color: str | None = None,
         empty_text: str | Component | None = None,
@@ -460,6 +461,7 @@ class Datatable(Component):
         self._max_height = max_height
         self._row_key = row_key
         self._item_click = on_item_click
+        self._row_href = row_href
         self._empty_text = empty_text
         self._empty_icon = empty_icon
         self._empty_description = empty_description
@@ -882,6 +884,7 @@ class Datatable(Component):
             rows=page_rows,
             row_key=self._row_key,
             on_item_click=self._item_click,
+            row_href=self._row_href,
             size=size,
             color=color,
             empty_text=self._empty_text,

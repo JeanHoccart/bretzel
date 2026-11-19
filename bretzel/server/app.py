@@ -31,7 +31,7 @@ from typing import Any, Literal
 from fastapi import FastAPI
 
 from bretzel.core import base_path
-from bretzel.render import RefreshableHandle, ZoneMaps, ZoneRegistry
+from bretzel.render import RefreshableHandle, RowMemo, ZoneMaps, ZoneRegistry
 from bretzel.runtime import PUBLIC_ASSET_ROUTES
 from bretzel.server.config import BretzelConfig
 from bretzel.server.decorators.identity import MARK_DOOR, MARK_SOURCE
@@ -201,6 +201,9 @@ class Bretzel:
         # (``render/zone_diff.py``). Per process: another worker, or an
         # evicted version, ships the zone whole.
         self._zone_maps = ZoneMaps()
+        # The table rows last rendered per session, taken back when nothing
+        # they depend on moved (``render/row_memo.py``). Per process too.
+        self._row_memo = RowMemo()
         # The app's refreshable zones (``render/decorators/refreshable.py``).
         self._zones = ZoneRegistry()
         self._is_ready: bool = False
@@ -370,6 +373,11 @@ class Bretzel:
     def zone_maps(self) -> ZoneMaps:
         """The zone fingerprint cache read by the render pipeline."""
         return self._zone_maps
+
+    @property
+    def row_memo(self) -> RowMemo:
+        """The table rows ``ui.table`` takes back (``render/row_memo.py``)."""
+        return self._row_memo
 
     @property
     def zones(self) -> ZoneRegistry:

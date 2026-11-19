@@ -166,9 +166,16 @@ class TestKeyboardWheel:
         # ``preventDefault`` inlined (was the ``.prevent`` modifier).
         assert "preventDefault()" in out
 
-    def test_wheel_on_by_default(self) -> None:
+    def test_wheel_off_by_default(self) -> None:
+        """A focused field under a wheel meant to scroll the page changed
+        its value, in silence (micro-gestures audit, defect 6)."""
         with render_isolated():
             out = serialize(NumberInput(value=42).render())
+        assert "bz-on:wheel" not in out
+
+    def test_wheel_on_when_asked(self) -> None:
+        with render_isolated():
+            out = serialize(NumberInput(value=42, wheel=True).render())
         # ``preventDefault`` so the page doesn't scroll while wheel-
         # tweaking — inlined (V3 bz-on has no ``.prevent`` modifier).
         assert "bz-on:wheel=" in out
@@ -178,7 +185,7 @@ class TestKeyboardWheel:
         the input would bump as the user scrolls past the page,
         which is awful UX."""
         with render_isolated():
-            out = serialize(NumberInput(value=42).render())
+            out = serialize(NumberInput(value=42, wheel=True).render())
         # The wheel body checks _focused first.
         assert "if (_focused)" in out
 

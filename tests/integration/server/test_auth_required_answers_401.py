@@ -63,7 +63,8 @@ _app.include(account_page, action_page)
 
 @pytest.fixture(scope="module")
 def client() -> TestClient:
-    with TestClient(_app, raise_server_exceptions=False) as c:
+    # A browser navigation: the 401 comes back as the error page.
+    with TestClient(_app, headers={"Accept": "text/html"}, raise_server_exceptions=False) as c:
         yield c
 
 

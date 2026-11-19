@@ -30,6 +30,13 @@ handler receives the row's *key* (``row_key`` column, or the row's
 row click — only the "empty" parts of the row do. Rows become keyboard
 operable (``role="button"`` + ``tabindex`` + Enter/Space).
 
+**Rows that lead to a page.** ``row_href=lambda row: f"/contacts/{row['id']}"``
+says where a row goes: a click opens it, Ctrl/⌘+click, Shift+click or a
+middle click open it in a new tab — the list stays. With ``on_item_click``
+as well, a plain click runs the action and the modified clicks still open
+the address. Text in the row stays selectable: a drag selects, it does
+not navigate.
+
 **Empty state.** When ``rows`` is empty the table renders a
 :class:`~bretzel.components.feedback.empty_state.EmptyState` automatically
 (``empty_text`` / ``empty_icon`` / ``empty_description``, or a full
@@ -40,6 +47,14 @@ row (and the components inside its cells — badges, dropdowns) gets a
 stable key derived from ``row_key`` / ``id``. A ``@refreshable`` table
 that re-sorts or paginates therefore reconciles cleanly under idiomorph
 instead of tearing rows down.
+
+**Rows taken back.** When a redraw finds a keyed row whose value, columns
+and read state did not move since its last render in this session, the
+row is taken back instead of rebuilt (``render/row_memo.py``). So a
+``render=`` depends on the cell, the row and the state it reads, nothing
+else: what it reads elsewhere (the time, a query, a global) goes in the
+row. In dev the row is rebuilt and compared, and a difference raises
+``RowMismatchError``, naming the row.
 
 For sort / filter / pagination, compose with the navigation tier
 (``ui.pagination``, with the SAME ``color=``) and per-column header
@@ -75,6 +90,7 @@ from bretzel.render.iteration import (
     current_iteration_key,
     key_segment,
 )
+from bretzel.render.row_memo import columns_print, print_of, row_cells
 
 # A row click is suppressed when it lands on an interactive descendant —
 # the actions dropdown, a link, a button, a form control. HTMX evaluates
@@ -261,6 +277,7 @@ class Table(Component):
         rows: Iterable[Any] = (),
         row_key: str | Callable[[Any], Any] | None = None,
         on_item_click: Callable[..., Any] | None = None,
+        row_href: Callable[[Any], str] | None = None,
         size: str | None = None,
         color: str | None = None,
         empty_text: str | Component | None = None,
@@ -278,6 +295,7 @@ class Table(Component):
         self._rows = list(rows)
         self._row_key = row_key
         self._item_click = on_item_click
+        self._row_href = row_href
         self._empty_text = empty_text
         self._empty_icon = empty_icon
         self._empty_description = empty_description
@@ -311,6 +329,21 @@ class Table(Component):
             )
 
     # ── Row-click action wiring ─────────────────────────────────────────
+
+    def _row_link_attrs(self, row: Any) -> dict[str, Any]:
+        """Where the row leads (``row_href=``): ``data-bz-href``, which the
+        runtime follows — a click, or a new tab on a modified or middle
+        click (``bridge.js``, ``rowLink``). A row without an action of its
+        own is a link for the keyboard and the screen reader."""
+        href = self._row_href(row) if self._row_href is not None else None
+        if not href:
+            return {}
+        attrs: dict[str, Any] = {"data-bz-href": str(href)}
+        if self._item_click is None:
+            attrs["role"] = "link"
+            attrs["tabindex"] = "0"
+            attrs["bz-on:keydown"] = _ROW_CLICK_KEYDOWN
+        return attrs
 
     def _row_action_attrs(self, row: Any, index: int) -> dict[str, Any]:
         """Register this row's server action (shared handler id, per-row
@@ -393,7 +426,7 @@ class Table(Component):
 
         size = self._reactive_values.get("size") or "md"
         size_pad = sizes.get(size, "")
-        clickable = self._item_click is not None
+        clickable = self._item_click is not None or self._row_href is not None
         ncols = max(1, len(self._columns))
 
         # ── Colgroup — drives per-column ``width`` via <col> tags ──
@@ -476,6 +509,14 @@ class Table(Component):
             row_iter = (
                 each(self._rows, key=self._row_key) if keyed else self._rows
             )
+            # A keyed row whose inputs did not move is taken back as its
+            # last render in this session gave it (``render/row_memo.py``):
+            # what the row depends on beyond itself and the state it reads.
+            ctx = current_context()
+            memo_base = (
+                (columns_print(self._columns), tuple(sorted(body_cls.items())), ctx.lang)
+                if keyed and self.id else None
+            )
             # …and the table pushes ITS own identity above the rows'.
             # Without that segment, a component born in a cell's
             # ``render=`` has NO parent on the stack (it is built during
@@ -488,6 +529,8 @@ class Table(Component):
             # finds a client scope by. Several candidates for one target is
             # a menu that opens instead of another and a subtree replaced
             # instead of merged. Guarded by ``test_no_duplicate_bz_id.py``.
+            # The state values the rows read, read once for the table.
+            memo_values: dict[tuple[type, str], str] = {}
             with key_segment(self.id):
                 for index, row in enumerate(row_iter):
                     # A row is named by ITS key, so only a keyed table
@@ -497,29 +540,33 @@ class Table(Component):
                     # rows.
                     rkey = current_iteration_key() if keyed else None
                     row_id = f"{self.id}__row_{rkey}" if self.id and rkey is not None else None
-                    cells: list[Node] = []
-                    for col in self._columns:
-                        cell_value = self._resolve_cell(row, col)
-                        cell_children = self._render_cell(
-                            cell_value, row, col
-                        )
-                        cells.append(
+
+                    def build(row: Any = row) -> tuple[Node, ...]:
+                        return tuple(
                             Element(
                                 tag="td",
                                 attrs={"class": body_cls[col.align]},
-                                children=cell_children,
+                                children=self._render_cell(self._resolve_cell(row, col), row, col),
                             )
+                            for col in self._columns
                         )
+
+                    cells = (
+                        row_cells(ctx, row_id, (print_of(row), *memo_base), build,
+                                  memo_values)
+                        if memo_base is not None and row_id is not None else build()
+                    )
                     row_attrs: dict[str, Any] = {
                         "class": slots.get("row", "")
                     }
                     if row_id is not None:
                         row_attrs["id"] = row_id
-                    if clickable:
+                    if self._item_click is not None:
                         row_attrs.update(self._row_action_attrs(row, index))
+                    if self._row_href is not None:
+                        row_attrs.update(self._row_link_attrs(row))
                     body_rows.append(
-                        Element(tag="tr", attrs=row_attrs,
-                                children=tuple(cells))
+                        Element(tag="tr", attrs=row_attrs, children=cells)
                     )
 
         # The body carries an id when the table does: a diff patches its

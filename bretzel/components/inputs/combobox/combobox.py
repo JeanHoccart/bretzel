@@ -649,7 +649,11 @@ class Combobox(ChoiceCommands, FocusCommands, Component):
         else:
             # Single mode : leave the default text-delete behaviour.
             backspace_branch = ""
+        # A key of an IME composition belongs to the IME: its Enter
+        # confirms the composition, not an option (``isComposing``; Safari's
+        # ``keyCode`` 229 after ``compositionend``).
         keydown_handler = (
+            "if (!($event.isComposing || $event.keyCode === 229)) { "
             "const k = $event.key; "
             "if (k === 'ArrowDown') { $event.preventDefault(); "
             "open = true; _moveHighlight(1); } "
@@ -659,6 +663,7 @@ class Combobox(ChoiceCommands, FocusCommands, Component):
             "_pickHighlighted(); } "
             "else if (k === 'Escape') { open = false; } "
             + backspace_branch
+            + "}"
         )
         input_attrs: dict[str, Any] = {
             "type": "text",

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 
 from bretzel.core.tree import Element, FragmentNode, HtmlNode, Node
 from bretzel.render.vendor import packaged_glyph
@@ -85,9 +86,8 @@ def _fill(node: Node, glyphs: dict[str, tuple[str, int, int]],
             out[i] = new
     if out is None:
         return node
-    if isinstance(node, Element):
-        return Element(node.tag, node.attrs, tuple(out))
-    return FragmentNode(tuple(out))
+    # ``replace`` keeps the node's kind: a ``LaterNode`` stays one.
+    return replace(node, children=tuple(out))
 
 
 def _with_glyph(node: Element, glyphs: dict[str, tuple[str, int, int]],

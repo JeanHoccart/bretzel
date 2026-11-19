@@ -21,10 +21,11 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import Any
 
 from bretzel.core.serialize import serialize
-from bretzel.core.tree import Element, Node
+from bretzel.core.tree import Element, FragmentNode, Node
 from bretzel.render.context import maybe_current_context
 
 __all__ = [
@@ -83,6 +84,9 @@ def graft_shared_parts(node: Node, ctx: Any) -> Node:
     without it, a picker's menus or swatches would be invisible to them.
     """
     parts = getattr(ctx, "shared_parts", None)
+    if parts and isinstance(node, FragmentNode):
+        # A closed overlay's panel is one (``LaterNode``): kept, looked through.
+        return replace(node, children=tuple(graft_shared_parts(c, ctx) for c in node.children))
     if not parts or not isinstance(node, Element):
         return node
     children = tuple(graft_shared_parts(c, ctx) for c in node.children)

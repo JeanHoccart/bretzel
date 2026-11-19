@@ -17,8 +17,11 @@ installed package describes itself, at the version the app runs.
   functions, never lambdas; universal kwargs).
 - `bretzel describe ui.datatable refreshable SessionState` — the full cards
   you need, in ONE call.
-- Docs for the ideas: https://docs.bretzel-py.dev/llms.txt. Every component
-  in real use, with its code: https://ui.bretzel-py.dev.
+- A recipe first, when one matches the request (an edit dialog, a list
+  shared live, a password login, pages with a navbar, a JSON route,
+  screens added to an existing FastAPI app): one complete app each, in
+  Markdown, listed first in https://docs.bretzel-py.dev/llms.txt. Every
+  component in real use, with its code: https://ui.bretzel-py.dev.
 
 ## Write in this shape
 
@@ -42,24 +45,48 @@ installed package describes itself, at the version the app runs.
   (`from bretzel.state import Topic, reads, writes`): the function that
   queries it carries `@reads(topic)`, the ones that change it
   `@writes(topic)`.
+- A title is `ui.heading(text, level=…)`, never a big `ui.text`: the
+  heading is what a screen reader and `get_by_role("heading")` find.
 - Use the components as they are: their props (`color=`, `size=`,
-  `variant=`, `align=`) before any `classes=`. Keep Bretzel's base style;
-  give the app its colors through its theme.
+  `variant=`, `align=`, `gap=`) before any `classes=`, and no `classes=` at
+  all in a first draft. Keep Bretzel's base style; give the app its colors
+  through its theme. A component that only does the job with forced
+  classes (`!`) is missing a prop: say so to the user rather than bend it.
+- When Bretzel has no component for the job, say so before writing. Do not
+  stand in with the nearest one (a select for a list of recipients, a
+  textarea for formatted text): the stand-in is what gets redone.
 - An app is `main.py` (the `Bretzel(...)` instance and `app.include(...)`)
-  plus `features/` (one module per screen or domain).
+  plus `features/`, from the first screen on: one package per screen or
+  domain, its logic (state, queries, handlers) apart from its UI, and its
+  contract — `Feature(name=..., kind=..., provides=..., uses=...)` in
+  `feature.py`, where `uses` names the only features it may import
+  (`bretzel describe Feature`). A feature file that passes a few hundred
+  lines is two features.
+- Every handler that creates, sends or pays carries `@idempotent`: a double
+  click then acts once.
 
 ## Check before saying it works
 
 1. `bretzel check <package>` — a plugin hook already runs it on each file
-   you write with the Write or Edit tools (not on files written from a shell); run it on the whole package at the end, fix every finding in
-   one pass, then once more.
+   you write, with Write or Edit or from the shell, and on what the
+   session changed before you hand back; run it on the whole package at
+   the end anyway, fix every finding in one pass, then once more.
 2. `bretzel probe <module>:app --route /path --out shots` — a real browser:
    JavaScript errors, failed requests, overflow, keyboard, both themes, and
-   screenshots. Look at the screenshots before reporting.
-3. `bretzel features <module>:app` and `bretzel impact <module>:app <files>`
-   — what a change touches, and which probes to run.
+   screenshots. Look at the screenshots before reporting. Once per machine:
+   `python -m pip install "bretzel[probe]"` then
+   `python -m playwright install chromium`. Not installed is not a reason
+   to skip it: install it, or say plainly the screen was not seen.
+3. `bretzel features <module>:app` — each feature, what it imports and who
+   uses it, and what to fix (`uses` that differ from the real imports). Run
+   it after the first wired screen, not only at the end.
+   `bretzel impact <module>:app <files>` — what a change touches, and which
+   probes to run.
 
 A green test is not a working screen: what is visual is judged on the
-screenshot. If something cannot be verified, say so plainly.
+screenshot, and spacing is measured in the browser, not guessed from it.
+What a screenshot cannot show — focus, a double click, what stays on
+screen after an action — is tried. If something cannot be verified, say so
+plainly.
 
 To build a new screen, follow the `bretzel-screen` skill: mockup first.

@@ -111,3 +111,20 @@ def test_a_page_already_at_docs_refuses_to_start() -> None:
     app.include(user_docs)
     with pytest.raises(RuntimeError, match="/docs"), TestClient(app):
         pass
+
+
+def test_an_included_fastapi_app_with_its_own_docs_refuses_to_start() -> None:
+    """An existing FastAPI app brings its /docs inside an included router,
+    where no route has a ``path`` to compare: the check asks the router."""
+    from fastapi import FastAPI
+
+    existing = FastAPI()
+
+    @existing.get("/api/books")
+    def books() -> list:
+        return []
+
+    app = make_app(api_docs=True)
+    app.fastapi.include_router(existing.router)
+    with pytest.raises(RuntimeError, match="/docs"), TestClient(app):
+        pass

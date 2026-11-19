@@ -48,6 +48,7 @@ from starlette.testclient import TestClient
 from bretzel import Bretzel, page, refreshable, ui
 from bretzel.components.base.attrs import ComponentUsageError
 from bretzel.components.base.testing import render_isolated
+from bretzel.render.later import whole_page
 from bretzel.runtime.protocol import HEADER_ZONES
 from bretzel.server.handlers import encode_action_id, sign_action
 from bretzel.state import AppState, field
@@ -316,7 +317,8 @@ def _refreshed_alone(client: TestClient, zone_id: str):
 
 @pytest.mark.parametrize("name", sorted(RIGHT_FORM))
 def test_the_zone_around_the_parent_refreshes_alone_to_the_byte(client, name: str) -> None:
-    page_soup = BeautifulSoup(client.get(f"/{name}").text, "lxml")
+    # The page as the browser holds it once loaded: its hidden pieces back.
+    page_soup = BeautifulSoup(whole_page(client.get(f"/{name}").text), "lxml")
     zone = page_soup.find(attrs={"bz-id": re.compile(r"^refresh_")})
     assert zone is not None, f"/{name} holds no zone: the probe is broken"
     fragment = _refreshed_alone(client, zone["bz-id"])

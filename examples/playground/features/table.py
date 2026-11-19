@@ -135,6 +135,15 @@ def events_panel() -> None:
     ui.table(columns=RICH_COLUMNS, rows=ISSUES,
              row_key="id", on_item_click=open_issue)
 
+    ui.text(
+        "A row that leads to a page — ``row_href=``: a click goes there, "
+        "Ctrl/⌘+click or a middle click open it in a new tab, and the "
+        "list stays.",
+        color="muted", size="sm",
+    )
+    ui.table(columns=PLAIN_COLUMNS, rows=ISSUES[:3], row_key="id",
+             row_href=lambda row: f"/table?issue={row['id']}")
+
     ui.divider()
 
     with ui.hstack(justify="between", align="center"):

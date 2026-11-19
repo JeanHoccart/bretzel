@@ -38,17 +38,23 @@ def test_a_new_project_installs_the_css_compiler(tmp_path: Path) -> None:
     assert project["dependencies"] == ["bretzel[css]"]
 
 
-def test_generated_application_refuses_a_public_default_secret(
+def test_generated_application_starts_in_production_without_a_public_secret(
     tmp_path: Path, monkeypatch
 ) -> None:
+    """No key in the code and none in the environment: the app still
+    starts, on a key of its own kept out of the sources."""
     destination = tmp_path / "production"
-    create_project(destination, display_name="Production")
+    files = create_project(destination, display_name="Production")
     monkeypatch.syspath_prepend(str(destination))
+    monkeypatch.chdir(destination)
     monkeypatch.delenv("BRETZEL_SECRET_KEY", raising=False)
     monkeypatch.setenv("BRETZEL_MODE", "prod")
 
-    with pytest.raises(RuntimeError, match="BRETZEL_SECRET_KEY"):
-        importlib.import_module("app.main")
+    imported = importlib.import_module("app.main")
+
+    kept = (destination / ".bretzel" / "secret_key").read_text().strip()
+    assert imported.app.config.secret_key == kept
+    assert not any(kept in f.read_text(encoding="utf-8") for f in files)
 
 
 def test_new_refuses_to_touch_an_existing_directory(tmp_path: Path) -> None:

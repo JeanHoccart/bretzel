@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi.openapi.docs import get_swagger_ui_html
 from starlette.responses import HTMLResponse
+from starlette.routing import Match
 
 from bretzel.render.shell import favicon_href
 from bretzel.server.security import CSP_HEADER, build_policy
@@ -99,8 +100,11 @@ def register_api_docs(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
     async def _api_docs() -> HTMLResponse:
         return HTMLResponse(html, headers=headers)
 
+    # Asked the way the router asks: a router included from an existing
+    # FastAPI app carries its own /docs and has no ``path`` to compare.
     for path in (DOCS_ROUTE, OPENAPI_ROUTE):
-        if sum(getattr(r, "path", None) == path for r in fastapi.routes) > 1:
+        scope = {"type": "http", "path": path, "method": "GET", "root_path": ""}
+        if sum(r.matches(scope)[0] is Match.FULL for r in fastapi.routes) > 1:
             raise RuntimeError(
                 f"`Bretzel(api_docs=True)` serves {path}, and the app already "
                 f"declares a route there. Move that route, or drop api_docs."

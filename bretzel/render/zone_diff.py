@@ -94,6 +94,24 @@ children in the DOM —
 so a change with no id around it still ships the overlay, whose panel
 the runtime then morphs in place (``directives.js``, ``bindTeleport``).
 
+A zone inside a zone
+--------------------
+The browser's copy of a zone is not always one render: a zone inside it
+redrawn alone, or patched, moved under the outer one's fingerprint. Diffed
+against that fingerprint, the outer zone would ship only what changed
+since ITS last render — or nothing, its render being the same — and the
+inner zone, covered by it, would not ship either: its change was lost
+without a word. So every version also keeps the fingerprint of each zone
+inside it (:attr:`ZonePrint.zones`), and the browser presents the
+fingerprint of each zone it holds: where an inner one differs, the outer
+version is recomposed with the inner version the browser holds
+(:func:`as_shown`) — the elements around it lose their *whole* and *loose*
+fingerprints, which no longer describe them. An inner fingerprint the
+cache does not know ships the outer zone whole. Conversely, an outer zone
+patched tells the browser the new fingerprint of each zone inside it:
+a patch that changed an inner zone's elements, not its root, would
+otherwise leave it the fingerprint of what it no longer shows.
+
 Every patch travels in a ``<template>``: alone at the top of a response,
 the HTML parser drops a ``<tr>``, and htmx reads out-of-band elements
 from a template.
@@ -105,9 +123,9 @@ import difflib
 import hashlib
 import re
 from collections import OrderedDict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from collections.abc import Set as AbstractSet
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from bretzel.core.serialize import VOID_ELEMENTS
@@ -135,6 +153,8 @@ Fingerprints = dict[str, bytes]
 MAX_CACHED_ELEMENTS = 100_000
 
 _DIGEST = 8
+#: A fingerprint no longer known (:func:`as_shown`): it matches no render.
+_UNKNOWN = bytes(_DIGEST)
 #: Where each fingerprint sits in an element's bytes.
 _WHOLE, _OWN, _FRAME, _LOOSE = (slice(i * _DIGEST, (i + 1) * _DIGEST) for i in range(4))
 #: An ``id`` a patch can name (``protocol.ADDRESSABLE_ID``, read by the
@@ -175,6 +195,9 @@ class ZonePrint:
     #: The elements whose children the browser can find one by one, every
     #: one addressed — their list can be patched (:func:`changes`).
     listable: set[str] = field(default_factory=set)
+    #: Every zone inside, the root included: its fingerprint as rendered
+    #: here — kept even when ``elements`` is ``None``.
+    zones: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True, frozen=True)
@@ -185,12 +208,15 @@ class ZoneVersion:
 
     elements: Fingerprints
     children: dict[str, tuple[str, ...]]
+    #: :attr:`ZonePrint.zones`.
+    zones: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def of(cls, printed: ZonePrint) -> ZoneVersion:
         """The version a whole render describes (its ids must not repeat)."""
         assert printed.elements is not None
-        return cls(printed.elements, {k: v for k, v in printed.children.items() if v})
+        return cls(printed.elements, {k: v for k, v in printed.children.items() if v},
+                   printed.zones)
 
 
 @dataclass(slots=True)
@@ -345,6 +371,8 @@ class Fingerprinter:
                             if refs else whole_digest)
             if key is None:
                 return whole_digest, own_digest, tuple(refs), False, loose_digest
+            if DATA_ZONE in node.attrs and mark[:1] == b"#":
+                printed.zones[key] = whole_digest.hex()
             if printed.elements is not None:
                 if key in printed.elements:
                     printed.elements = None
@@ -429,6 +457,78 @@ def holding(printed: ZonePrint, root: Element, names: AbstractSet[str]) -> set[s
                 found.add(near)
         stack.extend((child, near) for child in getattr(node, "children", ()) or ())
     return found
+
+
+def drifted(zones: Mapping[str, str], root_id: str, presented: Mapping[str, str]) -> bool:
+    """Does the browser hold, inside zone ``root_id``, a zone with another
+    fingerprint than ``zones`` says? Then its copy is not that version."""
+    return any(zone != root_id and presented.get(zone) != digest
+               for zone, digest in zones.items())
+
+
+def inner_version(printed: ZonePrint, zone_id: str) -> ZoneVersion | None:
+    """The version of the zone ``zone_id`` as ``printed`` renders it inside
+    its parent — what that zone holds once a patch of the parent reached it,
+    cut out of the parent's fingerprints rather than walked again. ``None``
+    when the parent's ids repeat."""
+    if printed.elements is None or zone_id not in printed.elements:
+        return None
+    keys = [zone_id]
+    for key in keys:      # grows while walked: the subtree
+        keys.extend(printed.children.get(key, ()))
+    return ZoneVersion({k: printed.elements[k] for k in keys},
+                       {k: printed.children[k] for k in keys if printed.children.get(k)},
+                       {k: printed.zones[k] for k in keys if k in printed.zones})
+
+
+def as_shown(held: ZoneVersion, root_id: str, presented: Mapping[str, str],
+             maps: ZoneMaps | SessionZoneMaps | None) -> ZoneVersion | None:
+    """The version of zone ``root_id`` the browser actually shows.
+
+    ``held`` is the version its fingerprint names; ``presented``, the
+    fingerprint the browser gives for each zone it holds. Each zone inside
+    whose fingerprint differs from the one in ``held`` was redrawn or
+    patched since (cf. the module docstring, "A zone inside a zone"): its
+    elements are replaced by those of the version it presents, outermost
+    first, and the elements around it lose their *whole* and *loose*
+    fingerprints — their *own* and *frame* only name it, and still hold.
+    ``None`` when a fingerprint presented is unknown, or absent: what the
+    browser holds there cannot be said, the zone must ship whole.
+    """
+    if not drifted(held.zones, root_id, presented):
+        return held
+    if maps is None:
+        return None
+    elements, children, zones = dict(held.elements), dict(held.children), dict(held.zones)
+    parents = {kid: key for key, kids in children.items() for kid in kids}
+    stack = [root_id]
+    while stack:
+        key = stack.pop()
+        digest = presented.get(key)
+        if key != root_id and key in zones and digest != zones[key]:
+            inner = maps.get(digest) if digest else None
+            if inner is None or key not in inner.elements:
+                return None
+            gone = [key]
+            for at in gone:       # grows while walked: the subtree held
+                gone.extend(children.get(at, ()))
+            for at in gone:
+                elements.pop(at, None)
+                children.pop(at, None)
+                zones.pop(at, None)
+            if not elements.keys().isdisjoint(inner.elements):
+                return None       # an id held twice: no patch can name it
+            elements.update(inner.elements)
+            children.update(inner.children)
+            zones.update(inner.zones)
+            parents.update((kid, at) for at, kids in inner.children.items() for kid in kids)
+            up = parents.get(key)
+            while up is not None:
+                was = elements[up]
+                elements[up] = _UNKNOWN + was[_OWN] + was[_FRAME] + _UNKNOWN
+                up = parents.get(up)
+        stack.extend(reversed(children.get(key, ())))
+    return ZoneVersion(elements, children, zones)
 
 
 def changes(printed: ZonePrint, root: Element, held: ZoneVersion,
@@ -680,8 +780,8 @@ def _stamp(node: Node, fingerprinter: Fingerprinter, maps: ZoneMaps | SessionZon
                 children = list(node.children)
             children[i] = new
     if children is not node.children:
-        node = (Element(node.tag, node.attrs, tuple(children))
-                if isinstance(node, Element) else FragmentNode(tuple(children)))
+        # ``replace`` keeps the node's kind: a ``LaterNode`` stays one.
+        node = replace(node, children=tuple(children))
     if isinstance(node, Element) and DATA_ZONE in node.attrs and node.attrs.get("id"):
         return stamped(node, fingerprinter.zone(node), maps)
     return node

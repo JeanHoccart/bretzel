@@ -33,6 +33,8 @@ from bretzel.runtime.protocol import (  # noqa: E402
     DATA_BZ_SCROLLING,
     DATA_NAV_HREF,
     ENVELOPE_TAG_NAME,
+    LATER_PIECE_ATTR,
+    LATER_PLACE_ATTR,
     NAV_PENDING_KEY,
     PATCH_TAG_NAME,
     PROTOCOL_VERSION,
@@ -61,6 +63,8 @@ _TOKENS = {
     "__BASE_ATTR__": DATA_BZ_BASE,
     "__NAV_PENDING_KEY__": NAV_PENDING_KEY,
     "__TITLE_EVENT__": TITLE_EVENT,
+    "__LATER_PLACE__": LATER_PLACE_ATTR,
+    "__LATER_PIECE__": LATER_PIECE_ATTR,
 }
 
 

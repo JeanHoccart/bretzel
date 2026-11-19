@@ -191,15 +191,23 @@ class TestDefaultAssets:
         body_open = out[out.index("<body") : out.index(">", out.index("<body"))]
         assert "x-data" not in body_open
 
-    def test_js_loaded_with_defer(self) -> None:
+    def test_js_preloaded_in_head_run_at_the_end_of_body(self) -> None:
         from bretzel.render import vendor
 
         out = _shell()
-        # Each <script src=...> must carry ``defer`` so DOM is ready.
+        head, body = out.split("</head>", 1)
+        # Fetched from the head, run once what shows is parsed — never
+        # ``defer``, which waits for the whole document (render/later.py).
         urls = [vendor.url_for(a) for a in vendor.vendored_assets()]
         urls.append(ROUTE_RUNTIME_JS)
         for url in urls:
-            assert f'<script defer src="{url}' in out
+            assert f'<link rel="preload" as="script" href="{url}' in head
+            assert f'<script src="{url}' in body
+        assert "defer" not in out
+        # In order, after the sink, and the runtime last.
+        sink = body.index('id="bz-sink"')
+        places = [body.index(f'<script src="{url}') for url in urls]
+        assert sink < places[0] and places == sorted(places)
 
     def test_css_urls_overridable(self) -> None:
         out = _shell(css_urls=["/custom/theme.css", "/custom/app.css"])

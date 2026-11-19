@@ -34,7 +34,7 @@ from bretzel.components.base.overlay_wiring import (
     show_attrs,
 )
 from bretzel.components.base.scope_wiring import server_sync_marker
-from bretzel.core.tree import Element, Node
+from bretzel.core.tree import Element, LaterNode, Node
 from bretzel.render import text
 
 
@@ -208,10 +208,18 @@ def render_modal_overlay(
     if dismissible and not persistent:
         attrs["bz-init"] = escape_init(open_expr)
 
+    # Closed at load, the panel is written after what shows by a full page
+    # (``render/later.py``) — the root, its scope and its listeners stay in
+    # place, so an ``open()`` before it arrives is not lost: the panel reads
+    # the state when it is put back.
     return Element(
         tag=component._tag,
         attrs=attrs,
-        children=(backdrop, container, *component._event_carrier_nodes()),
+        children=(
+            backdrop,
+            container if initial_open else LaterNode((container,)),
+            *component._event_carrier_nodes(),
+        ),
     )
 
 

@@ -11,6 +11,9 @@
  *   4. Wire the HTMX bridge listeners.
  *   5. Wire the OS color-scheme listener ($bz._osScheme signal).
  *   6. Scan the document : bz-data scopes + all bz-* directives.
+ *      A full page boots on what shows (its scripts close the visible
+ *      part, ``render/shell.py``); what it hides follows and is put back
+ *      at DOMContentLoaded (``takeLater``, ``render/later.py``).
  *   7. Wire the SSE EventSource + data-bz-subscribe-* zones.
  *   8. Add .bz-ready on <html> (releases [bz-data]{visibility:hidden}),
  *      dispatch bz:ready.
@@ -197,8 +200,11 @@
     clearTimeout(_refetchPending.get(zone));
     _refetchPending.set(zone, setTimeout(function () {
       // The zone's fingerprint rides along, as on an action POST: the
-      // server can then patch the zone instead of shipping it whole.
-      const headers = { "X-Bretzel-Zones": $bz._zoneEntry(zone) };
+      // server can then patch the zone instead of shipping it whole. The
+      // zones inside it too: one redrawn alone moved under its
+      // fingerprint (``render/zone_diff.py``, "A zone inside a zone").
+      const zones = [zone, ...zone.querySelectorAll("[data-bz-zone]")];
+      const headers = { "X-Bretzel-Zones": zones.map($bz._zoneEntry).join(",") };
       window.htmx.ajax("GET", url, { source: zone, swap: "none", headers: headers });
     }, REFETCH_WINDOW_MS + _refetchJitter));
   }
@@ -270,7 +276,112 @@
   }
   $bz._ensureSse = ensureSse;
 
+  // ── A page in two times (``render/later.py``) ────────────────────────
+  //
+  // What a full page hides at load — a closed dialog's panel, a menu's —
+  // arrives after what shows, each piece in a ``<template>`` at the end
+  // of ``<body>`` that names its place, an empty ``<template>`` where it
+  // stands. Put back, the DOM is the page's in one piece. ``settle`` wires
+  // a piece the runtime did not scan yet (the bridge's, as for a swap);
+  // without it, the boot's scan that follows covers it.
+  //
+  // Wired in short slices, not in one block: a page with a few hundred
+  // hidden elements would hold the main thread for a hundred milliseconds
+  // right after it shows. Nothing shows unwired — a piece is hidden as
+  // the server wrote it (a dialog closed by its classes, a menu still in
+  // its ``<template bz-teleport>``) — and the first gesture (a pointer, a
+  // key, a focus), an exchange about to start, or any other settle wires
+  // what is left at once, before the page's own handlers see it.
+  const unwired = [];
+  let wiring = false;
+  const GESTURES = ["pointerdown", "mousedown", "touchstart", "keydown", "focusin"];
+
+  function wireLater() {
+    if (wiring) return;
+    wiring = true;
+    try {
+      while (unwired.length) {
+        const job = unwired.shift();
+        job.nodes.forEach(function (node) {
+          if (node.isConnected) job.settle(node);
+        });
+      }
+    } finally {
+      wiring = false;
+    }
+    stopWatching();
+  }
+  $bz._wireLater = wireLater;
+
+  // A slice of pieces per task, ~12 ms: with one piece per task, the
+  // browser recomputes the page's styles between each, and a page of
+  // twenty pieces pays that twenty times; a slice keeps the task short and
+  // the pauses few.
+  const SLICE_MS = 12;
+  function wireOne() {
+    const start = performance.now();
+    wiring = true;
+    try {
+      while (unwired.length && performance.now() - start < SLICE_MS) {
+        const job = unwired.shift();
+        job.nodes.forEach(function (node) {
+          if (node.isConnected) job.settle(node);
+        });
+      }
+    } finally {
+      wiring = false;
+    }
+    if (unwired.length) setTimeout(wireOne, 0);
+    else stopWatching();
+  }
+
+  function watch() {
+    GESTURES.forEach(function (type) {
+      window.addEventListener(type, wireLater, true);
+    });
+    document.addEventListener("htmx:beforeRequest", wireLater, true);
+  }
+  function stopWatching() {
+    GESTURES.forEach(function (type) {
+      window.removeEventListener(type, wireLater, true);
+    });
+    document.removeEventListener("htmx:beforeRequest", wireLater, true);
+    if (!unwired.length && !$bz._laterWired) {
+      $bz._laterWired = true;
+      document.dispatchEvent(new CustomEvent("bz:later-wired"));
+    }
+  }
+
+  function takeLater(settle) {
+    const places = new Map();
+    document.querySelectorAll("template[data-bz-later-place]").forEach(function (place) {
+      places.set(place.getAttribute("data-bz-later-place"), place);
+    });
+    document.querySelectorAll("template[data-bz-later]").forEach(function (piece) {
+      const place = places.get(piece.getAttribute("data-bz-later"));
+      const nodes = Array.from(piece.content.children);
+      if (place) place.replaceWith(piece.content);
+      piece.remove();
+      if (place && settle) unwired.push({ settle: settle, nodes: nodes });
+    });
+    if (unwired.length) {
+      watch();
+      setTimeout(wireOne, 0);
+    } else {
+      stopWatching();
+    }
+  }
+
+  // The script that runs here, in ``<body>`` and in turn, closes what
+  // shows: the page boots on it now, without waiting for the pieces. In
+  // ``<head>``, or ``defer`` / ``async``, it waits for the whole document.
+  const here = document.currentScript;
+  const early = document.readyState === "loading" && !!here
+    && here.parentNode === document.body && !here.defer && !here.async;
+
   function boot() {
+    // The pieces are already there: back in place before the one scan.
+    if (!early) takeLater(null);
     let config = null;
     // "bz-envelope" is substituted at build time from protocol.py.
     const envelope = document.querySelector("bz-envelope");
@@ -404,6 +515,9 @@
     const _perf = window.performance && performance.mark ? performance : null;
     if (_perf) _perf.mark("bz:scan-start");
     $bz._scan(document.body);
+    // htmx processes the page at DOMContentLoaded: until then, a button of
+    // what shows would post nothing. Processing twice is a no-op for it.
+    if (early && window.htmx) window.htmx.process(document.body);
     if (_perf) {
       _perf.mark("bz:scan-end");
       try {
@@ -426,7 +540,14 @@
     document.dispatchEvent(new CustomEvent("bz:ready"));
   }
 
-  if (document.readyState === "loading") {
+  if (early) {
+    // Registered now, ahead of the modules' own DOMContentLoaded
+    // listeners: they find the page whole.
+    document.addEventListener("DOMContentLoaded", function () {
+      takeLater($bz._settle);
+    });
+    queueMicrotask(boot);
+  } else if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
   } else {
     // Already-ready DOM : defer one microtask so the rest of the
@@ -2833,7 +2954,13 @@
       for (let i = 0; i < text.length; i++) h = (((h << 5) + h) + text.charCodeAt(i)) >>> 0;
       return h.toString(16);
     }
+    // Also wires a piece a full page wrote after what shows (``index.js``).
+    $bz._settle = settle;
     function settle(node) {
+      // The pieces of the page still waiting to be wired (``index.js``,
+      // ``wireLater``) go first: a swap then finds them as they would be,
+      // and none is scanned twice. A no-op while they are being wired.
+      if ($bz._wireLater) $bz._wireLater();
       if (window.htmx) window.htmx.process(node);
       $bz._scan(node);
       // Adopt server-authoritative signals (``_serverSync`` keys) from
@@ -3101,6 +3228,46 @@
      * ``sendError``/``timeout`` would decrement the counter twice and
      * would extinguish a second request still in flight on the same
      * key. */
+    /* A click that ends a text selection inside the element it would
+     * fire is a selection, not an order: a drag over the text of a
+     * clickable card or row selects it and sends nothing, and so does
+     * the second click of a double click (the word it selects). A plain
+     * click collapses the selection on its press, and goes. */
+    function selectedIn(el) {
+      const sel = window.getSelection && window.getSelection();
+      if (!el || !sel || sel.isCollapsed || !sel.rangeCount) return false;
+      return el.contains(sel.anchorNode) || el.contains(sel.focusNode);
+    }
+    document.body.addEventListener("htmx:confirm", function (e) {
+      const ev = e.detail && e.detail.triggeringEvent;
+      if (ev && ev.type === "click" && selectedIn(e.detail.elt)) e.preventDefault();
+    });
+
+    /* A table row that leads to a page (``row_href=``, ``data-bz-href``)
+     * is followed like a link: Ctrl/⌘+click, Shift+click or a middle
+     * click open it in a new tab and the list stays — before the row's
+     * own action, which they do not fire; a plain click goes there, or
+     * runs the row's action when it has one. A click on a control inside
+     * the row, or one that ends a selection, is left alone. */
+    const ROW_CONTROLS = "a, button, input, select, textarea, label, [role=menuitem]";
+    function rowLink(e) {
+      const row = e.target.closest && e.target.closest("tr[data-bz-href]");
+      if (!row || e.target.closest(ROW_CONTROLS)) return;
+      if (e.type === "auxclick" && e.button !== 1) return;
+      const href = row.getAttribute("data-bz-href");
+      if (e.type === "auxclick" || e.ctrlKey || e.metaKey || e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(href, "_blank", "noopener");
+        return;
+      }
+      if (row.hasAttribute("hx-post") || selectedIn(row)) return;
+      e.preventDefault();
+      window.location.assign(href);
+    }
+    document.addEventListener("click", rowLink, true);
+    document.addEventListener("auxclick", rowLink, true);
+
     document.body.addEventListener("htmx:beforeRequest", function (e) {
       pendingKeys(e.detail.elt, e.detail).forEach(armPending);
       const busy = busyTarget(e.detail.elt, e.detail);
@@ -3141,7 +3308,10 @@
       for (const zid of Object.keys(hashes)) {
         const zone = document.querySelector('[data-bz-zone][bz-id="' + zid + '"]');
         if (!zone) continue;
-        if (zid in bases && zone.getAttribute("data-bz-h") !== bases[zid]) {
+        // Already the new fingerprint: the response stamped the zone's
+        // root itself (an outer zone's patch morphed it).
+        const vu = zone.getAttribute("data-bz-h");
+        if (zid in bases && vu !== bases[zid] && vu !== hashes[zid]) {
           zone.removeAttribute("data-bz-h");
         } else {
           zone.setAttribute("data-bz-h", hashes[zid]);
@@ -7454,6 +7624,11 @@
         this._highlight = shown[pos];
       },
       _key(e) {
+        // A key of an IME composition (Japanese, Chinese…) belongs to the
+        // IME: its Enter confirms the composition, not a tag. Both real
+        // forms — ``isComposing`` (Chrome, Firefox), and Safari's
+        // ``keyCode`` 229 after ``compositionend``.
+        if (e.isComposing || e.keyCode === 229) return;
         const k = e.key;
         const typed = String(this.query || "").trim();
         if (k === "ArrowDown" || k === "ArrowUp") {

@@ -99,7 +99,8 @@ def test_an_error_page_does_not_save_what_the_route_half_wrote() -> None:
     app.include(conflit)
     with TestClient(app) as client:
         client.post("/api/plus", headers=API)
-        page = client.post("/api/refus", headers=API)
+        # Asked by a browser: the answer is the @error_page, not JSON.
+        page = client.post("/api/refus", headers={**API, "Accept": "text/html"})
         assert page.status_code == 409
         assert "compteur à 1" in page.text, "la page d'erreur a lu l'écriture refusée"
         assert client.get("/api/lire").json()["n"] == 1, (

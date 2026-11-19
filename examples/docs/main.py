@@ -119,12 +119,16 @@ async def sitemap_xml() -> Response:
 async def llms_txt() -> Response:
     """The documentation map for language models (llmstxt.org).
 
-    An assistant asked about Bretzel reads this file before the pages:
-    one line per chapter, in the order of the sidebar. Read from
-    ``NAV``, the sidebar's own source, so a chapter added there is
-    listed here with no second edit.
+    An assistant asked about Bretzel reads this file before the pages.
+    The recipes come first, each with the address of its raw Markdown
+    and the need it answers: one complete app per common request is what
+    an agent should read before writing. Then one line per chapter, in
+    the order of the sidebar. Both are read from their own source — the
+    recipe files and ``NAV`` — so an addition there is listed here with
+    no second edit.
     """
-    from examples.docs.features.shell import NAV
+    from examples.docs.features.shell import NAV, RECIPES_SECTION
+    from examples.docs.recipes import RECIPES
 
     lines = [
         "# Bretzel documentation",
@@ -143,8 +147,17 @@ async def llms_txt() -> Response:
         "",
         "The whole API of the version this site runs, in one file generated "
         "from the code: https://docs.bretzel-py.dev/llms-full.txt",
+        "",
+        "## Recipes — read these first: one complete app per common request",
+        "",
+    ]
+    lines += [
+        f"- [{recipe.title}](https://docs.bretzel-py.dev/recipes/{recipe.slug}.md): {recipe.need}"
+        for recipe in RECIPES
     ]
     for section, items in NAV:
+        if section == RECIPES_SECTION:
+            continue  # listed first, above, as raw Markdown
         lines += ["", f"## {section.capitalize()}", ""]
         for label, href, _icon, _blurb in items:
             url = href if href.startswith("http") else f"https://docs.bretzel-py.dev{href}"
@@ -189,6 +202,7 @@ from examples.docs.features import (      # noqa: E402 — marks ramassées par 
     quickstart,
     reactivity_client,
     reactivity_server,
+    recipes,
     browser,
     tree,
     runtime,
@@ -201,12 +215,13 @@ from examples.docs.features import (      # noqa: E402 — marks ramassées par 
     stubs,
 )
 
-# L'ordre de la barre de gauche : DÉMARRER, LE CYCLE, CONSTRUIRE,
-# LES SUJETS, CHERCHER — puis les stubs et les erreurs.
+# L'ordre de la barre de gauche : DÉMARRER, RECETTES, LE CYCLE,
+# CONSTRUIRE, LES SUJETS, CHERCHER — puis les stubs et les erreurs.
 # ⚠️ `stubs` DOIT rester après les vrais chapitres : il lit leurs
 # marques `@page` pour savoir lesquels sont livrés.
 app.include(
     home, mockup, quickstart, how, compare, describe, check,
+    recipes,
     state_server, state_client,
     actions_server, actions_client,
     reactivity_server, reactivity_client,

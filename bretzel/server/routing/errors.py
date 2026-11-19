@@ -22,16 +22,23 @@ through the standard :func:`render_page` pipeline. If lookup fails
 — or the user page itself raises during render — we fall back to
 the self-contained :func:`default_error_page` HTML (no Tailwind /
 runtime dependencies, works even if the theme is broken).
+
+A page is for the browser. A caller that asks for no HTML — a program
+reading the app's JSON API, ``curl`` — gets FastAPI's own answer,
+``{"detail": …}`` in JSON, the shape an existing FastAPI app already
+promised its clients. The browser and the runtime's own requests ask
+for HTML (``Accept: text/html``, ``HX-Request``).
 """
 
 from __future__ import annotations
 
 import logging
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from bretzel.render.context import maybe_current_context
 from bretzel.render.pipeline import render_page
@@ -40,6 +47,7 @@ from bretzel.server.errors import (
     BretzelError,
     default_error_page,
 )
+from bretzel.server.navigation import response_is_read_by_htmx
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -71,8 +79,11 @@ def register_error_handlers(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
     ) -> Response:
         return await _render_error(
             bretzel_app,
+            request,
             exc.status_code,
             detail=str(exc.detail) if exc.detail else "",
+            raw=exc.detail,
+            headers=getattr(exc, "headers", None),
         )
 
     async def on_auth_required(
@@ -82,7 +93,7 @@ def register_error_handlers(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
         # No log : an anonymous visitor hitting a user-scoped page is a
         # normal outcome, not an incident. Detail stays out of the
         # response — "who is missing" is never the client's business.
-        return await _render_error(bretzel_app, 401, detail="")
+        return await _render_error(bretzel_app, request, 401)
 
     async def on_bretzel_error(
         request: Request,
@@ -92,7 +103,7 @@ def register_error_handlers(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
         # Surface the message in debug, strip in prod : keeps internal
         # invariants from leaking on a production page.
         detail = str(exc) if expose else ""
-        return await _render_error(bretzel_app, 500, detail=detail)
+        return await _render_error(bretzel_app, request, 500, detail=detail)
 
     fastapi.add_exception_handler(StarletteHTTPException, on_http_exception)
     fastapi.add_exception_handler(AuthRequiredError, on_auth_required)
@@ -105,7 +116,7 @@ def register_error_handlers(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
             exc: Exception,
         ) -> Response:
             _log.exception("Unhandled exception", exc_info=exc)
-            return await _render_error(bretzel_app, 500, detail="")
+            return await _render_error(bretzel_app, request, 500)
 
         fastapi.add_exception_handler(Exception, on_unhandled)
 
@@ -117,11 +128,20 @@ def register_error_handlers(fastapi: FastAPI, bretzel_app: BretzelApp) -> None:
 
 async def _render_error(
     app: BretzelApp,
+    request: Request,
     status_code: int,
     *,
     detail: str = "",
+    raw: object = None,
+    headers: dict[str, str] | None = None,
 ) -> Response:
     """Render the user-registered ``@error_page(code)`` page, or fallback.
+
+    A caller that asks for no HTML gets ``{"detail": …}`` instead (cf.
+    the module docstring): ``raw`` when the exception carried one, as
+    FastAPI answers it, else ``detail`` or the status's own phrase. The
+    browser and the runtime ask for HTML (``Accept: text/html``,
+    ``HX-Request``).
 
     Layered fallback :
 
@@ -129,6 +149,10 @@ async def _render_error(
     2. user handler exists but render raises → log + static fallback
     3. no user handler → static fallback
     """
+    if not ("text/html" in request.headers.get("accept", "")
+            or response_is_read_by_htmx(request)):
+        body = raw if raw is not None else detail or HTTPStatus(status_code).phrase
+        return JSONResponse({"detail": body}, status_code=status_code, headers=headers)
     page_fn = app._error_handlers.get(status_code)
     if page_fn is not None:
         ctx = maybe_current_context()

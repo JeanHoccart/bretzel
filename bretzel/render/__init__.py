@@ -38,6 +38,7 @@ from bretzel.render.partials import (
     render_partial,
 )
 from bretzel.render.pipeline import render_page
+from bretzel.render.row_memo import RowMemo
 from bretzel.render.serialize import serialize_html
 from bretzel.render.shell import (
     DEFAULT_HTMX_URL,
@@ -82,6 +83,7 @@ __all__ = [
     "drain_refresh_queue",
     "RenderResult",
     "ZoneMaps",
+    "RowMemo",
     # Document assembly
     "default_shell",
     "shell_sources",

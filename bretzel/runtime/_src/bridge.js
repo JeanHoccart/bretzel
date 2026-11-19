@@ -856,7 +856,13 @@
       for (let i = 0; i < text.length; i++) h = (((h << 5) + h) + text.charCodeAt(i)) >>> 0;
       return h.toString(16);
     }
+    // Also wires a piece a full page wrote after what shows (``index.js``).
+    $bz._settle = settle;
     function settle(node) {
+      // The pieces of the page still waiting to be wired (``index.js``,
+      // ``wireLater``) go first: a swap then finds them as they would be,
+      // and none is scanned twice. A no-op while they are being wired.
+      if ($bz._wireLater) $bz._wireLater();
       if (window.htmx) window.htmx.process(node);
       $bz._scan(node);
       // Adopt server-authoritative signals (``_serverSync`` keys) from
@@ -1124,6 +1130,46 @@
      * ``sendError``/``timeout`` would decrement the counter twice and
      * would extinguish a second request still in flight on the same
      * key. */
+    /* A click that ends a text selection inside the element it would
+     * fire is a selection, not an order: a drag over the text of a
+     * clickable card or row selects it and sends nothing, and so does
+     * the second click of a double click (the word it selects). A plain
+     * click collapses the selection on its press, and goes. */
+    function selectedIn(el) {
+      const sel = window.getSelection && window.getSelection();
+      if (!el || !sel || sel.isCollapsed || !sel.rangeCount) return false;
+      return el.contains(sel.anchorNode) || el.contains(sel.focusNode);
+    }
+    document.body.addEventListener("htmx:confirm", function (e) {
+      const ev = e.detail && e.detail.triggeringEvent;
+      if (ev && ev.type === "click" && selectedIn(e.detail.elt)) e.preventDefault();
+    });
+
+    /* A table row that leads to a page (``row_href=``, ``data-bz-href``)
+     * is followed like a link: Ctrl/⌘+click, Shift+click or a middle
+     * click open it in a new tab and the list stays — before the row's
+     * own action, which they do not fire; a plain click goes there, or
+     * runs the row's action when it has one. A click on a control inside
+     * the row, or one that ends a selection, is left alone. */
+    const ROW_CONTROLS = "a, button, input, select, textarea, label, [role=menuitem]";
+    function rowLink(e) {
+      const row = e.target.closest && e.target.closest("tr[data-bz-href]");
+      if (!row || e.target.closest(ROW_CONTROLS)) return;
+      if (e.type === "auxclick" && e.button !== 1) return;
+      const href = row.getAttribute("data-bz-href");
+      if (e.type === "auxclick" || e.ctrlKey || e.metaKey || e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(href, "_blank", "noopener");
+        return;
+      }
+      if (row.hasAttribute("hx-post") || selectedIn(row)) return;
+      e.preventDefault();
+      window.location.assign(href);
+    }
+    document.addEventListener("click", rowLink, true);
+    document.addEventListener("auxclick", rowLink, true);
+
     document.body.addEventListener("htmx:beforeRequest", function (e) {
       pendingKeys(e.detail.elt, e.detail).forEach(armPending);
       const busy = busyTarget(e.detail.elt, e.detail);
@@ -1164,7 +1210,10 @@
       for (const zid of Object.keys(hashes)) {
         const zone = document.querySelector('[data-bz-zone][bz-id="' + zid + '"]');
         if (!zone) continue;
-        if (zid in bases && zone.getAttribute("data-bz-h") !== bases[zid]) {
+        // Already the new fingerprint: the response stamped the zone's
+        // root itself (an outer zone's patch morphed it).
+        const vu = zone.getAttribute("data-bz-h");
+        if (zid in bases && vu !== bases[zid] && vu !== hashes[zid]) {
           zone.removeAttribute("data-bz-h");
         } else {
           zone.setAttribute("data-bz-h", hashes[zid]);

@@ -19,6 +19,28 @@ class TestValidation:
         with pytest.raises(ConfigError, match="secret_key is required"):
             BretzelConfig(secret_key="")
 
+    def test_without_a_key_the_project_keeps_its_own(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BRETZEL_SECRET_KEY", raising=False)
+        first = BretzelConfig.from_kwargs()
+        again = BretzelConfig.from_kwargs()
+        kept = (tmp_path / ".bretzel" / "secret_key").read_text().strip()
+        assert first.secret_key == again.secret_key == kept
+        assert len(kept) == 64
+
+    def test_the_environment_key_wins_and_writes_nothing(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("BRETZEL_SECRET_KEY", "e" * 16 + "0123456789abcdef")
+        assert BretzelConfig.from_kwargs().secret_key == "e" * 16 + "0123456789abcdef"
+        assert not (tmp_path / ".bretzel").exists()
+
+    def test_an_unwritable_project_says_how_to_give_a_key(self, tmp_path, monkeypatch) -> None:
+        (tmp_path / ".bretzel").write_text("a file where the cache folder goes")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BRETZEL_SECRET_KEY", raising=False)
+        with pytest.raises(ConfigError, match="BRETZEL_SECRET_KEY"):
+            BretzelConfig.from_kwargs()
+
     def test_secret_key_too_short(self) -> None:
         with pytest.raises(ConfigError, match="at least 16"):
             BretzelConfig(secret_key="short")
@@ -139,9 +161,10 @@ class TestFromKwargs:
         assert cfg.cors_origins == ("https://a.com", "https://b.com")
         assert cfg.trusted_hosts == ("a.com", "b.com")
 
-    def test_missing_env_secret_key_raises(
-        self, monkeypatch: pytest.MonkeyPatch
+    def test_missing_env_secret_key_falls_to_the_project_key(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
     ) -> None:
+        monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("BRETZEL_SECRET_KEY", raising=False)
-        with pytest.raises(ConfigError, match="secret_key"):
-            BretzelConfig.from_kwargs()
+        cfg = BretzelConfig.from_kwargs()
+        assert cfg.secret_key == (tmp_path / ".bretzel" / "secret_key").read_text()

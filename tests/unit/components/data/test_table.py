@@ -250,6 +250,27 @@ class TestClickableRows:
         assert "," not in trigger
         assert "]" not in trigger.split("click[", 1)[1][:-1]
 
+    def test_a_row_that_leads_to_a_page_is_a_link(self) -> None:
+        rows = [{"id": 1, "name": "A", "age": 1}, {"id": 2, "name": "B", "age": 2}]
+        with render_isolated():
+            out = serialize(Table(columns=_basic_cols(), rows=rows, id="t",
+                                  row_href=lambda row: f"/people/{row['id']}").render())
+        assert 'data-bz-href="/people/1"' in out and 'data-bz-href="/people/2"' in out
+        # No action of its own: a link for the keyboard and the reader.
+        assert out.count('role="link"') == 2
+        assert "hx-post=" not in out
+        assert "cursor-pointer" in out
+
+    def test_a_row_with_an_action_keeps_it_and_its_address(self) -> None:
+        rows = [{"id": 1, "name": "A", "age": 1}]
+        with render_isolated():
+            out = serialize(Table(columns=_basic_cols(), rows=rows, id="t",
+                                  on_item_click=_click_handler,
+                                  row_href=lambda row: f"/people/{row['id']}").render())
+        assert 'data-bz-href="/people/1"' in out
+        assert "hx-post=" in out and 'role="button"' in out
+        assert 'role="link"' not in out
+
     def test_non_clickable_table_has_no_row_action(self) -> None:
         with render_isolated():
             t = Table(columns=_basic_cols(),

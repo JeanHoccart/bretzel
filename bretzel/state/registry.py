@@ -237,6 +237,10 @@ class StateRegistry:
 
     # ── Cache primitives — used by the metaclass on every State() call ──
 
+    def obtained_count(self) -> int:
+        """How many state instances this request has obtained so far."""
+        return len(self._instances)
+
     def get_cached(self, cls: type[State], key: str = "default") -> State | None:
         return self._instances.get((cls, key))
 

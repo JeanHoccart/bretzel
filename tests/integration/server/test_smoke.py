@@ -35,11 +35,11 @@ def smoke_action(message: str = "") -> None:
 
 
 class TestConstruction:
-    def test_secret_key_required(self) -> None:
-        import pytest
-
-        with pytest.raises(Exception):
-            Bretzel()  # no secret_key, no env override → ConfigError
+    def test_without_a_secret_key_the_app_keeps_its_own(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BRETZEL_SECRET_KEY", raising=False)
+        app = Bretzel()  # no secret_key, no env override → the project's key
+        assert app.config.secret_key == (tmp_path / ".bretzel" / "secret_key").read_text()
 
     def test_basic_app_starts(self) -> None:
         app = Bretzel(secret_key=_SECRET, mode="dev")

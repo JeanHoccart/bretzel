@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import inspect
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from functools import partial
 from typing import Any
 
@@ -46,6 +46,7 @@ from bretzel.runtime.protocol import (
     ROUTE_ACTION,
     SINK_ELEMENT_ID,
     WIRE_ID_SEP,
+    posted_action,
 )
 from bretzel.state import ClientExpression
 
@@ -268,16 +269,6 @@ def action_attrs(
     if ts:
         attrs[DATA_BZ_TS] = ts
     return attrs
-
-
-def posted_action(attrs: Mapping[str, Any]) -> str | None:
-    """The action id these attributes post (:func:`action_attrs`'s
-    ``hx-post``), or ``None``. Read here, next to where it is written."""
-    post = attrs.get("hx-post")
-    prefix = f"{ROUTE_ACTION}/"
-    if isinstance(post, str) and post.startswith(prefix):
-        return post[len(prefix):]
-    return None
 
 
 def item_action_attrs(

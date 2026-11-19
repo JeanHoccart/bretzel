@@ -7,6 +7,83 @@ change between alpha releases.
 
 ## [Unreleased]
 
+## [0.1.0a9] - 2026-11-19
+
+### Added
+
+- `ui.table(row_href=…)` and `ui.datatable(row_href=…)`: where a row leads.
+  A click goes there; Ctrl/⌘+click, Shift+click or a middle click open it
+  in a new tab and the list stays. With `on_item_click` too, a plain click
+  runs the action and the modified clicks still open the address.
+- `bretzel describe --all`: the index followed by the module API, the
+  keyword-argument routing and the bindable matrix.
+- Six recipes, one complete app each, in Markdown: an edit dialog, a list
+  shared live, a password login, pages with a navbar, a JSON route, and
+  screens added to an existing FastAPI app. The docs serve them raw at
+  `/recipes/<slug>.md` and as pages, and list them first in `llms.txt`.
+
+### Changed
+
+- `ui.number_input(wheel=…)` is off by default: a focused field changed
+  its value, in silence, under a wheel meant to scroll the page. Pass
+  `wheel=True` to keep it.
+
+- A page arrives in two writes: what is seen first, then what is hidden —
+  a closed dialog or drawer, a closed menu or popover — at the end of the
+  body, in the same response. Nothing to change in the app. Measured on a
+  real app: the page is ready 344 → 297 ms locally, 356 → 313 ms on a slow
+  network. The response carries `X-Accel-Buffering: no`, so nginx passes
+  each write on. The hidden part is then wired in short slices instead of
+  one block, and the first click, key or focus wires what is left before
+  the page's handlers see it: the load ends 40 to 140 ms sooner on the
+  two apps measured.
+- `ui.table` (and `ui.datatable`) does not rebuild a keyed row whose value,
+  columns and state read have not changed: 393 → 297 ms of server time to
+  change one status in a helpdesk list. When every row changes (new
+  columns, a new page of results), the memo costs next to nothing: the
+  state values the rows read are read once per table. In `mode="dev"` the
+  row is rebuilt
+  and compared instead, and `RowMismatchError` names the row whose
+  `render=` reads something else (the time, a query, a global).
+
+- `bretzel describe` without a name prints the component index and the
+  module names — about a third of the former output. The rest moved to
+  `describe --all`.
+- Without `secret_key` nor `BRETZEL_SECRET_KEY`, an app generates its own
+  key on the first start and keeps it in `.bretzel/secret_key` (readable
+  by its owner only): it starts in production without a key in the code,
+  and sessions survive a restart. `bretzel new` no longer writes key
+  handling in `app/main.py`.
+- `bretzel probe` names both installs it needs when one is missing:
+  `pip install "bretzel[probe]"` and `playwright install chromium`.
+- Claude Code plugin 0.1.1: `bretzel check` also runs on the files a shell
+  command wrote, and on what the session changed before the agent hands
+  back.
+
+### Fixed
+
+- A drag across the text of a clickable card or table row selects it and
+  sends nothing; the second click of a double click neither. The text of
+  a clickable row is selectable again: an address is copied from a list.
+- `ui.tags_input` and `ui.combobox` leave the keys of an IME composition
+  (Japanese, Chinese…) to the IME: the Enter that confirms the characters
+  no longer makes a tag or picks an option.
+
+- An existing FastAPI app keeps its API once Bretzel is added to it: a
+  request without any cookie (a program calling the API) no longer needs
+  the CSRF token — the Origin check stays — and an HTTP error answers
+  FastAPI's `{"detail": …}` JSON to a caller that does not ask for HTML.
+  A browser still gets the error page. A program that keeps cookies (a
+  `requests.Session` that fetched a page first) still needs the token, as
+  in Django or Rails, but the 403 now tells it why in JSON and names its
+  three ways through: no cookie, a bearer token, or the token echoed from
+  a page. A route of the app on `/docs`,
+  including in an included router, is refused at start-up when
+  `api_docs=True`.
+- A refreshable inside another one: a change redrawn alone in the inner
+  one is no longer lost when the outer one redraws next (a reply that
+  stayed open after Send).
+
 ## [0.1.0a8] - 2026-11-15
 
 ### Added
